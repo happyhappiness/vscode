@@ -1,5 +1,5 @@
 #include <iostream>
-#include <fstream.h>
+#include <fstream>
 #include <string>
 #include <regex>
 
@@ -22,13 +22,15 @@ int main()
         }
     }
 
-    ///retrieve log lines
+    cout << "read over" << endl;
 
-    ///retrieve add lines
+    //retrieve log lines
 
-    ///retrieve delete lines
+    //retrieve add lines
 
-    ///retrieve move lines
+    //retrieve delete lines
 
-    ///retrieve content change lines
+    //retrieve move lines
+
+    //retriesve content change lines
 }
