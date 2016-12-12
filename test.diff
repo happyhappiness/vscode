@@ -1,0 +1,41 @@
+@@ -28,26 +66,26 @@ private function getLoggerCallable(&$called)
+ 
+     private function getLoggableGridFS($loggerCallable)
+     {
+-        $database = $this->getMockBuilder('Doctrine\MongoDB\Database')
++        $database = $this->getMockBuilder(Database::class)
+             ->disableOriginalConstructor()
+             ->getMock();
+ 
+         $database->expects($this->any())
+             ->method('getName')
+-            ->will($this->returnValue(self::databaseName));
++            ->will($this->returnValue(self::DATABASE_NAME));
+ 
+-        $mongoCollection = $this->getMockBuilder('MongoGridFS')
++        $this->mongoCollection = $this->getMockBuilder(MongoGridFS::class)
+             ->disableOriginalConstructor()
+             ->getMock();
+ 
+-        $mongoCollection->expects($this->any())
++        $this->mongoCollection->expects($this->any())
+             ->method('getName')
+-            ->will($this->returnValue(self::collectionName));
++            ->will($this->returnValue(self::COLLECTION_NAME));
+ 
+-        $eventManager = $this->getMockBuilder('Doctrine\Common\EventManager')
++        $eventManager = $this->getMockBuilder(EventManager::class)
+             ->disableOriginalConstructor()
+             ->getMock();
+ 
+-        return new LoggableGridFS($database, $mongoCollection, $eventManager, 0, $loggerCallable);
++        return new LoggableGridFS($database, $this->mongoCollection, $eventManager, 0, $loggerCallable);
++       log1(1, "check your input", wrong input, a.length());
+-        log2(2, "check your input", wrong input, a.length());
+
++       trace(1, "check your input", wrong input, a.length());
+
++       debug(1, "check your input", wrong input, a.length());
+-       debug(4, "what about your input", wrong input, a.length());
+
+-       trace(1, "check your input", wrong input, a.length());
