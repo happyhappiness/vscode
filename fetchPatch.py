@@ -1,4 +1,3 @@
-#!/usr/bin/python
 #-*-coding: utf-8 -*-
 
 from pygithub3 import Github
@@ -7,6 +6,7 @@ import sys
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
+
 
 """
 @ param  github parameters gh and sha of commit and fileWriter
@@ -50,7 +50,8 @@ def deal_commit(gh, sha, writer):
        
         # info about patch
         # data_row.append(changedfile.patch)
-        # print changedfile.patch
+        print changedfile.filename
+        print changedfile.patch
         data_row.append(changedfile.additions)
         data_row.append(changedfile.deletions)
         
@@ -63,26 +64,30 @@ def deal_commit(gh, sha, writer):
 @ return flag 
 @ involve save commit info of given repos
 """
-def fetch_commit(user, repos):
+def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
+
     # initiate csvfile which store the commit info
-    csvfile = file('commit_mongodb_mongo.csv', 'wb')
+    # csvfile = file('commit_mongodb_mongo.csv', 'wb')
+    csvfile = file('test_commit.cvs', 'wb')
     writer = csv.writer(csvfile)
-    # write the table header
-    # writer.writerow([ 'sha', 'url', 'message', 'author', 'authorId', 'additions', 'deletions', 'fileInfo'])
+
+    # write table title 
     writer.writerow([ 'sha', 'url', 'message', 'additions', 'deletions', 'fileInfo'])
 
-    # fetch all the commits of given repos
-    commits = gh.repos.commits.list()
-    count = 1
-    for commit in commits.iterator():
-        if count % 10 == 0:
-            print ('now proccessing the no. %d commits' %count)
-        # invoke the deal_commit function
-        deal_commit(gh, commit.sha, writer)
-        count = count + 1;
+    # # fetch all the commits of given repos
+    # commits = gh.repos.commits.list()
+    # count = 1
+    # for commit in commits.iterator():
+    #     if count % 10 == 0:
+    #         print ('now proccessing the no. %d commits' %count)
+    #     # invoke the deal_commit function
+    #     deal_commit(gh, commit.sha, writer)
+    #     count = count + 1;
+    commit = gh.repos.commits.get(commit_sha)
+    deal_commit(gh, commit_sha, writer)
 
     # close the commit file 
     csvfile.close()
@@ -95,6 +100,8 @@ main function
 user = 'mongodb'
 repos = 'mongo'
 
+commit_sha = '9ba33ad1fb3a27f24de309da25e84b3175aa4c82'
+
 # with function to retieve all the commits of given path
-fetch_commit(user, repos)
+fetch_commit(user, repos, commit_sha)
 

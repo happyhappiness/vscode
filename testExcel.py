@@ -1,5 +1,9 @@
+#-*-coding: utf-8 -*-
 # import csv
 
+"""
+test for excel
+"""
 # csvfile = file('test.csv', 'ab')
 # writer = csv.writer(csvfile)
 # writer.writerow(['id', 'url', 'keywords'])
@@ -16,6 +20,47 @@
 #     for row in reader:
 #        print row
 
-str = 'this is string example....wow!!! this is really string'
-str.replace('is', 'was')
-print str
+"""
+test for string replace
+"""
+# str = 'this is string example....wow!!! this is really string'
+# str.replace('is', 'was')
+# print str
+
+"""
+test for regular expression
+"""
+# import re
+
+# patch = '+ log2("check your input", num, a);'
+
+# # calculate the parameter num by counting occurence of ','
+# param_num = patch.count(',')
+# print param_num
+
+# # generate parameter pattern based on parameter number
+# param_pattern = '\('
+# for i in range(param_num):
+#     param_pattern = param_pattern + '(.*),'
+# param_pattern = param_pattern + '(.*)\);$'
+
+# # generate the log pattern with combination of param_pattern
+# pattern = '^(-|\+)(.*(?:log|debug|print|printf|writeline|write|error).*)' + param_pattern
+
+# # match and output the result
+# match_result = re.match(pattern, patch, re.I)
+# if match_result:
+#     group_num = param_num + 3
+#     for i in range(group_num):
+#         print match_result.group(i+1).strip()
+# else:
+#     print "no match"
+
+
+"""
+general test
+"""
+a = "asajskas (asjasiadlasdj;"
+print a
+b = a[a.index('('):]
+print b
