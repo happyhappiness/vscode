@@ -71,7 +71,7 @@ def fetch_commit(user, repos, commit_sha=''):
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
-    csvfile = file('test_commit.cvs', 'wb')
+    csvfile = file('data/test_commit.csv', 'wb')
     writer = csv.writer(csvfile)
 
     # write table title 

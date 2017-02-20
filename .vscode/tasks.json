@@ -3,6 +3,6 @@
     "version": "0.1.0",
     "command": "clang++",
     "isShellCommand": true,
-    "args": ["-g","${workspaceRoot}/main.cpp","-std=c++11"],
+    "args": ["-g","${file}","-std=c++11"],
     "showOutput": "always"
 }
