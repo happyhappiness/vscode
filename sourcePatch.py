@@ -136,7 +136,7 @@ def deal_commit(gh, sha, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
