@@ -45,13 +45,13 @@ def deal_commit(gh, sha, writer):
             source = gh.git_data.blobs.get(changedfile.sha).content
             # decode to retrieve the source file
             source = base64.b64decode(source)   
-            # remove some statement for further analyze
-            source_modified = re.sub('#.*', ' ', source)
-            source_modified = re.sub('using .*', ' ', source_modified)
-            source_modified = re.sub('[a-zA-Z0-9]*::', ' ', source_modified)
+            # # remove some statement for further analyze
+            # source_modified = re.sub('#.*', ' ', source)
+            # source_modified = re.sub('using .*', ' ', source_modified)
+            # source_modified = re.sub('[a-zA-Z0-9]*::', ' ', source_modified)
             # write to temp file
             temp_file = open('data/temp.cpp','wb')
-            temp_file.write(source_modified)
+            temp_file.write(source)
             temp_file.close()
             
             # divide mutiline string into single lines 
@@ -79,47 +79,60 @@ def deal_commit(gh, sha, writer):
                     # data_row.append(changedfile.sha)
                     # # file url
                     # data_row.append(file_url)
-                    # log_statement
-                    data_row.append(is_log_change.group())
                     # change_type
-                    data_row.append(is_log_change.group(1).strip())
+                    change_type = is_log_change.group(1).strip()
+                    data_row.append(change_type)
+                    # log_statement
+                    log_statement = is_log_change.group().strip()
+                    log_statement = log_statement[1:].strip()
+                    data_row.append(log_statement)
                     # # log_function 
                     # data_row.append(is_log_change.group(2).strip())
                     # # log parameters after removing some symbols
                     # log_params = is_log_change.group(3).split(',|)|;')
                     # data_row.append(log_params)
                     # log location
-                    # backtrace to find the location
+                    # backtrace to find the location and further retrieve the context
                     line_back = line_count
                     while(line_back != 0):
                         line_back = line_back - 1
                         log_loc = re.match('^@@.*\+(.*),.*@@', patch[line_back])
                         if(log_loc):
-                            log_loc = int(log_loc.group(1)) + line_count - 1
+                            log_loc = int(log_loc.group(1)) + line_count 
                             loc_info = commands.getoutput('cat data/temp.cpp | xargs -0 find-func-decls ' + str(log_loc))
                             loc_info = loc_info.split('@')
                             # formal output should be array with len = 4
-                            if (len(loc_info) == 4):                                
+                            Loc_info_len = len(loc_info)
+                            if (Loc_info_len > 4):                                
                                 if (isinstance(source, str)):
                                     source = source.split('\n');
                                 # loc info
-                                start_loc = int(loc_info[1])
-                                end_loc = int(loc_info[2])
+                                start_loc = int(log_loc[Loc_info_len - 3])
+                                end_loc = int(log_loc[Loc_info_len - 2])
                                 # whole context
                                 context = conca_element(source, start_loc - 1, end_loc)
                                 data_row.append(context)
                                 # upper context(no log)
-                                context = conca_element(source, start_loc - 1, log_loc - 1) 
-                                data_row.append(context)
-                                # upper context(no log)
-                                context = conca_element(source, log_loc, end_loc)
-                                data_row.append(context)
-                                # downer context
-                                data_row.append(log_loc - start_loc + 1) # corresponding location in context
+                                log_loc = context.find(log_statement)
+                                # break if wrong context
+                                if(log_loc == -1):
+                                    break
+                                context_up = context[0:log_loc - 1]
+                                data_row.append(context_up)
+                                # downer context(no log)
+                                log_loc = context.find('\n', log_loc)
+                                # break if wrong context
+                                if(log_loc == -1):
+                                    break
+                                context_down = context[log_loc + 1:]
+                                data_row.append(context_down)
+                                # write back to file if get useful context
+                                writer.writerow(data_row)
+                                # data_row.append(log_loc) # corresponding location in context
                                 break             
                         
-                    # write back to file
-                    writer.writerow(data_row)
+                    # # write back to file
+                    # writer.writerow(data_row)
 
                 # increment line_count
                 line_count = line_count + 1
@@ -136,7 +149,7 @@ def deal_commit(gh, sha, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
