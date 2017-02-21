@@ -56,8 +56,9 @@ def deal_commit(gh, sha, writer):
             
             # divide mutiline string into single lines 
             patch = changedfile.patch.split('\n')
+            patch_delete = [0 for i in range(len(patch))]
               
-            line_count = 0
+            line_count = 0 # line of log statement
             # deal with each line of patch
             for line in patch:
                 
@@ -86,6 +87,12 @@ def deal_commit(gh, sha, writer):
                     log_statement = is_log_change.group().strip()
                     log_statement = log_statement[1:].strip()
                     data_row.append(log_statement)
+                    # change type with - is not dealed and write back without context info
+                    if(change_type == '-'):                        
+                        writer.writerow(data_row)
+                        patch_delete[line_count] = 1
+                        line_count = line_count + 1
+                        continue
                     # # log_function 
                     # data_row.append(is_log_change.group(2).strip())
                     # # log parameters after removing some symbols
@@ -94,16 +101,18 @@ def deal_commit(gh, sha, writer):
                     # log location
                     # backtrace to find the location and further retrieve the context
                     line_back = line_count
+                    line_delete = 0
                     while(line_back != 0):
-                        line_back = line_back - 1
-                        log_loc = re.match('^@@.*\+(.*),.*@@', patch[line_back])
+                        line_back = line_back - 1 
+                        line_delete = line_delete + patch_delete[line_back] # line deleted
+                        log_loc = re.match('^@@.*\+(.*),.*@@', patch[line_back]) # line number of description
                         if(log_loc):
-                            log_loc = int(log_loc.group(1)) + line_count 
+                            log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_delete)
                             loc_info = commands.getoutput('cat data/temp.cpp | xargs -0 find-func-decls ' + str(log_loc))
                             loc_info = loc_info.split('@')
                             # formal output should be array with len = 4
                             Loc_info_len = len(loc_info)
-                            if (Loc_info_len > 4):                                
+                            if (Loc_info_len >= 4):                                
                                 if (isinstance(source, str)):
                                     source = source.split('\n');
                                 # loc info
@@ -149,7 +158,7 @@ def deal_commit(gh, sha, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
@@ -157,7 +166,7 @@ def fetch_commit(user, repos, commit_sha=''):
     writer = csv.writer(csvfile)
 
     # write table title 
-    writer.writerow([ 'commit_message', 'file_name', 'log_statement', 'change_type', 'loc_info'])
+    writer.writerow([ 'commit_message', 'file_name', 'log_statement', 'change_type', 'context_info'])
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list()
