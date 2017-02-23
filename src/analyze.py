@@ -30,20 +30,20 @@ def conca_element(arr, begin, end):
 """
 def deal_line(line, log_index, loc_index, file_index):
 
-    loc_info = commands.getoutput('cat download/' + line[file_index] \
+    context_info = commands.getoutput('cat download/' + line[file_index] \
                       + '| xargs -0 find-func-decls ' + line[loc_index])
-    loc_info = loc_info.split('@')
+    context_info = context_info.split('@')
     # get source file with store_name
     source_file = open(line[file_index], 'rb')
     source = source_file.readlines()
     source = source.split('\n')
     source_file.close()
     # formal output should be array with len = 4
-    loc_info_len = len(loc_info)
-    if loc_info_len >= 4:
+    context_info_len = len(context_info)
+    if context_info_len >= 4:
         # loc info
-        start_loc = int(loc_info[loc_info_len - 3])
-        end_loc = int(loc_info[loc_info_len - 2])
+        start_loc = int(context_info[context_info_len - 3])
+        end_loc = int(context_info[context_info_len - 2])
         # whole contex
         context = conca_element(source, start_loc - 1, end_loc)
         # remove log_loc, store_name and add context, context_up, context_down
@@ -86,6 +86,9 @@ def analyze(user, repos):
     for line in lines:
         if count % 10 == 0:
             print "now analyze the No. %d record" %count
+        # do not deal with '-'
+        if line[3] == '-':
+            continue
         # call deal_line to retrieve location info
         line = deal_line(line, 4, 5, 6)
         # write table title

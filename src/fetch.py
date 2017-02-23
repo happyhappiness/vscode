@@ -116,15 +116,15 @@ def deal_commit(gh, sha, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
-    csvfile = file('data/fetch_' + user + repos + '.csv', 'wb')
-    writer = csv.writer(csvfile)
+    fetch = file('data/fetch_' + user + repos + '.csv', 'wb')
+    fetch_writer = csv.writer(fetch)
 
-    # write table title (4:change_type,5:log_loc, 6:store_name)
-    writer.writerow(['commit_sha','commit_message', 'file_name', \
+    # write table title (3:change_type, 4:log_statement, 5:log_loc, 6:store_name)
+    fetch_writer.writerow(['commit_sha', 'commit_message', 'file_name', \
                         'change_type', 'log_statement', 'log_loc', 'store_name'])
 
     # fetch all the commits of given repos
@@ -132,14 +132,14 @@ def fetch_commit(user, repos, commit_sha=''):
     count = 1
     for commit in commits.iterator():
         if count % 10 == 0:
-            print ('now proccessing the no. %d commit' %count)
+            print 'now proccessing the no. %d commit' %count
         # invoke the deal_commit function
-        deal_commit(gh, commit.sha, writer)
-        count = count + 1;
+        deal_commit(gh, commit.sha, fetch_writer)
+        count = count + 1
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file 
-    csvfile.close()
+    fetch_writer.close()
 
 """
 main function
