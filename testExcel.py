@@ -1,24 +1,26 @@
 #-*-coding: utf-8 -*-
-# import csv
+import csv
 
 """
 test for excel
 """
-# csvfile = file('test.csv', 'ab')
-# writer = csv.writer(csvfile)
-# writer.writerow(['id', 'url', 'keywords'])
-# data = [
-#   ('1', 'http://www.xiaoheiseo.com/', '小黑'),
-#   ('2', 'http://www.baidu.com/', '百度'),
-#   ('3', 'http://www.jd.com/', '京东')
-# ]
-# writer.writerows(data)
-# csvfile.close()
+csvfile = file('data/test.csv', 'ab')
+writer = csv.writer(csvfile)
+writer.writerow(['id', 'url', 'keywords'])
+data = [
+  ('1', 'http://www.xiaoheiseo.com/', '小黑'),
+  ('2', 'http://www.baidu.com/', '百度'),
+  ('3', 'http://www.jd.com/', '京东')
+]
+writer.writerows(data)
+csvfile.close()
 
-# with open('test.csv','rb') as csvfile:
-#     reader = csv.reader(csvfile)
-#     for row in reader:
-#        print row
+csvfile = file('data/test.csv','rb')
+reader = csv.reader(csvfile)
+for row in reader:
+    print row[0]
+    print row
+csvfile.close()
 
 """
 test for string replace
@@ -60,7 +62,7 @@ test for regular expression
 """
 general test
 """
-a = "asajskas (asjasiadlasdj;"
-print a
-b = a[a.index('('):]
-print b
+# a = "asajskas (asjasiadlasdj;"
+# print a
+# b = a[a.index('('):]
+# print b
