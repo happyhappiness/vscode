@@ -9,7 +9,9 @@ using namespace clang;
 class FindLocatedFunctionVisitor : public RecursiveASTVisitor<FindLocatedFunctionVisitor>
 {
 public:
-	explicit FindLocatedFunctionVisitor(ASTContext* Context, unsigned int LineNum) : Context(Context), LineNumber(LineNum){}
+	explicit FindLocatedFunctionVisitor(ASTContext* Context, unsigned int LineNum) : Context(Context), LineNumber(LineNum){
+		 SrcManager = &(Context->getSourceManager());
+	}
 
 	// bool VisitCXXRecordDecl(CXXRecordDecl *Declaration)
 	// {
@@ -25,13 +27,12 @@ public:
 	bool VisitFunctionDecl(FunctionDecl *Declaration) 
 	{ 
 		// if (Declaration->isThisDeclarationADefinition() ) 
-		if(Declaration->isDefined())
+		if(Declaration->isDefined() )
 		{ 
-		    
+
 		      FullSourceLoc StartLocation = Context->getFullLoc(Declaration->getLocStart());
 		      FullSourceLoc EndLocation = Context->getFullLoc(Declaration->getLocEnd());
-		      // llvm::outs() << "@" <<Declaration->getQualifiedNameAsString()  << "\t";
-		      if (StartLocation.isValid() && EndLocation.isValid())
+		      if (StartLocation.isValid()  && SrcManager->isInMainFile(Declaration->getSourceRange().getBegin())&& EndLocation.isValid())
 		      {
 		      	// llvm::outs() << "@" <<Declaration->getQualifiedNameAsString() << "@" << StartLocation.getSpellingLineNumber() <<  "@"
 		       //               << EndLocation.getSpellingLineNumber() << "\n" ;
@@ -57,7 +58,7 @@ public:
 				// 	llvm::outs()  << Declaration->parameters()[i]->getQualifiedNameAsString() <<  ",";
 				// }
 				//line number info
-			             llvm::outs() << "@" << StartLocation.getSpellingLineNumber() <<  "@"
+			             llvm::outs()   << "@" << StartLocation.getSpellingLineNumber() <<  "@"
 			                     << EndLocation.getSpellingLineNumber() <<   "@"  << LineNumber;
 			}
 		    }
@@ -67,6 +68,7 @@ public:
  	}
 
 private:
+	SourceManager* SrcManager;
 	ASTContext *Context;
 	unsigned int LineNumber;
 };
