@@ -1,6 +1,6 @@
 #-*-coding: utf-8 -*-
 import csv
-
+from itertools import islice  
 """
 test for excel
 """
@@ -17,7 +17,7 @@ csvfile.close()
 
 csvfile = file('data/test.csv','rb')
 reader = csv.reader(csvfile)
-for row in reader:
+for row in islice(reader,1,None):
     print row[0]
     print row
 csvfile.close()

@@ -6,16 +6,28 @@ import re
 import commands
 import base64
 
+reload(sys);
+sys.setdefaultencoding('utf8')
+
 """
 @ param  commit sha sha, changed cpp file file, stored file name store_name, csv writer writer
-@ return nothing
+@ return bool has log (whether this patch contained log or not)
 @ callee ..
 @ caller  deal_commit(gh, sha, writer) ..
-@ involve deal with patch file and save commit info
+@ involve deal with patch file and save commit info (just store and analyze +)
 """
 def deal_patch(sha, message, changed_file, store_name, writer):
-    # divide mutiline string into single lines
-    patch = changed_file.patch.split('\n')
+    
+    has_log = False
+
+    # try exception to validate patch existence
+    try:
+        # divide mutiline string into single lines
+        patch = changed_file.patch.split('\n')
+    except AttributeError as ae:
+        print ae.message
+        return has_log
+
     # array to record the deleted changed lines
     patch_delete = [0 for i in range(len(patch))]
 
@@ -23,12 +35,11 @@ def deal_patch(sha, message, changed_file, store_name, writer):
     # deal with each line of patch
     for line in patch:
 
-        # filter out the none log statement changes
+        # filter out the one with log statement changes
         log_function = 'assert|log|debug|print|write|error'
         pattern_log = '^(-|\+)(.*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
         is_log_change = re.match(pattern_log, line, re.I)
         if is_log_change:
-
             # store this changed log statement
             data_row = []
             # commit sha
@@ -46,11 +57,12 @@ def deal_patch(sha, message, changed_file, store_name, writer):
             data_row.append(log_statement)
             # change type with - is not dealed and write back without context info
             if change_type == '-':
-                writer.writerow(data_row)
+                # writer.writerow(data_row)
                 patch_delete[line_count] = 1 # mark to be delete change
                 line_count = line_count + 1
                 continue
             # backtrace to find the changed location in source file
+            has_log = True
             line_back = line_count
             line_delete = 0
             while line_back != 0:
@@ -65,18 +77,22 @@ def deal_patch(sha, message, changed_file, store_name, writer):
                     data_row.append(log_loc)
                     data_row.append(store_name)
                     writer.writerow(data_row)
+                    # stop search and switch to next line
+                    break
 
         # increment line_count
         line_count = line_count + 1
+    
+    return has_log
 
 """
-@ param  github parameters gh and sha of commit and fileWriter
-@ return nothing 
+@ param  github parameters gh and sha of commit and the counter for stored files and fileWriter
+@ return file_count new counter of stored files 
 @ callee deal_patch( sha, file, writer)
 @ caller fetch_commit(user, repos, commit_sha='') ..
 @ involve deal with commit and involved changed file
 """
-def deal_commit(gh, sha, writer):
+def deal_commit(gh, sha, file_count, writer):
 
     # retrieve info of commit with given sha
     commit = gh.repos.commits.get(sha=sha)
@@ -87,23 +103,27 @@ def deal_commit(gh, sha, writer):
 
         # filter to just deal with cpp and c files
         is_cpp = re.search('(.cpp|.c)$', changed_file.filename, re.I)
-        if is_cpp and (changed_file.changes > 0):
+        if is_cpp:
 
-            # download the blob of file
-            source = gh.git_data.blobs.get(changed_file.sha).content
-            # decode to retrieve the source file
-            source = base64.b64decode(source)
             # write to temp file
-            store_name = 'download/' + user + repos + '.cpp'
-            temp_file = open(store_name, 'wb')
-            temp_file.write(source)
-            temp_file.close()
-
+            store_name = 'download/' + user + '_' + repos + str(file_count) + '.cpp'
             # call deal_patch to deal with the patch file
-            deal_patch(sha, message, changed_file, store_name, writer)
+            has_log = deal_patch(sha, message, changed_file, store_name, writer)
+            if has_log:
+                # download the blob of file
+                source = gh.git_data.blobs.get(changed_file.sha).content
+                # decode to retrieve the source file
+                source = base64.b64decode(source)
+                temp_file = open(store_name, 'wb')
+                temp_file.write(source)
+                temp_file.close()
+                # increment the file count
+                file_count = file_count + 1
+
         else:
             print "not cpp"
 
+    return file_count
 
 
 """
@@ -116,11 +136,11 @@ def deal_commit(gh, sha, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
-    fetch = file('data/fetch_' + user + repos + '.csv', 'wb')
+    fetch = file('data/fetch_' + user + '_' + repos + '.csv', 'wb')
     fetch_writer = csv.writer(fetch)
 
     # write table title (3:change_type, 4:log_statement, 5:log_loc, 6:store_name)
@@ -129,13 +149,12 @@ def fetch_commit(user, repos, commit_sha=''):
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list()
-    count = 1
+    file_count = 1
     for commit in commits.iterator():
-        if count % 10 == 0:
-            print 'now proccessing the no. %d commit' %count
         # invoke the deal_commit function
-        deal_commit(gh, commit.sha, fetch_writer)
-        count = count + 1
+        file_count = deal_commit(gh, commit.sha, file_count, fetch_writer)
+        if file_count % 10 == 0:
+            print 'now saved the no. %d file' %file_count
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file 
