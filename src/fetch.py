@@ -103,7 +103,9 @@ def deal_commit(gh, sha, file_count, writer):
 
         # filter to just deal with cpp and c files
         is_cpp = re.search('(.cpp|.c)$', changed_file.filename, re.I)
-        if is_cpp:
+        # filter to not deal with test module files
+        is_test_cpp = re.search('(test.cpp|.c)$', changed_file.filename, re.I)
+        if is_cpp and not is_test_cpp:
 
             # write to temp file
             store_name = 'download/' + user + '_' + repos + str(file_count) + '.cpp'
@@ -121,7 +123,7 @@ def deal_commit(gh, sha, file_count, writer):
                 file_count = file_count + 1
 
         else:
-            print "not cpp"
+            print "not cpp without test"
 
     return file_count
 
