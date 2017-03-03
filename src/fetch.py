@@ -37,7 +37,7 @@ def deal_patch(sha, message, changed_file, store_name, writer):
 
         # filter out the one with log statement changes
         log_function = 'assert|log|debug|print|write|error'
-        pattern_log = '^(-|\+)(.*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
+        pattern_log = '^(-|\+)([^/]*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
         is_log_change = re.match(pattern_log, line, re.I)
         if is_log_change:
             # store this changed log statement
@@ -57,10 +57,7 @@ def deal_patch(sha, message, changed_file, store_name, writer):
             data_row.append(log_statement)
             # change type with - is not dealed and write back without context info
             if change_type == '-':
-                # writer.writerow(data_row)
                 patch_delete[line_count] = 1 # mark to be delete change
-                line_count = line_count + 1
-                continue
             # backtrace to find the changed location in source file
             has_log = True
             line_back = line_count
@@ -138,7 +135,7 @@ def deal_commit(gh, sha, file_count, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')

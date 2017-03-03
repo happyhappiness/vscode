@@ -22,13 +22,13 @@ def conca_element(arr, begin, end):
 
 
 """
-@ param  record of fetch_reader line, index of log, index of log_loc, index of store_name
+@ param  record of fetch_reader line, changetype, index of log, index of log_loc, index of store_name
 @ return edited record array and has edited flag
 @ caller analyze
 @ callee conca_element
 @ involve retrieve context info through ASTVisitor
 """
-def deal_line(line, log_index, loc_index, file_index):
+def deal_line(line, change_type, log_index, loc_index, file_index):
 
     has_edit = False
     context_info = commands.getoutput('cat ' + line[file_index] \
@@ -50,19 +50,31 @@ def deal_line(line, log_index, loc_index, file_index):
         line.pop(loc_index)
         line.pop(file_index - 1)
         line.append(context)
-        has_edit = True
-        # upper context(no log)
-        log_loc = context.find(line[log_index])
-        # record the right context
-        if log_loc != -1:
-            context_up = context[0:log_loc - 1]
+        if change_type == '-':
+            has_edit = True
+            # upper context(no log)
+            context = context.split('\n')
+            # calculate relevant line number of log statement in context
+            log_loc = int(context_info[context_info_len - 1]) - start_loc + 1
+            context_up = conca_element(context, 0, log_loc - 1)
             line.append(context_up)
             # downer context(no log)
-            log_loc = context.find('\n', log_loc)
+            context_down = conca_element(context, log_loc, len(context))
+            line.append(context_down)
+        else:
+            # upper context(no log)
+            log_loc = context.find(line[log_index])
             # record the right context
             if log_loc != -1:
-                context_down = context[log_loc + 1:]
-                line.append(context_down)
+                has_edit = True
+                context_up = context[0:log_loc - 1]
+                line.append(context_up)
+                # downer context(no log)
+                log_loc = context.find('\n', log_loc)
+                # record the right context
+                if log_loc != -1:
+                    context_down = context[log_loc + 1:]
+                    line.append(context_down)
 
     return line, has_edit
 
@@ -87,11 +99,8 @@ def analyze(user, repos):
     for line in islice(lines, 1, None):
         if count % 10 == 0:
             print "now record the No. %d analyze" %count
-        # do not deal with '-'
-        # if line[3] == '-':
-        #     continue
-        # call deal_line to retrieve location info
-        line, has_edit = deal_line(line, 4, 5, 6)
+        # call deal_line to retrieve location info(- included)
+        line, has_edit = deal_line(line, line[3], 4, 5, 6)
         # update analyze data is has edited
         if has_edit:
             line.pop(0)
