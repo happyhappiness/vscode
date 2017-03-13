@@ -1,0 +1,679 @@
+log statement,constant text
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+assert(eltTI.isLoadable() || !SGF.silConv.useLoweredAddresses());
+assert(gen.SGM.getASTContext().Diags.hadAnyError() &&
+assert(SGF.SGM.getASTContext().Diags.hadAnyError() &&
+if (loweredBridgedTy == gen.SGM.Types.getNSErrorType()) {
+"return gen.emitNativeToBridgedError(loc, v, loweredBridgedTy);"
+if (loweredBridgedTy == SGF.SGM.Types.getNSErrorType()) {
+"return SGF.emitNativeToBridgedError(loc, v, loweredBridgedTy);"
+assert(v.getType().isTrivial(gen.SGM.M) || v.hasCleanup());
+assert(v.getType().isTrivial(SGF.SGM.M) || v.hasCleanup());
+assert(gen.SGM.getASTContext().Diags.hadAnyError() &&
+assert(SGF.SGM.getASTContext().Diags.hadAnyError() &&
+if (loweredBridgedTy == gen.SGM.Types.getNSErrorType())
+"return gen.emitBridgedToNativeError(loc, v);"
+if (loweredBridgedTy == SGF.SGM.Types.getNSErrorType())
+"return SGF.emitBridgedToNativeError(loc, v);"
+"static void pushWriteback(SILGenFunction &gen,"
+"static void pushWriteback(SILGenFunction &SGF,"
+assert(gen.InWritebackScope);
+assert(SGF.InWritebackScope);
+assert(gen.InWritebackScope &&
+assert(SGF.InWritebackScope &&
+"pushWriteback(gen, loc, std::move(clonedComponent), base, materialized);"
+"pushWriteback(SGF, loc, std::move(clonedComponent), base, materialized);"
+"void writeback(SILGenFunction &gen, SILLocation loc,"
+"void writeback(SILGenFunction &SGF, SILLocation loc,"
+"LogicalPathComponent::writeback(gen, loc,"
+"LogicalPathComponent::writeback(SGF, loc,"
+assert(gen.InWritebackScope &&
+assert(SGF.InWritebackScope &&
+"pushWriteback(gen, loc, std::move(component), result.second,"
+"pushWriteback(SGF, loc, std::move(component), result.second,"
+"auto typeData = getLogicalStorageTypeData(gen.SGM, formalRValueType);"
+"auto typeData = getLogicalStorageTypeData(SGF.SGM, formalRValueType);"
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+assert(eltTI.isLoadable() || !SGF.silConv.useLoweredAddresses());
+assert(gen.SGM.getASTContext().Diags.hadAnyError() &&
+assert(SGF.SGM.getASTContext().Diags.hadAnyError() &&
+if (loweredBridgedTy == gen.SGM.Types.getNSErrorType()) {
+"return gen.emitNativeToBridgedError(loc, v, loweredBridgedTy);"
+if (loweredBridgedTy == SGF.SGM.Types.getNSErrorType()) {
+"return SGF.emitNativeToBridgedError(loc, v, loweredBridgedTy);"
+assert(v.getType().isTrivial(gen.SGM.M) || v.hasCleanup());
+assert(v.getType().isTrivial(SGF.SGM.M) || v.hasCleanup());
+assert(gen.SGM.getASTContext().Diags.hadAnyError() &&
+assert(SGF.SGM.getASTContext().Diags.hadAnyError() &&
+if (loweredBridgedTy == gen.SGM.Types.getNSErrorType())
+"return gen.emitBridgedToNativeError(loc, v);"
+if (loweredBridgedTy == SGF.SGM.Types.getNSErrorType())
+"return SGF.emitBridgedToNativeError(loc, v);"
+"static void pushWriteback(SILGenFunction &gen,"
+"static void pushWriteback(SILGenFunction &SGF,"
+assert(gen.InWritebackScope);
+assert(SGF.InWritebackScope);
+assert(gen.InWritebackScope &&
+assert(SGF.InWritebackScope &&
+"pushWriteback(gen, loc, std::move(clonedComponent), base, materialized);"
+"pushWriteback(SGF, loc, std::move(clonedComponent), base, materialized);"
+"void writeback(SILGenFunction &gen, SILLocation loc,"
+"void writeback(SILGenFunction &SGF, SILLocation loc,"
+"LogicalPathComponent::writeback(gen, loc,"
+"LogicalPathComponent::writeback(SGF, loc,"
+assert(gen.InWritebackScope &&
+assert(SGF.InWritebackScope &&
+"pushWriteback(gen, loc, std::move(component), result.second,"
+"pushWriteback(SGF, loc, std::move(component), result.second,"
+"auto typeData = getLogicalStorageTypeData(gen.SGM, formalRValueType);"
+"auto typeData = getLogicalStorageTypeData(SGF.SGM, formalRValueType);"
+Super.getType().print(OS);
+Super.getType().print(OS);
+"DEBUG(llvm::dbgs() << ""  cannot specialize function -> abort\n"");","""  cannot specialize function -> abort\n"""
+"printNode(Out, child, depth + 1);"
+void NodeDumper::dump() const { print(llvm::errs()); }
+void NodeDumper::print(llvm::raw_ostream &Out) const {
+"printNode(Out, Root, 0);"
+"printNode(out, TheNode, 4);"
+"static void printNode(DemanglerPrinter &Out, const Node *node, unsigned depth) {"
+"printNode(Out, child, depth + 1);"
+"printer_unreachable(""bad directness"");","""bad directness"""
+NodePrinter(DemangleOptions options) : Options(options) {}
+std::string printRoot(NodePointer root) {
+print(root);
+"void printChildren(Node::iterator begin,"
+print(*begin);
+void printBoundGenericNoSugar(NodePointer pointer) {
+print(pointer->getChild(0));
+"printChildren(typelist, "", "");",""", """
+static bool isDebuggerGeneratedModule(NodePointer node) {
+"printer_unreachable(""bad node kind"");","""bad node kind"""
+assert(pointer->getKind() == Node::Kind::BoundGenericStructure);
+void printBoundGeneric(NodePointer pointer) {
+printBoundGenericNoSugar(pointer);
+printBoundGenericNoSugar(pointer);
+printBoundGenericNoSugar(pointer);
+print(type);
+print(type);
+print(keyType);
+print(valueType);
+void printFunctionType(NodePointer node) {
+assert(node->getNumChildren() == 2 || node->getNumChildren() == 3);
+assert(node->getChild(0)->getKind() == Node::Kind::ThrowsAnnotation);
+print(node->getChild(startIndex));
+print(node->getChild(startIndex+1));
+void printImplFunctionType(NodePointer fn) {
+assert(newState >= curState);
+"case Results: printer_unreachable(""no state after Results"");","""no state after Results"""
+"printer_unreachable(""bad state"");","""bad state"""
+print(child);
+print(child);
+assert(curState == Attrs);
+print(child);
+void printContext(NodePointer context) {
+!isDebuggerGeneratedModule(context))
+"print(context, /*asContext*/ true);"
+"printer_unreachable(""not an entity"");","""not an entity"""
+"snprintf(buffer, sizeof(buffer), ""%llu"", n);","""%llu"""
+swift::demangle_wrappers::NodeDumper(pointer).print(llvm::outs());
+"printNode(Out, child, depth + 1);"
+void NodeDumper::dump() const { print(llvm::errs()); }
+void NodeDumper::print(llvm::raw_ostream &Out) const {
+"printNode(Out, Root, 0);"
+"printNode(out, TheNode, 4);"
+"static void printNode(DemanglerPrinter &Out, const Node *node, unsigned depth) {"
+"printNode(Out, child, depth + 1);"
+"printer_unreachable(""bad directness"");","""bad directness"""
+NodePrinter(DemangleOptions options) : Options(options) {}
+std::string printRoot(NodePointer root) {
+print(root);
+"void printChildren(Node::iterator begin,"
+print(*begin);
+void printBoundGenericNoSugar(NodePointer pointer) {
+print(pointer->getChild(0));
+"printChildren(typelist, "", "");",""", """
+static bool isDebuggerGeneratedModule(NodePointer node) {
+"printer_unreachable(""bad node kind"");","""bad node kind"""
+assert(pointer->getKind() == Node::Kind::BoundGenericStructure);
+void printBoundGeneric(NodePointer pointer) {
+printBoundGenericNoSugar(pointer);
+printBoundGenericNoSugar(pointer);
+printBoundGenericNoSugar(pointer);
+print(type);
+print(type);
+print(keyType);
+print(valueType);
+void printFunctionType(NodePointer node) {
+assert(node->getNumChildren() == 2 || node->getNumChildren() == 3);
+assert(node->getChild(0)->getKind() == Node::Kind::ThrowsAnnotation);
+print(node->getChild(startIndex));
+print(node->getChild(startIndex+1));
+void printImplFunctionType(NodePointer fn) {
+assert(newState >= curState);
+"case Results: printer_unreachable(""no state after Results"");","""no state after Results"""
+"printer_unreachable(""bad state"");","""bad state"""
+print(child);
+print(child);
+assert(curState == Attrs);
+print(child);
+void printContext(NodePointer context) {
+!isDebuggerGeneratedModule(context))
+"print(context, /*asContext*/ true);"
+"printer_unreachable(""not an entity"");","""not an entity"""
+"snprintf(buffer, sizeof(buffer), ""%llu"", n);","""%llu"""
+swift::demangle_wrappers::NodeDumper(pointer).print(llvm::outs());
+assert(fnGenericParams.size() == fromSubsts.size() + toSubsts.size() &&
+assert(fnGenericParams.size() == fromSubsts.size() + toSubsts.size() &&
+"DEBUG(llvm::dbgs() << ""  cannot specialize function -> abort\n"");","""  cannot specialize function -> abort\n"""
+assert(numIndirectResults == loweredFnConv.getNumIndirectSILResults());
+"ApplyRewriter(SILInstruction *origCall, AddressLoweringState &pass)"
+void rewriteParameters();
+void ApplyRewriter::rewriteParameters() {
+rewriteIndirectParameter(&operand);
+void rewriteFunction() {
+"DEBUG(llvm::dbgs() << ""VALUE   ""; valueDef->dump());","""VALUE   """
+DEBUG(if (valueStorage.storageAddress) {
+DEBUG(V->dump());
+"DEBUG(llvm::dbgs() << ""  REWRITE ""; V->dump());","""  REWRITE """
+"DEBUG(llvm::dbgs() << ""  CALL ""; applyInst->dump();","""  CALL """
+"B.createDebugValueAddr(debugInst->getLoc(), addr);"
+assert(currOper->get() == destroyInst->getOperand());
+assert(origDirectResultValues.size() == numOrigDirectResults);
+assert(!origFnConv.isSILIndirect(resultInfo));
+assert(newResultArgIdx < loweredFnConv.getSILArgIndexOfFirstParam());
+assert(newDirectResults.size() == loweredFnConv.getNumDirectSILResults());
+assert(currOper->get() == storeInst->getSrc());
+assert(storeInst->getOwnershipQualifier() ==
+"ApplyRewriter rewriter(applyInst, pass);"
+rewriter.rewriteParameters();
+Arg.getAsValueDecl()->getFullName().printPretty(Out);
+assert(numIndirectResults == loweredFnConv.getNumIndirectSILResults());
+"ApplyRewriter(SILInstruction *origCall, AddressLoweringState &pass)"
+void rewriteParameters();
+void ApplyRewriter::rewriteParameters() {
+rewriteIndirectParameter(&operand);
+void rewriteFunction() {
+"DEBUG(llvm::dbgs() << ""VALUE   ""; valueDef->dump());","""VALUE   """
+DEBUG(if (valueStorage.storageAddress) {
+DEBUG(V->dump());
+"DEBUG(llvm::dbgs() << ""  REWRITE ""; V->dump());","""  REWRITE """
+"DEBUG(llvm::dbgs() << ""  CALL ""; applyInst->dump();","""  CALL """
+"B.createDebugValueAddr(debugInst->getLoc(), addr);"
+assert(currOper->get() == destroyInst->getOperand());
+assert(origDirectResultValues.size() == numOrigDirectResults);
+assert(!origFnConv.isSILIndirect(resultInfo));
+assert(newResultArgIdx < loweredFnConv.getSILArgIndexOfFirstParam());
+assert(newDirectResults.size() == loweredFnConv.getNumDirectSILResults());
+assert(currOper->get() == storeInst->getSrc());
+assert(storeInst->getOwnershipQualifier() ==
+"ApplyRewriter rewriter(applyInst, pass);"
+rewriter.rewriteParameters();
+assert(resultTy &&
+LogJob(const Job *j) : j(j) {}
+LogJobArray(const ArrayRef<const Job *> js) : js(js) {}
+LogJobSet(const SmallPtrSetImpl<const Job*> &js) : js(js) {}
+lj.j->printSummary(os);
+"[&](Job const *j) { os << LogJob(j); },"
+"[&](Job const *j) { os << LogJob(j); },"
+"static_assert(IsTriviallyCopyable<CompileJobAction::InputInfo>::value,"
+assert(FinishedCmd->getCondition() == Job::Condition::Always);
+"assert(fn && ""null impl provided"");","""null impl provided"""
+"assert(fn && ""null impl provided"");","""null impl provided"""
+assert(getKind() == Kind::Method);
+assert(getKind() != Kind::Method);
+assert(baseEntry.isBase());
+assert(piEntry.getOutOfLineBaseIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(piEntry.getFunctionIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(piEntry.getAssociatedTypeIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(protos.size() == sub.getConformances().size());
+assert(!associate->hasTypeParameter());
+assert(entry.getKind() == SILWitnessTable::AssociatedTypeProtocol
+assert(associatedWitness.Requirement == requirement
+assert(associatedWitness.Protocol == protocol
+assert(entry.getKind() == SILWitnessTable::AssociatedTypeProtocol
+assert(associatedWitness.Requirement->isEqual(associatedType)
+assert(associatedWitness.Protocol == protocol
+assert(isa<GenericTypeParamType>(depAssociatedType)); // Self
+assert(isa<GenericTypeParamType>(assocType));
+"static bool printAssociatedTypePath(llvm::raw_ostream &OS, CanType path) {"
+"if (printAssociatedTypePath(OS, memberType.getBase()))"
+assert(isa<GenericTypeParamType>(path));
+assert(eltFormalType->isMaterializable());
+assert(eltTy.isAddress() == tuple.getType().isAddress());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+assert(protos.size() == witness.getConformances().size()
+assert(witness.getConformances().empty()
+assert(foundConformance != witness.getConformances().end());
+"F->getEffectsKind(), nullptr, F->getDebugScope());"
+F->getDebugScope());
+"DEBUG(llvm::dbgs() << ""    Cannot specialize function "" << OrigF->getName()","""    Cannot specialize function """
+"DEBUG(llvm::dbgs() << ""    Cannot specialize function "" << Callee->getName()","""    Cannot specialize function """
+assert(!CalleeSubstFnTy->isPolymorphic() &&
+assert(!CalleeSubstFnTy->hasTypeParameter() &&
+"Arguments, ResultBB, TAI->getErrorBB());"
+"ResultBB, TAI->getErrorBB());"
+Arg.getAsValueDecl()->getFullName().printPretty(Out);
+"assert(fn && ""null impl provided"");","""null impl provided"""
+"assert(fn && ""null impl provided"");","""null impl provided"""
+assert(getKind() == Kind::Method);
+assert(getKind() != Kind::Method);
+assert(resultTy &&
+"assert(fn && ""null impl provided"");","""null impl provided"""
+"assert(fn && ""null impl provided"");","""null impl provided"""
+assert(getKind() == Kind::Method);
+assert(getKind() != Kind::Method);
+assert(eltFormalType->isMaterializable());
+assert(eltTy.isAddress() == tuple.getType().isAddress());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+assert(eltFormalType->isMaterializable());
+assert(eltTy.isAddress() == tuple.getType().isAddress());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+"F->getEffectsKind(), nullptr, F->getDebugScope());"
+F->getDebugScope());
+"F->getEffectsKind(), nullptr, F->getDebugScope());"
+F->getDebugScope());
+"DEBUG(llvm::dbgs() << ""    Cannot specialize function "" << OrigF->getName()","""    Cannot specialize function """
+"DEBUG(llvm::dbgs() << ""    Cannot specialize function "" << Callee->getName()","""    Cannot specialize function """
+assert(!CalleeSubstFnTy->isPolymorphic() &&
+assert(!CalleeSubstFnTy->hasTypeParameter() &&
+"Arguments, ResultBB, TAI->getErrorBB());"
+"ResultBB, TAI->getErrorBB());"
+"DEBUG(llvm::dbgs() << ""    Cannot specialize function "" << OrigF->getName()","""    Cannot specialize function """
+"DEBUG(llvm::dbgs() << ""    Cannot specialize function "" << Callee->getName()","""    Cannot specialize function """
+assert(!CalleeSubstFnTy->isPolymorphic() &&
+assert(!CalleeSubstFnTy->hasTypeParameter() &&
+"Arguments, ResultBB, TAI->getErrorBB());"
+"ResultBB, TAI->getErrorBB());"
+assert(DCtx.getThunkTarget(name).empty());
+SyntaxFactory::makeBlankDeclModifier().print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+getCannedDeclModifier().print(OS);
+"ASSERT_EQ(OS.str().str(), ""private(set)"");","""private(set)"""
+ASSERT_TRUE(Empty.empty());
+ASSERT_FALSE(Empty.appending(getCannedArgument()).empty());
+assert(DCtx.getThunkTarget(name).empty());
+SyntaxFactory::makeBlankDeclModifier().print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+getCannedDeclModifier().print(OS);
+"ASSERT_EQ(OS.str().str(), ""private(set)"");","""private(set)"""
+ASSERT_TRUE(Empty.empty());
+ASSERT_FALSE(Empty.appending(getCannedArgument()).empty());
+assert(baseEntry.isBase());
+assert(piEntry.getOutOfLineBaseIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(piEntry.getFunctionIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(piEntry.getAssociatedTypeIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(protos.size() == sub.getConformances().size());
+assert(!associate->hasTypeParameter());
+assert(entry.getKind() == SILWitnessTable::AssociatedTypeProtocol
+assert(associatedWitness.Requirement == requirement
+assert(associatedWitness.Protocol == protocol
+assert(entry.getKind() == SILWitnessTable::AssociatedTypeProtocol
+assert(associatedWitness.Requirement->isEqual(associatedType)
+assert(associatedWitness.Protocol == protocol
+assert(isa<GenericTypeParamType>(depAssociatedType)); // Self
+assert(isa<GenericTypeParamType>(assocType));
+"static bool printAssociatedTypePath(llvm::raw_ostream &OS, CanType path) {"
+"if (printAssociatedTypePath(OS, memberType.getBase()))"
+assert(isa<GenericTypeParamType>(path));
+assert(protos.size() == witness.getConformances().size()
+assert(witness.getConformances().empty()
+assert(foundConformance != witness.getConformances().end());
+assert(baseEntry.isBase());
+assert(piEntry.getOutOfLineBaseIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(piEntry.getFunctionIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(piEntry.getAssociatedTypeIndex().getValue() == Table.size()
+assert(piIndex.getValue() == Table.size()
+assert(protos.size() == sub.getConformances().size());
+assert(!associate->hasTypeParameter());
+assert(entry.getKind() == SILWitnessTable::AssociatedTypeProtocol
+assert(associatedWitness.Requirement == requirement
+assert(associatedWitness.Protocol == protocol
+assert(entry.getKind() == SILWitnessTable::AssociatedTypeProtocol
+assert(associatedWitness.Requirement->isEqual(associatedType)
+assert(associatedWitness.Protocol == protocol
+assert(isa<GenericTypeParamType>(depAssociatedType)); // Self
+assert(isa<GenericTypeParamType>(assocType));
+"static bool printAssociatedTypePath(llvm::raw_ostream &OS, CanType path) {"
+"if (printAssociatedTypePath(OS, memberType.getBase()))"
+assert(isa<GenericTypeParamType>(path));
+assert(protos.size() == witness.getConformances().size()
+assert(witness.getConformances().empty()
+assert(foundConformance != witness.getConformances().end());
+LogJob(const Job *j) : j(j) {}
+LogJobArray(const ArrayRef<const Job *> js) : js(js) {}
+LogJobSet(const SmallPtrSetImpl<const Job*> &js) : js(js) {}
+lj.j->printSummary(os);
+"[&](Job const *j) { os << LogJob(j); },"
+"[&](Job const *j) { os << LogJob(j); },"
+"static_assert(IsTriviallyCopyable<CompileJobAction::InputInfo>::value,"
+assert(FinishedCmd->getCondition() == Job::Condition::Always);
+assert(remangled.find(MANGLING_PREFIX_STR) == 0);
+assert(remangled.find(MANGLING_PREFIX_STR) == 0);
+LogJob(const Job *j) : j(j) {}
+LogJobArray(const ArrayRef<const Job *> js) : js(js) {}
+LogJobSet(const SmallPtrSetImpl<const Job*> &js) : js(js) {}
+lj.j->printSummary(os);
+"[&](Job const *j) { os << LogJob(j); },"
+"[&](Job const *j) { os << LogJob(j); },"
+"static_assert(IsTriviallyCopyable<CompileJobAction::InputInfo>::value,"
+assert(FinishedCmd->getCondition() == Job::Condition::Always);
+assert(remangled.find(MANGLING_PREFIX_STR) == 0);
+"llvm::outs() << ""Job finished: "" << LogJob(Cmd) << ""\n"";","""\n"""
+"<< "": "" << LogJob(Cmd) << ""\n"";","""\n"""
+= origFnType->getOptionalErrorResult();
+assert(!substErrorResult ||
+"assert(TheSILModule.Types.getLoweredType(abstraction, origType)"
+"assert(TheSILModule.Types.getLoweredType(abstraction, origType)"
+= origFnType->getOptionalErrorResult();
+assert(!substErrorResult ||
+assert(operand.getType().isAddress());
+"assert(!SGF.B.hasValidInsertionPoint() && ""handler did not end block"");","""handler did not end block"""
+assert(!SGF.B.hasValidInsertionPoint() &&
+assert(!SGF.B.hasValidInsertionPoint() &&
+"assert(!SGF.B.hasValidInsertionPoint() && ""handler did not end block"");","""handler did not end block"""
+assert(FinishedCmd->getCondition() == Job::Condition::Always);
+assert(DepGraph.isMarked(FinishedCmd));
+assert(FinishedCmd->getCondition() == Job::Condition::Always);
+assert(DepGraph.isMarked(FinishedCmd));
+Result = Comp.Diags.hadAnyError();
+"static_assert(IsTriviallyCopyable<CompileJobAction::InputInfo>::value,"
+"static_assert(IsTriviallyCopyable<CompileJobAction::InputInfo>::value,"
+assert(BlockingCommands.empty() &&
+OS << LogJob(BeganCmd);
+BeganCmd->printCommandLine(llvm::errs());
+assert(FinishedCmd->getCondition() == Job::Condition::Always);
+assert(DepGraph.isMarked(FinishedCmd));
+assert(State.DepGraph.isMarked(FinishedCmd));
+"llvm::outs() << ""Queuing "" << reason << "": "" << LogJob(cmd) << ""\n"";","""\n"""
+IncrementalTracer->printPath(
+"llvm::outs() << ""Job finished: "" << LogJob(Cmd) << ""\n"";","""\n"""
+"<< LogJobArray(AllBlocked) << ""\n"";","""\n"""
+"llvm::outs() << ""Already scheduled: "" << LogJob(Cmd) << ""\n"";","""\n"""
+"llvm::outs() << ""Blocked by: "" << LogJob(Blocking)","""Blocked by: """
+"<< LogJobArray(BlockingCommands[Blocking]) << ""\n"";","""\n"""
+"bool success = writeFilelistIfNecessary(Cmd, Comp.Diags);"
+"assert(success && ""failed to write filelist"");","""failed to write filelist"""
+assert(Cmd->getExtraEnvironment().empty() &&
+"llvm::outs() << ""Added to TaskQueue: "" << LogJob(Cmd) << ""\n"";","""\n"""
+LogJob(const Job *j) : j(j) {}
+LogJobArray(const ArrayRef<const Job *> js) : js(js) {}
+LogJobSet(const SmallPtrSetImpl<const Job*> &js) : js(js) {}
+lj.j->printSummary(os);
+"[&](Job const *j) { os << LogJob(j); },"
+"[&](Job const *j) { os << LogJob(j); },"
+SymbolicRef.print(KnownOS);
+"ASSERT_EQ(KnownOS.str().str(), ""Array<Int>"");","""Array<Int>"""
+Unknown.print(UnknownOS);
+"ASSERT_EQ(KnownOS.str().str(), UnknownOS.str().str());"
+SymbolicRef.print(KnownOS);
+"ASSERT_EQ(KnownOS.str().str(), ""Array<Int>"");","""Array<Int>"""
+Unknown.print(UnknownOS);
+"ASSERT_EQ(KnownOS.str().str(), UnknownOS.str().str());"
+assert(operand.getType().isAddress());
+"assert(!SGF.B.hasValidInsertionPoint() && ""handler did not end block"");","""handler did not end block"""
+assert(!SGF.B.hasValidInsertionPoint() &&
+assert(!SGF.B.hasValidInsertionPoint() &&
+"assert(!SGF.B.hasValidInsertionPoint() && ""handler did not end block"");","""handler did not end block"""
+"static void printName(raw_ostream &os, Identifier name) {"
+"static void printName(raw_ostream &os, DeclName name) {"
+assert(selfTuple->getNumElements() == 1);
+"ASSERT_EQ(Ref.getIdentifier(), Array);"
+ASSERT_TRUE(GottenArgs.hasSameIdentityAs(GottenArgs2));
+GottenArgs.print(OS);
+"ASSERT_EQ(OS.str().str(), ""<Int>"");","""<Int>"""
+assert(selfTuple->getNumElements() == 1);
+"ASSERT_EQ(Ref.getIdentifier(), Array);"
+ASSERT_TRUE(GottenArgs.hasSameIdentityAs(GottenArgs2));
+GottenArgs.print(OS);
+"ASSERT_EQ(OS.str().str(), ""<Int>"");","""<Int>"""
+"assert(hashIter != valueHashMap.end() && ""Missing SILValue"");","""Missing SILValue"""
+assert(onlyHaveDebugUses(inst));
+assert(instsToDelete.count(use->getUser()));
+"assert(hashIter != valueHashMap.end() && ""Missing SILValue"");","""Missing SILValue"""
+assert(onlyHaveDebugUses(inst));
+assert(instsToDelete.count(use->getUser()));
+!AFR.getType()->hasError() &&
+!AFR.getType()->hasError() &&
+"printNode(Out, child.get(), depth + 1);"
+"printNode(Out, child, depth + 1);"
+"printNode(Out, child.get(), depth + 1);"
+"printNode(Out, child, depth + 1);"
+"assert(!generics && ""generic static properties not implemented"");","""generic static properties not implemented"""
+assert(var->getDeclContext()->getGenericSignatureOfContext()
+"assert(!generics && ""generic static properties not implemented"");","""generic static properties not implemented"""
+assert(var->getDeclContext()->getGenericSignatureOfContext()
+"ASSERT_DEATH(swift_unownedCheck(object),"
+"assert(CanUseError && ""Mulitple error parameters?!"");","""Mulitple error parameters?!"""
+"assert(CanUseError && ""Multiple error parameters?!"");","""Multiple error parameters?!"""
+getForeignErrorConventionKindString(ForeignErrorConvention::Kind value) {
+"printField(""default_arg"", ""#column"");","""#column"""
+"printField(""default_arg"", ""#dsohandle"");","""#dsohandle"""
+"printField(""default_arg"", ""#file"");","""#file"""
+"printField(""default_arg"", ""#function"");","""#function"""
+"printField(""default_arg"", ""#line"");","""#line"""
+"printField(""default_arg"", ""nil"");","""nil"""
+"printField(""default_arg"", ""[]"");","""[]"""
+"printField(""default_arg"", ""[:]"");","""[:]"""
+"printField(""default_arg"", ""normal"");","""normal"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" designated"";",""" designated"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" convenience"";",""" convenience"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" factory"";",""" factory"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" failable=Optional"";",""" failable=Optional"""
+"PrintWithColorRAII(OS, DeclModifierColor)"
+void printStringEncoding(StringLiteralExpr::Encoding encoding) {
+"PrintWithColorRAII(OS, LiteralValueColor) << ""utf8"";","""utf8"""
+"PrintWithColorRAII(OS, LiteralValueColor) << ""utf16"";","""utf16"""
+"PrintWithColorRAII(OS, LiteralValueColor) << ""unicodeScalar"";","""unicodeScalar"""
+"PrintWithColorRAII(OS, LiteralValueColor) << "" encoding="";",""" encoding="""
+printStringEncoding(E->getEncoding());
+"PrintWithColorRAII(OS, LiteralValueColor)"
+"printCommon(E, ""magic_identifier_literal_expr"") << "" kind="";",""" kind="""
+printStringEncoding(E->getStringEncoding());
+printStringEncoding(E->getStringEncoding());
+"PrintWithColorRAII(OS, AccessibilityColor) << E->getAccessSemantics();"
+"PrintWithColorRAII(OS, AccessibilityColor)"
+"PrintWithColorRAII(OS, AccessibilityColor) << E->getAccessSemantics();"
+"PrintWithColorRAII(OS, AccessibilityColor)"
+"PrintWithColorRAII(OS, AccessibilityColor) << E->getAccessSemantics();"
+"PrintWithColorRAII(OS, AccessibilityColor)"
+"printFlag(""vararg"");","""vararg"""
+"printFlag(""autoclosure"");","""autoclosure"""
+"printFlag(""escaping"");","""escaping"""
+"printFlag(paramFlags.isVariadic(), ""vararg"");","""vararg"""
+void printMetatypeRepresentation(MetatypeRepresentation representation) {
+printMetatypeRepresentation(T->getRepresentation());
+printMetatypeRepresentation(T->getRepresentation());
+"printField(""representation"", ""block"");","""block"""
+"printField(""representation"", ""c"");","""c"""
+"printField(""representation"", ""method"");","""method"""
+"printField(""representation"", ""objc_method"");","""objc_method"""
+"printField(""representation"", ""witness_method"");","""witness_method"""
+"printField(""representation"", ""closure"");","""closure"""
+Trivia::spaces(0).print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+Trivia::tabs(0).print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+Trivia::newlines(0).print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::lineComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::blockComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::docLineComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::docBlockComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+Trivia().print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+"assert(CanUseError && ""Mulitple error parameters?!"");","""Mulitple error parameters?!"""
+"assert(CanUseError && ""Multiple error parameters?!"");","""Multiple error parameters?!"""
+Trivia::spaces(0).print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+Trivia::tabs(0).print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+Trivia::newlines(0).print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::lineComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::blockComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::docLineComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+ASSERT_DEATH({
+"Trivia::docBlockComment("""").print(OS);",""""""
+"ASSERT_EQ(OS.str().str(), """");",""""""
+Trivia().print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+"ASSERT_EQ(FirstDataPointer, SecondDataPointer);"
+"ASSERT_EQ(FirstDataPointer, DataPointer);"
+"ASSERT_EQ(FirstDataPointer, SecondDataPointer);"
+"ASSERT_EQ(FirstDataPointer, DataPointer);"
+"assert(!type1->is<GenericFunctionType>() && ""Odd generic function type?"");","""Odd generic function type?"""
+"assert(!type2->is<GenericFunctionType>() && ""Odd generic function type?"");","""Odd generic function type?"""
+"assert(!type1->is<GenericFunctionType>() && ""Odd generic function type?"");","""Odd generic function type?"""
+"assert(!type2->is<GenericFunctionType>() && ""Odd generic function type?"");","""Odd generic function type?"""
+"static bool printObjCUSRFragment(const ValueDecl *D, StringRef ObjCName,"
+"static bool printObjCUSRForAccessor(const AbstractStorageDecl *ASD,"
+assert(Selector);
+"static bool printObjCUSR(const ValueDecl *D, raw_ostream &OS) {"
+"if (printObjCUSRFragment(Parent, ObjCName.first.str(), OS))"
+"return printObjCUSRFragment(D, ObjCName.first.str(), OS);"
+assert(ObjCName.second);
+"return printObjCUSRFragment(D, ObjCName.second.getString(Buf), OS);"
+"static bool printObjCNameFragment(const ValueDecl *D, StringRef ObjCName,"
+"static bool printObjCUSRFragment(const ValueDecl *D, StringRef ObjCName,"
+"static bool printObjCUSR(const ValueDecl *D, raw_ostream &OS, Identifier Ident,"
+"static bool printObjCUSRForAccessor(const AbstractStorageDecl *ASD,"
+assert(Selector);
+"static bool printObjCUSR(const ValueDecl *D, raw_ostream &OS) {"
+"if (printObjCNameFragment(Parent, ObjCName.first.str(), OS))"
+"if (printObjCUSRFragment(Parent, ObjCName.first.str(), OS))"
+"return printObjCNameFragment(D, Ident.str(), OS);"
+"return printObjCNameFragment(D, Selector.getString(Buf), OS);"
+"static bool printObjCNameFragment(const ValueDecl *D, StringRef ObjCName,"
+"static bool printObjCUSR(const ValueDecl *D, raw_ostream &OS, Identifier Ident,"
+"if (printObjCNameFragment(Parent, ObjCName.first.str(), OS))"
+"return printObjCNameFragment(D, Ident.str(), OS);"
+"return printObjCNameFragment(D, Selector.getString(Buf), OS);"
+getForeignErrorConventionKindString(ForeignErrorConvention::Kind value) {
+"printField(""default_arg"", ""#column"");","""#column"""
+"printField(""default_arg"", ""#dsohandle"");","""#dsohandle"""
+"printField(""default_arg"", ""#file"");","""#file"""
+"printField(""default_arg"", ""#function"");","""#function"""
+"printField(""default_arg"", ""#line"");","""#line"""
+"printField(""default_arg"", ""nil"");","""nil"""
+"printField(""default_arg"", ""[]"");","""[]"""
+"printField(""default_arg"", ""[:]"");","""[:]"""
+"printField(""default_arg"", ""normal"");","""normal"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" designated"";",""" designated"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" convenience"";",""" convenience"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" factory"";",""" factory"""
+"PrintWithColorRAII(OS, DeclModifierColor) << "" failable=Optional"";",""" failable=Optional"""
+"PrintWithColorRAII(OS, DeclModifierColor)"
+void printStringEncoding(StringLiteralExpr::Encoding encoding) {
+"PrintWithColorRAII(OS, LiteralValueColor) << ""utf8"";","""utf8"""
+"PrintWithColorRAII(OS, LiteralValueColor) << ""utf16"";","""utf16"""
+"PrintWithColorRAII(OS, LiteralValueColor) << ""unicodeScalar"";","""unicodeScalar"""
+"PrintWithColorRAII(OS, LiteralValueColor) << "" encoding="";",""" encoding="""
+printStringEncoding(E->getEncoding());
+"PrintWithColorRAII(OS, LiteralValueColor)"
+"printCommon(E, ""magic_identifier_literal_expr"") << "" kind="";",""" kind="""
+printStringEncoding(E->getStringEncoding());
+printStringEncoding(E->getStringEncoding());
+"PrintWithColorRAII(OS, AccessibilityColor) << E->getAccessSemantics();"
+"PrintWithColorRAII(OS, AccessibilityColor)"
+"PrintWithColorRAII(OS, AccessibilityColor) << E->getAccessSemantics();"
+"PrintWithColorRAII(OS, AccessibilityColor)"
+"PrintWithColorRAII(OS, AccessibilityColor) << E->getAccessSemantics();"
+"PrintWithColorRAII(OS, AccessibilityColor)"
+"printFlag(""vararg"");","""vararg"""
+"printFlag(""autoclosure"");","""autoclosure"""
+"printFlag(""escaping"");","""escaping"""
+"printFlag(paramFlags.isVariadic(), ""vararg"");","""vararg"""
+void printMetatypeRepresentation(MetatypeRepresentation representation) {
+printMetatypeRepresentation(T->getRepresentation());
+printMetatypeRepresentation(T->getRepresentation());
+"printField(""representation"", ""block"");","""block"""
+"printField(""representation"", ""c"");","""c"""
+"printField(""representation"", ""method"");","""method"""
+"printField(""representation"", ""objc_method"");","""objc_method"""
+"printField(""representation"", ""witness_method"");","""witness_method"""
+"printField(""representation"", ""closure"");","""closure"""
+assert(evaluation.getKind() == FormalAccess::Owned);
+assert(evaluation.getKind() == FormalAccess::Owned);
+assert(isa<ClassDecl>(VD) || isa<ProtocolDecl>(VD) || isa<StructDecl>(VD) ||
+"ASSERT_EQ(FallthroughKW, Fallthrough.getFallthroughKeyword());"
+assert(evaluation.getKind() == FormalEvaluation::Exclusive);
+assert(evaluation.getKind() == FormalAccess::Exclusive);
+assert(evaluation.getKind() == FormalEvaluation::Exclusive);
+assert(evaluation.getKind() == FormalAccess::Exclusive);
+"ASSERT_EQ(FallthroughKW, Fallthrough.getFallthroughKeyword());"
+"void printRepeated(llvm::raw_ostream &OS, char c, size_t Count) {"
+"InputFilename, Buffer.getError().message());"
+Reformatted.print(llvm::outs());
+SyntaxFactory::makeBlankTypealiasDecl().print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+.print(OS);
+"ASSERT_EQ(OS.str().str(),"
+Autoclosure.print(OS);
+"ASSERT_EQ(OS.str().str(), ""@autoclosure"");","""@autoclosure"""
+Convention.withBalancedTokens(cArgs).print(OS);
+"ASSERT_EQ(OS.str().str(), ""@convention(c)"");","""@convention(c)"""
+Convention.withBalancedTokens(swiftArgs).print(OS);
+"ASSERT_EQ(OS.str().str(), ""@convention(swift)"");","""@convention(swift)"""
+Convention.withBalancedTokens(blockArgs).print(OS);
+"ASSERT_EQ(OS.str().str(), ""@convention(block)"");","""@convention(block)"""
+Escaping.print(OS);
+"ASSERT_EQ(OS.str().str(), ""@escaping"");","""@escaping"""
+"void printRepeated(llvm::raw_ostream &OS, char c, size_t Count) {"
+"InputFilename, Buffer.getError().message());"
+Reformatted.print(llvm::outs());
+SyntaxFactory::makeBlankTypealiasDecl().print(OS);
+"ASSERT_EQ(OS.str().str(), """");",""""""
+.print(OS);
+"ASSERT_EQ(OS.str().str(),"
+Autoclosure.print(OS);
+"ASSERT_EQ(OS.str().str(), ""@autoclosure"");","""@autoclosure"""
+Convention.withBalancedTokens(cArgs).print(OS);
+"ASSERT_EQ(OS.str().str(), ""@convention(c)"");","""@convention(c)"""
+Convention.withBalancedTokens(swiftArgs).print(OS);
+"ASSERT_EQ(OS.str().str(), ""@convention(swift)"");","""@convention(swift)"""
+Convention.withBalancedTokens(blockArgs).print(OS);
+"ASSERT_EQ(OS.str().str(), ""@convention(block)"");","""@convention(block)"""
+Escaping.print(OS);
+"ASSERT_EQ(OS.str().str(), ""@escaping"");","""@escaping"""
+"if (SwiftLangSupport::printUSR(VD, OS))"
+"if (SwiftLangSupport::printUSR(VD, OverUSRsStream))"
+"SwiftLangSupport::printUSR(RelatedDecl, OS);"
+"SwiftLangSupport::printUSR(RelatedDecl, RelDeclsStream);"
+XMLEscapingPrinter Printer(OS);
+XMLEscapingPrinter Printer(RelDeclsStream);
+assert(onlyHaveDebugUses(inst));
+assert(!pass.valueStorageMap.getStorage(tupleInst).storageAddress);
+assert(!pass.valueStorageMap.getStorage(tupleInst).storageAddress);
+assert(onlyHaveDebugUses(inst));
+assert(!pass.valueStorageMap.getStorage(tupleInst).storageAddress);
+assert(!pass.valueStorageMap.getStorage(tupleInst).storageAddress);
+assert(eltTI.isLoadable());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
+"assert(false && ""I believe that we should never end up here. One, we ""","""I believe that we should never end up here. One, we """
+assert(eltTI.isLoadable());
+assert(eltTI.isLoadable() || !gen.silConv.useLoweredAddresses());
