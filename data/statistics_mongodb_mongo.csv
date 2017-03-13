@@ -1,0 +1,1238 @@
+log statement,constant text
+"log() << ""setting featureCompatibilityVersion to ""","""setting featureCompatibilityVersion to """
+"return fassertStatusOK(40384,"
+"void WRITETODATAFILES(const JSectHeader& h, const AlignedBuilder& uncompressed) {"
+"void WRITETODATAFILES(OperationContext* txn,"
+"WRITETODATAFILES(buffer->_header, buffer->_builder);"
+"WRITETODATAFILES(cc().makeOperationContext().get(), buffer->_header, buffer->_builder);"
+LockMongoFilesShared::assertAtLeastReadLocked();
+"error() << ""exception in ~DurableMappedFile"";","""exception in ~DurableMappedFile"""
+"error() << ""exception in DurableMappedFile::close"";","""exception in DurableMappedFile::close"""
+LockMongoFilesShared::assertExclusivelyLocked();
+LockMongoFilesShared::assertExclusivelyLocked(txn);
+void printMemInfo(const char* where) {
+LogstreamBuilder out = log();
+void printMemInfo() {
+LogstreamBuilder out = log();
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 1x"" << endl;",""" 1x"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 2"" << endl;",""" 2"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 2x"" << endl;",""" 2x"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 3"" << endl;",""" 3"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 3x"" << endl;",""" 3x"""
+LOG(Z) << t.millis() << endl;
+ASSERT(t.millis() > 50);
+"std::tie(cmdObj, queryFlags) = uassertStatusOK("
+"void registerErrorImpl(OperationContext* txn, const DBException& exception) {}"
+Command::registerRegisterError(registerErrorImpl);
+bool supportsWriteConcern = c->supportsWriteConcern(cmdObj);
+const auto oldWC = txn->getWriteConcern();
+ON_BLOCK_EXIT([&] { txn->setWriteConcern(oldWC); });
+txn->setWriteConcern(wcResult.getValue());
+bool supportsWriteConcern = c->supportsWriteConcern(cmdObj);
+const auto oldWC = txn->getWriteConcern();
+ON_BLOCK_EXIT([&] { txn->setWriteConcern(oldWC); });
+txn->setWriteConcern(wcResult.getValue());
+"std::tie(cmdObj, queryFlags) = uassertStatusOK("
+"void registerErrorImpl(OperationContext* txn, const DBException& exception) {}"
+Command::registerRegisterError(registerErrorImpl);
+"log() << ""warning flushMyDirectory couldn't find parent dir for file: "" << file.string();","""warning flushMyDirectory couldn't find parent dir for file: """
+"log() << ""\t\t\thttp://dochub.mongodb.org/core/unsupported-filesystems""","""\t\t\thttp://dochub.mongodb.org/core/unsupported-filesystems"""
+"massert(40385,"
+"log() << ""warning flushMyDirectory couldn't find parent dir for file: "" << file.string();","""warning flushMyDirectory couldn't find parent dir for file: """
+"LOG(1) << ""flushing directory "" << dir.string();","""flushing directory """
+"massert(40384,"
+"log() << ""\tWARNING: This file system is not supported. For further information""","""\tWARNING: This file system is not supported. For further information"""
+"log() << ""\t\t\thttp://dochub.mongodb.org/core/unsupported-filesystems""","""\t\t\thttp://dochub.mongodb.org/core/unsupported-filesystems"""
+"log() << ""\t\tPlease notify MongoDB, Inc. if an unlisted filesystem generated ""","""\t\tPlease notify MongoDB, Inc. if an unlisted filesystem generated """
+"massert(40385,"
+"log() << ""reloading collection metadata for "" << ns << "" with new epoch """,""" with new epoch """
+status = _writeNewChunksIfPrimary(
+"Status MetadataLoader::_writeNewChunksIfPrimary(OperationContext* txn,"
+!repl::ReplicationCoordinator::get(txn)->canAcceptWritesForDatabase(
+"configShard->runBatchWriteCommand(txn, batchRequest, Shard::RetryPolicy::kNotIdempotent);"
+*batchResponse = configShard->runBatchWriteCommandOnConfig(
+"configShard->runBatchWriteCommand(txn, request, Shard::RetryPolicy::kNoRetry);"
+"configShard->runBatchWriteCommandOnConfig(txn, request, Shard::RetryPolicy::kNoRetry);"
+"configShard->runBatchWriteCommand(txn, request, Shard::RetryPolicy::kIdempotent);"
+"configShard->runBatchWriteCommandOnConfig(txn, request, Shard::RetryPolicy::kIdempotent);"
+"configShard->runBatchWriteCommand(txn, request, Shard::RetryPolicy::kIdempotent);"
+"configShard->runBatchWriteCommandOnConfig(txn, request, Shard::RetryPolicy::kIdempotent);"
+"BatchedCommandResponse Shard::runBatchWriteCommand(OperationContext* txn,"
+BatchedCommandResponse Shard::runBatchWriteCommandOnConfig(
+"void Command::generateErrorResponse(OperationContext* txn,"
+operationTime = LogicalTime(
+"Command::generateErrorResponse(txn, replyBuilder, e, request, command, metadataBob.done());"
+Command::generateErrorResponse(
+"log() << ""Blacklisting "" << syncTarget << "" due to error: '"" << status << ""' for ""","""' for """
+dassert(_uncommittedRecordIds.empty() || _uncommittedRecordIds.back() < id);
+PRINT(c->nextSafe());
+log() << c->nextSafe();
+PRINT(typeid(comp).name());
+PRINT(lhs.first);
+PRINT(lhs.second);
+PRINT(rhs.first);
+PRINT(rhs.second);
+"PRINT(comp(lhs, rhs));"
+"PRINT(comp(rhs, lhs));"
+dassert(false);
+"log() << ""Replication producer stopped after oplog fetcher finished returning a batch from ""","""Replication producer stopped after oplog fetcher finished returning a batch from """
+"massert(16235, ""going to start syncing, but buffer is not empty"", _oplogBuffer->isEmpty());","""going to start syncing, but buffer is not empty"""
+"LOG(2) << ""Stopping oplog fetcher due to shutdown."";","""Stopping oplog fetcher due to shutdown."""
+"LOG(2) << ""Stopping oplog fetcher because we are waiting for the applier to drain."";","""Stopping oplog fetcher because we are waiting for the applier to drain."""
+"LOG(2) << ""Stopping oplog fetcher because we are primary."";","""Stopping oplog fetcher because we are primary."""
+fassertFailedNoTrace(40304);
+fassertFailedNoTrace(40304);
+"ASSERT_EQ(shardRegistry()->getConfigServerConnectionString().toString(),"
+shardKeyMatches = uassertStatusOK(
+BSONObj shardKeyMatches = uassertStatusOK(
+"uasserted(ErrorCodes::ShardKeyNotFound,"
+"uasserted(ErrorCodes::ShardKeyNotFound,"
+void throwCursorError(DBClientCursor* cursor) {
+cursor->peekError(&error);
+"log() << ""ChunkManager loading chunks for "" << _ns << "" sequenceNumber: "" << _sequenceNumber",""" sequenceNumber: """
+"log() << ""ChunkManager loading chunks for "" << _nss","""ChunkManager loading chunks for """
+"auto config = uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db()));"
+"auto config = uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, _nss.db()));"
+"void WRITETODATAFILES(OperationContext* txn,"
+"void WRITETODATAFILES(const JSectHeader& h, const AlignedBuilder& uncompressed) {"
+"WRITETODATAFILES(cc().makeOperationContext().get(), buffer->_header, buffer->_builder);"
+"WRITETODATAFILES(buffer->_header, buffer->_builder);"
+LockMongoFilesShared::assertAtLeastReadLocked(txn);
+"error() << ""exception in DurableMappedFile::close"";","""exception in DurableMappedFile::close"""
+"error() << ""exception in ~DurableMappedFile"";","""exception in ~DurableMappedFile"""
+LockMongoFilesShared::assertExclusivelyLocked(txn);
+LockMongoFilesShared::assertExclusivelyLocked();
+void printMemInfo(const char* where) {
+LogstreamBuilder out = log();
+void printMemInfo() {
+LogstreamBuilder out = log();
+LockMongoFilesShared::assertExclusivelyLocked();
+LockMongoFilesShared::assertExclusivelyLocked(txn);
+LockMongoFilesShared::assertExclusivelyLocked();
+"LOG(Z) << x << ' ' << what[x] << "" request"" << endl;",""" request"""
+"LOG(Z) << x << "" w got"" << endl;",""" w got"""
+"LOG(Z) << x << "" w unlock"" << endl;",""" w unlock"""
+"LOG(Z) << x << ' ' << ch << "" got"" << endl;",""" got"""
+"mongo::unittest::log() << ""warning lock upgrade was slow "" << t.millis()","""warning lock upgrade was slow """
+mongo::unittest::log()
+ASSERT(false);
+"LOG(Z) << x << ' ' << ch << "" unlock"" << endl;",""" unlock"""
+"LOG(Z) << x << ' ' << ch << "" got "" << endl;",""" got """
+"LOG(Z) << x << ' ' << ch << "" unlock"" << endl;",""" unlock"""
+ASSERT(false);
+"WriteLocksAreGreedy() : m(""gtest""), _barrier(WriteLocksAreGreedy_ThreadCount) {}","""gtest"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 1"" << endl;",""" 1"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 1x"" << endl;",""" 1x"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 2"" << endl;",""" 2"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 2x"" << endl;",""" 2x"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 3"" << endl;",""" 3"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 3x"" << endl;",""" 3x"""
+LOG(Z) << t.millis() << endl;
+ASSERT(t.millis() > 50);
+const auto shard = uassertStatusOK(
+"uassertStatusOK(shardRegistry->getShard(txn, confIn->getPrimaryId()));"
+const auto shard = uassertStatusOK(
+"uassertStatusOK(shardRegistry->getShard(txn, mrResult.shardTargetId));"
+const auto shard = uassertStatusOK(
+"uassertStatusOK(shardRegistry->getShard(txn, confOut->getPrimaryId()));"
+"uassert(ErrorCodes::ShardNotFound,"
+"audit::writeImpersonatedUsersToMetadata(txn, metadataBob);"
+"ClientMetadataIsMasterState::writeToMetadata(txn, metadataBob);"
+rpc::ConfigServerMetadata(_getConfigServerOpTime()).writeToMetadata(metadataBob);
+"LOG(5) << ""PROJECTION: fetched status: "" << solnRoot->fetched();","""PROJECTION: fetched status: """
+"LOG(5) << ""PROJECTION: claims to require doc adding fetch."";","""PROJECTION: claims to require doc adding fetch."""
+"LOG(5) << ""PROJECTION: requires fields"";","""PROJECTION: requires fields"""
+"LOG(5) << ""PROJECTION: not covered due to field "" << fields[i];","""PROJECTION: not covered due to field """
+"LOG(5) << ""PROJECTION: is covered?: = "" << covered;","""PROJECTION: is covered?: = """
+"LOG(5) << ""PROJECTION: not covered, fetching."";","""PROJECTION: not covered, fetching."""
+"LOG(5) << ""PROJECTION: covered via FETCH, using SIMPLE_DOC fast path"";","""PROJECTION: covered via FETCH, using SIMPLE_DOC fast path"""
+"LOG(5) << ""PROJECTION: covered via IXSCAN, using COVERED fast path"";","""PROJECTION: covered via IXSCAN, using COVERED fast path"""
+"LOG(5) << ""PROJECTION: covered via DISTINCT, using COVERED fast path"";","""PROJECTION: covered via DISTINCT, using COVERED fast path"""
+"LOG(5) << ""PROJECTION: needs $meta sortKey, using DEFAULT path instead"";","""PROJECTION: needs $meta sortKey, using DEFAULT path instead"""
+"void WRITETODATAFILES(const JSectHeader& h, const AlignedBuilder& uncompressed) {"
+"void WRITETODATAFILES(OperationContext* txn,"
+"WRITETODATAFILES(buffer->_header, buffer->_builder);"
+"WRITETODATAFILES(cc().makeOperationContext().get(), buffer->_header, buffer->_builder);"
+LockMongoFilesShared::assertAtLeastReadLocked();
+"error() << ""exception in ~DurableMappedFile"";","""exception in ~DurableMappedFile"""
+"error() << ""exception in DurableMappedFile::close"";","""exception in DurableMappedFile::close"""
+LockMongoFilesShared::assertExclusivelyLocked();
+LockMongoFilesShared::assertExclusivelyLocked(txn);
+void printMemInfo(const char* where) {
+LogstreamBuilder out = log();
+void printMemInfo() {
+LogstreamBuilder out = log();
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 1x"" << endl;",""" 1x"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 2"" << endl;",""" 2"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 2x"" << endl;",""" 2x"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 3"" << endl;",""" 3"""
+"LOG(Z) << mongo::curTimeMillis64() % 10000 << "" 3x"" << endl;",""" 3x"""
+LOG(Z) << t.millis() << endl;
+ASSERT(t.millis() > 50);
+"ASSERT_BSONOBJ_EQ(expectedShardNames(), b.arr());"
+"uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, primaryShardId));"
+auto result = uassertStatusOK(primaryShard->runCommandWithFixedRetryAttempts(
+uassertStatusOK(result.commandStatus);
+"uassertStatusOK(bsonExtractIntegerField(result.response, ""n"", &numObjects));","""n"""
+splitPoints = uassertStatusOK(shardutil::selectChunkSplitPoints(
+"log() << ""going to create "" << splitPoints.size() + 1 << "" chunk(s) for: "" << nss",""" chunk(s) for: """
+Status status = Grid::get(txn)->catalogClient(txn)->insertConfigDocument(
+"auto primaryShard = uassertStatusOK(grid.shardRegistry()->getShard(txn, primaryShardId));"
+auto result = uassertStatusOK(primaryShard->runCommandWithFixedRetryAttempts(
+uassertStatusOK(result.commandStatus);
+"uassertStatusOK(bsonExtractIntegerField(result.response, ""n"", &numObjects));","""n"""
+*splitPoints = uassertStatusOK(shardutil::selectChunkSplitPoints(
+"log() << ""Marking chunk "" << redact(chunk->toString()) << "" as jumbo."";",""" as jumbo."""
+auto status = Grid::get(txn)->catalogClient(txn)->updateConfigDocument(
+"log() << ""Couldn't set jumbo for chunk: "" << redact(chunkName)","""Couldn't set jumbo for chunk: """
+<< ErrorCodes::errorString(next.getStatus().code())};
+fassertFailed(17449);
+_clusterTime = _makeSignedLogicalTime(newTime);
+fassertFailed(17449);
+LogicalClock::get(service)->advanceClusterTimeFromTrustedSource(LogicalTime(newTime));
+"log() << ""mongod is locked and no writes are allowed. db.fsyncUnlock() to unlock"";","""mongod is locked and no writes are allowed. db.fsyncUnlock() to unlock"""
+"log() << ""Lock count is "" << getLockCount();","""Lock count is """
+"log() << ""    For more info see "" << FSyncCommand::url();","""    For more info see """
+"log() << ""mongod is locked and no writes are allowed. db.fsyncUnlock() to unlock"";","""mongod is locked and no writes are allowed. db.fsyncUnlock() to unlock"""
+"log() << ""Lock count is "" << getLockCount();","""Lock count is """
+"log() << ""    For more info see "" << FSyncCommand::url();","""    For more info see """
+status = newConfig.checkIfWriteConcernCanBeSatisfied(newConfig.getDefaultWriteConcern());
+status = newConfig.checkIfWriteConcernCanBeSatisfied(newConfig.getDefaultWriteConcern());
+*batchResponse = configShard->runBatchWriteCommandOnConfig(
+"configShard->runBatchWriteCommand(txn, batchRequest, Shard::RetryPolicy::kNotIdempotent);"
+"configShard->runBatchWriteCommandOnConfig(txn, request, Shard::RetryPolicy::kNoRetry);"
+"configShard->runBatchWriteCommand(txn, request, Shard::RetryPolicy::kNoRetry);"
+"configShard->runBatchWriteCommandOnConfig(txn, request, Shard::RetryPolicy::kIdempotent);"
+"configShard->runBatchWriteCommand(txn, request, Shard::RetryPolicy::kIdempotent);"
+"configShard->runBatchWriteCommandOnConfig(txn, request, Shard::RetryPolicy::kIdempotent);"
+"configShard->runBatchWriteCommand(txn, request, Shard::RetryPolicy::kIdempotent);"
+BatchedCommandResponse Shard::runBatchWriteCommandOnConfig(
+"BatchedCommandResponse Shard::runBatchWriteCommand(OperationContext* txn,"
+"uassertStatusOK(storePossibleCursor(shardResults[0].target.getServers()[0],"
+"uassertStatusOK(storePossibleCursor(txn,"
+"result = uassertStatusOK(storePossibleCursor(HostAndPort(cursor->originalHost()),"
+"result = uassertStatusOK(storePossibleCursor(txn,"
+ASSERT_TRUE(storageInterface == StorageInterface::get(serviceContext));
+ASSERT_TRUE(storageInterface == StorageInterface::get(service));
+"ASSERT(fixDocumentForInsert(BSON(""_id"" << 5)).isOK());","""_id"""
+"ASSERT(fixDocumentForInsert(BSON(""_id"" << BSON(""x"" << 5))).isOK());","""x"""
+"ASSERT(!fixDocumentForInsert(BSON(""_id"" << BSON(""$x"" << 5))).isOK());","""$x"""
+"ASSERT(!fixDocumentForInsert(BSON(""_id"" << BSON(""$oid"" << 5))).isOK());","""$oid"""
+"ASSERT(fixDocumentForInsert(_txn.getServiceContext(), BSON(""_id"" << 5)).isOK());","""_id"""
+ASSERT(
+ASSERT(
+"ASSERT(!fixDocumentForInsert(_txn.getServiceContext(), BSON(""_id"" << BSON(""$oid"" << 5)))","""$oid"""
+"LOG(1) << ""Shutting down task executor used for monitoring replica sets"";","""Shutting down task executor used for monitoring replica sets"""
+"LOG(1) << ""Shutting down task executor used for monitoring replica sets"";","""Shutting down task executor used for monitoring replica sets"""
+"LOG(1) << ""Shutting down task executor used for monitoring replica sets"";","""Shutting down task executor used for monitoring replica sets"""
+"LOG(1) << ""Shutting down task executor used for monitoring replica sets"";","""Shutting down task executor used for monitoring replica sets"""
+Grid::get(txn)->catalogCache()->invalidate(_name);
+Grid::get(txn)->catalogCache()->invalidate(staleNS.db());
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, staleNS.db());"
+"log() << ""cannot reload database info for stale namespace "" << staleNS.ns();","""cannot reload database info for stale namespace """
+"LOG(pc + logLevel) << ""stale config of ns "" << staleNS","""stale config of ns """
+"LOG(1) << ""stale config of ns "" << staleNS","""stale config of ns """
+LOG(pc + logLevel)
+"LOG(1) << ""stale config of ns "" << staleNS","""stale config of ns """
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString());"
+"updateChunkWriteStatsAndSplitIfNeeded(txn, chunkManager.get(), chunk.get(), it->second);"
+dassert(collectionShardingState != nullptr);  // every collection gets one
+"auto status = grid.catalogCache()->getDatabase(txn, staleNS.db().toString());"
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, staleNS.db());"
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+config = uassertStatusOK(status);
+uassertStatusOK(scopedCMStatus.getStatus());
+"const auto shard = uassertStatusOK(grid.shardRegistry()->getShard(txn, i->first));"
+"uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, i->first));"
+"auto scopedChunkManager = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString()));"
+"auto config = uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db()));"
+"auto status = grid.catalogCache()->getDatabase(txn, nsToDatabase(ns));"
+Grid::get(txn)->catalogCache()->invalidate(nss.db());
+grid.catalogCache()->invalidate(nss.db().toString());
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+Grid::get(txn)->catalogCache()->invalidate(nss.db());
+Grid::get(txn)->catalogCache()->invalidate(outputCollNss.db().toString());
+Grid::get(txn)->catalogCache()->invalidate(outputCollNss.db());
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString());"
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db());"
+"LOG(1) << ""Database does not exist or collection no longer sharded after a ""","""Database does not exist or collection no longer sharded after a """
+Grid::get(txn)->catalogCache()->invalidate(NamespaceString(staleNS).db());
+"auto statusGetDb = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString());"
+"auto statusGetDb = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db());"
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, staleNS.db());"
+"auto status = grid.catalogCache()->getDatabase(txn, staleNS.db().toString());"
+uassertStatusOK(scopedCMStatus.getStatus());
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+config = uassertStatusOK(status);
+"uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, i->first));"
+"const auto shard = uassertStatusOK(grid.shardRegistry()->getShard(txn, i->first));"
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"auto scopedChunkManager = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"auto config = uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db()));"
+"uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString()));"
+"auto status = grid.catalogCache()->getDatabase(txn, nsToDatabase(ns));"
+Grid::get(txn)->catalogCache()->invalidate(nss.db());
+grid.catalogCache()->invalidate(nss.db().toString());
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+Grid::get(txn)->catalogCache()->invalidate(nss.db());
+Grid::get(txn)->catalogCache()->invalidate(outputCollNss.db());
+Grid::get(txn)->catalogCache()->invalidate(outputCollNss.db().toString());
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db());"
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString());"
+Grid::get(txn)->catalogCache()->invalidate(NamespaceString(staleNS).db());
+"LOG(1) << ""Database does not exist or collection no longer sharded after a ""","""Database does not exist or collection no longer sharded after a """
+"auto statusGetDb = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db());"
+"auto statusGetDb = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString());"
+return getLogicalClock(service).get();
+SignedLogicalTime LogicalClock::_makeSignedLogicalTime(LogicalTime logicalTime) {
+"return SignedLogicalTime(logicalTime, _timeProofService->getProof(logicalTime));"
+"clusterTimestamp = LogicalTime(Timestamp(wallClockSecs, 1));"
+_clusterTime = _makeSignedLogicalTime(clusterTimestamp);
+_clusterTime = _makeSignedLogicalTime(newTime);
+"auto status = grid.catalogCache()->getDatabase(txn, staleNS.db().toString());"
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, staleNS.db());"
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+config = uassertStatusOK(status);
+uassertStatusOK(scopedCMStatus.getStatus());
+"const auto shard = uassertStatusOK(grid.shardRegistry()->getShard(txn, i->first));"
+"uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, i->first));"
+"auto scopedChunkManager = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString()));"
+"auto config = uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db()));"
+"auto status = grid.catalogCache()->getDatabase(txn, nsToDatabase(ns));"
+Grid::get(txn)->catalogCache()->invalidate(nss.db());
+grid.catalogCache()->invalidate(nss.db().toString());
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+Grid::get(txn)->catalogCache()->invalidate(nss.db());
+Grid::get(txn)->catalogCache()->invalidate(outputCollNss.db().toString());
+Grid::get(txn)->catalogCache()->invalidate(outputCollNss.db());
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString());"
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db());"
+"LOG(1) << ""Database does not exist or collection no longer sharded after a ""","""Database does not exist or collection no longer sharded after a """
+Grid::get(txn)->catalogCache()->invalidate(NamespaceString(staleNS).db());
+"auto statusGetDb = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db().toString());"
+"auto statusGetDb = Grid::get(txn)->catalogCache()->getDatabase(txn, nss.db());"
+"uassert(17450, ""invalid salt length provided"", saltLen + 4 == hashSize);","""invalid salt length provided"""
+"uassert(17450, ""invalid salt length provided"", saltLen + 4 == startKey.size());","""invalid salt length provided"""
+"fassert(17494, crypto::hmacSha1(input, inputLen, startKey, saltLen + 4, output, &hashLen));"
+"fassert(17498,"
+"fassert(17499, crypto::sha1(clientKey, hashSize, storedKey));"
+"fassert(17500,"
+"fassert(18689,"
+"fassert(18701, crypto::sha1(clientKey, hashSize, storedKey));"
+"fassert(18702,"
+LogicalTime::LogicalTime(Timestamp ts) : _time(ts.asULL()) {}
+return LogicalTime(Timestamp(_time + ticks));
+Grid::get(txn)->catalogCache()->invalidate(_nss.db().toString());
+"log() << ""Received replSetStepUp request"";","""Received replSetStepUp request"""
+"log() << ""replSetStepUp request failed "" << causedBy(status);","""replSetStepUp request failed """
+void LockerImpl<IsForMMAPV1>::assertEmptyAndReset() {
+invariant(!inAWriteUnitOfWork());
+assertEmptyAndReset();
+invariant(!inAWriteUnitOfWork());
+"uassert(ErrorCodes::CannotBuildIndexKeys,"
+"auto config = uassertStatusOK(ScopedShardDatabase::getExisting(txn, nss.db()));"
+"uassert(10163, ""can only handle numbers here - which i think is correct"", e.isNumber());","""can only handle numbers here - which i think is correct"""
+"uassert(28736,"
+"grid.catalogClient(txn)->updateConfigDocument(txn,"
+auto status = Grid::get(txn)->catalogClient(txn)->updateConfigDocument(
+"updateChunkWriteStatsAndSplitIfNeeded(txn, cm.get(), c.get(), size);"
+request.setWriteConcern(WriteConcernOptions::Acknowledged);
+"uassertStatusOK(catalogClient->shardCollection(txn,"
+"uassert(10163, ""can only handle numbers here - which i think is correct"", e.isNumber());","""can only handle numbers here - which i think is correct"""
+"void toBatchError(const Status& status, BatchedCommandResponse* response) {"
+dassert(response->isValid(NULL));
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+"updateChunkWriteStatsAndSplitIfNeeded(txn, chunkManager.get(), chunk.get(), it->second);"
+request.setWriteConcern(WriteConcernOptions::Acknowledged);
+"ClusterWriter writer(false, 0);"
+"writer.write(txn, request, &response);"
+"grid.catalogClient(txn)->writeConfigServerDirect(txn, *request, response);"
+"Grid::get(txn)->catalogClient(txn)->writeConfigServerDirect(txn, *request, response);"
+"ClusterWriter::ClusterWriter(bool autoSplit, int timeoutMillis)"
+"void updateChunkWriteStatsAndSplitIfNeeded(OperationContext* txn,"
+"LOG(1) << ""won't auto split because not enough tickets: "" << nss;","""won't auto split because not enough tickets: """
+uassertStatusOK(balancerConfig->refreshAndCheck(txn));
+"LOG(1) << ""about to initiate autosplit: "" << redact(chunk->toString())","""about to initiate autosplit: """
+"uassertStatusOK(shardutil::selectChunkSplitPoints(txn,"
+"uassertStatusOK(shardutil::splitChunkAtMultiplePoints(txn,"
+"Grid::get(txn)->catalogClient(txn)->getCollection(txn, manager->getns());"
+"log() << ""Auto-split for "" << nss << "" failed to load collection metadata""",""" failed to load collection metadata"""
+"log() << ""autosplitted "" << nss << "" chunk: "" << redact(chunk->toString()) << "" into """,""" into """
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"uassertStatusOK(configsvr_client::rebalanceChunk(txn, chunkToMove));"
+"log() << ""Unable to auto-split chunk "" << redact(chunkRange.toString()) << causedBy(ex);","""Unable to auto-split chunk """
+"log() << ""Marking chunk "" << chunk->toString() << "" as jumbo."";",""" as jumbo."""
+const auto splitPoints = uassertStatusOK(shardutil::selectChunkSplitPoints(
+"uassert(ErrorCodes::CannotSplit, ""No split points found"", !splitPoints.empty());","""No split points found"""
+uassertStatusOK(
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+bool supportsWriteConcern(const BSONObj& cmd) const override {
+"uassert(10170, ""Chunk needs a ns"", !ns.empty());","""Chunk needs a ns"""
+"uassert(13327, ""Chunk ns must match server ns"", ns == _manager->getns());","""Chunk ns must match server ns"""
+"uassert(10172, ""Chunk needs a min"", !_min.isEmpty());","""Chunk needs a min"""
+"uassert(10173, ""Chunk needs a max"", !_max.isEmpty());","""Chunk needs a max"""
+"uassert(10171, ""Chunk needs a server"", grid.shardRegistry()->getShard(txn, _shardId).isOK());","""Chunk needs a server"""
+"log() << ""startCommit never finished!"" << migrateLog;","""startCommit never finished!"""
+"log() << ""startCommit failed, final data failed to transfer"" << migrateLog;","""startCommit failed, final data failed to transfer"""
+"error() << ""migrate failed: "" << redact(e.what()) << migrateLog;","""migrate failed: """
+"log() << ""migrate failed: "" << redact(e.what());","""migrate failed: """
+"error() << ""migrate failed with unknown exception"" << migrateLog;","""migrate failed with unknown exception"""
+"log() << ""migrate failed with unknown exception"";","""migrate failed with unknown exception"""
+error() << errmsg << migrateLog;
+"error() << ""Migration abort requested before it started"";","""Migration abort requested before it started"""
+error() << errmsg << migrateLog;
+log() << _errmsg;
+error() << errmsg << migrateLog;
+"log() << ""Migration aborted while copying documents"";","""Migration aborted while copying documents"""
+"error() << ""_transferMods failed: "" << redact(res) << migrateLog;","""_transferMods failed: """
+"log() << ""_transferMods failed: "" << redact(res);","""_transferMods failed: """
+error() << errmsg << migrateLog;
+"log() << ""Migration aborted while waiting for replication at catch up stage"";","""Migration aborted while waiting for replication at catch up stage"""
+"log() << ""secondaries having hard time keeping up with migrate"";","""secondaries having hard time keeping up with migrate"""
+error() << errmsg << migrateLog;
+log() << _errmsg;
+error() << errmsg << migrateLog;
+"log() << ""Migration aborted while waiting for replication"";","""Migration aborted while waiting for replication"""
+error() << errmsg << migrateLog;
+log() << _errmsg;
+"log() << ""_transferMods failed in STEADY state: "" << redact(res) << migrateLog;","""_transferMods failed in STEADY state: """
+"log() << ""_transferMods failed in STEADY state: "" << redact(res);","""_transferMods failed in STEADY state: """
+error() << errmsg << migrateLog;
+"log() << ""Migration aborted while transferring mods"";","""Migration aborted while transferring mods"""
+log() << _errmsg;
+"OCCASIONALLY log() << ""migrate commit waiting for a majority of slaves for '"" << ns << ""' ""","""' """
+uassertStatusOK(MigrationSessionId::extractFromBSON(cmdObj)));
+auto const sessionId = uassertStatusOK(MigrationSessionId::extractFromBSON(cmdObj));
+log() << status.reason();
+Grid::get(txn)->catalogClient(txn)->getDistLockManager()->lockWithSessionID(
+Grid::get(txn)->catalogClient(txn)->getDistLockManager()->lockWithSessionID(
+uassertStatusOK(bsonExtractDoubleFieldWithDefault(
+"uassert(ErrorCodes::BadValue,"
+"uassertStatusOK(shardutil::selectMedianKey(txn,"
+"uassertStatusOK(shardutil::selectChunkSplitPoints(txn,"
+"auto shard = uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, shardId));"
+auto cmdResponse = uassertStatusOK(
+uassertStatusOK(cmdResponse.commandStatus);
+"uassertStatusOK(chunk->split(txn, Chunk::atMedian, nullptr));"
+"uassertStatusOK(shardutil::splitChunkAtMultiplePoints(txn,"
+uassertStatusOK(
+"new repl::TopologyCoordinatorImpl(topoCoordOptions),"
+_topo = new TopologyCoordinatorImpl(settings);
+"log() << ""rollback - rollbackHangThenFailAfterWritingMinValid fail point ""","""rollback - rollbackHangThenFailAfterWritingMinValid fail point """
+"uasserted(40378,"
+"log() << ""Balancer distributed lock could not be acquired and will be retried in ""","""Balancer distributed lock could not be acquired and will be retried in """
+auto balancerLockStatus = distLockManager->tryLockWithLocalWriteConcern(
+"log() << ""Failed to acquire balancer distributed lock. Abandoning balancer recovery.""","""Failed to acquire balancer distributed lock. Abandoning balancer recovery."""
+->catalogClient(txn)
+uassertStatusOK(
+"uassertStatusOK({ErrorCodes::NoShardingEnabled,"
+uassertStatusOK(shardingState->canAcceptShardedCommands());
+uassertStatusOK(shardingState->updateConfigServerOpTimeFromMetadata(txn));
+uassertStatusOK(shardingState->updateConfigServerOpTimeFromMetadata(txn));
+"LegacyAddShardLogOpHandler(OperationContext* txn, ShardType shardType)"
+uassertStatusOK(
+"Grid::get(_txn)->catalogManager()->upsertShardIdentityOnShard(_txn, _shardType));"
+const auto shardType = uassertStatusOK(ShardType::fromBSON(insertedDoc));
+"new LegacyAddShardLogOpHandler(txn, std::move(shardType)));"
+"new RemoveShardLogOpHandler(txn, ShardId(std::move(shardIdStr))));"
+uassertStatusOK(ShardingState::get(txn)->canAcceptShardedCommands());
+uassertStatusOK(shardingState->canAcceptShardedCommands());
+"dassert(cmdObj[""configServer""].type() == String);","""configServer"""
+uassertStatusOK(shardingState->canAcceptShardedCommands());
+"uassertStatusOK({ErrorCodes::NoShardingEnabled,"
+uassertStatusOK(shardingState->canAcceptShardedCommands());
+"uassert(ErrorCodes::BadValue,"
+uassertStatusOK(givenConnStrStatus);
+uassertStatusOK(ChunkVersion::parseFromBSONForSetShardVersion(cmdObj));
+uassertStatusOK(ChunkVersion::parseFromBSONForSetShardVersion(cmdObj));
+"uassert(18509,"
+ConnectionString configSvrConnStr = uassertStatusOK(ConnectionString::parse(configSvr));
+uassertStatusOK(_waitForInitialization(txn->getDeadline()));
+uassertStatusOK(reloadShardRegistryUntilSuccess(txn));
+uassertStatusOK(updateConfigServerOpTimeFromMetadata(txn));
+"fassert(40372, _shardName == shardIdentity.getShardName());"
+"fassert(40373, prevConfigsvrConnStr.getSetName() == configSvrConnStr.getSetName());"
+"fassertStatusOK(34349, _initializationStatus);"
+uassertStatusOK(shardingState->canAcceptShardedCommands());
+"log() << ""not electing self, we are not freshest"";","""not electing self, we are not freshest"""
+"log() << ""not electing self, "" << request.target.toString()","""not electing self, """
+"log() << ""not electing self, "" << request.target.toString()","""not electing self, """
+"log() << ""not electing self, "" << request.target.toString()","""not electing self, """
+"log() << ""running for election"";","""running for election"""
+"log() << ""running for election""","""running for election"""
+"log() << ""disableMaxSyncSourceLagSecs fail point enabled - not checking the most recent ""","""disableMaxSyncSourceLagSecs fail point enabled - not checking the most recent """
+"log() << ""Choosing new sync source because the most recent OpTime of our sync source, ""","""Choosing new sync source because the most recent OpTime of our sync source, """
+"uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, server));"
+"auto status = grid.catalogCache()->getDatabase(txn, dbname);"
+"auto config = uassertStatusOK(ScopedShardDatabase::getExisting(txn, nss.db()));"
+"auto config = uassertStatusOK(grid.catalogCache()->getDatabase(txn, nss.db().toString()));"
+void ChunkManager::_printChunks() const {
+log() << redact((*it->second).toString());
+log() << redact(chunkMin.toString());
+log() << redact((*chunk).toString());
+log() << redact(shardKey);
+"msgasserted(8070,"
+"msgasserted(13141, ""Chunk map pointed to incorrect chunk"");","""Chunk map pointed to incorrect chunk"""
+grid.catalogCache()->invalidateAll();
+Grid::get(txn)->catalogCache()->invalidateAll();
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+"LOG(2) << ""found "" << numCollsSharded << "" collections left and "" << numCollsErased",""" collections left and """
+"LOG(1) << ""Successfully refreshed metadata for "" << nss.ns() << "" to """,""" to """
+"log() << ""Refresh failed and will be retried as full reload ""","""Refresh failed and will be retried as full reload """
+"log() << ""Refresh failed and will be retried as full reload "" << status;","""Refresh failed and will be retried as full reload """
+"log() << ""MetadataLoader loading chunks for "" << nss.ns() << "" based on: """,""" based on: """
+"log() << ""MetadataLoader loading chunks for "" << nss.ns() << "" based on: """,""" based on: """
+"grid.catalogClient(txn),"
+"grid.catalogClient(txn),"
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and found version """,""" ms and found version """
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and did not find the namespace"";",""" ms and did not find the namespace"""
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and did not find the namespace"";",""" ms and did not find the namespace"""
+"LOG(1) << ""Successfully refreshed metadata for "" << nss.ns() << "" to """,""" to """
+"log() << ""Refresh failed and will be retried as full reload ""","""Refresh failed and will be retried as full reload """
+"log() << ""Refresh failed and will be retried as full reload "" << status;","""Refresh failed and will be retried as full reload """
+"log() << ""MetadataLoader loading chunks for "" << nss.ns() << "" based on: """,""" based on: """
+"log() << ""MetadataLoader loading chunks for "" << nss.ns() << "" based on: """,""" based on: """
+"grid.catalogClient(txn),"
+"grid.catalogClient(txn),"
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and did not find the namespace"";",""" ms and did not find the namespace"""
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and found version """,""" ms and found version """
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and found version """,""" ms and found version """
+"LOG(1) << ""Successfully refreshed metadata for "" << nss.ns() << "" to """,""" to """
+"log() << ""Refresh failed and will be retried as full reload ""","""Refresh failed and will be retried as full reload """
+"log() << ""Refresh failed and will be retried as full reload "" << status;","""Refresh failed and will be retried as full reload """
+"log() << ""MetadataLoader loading chunks for "" << nss.ns() << "" based on: """,""" based on: """
+"log() << ""MetadataLoader loading chunks for "" << nss.ns() << "" based on: """,""" based on: """
+"grid.catalogClient(txn),"
+"grid.catalogClient(txn),"
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and found version """,""" ms and found version """
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and did not find the namespace"";",""" ms and did not find the namespace"""
+"log() << ""MetadataLoader took "" << t.millis() << "" ms and did not find the namespace"";",""" ms and did not find the namespace"""
+"uassertStatusOK(bsonExtractIntegerField(dbElt.Obj(), ""sizeOnDisk""_sd, &sizeOnDisk));","""sizeOnDisk"""
+"uassert(ErrorCodes::BadValue,"
+"log() << ""bgsync - stopReplProducer fail point ""","""bgsync - stopReplProducer fail point """
+"uassert(ErrorCodes::StaleEpoch,"
+"return {ErrorCodes::Error(40165),"
+"const WriteConcernOptions kNoWaitWriteConcern(1, WriteConcernOptions::SyncMode::UNSET, Seconds(0));"
+ShardingCatalogManagerImpl::ShardingCatalogManagerImpl(
+": _catalogClient(catalogClient),"
+ShardingCatalogManagerImpl::~ShardingCatalogManagerImpl() = default;
+const auto catalogClient = Grid::get(txn)->catalogClient(txn);
+"LOG(0) << ""Operation for addShard timed out with status "" << swResponse.status;","""Operation for addShard timed out with status """
+if (!Shard::shouldErrorBePropagated(swResponse.status.code())) {
+if (!Shard::shouldErrorBePropagated(commandStatus.code())) {
+Status writeConcernStatus = getWriteConcernStatusFromCommandResult(responseObj);
+if (!Shard::shouldErrorBePropagated(writeConcernStatus.code())) {
+"auto dbt = Grid::get(txn)->catalogClient(txn)->getDatabase(txn, dbName);"
+"LOG(2) << ""going to insert shardIdentity document into shard: "" << shardType;","""going to insert shardIdentity document into shard: """
+"Shard::CommandResponse::processBatchWriteResponse(commandResponse, &batchResponse);"
+"log() << ""going to insert new entry for shard into config.shards: "" << shardType.toString();","""going to insert new entry for shard into config.shards: """
+Status result = Grid::get(txn)->catalogClient(txn)->insertConfigDocument(
+"log() << ""error adding shard: "" << shardType.toBSON() << "" err: "" << result.reason();",""" err: """
+"Status status = Grid::get(txn)->catalogClient(txn)->updateDatabase(txn, dbName, dbt);"
+"log() << ""adding shard "" << shardConnectionString.toString()","""adding shard """
+Grid::get(txn)->catalogClient(txn)->logChange(
+"log() << ""Retrying upsert of shardIdentity document into shard "" << shardType.getName();","""Retrying upsert of shardIdentity document into shard """
+Status writeConcernStatus = getWriteConcernStatusFromCommandResult(responseObj);
+"Shard::CommandResponse::processBatchWriteResponse(commandResponse, &batchResponse);"
+->catalogClient(txnPtr.get())
+commandRequest.setWriteConcern(ShardingCatalogClient::kMajorityWriteConcern.toBSON());
+"fassert(40219, swHandle.getStatus());"
+auto updateStatus = Grid::get(txn)->catalogClient(txn)->updateConfigDocument(
+auto updateStatus = Grid::get(txn)->catalogClient(txn)->updateConfigDocument(
+auto updateStatus = Grid::get(txn)->catalogClient(txn)->updateConfigDocument(
+return Grid::get(txn)->catalogClient(txn)->removeConfigDocuments(
+"uassert(ErrorCodes::InvalidOptions, ""collection version is missing"", oss.hasShardVersion());","""collection version is missing"""
+"void Strategy::writeOp(OperationContext* txn, int op, DbMessage* dbm) {"
+"void Strategy::writeOp(OperationContext* txn, DbMessage* dbm) {"
+"uassert(17382, ""Can't use connection pool during shutdown"", !inShutdown());","""Can't use connection pool during shutdown"""
+"uassert(17382, ""Can't use connection pool during shutdown"", !globalInShutdownDeprecated());","""Can't use connection pool during shutdown"""
+"uassert(ErrorCodes::Interrupted, ""interrupted during journal recovery"", !inShutdown());","""interrupted during journal recovery"""
+"uassert(ErrorCodes::Interrupted,"
+"OplogQueryMetadata::OplogQueryMetadata(OpTime lastOpCommitted,"
+"return OplogQueryMetadata(lastOpCommitted, lastOpApplied, rbid, primaryIndex, syncSourceIndex);"
+Status OplogQueryMetadata::writeToMetadata(BSONObjBuilder* builder) const {
+"uassert(ErrorCodes::InvalidOptions, ""collection version is missing"", oss.hasShardVersion());","""collection version is missing"""
+"uassert(ErrorCodes::InvalidOptions, ""collection version is missing"", oss.hasShardVersion());","""collection version is missing"""
+"LOG(1) << ""Database does not exist or collection no longer sharded after a ""","""Database does not exist or collection no longer sharded after a """
+"ScopedMigrationRequest::writeMigration(txn, migrateInfo, waitForDelete);"
+Grid::get(txn)->catalogClient(txn)->getDistLockManager()->getProcessID();
+migrationSourceManager.cleanupOnError(txn);
+uassertStatusOKWithWarning(
+"uassert(ErrorCodes::FailedToParse,"
+"uassert(ErrorCodes::FailedToParse,"
+uassertStatusOK(statusWithChunkVersion);
+"uassert(4567, ""from collection cannot be sharded"", !_mongod->isSharded(_fromExpCtx->ns));","""from collection cannot be sharded"""
+"audit::logQueryAuthzCheck(client, ns, q.query, status.code());"
+"audit::logQueryAuthzCheck(client, nss, q.query, status.code());"
+uassertStatusOK(parsedRps.getStatus());
+uassertStatusOK(canonicalQuery.getStatus());
+return uassertStatusOK(ReadPreferenceSetting::fromBSON(rpElem.Obj()));
+uassertStatusOK(
+"uassert(16978,"
+"void Strategy::writeOp(OperationContext* txn, int op, Request& request) {"
+"void Strategy::writeOp(OperationContext* txn, int op, DbMessage* dbm) {"
+dassert(parsed && commandResponse.isValid(NULL));
+"ASSERT_EQUALS(""{ \""a\"" : undefined }"", b.done().jsonString(JS));",""" : undefined }"""
+ASSERT_EQUALS(
+"ASSERT_EQUALS(""{ \""a\"" : Date( 0 ) }"", built.jsonString(JS));",""" : Date( 0 ) }"""
+"ASSERT_EQUALS(""{ \""a\"" : Date( -1 ) }"", built.jsonString(JS));",""" : Date( -1 ) }"""
+"ASSERT_EQUALS(""{ \""a\"" : /abc/i }"", built.jsonString(JS));",""" : /abc/i }"""
+"ASSERT_EQUALS(""{ \""a\"" : /\\/\\\""/i }"", built.jsonString(JS));","""/i }"""
+"ASSERT_EQUALS(""{ \""a\"" : /z/gim }"", built.jsonString(JS));",""" : /z/gim }"""
+"ASSERT_EQUALS(""{ \""x\"" : { \""$timestamp\"" : { \""t\"" : 4, \""i\"" : 10 } } }"",",""" : 10 } } }"""
+"assertEquals(bson(), fromjson(tojson(bson(), JS)), ""mode: js"");","""mode: js"""
+"ASSERT_GTE(N, internalQueryPlanEvaluationWorks.load() + 1000);"
+"error() << ""invalid replication metadata from sync source "" << _fetcher->getSource()","""invalid replication metadata from sync source """
+"error() << ""invalid replication metadata from sync source "" << _fetcher->getSource()","""invalid replication metadata from sync source """
+"Status rollback_internal::updateFixUpInfoFromLocalOplogEntry(FixUpInfo& fixUpInfo,"
+"auto subStatus = updateFixUpInfoFromLocalOplogEntry(fixUpInfo, subopElement.Obj());"
+"uasserted(40361, ""rollback error newest oplog entry on source is missing or empty"");","""rollback error newest oplog entry on source is missing or empty"""
+"uasserted(40365, ""rollback rbid on source changed during rollback, canceling this attempt"");","""rollback rbid on source changed during rollback, canceling this attempt"""
+"OpTime minValid = fassertStatusOK(28774, OpTime::parseFromOplogEntry(newMinValidDoc));"
+"log() << ""Setting minvalid to "" << minValid;","""Setting minvalid to """
+"uassert(13410, ""replSet too much data to roll back"", totalSize < 300 * 1024 * 1024);","""replSet too much data to roll back"""
+"error() << ""rollback error newMinValid empty?"";","""rollback error newMinValid empty?"""
+"log() << ""rollback couldn't re-get from ns: "" << doc.ns << "" _id: "" << redact(doc._id)",""" _id: """
+"LOG(1) << ""rollback re-get objects: "" << redact(e);","""rollback re-get objects: """
+"error() << ""rollback couldn't re-get ns:"" << doc.ns << "" _id:"" << redact(doc._id) << ' '",""" _id:"""
+"OpTime minValid = fassertStatusOK(28774, OpTime::parseFromOplogEntry(newMinValid));"
+"log() << ""minvalid="" << minValid;","""minvalid="""
+"OpTime minValid = fassertStatusOK(28775, OpTime::parseFromOplogEntry(newMinValid));"
+"log() << ""minvalid="" << minValid;","""minvalid="""
+"log() << ""rollback 4.3"";","""rollback 4.3"""
+"error() << ""rolling back capped collection rec "" << doc.ns << ' '","""rolling back capped collection rec """
+"fassertStatusOK(40361,"
+fassertFailedNoTrace(40366);
+"log() << ""rollback done"";","""rollback done"""
+"log() << ""rollback 0"";","""rollback 0"""
+Lock::GlobalWrite globalWrite(txn->lockState());
+"log() << ""Upstream node rolled back. Need to retry our rollback."";","""Upstream node rolled back. Need to retry our rollback."""
+"uassert(40362,"
+"log() << ""rollback 2 FindCommonPoint"";","""rollback 2 FindCommonPoint"""
+"localOplog, rollbackSource.getOplog(), processOperationForFixUp);"
+"log() << ""rollback 2 FindCommonPoint"";","""rollback 2 FindCommonPoint"""
+"log() << ns << "" not found on remote host, dropping"";",""" not found on remote host, dropping"""
+"log() << ns << "" not found on remote host, so not rolling back collmod operation.""",""" not found on remote host, so not rolling back collmod operation."""
+"LOG(1) << ""dropCollection: "" << fullns;","""dropCollection: """
+"massertNamespaceNotIndex(fullns, ""dropCollection"");","""dropCollection"""
+"LOG(1) << ""dropCollection: "" << fullns;","""dropCollection: """
+"massertNamespaceNotIndex(fullns.toString(), ""dropCollection"");","""dropCollection"""
+"audit::logDropCollection(&cc(), fullns);"
+"audit::logDropCollection(&cc(), fullns.toString());"
+"fassertStatusOK(40359, db->dropCollectionEvenIfSystem(txn, nss));"
+"fassertStatusOK(40360, db->dropCollectionEvenIfSystem(txn, nss));"
+"fassertStatusOK(40361,"
+"fassertNoTrace(18750,"
+"log() << ""Upstream node rolled back. Need to retry our rollback."";","""Upstream node rolled back. Need to retry our rollback."""
+"LOG(debugLevel) << ""Command on database "" << db","""Command on database """
+<< redact(getRedactedCopyForLogging(request.getCommandArgs()));
+if (!supportsWriteConcern(cmd)) {
+if (commandSpecifiesWriteConcern(cmd)) {
+"auto wcResult = extractWriteConcern(txn, cmd, db);"
+const auto oldWC = txn->getWriteConcern();
+ON_BLOCK_EXIT([&] { txn->setWriteConcern(oldWC); });
+txn->setWriteConcern(wcResult.getValue());
+dassert(SimpleBSONObjComparator::kInstance.evaluate(txn->getWriteConcern().toBSON() ==
+"waitForWriteConcern(txn,"
+"uassertStatusOK(checkAuthorization(command, txn, dbname, request.getCommandArgs()));"
+uassertStatusOK(
+"std::tie(cmdObj, queryFlags) = uassertStatusOK("
+"std::tie(cmdObj, queryFlags) = uassertStatusOK("
+bool supportsWriteConcern(const BSONObj& cmd) const override {
+"uasserted(ErrorCodes::CommandNotSupported, ""applyOps not allowed through mongos"");","""applyOps not allowed through mongos"""
+bool supportsWriteConcern(const BSONObj& cmd) const override {
+"uassertStatusOK(catalogClient->dropCollection(txn, NamespaceString(ns)));"
+"uassertStatusOK(catalogClient->dropCollection(txn, nss));"
+Grid::get(txn)->catalogCache()->invalidate(dbname);
+auto const catalogClient = Grid::get(txn)->catalogClient(txn);
+auto const catalogCache = Grid::get(txn)->catalogCache();
+"auto status = grid.catalogCache()->getDatabase(txn, dbname);"
+"auto config = uassertStatusOK(catalogCache->getDatabase(txn, dbname));"
+log() << msg;
+"uassertStatusOK(shardRegistry->getShard(txn, config->getPrimaryId()));"
+log() << msg;
+"uasserted(toShardStatus.getStatus().code(), msg);"
+"uassertStatusOK(grid.shardRegistry()->getShard(txn, config->getPrimaryId()));"
+"uassert(ErrorCodes::IllegalOperation,"
+auto scopedDistLock = grid.catalogClient(txn)->getDistLockManager()->lock(
+auto scopedDistLock = uassertStatusOK(catalogClient->getDistLockManager()->lock(
+auto catalogClient = grid.catalogClient(txn);
+"catalogClient->logChange(txn,"
+catalogClient->logChange(
+"_buildMoveLogEntry(dbname, fromShard->toString(), toShard->toString(), shardedColls),"
+"<< txn->getWriteConcern().toBSON()),"
+"log() << ""clone failed"" << redact(cloneRes);","""clone failed"""
+"appendWriteConcernErrorToCmdResponse(toShard->getId(), wcErrorElem, result);"
+"<< txn->getWriteConcern().toBSON()),"
+"log() << ""clone failed"" << redact(cloneRes);","""clone failed"""
+"appendWriteConcernErrorToCmdResponse(toShard->getId(), wcErrorElem, result);"
+"auto dbt = uassertStatusOK(catalogClient->getDatabase(txn, dbname)).value;"
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->updateDatabase(txn, dbname, dbt));"
+"uassertStatusOK(catalogClient->updateDatabase(txn, dbname, dbt));"
+Grid::get(txn)->catalogCache()->invalidate(dbname);
+"catalogClient->logChange(txn,"
+catalogClient->logChange(
+"static BSONObj _buildMoveLogEntry(const std::string& db,"
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+bool supportsWriteConcern(const BSONObj& cmd) const override {
+"uassert(ErrorCodes::InvalidNamespace, ""Invalid namespace"", nss.isValid());","""Invalid namespace"""
+"auto config = uassertStatusOK(grid.catalogCache()->getDatabase(txn, nss.db().toString()));"
+auto const catalogClient = Grid::get(txn)->catalogClient(txn);
+"auto scopedShardedDb = uassertStatusOK(ScopedShardDatabase::getExisting(txn, nss.db()));"
+"uassertStatusOK(grid.shardRegistry()->getShard(txn, config->getPrimaryId()));"
+"uassertStatusOK(shardRegistry->getShard(txn, config->getPrimaryId()));"
+"Status status = grid.catalogClient(txn)->shardCollection(txn,"
+"config = uassertStatusOK(grid.catalogCache()->getDatabase(txn, nss.db().toString()));"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(txn, fromdb));"
+"uassert(13400, ""don't know where source DB is"", confFrom);","""don't know where source DB is"""
+"uassert(13401, ""cant copy from sharded DB"", !confFrom->isShardingEnabled());","""cant copy from sharded DB"""
+"uassert(ErrorCodes::InvalidNamespace,"
+uassert(
+"auto scopedFromDb = uassertStatusOK(ScopedShardDatabase::getExisting(txn, fromdb));"
+"uassert(ErrorCodes::IllegalOperation,"
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+"auto status = grid.catalogCache()->getDatabase(txn, dbname);"
+"const auto mergingShard = uassertStatusOK(grid.shardRegistry()->getShard(txn, mergingShardId));"
+"uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, mergingShardId));"
+void LockerImpl<IsForMMAPV1>::assertEmptyAndReset() {
+invariant(!inAWriteUnitOfWork());
+invariant(!inAWriteUnitOfWork());
+void LockerImpl<IsForMMAPV1>::assertEmptyAndReset() {
+invariant(!inAWriteUnitOfWork());
+assertEmptyAndReset();
+invariant(!inAWriteUnitOfWork());
+"uassertStatusOK(grid.catalogClient(txn)->updateCollection(txn, ns, coll));"
+"auto status = grid.catalogClient(txn)->getDatabase(txn, _name);"
+const auto catalogClient = Grid::get(txn)->catalogClient(txn);
+uassertStatusOK(grid.catalogClient(txn)->getCollections(
+uassertStatusOK(
+"uassertStatusOK(grid.catalogClient(txn)->updateDatabase(txn, _name, dbt));"
+grid.catalogCache()->invalidate(_name);
+Grid::get(txn)->catalogCache()->invalidate(_name);
+"auto connString = fassertStatusOK(28805, ConnectionString::parse(newConnectionString));"
+"LOG(1) << ""shard not found for set: "" << newConnectionString","""shard not found for set: """
+auto status = Grid::get(txn.get())->catalogClient(txn.get())->updateConfigDocument(
+"error() << ""RSChangeWatcher: could not update config db for set: "" << setName","""RSChangeWatcher: could not update config db for set: """
+"LOG(debugLevel) << ""Command on database "" << db","""Command on database """
+<< redact(getRedactedCopyForLogging(request.getCommandArgs()));
+if (!supportsWriteConcern(cmd)) {
+if (commandSpecifiesWriteConcern(cmd)) {
+"auto wcResult = extractWriteConcern(txn, cmd, db);"
+const auto oldWC = txn->getWriteConcern();
+ON_BLOCK_EXIT([&] { txn->setWriteConcern(oldWC); });
+txn->setWriteConcern(wcResult.getValue());
+dassert(SimpleBSONObjComparator::kInstance.evaluate(txn->getWriteConcern().toBSON() ==
+"waitForWriteConcern(txn,"
+uassertStatusOK(
+"uassertStatusOK(checkAuthorization(command, txn, dbname, request.getCommandArgs()));"
+"LOG(debugLevel) << ""Command on database "" << db","""Command on database """
+<< redact(getRedactedCopyForLogging(request.getCommandArgs()));
+if (!supportsWriteConcern(cmd)) {
+if (commandSpecifiesWriteConcern(cmd)) {
+"auto wcResult = extractWriteConcern(txn, cmd, db);"
+const auto oldWC = txn->getWriteConcern();
+ON_BLOCK_EXIT([&] { txn->setWriteConcern(oldWC); });
+txn->setWriteConcern(wcResult.getValue());
+dassert(SimpleBSONObjComparator::kInstance.evaluate(txn->getWriteConcern().toBSON() ==
+"waitForWriteConcern(txn,"
+"std::tie(cmdObj, queryFlags) = uassertStatusOK("
+"LOG(debugLevel) << ""Command on database "" << db","""Command on database """
+<< redact(getRedactedCopyForLogging(request.getCommandArgs()));
+if (!supportsWriteConcern(cmd)) {
+if (commandSpecifiesWriteConcern(cmd)) {
+"auto wcResult = extractWriteConcern(txn, cmd, db);"
+const auto oldWC = txn->getWriteConcern();
+ON_BLOCK_EXIT([&] { txn->setWriteConcern(oldWC); });
+txn->setWriteConcern(wcResult.getValue());
+dassert(SimpleBSONObjComparator::kInstance.evaluate(txn->getWriteConcern().toBSON() ==
+"waitForWriteConcern(txn,"
+"uassertStatusOK(checkAuthorization(command, txn, dbname, request.getCommandArgs()));"
+uassertStatusOK(
+"std::tie(cmdObj, queryFlags) = uassertStatusOK("
+"std::tie(cmdObj, queryFlags) = uassertStatusOK("
+"fassertStatusOK(28817, _topCoord->becomeCandidateIfElectable(now, lastOpApplied));"
+"fassertStatusOK(28817, _topCoord->becomeCandidateIfElectable(now, lastOpApplied, false));"
+"fassertStatusOK(28816, becomeCandidateIfElectable(now, lastOpApplied));"
+"fassertStatusOK(28816, becomeCandidateIfElectable(now, lastOpApplied, false));"
+repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(tempNss));
+repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R dropTempCollections"", _config.tempNamespace)","""M/R dropTempCollections"""
+MONGO_WRITE_CONFLICT_RETRY_LOOP_END(
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R dropTempCollections"", _config.incLong)","""M/R dropTempCollections"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R dropTempCollections"", _config.incLong.ns())","""M/R dropTempCollections"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R prepTempCollection"", _config.incLong);","""M/R prepTempCollection"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R prepTempCollection"", _config.incLong.ns());","""M/R prepTempCollection"""
+repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(tempNss));
+repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(_config.tempNamespace));
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R prepTempCollection"", _config.tempNamespace)","""M/R prepTempCollection"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R prepTempCollection"", _config.tempNamespace.ns())","""M/R prepTempCollection"""
+"Collection* coll = getCollectionOrUassert(tx.db(), finalNamespace);"
+"getCollectionOrUassert(tx.db(), _config.outputOptions.finalNamespace);"
+"Collection* coll = getCollectionOrUassert(ctx.db(), ns);"
+"Collection* coll = getCollectionOrUassert(ctx.db(), nss);"
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R insert"", ns);","""M/R insert"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R insert"", nss.ns());","""M/R insert"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R insertToInc"", _config.incLong);","""M/R insertToInc"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R insertToInc"", _config.incLong.ns());","""M/R insertToInc"""
+"Collection* State::getCollectionOrUassert(Database* db, StringData ns) {"
+"uassert(18697, ""Collection unexpectedly disappeared: "" + ns.toString(), out);","""Collection unexpectedly disappeared: """
+"Collection* State::getCollectionOrUassert(Database* db, const NamespaceString& nss) {"
+"uassert(18697, ""Collection unexpectedly disappeared: "" + nss.ns(), out);","""Collection unexpectedly disappeared: """
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""finalReduce"", _config.incLong);","""finalReduce"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""finalReduce"", _config.incLong.ns());","""finalReduce"""
+"LOG(1) << ""mr ns: "" << config.ns;","""mr ns: """
+"LOG(1) << ""mr ns: "" << config.nss;","""mr ns: """
+if (!repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(nss)) {
+if (!repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(config.nss)) {
+"Collection* coll = State::getCollectionOrUassert(db, config.ns);"
+"Collection* coll = State::getCollectionOrUassert(db, config.nss);"
+"AutoGetCollectionForRead oplog(txn.get(), rsOplogName);"
+"AutoGetCollectionForRead oplog(txn.get(), NamespaceString(rsOplogName));"
+"ASSERT_OK(dbtests::createIndex(&_txn, ns(), obj));"
+"ASSERT_OK(dbtests::createIndex(&_txn, nss.ns(), obj));"
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->updateDatabase(txn, dbname, dbt));"
+"Status status = grid.catalogClient(txn)->enableSharding(txn, dbname);"
+"audit::logEnableSharding(Client::getCurrent(), dbname);"
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->enableSharding(txn, dbname));"
+"audit::logEnableSharding(Client::getCurrent(), dbname);"
+grid.catalogCache()->invalidate(dbname);
+Grid::get(txn)->catalogCache()->invalidate(dbname);
+"auto status = grid.catalogCache()->getDatabase(txn, dbname);"
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, dbname);"
+"uassertStatusOK(grid.shardRegistry()->getShard(txn, confIn->getPrimaryId()));"
+const auto shard = uassertStatusOK(
+"uassertStatusOK(grid.shardRegistry()->getShard(txn, confOut->getPrimaryId()));"
+const auto shard = uassertStatusOK(
+Status status = Grid::get(txn)->catalogClient(txn)->enableSharding(
+Grid::get(txn)->catalogCache()->invalidate(outputCollNss.db().toString());
+uassertStatusOK(status);
+confOut = uassertStatusOK(Grid::get(txn)->catalogCache()->getDatabase(
+"Status status = grid.catalogClient(txn)->shardCollection(txn,"
+uassertStatusOK(
+"Grid::get(txn)->catalogClient(txn)->shardCollection(txn,"
+confOut = uassertStatusOK(
+"grid.catalogCache()->getDatabase(txn, outputCollNss.db().toString()));"
+auto scopedDistLock = grid.catalogClient(txn)->getDistLockManager()->lock(
+Grid::get(txn)->catalogClient(txn)->getDistLockManager()->lock(
+bool supportsWriteConcern(const BSONObj& cmd) const override {
+uassertStatusOK(scopedDbStatus.getStatus());
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+if (!txn->getWriteConcern().usedDefault) {
+txn->getWriteConcern().toBSON());
+"const auto shard = uassertStatusOK(shardRegistry->getShard(txn, shardId));"
+auto cmdDropResult = uassertStatusOK(shard->runCommandWithFixedRetryAttempts(
+uassertStatusOK(cmdDropResult.commandStatus);
+appendWriteConcernErrorToCmdResponse(
+"uassertStatusOK(catalogClient->dropCollection(txn, NamespaceString(ns)));"
+"uassertStatusOK({scopedCMStatus.getStatus().code(),"
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, dbName);"
+"log() << ""DROP: "" << nss.ns();","""DROP: """
+"log() << ""\tdrop going to do passthrough"";","""\tdrop going to do passthrough"""
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+: uassertStatusOK(CollatorFactoryInterface::get(txn->getServiceContext())
+"uassertStatusOK(resolveInvolvedNamespaces(txn, request))));"
+collation = uassertStatusOK(CollatorFactoryInterface::get(txn->getServiceContext())
+"LOG(1) << ""scheduling fetcher to read remote oplog on "" << _syncSourceHost << "" starting at """,""" starting at """
+"LOG(logLevel) << ""scheduling fetcher to read remote oplog on "" << _syncSourceHost","""scheduling fetcher to read remote oplog on """
+"LOG(2) << ""Interrupted by shutdown while checking sync source."";","""Interrupted by shutdown while checking sync source."""
+"LOG(2) << ""Stopping oplog fetcher due to shutdown."";","""Stopping oplog fetcher due to shutdown."""
+"LOG(2) << ""Interrupted by waiting for applier to drain while checking sync source."";","""Interrupted by waiting for applier to drain while checking sync source."""
+"LOG(2) << ""Stopping oplog fetcher because we are waiting for the applier to drain."";","""Stopping oplog fetcher because we are waiting for the applier to drain."""
+"LOG(2) << ""Interrupted by becoming primary while checking sync source."";","""Interrupted by becoming primary while checking sync source."""
+"LOG(2) << ""Stopping oplog fetcher because we are primary."";","""Stopping oplog fetcher because we are primary."""
+"LOG(2) << ""Interrupted by a stop request while checking sync source."";","""Interrupted by a stop request while checking sync source."""
+"LOG(2) << ""Stopping oplog fetcher due to stop request."";","""Stopping oplog fetcher due to stop request."""
+"LOG(1) << ""Canceling oplog query because we have no valid sync source."";","""Canceling oplog query because we have no valid sync source."""
+"LOG(1) << ""Stopping oplog fetcher; canceling oplog query because we have no valid sync ""","""Stopping oplog fetcher; canceling oplog query because we have no valid sync """
+"LOG(1) << ""Canceling oplog query because we have to choose a sync source. Current source: ""","""Canceling oplog query because we have to choose a sync source. Current source: """
+log()
+"LOG(1) << ""Cannot select primary member as sync source because they are blacklisted:""","""Cannot select primary member as sync source because they are blacklisted:"""
+"LOG(1) << ""Cannot select a sync source because chaining is not allowed and primary ""","""Cannot select a sync source because chaining is not allowed and primary """
+"LOG(2) << ""Cannot select sync source because of voting differences: ""","""Cannot select sync source because of voting differences: """
+"LOG(2) << ""Cannot select sync source because we are a voter and it is not: ""","""Cannot select sync source because we are a voter and it is not: """
+"log() << ""Choosing new sync source because the user has requested to use ""","""Choosing new sync source because the user has requested to use """
+"log() << ""Choosing new sync source because the config version supplied by "" << currentSource","""Choosing new sync source because the config version supplied by """
+"log() << ""Choosing new sync source because "" << currentSource.toString()","""Choosing new sync source because """
+log() << logMessage.str();
+"log() << ""re-evaluating sync source because our current sync source's most recent ""","""re-evaluating sync source because our current sync source's most recent """
+"log() << ""Choosing new sync source because the most recent OpTime of our sync source, ""","""Choosing new sync source because the most recent OpTime of our sync source, """
+uassertStatusOK(scopedDbStatus.getStatus());
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+if (!txn->getWriteConcern().usedDefault) {
+txn->getWriteConcern().toBSON());
+"const auto shard = uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, shardId));"
+auto cmdDropResult = uassertStatusOK(shard->runCommandWithFixedRetryAttempts(
+uassertStatusOK(cmdDropResult.commandStatus);
+uassertStatusOK(cmdDropResult.writeConcernStatus);
+"uassertStatusOK(catalogClient->dropCollection(txn, NamespaceString(ns)));"
+"uassertStatusOK({scopedCMStatus.getStatus().code(),"
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+if (!txn->getWriteConcern().usedDefault) {
+txn->getWriteConcern().toBSON());
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, dbName);"
+"log() << ""DROP: "" << nss.ns();","""DROP: """
+"log() << ""\tdrop going to do passthrough"";","""\tdrop going to do passthrough"""
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+bool supportsWriteConcern(const BSONObj& cmd) const override {
+uassertStatusOK(scopedDbStatus.getStatus());
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+if (!txn->getWriteConcern().usedDefault) {
+txn->getWriteConcern().toBSON());
+"const auto shard = uassertStatusOK(Grid::get(txn)->shardRegistry()->getShard(txn, shardId));"
+auto cmdDropResult = uassertStatusOK(shard->runCommandWithFixedRetryAttempts(
+uassertStatusOK(cmdDropResult.commandStatus);
+uassertStatusOK(cmdDropResult.writeConcernStatus);
+"uassertStatusOK(catalogClient->dropCollection(txn, NamespaceString(ns)));"
+"uassertStatusOK({scopedCMStatus.getStatus().code(),"
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+"auto status = Grid::get(txn)->catalogCache()->getDatabase(txn, dbName);"
+"log() << ""DROP: "" << nss.ns();","""DROP: """
+"log() << ""\tdrop going to do passthrough"";","""\tdrop going to do passthrough"""
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+ASSERT(ok);
+ASSERT(observedFields.find(field) == observedFields.end());
+"void registerErrorImpl(OperationContext* txn, const DBException& exception) {"
+CurOp::get(txn)->debug().exceptionInfo = exception.getInfo();
+Command::registerRegisterError(registerErrorImpl);
+"void Command::registerError(OperationContext* txn, const DBException& exception) {}"
+"void registerErrorImpl(OperationContext* txn, const DBException& exception) {}"
+Command::registerRegisterError(registerErrorImpl);
+"KVDatabaseCatalogEntryBase::KVDatabaseCatalogEntryBase(StringData db, KVStorageEngine* engine)"
+": DatabaseCatalogEntry(db), _engine(engine) {}"
+KVDatabaseCatalogEntryBase::~KVDatabaseCatalogEntryBase() {
+"_engine->getCatalog()->getIndexIdent(opCtx, coll->ns().ns(), indexNames[i]);"
+return _engine->getCatalog()->getFeatureTracker()->isCompatibleWithCurrentCode(opCtx);
+CollectionCatalogEntry* KVDatabaseCatalogEntryBase::getCollectionCatalogEntry(StringData ns) const {
+"Status status = _engine->getCatalog()->newCollection(txn, ns, options);"
+string ident = _engine->getCatalog()->getCollectionIdent(ns);
+"if (_engine->getCatalog()->getFeatureTracker()->isNonRepairableFeatureInUse(txn, feature)) {"
+"_engine->getCatalog()->getFeatureTracker()->markNonRepairableFeatureAsInUse(txn,"
+_collections[ns.toString()] = new KVCollectionCatalogEntry(
+"_engine->getEngine(), _engine->getCatalog(), ns, ident, std::move(rs));"
+const std::string ident = _engine->getCatalog()->getCollectionIdent(ns);
+"BSONCollectionCatalogEntry::MetaData md = _engine->getCatalog()->getMetaData(opCtx, ns);"
+_collections[ns] = new KVCollectionCatalogEntry(
+"_engine->getEngine(), _engine->getCatalog(), ns, ident, std::move(rs));"
+const std::string identFrom = _engine->getCatalog()->getCollectionIdent(fromNS);
+"status = _engine->getCatalog()->renameCollection(txn, fromNS, toNS, stayTemp);"
+const std::string identTo = _engine->getCatalog()->getCollectionIdent(toNS);
+"BSONCollectionCatalogEntry::MetaData md = _engine->getCatalog()->getMetaData(txn, toNS);"
+_collections[toNS.toString()] = new KVCollectionCatalogEntry(
+"_engine->getEngine(), _engine->getCatalog(), toNS, identTo, std::move(rs));"
+const std::string ident = _engine->getCatalog()->getCollectionIdent(ns);
+"Status status = _engine->getCatalog()->dropCollection(opCtx, ns);"
+"_engine->getCatalog()->getIndexIdent(txn, collection->ns().ns(), desc->indexName());"
+"log() << ""Can't find index for keyPattern "" << desc->keyPattern();","""Can't find index for keyPattern """
+"DatabaseCatalogEntry* KVStorageEngine::getDatabaseCatalogEntry(OperationContext* opCtx,"
+"KVDatabaseCatalogEntryBase* KVStorageEngine::getDatabaseCatalogEntry(OperationContext* opCtx,"
+"db = new KVDatabaseCatalogEntry(dbName, this);"
+"db = _databaseCatalogEntryFactory(dbName, this).release();"
+wassert(ok);
+inline void opwrite(Message& m) {
+"_diaglog.writeop(m.singleData().view2ptr(), m.header().getLen());"
+"void generateLegacyQueryErrorResponse(const AssertionException* exception,"
+curop->debug().exceptionInfo = exception->getInfo();
+"log(LogComponent::kQuery) << ""assertion "" << exception->toString() << "" ns:"" << queryMessage.ns",""" ns:"""
+"log(LogComponent::kQuery) << "" ntoskip:"" << queryMessage.ntoskip",""" ntoskip:"""
+"log(LogComponent::kQuery) << ""stale version detected during query over "" << queryMessage.ns","""stale version detected during query over """
+"uassert(16979,"
+op->debug().iscommand = true;
+"Command::generateErrorResponse(txn, &builder, exception);"
+op->debug().responseLength = response.header().dataLen();
+curOp->debug().iscommand = true;
+"Command::generateErrorResponse(txn, &replyBuilder, exception);"
+curOp->debug().responseLength = response.header().dataLen();
+"uassert(ErrorCodes::InvalidOptions,"
+"uassert(ErrorCodes::InvalidOptions,"
+"audit::logQueryAuthzCheck(client, nss, q.query, status.code());"
+uassertStatusOK(status);
+"generateLegacyQueryErrorResponse(&e, q, &op, &dbResponse.response);"
+op.debug().responseLength = dbResponse.response.header().dataLen();
+"uassert(13659, ""sent 0 cursors to kill"", n != 0);","""sent 0 cursors to kill"""
+"massert(13658,"
+"uassert(13004, str::stream() << ""sent negative cursors to kill: "" << n, n >= 1);","""sent negative cursors to kill: """
+"(n < 30000 ? warning() : error()) << ""receivedKillCursors, n="" << n;","""receivedKillCursors, n="""
+if (shouldLog(logger::LogSeverity::Debug(1)) || found != n) {
+"LOG(found == n ? 1 : 0) << ""killcursors: found "" << found << "" of "" << n;",""" of """
+"audit::logInsertAuthzCheck(txn->getClient(), nsString, obj, status.code());"
+uassertStatusOK(status);
+"audit::logUpdateAuthzCheck(txn->getClient(),"
+uassertStatusOK(status);
+"audit::logDeleteAuthzCheck(txn->getClient(), nsString, singleDelete.query, status.code());"
+uassertStatusOK(status);
+uassert(
+curop.debug().ntoreturn = ntoreturn;
+curop.debug().cursorid = cursorid;
+"uassert(ErrorCodes::InvalidNamespace,"
+"audit::logGetMoreAuthzCheck(txn->getClient(), nsString, cursorid, status.code());"
+uassertStatusOK(status);
+curop.debug().exceptionInfo = e.getInfo();
+curop.debug().responseLength = dbresponse.response.header().dataLen();
+curop.debug().nreturned = 1;
+curop.debug().responseLength = dbresponse.response.header().dataLen();
+curop.debug().nreturned = queryResult.getNReturned();
+curop.debug().exhaust = true;
+invariant(!txn->lockState()->inAWriteUnitOfWork());
+opwrite(m);
+opwrite(m);
+opwrite(m);
+opwrite(m);
+currentOp.setLogicalOp_inlock(networkOpToLogicalOp(op));
+OpDebug& debug = currentOp.debug();
+bool shouldLogOpDebug = shouldLog(logger::LogSeverity::Debug(1));
+"log() << curTimeMillis64() % 10000 << "" long msg received, len:"" << len;",""" long msg received, len:"""
+"log() << ""    operation isn't supported: "" << static_cast<int>(op);","""    operation isn't supported: """
+"uassert(18663,"
+"uassert(16257, str::stream() << ""Invalid ns ["" << ns << ""]"", false);","""]"""
+"LastError::get(c).setLastError(ue.getCode(), ue.getInfo().msg);"
+"LOG(3) << "" Caught Assertion in "" << networkOpToString(op) << "", continuing """,""", continuing """
+"LastError::get(c).setLastError(e.getCode(), e.getInfo().msg);"
+"LOG(3) << "" Caught Assertion in "" << networkOpToString(op) << "", continuing """,""", continuing """
+"txn, currentOp.totalTimeMicros(), currentOp.getReadWriteType());"
+"log() << debug.report(&c, currentOp, lockerInfo.stats);"
+"LOG(1) << ""note: not profiling because recursive read lock"";","""note: not profiling because recursive read lock"""
+"LOG(1) << ""note: not profiling because doing fsync+lock"";","""note: not profiling because doing fsync+lock"""
+"LOG(1) << ""note: not profiling because server is read-only"";","""note: not profiling because server is read-only"""
+"log(LogComponent::kQuery) << "" ntoskip:"" << queryMessage.ntoskip",""" ntoskip:"""
+"DiagLog::DiagLog() : f(0), level(0) {}"
+log() << msg.ss.str();
+"uasserted(ErrorCodes::FileStreamFailed, msg.ss.str());"
+"log() << ""diagLogging using file "" << name;","""diagLogging using file """
+"log() << ""diagLogging level="" << newLevel;","""diagLogging level="""
+"log() << ""flushing diag log"";","""flushing diag log"""
+"void DiagLog::writeop(char* data, int len) {"
+"f->write(data, len);"
+"f->write(data, len);"
+virtual bool supportsWriteConcern(const BSONObj& cmd) const override {
+"uassert(ErrorCodes::IllegalOperation,"
+"uassert(ErrorCodes::BadValue,"
+auto const catalogClient = Grid::get(txn)->catalogClient(txn);
+auto scopedDistLock = uassertStatusOK(catalogClient->getDistLockManager()->lock(
+Grid::get(txn)->catalogCache()->invalidate(dbname);
+grid.catalogCache()->invalidate(dbname);
+uassertStatusOK(scopedDbStatus.getStatus());
+"auto status = grid.catalogCache()->getDatabase(txn, dbname);"
+"catalogClient->logChange(txn,"
+"log() << ""could not drop '"" << _name << ""': "" << errmsg;","""': """
+"LOG(1) << ""\t removed entry from config server for: "" << _name;","""\t removed entry from config server for: """
+"log() << ""   DBConfig::dropDatabase: "" << _name << "" dropped sharded collections: "" << num;",""" dropped sharded collections: """
+* be read later by getLastError()
+bool WiredTigerKVEngine::initRsOplogBackgroundThread(StringData ns) {
+bool initRsOplogBackgroundThread(StringData ns) {
+bool WiredTigerKVEngine::initRsOplogBackgroundThread(StringData ns) {
+bool initRsOplogBackgroundThread(StringData ns) {
+WiredTigerKVEngine::setInitRsOplogBackgroundThreadCallback(initRsOplogBackgroundThread);
+void LockerImpl<IsForMMAPV1>::assertEmptyAndReset() {
+invariant(!inAWriteUnitOfWork());
+invariant(!inAWriteUnitOfWork());
+"log() << ""starting clean exit via failpoint"";","""starting clean exit via failpoint"""
+"uassert(ErrorCodes::PrimarySteppedDown,"
+repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(tempNss));
+"uassert(ErrorCodes::PrimarySteppedDown,"
+repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(tempNss));
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R dropTempCollections"", _config.tempNamespace)","""M/R dropTempCollections"""
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R dropTempCollections"", _config.tempNamespace)","""M/R dropTempCollections"""
+void LockerImpl<IsForMMAPV1>::assertEmptyAndReset() {
+invariant(!inAWriteUnitOfWork());
+assertEmptyAndReset();
+invariant(!inAWriteUnitOfWork());
+"uassert(15888, ""must pass name of collection to create"", firstElt.valuestrsafe()[0] != '\0');","""must pass name of collection to create"""
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(15888, ""must pass name of collection to create"", !firstElt.valueStringData().empty());","""must pass name of collection to create"""
+"uassert(16708, ""bad 'toCollection' value"", !collection.empty());","""bad 'toCollection' value"""
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::TypeMismatch,"
+uassert(
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(17211, ""ns has to be set"", p[""ns""].type() == String);","""ns"""
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+if (NamespaceString(source).isOplog()) {
+if (source.isOplog()) {
+if (NamespaceString(target).isOplog()) {
+if (target.isOplog()) {
+if (NamespaceString::oplog(source) != NamespaceString::oplog(target)) {
+if (source.isOplog() != target.isOplog()) {
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::TypeMismatch,"
+"log() << ""test only command godinsert invoked coll:"" << coll;","""test only command godinsert invoked coll:"""
+"uassert(13049, ""godinsert must specify a collection"", !coll.empty());","""godinsert must specify a collection"""
+"log() << ""test only command godinsert invoked coll:"" << nss.coll();","""test only command godinsert invoked coll:"""
+"LOG(0) << ""CMD: validate "" << ns;","""CMD: validate """
+"LOG(0) << ""CMD: validate "" << nss.ns();","""CMD: validate """
+"if (ctx.getDb() && ctx.getDb()->getViewCatalog()->lookup(txn, ns_string.ns())) {"
+"if (ctx.getDb() && ctx.getDb()->getViewCatalog()->lookup(txn, nss.ns())) {"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+uassert(
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::InvalidNamespace,"
+uassert(
+"uassert(ErrorCodes::TypeMismatch,"
+"uassert(ErrorCodes::TypeMismatch,"
+"log() << ""DROP: "" << fullns;","""DROP: """
+"log() << ""DROP: "" << nss.ns();","""DROP: """
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, fullns));"
+"uassertStatusOK(Grid::get(txn)->catalogClient(txn)->dropCollection(txn, nss));"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(13138, ""You can't rename a sharded collection"", !confFrom->isSharded(fullnsFrom));","""You can't rename a sharded collection"""
+"uassert(13139, ""You can't rename to a sharded collection"", !confTo->isSharded(fullnsTo));","""You can't rename to a sharded collection"""
+uassert(
+uassert(
+"uassert(ErrorCodes::EmptyFieldName, ""missing todb argument"", !todb.empty());","""missing todb argument"""
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(13399, ""need a fromdb argument"", !fromdb.empty());","""need a fromdb argument"""
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"uassert(ErrorCodes::InvalidNamespace,"
+"auto scopedChunkManager = uassertStatusOK(ScopedChunkManager::getExisting(txn, nss));"
+"auto scopedChunkManager = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"uassert(ErrorCodes::InvalidNamespace,"
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::getExisting(txn, nss));"
+"uassertStatusOK(cm->getShardKeyPattern().extractShardKeyFromQuery(txn, find));"
+grid.catalogCache()->invalidate(dbname);
+Grid::get(txn)->catalogCache()->invalidate(dbname);
+Grid::get(txn)->catalogCache()->invalidate(dbname);
+"uassert(ErrorCodes::InvalidNamespace,"
+"auto status = grid.catalogCache()->getDatabase(txn, nss.db().toString());"
+"auto scopedCM = uassertStatusOK(ScopedChunkManager::refreshAndGet(txn, nss));"
+"uassertStatusOK(cm->getShardKeyPattern().extractShardKeyFromQuery(txn, find));"
+uassertStatusOK(ShardKeyPattern::checkShardKeySize(middle));
+"uasserted(ErrorCodes::CannotBuildIndexKeys,"
+"IndexCatalog::IndexBuildBlock blk( collection()->getIndexCatalog(), ""a_1"", infoLoc );","""a_1"""
+"ASSERT_EQUALS( static_cast<uint64_t>( nDocs ), phaseOne.n );"
+ASSERT( static_cast<uint64_t>( nDocs ) > phaseOne.n );
+"ASSERT_EQUALS( static_cast<uint64_t>( nDocs ), phaseOne.n );"
+ASSERT( !id->getHead().isNull() );
+"ASSERT_EQUALS( expectedKey, cursor->currKey().firstElement().number() );"
+"ASSERT_EQUALS( nKeys, expectedKey );"
+ASSERT( id->getHead().isNull() );
+ASSERT( !id->getHead().isNull() );
+"int offset = nsd->_catalogFindIndexByName( ""b_1"", true );","""b_1"""
+"ASSERT_EQUALS(2, offset);"
+"ASSERT_EQUALS(2, nsd->_catalogFindIndexByName( ""c_1"", true ) );","""c_1"""
+"ASSERT_EQUALS(3, nsd->_catalogFindIndexByName( ""d_1"", true ) );","""d_1"""
+"offset = nsd->_catalogFindIndexByName( ""d_1"", true );","""d_1"""
+"return new IndexCatalog::IndexBuildBlock( _ctx.getCollection()->getIndexCatalog(),"
+"ASSERT_EQUALS(client.getLastErrorDetailed()[""code""].numberInt(),","""code"""
+"ASSERT_EQUALS(client.count(_ns), 0U);"
+ASSERT(client.getLastError().empty());
+"ASSERT_EQUALS(client.count(_ns), 1U);"
+"ASSERT_EQUALS(client.getLastErrorDetailed()[""code""].numberInt(),","""code"""
+"ASSERT_EQUALS(client.count(_ns), 0U);"
+"ASSERT_EQUALS(client.getLastErrorDetailed()[""code""].numberInt(),","""code"""
+"ASSERT_EQUALS(client.count(_ns), 0U);"
+"ASSERT_EQUALS(client.count(_ns), 1U);"
+ASSERT_THROWS_CODE(
+"ASSERT_TRUE(client.runCommand(""unittests"",","""unittests"""
+"ASSERT_EQUALS(client.getLastErrorDetailed()[""code""].numberInt(),","""code"""
+"uassert(40356, _name + "": connect failed "" + uri.toString() + "" : "" + errmsg, c);",""" : """
+void logProcessDetailsForLogRotate() {}
+void logProcessDetailsForLogRotate() {}
+logProcessDetailsForLogRotate();
+logProcessDetailsForLogRotate();
+errorCode = WSAGetLastError();
+if (WSAGetLastError() != WSAEWOULDBLOCK) {
+int inError() const {
+"LOG(_logLevel) << ""ERROR: connect invalid socket "" << errnoWithDescription();","""ERROR: connect invalid socket """
+if (bg.inError()) {
+"void TaskExecutorTest::assertRemoteCommandNameEquals(StringData cmdName,"
+RemoteCommandRequest TaskExecutorTest::assertRemoteCommandNameEquals(
+"log() << ""Ignoring error from setting thread name: "" << errnoWithDescription(error);","""Ignoring error from setting thread name: """
+"LOG(kSlowTransactionSeverity) << ""Slow WT transaction. Lifetime of SnapshotId ""","""Slow WT transaction. Lifetime of SnapshotId """
+if (shouldLog(kSlowTransactionSeverity)) {
+"auto wcResult = extractWriteConcern(txn, cmd, db, supportsWriteConcern(cmd));"
+if (commandSpecifiesWriteConcern(cmd)) {
+"auto wcResult = extractWriteConcern(txn, cmd, db);"
+bool commandSpecifiesWriteConcern(const BSONObj& cmdObj) {
+bool shouldReplicateWrites = txn->writesAreReplicated();
+txn->setReplicatedWrites(false);
+"logOpForDbHash(txn, ns.c_str());"
+Lock::GlobalWrite globalWriteLockDisallowTempRelease(txn->lockState());
+"logOpForDbHash(txn, ns.c_str());"
+Lock::GlobalWrite globalWriteLockDisallowTempRelease(txn->lockState());
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(txn, ""applyOps"", ns);","""applyOps"""
+ErrorCodes::errorString(ErrorCodes::fromInt(ex.getCode())));
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(txn, ""applyOps"", ns);","""applyOps"""
+ErrorCodes::errorString(ErrorCodes::fromInt(ex.getCode())));
+"logOpForDbHash(txn, ns.c_str());"
+"logOpForDbHash(txn, ns.c_str());"
+"log() << ""applyOps error applying: "" << status;","""applyOps error applying: """
+txn->setReplicatedWrites(shouldReplicateWrites);
+auto findResponse = uassertStatusOK(
+"uassert(ErrorCodes::StaleEpoch,"
+"uassert(ErrorCodes::IncompatibleShardingMetadata,"
+ChunkType chunk = uassertStatusOK(ChunkType::fromBSON(findResponse.docs.front()));
+"uassert(ErrorCodes::StaleEpoch,"
+auto findResponse = uassertStatusOK(
+"uassert(40165,"
+Lock::GlobalWrite firstGlobalWriteLock(txn->lockState());
+"uassert(ErrorCodes::StaleEpoch,"
+"ErrorCodes::Error(40165),"
+"uassert(12051, ""clientcursor already in use? driver problem?"", !cursor->isPinned());","""clientcursor already in use? driver problem?"""
+wassert(false);
+"ASSERT_EQUALS(2, clientCursor.c()->pos());"
+unittest::assertGet(ctx.getCollection()->getCursorManager()->pinCursor(cursorId));
+"ASSERT_EQUALS(2, pinnedCursor.getCursor()->pos());"
+"ASSERT(ctx.getCollection()->getCursorManager()->find(cursorId, false));"
+ASSERT_OK(ctx.getCollection()->getCursorManager()->pinCursor(cursorId).getStatus());
+"ASSERT_EQUALS(three.toULL(), clientCursor.c()->getSlaveReadTill().asULL());"
+auto pinnedCursor = unittest::assertGet(
+"ASSERT_EQUALS(three.toULL(), pinnedCursor.getCursor()->getSlaveReadTill().asULL());"
+unittest::assertGet(ctx.getCollection()->getCursorManager()->pinCursor(cursorId));
+auto pinnedCursor = unittest::assertGet(
+"log() << ""Ignoring error from setting thread name: "" << errnoWithDescription(error);","""Ignoring error from setting thread name: """
+"log() << ""Ignoring error from setting thread name: "" << errnoWithDescription(error);","""Ignoring error from setting thread name: """
+"log() << ""DEBUG parseNs Command's collection name looks like it includes the db name\n""","""DEBUG parseNs Command's collection name looks like it includes the db name\n"""
+dassert(false);
+"log() << ""DEBUG parseNs Command's collection name looks like it includes the db name\n""","""DEBUG parseNs Command's collection name looks like it includes the db name\n"""
+dassert(false);
+"log() << ""DEBUG parseNs Command's collection name looks like it includes the db name\n""","""DEBUG parseNs Command's collection name looks like it includes the db name\n"""
+dassert(false);
+"log() << ""See ""","""See """
+"log() << ""**          See ""","""**          See """
+"uassert(ErrorCodes::PrimarySteppedDown,"
+repl::getGlobalReplicationCoordinator()->canAcceptWritesFor(tempNss));
+"MONGO_WRITE_CONFLICT_RETRY_LOOP_END(_txn, ""M/R dropTempCollections"", _config.tempNamespace)","""M/R dropTempCollections"""
+"Status NOINLINE_DECL makeError(StringData baseMsg, BSONElement idElem) {"
+"Status NOINLINE_DECL makeError(StringData baseMsg, BSONElement idElem, StringData elemName) {"

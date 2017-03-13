@@ -116,8 +116,12 @@ main function
 """
 
 # several configuration constant: user, repos
-user = 'mongodb'
-repos = 'mongo'
+# user = 'mongodb'
+# repos = 'mongo'
+# user = 'opencv'
+# repos = 'opencv'
+user = 'apple'
+repos = 'swift'
 
 analyze( user, repos)
 

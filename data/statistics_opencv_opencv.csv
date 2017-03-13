@@ -1,0 +1,942 @@
+log statement,constant text
+parser.printMessage();
+"if( !face_cascade.load( face_cascade_name ) ){ printf(""--(!)Error loading face cascade\n""); return -1; };","""--(!)Error loading face cascade\n"""
+"if( !eyes_cascade.load( eyes_cascade_name ) ){ printf(""--(!)Error loading eyes cascade\n""); return -1; };","""--(!)Error loading eyes cascade\n"""
+"if ( ! capture.isOpened() ) { printf(""--(!)Error opening video capture\n""); return -1; }","""--(!)Error opening video capture\n"""
+"printf("" --(!) No captured frame -- Break!"");",""" --(!) No captured frame -- Break!"""
+parser.printMessage();
+"if( !face_cascade.load( face_cascade_name ) ){ printf(""--(!)Error loading face cascade\n""); return -1; };","""--(!)Error loading face cascade\n"""
+"if( !eyes_cascade.load( eyes_cascade_name ) ){ printf(""--(!)Error loading eyes cascade\n""); return -1; };","""--(!)Error loading eyes cascade\n"""
+"if ( ! capture.isOpened() ) { printf(""--(!)Error opening video capture\n""); return -1; }","""--(!)Error opening video capture\n"""
+"printf("" --(!) No captured frame -- Break!"");",""" --(!) No captured frame -- Break!"""
+"ASSERT_EQ(0, countNonZero(dst1 != dst2));"
+"ASSERT_EQ(0, countNonZero(dst1 != dst2));"
+"ASSERT_EQ(centers.rows, K);"
+"ASSERT_EQ(labels.rows, N);"
+CV_Assert(0 <= l && l < K);
+"ASSERT_GE(l, 0);"
+"ASSERT_LT(l, K);"
+CV_Assert( hist.at<int>(i) != 0 );
+"ASSERT_GT(hist.at<int>(i), 0);"
+"ASSERT_EQ(centers.rows, K);"
+"ASSERT_EQ(labels.rows, N);"
+CV_Assert(0 <= l && l < K);
+"ASSERT_GE(l, 0);"
+"ASSERT_LT(l, K);"
+CV_Assert( hist.at<int>(i) != 0 );
+"ASSERT_GT(hist.at<int>(i), 0);"
+CV_Assert( _disp.type() == CV_16S || _disp.type() == CV_32S );
+CV_Assert( _disp.type() == CV_16S || _disp.type() == CV_32S );
+"imwrite(""Mandelbrot_parallel.png"", mandelbrotImg);","""Mandelbrot_parallel.png"""
+"imwrite(""Mandelbrot_sequential.png"", mandelbrotImgSequential);","""Mandelbrot_sequential.png"""
+"imwrite(""Mandelbrot_parallel.png"", mandelbrotImg);","""Mandelbrot_parallel.png"""
+"imwrite(""Mandelbrot_sequential.png"", mandelbrotImgSequential);","""Mandelbrot_sequential.png"""
+CV_Assert(gamma_ >= 0);
+"imwrite(""linear_transform_correction.png"", img_corrected);","""linear_transform_correction.png"""
+"imwrite(""gamma_correction.png"", img_gamma_corrected);","""gamma_correction.png"""
+CV_Assert(gamma_ >= 0);
+"imwrite(""linear_transform_correction.png"", img_corrected);","""linear_transform_correction.png"""
+"imwrite(""gamma_correction.png"", img_gamma_corrected);","""gamma_correction.png"""
+"morphologyEx(input_image, output_image, MORPH_HITMISS, kernel);"
+"morphologyEx(input_image, output_image, MORPH_HITMISS, kernel);"
+PRINT_HALERR_MSG(runtime);                                                                                  \
+PRINT_HALERR_MSG(wrapper);                                                                                  \
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+"throw ivx::WrapperError(""Bad HAL context"");","""Bad HAL context"""
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+"throw ivx::WrapperError(""UV planes use variable stride"");","""UV planes use variable stride"""
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+"throw ivx::WrapperError(""UV planes use variable stride"");","""UV planes use variable stride"""
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+PRINT_HALERR_MSG(runtime);
+PRINT_HALERR_MSG(wrapper);
+CV_Assert(i == OUTPUT);
+CV_Assert(j == 0);
+"return ArrayTest::get_success_error_level( test_case_idx, i, j );"
+"return ArrayTest::get_success_error_level( test_case_idx, i, j );"
+CV_Assert(dst.data != srcA.data); // non-inplace check
+CV_Assert(dst.data != srcB.data); // non-inplace check
+parser.printParams();
+"ASSERT_EQ( (3*rows + cols)*3 - 3*9, pixelsDrawn);"
+"ASSERT_EQ(cnt, 0);"
+"imwrite( filename, testImg );"
+"ts->printf( ts->LOG, ""test image can not be read"");","""test image can not be read"""
+"ts->printf( ts->LOG, ""PNG image support is not available"");","""PNG image support is not available"""
+"imwrite(""/tmp/all_fonts.png"", result);","""/tmp/all_fonts.png"""
+CV_Assert(i == OUTPUT);
+CV_Assert(j == 0);
+"return ArrayTest::get_success_error_level( test_case_idx, i, j );"
+"return ArrayTest::get_success_error_level( test_case_idx, i, j );"
+CV_Assert(dst.data != srcA.data); // non-inplace check
+CV_Assert(dst.data != srcB.data); // non-inplace check
+CV_Assert( hpoints > 2 );
+CV_Assert( hpoints > 0 );
+CV_Assert( hpoints > 2 );
+CV_Assert( hpoints > 0 );
+"CV_Assert(!flag && ""OpenVX support isn't enabled at compile time"");","""OpenVX support isn't enabled at compile time"""
+"inline void PrintTo( name param, std::ostream* os) \"
+"*os << #name <<  ""("" << testing::PrintToString(static_cast< type >(param)) << "")""; \",""")"""
+"ASSERT_FALSE(src.empty()) << ""cann't load image: "" << imgPath;","""cann't load image: """
+"imwrite(outPath+"".png"", diff);",""".png"""
+"ASSERT_LE(error, maxError);"
+CV_Assert(i == OUTPUT);
+CV_Assert(j == 0);
+"return ArrayTest::get_success_error_level( test_case_idx, i, j );"
+"return ArrayTest::get_success_error_level( test_case_idx, i, j );"
+"inline void PrintTo( name param, std::ostream* os) \"
+"*os << #name <<  ""("" << testing::PrintToString(static_cast< type >(param)) << "")""; \",""")"""
+"ASSERT_FALSE(src.empty()) << ""cann't load image: "" << imgPath;","""cann't load image: """
+"imwrite(outPath+"".png"", diff);",""".png"""
+"ASSERT_LE(error, maxError);"
+"CV_Assert(!flag && ""OpenVX support isn't enabled at compile time"");","""OpenVX support isn't enabled at compile time"""
+"ASSERT_EQ( (3*rows + cols)*3 - 3*9, pixelsDrawn);"
+"ASSERT_EQ(cnt, 0);"
+"imwrite( filename, testImg );"
+"ts->printf( ts->LOG, ""test image can not be read"");","""test image can not be read"""
+"ts->printf( ts->LOG, ""PNG image support is not available"");","""PNG image support is not available"""
+"imwrite(""/tmp/all_fonts.png"", result);","""/tmp/all_fonts.png"""
+CV_Assert(dst.data != srcA.data); // non-inplace check
+CV_Assert(dst.data != srcB.data); // non-inplace check
+"CV_Assert( cvtest::norm(c, d1, CV_C) <= DBL_EPSILON );"
+"CV_Assert( cvtest::norm(c, d1, CV_C) <= DBL_EPSILON );"
+CV_Assert(subpath.empty() || subpath[0] != '/');
+CV_Assert((copied != MAX_PATH) && (copied != (size_t)-1));
+"CV_ErrorNoReturn(cv::Error::StsError, cv::format(""OpenCV tests: Can't find required data file: %s"", relative_path.c_str()));","""OpenCV tests: Can't find required data file: %s"""
+CV_Assert(subpath.empty() || subpath[0] != '/');
+CV_Assert((copied != MAX_PATH) && (copied != (size_t)-1));
+"CV_ErrorNoReturn(cv::Error::StsError, cv::format(""OpenCV tests: Can't find required data file: %s"", relative_path.c_str()));","""OpenCV tests: Can't find required data file: %s"""
+"throw std::runtime_error(""Failed to create image"");","""Failed to create image"""
+parser.printMessage();
+parser.printErrors();
+parser.printMessage();
+parser.printErrors();
+parser.printMessage();
+parser.printErrors();
+"throw std::runtime_error(""Invalid format"");","""Invalid format"""
+"throw std::runtime_error(""Invalid format"");","""Invalid format"""
+"throw std::runtime_error(""Failed to create image"");","""Failed to create image"""
+"throw std::runtime_error(""Failed to get valid region"");","""Failed to get valid region"""
+"throw std::runtime_error(""Failed to copy image patch"");","""Failed to copy image patch"""
+"throw std::runtime_error(""Failed to access image patch"");","""Failed to access image patch"""
+"throw std::runtime_error(""Failed to commit image patch"");","""Failed to commit image patch"""
+"throw std::runtime_error(""Failed to create image from handle"");","""Failed to create image from handle"""
+"throw std::runtime_error(""Failed to query image"");","""Failed to query image"""
+"throw std::runtime_error(""Failed to query image"");","""Failed to query image"""
+"throw std::runtime_error(""Failed to query image"");","""Failed to query image"""
+"if (!(width > 0 && height > 0)) throw std::runtime_error(""Invalid format"");","""Invalid format"""
+"throw std::runtime_error(""Invalid format"");","""Invalid format"""
+"throw std::runtime_error(""Failed to copy image patch"");","""Failed to copy image patch"""
+"throw std::runtime_error(""Failed to access image patch"");","""Failed to access image patch"""
+"throw std::runtime_error(""Failed to commit image patch"");","""Failed to commit image patch"""
+"throw std::runtime_error(""Failed to query image"");","""Failed to query image"""
+"throw std::runtime_error(""Image wasn't created from user handle"");","""Image wasn't created from user handle"""
+"throw std::runtime_error(""Failed to swap image handle"");","""Failed to swap image handle"""
+"throw std::runtime_error(""Failed to create image"");","""Failed to create image"""
+parser.printMessage();
+parser.printErrors();
+parser.printMessage();
+parser.printErrors();
+parser.printMessage();
+parser.printErrors();
+"CV_Error(-1, ""Invalid DjSets constructor\n"");","""Invalid DjSets constructor\n"""
+"ts->printf(cvtest::TS::LOG, ""Incorrect keyPointMatchesRatio: curr = %f, min = %f.\n"",","""Incorrect keyPointMatchesRatio: curr = %f, min = %f.\n"""
+"ts->printf(cvtest::TS::LOG, ""Angle: %f: Incorrect keyPointMatchesRatio: curr = %f, min = %f (matched=%d total=%d - %d).\n"",","""Angle: %f: Incorrect keyPointMatchesRatio: curr = %f, min = %f (matched=%d total=%d - %d).\n"""
+"ts->printf(cvtest::TS::LOG, ""Incorrect angleInliersRatio: curr = %f, min = %f.\n"",","""Incorrect angleInliersRatio: curr = %f, min = %f.\n"""
+"ts->printf(cvtest::TS::LOG, ""Angle: %f: Incorrect angleInliersRatio: curr = %f, min = %f.\n"",","""Angle: %f: Incorrect angleInliersRatio: curr = %f, min = %f.\n"""
+"CV_Error(-1, ""Invalid DjSets constructor\n"");","""Invalid DjSets constructor\n"""
+"ts->printf(cvtest::TS::LOG, ""Incorrect keyPointMatchesRatio: curr = %f, min = %f.\n"",","""Incorrect keyPointMatchesRatio: curr = %f, min = %f.\n"""
+"ts->printf(cvtest::TS::LOG, ""Angle: %f: Incorrect keyPointMatchesRatio: curr = %f, min = %f (matched=%d total=%d - %d).\n"",","""Angle: %f: Incorrect keyPointMatchesRatio: curr = %f, min = %f (matched=%d total=%d - %d).\n"""
+"ts->printf(cvtest::TS::LOG, ""Incorrect angleInliersRatio: curr = %f, min = %f.\n"",","""Incorrect angleInliersRatio: curr = %f, min = %f.\n"""
+"ts->printf(cvtest::TS::LOG, ""Angle: %f: Incorrect angleInliersRatio: curr = %f, min = %f.\n"",","""Angle: %f: Incorrect angleInliersRatio: curr = %f, min = %f.\n"""
+"redirectError( CvErrorCallback errCallback, void* userdata, void** prevUserdata)"
+"redirectError( ErrorCallback errCallback, void* userdata, void** prevUserdata)"
+"redirectError( CvErrorCallback errCallback, void* userdata, void** prevUserdata)"
+"redirectError( ErrorCallback errCallback, void* userdata, void** prevUserdata)"
+CV_Assert(_src.dims() <= 2);
+"printf(""Error: Cannot load %s\n"", cascadeFrontalfilename.c_str());","""Error: Cannot load %s\n"""
+"printf(""Error: Cannot load %s\n"", cascadeFrontalfilename.c_str());","""Error: Cannot load %s\n"""
+"ts->printf( cvtest::TS::LOG, ""Points reprojected with a matrix Q and points reconstructed by triangulation are different, testcase %d\n"", testcase);","""Points reprojected with a matrix Q and points reconstructed by triangulation are different, testcase %d\n"""
+"ts->printf( cvtest::TS::LOG, ""Points reprojected with a matrix Q and points reconstructed by triangulation are different (tolerance=%g, failed=%d), testcase %d\n"",","""Points reprojected with a matrix Q and points reconstructed by triangulation are different (tolerance=%g, failed=%d), testcase %d\n"""
+"ASSERT_FALSE(original.channels()!=3) << ""Load color input image "" << original_path;","""Load color input image """
+"ASSERT_EQ(3, original.channels()) << ""Load color input image "" << original_path;","""Load color input image """
+"printf(""Error: Cannot load %s\n"", cascadeFrontalfilename.c_str());","""Error: Cannot load %s\n"""
+"printf(""Error: Cannot load %s\n"", cascadeFrontalfilename.c_str());","""Error: Cannot load %s\n"""
+"printf(""Error: Cannot load %s\n"", cascadeFrontalfilename.c_str());","""Error: Cannot load %s\n"""
+"printf(""Error: Cannot load %s\n"", cascadeFrontalfilename.c_str());","""Error: Cannot load %s\n"""
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                 \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isBlurU8Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration(false);//Unsupported channels number
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                                                        \
+internal::assertSupportedConfiguration();                                                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();             \
+void assertSupportedConfiguration(bool parametersSupported)
+internal::assertSupportedConfiguration(false);
+internal::assertSupportedConfiguration();                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isConvolutionSupported(size, ksize, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isFlipSupported(flipMode, elemSize));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3MarginSupported(size, border, borderMargin));"
+"internal::assertSupportedConfiguration(isGaussianBlur5x5Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration();                \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isLaplacian3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMedianFilter3x3Supported(size, numChannels));"
+internal::assertSupportedConfiguration();     \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+CV_Assert(_src.dims() <= 2);
+"void computeError( InputArray _m1, InputArray _m2, InputArray _model, OutputArray _err ) const"
+CV_Assert( count > 0 );
+CV_Assert( J.isContinuous() && J.cols == 6 );
+CV_Assert( J.isContinuous() && J.cols == 4 );
+CV_Assert( count >= 0 && to.checkVector(2) == count );
+"CV_Error(Error::StsBadArg, ""Unknown or unsupported robust estimation method"");","""Unknown or unsupported robust estimation method"""
+CV_Assert( count >= 0 && to.checkVector(2) == count );
+"CV_Error(Error::StsBadArg, ""Unknown or unsupported robust estimation method"");","""Unknown or unsupported robust estimation method"""
+"ASSERT_EQ(countNonZero(diff_descriptors), 0);"
+"ASSERT_EQ(serial_features.img_size, para_features[i].img_size);"
+"ASSERT_EQ(serial_features.keypoints.size(), para_features[i].keypoints.size());"
+"LOGLN(""Initial intrinsics #"" << indices[i]+1 << "":\n"" << cameras[i].K());",""":\n"""
+"LOGLN(""Initial camera intrinsics #"" << indices[i]+1 << "":\nK:\n"" << cameras[i].K() << ""\nR:\n"" << cameras[i].R);","""\nR:\n"""
+"LOGLN(""Camera #"" << indices[i]+1 << "":\n"" << cameras[i].K());",""":\n"""
+"LOGLN(""Camera #"" << indices[i]+1 << "":\nK:\n"" << cameras[i].K() << ""\nR:\n"" << cameras[i].R);","""\nR:\n"""
+"ASSERT_FALSE(original.channels()!=3) << ""Load color input image "" << original_path;","""Load color input image """
+"ASSERT_EQ(3, original.channels()) << ""Load color input image "" << original_path;","""Load color input image """
+"ts->printf( cvtest::TS::LOG, ""Points reprojected with a matrix Q and points reconstructed by triangulation are different, testcase %d\n"", testcase);","""Points reprojected with a matrix Q and points reconstructed by triangulation are different, testcase %d\n"""
+"ts->printf( cvtest::TS::LOG, ""Points reprojected with a matrix Q and points reconstructed by triangulation are different (tolerance=%g, failed=%d), testcase %d\n"",","""Points reprojected with a matrix Q and points reconstructed by triangulation are different (tolerance=%g, failed=%d), testcase %d\n"""
+"ts->printf( cvtest::TS::LOG, ""NAN tracking result with status != 0 (%d times)\n"", merr_nan );","""NAN tracking result with status != 0 (%d times)\n"""
+"ts->printf( cvtest::TS::LOG, ""NAN tracking result with status != 0 (%d times)\n"", merr_nan );","""NAN tracking result with status != 0 (%d times)\n"""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error(CV_StsBadArg, """");",""""""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"return CV_Error(CV_StsBadArg, """");",""""""
+"CV_Error( CV_StsUnsupportedFormat, """" );",""""""
+"CV_Error_( CV_StsOutOfRange, (""The number of points in the view #%d is < 4"", i));","""The number of points in the view #%d is < 4"""
+CV_Assert(nimages > 0 && nimages == (int)imagePoints1.total() &&
+"CV_Error(CV_StsUnsupportedFormat, ""objectPoints should contain vector of vectors of points of type Point3f"");","""objectPoints should contain vector of vectors of points of type Point3f"""
+"CV_Error(CV_StsUnsupportedFormat, ""imagePoints1 should contain vector of vectors of points of type Point2f"");","""imagePoints1 should contain vector of vectors of points of type Point2f"""
+CV_Assert( ni == ni1 );
+CV_Assert( ni == ni2 );
+CV_Assert( nimages > 0 );
+parser.printMessage();
+CV_Assert(img.channels() == 1 && img.depth() == CV_8U);
+"cvError(CV_BadNumChannels, ""cvCheckChessboard"", ""supports single-channel images only"",","""supports single-channel images only"""
+"cvError(CV_BadDepth, ""cvCheckChessboard"", ""supports depth=8 images only"",","""supports depth=8 images only"""
+"cvError(CV_BadNumChannels, ""cvCheckChessboard"", ""supports single-channel images only"",","""supports single-channel images only"""
+"cvError(CV_BadDepth, ""cvCheckChessboard"", ""supports depth=8 images only"",","""supports depth=8 images only"""
+CV_Assert(img.channels() == 1 && img.depth() == CV_8U);
+"ts->printf( cvtest::TS::LOG, ""The camera matrix is wrong for downscaled image\n"");","""The camera matrix is wrong for downscaled image\n"""
+CV_Assert(ippFunc != 0);
+CV_Assert(ippsPolarToCart != 0);
+setIppErrorStatus();
+setIppErrorStatus();
+"static void Log_32f_ipp(const float *x, float *y, int n)"
+setIppErrorStatus();
+"hal::log32f(x, y, n);"
+"static void Log_64f_ipp(const double *x, double *y, int n)"
+setIppErrorStatus();
+"hal::log64f(x, y, n);"
+"Log_32f( (const float*)ptrs[0], (float*)ptrs[1], len );"
+"hal::log32f( (const float*)ptrs[0], (float*)ptrs[1], len );"
+"Log_64f( (const double*)ptrs[0], (double*)ptrs[1], len );"
+"hal::log64f( (const double*)ptrs[0], (double*)ptrs[1], len );"
+"Log_32f(x, y, bsz);"
+"hal::log32f(x, y, bsz);"
+"Log_64f(x, y, bsz);"
+"hal::log64f(x, y, bsz);"
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+"CV_Error( CV_StsUnsupportedFormat, """" );",""""""
+CV_Assert(img.channels() == 1 && img.depth() == CV_8U);
+"cvError(CV_BadNumChannels, ""cvCheckChessboard"", ""supports single-channel images only"",","""supports single-channel images only"""
+"cvError(CV_BadDepth, ""cvCheckChessboard"", ""supports depth=8 images only"",","""supports depth=8 images only"""
+"cvError(CV_BadNumChannels, ""cvCheckChessboard"", ""supports single-channel images only"",","""supports single-channel images only"""
+"cvError(CV_BadDepth, ""cvCheckChessboard"", ""supports depth=8 images only"",","""supports depth=8 images only"""
+CV_Assert(img.channels() == 1 && img.depth() == CV_8U);
+CV_Assert(img.channels() == 1 && img.depth() == CV_8U);
+"cvError(CV_BadNumChannels, ""cvCheckChessboard"", ""supports single-channel images only"",","""supports single-channel images only"""
+"cvError(CV_BadDepth, ""cvCheckChessboard"", ""supports depth=8 images only"",","""supports depth=8 images only"""
+"cvError(CV_BadNumChannels, ""cvCheckChessboard"", ""supports single-channel images only"",","""supports single-channel images only"""
+"cvError(CV_BadDepth, ""cvCheckChessboard"", ""supports depth=8 images only"",","""supports depth=8 images only"""
+CV_Assert(img.channels() == 1 && img.depth() == CV_8U);
+CV_DbgAssert(0 < rthis.ndisp && 0 < rthis.iters && 0 < rthis.levels && 0 < rthis.nr_plane
+CV_DbgAssert(0 < pThis->ndisp && 0 < pThis->iters && 0 < pThis->levels && 0 < pThis->nr_plane
+CV_Assert(rthis.levels <= 8 && (left.type() == CV_8UC1 || left.type() == CV_8UC3));
+CV_Assert(pThis->levels <= 8 && (left.type() == CV_8UC1 || left.type() == CV_8UC3));
+"rthis.levels = min(rthis.levels, int(log((double)rthis.ndisp) / log(2.0)));"
+"pThis->levels = min(pThis->levels, int(log((double)pThis->ndisp) / log(2.0)));"
+CV_DbgAssert(0 < rthis.ndisp && 0 < rthis.iters && 0 < rthis.levels && 0 < rthis.nr_plane
+CV_DbgAssert(0 < pThis->ndisp && 0 < pThis->iters && 0 < pThis->levels && 0 < pThis->nr_plane
+CV_Assert(rthis.levels <= 8 && (left.type() == CV_8UC1 || left.type() == CV_8UC3));
+CV_Assert(pThis->levels <= 8 && (left.type() == CV_8UC1 || left.type() == CV_8UC3));
+"rthis.levels = min(rthis.levels, int(log((double)rthis.ndisp) / log(2.0)));"
+"pThis->levels = min(pThis->levels, int(log((double)pThis->ndisp) / log(2.0)));"
+parser.printMessage();
+parser.printMessage();
+"CV_Error_( CV_StsOutOfRange, (""The number of points in the view #%d is < 4"", i));","""The number of points in the view #%d is < 4"""
+CV_Assert(nimages > 0 && nimages == (int)imagePoints1.total() &&
+"CV_Error(CV_StsUnsupportedFormat, ""objectPoints should contain vector of vectors of points of type Point3f"");","""objectPoints should contain vector of vectors of points of type Point3f"""
+"CV_Error(CV_StsUnsupportedFormat, ""imagePoints1 should contain vector of vectors of points of type Point2f"");","""imagePoints1 should contain vector of vectors of points of type Point2f"""
+CV_Assert( ni == ni1 );
+CV_Assert( ni == ni2 );
+CV_Assert( nimages > 0 );
+writer.write(src);
+writer.write(src);
+"CV_Error_( CV_StsOutOfRange, (""The number of points in the view #%d is < 4"", i));","""The number of points in the view #%d is < 4"""
+CV_Assert(nimages > 0 && nimages == (int)imagePoints1.total() &&
+"CV_Error(CV_StsUnsupportedFormat, ""objectPoints should contain vector of vectors of points of type Point3f"");","""objectPoints should contain vector of vectors of points of type Point3f"""
+"CV_Error(CV_StsUnsupportedFormat, ""imagePoints1 should contain vector of vectors of points of type Point2f"");","""imagePoints1 should contain vector of vectors of points of type Point2f"""
+CV_Assert( ni == ni1 );
+CV_Assert( ni == ni2 );
+CV_Assert( nimages > 0 );
+parser.printMessage();
+throw runtime_error(msg.str());
+"throw runtime_error(string(""can't open video file: "" + video_filename));","""can't open video file: """
+parser.printMessage();
+throw runtime_error(msg.str());
+"throw runtime_error(string(""can't open video file: "" + video_filename));","""can't open video file: """
+CV_Assert(vsymbolflags[i] == sflag || rowtypes[i] == VAR_MISSED);
+CV_Assert(img.rows == imgLabels.rows);
+CV_Assert(img.cols == imgLabels.cols);
+CV_Assert(connectivity == 8 || connectivity == 4);
+CV_Assert(ccltype == CCL_GRANA || ccltype == CCL_WU || ccltype == CCL_DEFAULT);
+"imwrite(exp_path, labelImage);"
+"imwrite(exp_path, labelImage);"
+CV_Assert( mi2.empty() );
+CV_Assert( mv2.empty() );
+"CV_Assert( cvtest::norm(Mat(mi3), Mat(mi4), CV_C) == 0 );"
+CV_Assert( mv4.size() == 1 );
+CV_Assert( vudt2.empty() );
+CV_Assert( vudt3 == vudt4 );
+CV_Assert( n == 0 );
+CV_Assert( op1 == p1 );
+CV_Assert( op2 == p2 );
+CV_Assert( os1 == s1 );
+CV_Assert( oc1 == c1 );
+CV_Assert( or1 == r1 );
+CV_Assert( ov1 == v1 );
+CV_Assert( osc1 == sc1 );
+CV_Assert( og1 == g1 );
+CV_Assert(ippFunc != 0);
+CV_Assert(ippsPolarToCart != 0);
+CV_Assert(ippFunc != 0);
+CV_Assert(ippsPolarToCart != 0);
+"CV_Error( CV_StsError, ""unable to remove temporary file"" );","""unable to remove temporary file"""
+"CV_Error( CV_StsError, ""unable to remove temporary file"" );","""unable to remove temporary file"""
+"CV_Error( CV_StsError, ""unable to remove temporary file"" );","""unable to remove temporary file"""
+"CV_Error( CV_StsError, ""unable to remove temporary file"" );","""unable to remove temporary file"""
+setIppErrorStatus();
+setIppErrorStatus();
+"static void Log_32f_ipp(const float *x, float *y, int n)"
+setIppErrorStatus();
+"hal::log32f(x, y, n);"
+"static void Log_64f_ipp(const double *x, double *y, int n)"
+setIppErrorStatus();
+"hal::log64f(x, y, n);"
+"Log_32f( (const float*)ptrs[0], (float*)ptrs[1], len );"
+"hal::log32f( (const float*)ptrs[0], (float*)ptrs[1], len );"
+"Log_64f( (const double*)ptrs[0], (double*)ptrs[1], len );"
+"hal::log64f( (const double*)ptrs[0], (double*)ptrs[1], len );"
+"Log_32f(x, y, bsz);"
+"hal::log32f(x, y, bsz);"
+"Log_64f(x, y, bsz);"
+"hal::log64f(x, y, bsz);"
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+"static void Log_32f_ipp(const float *x, float *y, int n)"
+setIppErrorStatus();
+"hal::log32f(x, y, n);"
+"static void Log_64f_ipp(const double *x, double *y, int n)"
+setIppErrorStatus();
+"hal::log64f(x, y, n);"
+"Log_32f( (const float*)ptrs[0], (float*)ptrs[1], len );"
+"hal::log32f( (const float*)ptrs[0], (float*)ptrs[1], len );"
+"Log_64f( (const double*)ptrs[0], (double*)ptrs[1], len );"
+"hal::log64f( (const double*)ptrs[0], (double*)ptrs[1], len );"
+"Log_32f(x, y, bsz);"
+"hal::log32f(x, y, bsz);"
+"Log_64f(x, y, bsz);"
+"hal::log64f(x, y, bsz);"
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+setIppErrorStatus();
+CV_Assert( mi2.empty() );
+CV_Assert( mv2.empty() );
+"CV_Assert( cvtest::norm(Mat(mi3), Mat(mi4), CV_C) == 0 );"
+CV_Assert( mv4.size() == 1 );
+CV_Assert( vudt2.empty() );
+CV_Assert( vudt3 == vudt4 );
+CV_Assert( n == 0 );
+CV_Assert( op1 == p1 );
+CV_Assert( op2 == p2 );
+CV_Assert( os1 == s1 );
+CV_Assert( oc1 == c1 );
+CV_Assert( or1 == r1 );
+CV_Assert( ov1 == v1 );
+CV_Assert( osc1 == sc1 );
+CV_Assert( og1 == g1 );
+parser.printMessage();
+parser.printMessage();
+"printf( ""Max Scale: %g\n"", maxscale);","""Max Scale: %g\n"""
+static void printLimits(){
+printLimits();
+printLimits();
+"printf(""%d\n"", test());","""%d\n"""
+"ts->printf( cvtest::TS::LOG, ""The camera matrix is wrong for downscaled image\n"");","""The camera matrix is wrong for downscaled image\n"""
+"CV_Error( CV_StsBadArg, ""Unknown threshold type"" );","""Unknown threshold type"""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"CV_Error( CV_StsBadArg, errmsg );"
+if (sz > 0 && ERROR_SUCCESS == GetLastError())
+static CvFileStorage * three_same_ways_of_write_base64()
+static void two_ways_to_write_rawdata_in_base64()
+"cvStartWriteStruct(fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW, ""binary"");","""binary"""
+"cvWriteRawDataBase64(fs, rawdata.data(), static_cast<int>(rawdata.size()), ""i"");","""i"""
+cvEndWriteStruct(fs);
+"cvStartWriteStruct(fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW);","""rawdata"""
+"cvWriteRawData(fs, rawdata.data(), static_cast<int>(rawdata.size()), ""i"");","""i"""
+cvEndWriteStruct(fs);
+CvFileStorage * fs = three_same_ways_of_write_base64();
+two_ways_to_write_rawdata_in_base64();
+"sprintf(buf, ""flags:%s%s%s%s%s%s"",","""flags:%s%s%s%s%s%s"""
+"sprintf(buf, ""flags:%s%s%s%s"",","""flags:%s%s%s%s"""
+"cvWriteComment(*fs, buf, 0);"
+fs.writeComment(flagsStringStream.str());
+CV_Assert(rvecs[i].rows == 3 && rvecs[i].cols == 1);
+CV_Assert(tvecs[i].rows == 3 && tvecs[i].cols == 1);
+CV_Assert(rvecs[i].rows == 3 && rvecs[i].cols == 1);
+CV_Assert(tvecs[i].rows == 3 && tvecs[i].cols == 1);
+"fs.writeComment(""a set of 6-tuples (rotation vector + translation vector) for each view"");","""a set of 6-tuples (rotation vector + translation vector) for each view"""
+"ts->printf( cvtest::TS::LOG, ""The camera matrix is wrong for downscaled image\n"");","""The camera matrix is wrong for downscaled image\n"""
+static CvFileStorage * three_same_ways_of_write_base64()
+static void two_ways_to_write_rawdata_in_base64()
+"cvStartWriteStruct(fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW, ""binary"");","""binary"""
+"cvWriteRawDataBase64(fs, rawdata.data(), static_cast<int>(rawdata.size()), ""i"");","""i"""
+cvEndWriteStruct(fs);
+"cvStartWriteStruct(fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW);","""rawdata"""
+"cvWriteRawData(fs, rawdata.data(), static_cast<int>(rawdata.size()), ""i"");","""i"""
+cvEndWriteStruct(fs);
+CvFileStorage * fs = three_same_ways_of_write_base64();
+two_ways_to_write_rawdata_in_base64();
+"sprintf(buf, ""flags:%s%s%s%s%s%s"",","""flags:%s%s%s%s%s%s"""
+"sprintf(buf, ""flags:%s%s%s%s"",","""flags:%s%s%s%s"""
+"cvWriteComment(*fs, buf, 0);"
+fs.writeComment(flagsStringStream.str());
+CV_Assert(rvecs[i].rows == 3 && rvecs[i].cols == 1);
+CV_Assert(tvecs[i].rows == 3 && tvecs[i].cols == 1);
+CV_Assert(rvecs[i].rows == 3 && rvecs[i].cols == 1);
+CV_Assert(tvecs[i].rows == 3 && tvecs[i].cols == 1);
+"fs.writeComment(""a set of 6-tuples (rotation vector + translation vector) for each view"");","""a set of 6-tuples (rotation vector + translation vector) for each view"""
+"sprintf(buf, ""flags:%s%s%s%s%s%s"",","""flags:%s%s%s%s%s%s"""
+"sprintf(buf, ""flags:%s%s%s%s"",","""flags:%s%s%s%s"""
+"cvWriteComment(*fs, buf, 0);"
+fs.writeComment(flagsStringStream.str());
+CV_Assert(rvecs[i].rows == 3 && rvecs[i].cols == 1);
+CV_Assert(tvecs[i].rows == 3 && tvecs[i].cols == 1);
+CV_Assert(rvecs[i].rows == 3 && rvecs[i].cols == 1);
+CV_Assert(tvecs[i].rows == 3 && tvecs[i].cols == 1);
+"fs.writeComment(""a set of 6-tuples (rotation vector + translation vector) for each view"");","""a set of 6-tuples (rotation vector + translation vector) for each view"""
+"CV_Error( CV_StsBadArg, errmsg );"
+"CV_Error( CV_StsBadArg, errmsg );"
+"CV_Error( CV_StsBadArg, ""Unknown threshold type"" );","""Unknown threshold type"""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"CV_Error( CV_StsBadArg, ""Unknown threshold type"" );","""Unknown threshold type"""
+"return CV_Error( CV_StsBadArg, """" );",""""""
+"cvWriteRawDataBase64(fs, rawdata.data(), rawdata.size(), ""i"");","""i"""
+"cvWriteRawDataBase64(fs, rawdata.data(), static_cast<int>(rawdata.size()), ""i"");","""i"""
+"cvWriteRawData(fs, rawdata.data(), rawdata.size(), ""i"");","""i"""
+"cvWriteRawData(fs, rawdata.data(), static_cast<int>(rawdata.size()), ""i"");","""i"""
+parser.printMessage();
+parser.printMessage();
+"printf( ""Max Scale: %g\n"", maxscale);","""Max Scale: %g\n"""
+static void printLimits(){
+printLimits();
+printLimits();
+"printf(""%d\n"", test());","""%d\n"""
+"cvStartWriteStruct( *fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW, ""binary"" );","""binary"""
+"cvWriteRawDataBase64(*fs, rawdata.data() + i * 100, 100, data_t::signature());"
+cvEndWriteStruct( *fs );
+if (sz > 0 && ERROR_SUCCESS == GetLastError())
+static CvFileStorage * three_same_ways_of_write_base64()
+static void two_ways_to_write_rawdata_in_base64()
+"cvStartWriteStruct(fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW, ""binary"");","""binary"""
+"cvWriteRawDataBase64(fs, rawdata.data(), rawdata.size(), ""i"");","""i"""
+cvEndWriteStruct(fs);
+"cvStartWriteStruct(fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW);","""rawdata"""
+"cvWriteRawData(fs, rawdata.data(), rawdata.size(), ""i"");","""i"""
+cvEndWriteStruct(fs);
+CvFileStorage * fs = three_same_ways_of_write_base64();
+two_ways_to_write_rawdata_in_base64();
+parser.printMessage();
+parser.printMessage();
+static void printLimits(){
+printLimits();
+printLimits();
+parser.printMessage();
+parser.printMessage();
+static void printLimits(){
+printLimits();
+printLimits();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                 \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isBlurU8Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration(false);//Unsupported channels number
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                                                        \
+internal::assertSupportedConfiguration();                                                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();             \
+void assertSupportedConfiguration(bool parametersSupported)
+internal::assertSupportedConfiguration(false);
+internal::assertSupportedConfiguration();                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isConvolutionSupported(size, ksize, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isFlipSupported(flipMode, elemSize));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3MarginSupported(size, border, borderMargin));"
+"internal::assertSupportedConfiguration(isGaussianBlur5x5Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration();                \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isLaplacian3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMedianFilter3x3Supported(size, numChannels));"
+internal::assertSupportedConfiguration();     \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+"printf(""%d\n"", test());","""%d\n"""
+"printf(""%d\n"", test());","""%d\n"""
+"ts->printf( cvtest::TS::LOG, ""The camera matrix is wrong for downscaled image\n"");","""The camera matrix is wrong for downscaled image\n"""
+CV_Assert( (rtype == CV_32F || rtype == CV_64F) &&
+"CV_Assert( (rsize == Size(1, 3) || rsize == Size(3, 1)) &&"
+"cvStartWriteStruct( *fs, ""rawdata"", CV_NODE_SEQ | CV_NODE_FLOW, ""binary"" );","""binary"""
+"cvWriteRawDataBase64(*fs, rawdata.data() + i * 100, 100, data_t::signature());"
+cvEndWriteStruct( *fs );
+"printf( ""Max Scale: %g\n"", maxscale);","""Max Scale: %g\n"""
+if (sz > 0 && ERROR_SUCCESS == GetLastError())
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                 \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isBlurU8Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration(false);//Unsupported channels number
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                                                        \
+internal::assertSupportedConfiguration();                                                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();             \
+void assertSupportedConfiguration(bool parametersSupported)
+internal::assertSupportedConfiguration(false);
+internal::assertSupportedConfiguration();                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isConvolutionSupported(size, ksize, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isFlipSupported(flipMode, elemSize));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3MarginSupported(size, border, borderMargin));"
+"internal::assertSupportedConfiguration(isGaussianBlur5x5Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration();                \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isLaplacian3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMedianFilter3x3Supported(size, numChannels));"
+internal::assertSupportedConfiguration();     \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+CV_Assert( image.channels() == 1 || image.channels() == 3 || image.channels() == 4 );
+CV_Assert( channels == 1 || channels == 3 || channels == 4 );
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                 \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isBlurU8Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration(false);//Unsupported channels number
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                                                        \
+internal::assertSupportedConfiguration();                                                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();             \
+void assertSupportedConfiguration(bool parametersSupported)
+internal::assertSupportedConfiguration(false);
+internal::assertSupportedConfiguration();                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isConvolutionSupported(size, ksize, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isFlipSupported(flipMode, elemSize));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3MarginSupported(size, border, borderMargin));"
+"internal::assertSupportedConfiguration(isGaussianBlur5x5Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration();                \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isLaplacian3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMedianFilter3x3Supported(size, numChannels));"
+internal::assertSupportedConfiguration();     \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+parser.printMessage();
+parser.printMessage();
+parser.printMessage();
+parser.printMessage();
+"PRINTF(""THRESHOLD SELECTED = %d, BRIGHTMAX = %d, DARKMAX = %d\n"", iThresh, iBrightMax, piMaxPos[iIdxBGMax]);","""THRESHOLD SELECTED = %d, BRIGHTMAX = %d, DARKMAX = %d\n"""
+"cvError(CV_BadNumChannels, ""cvCheckChessboard"", ""supports single-channel images only"",","""supports single-channel images only"""
+"cvError(CV_BadDepth, ""cvCheckChessboard"", ""supports depth=8 images only"",","""supports depth=8 images only"""
+if (sz > 0 && ERROR_SUCCESS == GetLastError())
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                 \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isBlurU8Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration(false);//Unsupported channels number
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                                                        \
+internal::assertSupportedConfiguration();                                                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();             \
+void assertSupportedConfiguration(bool parametersSupported)
+internal::assertSupportedConfiguration(false);
+internal::assertSupportedConfiguration();                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isConvolutionSupported(size, ksize, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isFlipSupported(flipMode, elemSize));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3MarginSupported(size, border, borderMargin));"
+"internal::assertSupportedConfiguration(isGaussianBlur5x5Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration();                \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isLaplacian3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMedianFilter3x3Supported(size, numChannels));"
+internal::assertSupportedConfiguration();     \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                 \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isBlurU8Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration(false);//Unsupported channels number
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration(isCanny3x3Supported(size));
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();                                                        \
+internal::assertSupportedConfiguration();                                                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();             \
+void assertSupportedConfiguration(bool parametersSupported)
+internal::assertSupportedConfiguration(false);
+internal::assertSupportedConfiguration();                               \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isConvolutionSupported(size, ksize, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isFlipSupported(flipMode, elemSize));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isGaussianBlur3x3MarginSupported(size, border, borderMargin));"
+"internal::assertSupportedConfiguration(isGaussianBlur5x5Supported(size, cn, borderType));"
+internal::assertSupportedConfiguration();                \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isLaplacian3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+"internal::assertSupportedConfiguration(isLaplacianOpenCVSupported(size, border));"
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMedianFilter3x3Supported(size, numChannels));"
+internal::assertSupportedConfiguration();     \
+internal::assertSupportedConfiguration();
+internal::assertSupportedConfiguration();
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+"internal::assertSupportedConfiguration(isMorph3x3Supported(size, border));"
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+internal::assertSupportedConfiguration(ssize.width > 0 && ssize.height > 0 &&
+"cv::cvWriteMat_Base64(*fs, ""normal_2d_mat"", &holder);","""normal_2d_mat"""
+"cv::cvWriteMatND_Base64(*fs, ""normal_nd_mat"", &holder_nd);","""normal_nd_mat"""
+"cv::cvWriteMat_Base64(*fs, ""empty_2d_mat"", &holder);","""empty_2d_mat"""
+"cv::cvStartWriteRawData_Base64(*fs, ""rawdata"", static_cast<int>(rawdata.size()), ""2u3i2di"");","""2u3i2di"""
+"cv::cvWriteRawData_Base64(*fs, rawdata.data() + i * 100, 100);"
+cv::cvEndWriteRawData_Base64(*fs);
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"""
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"""
+"cv::cvWriteMat_Base64(*fs, ""normal_2d_mat"", &holder);","""normal_2d_mat"""
+"cv::cvWriteMatND_Base64(*fs, ""normal_nd_mat"", &holder_nd);","""normal_nd_mat"""
+"cv::cvWriteMat_Base64(*fs, ""empty_2d_mat"", &holder);","""empty_2d_mat"""
+"cv::cvStartWriteRawData_Base64(*fs, ""rawdata"", static_cast<int>(rawdata.size()), ""2u3i2di"");","""2u3i2di"""
+"cv::cvWriteRawData_Base64(*fs, rawdata.data() + i * 100, 100);"
+cv::cvEndWriteRawData_Base64(*fs);
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"""
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"""
+"cv::cvWriteMat_Base64(*fs, ""normal_2d_mat"", &holder);","""normal_2d_mat"""
+"cv::cvWriteMatND_Base64(*fs, ""normal_nd_mat"", &holder_nd);","""normal_nd_mat"""
+"cv::cvWriteMat_Base64(*fs, ""empty_2d_mat"", &holder);","""empty_2d_mat"""
+"cv::cvStartWriteRawData_Base64(*fs, ""rawdata"", static_cast<int>(rawdata.size()), ""2u3i2di"");","""2u3i2di"""
+"cv::cvWriteRawData_Base64(*fs, rawdata.data() + i * 100, 100);"
+cv::cvEndWriteRawData_Base64(*fs);
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"""
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"""
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_setting1> <image_settings2>\n"""
+"printf(""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"");","""** Error. Usage: ./compareHist_Demo <image_settings0> <image_settings1> <image_settings2>\n"""
+"cv::cvStartWriteRawData_Base64(*fs, ""rawdata"", rawdata.size(), ""2u3i2di"");","""2u3i2di"""
+"cv::cvStartWriteRawData_Base64(*fs, ""rawdata"", static_cast<int>(rawdata.size()), ""2u3i2di"");","""2u3i2di"""
+"cv::cvWriteMat_Base64(*fs, ""normal_2d_mat"", &holder);","""normal_2d_mat"""
+"cv::cvWriteMatND_Base64(*fs, ""normal_nd_mat"", &holder_nd);","""normal_nd_mat"""
+"cv::cvWriteMat_Base64(*fs, ""empty_2d_mat"", &holder);","""empty_2d_mat"""
+"cv::cvWriteMat_Base64(*fs, ""normal_2d_mat"", &holder);","""normal_2d_mat"""
+"cv::cvWriteMatND_Base64(*fs, ""normal_nd_mat"", &holder_nd);","""normal_nd_mat"""
+"cv::cvWriteMat_Base64(*fs, ""empty_2d_mat"", &holder);","""empty_2d_mat"""
+"cv::cvStartWriteRawData_Base64(*fs, ""rawdata"", rawdata.size(), ""2u3i2di"");","""2u3i2di"""
+"cv::cvWriteRawData_Base64(*fs, rawdata.data() + i * 100, 100);"
+cv::cvEndWriteRawData_Base64(*fs);
+CV_Assert(values_read == 1);
+CV_Assert( type == B.type() && (type == CV_32FC1 || type == CV_64FC1 || type == CV_32FC2 || type == CV_64FC2) );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( C.type() == type &&
+"CV_StaticAssert(GEMM_1_T == CV_HAL_GEMM_1_T, ""Incompatible GEMM_1_T flag in HAL"");","""Incompatible GEMM_1_T flag in HAL"""
+"CV_StaticAssert(GEMM_2_T == CV_HAL_GEMM_2_T, ""Incompatible GEMM_2_T flag in HAL"");","""Incompatible GEMM_2_T flag in HAL"""
+"CV_StaticAssert(GEMM_3_T == CV_HAL_GEMM_3_T, ""Incompatible GEMM_3_T flag in HAL"");","""Incompatible GEMM_3_T flag in HAL"""
+CV_Assert( type == B.type() && (type == CV_32FC1 || type == CV_64FC1 || type == CV_32FC2 || type == CV_64FC2) );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( C.type() == type &&
+CV_Assert( type == CV_64FC2 );
+PyErr_Print();
+CV_Assert( type == B.type() && (type == CV_32FC1 || type == CV_64FC1 || type == CV_32FC2 || type == CV_64FC2) );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( C.type() == type &&
+"CV_StaticAssert(GEMM_1_T == CV_HAL_GEMM_1_T, ""Incompatible GEMM_1_T flag in HAL"");","""Incompatible GEMM_1_T flag in HAL"""
+"CV_StaticAssert(GEMM_2_T == CV_HAL_GEMM_2_T, ""Incompatible GEMM_2_T flag in HAL"");","""Incompatible GEMM_2_T flag in HAL"""
+"CV_StaticAssert(GEMM_3_T == CV_HAL_GEMM_3_T, ""Incompatible GEMM_3_T flag in HAL"");","""Incompatible GEMM_3_T flag in HAL"""
+CV_Assert( type == B.type() && (type == CV_32FC1 || type == CV_64FC1 || type == CV_32FC2 || type == CV_64FC2) );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( C.type() == type &&
+CV_Assert( type == CV_64FC2 );
+CV_Assert(values_read == 1);
+CV_Assert( (rtype == CV_32F || rtype == CV_64F) &&
+"CV_Assert( (rsize == Size(1, 3) || rsize == Size(3, 1)) &&"
+CV_Assert(values_read == 1);
+CV_Assert( type == B.type() && (type == CV_32FC1 || type == CV_64FC1 || type == CV_32FC2 || type == CV_64FC2) );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( C.type() == type &&
+"CV_StaticAssert(GEMM_1_T == CV_HAL_GEMM_1_T, ""Incompatible GEMM_1_T flag in HAL"");","""Incompatible GEMM_1_T flag in HAL"""
+"CV_StaticAssert(GEMM_2_T == CV_HAL_GEMM_2_T, ""Incompatible GEMM_2_T flag in HAL"");","""Incompatible GEMM_2_T flag in HAL"""
+"CV_StaticAssert(GEMM_3_T == CV_HAL_GEMM_3_T, ""Incompatible GEMM_3_T flag in HAL"");","""Incompatible GEMM_3_T flag in HAL"""
+CV_Assert( type == B.type() && (type == CV_32FC1 || type == CV_64FC1 || type == CV_32FC2 || type == CV_64FC2) );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( a_size.width == len );
+CV_Assert( a_size.height == len );
+CV_Assert( C.type() == type &&
+CV_Assert( type == CV_64FC2 );
