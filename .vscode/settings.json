@@ -5,4 +5,6 @@
         "${env.SPARK_HOME}/python",
         "${env.SPARK_HOME}/python/pyspark"
     ]
+,
+"files.associations": {"iosfwd":"cpp","fstream":"cpp","string":"cpp","istream":"cpp"}
 }
