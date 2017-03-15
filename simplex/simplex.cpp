@@ -39,8 +39,8 @@
 #include <string.h>
 #include <assert.h>
 
-#define M 20
-#define N 20
+#define M 300
+#define N 600
 
 static const double epsilon   = 1.0e-8;
 int equal(double a, double b) { return fabs(a-b) < epsilon; }
@@ -95,8 +95,10 @@ void read_tableau(Tableau *tab, const char * filename) {
   if( !fp ) {
     printf("Cannot read %s\n", filename); exit(1);
   }
-  memset(tab, 0, sizeof(*tab));
+  memset(tab, 0, sizeof(Tableau));
+
   err = fscanf(fp, "%d %d", &tab->m, &tab->n);
+
   if (err == 0 || err == EOF) {
     printf("Cannot read m or n\n"); exit(1);
   }
@@ -155,7 +157,12 @@ int find_pivot_row(Tableau *tab, int pivot_col) {
   double min_ratio = -1;
   printf("Ratios A[row_i,0]/A[row_i,%d] = [",pivot_col);
   for(i=1;i<tab->m;i++){
-    double ratio = tab->mat[i][0] / tab->mat[i][pivot_col];
+    if(tab->mat[i][pivot_col] == 0)
+    {
+      continue;
+    }
+
+    double ratio =     tab->mat[i][0] / tab->mat[i][pivot_col];
     printf("%3.2lf, ", ratio);
     if ( (ratio > 0  && ratio < min_ratio ) || min_ratio < 0 ) {
       min_ratio = ratio;
@@ -219,16 +226,17 @@ void print_optimal_vector(Tableau *tab, char *message) {
 void simplex(Tableau *tab) {
   int loop=0;
   add_slack_variables(tab);
-  check_b_positive(tab);
+  // check_b_positive(tab);
   print_tableau(tab,"Padded with slack variables");
   while( ++loop ) {
     int pivot_col, pivot_row;
 
     pivot_col = find_pivot_column(tab);
     if( pivot_col < 0 ) {
-      printf("Found optimal value=A[0,0]=%3.2lf (no negatives in row 0).\n",
-        tab->mat[0][0]);
+      printf("Found optimal value=A[0,0]=%3.2lf (no negatives in row 0), now loop is %d.\n",
+        tab->mat[0][0], loop);
       print_optimal_vector(tab, "Optimal vector");
+
       break;
     }
     printf("Entering variable x%d to be made basic, so pivot_col=%d.\n",
@@ -242,25 +250,22 @@ void simplex(Tableau *tab) {
     printf("Leaving variable x%d, so pivot_row=%d\n", pivot_row, pivot_row);
 
     pivot_on(tab, pivot_row, pivot_col);
-    print_tableau(tab,"After pivoting");
+    // print_tableau(tab,"After pivoting");
     print_optimal_vector(tab, "Basic feasible solution");
 
-    if(loop > 20) {
+    if(loop > 2000) {
       printf("Too many iterations > %d.\n", loop);
       break;
     }
   }
 }
 
-Tableau tab  = { 4, 5, {                     // Size of tableau [4 rows x 5 columns ]
-    {  0.0 , -0.5 , -3.0 ,-1.0 , -4.0,   },  // Max: z = 0.5*x + 3*y + z + 4*w, Min: z = -0.5*x + -3*y + -z + -4*w,
-    { 40.0 ,  1.0 ,  1.0 , 1.0 ,  1.0,   },  //    x + y + z + w <= 40 .. b1
-    { 10.0 , -2.0 , -1.0 , 1.0 ,  1.0,   },  //  -2x - y + z + w <= 10 .. b2
-    { 10.0 ,  0.0 ,  1.0 , 0.0 , -1.0,   },  //        y     - w <= 10 .. b3
-  }
-};
+//Tableau tab  = { 148, 91, {{0}}
+//};
 
 int main(int argc, char *argv[]){
+
+  Tableau tab;
   if (argc > 1) { // usage: cmd datafile
     read_tableau(&tab, argv[1]);
   }
@@ -268,7 +273,7 @@ int main(int argc, char *argv[]){
   {
       read_tableau(&tab, "/usr/info/code/cpp/LogMonitor/LogMonitor/simplex/output.txt");
   }
-  print_tableau(&tab,"Initial");
+  // print_tableau(&tab,"Initial");
   simplex(&tab);
   return 0;
 } 

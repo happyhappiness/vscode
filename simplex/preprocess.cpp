@@ -177,10 +177,10 @@ int main()
     input >> server_cost;
 
     // initializetion
-    unordered_map<int, int_int_map> capabilities = unordered_map<int, int_int_map>(node_number);
-    unordered_map<int, int_int_map> costs = unordered_map<int, int_int_map>(node_number);
-    unordered_map<int, int_int_map> locations = unordered_map<int, int_int_map>(edge_number); // location for variables in tableau
-    unordered_map<int, int_int_map> demands = unordered_map<int, int_int_map>(consumer_number);
+    unordered_map<int, int_int_map> capabilities(node_number);
+    unordered_map<int, int_int_map> costs(node_number);
+    unordered_map<int, int_int_map> locations(node_number);// location for variables in tableau
+    unordered_map<int, int_int_map> demands(consumer_number);
    
      // ignore the first empty line
     input.getline(line, line_length);
@@ -218,8 +218,8 @@ int main()
         for(auto it = now_map.begin(); it != now_map.end(); it++)
         {
             end_node = it->first;
-            constraint[locations[i][end_node]]  = costs[end_node][i]; // from i to end_node
-            constraint[locations[end_node][i]]  = costs[end_node][i]; // from end_node to i
+            constraint[locations[i][end_node]]  = -1 * costs[end_node][i]; // from i to end_node
+            constraint[locations[end_node][i]]  = -1 * costs[end_node][i]; // from end_node to i
         }
     }
     // write constraint to file
@@ -261,7 +261,7 @@ int main()
             initializeVector(constraint_symmetry, 0);
 
             constraint[0] = it->second; // demand limit
-            constraint_symmetry[0] = it->second;
+            constraint_symmetry[0] = -(it->second);
 
             // from neighbors to compute input and output
             int_int_map now_map = locations[consumer_node];        
