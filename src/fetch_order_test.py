@@ -6,8 +6,8 @@ import re
 import commands
 import base64
 
-reload(sys);
-sys.setdefaultencoding('utf8')
+# reload(sys);
+# sys.setdefaultencoding('utf8')
 
 """
 @ param  configuration parameters like user, repos and start_sha
@@ -19,13 +19,13 @@ sys.setdefaultencoding('utf8')
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
+    gh = Github(user=user, repo=repos)
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list()
     file_count = 1
     for commit in commits.iterator(): 
-        print "now fetch no %d commit, commit sha is %s \n" %(file_count, commit.sha)
+        print "now fetch no %d commit, commit sha is %s " %(file_count, commit.sha)
         file_count = file_count + 1
 
 """
