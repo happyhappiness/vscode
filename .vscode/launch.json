@@ -1,11 +1,47 @@
 {
     "version": "0.2.0",
     "configurations": [
+         {
+            "name": "simplex Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "preLaunchTask":"simplex",
+            "program": "${workspaceRoot}/a.out",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceRoot}",
+            "environment": [],
+            "externalConsole": true,
+            "linux": {
+                "MIMode": "gdb",
+                "setupCommands": [
+                    {
+                        "description": "Enable pretty-printing for gdb",
+                        "text": "-enable-pretty-printing",
+                        "ignoreFailures": true
+                    }
+                ]
+            },
+            "osx": {
+                "MIMode": "lldb"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "setupCommands": [
+                    {
+                        "description": "Enable pretty-printing for gdb",
+                        "text": "-enable-pretty-printing",
+                        "ignoreFailures": true
+                    }
+                ]
+            }
+        },
+
         {
             "name": "C++ Launch",
             "type": "cppdbg",
             "request": "launch",
-            "preLaunchTask":"clang++",
+            "preLaunchTask":"default",
             "program": "${workspaceRoot}/a.out",
             "args": [],
             "stopAtEntry": false,
@@ -40,6 +76,7 @@
             "name": "C++ Attach",
             "type": "cppdbg",
             "request": "attach",
+            "preLaunchTask":"default",
             "program": "${workspaceRoot}/a.out",
             "processId": "${command.pickProcess}",
             "linux": {

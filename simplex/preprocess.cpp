@@ -89,41 +89,6 @@ void outputUnorderedMap(ofstream &output, const int key_number, unordered_map<in
 }
 
 /**
-    @param ifstream input ifstream
-    @param cabilities
-    @param costs
-    @param consumers
-    @return ..
-*/
-void analyzeInput(const ifstream & input, unordered_map<int, int_int_map>& capabilities, unordered_map<int, int_int_map>& costs, unordered_map<int, int_int_map>& demands)
-{
-    // const int line_length = 100;
-    // // ofstream output("/usr/info/code/cpp/LogMonitor/LogMonitor/simplex/output.txt", ios::out | ios::binary);
-   
-
-    // char* line;
-
-    // // ignore the first empty line
-    // input.getline(line, line_length);
-
-    // // analyze the edge info
-    // analyzeEdge(input, edge_number, capabilities, costs);
-    // // outputUnorderedMap(output, node_number, capabilities);
-    // // outputUnorderedMap(output, node_number, costs);
-
-    // //ignore the second empty line
-    // input.getline(line, line_length);
-    
-    // //analyze the consumer info
-    // demands = ;
-    // analyzeConsumer(input, consumer_number, demands);
-    // // outputUnorderedMap(output, consumer_number, demands);
-
-    // input.close();
-    // // output.close();
-}
-
-/**
     @param ofstream output ofstream
     @param vector<int> vector to output
     @return ..
@@ -194,6 +159,19 @@ int main()
     //analyze the consumer info
     analyzeConsumer(input, consumer_number, demands);
 
+    //add consumers into graph 
+    int consumer_node_index, consumer_node, consumer_index_delta = node_number;
+    for(int i = 0; i < consumer_number; i++)
+    {
+        consumer_node_index = i + consumer_index_delta; // node index for consumers
+        int_int_map now_map = demands[i];  
+        for(auto it = now_map.begin(); it != now_map.end(); it++)
+        {
+            consumer_node = it->first; // node that connect to consumer
+            locations[consumer_node][consumer_node_index] = 1 + edge_number*2; // column number for the variable of consumers
+        }
+    }
+
     input.close();
     // output.close();
     
@@ -201,14 +179,16 @@ int main()
     **************************************** transform into a linear programming problem
     */ 
     ofstream output("/usr/info/code/cpp/LogMonitor/LogMonitor/simplex/output.txt", ios::out | ios::binary);
-    int variable_number = 2*edge_number + 1;
+    int variable_number = 2*edge_number + 1 + consumer_number;
     int server_number = 3;
     vector<int> constraint(variable_number);    
     vector<int> constraint_symmetry(variable_number);
-    output << (node_number*2 + 1 + variable_number)  << " " << variable_number << "\n";
+    // constraints : consumer_number*2 +  edge_number*2 + node_number*2 - server_number
+    // variables : consumer_number + edge_number*2 
+    output << (node_number*2 - server_number + edge_number*2 + consumer_number*2)  << " " << variable_number << "\n";
 
     //////////////////////////////// objective(flow * cost + server * server_cost)
-    // compute constraints
+    // cost numbers 
     initializeVector(constraint, 0);
     int end_node; // i is the start_node
     for(int i = 0; i < node_number; i++)
@@ -217,8 +197,8 @@ int main()
         int_int_map now_map = costs[i];        
         for(auto it = now_map.begin(); it != now_map.end(); it++)
         {
-            end_node = it->first;
-            constraint[locations[i][end_node]]  = -1 * costs[end_node][i]; // from i to end_node
+            end_node = it->first; // end node
+            constraint[locations[i][end_node]]  = -1 * costs[i][end_node]; // from i to end_node
             constraint[locations[end_node][i]]  = -1 * costs[end_node][i]; // from end_node to i
         }
     }
@@ -231,7 +211,7 @@ int main()
         int_int_map now_map = capabilities[i];        
         for(auto it = now_map.begin(); it != now_map.end(); it++)
         {
-            end_node = it->first;
+            end_node = it->first; // end node
 
             // compute constraints
             initializeVector(constraint, 0);
@@ -244,41 +224,33 @@ int main()
         }
     }
 
-    ////////////////////////////// network constraints on nodes (node_number*2 - server_number)
-    vector<int> servers, non_servers, consumers;
+    ////////////////////////////// network constraints on nodes (node_number*2 - server_number + consumer_number*2)
+    vector<int> servers, non_servers;
     
-    // consumer input - output = demand
-    int consumer_node;
+    // consumer input = demand (consumer_number)
     for(int i = 0; i < consumer_number; i++)
     {
+        consumer_node_index = i + consumer_index_delta; // node index for consumers
         int_int_map now_map = demands[i];        
         for(auto it = now_map.begin(); it != now_map.end(); it++)
         {
-            consumer_node = it->first;
-            consumers.push_back(consumer_node);
-            // compute constraints
-            initializeVector(constraint, 0);
-            initializeVector(constraint_symmetry, 0);
-
-            constraint[0] = it->second; // demand limit
-            constraint_symmetry[0] = -(it->second);
-
-            // from neighbors to compute input and output
-            int_int_map now_map = locations[consumer_node];        
-            for(auto it = now_map.begin(); it != now_map.end(); it++)
-            {
-                end_node = it->first;
-                constraint[locations[end_node][consumer_node]]  = 1; // input
-                constraint[locations[consumer_node][end_node]]  = -1; // output
-
-                constraint_symmetry[locations[end_node][consumer_node]]  = -1; // input
-                constraint_symmetry[locations[consumer_node][end_node]]  = 1; // output
-            }
-
-            // write constraint to file
-            outputVector(output, constraint);
-            outputVector(output, constraint_symmetry);
+            consumer_node = it->first; // consumer_node
         }
+
+        // compute constraints
+        initializeVector(constraint, 0);
+        initializeVector(constraint_symmetry, 0);
+
+        constraint[0] = demands[i][consumer_node]; // demand limit
+        constraint_symmetry[0] = -1 * demands[i][consumer_node];
+
+        // only have one neighbor 
+        constraint[locations[consumer_node][consumer_node_index]]  = 1; // input
+        constraint_symmetry[locations[consumer_node][consumer_node_index]]  = -1; // input
+
+        // write constraint to file
+        outputVector(output, constraint);
+        outputVector(output, constraint_symmetry);
     }
 
     // server input = 0
@@ -299,7 +271,7 @@ int main()
         int_int_map now_map = locations[server_node];        
         for(auto it = now_map.begin(); it != now_map.end(); it++)
         {
-            end_node = it->first;
+            end_node = it->first;// end node
             constraint[locations[end_node][server_node]]  = 1; // input
         }
 
@@ -308,7 +280,6 @@ int main()
     }
 
     // non-server input = output 
-    int non_server_number = 0;
     for(int i = 0; i < node_number; i++) // i the non_server_node
     {   
         // ignore servers and consumers
@@ -316,12 +287,7 @@ int main()
         {
             continue;
         }
-        if(find(consumers.begin(), consumers.end(), i) != consumers.end())
-        {
-            continue;
-        }
 
-        non_server_number++;
         // compute constraints
         initializeVector(constraint, 0);
         initializeVector(constraint_symmetry, 0);
@@ -330,7 +296,7 @@ int main()
         int_int_map now_map = locations[i];        
         for(auto it = now_map.begin(); it != now_map.end(); it++)
         {
-            end_node = it->first;
+            end_node = it->first; // end node
             constraint[locations[end_node][i]]  = 1; // input
             constraint[locations[i][end_node]]  = -1; // output
 
@@ -343,6 +309,5 @@ int main()
         outputVector(output, constraint_symmetry);
     }
 
-    // cout << non_server_number;
     return 0;
 }

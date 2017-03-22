@@ -46,7 +46,7 @@ static const double epsilon   = 1.0e-8;
 int equal(double a, double b) { return fabs(a-b) < epsilon; }
 
 typedef struct {
-  int m, n; // m=rows, n=columns, mat[m x n]
+  int m_less, m_more,m, n; // m=rows, n=columns, mat[(m_less+m_more) x n]
   double mat[M][N];
 } Tableau;
 
@@ -57,28 +57,7 @@ char* analyzeInput(const char* filename) {
   
 
 }
-void print_tableau(Tableau *tab, const char* mes) {
-  static int counter=0;
-  int i, j;
-  printf("\n%d. Tableau %s:\n", ++counter, mes);
-  nl(70);
 
-  printf("%-6s%5s", "col:", "b[i]");
-  for(j=1;j<tab->n; j++) { printf("    x%d,", j); } printf("\n");
-
-  for(i=0;i<tab->m; i++) {
-    if (i==0) printf("max:"); else
-    printf("b%d: ", i);
-    for(j=0;j<tab->n; j++) {
-      if (equal((int)tab->mat[i][j], tab->mat[i][j]))
-        printf(" %6d", (int)tab->mat[i][j]);
-      else
-        printf(" %6.2lf", tab->mat[i][j]);
-      }
-    printf("\n");
-  }
-  nl(70);
-}
 
 /* Example input file for read_tableau:
      4 5
@@ -97,7 +76,8 @@ void read_tableau(Tableau *tab, const char * filename) {
   }
   memset(tab, 0, sizeof(Tableau));
 
-  err = fscanf(fp, "%d %d", &tab->m, &tab->n);
+  err = fscanf(fp, "%d %d %d", &tab->m_less, &tab->m_more, &tab->n);
+  tab->m = tab->m_less + tab->m_more;
 
   if (err == 0 || err == EOF) {
     printf("Cannot read m or n\n"); exit(1);
@@ -110,8 +90,8 @@ void read_tableau(Tableau *tab, const char * filename) {
       }
     }
   }
-  printf("Read tableau [%d rows x %d columns] from file '%s'.\n",
-    tab->m, tab->n, filename);
+  printf("Read tableau [%d rows x %d columns] from file '%s', %d less equality and %d more equality.\n",
+    tab->m, tab->n, filename,tab->m_less,tab->m_more);
   fclose(fp);
 }
 
@@ -135,17 +115,17 @@ void pivot_on(Tableau *tab, int row, int col) {
 }
 
 // Find pivot_col = most negative column in mat[0][1..n]
-int find_pivot_column(Tableau *tab) {
-  int j, pivot_col = 1;
-  double lowest = tab->mat[0][pivot_col];
-  for(j=1; j<tab->n; j++) {
-    if (tab->mat[0][j] < lowest) {
-      lowest = tab->mat[0][j];
+int find_pivot_column(Tableau *tab, int last_col) {
+  int j, pivot_col = last_col + 1;
+  double highest = tab->mat[0][pivot_col];
+  for(j=pivot_col; j<tab->n; j++) {
+    if (tab->mat[0][j] < 0 && tab->mat[0][j] < highest) {
+      highest = tab->mat[0][j];
       pivot_col = j;
     }
   }
-  printf("Most negative column in row[0] is col %d = %g.\n", pivot_col, lowest);
-  if( lowest >= 0 ) {
+  printf("Most negative column in row[0] is col %d = %g.\n", pivot_col, highest);
+  if( highest == 0 ) {
     return -1; // All positive columns in row[0], this is optimal.
   }
   return pivot_col;
@@ -157,20 +137,20 @@ int find_pivot_row(Tableau *tab, int pivot_col) {
   double min_ratio = -1;
   printf("Ratios A[row_i,0]/A[row_i,%d] = [",pivot_col);
   for(i=1;i<tab->m;i++){
-    if(tab->mat[i][pivot_col] == 0)
+    if(tab->mat[i][pivot_col] <= 0)
     {
       continue;
     }
 
-    double ratio =     tab->mat[i][0] / tab->mat[i][pivot_col];
+    double ratio = tab->mat[i][0] / tab->mat[i][pivot_col];
     printf("%3.2lf, ", ratio);
-    if ( (ratio > 0  && ratio < min_ratio ) || min_ratio < 0 ) {
+    if( ( ratio >= 0 && ratio < min_ratio) || min_ratio < 0 ){
       min_ratio = ratio;
       pivot_row = i;
     }
   }
   printf("].\n");
-  if (min_ratio == -1)
+  if (min_ratio <= 0)
     return -1; // Unbounded.
   printf("Found pivot A[%d,%d], min positive ratio=%g in row=%d.\n",
       pivot_row, pivot_col, min_ratio, pivot_row);
@@ -179,11 +159,15 @@ int find_pivot_row(Tableau *tab, int pivot_col) {
 
 void add_slack_variables(Tableau *tab) {
   int i, j;
-  for(i=1; i<tab->m; i++) {
-    for(j=1; j<tab->m; j++)
+  for(i=1; i<tab->m_less; i++) {
+    for(j=1; j<tab->m_less; j++)
       tab->mat[i][j + tab->n -1] = (i==j);
   }
-  tab->n += tab->m -1;
+  for(i=0; i<tab->m_more; i++) {
+    for(j=0; j<tab->m_more; j++)
+      tab->mat[i + tab->m_less][j + tab->n - 1 + tab->m_less] = -(i==j);
+  }
+  tab->n += tab->m -1;// add slack variable
 }
 
 void check_b_positive(Tableau *tab) {
@@ -226,27 +210,29 @@ void print_optimal_vector(Tableau *tab, char *message) {
 void simplex(Tableau *tab) {
   int loop=0;
   add_slack_variables(tab);
-  // check_b_positive(tab);
-  print_tableau(tab,"Padded with slack variables");
+  check_b_positive(tab);
+  //print_tableau(tab,"Padded with slack variables");
   while( ++loop ) {
-    int pivot_col, pivot_row;
+    int last_pivot_col = 0, pivot_row = -1;
+    int pivot_col;
 
-    pivot_col = find_pivot_column(tab);
-    if( pivot_col < 0 ) {
-      printf("Found optimal value=A[0,0]=%3.2lf (no negatives in row 0), now loop is %d.\n",
-        tab->mat[0][0], loop);
-      print_optimal_vector(tab, "Optimal vector");
+    while(pivot_row < 0)
+    {
+      pivot_col = find_pivot_column(tab, last_pivot_col);// search next column 
+      if( pivot_col == last_pivot_col || pivot_col < 0 ) {
+        printf("Found optimal value=A[0,0]=%3.2lf (no negatives in row 0), now loop is %d.\n",
+          tab->mat[0][0], loop);
+        print_optimal_vector(tab, "Optimal vector");
 
-      break;
+        return;
+      }
+      printf("Entering variable x%d to be made basic, so pivot_col=%d.\n",
+        pivot_col, pivot_col);
+
+      pivot_row = find_pivot_row(tab, pivot_col);
+      last_pivot_col = pivot_col;// remember the last col
     }
-    printf("Entering variable x%d to be made basic, so pivot_col=%d.\n",
-      pivot_col, pivot_col);
-
-    pivot_row = find_pivot_row(tab, pivot_col);
-    if (pivot_row < 0) {
-      printf("unbounded (no pivot_row).\n");
-      break;
-    }
+    
     printf("Leaving variable x%d, so pivot_row=%d\n", pivot_row, pivot_row);
 
     pivot_on(tab, pivot_row, pivot_col);
@@ -271,7 +257,7 @@ int main(int argc, char *argv[]){
   }
   else 
   {
-      read_tableau(&tab, "/usr/info/code/cpp/LogMonitor/LogMonitor/simplex/output.txt");
+      read_tableau(&tab, "/usr/info/code/cpp/LogMonitor/LogMonitor/simplex/dual.txt");
   }
   // print_tableau(&tab,"Initial");
   simplex(&tab);
