@@ -89,7 +89,7 @@ def deal_patch(sha, message, changed_file, store_name, writer):
 @ caller fetch_commit(user, repos, commit_sha='') ..
 @ involve deal with commit and involved changed file
 """
-def deal_commit(gh, sha, file_count, writer):
+def deal_commit(gh, sha, file_count, total_count, writer):
 
     # retrieve info of commit with given sha
     commit = gh.repos.commits.get(sha=sha)
@@ -103,6 +103,8 @@ def deal_commit(gh, sha, file_count, writer):
         # filter to not deal with test module files
         is_test_cpp = re.search('(test.cpp|.c)$', changed_file.filename, re.I)
         if is_cpp and not is_test_cpp:
+            # increment the total file count
+            total_count = total_count + 1
 
             # write to temp file
             store_name = 'download/' + user + '_' + repos + str(file_count) + '.cpp'
@@ -148,10 +150,11 @@ def fetch_commit(user, repos, commit_sha=''):
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list()
-    file_count = 1
+    file_count = 0
+    total_count = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
-        file_count = deal_commit(gh, commit.sha, file_count, fetch_writer)
+        file_count = deal_commit(gh, commit.sha, file_count, total_count, fetch_writer)
         if file_count % 10 == 0:
             print 'now saved the no. %d file' %file_count
     # deal_commit(gh, commit_sha, writer)
@@ -166,10 +169,10 @@ main function
 # several configuration constant: user, repos
 # user = 'mongodb'
 # repos = 'mongo'
-# user = 'opencv'
-# repos = 'opencv'
-user = 'apple'
-repos = 'swift'
+user = 'opencv'
+repos = 'opencv'
+# user = 'apple'
+# repos = 'swift'
 
 commit_sha = 'a7e74d56036e94c3e4ed11ceeb4cd43e95209aa5'
 

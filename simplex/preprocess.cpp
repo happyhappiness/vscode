@@ -198,8 +198,8 @@ int main()
         for(auto it = now_map.begin(); it != now_map.end(); it++)
         {
             end_node = it->first; // end node
-            constraint[locations[i][end_node]]  = -1 * costs[i][end_node]; // from i to end_node
-            constraint[locations[end_node][i]]  = -1 * costs[end_node][i]; // from end_node to i
+            constraint[locations[i][end_node]]  = costs[i][end_node]; // from i to end_node
+            constraint[locations[end_node][i]]  = costs[end_node][i]; // from end_node to i
         }
     }
     // write constraint to file
