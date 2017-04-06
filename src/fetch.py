@@ -106,8 +106,6 @@ def deal_commit(gh, sha, file_count, total_count, writer):
             # increment the total file count
             total_count = total_count + 1
 
-            # write to temp file
-            store_name = 'download/' + user + '_' + repos + str(file_count) + '.cpp'
             # call deal_patch to deal with the patch file
             has_log = deal_patch(sha, message, changed_file, store_name, writer)
             if has_log:
@@ -115,9 +113,25 @@ def deal_commit(gh, sha, file_count, total_count, writer):
                 source = gh.git_data.blobs.get(changed_file.sha).content
                 # decode to retrieve the source file
                 source = base64.b64decode(source)
-                temp_file = open(store_name, 'wb')
+
+                # write new file to temp file
+                new_store_name = 'download/' + user + '_' + repos + str(file_count) + '_new.cpp'
+                temp_file = open(new_store_name, 'wb')
                 temp_file.write(source)
                 temp_file.close()
+
+                # write patch file to temp file
+                patch_store_name = 'download/' + user + '_' + repos + str(file_count) + '_patch.cpp'
+                temp_file = open(patch_store_name, 'wb')
+                temp_file.write(changed_file.patch)
+                temp_file.close()
+
+                # get old file with patch cmd and write back
+                old_store_name = 'download/' + user + '_' + repos + str(file_count) + '_old.cpp'
+                output = commands.getoutput('patch -R ' + new_store_name \
+                        + ' -i ' + patch_store_name + ' -o ' + old_store_name)
+                output = commands.getoutput('rm ' + patch_store_name)
+
                 # increment the file count
                 file_count = file_count + 1
 
