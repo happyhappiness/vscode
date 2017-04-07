@@ -1,0 +1,992 @@
+commit_sha,commit_message,file_name,change_type,log_statement,log_loc,old_store_name,new_store_name
+269c930e6698e6afa6d4606bfd241f4497597e79,"Merge tag 'xfs-4.11-fixes-3' of git://git.kernel.org/pub/scm/fs/xfs/xfs-linux
+
+Pull XFS fixes from Darrick Wong:
+ ""Here are three more fixes for 4.11.
+
+  The first one reworks the inline directory verifier to check the
+  working copy of the directory metadata and to avoid triggering a
+  periodic crash in xfs/348. The second patch fixes a regression in hole
+  punching at EOF that corrupts files; and the third patch closes a
+  kernel memory disclosure bug.
+
+  Summary:
+
+   - rework the inline directory verifier to avoid crashes on disk
+     corruption
+
+   - don't change file size when punching holes w/ KEEP_SIZE
+
+   - close a kernel memory exposure bug""
+
+* tag 'xfs-4.11-fixes-3' of git://git.kernel.org/pub/scm/fs/xfs/xfs-linux:
+  xfs: fix kernel memory exposure problems
+  xfs: Honor FALLOC_FL_KEEP_SIZE when punching ends of files
+  xfs: rework the inline directory verifiers",fs/xfs/libxfs/xfs_dir2_sf.c,+,ASSERT(ip->i_d.di_format == XFS_DINODE_FMT_LOCAL);,652,/data/download/torvalds_linux0_old.cpp,/data/download/torvalds_linux0_new.cpp
+977674c06b189dd54729a91331c05761688ad064,"Merge branch 'upstream' of git://git.linux-mips.org/pub/scm/ralf/upstream-linus
+
+Pull MIPS fixes from Ralf Baechle:
+ ""Lantiq:
+    - Fix adding xbar resoures causing a panic
+
+  Loongson3:
+    - Some Loongson 3A don't identify themselves as having an FTLB so
+      hardwire that knowledge into CPU probing.
+    - Handle Loongson 3 TLB peculiarities in the fast path of the RDHWR
+      emulation.
+    - Fix invalid FTLB entries with huge page on VTLB+FTLB platforms
+    - Add missing calculation of S-cache and V-cache cache-way size
+
+  Ralink:
+    - Fix typos in rt3883 pinctrl data
+
+  Generic:
+    - Force o32 fp64 support on 32bit MIPS64r6 kernels
+    - Yet another build fix after the linux/sched.h changes
+    - Wire up statx system call
+    - Fix stack unwinding after introduction of IRQ stack
+    - Fix spinlock code to build even for microMIPS with recent binutils
+
+  SMP-CPS:
+    - Fix retrieval of VPE mask on big endian CPUs""
+
+* 'upstream' of git://git.linux-mips.org/pub/scm/ralf/upstream-linus:
+  MIPS: IRQ Stack: Unwind IRQ stack onto task stack
+  MIPS: c-r4k: Fix Loongson-3's vcache/scache waysize calculation
+  MIPS: Flush wrong invalid FTLB entry for huge page
+  MIPS: Check TLB before handle_ri_rdhwr() for Loongson-3
+  MIPS: Add MIPS_CPU_FTLB for Loongson-3A R2
+  MIPS: Lantiq: fix missing xbar kernel panic
+  MIPS: smp-cps: Fix retrieval of VPE mask on big endian CPUs
+  MIPS: Wire up statx system call
+  MIPS: Include asm/ptrace.h now linux/sched.h doesn't
+  MIPS: ralink: Fix typos in rt3883 pinctrl
+  MIPS: End spinlocks with .insn
+  MIPS: Force o32 fp64 support on 32bit MIPS64r6 kernels",arch/mips/mm/tlbex.c,+,"build_tlb_write_entry(p, l, r, tlb_indexed);",779,/data/download/torvalds_linux1_old.cpp,/data/download/torvalds_linux1_new.cpp
+977674c06b189dd54729a91331c05761688ad064,"Merge branch 'upstream' of git://git.linux-mips.org/pub/scm/ralf/upstream-linus
+
+Pull MIPS fixes from Ralf Baechle:
+ ""Lantiq:
+    - Fix adding xbar resoures causing a panic
+
+  Loongson3:
+    - Some Loongson 3A don't identify themselves as having an FTLB so
+      hardwire that knowledge into CPU probing.
+    - Handle Loongson 3 TLB peculiarities in the fast path of the RDHWR
+      emulation.
+    - Fix invalid FTLB entries with huge page on VTLB+FTLB platforms
+    - Add missing calculation of S-cache and V-cache cache-way size
+
+  Ralink:
+    - Fix typos in rt3883 pinctrl data
+
+  Generic:
+    - Force o32 fp64 support on 32bit MIPS64r6 kernels
+    - Yet another build fix after the linux/sched.h changes
+    - Wire up statx system call
+    - Fix stack unwinding after introduction of IRQ stack
+    - Fix spinlock code to build even for microMIPS with recent binutils
+
+  SMP-CPS:
+    - Fix retrieval of VPE mask on big endian CPUs""
+
+* 'upstream' of git://git.linux-mips.org/pub/scm/ralf/upstream-linus:
+  MIPS: IRQ Stack: Unwind IRQ stack onto task stack
+  MIPS: c-r4k: Fix Loongson-3's vcache/scache waysize calculation
+  MIPS: Flush wrong invalid FTLB entry for huge page
+  MIPS: Check TLB before handle_ri_rdhwr() for Loongson-3
+  MIPS: Add MIPS_CPU_FTLB for Loongson-3A R2
+  MIPS: Lantiq: fix missing xbar kernel panic
+  MIPS: smp-cps: Fix retrieval of VPE mask on big endian CPUs
+  MIPS: Wire up statx system call
+  MIPS: Include asm/ptrace.h now linux/sched.h doesn't
+  MIPS: ralink: Fix typos in rt3883 pinctrl
+  MIPS: End spinlocks with .insn
+  MIPS: Force o32 fp64 support on 32bit MIPS64r6 kernels",arch/mips/mm/tlbex.c,+,"build_huge_tlb_write_entry(p, l, r, pte, tlb_random, 0);",784,/data/download/torvalds_linux1_old.cpp,/data/download/torvalds_linux1_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",drivers/net/irda/vlsi_ir.c,+,"if (rd->buf == NULL || pci_dma_mapping_error(pdev, busaddr)) {",423,/data/download/torvalds_linux2_old.cpp,/data/download/torvalds_linux2_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/ipv4/ping.c,+,write_lock_bh(&ping_table.lock);,161,/data/download/torvalds_linux3_old.cpp,/data/download/torvalds_linux3_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/ipv4/ping.c,-,write_lock_bh(&ping_table.lock);,161,/data/download/torvalds_linux3_old.cpp,/data/download/torvalds_linux3_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/ipv4/ping.c,-,write_unlock_bh(&ping_table.lock);,168,/data/download/torvalds_linux3_old.cpp,/data/download/torvalds_linux3_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/ipv4/ping.c,+,write_unlock_bh(&ping_table.lock);,170,/data/download/torvalds_linux3_old.cpp,/data/download/torvalds_linux3_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/l2tp/l2tp_core.c,+,write_lock_bh(&tunnel->hlist_lock);,396,/data/download/torvalds_linux4_old.cpp,/data/download/torvalds_linux4_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/l2tp/l2tp_core.c,+,write_unlock_bh(&tunnel->hlist_lock);,416,/data/download/torvalds_linux4_old.cpp,/data/download/torvalds_linux4_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/l2tp/l2tp_core.c,+,write_unlock_bh(&tunnel->hlist_lock);,423,/data/download/torvalds_linux4_old.cpp,/data/download/torvalds_linux4_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/l2tp/l2tp_core.c,-,write_lock_bh(&tunnel->hlist_lock);,1806,/data/download/torvalds_linux4_old.cpp,/data/download/torvalds_linux4_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/l2tp/l2tp_core.c,-,write_unlock_bh(&tunnel->hlist_lock);,1809,/data/download/torvalds_linux4_old.cpp,/data/download/torvalds_linux4_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",tools/testing/selftests/bpf/test_verifier.c,+,"printf(""FAIL\nFailed due to alignment despite having efficient unaligned access: '%s'!\n"",",4824,/data/download/torvalds_linux5_old.cpp,/data/download/torvalds_linux5_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",tools/testing/selftests/bpf/test_verifier.c,+,strerror(errno));,4825,/data/download/torvalds_linux5_old.cpp,/data/download/torvalds_linux5_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",tools/testing/selftests/bpf/test_verifier.c,-,"printf(""OK\n"");",4568,/data/download/torvalds_linux5_old.cpp,/data/download/torvalds_linux5_new.cpp
+ea6b1720ce25f92f7a17b2e0c2b653d20773d10a,"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit 

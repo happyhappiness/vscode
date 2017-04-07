@@ -147,7 +147,9 @@ main function
 # repos = 'opencv'
 # user = 'apple'
 # repos = 'swift'
-user = 'llvm-mirror'
-repos = 'clang'
+# user = 'llvm-mirror'
+# repos = 'clang'
+user = 'torvalds'
+repos = 'linux'
 
 analyze( user, repos)

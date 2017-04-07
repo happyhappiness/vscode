@@ -134,7 +134,7 @@ def deal_commit(gh, sha, file_count, total_count, writer):
         # filter to just deal with cpp and c files
         is_cpp = re.search('(.cpp|.c|.cc)$', changed_file.filename, re.I)
         # filter to not deal with test module files
-        is_test_cpp = re.search('(test.cpp|.c)$', changed_file.filename, re.I)
+        is_test_cpp = re.search('(test.cpp|test.c)$', changed_file.filename, re.I)
         if is_cpp and not is_test_cpp:
             # increment the total file count
             total_count = total_count + 1
@@ -222,8 +222,10 @@ main function
 # repos = 'opencv'
 # user = 'apple'
 # repos = 'swift'
-user = 'llvm-mirror'
-repos = 'clang'
+# user = 'llvm-mirror'
+# repos = 'clang'
+user = 'torvalds'
+repos = 'linux'
 
 commit_sha = 'a7e74d56036e94c3e4ed11ceeb4cd43e95209aa5'
 
