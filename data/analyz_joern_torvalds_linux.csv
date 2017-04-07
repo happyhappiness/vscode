@@ -1,0 +1,864 @@
+commit_message,file_name,change_type,log_node,cdg_nodes,ddg_nodes
+"Merge tag 'xfs-4.11-fixes-3' of git://git.kernel.org/pub/scm/fs/xfs/xfs-linux
+
+Pull XFS fixes from Darrick Wong:
+ ""Here are three more fixes for 4.11.
+
+  The first one reworks the inline directory verifier to check the
+  working copy of the directory metadata and to avoid triggering a
+  periodic crash in xfs/348. The second patch fixes a regression in hole
+  punching at EOF that corrupts files; and the third patch closes a
+  kernel memory disclosure bug.
+
+  Summary:
+
+   - rework the inline directory verifier to avoid crashes on disk
+     corruption
+
+   - don't change file size when punching holes w/ KEEP_SIZE
+
+   - close a kernel memory exposure bug""
+
+* tag 'xfs-4.11-fixes-3' of git://git.kernel.org/pub/scm/fs/xfs/xfs-linux:
+  xfs: fix kernel memory exposure problems
+  xfs: Honor FALLOC_FL_KEEP_SIZE when punching ends of files
+  xfs: rework the inline directory verifiers",fs/xfs/libxfs/xfs_dir2_sf.c,+,"[[3160, u'True', u'ExpressionStatement', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )']]","[[3161, None, u'CallExpression', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [3171, None, u'Callee', u'ASSERT'], [3162, None, u'ArgumentList', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [3172, None, u'Identifier', u'ASSERT'], [3163, None, u'Argument', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [3164, None, u'EqualityExpression', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [3166, None, u'MemberAccess', u'ip -> i_d . di_format'], [3165, None, u'Identifier', u'XFS_DINODE_FMT_LOCAL'], [3168, None, u'PtrMemberAccess', u'ip -> i_d'], [3167, None, u'Identifier', u'di_format'], [3170, None, u'Identifier', u'ip'], [3169, None, u'Identifier', u'i_d'], [3160, u'True', u'ExpressionStatement', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [3234, u'True', u'CFGEntryNode', u'ENTRY']]","[[3161, None, u'CallExpression', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [3171, None, u'Callee', u'ASSERT'], [3162, None, u'ArgumentList', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [3172, None, u'Identifier', u'ASSERT'], [3163, None, u'Argument', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [3164, None, u'EqualityExpression', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [3166, None, u'MemberAccess', u'ip -> i_d . di_format'], [3165, None, u'Identifier', u'XFS_DINODE_FMT_LOCAL'], [3168, None, u'PtrMemberAccess', u'ip -> i_d'], [3167, None, u'Identifier', u'di_format'], [3170, None, u'Identifier', u'ip'], [3169, None, u'Identifier', u'i_d'], [3160, u'True', u'ExpressionStatement', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [2821, None, u'ParameterType', u'struct xfs_inode *'], [2820, None, u'Identifier', u'ip'], [2819, u'True', u'Parameter', u'struct xfs_inode * ip']]"
+"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/ipv4/ping.c,+,"[[460273, u'True', u'ExpressionStatement', u'write_lock_bh ( & ping_table . lock )']]","[[460274, None, u'CallExpression', u'write_lock_bh ( & ping_table . lock )'], [460282, None, u'Callee', u'write_lock_bh'], [460275, None, u'ArgumentList', u'& ping_table . lock'], [460283, None, u'Identifier', u'write_lock_bh'], [460276, None, u'Argument', u'& ping_table . lock'], [460277, None, u'UnaryOp', u'& ping_table . lock'], [460281, None, u'UnaryOperator', u'&'], [460278, None, u'MemberAccess', u'ping_table . lock'], [460280, None, u'Identifier', u'ping_table'], [460279, None, u'Identifier', u'lock'], [460273, u'True', u'ExpressionStatement', u'write_lock_bh ( & ping_table . lock )'], [460309, u'True', u'CFGEntryNode', u'ENTRY']]","[[460274, None, u'CallExpression', u'write_lock_bh ( & ping_table . lock )'], [460282, None, u'Callee', u'write_lock_bh'], [460275, None, u'ArgumentList', u'& ping_table . lock'], [460283, None, u'Identifier', u'write_lock_bh'], [460276, None, u'Argument', u'& ping_table . lock'], [460277, None, u'UnaryOp', u'& ping_table . lock'], [460281, None, u'UnaryOperator', u'&'], [460278, None, u'MemberAccess', u'ping_table . lock'], [460280, None, u'Identifier', u'ping_table'], [460279, None, u'Identifier', u'lock'], [460273, u'True', u'ExpressionStatement', u'write_lock_bh ( & ping_table . lock )']]"
+"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/ipv4/ping.c,+,"[[460192, u'True', u'ExpressionStatement', u'write_unlock_bh ( & ping_table . lock )']]","[[460193, None, u'CallExpression', u'write_unlock_bh ( & ping_table . lock )'], [460201, None, u'Callee', u'write_unlock_bh'], [460194, None, u'ArgumentList', u'& ping_table . lock'], [460202, None, u'Identifier', u'write_unlock_bh'], [460195, None, u'Argument', u'& ping_table . lock'], [460196, None, u'UnaryOp', u'& ping_table . lock'], [460200, None, u'UnaryOperator', u'&'], [460197, None, u'MemberAccess', u'ping_table . lock'], [460199, None, u'Identifier', u'ping_table'], [460198, None, u'Identifier', u'lock'], [460192, u'True', u'ExpressionStatement', u'write_unlock_bh ( & ping_table . lock )'], [460309, u'True', u'CFGEntryNode', u'ENTRY']]","[[460193, None, u'CallExpression', u'write_unlock_bh ( & ping_table . lock )'], [460201, None, u'Callee', u'write_unlock_bh'], [460194, None, u'ArgumentList', u'& ping_table . lock'], [460202, None, u'Identifier', u'write_unlock_bh'], [460195, None, u'Argument', u'& ping_table . lock'], [460196, None, u'UnaryOp', u'& ping_table . lock'], [460200, None, u'UnaryOperator', u'&'], [460197, None, u'MemberAccess', u'ping_table . lock'], [460199, None, u'Identifier', u'ping_table'], [460198, None, u'Identifier', u'lock'], [460192, u'True', u'ExpressionStatement', u'write_unlock_bh ( & ping_table . lock )']]"
+"Merge git://git.kernel.org/pub/scm/linux/kernel/git/davem/net
+
+Pull networking fixes from David Miller:
+
+ 1) Reject invalid updates to netfilter expectation policies, from Pablo
+    Neira Ayuso.
+
+ 2) Fix memory leak in nfnl_cthelper, from Jeffy Chen.
+
+ 3) Don't do stupid things if we get a neigh_probe() on a neigh entry
+    whose ops lack a solicit method. From Eric Dumazet.
+
+ 4) Don't transmit packets in r8152 driver when the carrier is off, from
+    Hayes Wang.
+
+ 5) Fix ipv6 packet type detection in aquantia driver, from Pavel
+    Belous.
+
+ 6) Don't write uninitialized data into hw registers in bna driver, from
+    Arnd Bergmann.
+
+ 7) Fix locking in ping_unhash(), from Eric Dumazet.
+
+ 8) Make BPF verifier range checks able to understand certain sequences
+    emitted by LLVM, from Alexei Starovoitov.
+
+ 9) Fix use after free in ipconfig, from Mark Rutland.
+
+10) Fix refcount leak on force commit in openvswitch, from Jarno
+    Rajahalme.
+
+11) Fix various overflow checks in AF_PACKET, from Andrey Konovalov.
+
+12) Fix endianness bug in be2net driver, from Suresh Reddy.
+
+13) Don't forget to wake TX queues when processing a timeout, from
+    Grygorii Strashko.
+
+14) ARP header on-stack storage is wrong in flow dissector, from Simon
+    Horman.
+
+15) Lost retransmit and reordering SNMP stats in TCP can be
+    underreported. From Yuchung Cheng.
+
+* git://git.kernel.org/pub/scm/linux/kernel/git/davem/net: (82 commits)
+  nfp: fix potential use after free on xdp prog
+  tcp: fix reordering SNMP under-counting
+  tcp: fix lost retransmit SNMP under-counting
+  sctp: get sock from transport in sctp_transport_update_pmtu
+  net: ethernet: ti: cpsw: fix race condition during open()
+  l2tp: fix PPP pseudo-wire auto-loading
+  bnx2x: fix spelling mistake in macros HW_INTERRUT_ASSERT_SET_*
+  l2tp: take reference on sessions being dumped
+  tcp: minimize false-positives on TCP/GRO check
+  sctp: check for dst and pathmtu update in sctp_packet_config
+  flow dissector: correct size of storage for ARP
+  net: ethernet: ti: cpsw: wake tx queues on ndo_tx_timeout
+  l2tp: take a reference on sessions used in genetlink handlers
+  l2tp: hold session while sending creation notifications
+  l2tp: fix duplicate session creation
+  l2tp: ensure session can't get removed during pppol2tp_session_ioctl()
+  l2tp: fix race in l2tp_recv_common()
+  sctp: use right in and out stream cnt
+  bpf: add various verifier test cases for self-tests
+  bpf, verifier: fix rejection of unaligned access checks for map_value_adj
+  ...",net/l2tp/l2tp_core.c,+,"[[647000, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )']]","[[647001, None, u'CallExpression', u'write_lock_bh ( & tunnel -> hlist_lock )'], [647009, None, u'Callee', u'write_lock_bh'], [647002, None, u'ArgumentList', u'& tunnel -> hlist_lock'], [647010, None, u'Identifier', u'write_lock_bh'], [647003, None, u'Argument', u'& tunnel -> hlist_lock'], [647004, None, u'UnaryOp', u'& tunnel -> hlist_lock'], [647008, None, u'UnaryOperator', u'&'], [647005, None, u'PtrMemberAccess', u'tunnel -> hlist_lock'], [647007, None, u'Identifier', u'tunnel'], [647006, None, u'Identifier', u'hlist_lock'], [647000, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )'], [647040, u'True', u'CFGEntryNode', u'ENTRY']]","[[647001, None, u'CallExpression', u'write_lock_bh ( & tunnel -> hlist_lock )'], [647009, None, u'Callee', u'write_lock_bh'], [647002, None, u'ArgumentList', u'& tunnel -> hlist_lock'], [647010, None, u'Identifier', u'write_lock_bh'], [647003, None, u'Argument', u'& tunnel -> hlist_lock'], [647004, None, u'UnaryOp', u'& tunnel -> hlist_lock'], [647008, None, u'UnaryOperator', u'&'], [647005, None, u'PtrMemberAccess', u'tunnel -> hlist_lock'], [647007, None, u'Identifier', u'tunnel'], [647006, None, u'Identifier', u'hlist_lock'], [647000, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )'], [646829, None, u'ParameterType', u'struct l2tp_tunnel *'], [646828, None, u'Identifier', u'tunnel'], [646827, u'True', u'Parameter', u'struct l2tp_tunnel * tunnel']]"
+"xfs: rework the inline directory verifiers
+
+The inline directory verifiers should be called on the inode fork data,
+which means after iformat_local on the read side, and prior to
+ifork_flush on the write side.  This makes the fork verifier more
+consistent with the way buffer verifiers work -- i.e. they will operate
+on the memory buffer that the code will be reading and writing directly.
+
+Furthermore, revise the verifier function to return -EFSCORRUPTED so
+that we don't flood the logs with corruption messages and assert
+notices.  This has been a particular problem with xfs/348, which
+triggers the XFS_WANT_CORRUPTED_RETURN assertions, which halts the
+kernel when CONFIG_XFS_DEBUG=y.  Disk corruption isn't supposed to do
+that, at least not in a verifier.
+
+Reviewed-by: Brian Foster <bfoster@redhat.com>
+Reviewed-by: Christoph Hellwig <hch@lst.de>
+Signed-off-by: Darrick J. Wong <darrick.wong@oracle.com>",fs/xfs/libxfs/xfs_dir2_sf.c,+,"[[44421, u'True', u'ExpressionStatement', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )']]","[[44422, None, u'CallExpression', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [44432, None, u'Callee', u'ASSERT'], [44423, None, u'ArgumentList', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [44433, None, u'Identifier', u'ASSERT'], [44424, None, u'Argument', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [44425, None, u'EqualityExpression', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [44427, None, u'MemberAccess', u'ip -> i_d . di_format'], [44426, None, u'Identifier', u'XFS_DINODE_FMT_LOCAL'], [44429, None, u'PtrMemberAccess', u'ip -> i_d'], [44428, None, u'Identifier', u'di_format'], [44431, None, u'Identifier', u'ip'], [44430, None, u'Identifier', u'i_d'], [44421, u'True', u'ExpressionStatement', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [44495, u'True', u'CFGEntryNode', u'ENTRY']]","[[44422, None, u'CallExpression', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [44432, None, u'Callee', u'ASSERT'], [44423, None, u'ArgumentList', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [44433, None, u'Identifier', u'ASSERT'], [44424, None, u'Argument', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [44425, None, u'EqualityExpression', u'ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL'], [44427, None, u'MemberAccess', u'ip -> i_d . di_format'], [44426, None, u'Identifier', u'XFS_DINODE_FMT_LOCAL'], [44429, None, u'PtrMemberAccess', u'ip -> i_d'], [44428, None, u'Identifier', u'di_format'], [44431, None, u'Identifier', u'ip'], [44430, None, u'Identifier', u'i_d'], [44421, u'True', u'ExpressionStatement', u'ASSERT ( ip -> i_d . di_format == XFS_DINODE_FMT_LOCAL )'], [44082, None, u'ParameterType', u'struct xfs_inode *'], [44081, None, u'Identifier', u'ip'], [44080, u'True', u'Parameter', u'struct xfs_inode * ip']]"
+"Merge branch 'l2tp_session_find-fixes'
+
+Guillaume Nault says:
+
+====================
+l2tp: fix usage of l2tp_session_find()
+
+l2tp_session_find() doesn't take a reference on the session returned to
+its caller. Virtually all l2tp_session_find() users are racy, either
+because the session can disappear from under them or because they take
+a reference too late. This leads to bugs like 'use after free' or
+failure to notice duplicate session creations.
+
+In some cases, taking a reference on the session is not enough. The
+special callbacks .ref() and .deref() also have to be called in cases
+where the PPP pseudo-wire uses the socket associated with the session.
+Therefore, when looking up a session, we also have to pass a flag
+indicating if the .ref() callback has to be called.
+
+In the future, we probably could drop the .ref() and .deref() callbacks
+entirely by protecting the .sock field of struct pppol2tp_session with
+RCU, thus allowing it to be freed and set to NULL even if the L2TP
+session is still alive.
+====================
+
+Signed-off-by: David S. Miller <davem@davemloft.net>",net/l2tp/l2tp_core.c,+,"[[64405, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )']]","[[64406, None, u'CallExpression', u'write_lock_bh ( & tunnel -> hlist_lock )'], [64414, None, u'Callee', u'write_lock_bh'], [64407, None, u'ArgumentList', u'& tunnel -> hlist_lock'], [64415, None, u'Identifier', u'write_lock_bh'], [64408, None, u'Argument', u'& tunnel -> hlist_lock'], [64409, None, u'UnaryOp', u'& tunnel -> hlist_lock'], [64413, None, u'UnaryOperator', u'&'], [64410, None, u'PtrMemberAccess', u'tunnel -> hlist_lock'], [64412, None, u'Identifier', u'tunnel'], [64411, None, u'Identifier', u'hlist_lock'], [64405, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )'], [64445, u'True', u'CFGEntryNode', u'ENTRY']]","[[64406, None, u'CallExpression', u'write_lock_bh ( & tunnel -> hlist_lock )'], [64414, None, u'Callee', u'write_lock_bh'], [64407, None, u'ArgumentList', u'& tunnel -> hlist_lock'], [64415, None, u'Identifier', u'write_lock_bh'], [64408, None, u'Argument', u'& tunnel -> hlist_lock'], [64409, None, u'UnaryOp', u'& tunnel -> hlist_lock'], [64413, None, u'UnaryOperator', u'&'], [64410, None, u'PtrMemberAccess', u'tunnel -> hlist_lock'], [64412, None, u'Identifier', u'tunnel'], [64411, None, u'Identifier', u'hlist_lock'], [64405, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )'], [64234, None, u'ParameterType', u'struct l2tp_tunnel *'], [64233, None, u'Identifier', u'tunnel'], [64232, u'True', u'Parameter', u'struct l2tp_tunnel * tunnel']]"
+"l2tp: fix duplicate session creation
+
+l2tp_session_create() relies on its caller for checking for duplicate
+sessions. This is racy since a session can be concurrently inserted
+after the caller's verification.
+
+Fix this by letting l2tp_session_create() verify sessions uniqueness
+upon insertion. Callers need to be adapted to check for
+l2tp_session_create()'s return code instead of calling
+l2tp_session_find().
+
+pppol2tp_connect() is a bit special because it has to work on existing
+sessions (if they're not connected) or to create a new session if none
+is found. When acting on a preexisting session, a reference must be
+held or it could go away on us. So we have to use l2tp_session_get()
+instead of l2tp_session_find() and drop the reference before exiting.
+
+Fixes: d9e31d17ceba (""l2tp: Add L2TP ethernet pseudowire support"")
+Fixes: fd558d186df2 (""l2tp: Split pppol2tp patch into separate l2tp and ppp parts"")
+Signed-off-by: Guillaume Nault <g.nault@alphalink.fr>
+Signed-off-by: David S. Miller <davem@davemloft.net>",net/l2tp/l2tp_core.c,+,"[[81779, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )']]","[[81780, None, u'CallExpression', u'write_lock_bh ( & tunnel -> hlist_lock )'], [81788, None, u'Callee', u'write_lock_bh'], [81781, None, u'ArgumentList', u'& tunnel -> hlist_lock'], [81789, None, u'Identifier', u'write_lock_bh'], [81782, None, u'Argument', u'& tunnel -> hlist_lock'], [81783, None, u'UnaryOp', u'& tunnel -> hlist_lock'], [81787, None, u'UnaryOperator', u'&'], [81784, None, u'PtrMemberAccess', u'tunnel -> hlist_lock'], [81786, None, u'Identifier', u'tunnel'], [81785, None, u'Identifier', u'hlist_lock'], [81779, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )'], [81819, u'True', u'CFGEntryNode', u'ENTRY']]","[[81780, None, u'CallExpression', u'write_lock_bh ( & tunnel -> hlist_lock )'], [81788, None, u'Callee', u'write_lock_bh'], [81781, None, u'ArgumentList', u'& tunnel -> hlist_lock'], [81789, None, u'Identifier', u'write_lock_bh'], [81782, None, u'Argument', u'& tunnel -> hlist_lock'], [81783, None, u'UnaryOp', u'& tunnel -> hlist_lock'], [81787, None, u'UnaryOperator', u'&'], [81784, None, u'PtrMemberAccess', u'tunnel -> hlist_lock'], [81786, None, u'Identifier', u'tunnel'], [81785, None, u'Identifier', u'hlist_lock'], [81779, u'True', u'ExpressionStatement', u'write_lock_bh ( & tunnel -> hlist_lock )'], [81608, None, u'ParameterType', u'struct l2tp_tunnel *'], [81607, None, u'Identifier', u'tunnel'], [81606, u'True', u'Parameter', u'struct l2tp_tunnel * tunnel']]"
+"Merge tag 'tty-4.11-rc5' of git://git.kernel.org/pub/scm/linux/kernel/git/gregkh/tty
+
+Pull tty/serial fixes from Greg KH:
+ ""Here are some small fixes for some serial drivers and Kconfig help
+  text for 4.11-rc5. Nothing major here at all, a few things resolving
+  reported bugs in some random serial drivers.
+
+  I don't think these made the last linux-next due to me getting to them
+  yesterday, but I am not sure, they might have snuck in. The patches
+  only affect drivers that the maintainers of sent me these patches for,
+  so we should be safe here :)""
+
+* tag 'tty-4.11-rc5' of git://git.kernel.org/pub/scm/linux/kernel/git/gregkh/tty:
+  tty: pl011: fix earlycon work-around for QDF2400 erratum 44
+  serial: 8250_EXAR: fix duplicate Kconfig text and add missing help text
+  tty/serial: atmel: fix TX path in atmel_console_write()
+  tty/serial: atmel: fix race condition (TX+DMA)
+  serial: mxs-auart: Fix baudrate calculation",drivers/tty/serial/atmel_serial.c,+,"[[144012, u'True', u'ExpressionStatement', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )']]","[[144013, None, u'CallExpression', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [144021, None, u'Callee', u'atmel_uart_writel'], [144014, None, u'ArgumentList', u'port'], [144022, None, u'Identifier', u'atmel_uart_writel'], [144019, None, u'Argument', u'port'], [144017, None, u'Argument', u'ATMEL_US_CR'], [144015, None, u'Argument', u'ATMEL_US_TXEN'], [144020, None, u'Identifier', u'port'], [144018, None, u'Identifier', u'ATMEL_US_CR'], [144016, None, u'Identifier', u'ATMEL_US_TXEN'], [144012, u'True', u'ExpressionStatement', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [144111, u'True', u'CFGEntryNode', u'ENTRY']]","[[144013, None, u'CallExpression', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [144021, None, u'Callee', u'atmel_uart_writel'], [144014, None, u'ArgumentList', u'port'], [144022, None, u'Identifier', u'atmel_uart_writel'], [144019, None, u'Argument', u'port'], [144017, None, u'Argument', u'ATMEL_US_CR'], [144015, None, u'Argument', u'ATMEL_US_TXEN'], [144020, None, u'Identifier', u'port'], [144018, None, u'Identifier', u'ATMEL_US_CR'], [144016, None, u'Identifier', u'ATMEL_US_TXEN'], [144012, u'True', u'ExpressionStatement', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [144097, None, u'IdentifierDecl', u'* port = & atmel_ports [ co -> index ] . uart'], [144110, None, u'IdentifierDeclType', u'struct uart_port *'], [144109, None, u'Identifier', u'port'], [144098, None, u'AssignmentExpr', u'* port = & atmel_ports [ co -> index ] . uart'], [144108, None, u'Identifier', u'port'], [144099, None, u'UnaryOp', u'& atmel_ports [ co -> index ] . uart'], [144107, None, u'UnaryOperator', u'&'], [144100, None, u'MemberAccess', u'atmel_ports [ co -> index ] . uart'], [144102, None, u'ArrayIndexing', u'atmel_ports [ co -> index ]'], [144101, None, u'Identifier', u'uart'], [144106, None, u'Identifier', u'atmel_ports'], [144103, None, u'PtrMemberAccess', u'co -> index'], [144105, None, u'Identifier', u'co'], [144104, None, u'Identifier', u'index'], [144096, u'True', u'IdentifierDeclStatement', u'struct uart_port * port = & atmel_ports [ co -> index ] . uart ;'], [143952, None, u'ParameterType', u'struct console *'], [143951, None, u'Identifier', u'co'], [143950, u'True', u'Parameter', u'struct console * co']]"
+"Merge tag 'sound-4.11-rc5' of git://git.kernel.org/pub/scm/linux/kernel/git/tiwai/sound
+
+Pull sound fixes from Takashi Iwai:
+ ""At this time, most of changes are for ASoC, while we got one fix for
+  yet another race of ALSA sequencer core and a usual HD-audio quirk.
+
+  The ASoC changes are mostly small and device-specific fixes. A
+  slightly large volume is seen in sun8i-codec, which is a new code in
+  4.11, and we'd like to fix user-visible stuff before the official 4.1
+  release""
+
+* tag 'sound-4.11-rc5' of git://git.kernel.org/pub/scm/linux/kernel/git/tiwai/sound: (27 commits)
+  ALSA: hda - fix a problem for lineout on a Dell AIO machine
+  ASoC: simple-card: fix simple_dai clk lookup
+  ASoC: STI: Fix reader substream pointer set
+  ALSA: seq: Fix race during FIFO resize
+  ARM: dts: sun8i: Update audio-routing with renamed widgets
+  ASoC: sun8i-codec: Convert to use SND_SOC_DAPM_AIF_IN
+  ASoC: sun8i-codec: Fix space on audio-routing widget
+  ASoC: sun8i-codec: Update mixer to use SOC_DAPM_DOUBLE
+  ASoC: sun8i-codec: Remove analog ""HP"" widget
+  ASoC: rt5665: fix wrong shift rt5665_if2_1_adc_in_enum
+  ASoC: rt5665: fix define of RT5665_HP_DRIVER_5X
+  ASoC: rcar: dma: remove unnecessary ""volatile""
+  ASoC: rcar: clear DE bit only in PDMACHCR when it stops
+  ASoC: rsnd: fix sound route path when using SRC6/SRC9
+  ASoC: don't dereference NULL pcm_{new,free}
+  ASoC: rt5665: CLKDET is also a power of ASRC
+  ASoC: rt5665: Vref3 is necessary for Mono Amp
+  ASoC: rt5665: increase LDO level
+  ASoC: rt5665: fix getting wrong work handler container
+  ASoC: atmel-classd: fix audio clock rate
+  ...",sound/soc/sh/rcar/dma.c,+,"[[311183, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )']]","[[311184, None, u'CallExpression', u'iowrite32 ( val , addr )'], [311190, None, u'Callee', u'iowrite32'], [311185, None, u'ArgumentList', u'val'], [311191, None, u'Identifier', u'iowrite32'], [311188, None, u'Argument', u'val'], [311186, None, u'Argument', u'addr'], [311189, None, u'Identifier', u'val'], [311187, None, u'Identifier', u'addr'], [311183, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )'], [311266, u'True', u'CFGEntryNode', u'ENTRY']]","[[311184, None, u'CallExpression', u'iowrite32 ( val , addr )'], [311190, None, u'Callee', u'iowrite32'], [311185, None, u'ArgumentList', u'val'], [311191, None, u'Identifier', u'iowrite32'], [311188, None, u'Argument', u'val'], [311186, None, u'Argument', u'addr'], [311189, None, u'Identifier', u'val'], [311187, None, u'Identifier', u'addr'], [311183, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )'], [311215, None, u'IdentifierDecl', u'* addr = rsnd_dmapp_addr ( dmac , dma , reg )'], [311229, None, u'IdentifierDeclType', u'void __iomem *'], [311228, None, u'Identifier', u'addr'], [311216, None, u'AssignmentExpr', u'* addr = rsnd_dmapp_addr ( dmac , dma , reg )'], [311227, None, u'Identifier', u'addr'], [311217, None, u'CallExpression', u'rsnd_dmapp_addr ( dmac , dma , reg )'], [311225, None, u'Callee', u'rsnd_dmapp_addr'], [311218, None, u'ArgumentList', u'dmac'], [311226, None, u'Identifier', u'rsnd_dmapp_addr'], [311223, None, u'Argument', u'dmac'], [311221, None, u'Argument', u'dma'], [311219, None, u'Argument', u'reg'], [311224, None, u'Identifier', u'dmac'], [311222, None, u'Identifier', u'dma'], [311220, None, u'Identifier', u'reg'], [311214, u'True', u'IdentifierDeclStatement', u'void __iomem * addr = rsnd_dmapp_addr ( dmac , dma , reg ) ;'], [311193, None, u'AssignmentExpr', u'val |= ( data & mask )'], [311197, None, u'Identifier', u'val'], [311194, None, u'BitAndExpression', u'data & mask'], [311196, None, u'Identifier', u'data'], [311195, None, u'Identifier', u'mask'], [311192, u'True', u'ExpressionStatement', u'val |= ( data & mask )'], [311171, None, u'ParameterType', u'u32'], [311170, None, u'Identifier', u'reg'], [311169, u'True', u'Parameter', u'u32 reg'], [311180, None, u'ParameterType', u'struct rsnd_dma *'], [311179, None, u'Identifier', u'dma'], [311178, u'True', u'Parameter', u'struct rsnd_dma * dma'], [311231, None, u'IdentifierDecl', u'* dmac = rsnd_priv_to_dmac ( priv )'], [311241, None, u'IdentifierDeclType', u'struct rsnd_dma_ctrl *'], [311240, None, u'Identifier', u'dmac'], [311232, None, u'AssignmentExpr', u'* dmac = rsnd_priv_to_dmac ( priv )'], [311239, None, u'Identifier', u'dmac'], [311233, None, u'CallExpression', u'rsnd_priv_to_dmac ( priv )'], [311237, None, u'Callee', u'rsnd_priv_to_dmac'], [311234, None, u'ArgumentList', u'priv'], [311238, None, u'Identifier', u'rsnd_priv_to_dmac'], [311235, None, u'Argument', u'priv'], [311236, None, u'Identifier', u'priv'], [311230, u'True', u'IdentifierDeclStatement', u'struct rsnd_dma_ctrl * dmac = rsnd_priv_to_dmac ( priv ) ;'], [311174, None, u'ParameterType', u'u32'], [311173, None, u'Identifier', u'mask'], [311172, u'True', u'Parameter', u'u32 mask'], [311177, None, u'ParameterType', u'u32'], [311176, None, u'Identifier', u'data'], [311175, u'True', u'Parameter', u'u32 data'], [311199, None, u'AssignmentExpr', u'val &= ~mask'], [311201, None, u'Identifier', u'val'], [311200, None, u'Identifier', u'~mask'], [311198, u'True', u'ExpressionStatement', u'val &= ~mask'], [311243, None, u'IdentifierDecl', u'* priv = rsnd_mod_to_priv ( mod )'], [311253, None, u'IdentifierDeclType', u'struct rsnd_priv *'], [311252, None, u'Identifier', u'priv'], [311244, None, u'AssignmentExpr', u'* priv = rsnd_mod_to_priv ( mod )'], [311251, None, u'Identifier', u'priv'], [311245, None, u'CallExpression', u'rsnd_mod_to_priv ( mod )'], [311249, None, u'Callee', u'rsnd_mod_to_priv'], [311246, None, u'ArgumentList', u'mod'], [311250, None, u'Identifier', u'rsnd_mod_to_priv'], [311247, None, u'Argument', u'mod'], [311248, None, u'Identifier', u'mod'], [311242, u'True', u'IdentifierDeclStatement', u'struct rsnd_priv * priv = rsnd_mod_to_priv ( mod ) ;'], [311203, None, u'IdentifierDecl', u'val = ioread32 ( addr )'], [311213, None, u'IdentifierDeclType', u'u32'], [311212, None, u'Identifier', u'val'], [311204, None, u'AssignmentExpr', u'val = ioread32 ( addr )'], [311211, None, u'Identifier', u'val'], [311205, None, u'CallExpression', u'ioread32 ( addr )'], [311209, None, u'Callee', u'ioread32'], [311206, None, u'ArgumentList', u'addr'], [311210, None, u'Identifier', u'ioread32'], [311207, None, u'Argument', u'addr'], [311208, None, u'Identifier', u'addr'], [311202, u'True', u'IdentifierDeclStatement', u'u32 val = ioread32 ( addr ) ;'], [311255, None, u'IdentifierDecl', u'* mod = rsnd_mod_get ( dma )'], [311265, None, u'IdentifierDeclType', u'struct rsnd_mod *'], [311264, None, u'Identifier', u'mod'], [311256, None, u'AssignmentExpr', u'* mod = rsnd_mod_get ( dma )'], [311263, None, u'Identifier', u'mod'], [311257, None, u'CallExpression', u'rsnd_mod_get ( dma )'], [311261, None, u'Callee', u'rsnd_mod_get'], [311258, None, u'ArgumentList', u'dma'], [311262, None, u'Identifier', u'rsnd_mod_get'], [311259, None, u'Argument', u'dma'], [311260, None, u'Identifier', u'dma'], [311254, u'True', u'IdentifierDeclStatement', u'struct rsnd_mod * mod = rsnd_mod_get ( dma ) ;']]"
+"Merge tag 'sound-4.11-rc5' of git://git.kernel.org/pub/scm/linux/kernel/git/tiwai/sound
+
+Pull sound fixes from Takashi Iwai:
+ ""At this time, most of changes are for ASoC, while we got one fix for
+  yet another race of ALSA sequencer core and a usual HD-audio quirk.
+
+  The ASoC changes are mostly small and device-specific fixes. A
+  slightly large volume is seen in sun8i-codec, which is a new code in
+  4.11, and we'd like to fix user-visible stuff before the official 4.1
+  release""
+
+* tag 'sound-4.11-rc5' of git://git.kernel.org/pub/scm/linux/kernel/git/tiwai/sound: (27 commits)
+  ALSA: hda - fix a problem for lineout on a Dell AIO machine
+  ASoC: simple-card: fix simple_dai clk lookup
+  ASoC: STI: Fix reader substream pointer set
+  ALSA: seq: Fix race during FIFO resize
+  ARM: dts: sun8i: Update audio-routing with renamed widgets
+  ASoC: sun8i-codec: Convert to use SND_SOC_DAPM_AIF_IN
+  ASoC: sun8i-codec: Fix space on audio-routing widget
+  ASoC: sun8i-codec: Update mixer to use SOC_DAPM_DOUBLE
+  ASoC: sun8i-codec: Remove analog ""HP"" widget
+  ASoC: rt5665: fix wrong shift rt5665_if2_1_adc_in_enum
+  ASoC: rt5665: fix define of RT5665_HP_DRIVER_5X
+  ASoC: rcar: dma: remove unnecessary ""volatile""
+  ASoC: rcar: clear DE bit only in PDMACHCR when it stops
+  ASoC: rsnd: fix sound route path when using SRC6/SRC9
+  ASoC: don't dereference NULL pcm_{new,free}
+  ASoC: rt5665: CLKDET is also a power of ASRC
+  ASoC: rt5665: Vref3 is necessary for Mono Amp
+  ASoC: rt5665: increase LDO level
+  ASoC: rt5665: fix getting wrong work handler container
+  ASoC: atmel-classd: fix audio clock rate
+  ...",sound/soc/sh/rcar/dma.c,-,"[[315270, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )']]","[[315271, None, u'CallExpression', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [315279, None, u'Callee', u'rsnd_dmapp_write'], [315272, None, u'ArgumentList', u'dma'], [315280, None, u'Identifier', u'rsnd_dmapp_write'], [315277, None, u'Argument', u'dma'], [315275, None, u'Argument', u'0'], [315273, None, u'Argument', u'PDMACHCR'], [315278, None, u'Identifier', u'dma'], [315276, None, u'PrimaryExpression', u'0'], [315274, None, u'Identifier', u'PDMACHCR'], [315270, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [315297, u'True', u'CFGEntryNode', u'ENTRY']]","[[315271, None, u'CallExpression', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [315279, None, u'Callee', u'rsnd_dmapp_write'], [315272, None, u'ArgumentList', u'dma'], [315280, None, u'Identifier', u'rsnd_dmapp_write'], [315277, None, u'Argument', u'dma'], [315275, None, u'Argument', u'0'], [315273, None, u'Argument', u'PDMACHCR'], [315278, None, u'Identifier', u'dma'], [315276, None, u'PrimaryExpression', u'0'], [315274, None, u'Identifier', u'PDMACHCR'], [315270, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [315286, None, u'IdentifierDecl', u'* dma = rsnd_mod_to_dma ( mod )'], [315296, None, u'IdentifierDeclType', u'struct rsnd_dma *'], [315295, None, u'Identifier', u'dma'], [315287, None, u'AssignmentExpr', u'* dma = rsnd_mod_to_dma ( mod )'], [315294, None, u'Identifier', u'dma'], [315288, None, u'CallExpression', u'rsnd_mod_to_dma ( mod )'], [315292, None, u'Callee', u'rsnd_mod_to_dma'], [315289, None, u'ArgumentList', u'mod'], [315293, None, u'Identifier', u'rsnd_mod_to_dma'], [315290, None, u'Argument', u'mod'], [315291, None, u'Identifier', u'mod'], [315285, u'True', u'IdentifierDeclStatement', u'struct rsnd_dma * dma = rsnd_mod_to_dma ( mod ) ;'], [315229, None, u'ParameterType', u'struct rsnd_mod *'], [315228, None, u'Identifier', u'mod'], [315227, u'True', u'Parameter', u'struct rsnd_mod * mod']]"
+"Merge tag 'drm-fixes-for-v4.11-rc5' of git://people.freedesktop.org/~airlied/linux
+
+Pull drm fixes from Dave Airlie:
+ ""Seems to be quietening down, which means someone will make a liar of
+  me for rc6.
+
+  Just one vc4, one etnvaiv, one radeon, and a few i915 GVT fixes, and
+  one i915 normal fixes""
+
+* tag 'drm-fixes-for-v4.11-rc5' of git://people.freedesktop.org/~airlied/linux:
+  drm/vc4: Allocate the right amount of space for boot-time CRTC state.
+  drm/etnaviv: (re-)protect fence allocation with GPU mutex
+  drm/radeon: Override fpfn for all VRAM placements in radeon_evict_flags
+  drm/i915: Restore marking context objects as dirty on pinning
+  drm/i915/gvt: Use force single submit flag to distinguish gvt request from i915 request
+  drm/i915/gvt: set shadow entry to scratch page while p2m failed
+  drm/i915/gvt: Fix guest fail to read EDID leading to black guest console issue.
+  drm/i915/gvt: fix wrong offset when loading RCS mocs
+  drm/i915/gvt: add write handler for mmio mbctl
+  drm/i915/kvmgt: Hold struct kvm reference",drivers/gpu/drm/i915/gvt/handlers.c,+,"[[321986, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [321986, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [321983, u'True', u'Parameter', u'unsigned int offset']]","[[321988, None, u'ParameterType', u'struct intel_vgpu *'], [321987, None, u'Identifier', u'vgpu'], [321986, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [322014, u'True', u'CFGEntryNode', u'ENTRY'], [321988, None, u'ParameterType', u'struct intel_vgpu *'], [321987, None, u'Identifier', u'vgpu'], [321986, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [322014, u'True', u'CFGEntryNode', u'ENTRY'], [321985, None, u'ParameterType', u'unsigned int'], [321984, None, u'Identifier', u'offset'], [321983, u'True', u'Parameter', u'unsigned int offset'], [322014, u'True', u'CFGEntryNode', u'ENTRY']]","[[321988, None, u'ParameterType', u'struct intel_vgpu *'], [321987, None, u'Identifier', u'vgpu'], [321986, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [321988, None, u'ParameterType', u'struct intel_vgpu *'], [321987, None, u'Identifier', u'vgpu'], [321986, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [321985, None, u'ParameterType', u'unsigned int'], [321984, None, u'Identifier', u'offset'], [321983, u'True', u'Parameter', u'unsigned int offset']]"
+"Merge tag 'drm-fixes-for-v4.11-rc5' of git://people.freedesktop.org/~airlied/linux
+
+Pull drm fixes from Dave Airlie:
+ ""Seems to be quietening down, which means someone will make a liar of
+  me for rc6.
+
+  Just one vc4, one etnvaiv, one radeon, and a few i915 GVT fixes, and
+  one i915 normal fixes""
+
+* tag 'drm-fixes-for-v4.11-rc5' of git://people.freedesktop.org/~airlied/linux:
+  drm/vc4: Allocate the right amount of space for boot-time CRTC state.
+  drm/etnaviv: (re-)protect fence allocation with GPU mutex
+  drm/radeon: Override fpfn for all VRAM placements in radeon_evict_flags
+  drm/i915: Restore marking context objects as dirty on pinning
+  drm/i915/gvt: Use force single submit flag to distinguish gvt request from i915 request
+  drm/i915/gvt: set shadow entry to scratch page while p2m failed
+  drm/i915/gvt: Fix guest fail to read EDID leading to black guest console issue.
+  drm/i915/gvt: fix wrong offset when loading RCS mocs
+  drm/i915/gvt: add write handler for mmio mbctl
+  drm/i915/kvmgt: Hold struct kvm reference",drivers/gpu/drm/i915/gvt/handlers.c,+,"[[321993, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )']]","[[321994, None, u'CallExpression', u'write_vreg ( vgpu , offset , p_data , bytes )'], [322004, None, u'Callee', u'write_vreg'], [321995, None, u'ArgumentList', u'vgpu'], [322005, None, u'Identifier', u'write_vreg'], [322002, None, u'Argument', u'vgpu'], [322000, None, u'Argument', u'offset'], [321998, None, u'Argument', u'p_data'], [321996, None, u'Argument', u'bytes'], [322003, None, u'Identifier', u'vgpu'], [322001, None, u'Identifier', u'offset'], [321999, None, u'Identifier', u'p_data'], [321997, None, u'Identifier', u'bytes'], [321993, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )'], [322014, u'True', u'CFGEntryNode', u'ENTRY']]","[[321994, None, u'CallExpression', u'write_vreg ( vgpu , offset , p_data , bytes )'], [322004, None, u'Callee', u'write_vreg'], [321995, None, u'ArgumentList', u'vgpu'], [322005, None, u'Identifier', u'write_vreg'], [322002, None, u'Argument', u'vgpu'], [322000, None, u'Argument', u'offset'], [321998, None, u'Argument', u'p_data'], [321996, None, u'Argument', u'bytes'], [322003, None, u'Identifier', u'vgpu'], [322001, None, u'Identifier', u'offset'], [321999, None, u'Identifier', u'p_data'], [321997, None, u'Identifier', u'bytes'], [321993, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )'], [321982, None, u'ParameterType', u'void *'], [321981, None, u'Identifier', u'p_data'], [321980, u'True', u'Parameter', u'void * p_data'], [321985, None, u'ParameterType', u'unsigned int'], [321984, None, u'Identifier', u'offset'], [321983, u'True', u'Parameter', u'unsigned int offset'], [321988, None, u'ParameterType', u'struct intel_vgpu *'], [321987, None, u'Identifier', u'vgpu'], [321986, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [321979, None, u'ParameterType', u'unsigned int'], [321978, None, u'Identifier', u'bytes'], [321977, u'True', u'Parameter', u'unsigned int bytes']]"
+"tty/serial: atmel: fix TX path in atmel_console_write()
+
+A side effect of 89d8232411a8 (""tty/serial: atmel_serial: BUG: stop DMA
+from transmitting in stop_tx"") is that the console can be called with
+TX path disabled. Then the system would hang trying to push charecters
+out in atmel_console_putchar().
+
+Signed-off-by: Nicolas Ferre <nicolas.ferre@microchip.com>
+Fixes: 89d8232411a8 (""tty/serial: atmel_serial: BUG: stop DMA from transmitting
+in stop_tx"")
+Cc: stable <stable@vger.kernel.org>	#4.4+
+Acked-by: Richard Genoud <richard.genoud@gmail.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>",drivers/tty/serial/atmel_serial.c,+,"[[376761, u'True', u'ExpressionStatement', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )']]","[[376762, None, u'CallExpression', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [376770, None, u'Callee', u'atmel_uart_writel'], [376763, None, u'ArgumentList', u'port'], [376771, None, u'Identifier', u'atmel_uart_writel'], [376768, None, u'Argument', u'port'], [376766, None, u'Argument', u'ATMEL_US_CR'], [376764, None, u'Argument', u'ATMEL_US_TXEN'], [376769, None, u'Identifier', u'port'], [376767, None, u'Identifier', u'ATMEL_US_CR'], [376765, None, u'Identifier', u'ATMEL_US_TXEN'], [376761, u'True', u'ExpressionStatement', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [376860, u'True', u'CFGEntryNode', u'ENTRY']]","[[376762, None, u'CallExpression', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [376770, None, u'Callee', u'atmel_uart_writel'], [376763, None, u'ArgumentList', u'port'], [376771, None, u'Identifier', u'atmel_uart_writel'], [376768, None, u'Argument', u'port'], [376766, None, u'Argument', u'ATMEL_US_CR'], [376764, None, u'Argument', u'ATMEL_US_TXEN'], [376769, None, u'Identifier', u'port'], [376767, None, u'Identifier', u'ATMEL_US_CR'], [376765, None, u'Identifier', u'ATMEL_US_TXEN'], [376761, u'True', u'ExpressionStatement', u'atmel_uart_writel ( port , ATMEL_US_CR , ATMEL_US_TXEN )'], [376846, None, u'IdentifierDecl', u'* port = & atmel_ports [ co -> index ] . uart'], [376859, None, u'IdentifierDeclType', u'struct uart_port *'], [376858, None, u'Identifier', u'port'], [376847, None, u'AssignmentExpr', u'* port = & atmel_ports [ co -> index ] . uart'], [376857, None, u'Identifier', u'port'], [376848, None, u'UnaryOp', u'& atmel_ports [ co -> index ] . uart'], [376856, None, u'UnaryOperator', u'&'], [376849, None, u'MemberAccess', u'atmel_ports [ co -> index ] . uart'], [376851, None, u'ArrayIndexing', u'atmel_ports [ co -> index ]'], [376850, None, u'Identifier', u'uart'], [376855, None, u'Identifier', u'atmel_ports'], [376852, None, u'PtrMemberAccess', u'co -> index'], [376854, None, u'Identifier', u'co'], [376853, None, u'Identifier', u'index'], [376845, u'True', u'IdentifierDeclStatement', u'struct uart_port * port = & atmel_ports [ co -> index ] . uart ;'], [376701, None, u'ParameterType', u'struct console *'], [376700, None, u'Identifier', u'co'], [376699, u'True', u'Parameter', u'struct console * co']]"
+"Merge tag 'drm-intel-fixes-2017-03-29' of git://anongit.freedesktop.org/git/drm-intel into drm-fixes
+
+drm/i915 fixes for v4.11-rc5
+
+* tag 'drm-intel-fixes-2017-03-29' of git://anongit.freedesktop.org/git/drm-intel:
+  drm/i915: Restore marking context objects as dirty on pinning
+  drm/i915/gvt: Use force single submit flag to distinguish gvt request from i915 request
+  drm/i915/gvt: set shadow entry to scratch page while p2m failed
+  drm/i915/gvt: Fix guest fail to read EDID leading to black guest console issue.
+  drm/i915/gvt: fix wrong offset when loading RCS mocs
+  drm/i915/gvt: add write handler for mmio mbctl
+  drm/i915/kvmgt: Hold struct kvm reference",drivers/gpu/drm/i915/gvt/handlers.c,+,"[[397565, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [397565, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [397562, u'True', u'Parameter', u'unsigned int offset']]","[[397567, None, u'ParameterType', u'struct intel_vgpu *'], [397566, None, u'Identifier', u'vgpu'], [397565, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [397593, u'True', u'CFGEntryNode', u'ENTRY'], [397567, None, u'ParameterType', u'struct intel_vgpu *'], [397566, None, u'Identifier', u'vgpu'], [397565, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [397593, u'True', u'CFGEntryNode', u'ENTRY'], [397564, None, u'ParameterType', u'unsigned int'], [397563, None, u'Identifier', u'offset'], [397562, u'True', u'Parameter', u'unsigned int offset'], [397593, u'True', u'CFGEntryNode', u'ENTRY']]","[[397567, None, u'ParameterType', u'struct intel_vgpu *'], [397566, None, u'Identifier', u'vgpu'], [397565, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [397567, None, u'ParameterType', u'struct intel_vgpu *'], [397566, None, u'Identifier', u'vgpu'], [397565, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [397564, None, u'ParameterType', u'unsigned int'], [397563, None, u'Identifier', u'offset'], [397562, u'True', u'Parameter', u'unsigned int offset']]"
+"Merge tag 'drm-intel-fixes-2017-03-29' of git://anongit.freedesktop.org/git/drm-intel into drm-fixes
+
+drm/i915 fixes for v4.11-rc5
+
+* tag 'drm-intel-fixes-2017-03-29' of git://anongit.freedesktop.org/git/drm-intel:
+  drm/i915: Restore marking context objects as dirty on pinning
+  drm/i915/gvt: Use force single submit flag to distinguish gvt request from i915 request
+  drm/i915/gvt: set shadow entry to scratch page while p2m failed
+  drm/i915/gvt: Fix guest fail to read EDID leading to black guest console issue.
+  drm/i915/gvt: fix wrong offset when loading RCS mocs
+  drm/i915/gvt: add write handler for mmio mbctl
+  drm/i915/kvmgt: Hold struct kvm reference",drivers/gpu/drm/i915/gvt/handlers.c,+,"[[397572, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )']]","[[397573, None, u'CallExpression', u'write_vreg ( vgpu , offset , p_data , bytes )'], [397583, None, u'Callee', u'write_vreg'], [397574, None, u'ArgumentList', u'vgpu'], [397584, None, u'Identifier', u'write_vreg'], [397581, None, u'Argument', u'vgpu'], [397579, None, u'Argument', u'offset'], [397577, None, u'Argument', u'p_data'], [397575, None, u'Argument', u'bytes'], [397582, None, u'Identifier', u'vgpu'], [397580, None, u'Identifier', u'offset'], [397578, None, u'Identifier', u'p_data'], [397576, None, u'Identifier', u'bytes'], [397572, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )'], [397593, u'True', u'CFGEntryNode', u'ENTRY']]","[[397573, None, u'CallExpression', u'write_vreg ( vgpu , offset , p_data , bytes )'], [397583, None, u'Callee', u'write_vreg'], [397574, None, u'ArgumentList', u'vgpu'], [397584, None, u'Identifier', u'write_vreg'], [397581, None, u'Argument', u'vgpu'], [397579, None, u'Argument', u'offset'], [397577, None, u'Argument', u'p_data'], [397575, None, u'Argument', u'bytes'], [397582, None, u'Identifier', u'vgpu'], [397580, None, u'Identifier', u'offset'], [397578, None, u'Identifier', u'p_data'], [397576, None, u'Identifier', u'bytes'], [397572, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )'], [397561, None, u'ParameterType', u'void *'], [397560, None, u'Identifier', u'p_data'], [397559, u'True', u'Parameter', u'void * p_data'], [397564, None, u'ParameterType', u'unsigned int'], [397563, None, u'Identifier', u'offset'], [397562, u'True', u'Parameter', u'unsigned int offset'], [397567, None, u'ParameterType', u'struct intel_vgpu *'], [397566, None, u'Identifier', u'vgpu'], [397565, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [397558, None, u'ParameterType', u'unsigned int'], [397557, None, u'Identifier', u'bytes'], [397556, u'True', u'Parameter', u'unsigned int bytes']]"
+"Merge tag 'pci-v4.11-fixes-3' of git://git.kernel.org/pub/scm/linux/kernel/git/helgaas/pci
+
+Pull PCI fixes from Bjorn Helgaas:
+
+ - fix iProc memory corruption
+
+ - fix ThunderX usage of unregistered PNP/ACPI ID
+
+ - fix ThunderX resource reservation on early firmware
+
+* tag 'pci-v4.11-fixes-3' of git://git.kernel.org/pub/scm/linux/kernel/git/helgaas/pci:
+  PCI: thunder-pem: Add legacy firmware support for Cavium ThunderX host controller
+  PCI: thunder-pem: Use Cavium assigned hardware ID for ThunderX host controller
+  PCI: iproc: Save host bridge window resource in struct iproc_pcie",drivers/pci/host/pci-thunder-pem.c,+,"[[442224, u'True', u'ExpressionStatement', u'regionid = kasprintf ( GFP_KERNEL , ""PEM RC:%d"" , seg )']]","[[442225, None, u'AssignmentExpr', u'regionid = kasprintf ( GFP_KERNEL , ""PEM RC:%d"" , seg )'], [442236, None, u'Identifier', u'regionid'], [442226, None, u'CallExpression', u'kasprintf ( GFP_KERNEL , ""PEM RC:%d"" , seg )'], [442234, None, u'Callee', u'kasprintf'], [442227, None, u'ArgumentList', u'GFP_KERNEL'], [442235, None, u'Identifier', u'kasprintf'], [442232, None, u'Argument', u'GFP_KERNEL'], [442230, None, u'Argument', u'""PEM RC:%d""'], [442228, None, u'Argument', u'seg'], [442233, None, u'Identifier', u'GFP_KERNEL'], [442231, None, u'PrimaryExpression', u'""PEM RC:%d""'], [442229, None, u'Identifier', u'seg'], [442224, u'True', u'ExpressionStatement', u'regionid = kasprintf ( GFP_KERNEL , ""PEM RC:%d"" , seg )'], [442262, u'True', u'CFGEntryNode', u'ENTRY']]","[[442225, None, u'AssignmentExpr', u'regionid = kasprintf ( GFP_KERNEL , ""PEM RC:%d"" , seg )'], [442236, None, u'Identifier', u'regionid'], [442226, None, u'CallExpression', u'kasprintf ( GFP_KERNEL , ""PEM RC:%d"" , seg )'], [442234, None, u'Callee', u'kasprintf'], [442227, None, u'ArgumentList', u'GFP_KERNEL'], [442235, None, u'Identifier', u'kasprintf'], [442232, None, u'Argument', u'GFP_KERNEL'], [442230, None, u'Argument', u'""PEM RC:%d""'], [442228, None, u'Argument', u'seg'], [442233, None, u'Identifier', u'GFP_KERNEL'], [442231, None, u'PrimaryExpression', u'""PEM RC:%d""'], [442229, None, u'Identifier', u'seg'], [442224, u'True', u'ExpressionStatement', u'regionid = kasprintf ( GFP_KERNEL , ""PEM RC:%d"" , seg )'], [442161, None, u'ParameterType', u'int'], [442160, None, u'Identifier', u'seg'], [442159, u'True', u'Parameter', u'int seg']]"
+"Merge tag 'asoc-fix-v4.11-rc4' of git://git.kernel.org/pub/scm/linux/kernel/git/broonie/sound into for-linus
+
+ASoC: Fixes for v4.11
+
+A relatively large pile of fixes for mainline, the first since the merge
+window.  The biggest block of changes here by volume is the sun8i-codec
+set, the driver was newly added in the merge window but it was realized
+that renaming some of the user visible controls was required so these
+are being pushed for v4.11 to avoid the original code appearing in a
+release.  Otherwise it's all fairly standard bugfix stuff.",sound/soc/sh/rcar/dma.c,+,"[[449352, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )']]","[[449353, None, u'CallExpression', u'iowrite32 ( val , addr )'], [449359, None, u'Callee', u'iowrite32'], [449354, None, u'ArgumentList', u'val'], [449360, None, u'Identifier', u'iowrite32'], [449357, None, u'Argument', u'val'], [449355, None, u'Argument', u'addr'], [449358, None, u'Identifier', u'val'], [449356, None, u'Identifier', u'addr'], [449352, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )'], [449435, u'True', u'CFGEntryNode', u'ENTRY']]","[[449353, None, u'CallExpression', u'iowrite32 ( val , addr )'], [449359, None, u'Callee', u'iowrite32'], [449354, None, u'ArgumentList', u'val'], [449360, None, u'Identifier', u'iowrite32'], [449357, None, u'Argument', u'val'], [449355, None, u'Argument', u'addr'], [449358, None, u'Identifier', u'val'], [449356, None, u'Identifier', u'addr'], [449352, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )'], [449384, None, u'IdentifierDecl', u'* addr = rsnd_dmapp_addr ( dmac , dma , reg )'], [449398, None, u'IdentifierDeclType', u'void __iomem *'], [449397, None, u'Identifier', u'addr'], [449385, None, u'AssignmentExpr', u'* addr = rsnd_dmapp_addr ( dmac , dma , reg )'], [449396, None, u'Identifier', u'addr'], [449386, None, u'CallExpression', u'rsnd_dmapp_addr ( dmac , dma , reg )'], [449394, None, u'Callee', u'rsnd_dmapp_addr'], [449387, None, u'ArgumentList', u'dmac'], [449395, None, u'Identifier', u'rsnd_dmapp_addr'], [449392, None, u'Argument', u'dmac'], [449390, None, u'Argument', u'dma'], [449388, None, u'Argument', u'reg'], [449393, None, u'Identifier', u'dmac'], [449391, None, u'Identifier', u'dma'], [449389, None, u'Identifier', u'reg'], [449383, u'True', u'IdentifierDeclStatement', u'void __iomem * addr = rsnd_dmapp_addr ( dmac , dma , reg ) ;'], [449362, None, u'AssignmentExpr', u'val |= ( data & mask )'], [449366, None, u'Identifier', u'val'], [449363, None, u'BitAndExpression', u'data & mask'], [449365, None, u'Identifier', u'data'], [449364, None, u'Identifier', u'mask'], [449361, u'True', u'ExpressionStatement', u'val |= ( data & mask )'], [449340, None, u'ParameterType', u'u32'], [449339, None, u'Identifier', u'reg'], [449338, u'True', u'Parameter', u'u32 reg'], [449349, None, u'ParameterType', u'struct rsnd_dma *'], [449348, None, u'Identifier', u'dma'], [449347, u'True', u'Parameter', u'struct rsnd_dma * dma'], [449400, None, u'IdentifierDecl', u'* dmac = rsnd_priv_to_dmac ( priv )'], [449410, None, u'IdentifierDeclType', u'struct rsnd_dma_ctrl *'], [449409, None, u'Identifier', u'dmac'], [449401, None, u'AssignmentExpr', u'* dmac = rsnd_priv_to_dmac ( priv )'], [449408, None, u'Identifier', u'dmac'], [449402, None, u'CallExpression', u'rsnd_priv_to_dmac ( priv )'], [449406, None, u'Callee', u'rsnd_priv_to_dmac'], [449403, None, u'ArgumentList', u'priv'], [449407, None, u'Identifier', u'rsnd_priv_to_dmac'], [449404, None, u'Argument', u'priv'], [449405, None, u'Identifier', u'priv'], [449399, u'True', u'IdentifierDeclStatement', u'struct rsnd_dma_ctrl * dmac = rsnd_priv_to_dmac ( priv ) ;'], [449343, None, u'ParameterType', u'u32'], [449342, None, u'Identifier', u'mask'], [449341, u'True', u'Parameter', u'u32 mask'], [449346, None, u'ParameterType', u'u32'], [449345, None, u'Identifier', u'data'], [449344, u'True', u'Parameter', u'u32 data'], [449368, None, u'AssignmentExpr', u'val &= ~mask'], [449370, None, u'Identifier', u'val'], [449369, None, u'Identifier', u'~mask'], [449367, u'True', u'ExpressionStatement', u'val &= ~mask'], [449412, None, u'IdentifierDecl', u'* priv = rsnd_mod_to_priv ( mod )'], [449422, None, u'IdentifierDeclType', u'struct rsnd_priv *'], [449421, None, u'Identifier', u'priv'], [449413, None, u'AssignmentExpr', u'* priv = rsnd_mod_to_priv ( mod )'], [449420, None, u'Identifier', u'priv'], [449414, None, u'CallExpression', u'rsnd_mod_to_priv ( mod )'], [449418, None, u'Callee', u'rsnd_mod_to_priv'], [449415, None, u'ArgumentList', u'mod'], [449419, None, u'Identifier', u'rsnd_mod_to_priv'], [449416, None, u'Argument', u'mod'], [449417, None, u'Identifier', u'mod'], [449411, u'True', u'IdentifierDeclStatement', u'struct rsnd_priv * priv = rsnd_mod_to_priv ( mod ) ;'], [449372, None, u'IdentifierDecl', u'val = ioread32 ( addr )'], [449382, None, u'IdentifierDeclType', u'u32'], [449381, None, u'Identifier', u'val'], [449373, None, u'AssignmentExpr', u'val = ioread32 ( addr )'], [449380, None, u'Identifier', u'val'], [449374, None, u'CallExpression', u'ioread32 ( addr )'], [449378, None, u'Callee', u'ioread32'], [449375, None, u'ArgumentList', u'addr'], [449379, None, u'Identifier', u'ioread32'], [449376, None, u'Argument', u'addr'], [449377, None, u'Identifier', u'addr'], [449371, u'True', u'IdentifierDeclStatement', u'u32 val = ioread32 ( addr ) ;'], [449424, None, u'IdentifierDecl', u'* mod = rsnd_mod_get ( dma )'], [449434, None, u'IdentifierDeclType', u'struct rsnd_mod *'], [449433, None, u'Identifier', u'mod'], [449425, None, u'AssignmentExpr', u'* mod = rsnd_mod_get ( dma )'], [449432, None, u'Identifier', u'mod'], [449426, None, u'CallExpression', u'rsnd_mod_get ( dma )'], [449430, None, u'Callee', u'rsnd_mod_get'], [449427, None, u'ArgumentList', u'dma'], [449431, None, u'Identifier', u'rsnd_mod_get'], [449428, None, u'Argument', u'dma'], [449429, None, u'Identifier', u'dma'], [449423, u'True', u'IdentifierDeclStatement', u'struct rsnd_mod * mod = rsnd_mod_get ( dma ) ;']]"
+"Merge tag 'asoc-fix-v4.11-rc4' of git://git.kernel.org/pub/scm/linux/kernel/git/broonie/sound into for-linus
+
+ASoC: Fixes for v4.11
+
+A relatively large pile of fixes for mainline, the first since the merge
+window.  The biggest block of changes here by volume is the sun8i-codec
+set, the driver was newly added in the merge window but it was realized
+that renaming some of the user visible controls was required so these
+are being pushed for v4.11 to avoid the original code appearing in a
+release.  Otherwise it's all fairly standard bugfix stuff.",sound/soc/sh/rcar/dma.c,-,"[[453439, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )']]","[[453440, None, u'CallExpression', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [453448, None, u'Callee', u'rsnd_dmapp_write'], [453441, None, u'ArgumentList', u'dma'], [453449, None, u'Identifier', u'rsnd_dmapp_write'], [453446, None, u'Argument', u'dma'], [453444, None, u'Argument', u'0'], [453442, None, u'Argument', u'PDMACHCR'], [453447, None, u'Identifier', u'dma'], [453445, None, u'PrimaryExpression', u'0'], [453443, None, u'Identifier', u'PDMACHCR'], [453439, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [453466, u'True', u'CFGEntryNode', u'ENTRY']]","[[453440, None, u'CallExpression', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [453448, None, u'Callee', u'rsnd_dmapp_write'], [453441, None, u'ArgumentList', u'dma'], [453449, None, u'Identifier', u'rsnd_dmapp_write'], [453446, None, u'Argument', u'dma'], [453444, None, u'Argument', u'0'], [453442, None, u'Argument', u'PDMACHCR'], [453447, None, u'Identifier', u'dma'], [453445, None, u'PrimaryExpression', u'0'], [453443, None, u'Identifier', u'PDMACHCR'], [453439, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [453455, None, u'IdentifierDecl', u'* dma = rsnd_mod_to_dma ( mod )'], [453465, None, u'IdentifierDeclType', u'struct rsnd_dma *'], [453464, None, u'Identifier', u'dma'], [453456, None, u'AssignmentExpr', u'* dma = rsnd_mod_to_dma ( mod )'], [453463, None, u'Identifier', u'dma'], [453457, None, u'CallExpression', u'rsnd_mod_to_dma ( mod )'], [453461, None, u'Callee', u'rsnd_mod_to_dma'], [453458, None, u'ArgumentList', u'mod'], [453462, None, u'Identifier', u'rsnd_mod_to_dma'], [453459, None, u'Argument', u'mod'], [453460, None, u'Identifier', u'mod'], [453454, u'True', u'IdentifierDeclStatement', u'struct rsnd_dma * dma = rsnd_mod_to_dma ( mod ) ;'], [453398, None, u'ParameterType', u'struct rsnd_mod *'], [453397, None, u'Identifier', u'mod'], [453396, u'True', u'Parameter', u'struct rsnd_mod * mod']]"
+Merge remote-tracking branch 'asoc/fix/rcar' into asoc-linus,sound/soc/sh/rcar/dma.c,+,"[[621729, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )']]","[[621730, None, u'CallExpression', u'iowrite32 ( val , addr )'], [621736, None, u'Callee', u'iowrite32'], [621731, None, u'ArgumentList', u'val'], [621737, None, u'Identifier', u'iowrite32'], [621734, None, u'Argument', u'val'], [621732, None, u'Argument', u'addr'], [621735, None, u'Identifier', u'val'], [621733, None, u'Identifier', u'addr'], [621729, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )'], [621812, u'True', u'CFGEntryNode', u'ENTRY']]","[[621730, None, u'CallExpression', u'iowrite32 ( val , addr )'], [621736, None, u'Callee', u'iowrite32'], [621731, None, u'ArgumentList', u'val'], [621737, None, u'Identifier', u'iowrite32'], [621734, None, u'Argument', u'val'], [621732, None, u'Argument', u'addr'], [621735, None, u'Identifier', u'val'], [621733, None, u'Identifier', u'addr'], [621729, u'True', u'ExpressionStatement', u'iowrite32 ( val , addr )'], [621761, None, u'IdentifierDecl', u'* addr = rsnd_dmapp_addr ( dmac , dma , reg )'], [621775, None, u'IdentifierDeclType', u'void __iomem *'], [621774, None, u'Identifier', u'addr'], [621762, None, u'AssignmentExpr', u'* addr = rsnd_dmapp_addr ( dmac , dma , reg )'], [621773, None, u'Identifier', u'addr'], [621763, None, u'CallExpression', u'rsnd_dmapp_addr ( dmac , dma , reg )'], [621771, None, u'Callee', u'rsnd_dmapp_addr'], [621764, None, u'ArgumentList', u'dmac'], [621772, None, u'Identifier', u'rsnd_dmapp_addr'], [621769, None, u'Argument', u'dmac'], [621767, None, u'Argument', u'dma'], [621765, None, u'Argument', u'reg'], [621770, None, u'Identifier', u'dmac'], [621768, None, u'Identifier', u'dma'], [621766, None, u'Identifier', u'reg'], [621760, u'True', u'IdentifierDeclStatement', u'void __iomem * addr = rsnd_dmapp_addr ( dmac , dma , reg ) ;'], [621739, None, u'AssignmentExpr', u'val |= ( data & mask )'], [621743, None, u'Identifier', u'val'], [621740, None, u'BitAndExpression', u'data & mask'], [621742, None, u'Identifier', u'data'], [621741, None, u'Identifier', u'mask'], [621738, u'True', u'ExpressionStatement', u'val |= ( data & mask )'], [621717, None, u'ParameterType', u'u32'], [621716, None, u'Identifier', u'reg'], [621715, u'True', u'Parameter', u'u32 reg'], [621726, None, u'ParameterType', u'struct rsnd_dma *'], [621725, None, u'Identifier', u'dma'], [621724, u'True', u'Parameter', u'struct rsnd_dma * dma'], [621777, None, u'IdentifierDecl', u'* dmac = rsnd_priv_to_dmac ( priv )'], [621787, None, u'IdentifierDeclType', u'struct rsnd_dma_ctrl *'], [621786, None, u'Identifier', u'dmac'], [621778, None, u'AssignmentExpr', u'* dmac = rsnd_priv_to_dmac ( priv )'], [621785, None, u'Identifier', u'dmac'], [621779, None, u'CallExpression', u'rsnd_priv_to_dmac ( priv )'], [621783, None, u'Callee', u'rsnd_priv_to_dmac'], [621780, None, u'ArgumentList', u'priv'], [621784, None, u'Identifier', u'rsnd_priv_to_dmac'], [621781, None, u'Argument', u'priv'], [621782, None, u'Identifier', u'priv'], [621776, u'True', u'IdentifierDeclStatement', u'struct rsnd_dma_ctrl * dmac = rsnd_priv_to_dmac ( priv ) ;'], [621720, None, u'ParameterType', u'u32'], [621719, None, u'Identifier', u'mask'], [621718, u'True', u'Parameter', u'u32 mask'], [621723, None, u'ParameterType', u'u32'], [621722, None, u'Identifier', u'data'], [621721, u'True', u'Parameter', u'u32 data'], [621745, None, u'AssignmentExpr', u'val &= ~mask'], [621747, None, u'Identifier', u'val'], [621746, None, u'Identifier', u'~mask'], [621744, u'True', u'ExpressionStatement', u'val &= ~mask'], [621789, None, u'IdentifierDecl', u'* priv = rsnd_mod_to_priv ( mod )'], [621799, None, u'IdentifierDeclType', u'struct rsnd_priv *'], [621798, None, u'Identifier', u'priv'], [621790, None, u'AssignmentExpr', u'* priv = rsnd_mod_to_priv ( mod )'], [621797, None, u'Identifier', u'priv'], [621791, None, u'CallExpression', u'rsnd_mod_to_priv ( mod )'], [621795, None, u'Callee', u'rsnd_mod_to_priv'], [621792, None, u'ArgumentList', u'mod'], [621796, None, u'Identifier', u'rsnd_mod_to_priv'], [621793, None, u'Argument', u'mod'], [621794, None, u'Identifier', u'mod'], [621788, u'True', u'IdentifierDeclStatement', u'struct rsnd_priv * priv = rsnd_mod_to_priv ( mod ) ;'], [621749, None, u'IdentifierDecl', u'val = ioread32 ( addr )'], [621759, None, u'IdentifierDeclType', u'u32'], [621758, None, u'Identifier', u'val'], [621750, None, u'AssignmentExpr', u'val = ioread32 ( addr )'], [621757, None, u'Identifier', u'val'], [621751, None, u'CallExpression', u'ioread32 ( addr )'], [621755, None, u'Callee', u'ioread32'], [621752, None, u'ArgumentList', u'addr'], [621756, None, u'Identifier', u'ioread32'], [621753, None, u'Argument', u'addr'], [621754, None, u'Identifier', u'addr'], [621748, u'True', u'IdentifierDeclStatement', u'u32 val = ioread32 ( addr ) ;'], [621801, None, u'IdentifierDecl', u'* mod = rsnd_mod_get ( dma )'], [621811, None, u'IdentifierDeclType', u'struct rsnd_mod *'], [621810, None, u'Identifier', u'mod'], [621802, None, u'AssignmentExpr', u'* mod = rsnd_mod_get ( dma )'], [621809, None, u'Identifier', u'mod'], [621803, None, u'CallExpression', u'rsnd_mod_get ( dma )'], [621807, None, u'Callee', u'rsnd_mod_get'], [621804, None, u'ArgumentList', u'dma'], [621808, None, u'Identifier', u'rsnd_mod_get'], [621805, None, u'Argument', u'dma'], [621806, None, u'Identifier', u'dma'], [621800, u'True', u'IdentifierDeclStatement', u'struct rsnd_mod * mod = rsnd_mod_get ( dma ) ;']]"
+Merge remote-tracking branch 'asoc/fix/rcar' into asoc-linus,sound/soc/sh/rcar/dma.c,-,"[[625816, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )']]","[[625817, None, u'CallExpression', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [625825, None, u'Callee', u'rsnd_dmapp_write'], [625818, None, u'ArgumentList', u'dma'], [625826, None, u'Identifier', u'rsnd_dmapp_write'], [625823, None, u'Argument', u'dma'], [625821, None, u'Argument', u'0'], [625819, None, u'Argument', u'PDMACHCR'], [625824, None, u'Identifier', u'dma'], [625822, None, u'PrimaryExpression', u'0'], [625820, None, u'Identifier', u'PDMACHCR'], [625816, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [625843, u'True', u'CFGEntryNode', u'ENTRY']]","[[625817, None, u'CallExpression', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [625825, None, u'Callee', u'rsnd_dmapp_write'], [625818, None, u'ArgumentList', u'dma'], [625826, None, u'Identifier', u'rsnd_dmapp_write'], [625823, None, u'Argument', u'dma'], [625821, None, u'Argument', u'0'], [625819, None, u'Argument', u'PDMACHCR'], [625824, None, u'Identifier', u'dma'], [625822, None, u'PrimaryExpression', u'0'], [625820, None, u'Identifier', u'PDMACHCR'], [625816, u'True', u'ExpressionStatement', u'rsnd_dmapp_write ( dma , 0 , PDMACHCR )'], [625832, None, u'IdentifierDecl', u'* dma = rsnd_mod_to_dma ( mod )'], [625842, None, u'IdentifierDeclType', u'struct rsnd_dma *'], [625841, None, u'Identifier', u'dma'], [625833, None, u'AssignmentExpr', u'* dma = rsnd_mod_to_dma ( mod )'], [625840, None, u'Identifier', u'dma'], [625834, None, u'CallExpression', u'rsnd_mod_to_dma ( mod )'], [625838, None, u'Callee', u'rsnd_mod_to_dma'], [625835, None, u'ArgumentList', u'mod'], [625839, None, u'Identifier', u'rsnd_mod_to_dma'], [625836, None, u'Argument', u'mod'], [625837, None, u'Identifier', u'mod'], [625831, u'True', u'IdentifierDeclStatement', u'struct rsnd_dma * dma = rsnd_mod_to_dma ( mod ) ;'], [625775, None, u'ParameterType', u'struct rsnd_mod *'], [625774, None, u'Identifier', u'mod'], [625773, u'True', u'Parameter', u'struct rsnd_mod * mod']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[680287, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680287, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680284, u'True', u'Parameter', u'u64 addr']]","[[680289, None, u'ParameterType', u'struct mem_ctl_info *'], [680288, None, u'Identifier', u'mci'], [680287, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680409, u'True', u'CFGEntryNode', u'ENTRY'], [680289, None, u'ParameterType', u'struct mem_ctl_info *'], [680288, None, u'Identifier', u'mci'], [680287, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680409, u'True', u'CFGEntryNode', u'ENTRY'], [680286, None, u'ParameterType', u'u64'], [680285, None, u'Identifier', u'addr'], [680284, u'True', u'Parameter', u'u64 addr'], [680409, u'True', u'CFGEntryNode', u'ENTRY']]","[[680289, None, u'ParameterType', u'struct mem_ctl_info *'], [680288, None, u'Identifier', u'mci'], [680287, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680289, None, u'ParameterType', u'struct mem_ctl_info *'], [680288, None, u'Identifier', u'mci'], [680287, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680286, None, u'ParameterType', u'u64'], [680285, None, u'Identifier', u'addr'], [680284, u'True', u'Parameter', u'u64 addr']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[680442, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680439, u'True', u'Parameter', u'const struct mce * m'], [680442, u'True', u'Parameter', u'struct mem_ctl_info * mci']]","[[680444, None, u'ParameterType', u'struct mem_ctl_info *'], [680443, None, u'Identifier', u'mci'], [680442, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680823, u'True', u'CFGEntryNode', u'ENTRY'], [680441, None, u'ParameterType', u'const struct mce *'], [680440, None, u'Identifier', u'm'], [680439, u'True', u'Parameter', u'const struct mce * m'], [680823, u'True', u'CFGEntryNode', u'ENTRY'], [680444, None, u'ParameterType', u'struct mem_ctl_info *'], [680443, None, u'Identifier', u'mci'], [680442, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680823, u'True', u'CFGEntryNode', u'ENTRY']]","[[680444, None, u'ParameterType', u'struct mem_ctl_info *'], [680443, None, u'Identifier', u'mci'], [680442, u'True', u'Parameter', u'struct mem_ctl_info * mci'], [680441, None, u'ParameterType', u'const struct mce *'], [680440, None, u'Identifier', u'm'], [680439, u'True', u'Parameter', u'const struct mce * m'], [680444, None, u'ParameterType', u'struct mem_ctl_info *'], [680443, None, u'Identifier', u'mci'], [680442, u'True', u'Parameter', u'struct mem_ctl_info * mci']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[681988, u'True', u'Parameter', u'struct notifier_block * nb'], [681988, u'True', u'Parameter', u'struct notifier_block * nb'], [681982, u'True', u'Parameter', u'void * data'], [681985, u'True', u'Parameter', u'unsigned long val']]","[[681990, None, u'ParameterType', u'struct notifier_block *'], [681989, None, u'Identifier', u'nb'], [681988, u'True', u'Parameter', u'struct notifier_block * nb'], [682195, u'True', u'CFGEntryNode', u'ENTRY'], [681990, None, u'ParameterType', u'struct notifier_block *'], [681989, None, u'Identifier', u'nb'], [681988, u'True', u'Parameter', u'struct notifier_block * nb'], [682195, u'True', u'CFGEntryNode', u'ENTRY'], [681984, None, u'ParameterType', u'void *'], [681983, None, u'Identifier', u'data'], [681982, u'True', u'Parameter', u'void * data'], [682195, u'True', u'CFGEntryNode', u'ENTRY'], [681987, None, u'ParameterType', u'unsigned long'], [681986, None, u'Identifier', u'val'], [681985, u'True', u'Parameter', u'unsigned long val'], [682195, u'True', u'CFGEntryNode', u'ENTRY']]","[[681990, None, u'ParameterType', u'struct notifier_block *'], [681989, None, u'Identifier', u'nb'], [681988, u'True', u'Parameter', u'struct notifier_block * nb'], [681990, None, u'ParameterType', u'struct notifier_block *'], [681989, None, u'Identifier', u'nb'], [681988, u'True', u'Parameter', u'struct notifier_block * nb'], [681984, None, u'ParameterType', u'void *'], [681983, None, u'Identifier', u'data'], [681982, u'True', u'Parameter', u'void * data'], [681987, None, u'ParameterType', u'unsigned long'], [681986, None, u'Identifier', u'val'], [681985, u'True', u'Parameter', u'unsigned long val']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682241, u'True', u'Parameter', u'void * data'], [682238, u'True', u'Parameter', u'u64 val'], [682241, u'True', u'Parameter', u'void * data']]","[[682243, None, u'ParameterType', u'void *'], [682242, None, u'Identifier', u'data'], [682241, u'True', u'Parameter', u'void * data'], [682353, u'True', u'CFGEntryNode', u'ENTRY'], [682240, None, u'ParameterType', u'u64'], [682239, None, u'Identifier', u'val'], [682238, u'True', u'Parameter', u'u64 val'], [682353, u'True', u'CFGEntryNode', u'ENTRY'], [682243, None, u'ParameterType', u'void *'], [682242, None, u'Identifier', u'data'], [682241, u'True', u'Parameter', u'void * data'], [682353, u'True', u'CFGEntryNode', u'ENTRY']]","[[682243, None, u'ParameterType', u'void *'], [682242, None, u'Identifier', u'data'], [682241, u'True', u'Parameter', u'void * data'], [682240, None, u'ParameterType', u'u64'], [682239, None, u'Identifier', u'val'], [682238, u'True', u'Parameter', u'u64 val'], [682243, None, u'ParameterType', u'void *'], [682242, None, u'Identifier', u'data'], [682241, u'True', u'Parameter', u'void * data']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682302, u'True', u'ExpressionStatement', u'pnd2_mce_output_error ( pnd2_mci , & m , & daddr )']]","[[682303, None, u'CallExpression', u'pnd2_mce_output_error ( pnd2_mci , & m , & daddr )'], [682315, None, u'Callee', u'pnd2_mce_output_error'], [682304, None, u'ArgumentList', u'pnd2_mci'], [682316, None, u'Identifier', u'pnd2_mce_output_error'], [682313, None, u'Argument', u'pnd2_mci'], [682309, None, u'Argument', u'& m'], [682305, None, u'Argument', u'& daddr'], [682314, None, u'Identifier', u'pnd2_mci'], [682310, None, u'UnaryOp', u'& m'], [682306, None, u'UnaryOp', u'& daddr'], [682312, None, u'UnaryOperator', u'&'], [682311, None, u'Identifier', u'm'], [682308, None, u'UnaryOperator', u'&'], [682307, None, u'Identifier', u'daddr'], [682302, u'True', u'ExpressionStatement', u'pnd2_mce_output_error ( pnd2_mci , & m , & daddr )'], [682353, u'True', u'CFGEntryNode', u'ENTRY']]","[[682303, None, u'CallExpression', u'pnd2_mce_output_error ( pnd2_mci , & m , & daddr )'], [682315, None, u'Callee', u'pnd2_mce_output_error'], [682304, None, u'ArgumentList', u'pnd2_mci'], [682316, None, u'Identifier', u'pnd2_mce_output_error'], [682313, None, u'Argument', u'pnd2_mci'], [682309, None, u'Argument', u'& m'], [682305, None, u'Argument', u'& daddr'], [682314, None, u'Identifier', u'pnd2_mci'], [682310, None, u'UnaryOp', u'& m'], [682306, None, u'UnaryOp', u'& daddr'], [682312, None, u'UnaryOperator', u'&'], [682311, None, u'Identifier', u'm'], [682308, None, u'UnaryOperator', u'&'], [682307, None, u'Identifier', u'daddr'], [682302, u'True', u'ExpressionStatement', u'pnd2_mce_output_error ( pnd2_mci , & m , & daddr )']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682261, u'True', u'ExpressionStatement', u'snprintf ( pnd2_blob . data , PND2_BLOB_SIZE , ""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n"" , m . addr , daddr . chan , daddr . dimm , daddr . rank , daddr . bank , daddr . row , daddr . col )']]","[[682262, None, u'CallExpression', u'snprintf ( pnd2_blob . data , PND2_BLOB_SIZE , ""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n"" , m . addr , daddr . chan , daddr . dimm , daddr . rank , daddr . bank , daddr . row , daddr . col )'], [682300, None, u'Callee', u'snprintf'], [682263, None, u'ArgumentList', u'pnd2_blob . data'], [682301, None, u'Identifier', u'snprintf'], [682296, None, u'Argument', u'pnd2_blob . data'], [682294, None, u'Argument', u'PND2_BLOB_SIZE'], [682292, None, u'Argument', u'""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n""'], [682288, None, u'Argument', u'm . addr'], [682284, None, u'Argument', u'daddr . chan'], [682280, None, u'Argument', u'daddr . dimm'], [682276, None, u'Argument', u'daddr . rank'], [682272, None, u'Argument', u'daddr . bank'], [682268, None, u'Argument', u'daddr . row'], [682264, None, u'Argument', u'daddr . col'], [682297, None, u'MemberAccess', u'pnd2_blob . data'], [682295, None, u'Identifier', u'PND2_BLOB_SIZE'], [682293, None, u'PrimaryExpression', u'""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n""'], [682289, None, u'MemberAccess', u'm . addr'], [682285, None, u'MemberAccess', u'daddr . chan'], [682281, None, u'MemberAccess', u'daddr . dimm'], [682277, None, u'MemberAccess', u'daddr . rank'], [682273, None, u'MemberAccess', u'daddr . bank'], [682269, None, u'MemberAccess', u'daddr . row'], [682265, None, u'MemberAccess', u'daddr . col'], [682299, None, u'Identifier', u'pnd2_blob'], [682298, None, u'Identifier', u'data'], [682291, None, u'Identifier', u'm'], [682290, None, u'Identifier', u'addr'], [682287, None, u'Identifier', u'daddr'], [682286, None, u'Identifier', u'chan'], [682283, None, u'Identifier', u'daddr'], [682282, None, u'Identifier', u'dimm'], [682279, None, u'Identifier', u'daddr'], [682278, None, u'Identifier', u'rank'], [682275, None, u'Identifier', u'daddr'], [682274, None, u'Identifier', u'bank'], [682271, None, u'Identifier', u'daddr'], [682270, None, u'Identifier', u'row'], [682267, None, u'Identifier', u'daddr'], [682266, None, u'Identifier', u'col'], [682261, u'True', u'ExpressionStatement', u'snprintf ( pnd2_blob . data , PND2_BLOB_SIZE , ""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n"" , m . addr , daddr . chan , daddr . dimm , daddr . rank , daddr . bank , daddr . row , daddr . col )'], [682353, u'True', u'CFGEntryNode', u'ENTRY']]","[[682262, None, u'CallExpression', u'snprintf ( pnd2_blob . data , PND2_BLOB_SIZE , ""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n"" , m . addr , daddr . chan , daddr . dimm , daddr . rank , daddr . bank , daddr . row , daddr . col )'], [682300, None, u'Callee', u'snprintf'], [682263, None, u'ArgumentList', u'pnd2_blob . data'], [682301, None, u'Identifier', u'snprintf'], [682296, None, u'Argument', u'pnd2_blob . data'], [682294, None, u'Argument', u'PND2_BLOB_SIZE'], [682292, None, u'Argument', u'""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n""'], [682288, None, u'Argument', u'm . addr'], [682284, None, u'Argument', u'daddr . chan'], [682280, None, u'Argument', u'daddr . dimm'], [682276, None, u'Argument', u'daddr . rank'], [682272, None, u'Argument', u'daddr . bank'], [682268, None, u'Argument', u'daddr . row'], [682264, None, u'Argument', u'daddr . col'], [682297, None, u'MemberAccess', u'pnd2_blob . data'], [682295, None, u'Identifier', u'PND2_BLOB_SIZE'], [682293, None, u'PrimaryExpression', u'""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n""'], [682289, None, u'MemberAccess', u'm . addr'], [682285, None, u'MemberAccess', u'daddr . chan'], [682281, None, u'MemberAccess', u'daddr . dimm'], [682277, None, u'MemberAccess', u'daddr . rank'], [682273, None, u'MemberAccess', u'daddr . bank'], [682269, None, u'MemberAccess', u'daddr . row'], [682265, None, u'MemberAccess', u'daddr . col'], [682299, None, u'Identifier', u'pnd2_blob'], [682298, None, u'Identifier', u'data'], [682291, None, u'Identifier', u'm'], [682290, None, u'Identifier', u'addr'], [682287, None, u'Identifier', u'daddr'], [682286, None, u'Identifier', u'chan'], [682283, None, u'Identifier', u'daddr'], [682282, None, u'Identifier', u'dimm'], [682279, None, u'Identifier', u'daddr'], [682278, None, u'Identifier', u'rank'], [682275, None, u'Identifier', u'daddr'], [682274, None, u'Identifier', u'bank'], [682271, None, u'Identifier', u'daddr'], [682270, None, u'Identifier', u'row'], [682267, None, u'Identifier', u'daddr'], [682266, None, u'Identifier', u'col'], [682261, u'True', u'ExpressionStatement', u'snprintf ( pnd2_blob . data , PND2_BLOB_SIZE , ""SysAddr=%llx Channel=%d DIMM=%d Rank=%d Bank=%d Row=%d Column=%d\\n"" , m . addr , daddr . chan , daddr . dimm , daddr . rank , daddr . bank , daddr . row , daddr . col )'], [682318, None, u'AssignmentExpr', u'm . addr = val'], [682320, None, u'MemberAccess', u'm . addr'], [682319, None, u'Identifier', u'val'], [682322, None, u'Identifier', u'm'], [682321, None, u'Identifier', u'addr'], [682317, u'True', u'ExpressionStatement', u'm . addr = val'], [682350, None, u'IdentifierDecl', u'daddr'], [682352, None, u'IdentifierDeclType', u'struct dram_addr'], [682351, None, u'Identifier', u'daddr'], [682349, u'True', u'IdentifierDeclStatement', u'struct dram_addr daddr ;'], [682324, None, u'AssignmentExpr', u'm . status = MCI_STATUS_ADDRV + 0x9f'], [682328, None, u'MemberAccess', u'm . status'], [682325, None, u'AdditiveExpression', u'MCI_STATUS_ADDRV + 0x9f'], [682330, None, u'Identifier', u'm'], [682329, None, u'Identifier', u'status'], [682327, None, u'Identifier', u'MCI_STATUS_ADDRV'], [682326, None, u'PrimaryExpression', u'0x9f'], [682323, u'True', u'ExpressionStatement', u'm . status = MCI_STATUS_ADDRV + 0x9f'], [682240, None, u'ParameterType', u'u64'], [682239, None, u'Identifier', u'val'], [682238, u'True', u'Parameter', u'u64 val'], [682332, None, u'AssignmentExpr', u'm . mcgstatus = 0'], [682334, None, u'MemberAccess', u'm . mcgstatus'], [682333, None, u'PrimaryExpression', u'0'], [682336, None, u'Identifier', u'm'], [682335, None, u'Identifier', u'mcgstatus'], [682331, u'True', u'ExpressionStatement', u'm . mcgstatus = 0'], [682346, None, u'IdentifierDecl', u'm'], [682348, None, u'IdentifierDeclType', u'struct mce'], [682347, None, u'Identifier', u'm'], [682345, u'True', u'IdentifierDeclStatement', u'struct mce m ;']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )']]","[[682419, None, u'AssignmentExpr', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682426, None, u'Identifier', u'pnd2_test'], [682420, None, u'CallExpression', u'edac_debugfs_create_dir ( ""pnd2_test"" )'], [682424, None, u'Callee', u'edac_debugfs_create_dir'], [682421, None, u'ArgumentList', u'""pnd2_test""'], [682425, None, u'Identifier', u'edac_debugfs_create_dir'], [682422, None, u'Argument', u'""pnd2_test""'], [682423, None, u'PrimaryExpression', u'""pnd2_test""'], [682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682427, u'True', u'CFGEntryNode', u'ENTRY'], [682419, None, u'AssignmentExpr', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682426, None, u'Identifier', u'pnd2_test'], [682420, None, u'CallExpression', u'edac_debugfs_create_dir ( ""pnd2_test"" )'], [682424, None, u'Callee', u'edac_debugfs_create_dir'], [682421, None, u'ArgumentList', u'""pnd2_test""'], [682425, None, u'Identifier', u'edac_debugfs_create_dir'], [682422, None, u'Argument', u'""pnd2_test""'], [682423, None, u'PrimaryExpression', u'""pnd2_test""'], [682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682427, u'True', u'CFGEntryNode', u'ENTRY']]","[[682419, None, u'AssignmentExpr', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682426, None, u'Identifier', u'pnd2_test'], [682420, None, u'CallExpression', u'edac_debugfs_create_dir ( ""pnd2_test"" )'], [682424, None, u'Callee', u'edac_debugfs_create_dir'], [682421, None, u'ArgumentList', u'""pnd2_test""'], [682425, None, u'Identifier', u'edac_debugfs_create_dir'], [682422, None, u'Argument', u'""pnd2_test""'], [682423, None, u'PrimaryExpression', u'""pnd2_test""'], [682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682419, None, u'AssignmentExpr', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682426, None, u'Identifier', u'pnd2_test'], [682420, None, u'CallExpression', u'edac_debugfs_create_dir ( ""pnd2_test"" )'], [682424, None, u'Callee', u'edac_debugfs_create_dir'], [682421, None, u'ArgumentList', u'""pnd2_test""'], [682425, None, u'Identifier', u'edac_debugfs_create_dir'], [682422, None, u'Argument', u'""pnd2_test""'], [682423, None, u'PrimaryExpression', u'""pnd2_test""'], [682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682399, u'True', u'ExpressionStatement', u'edac_debugfs_create_file ( ""pnd2_debug_addr"" , 0200 , pnd2_test , & pnd2_fake_addr , & fops_u64_wo )']]","[[682400, None, u'CallExpression', u'edac_debugfs_create_file ( ""pnd2_debug_addr"" , 0200 , pnd2_test , & pnd2_fake_addr , & fops_u64_wo )'], [682416, None, u'Callee', u'edac_debugfs_create_file'], [682401, None, u'ArgumentList', u'""pnd2_debug_addr""'], [682417, None, u'Identifier', u'edac_debugfs_create_file'], [682414, None, u'Argument', u'""pnd2_debug_addr""'], [682412, None, u'Argument', u'0200'], [682410, None, u'Argument', u'pnd2_test'], [682406, None, u'Argument', u'& pnd2_fake_addr'], [682402, None, u'Argument', u'& fops_u64_wo'], [682415, None, u'PrimaryExpression', u'""pnd2_debug_addr""'], [682413, None, u'PrimaryExpression', u'0200'], [682411, None, u'Identifier', u'pnd2_test'], [682407, None, u'UnaryOp', u'& pnd2_fake_addr'], [682403, None, u'UnaryOp', u'& fops_u64_wo'], [682409, None, u'UnaryOperator', u'&'], [682408, None, u'Identifier', u'pnd2_fake_addr'], [682405, None, u'UnaryOperator', u'&'], [682404, None, u'Identifier', u'fops_u64_wo'], [682399, u'True', u'ExpressionStatement', u'edac_debugfs_create_file ( ""pnd2_debug_addr"" , 0200 , pnd2_test , & pnd2_fake_addr , & fops_u64_wo )'], [682427, u'True', u'CFGEntryNode', u'ENTRY']]","[[682400, None, u'CallExpression', u'edac_debugfs_create_file ( ""pnd2_debug_addr"" , 0200 , pnd2_test , & pnd2_fake_addr , & fops_u64_wo )'], [682416, None, u'Callee', u'edac_debugfs_create_file'], [682401, None, u'ArgumentList', u'""pnd2_debug_addr""'], [682417, None, u'Identifier', u'edac_debugfs_create_file'], [682414, None, u'Argument', u'""pnd2_debug_addr""'], [682412, None, u'Argument', u'0200'], [682410, None, u'Argument', u'pnd2_test'], [682406, None, u'Argument', u'& pnd2_fake_addr'], [682402, None, u'Argument', u'& fops_u64_wo'], [682415, None, u'PrimaryExpression', u'""pnd2_debug_addr""'], [682413, None, u'PrimaryExpression', u'0200'], [682411, None, u'Identifier', u'pnd2_test'], [682407, None, u'UnaryOp', u'& pnd2_fake_addr'], [682403, None, u'UnaryOp', u'& fops_u64_wo'], [682409, None, u'UnaryOperator', u'&'], [682408, None, u'Identifier', u'pnd2_fake_addr'], [682405, None, u'UnaryOperator', u'&'], [682404, None, u'Identifier', u'fops_u64_wo'], [682399, u'True', u'ExpressionStatement', u'edac_debugfs_create_file ( ""pnd2_debug_addr"" , 0200 , pnd2_test , & pnd2_fake_addr , & fops_u64_wo )'], [682419, None, u'AssignmentExpr', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682426, None, u'Identifier', u'pnd2_test'], [682420, None, u'CallExpression', u'edac_debugfs_create_dir ( ""pnd2_test"" )'], [682424, None, u'Callee', u'edac_debugfs_create_dir'], [682421, None, u'ArgumentList', u'""pnd2_test""'], [682425, None, u'Identifier', u'edac_debugfs_create_dir'], [682422, None, u'Argument', u'""pnd2_test""'], [682423, None, u'PrimaryExpression', u'""pnd2_test""'], [682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682384, u'True', u'ExpressionStatement', u'debugfs_create_blob ( ""pnd2_debug_results"" , 0400 , pnd2_test , & pnd2_blob )']]","[[682385, None, u'CallExpression', u'debugfs_create_blob ( ""pnd2_debug_results"" , 0400 , pnd2_test , & pnd2_blob )'], [682397, None, u'Callee', u'debugfs_create_blob'], [682386, None, u'ArgumentList', u'""pnd2_debug_results""'], [682398, None, u'Identifier', u'debugfs_create_blob'], [682395, None, u'Argument', u'""pnd2_debug_results""'], [682393, None, u'Argument', u'0400'], [682391, None, u'Argument', u'pnd2_test'], [682387, None, u'Argument', u'& pnd2_blob'], [682396, None, u'PrimaryExpression', u'""pnd2_debug_results""'], [682394, None, u'PrimaryExpression', u'0400'], [682392, None, u'Identifier', u'pnd2_test'], [682388, None, u'UnaryOp', u'& pnd2_blob'], [682390, None, u'UnaryOperator', u'&'], [682389, None, u'Identifier', u'pnd2_blob'], [682384, u'True', u'ExpressionStatement', u'debugfs_create_blob ( ""pnd2_debug_results"" , 0400 , pnd2_test , & pnd2_blob )'], [682427, u'True', u'CFGEntryNode', u'ENTRY']]","[[682385, None, u'CallExpression', u'debugfs_create_blob ( ""pnd2_debug_results"" , 0400 , pnd2_test , & pnd2_blob )'], [682397, None, u'Callee', u'debugfs_create_blob'], [682386, None, u'ArgumentList', u'""pnd2_debug_results""'], [682398, None, u'Identifier', u'debugfs_create_blob'], [682395, None, u'Argument', u'""pnd2_debug_results""'], [682393, None, u'Argument', u'0400'], [682391, None, u'Argument', u'pnd2_test'], [682387, None, u'Argument', u'& pnd2_blob'], [682396, None, u'PrimaryExpression', u'""pnd2_debug_results""'], [682394, None, u'PrimaryExpression', u'0400'], [682392, None, u'Identifier', u'pnd2_test'], [682388, None, u'UnaryOp', u'& pnd2_blob'], [682390, None, u'UnaryOperator', u'&'], [682389, None, u'Identifier', u'pnd2_blob'], [682384, u'True', u'ExpressionStatement', u'debugfs_create_blob ( ""pnd2_debug_results"" , 0400 , pnd2_test , & pnd2_blob )'], [682419, None, u'AssignmentExpr', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )'], [682426, None, u'Identifier', u'pnd2_test'], [682420, None, u'CallExpression', u'edac_debugfs_create_dir ( ""pnd2_test"" )'], [682424, None, u'Callee', u'edac_debugfs_create_dir'], [682421, None, u'ArgumentList', u'""pnd2_test""'], [682425, None, u'Identifier', u'edac_debugfs_create_dir'], [682422, None, u'Argument', u'""pnd2_test""'], [682423, None, u'PrimaryExpression', u'""pnd2_test""'], [682418, u'True', u'ExpressionStatement', u'pnd2_test = edac_debugfs_create_dir ( ""pnd2_test"" )']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682439, u'True', u'ExpressionStatement', u'debugfs_remove_recursive ( pnd2_test )'], [682439, u'True', u'ExpressionStatement', u'debugfs_remove_recursive ( pnd2_test )']]","[[682440, None, u'CallExpression', u'debugfs_remove_recursive ( pnd2_test )'], [682444, None, u'Callee', u'debugfs_remove_recursive'], [682441, None, u'ArgumentList', u'pnd2_test'], [682445, None, u'Identifier', u'debugfs_remove_recursive'], [682442, None, u'Argument', u'pnd2_test'], [682443, None, u'Identifier', u'pnd2_test'], [682439, u'True', u'ExpressionStatement', u'debugfs_remove_recursive ( pnd2_test )'], [682446, u'True', u'CFGEntryNode', u'ENTRY'], [682440, None, u'CallExpression', u'debugfs_remove_recursive ( pnd2_test )'], [682444, None, u'Callee', u'debugfs_remove_recursive'], [682441, None, u'ArgumentList', u'pnd2_test'], [682445, None, u'Identifier', u'debugfs_remove_recursive'], [682442, None, u'Argument', u'pnd2_test'], [682443, None, u'Identifier', u'pnd2_test'], [682439, u'True', u'ExpressionStatement', u'debugfs_remove_recursive ( pnd2_test )'], [682446, u'True', u'CFGEntryNode', u'ENTRY']]","[[682440, None, u'CallExpression', u'debugfs_remove_recursive ( pnd2_test )'], [682444, None, u'Callee', u'debugfs_remove_recursive'], [682441, None, u'ArgumentList', u'pnd2_test'], [682445, None, u'Identifier', u'debugfs_remove_recursive'], [682442, None, u'Argument', u'pnd2_test'], [682443, None, u'Identifier', u'pnd2_test'], [682439, u'True', u'ExpressionStatement', u'debugfs_remove_recursive ( pnd2_test )'], [682440, None, u'CallExpression', u'debugfs_remove_recursive ( pnd2_test )'], [682444, None, u'Callee', u'debugfs_remove_recursive'], [682441, None, u'ArgumentList', u'pnd2_test'], [682445, None, u'Identifier', u'debugfs_remove_recursive'], [682442, None, u'Argument', u'pnd2_test'], [682443, None, u'Identifier', u'pnd2_test'], [682439, u'True', u'ExpressionStatement', u'debugfs_remove_recursive ( pnd2_test )']]"
+"Merge tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp
+
+Pull EDAC updates from Borislav Petkov:
+ ""A new EDAC driver for the Pondicherry2 memory controller IP found in
+  the Intel Apollo Lake platform and the Denverton microserver.
+
+  Plus small fixlets.
+
+  Normally I had this queued for 4.12 but Tony requested for the
+  pnd2_edac driver to possibly land in 4.11 therefore I'm sending it to
+  you now.
+
+  It is a driver for new hardware which people don't have yet so it
+  shouldn't cause any regressions.
+
+  The couple of patches ontop of it show that Qiuxu actually did test it
+  on the hardware he has access to :)""
+
+* tag 'edac_for_4.11_2' of git://git.kernel.org/pub/scm/linux/kernel/git/bp/bp:
+  EDAC, pnd2_edac: Fix reported DIMM number
+  EDAC, pnd2_edac: Fix !EDAC_DEBUG build
+  EDAC: Select DEBUG_FS
+  EDAC, pnd2_edac: Add new EDAC driver for Intel SoC platforms
+  EDAC, i5000, i5400: Fix use of MTR_DRAM_WIDTH macro
+  EDAC, xgene: Fix wrongly spelled ""procesing""",drivers/edac/pnd2_edac.c,+,"[[682675, u'True', u'ExpressionStatement', u'teardown_pnd2_debug ( )']]","[[682676, None, u'CallExpression', u'teardown_pnd2_debug ( )'], [682678, None, u'Callee', u'teardown_pnd2_debug'], [682677, None, u'ArgumentList', u''], [682679, None, u'Identifier', u'teardown_pnd2_debug'], [682675, u'True', u'ExpressionStatement', u'teardown_pnd2_debug ( )'], [682689, u'True', u'CFGEntryNode', u'ENTRY']]","[[682676, None, u'CallExpression', u'teardown_pnd2_debug ( )'], [682678, None, u'Callee', u'teardown_pnd2_debug'], [682677, None, u'ArgumentList', u''], [682679, None, u'Identifier', u'teardown_pnd2_debug'], [682675, u'True', u'ExpressionStatement', u'teardown_pnd2_debug ( )']]"
+"Merge tag 'pinctrl-v4.11-3' of git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-pinctrl
+
+Pull more pin control fixes from Linus Walleij:
+ ""Here is a bunch of pin control fixes again
+
+  A bit more than I'd like for this subsystem at this point, but what
+  can I do. They are all driver fixes for hardware issues, as like ""we
+  forgot"", ""we didn't think of the fact that this could happen"", ""oops
+  that one goes there"" etc
+
+   - Kconfig fixup for the TI IOdelay pinctrl-single add-on
+
+   - fix up a typo in the meson i2c ao groups
+
+   - switch a remapping back to use devm_ioremap() as
+     devm_ioremap_resource() does not allow for sharing memory regions
+
+   - do not clear the Qualcomm irq status bit in irq_unmask(), as this
+     can lead to missing interrupts while the irq handler is executing
+
+   - add irq_request/release_resources() on the ST driver
+
+   - add a bunch of mysteriously missing pingroups for high numbered
+     pins in the Qualcomm ipq4019 driver""
+
+* tag 'pinctrl-v4.11-3' of git://git.kernel.org/pub/scm/linux/kernel/git/linusw/linux-pinctrl:
+  pinctrl: qcom: ipq4019: add missing pingroups for pins > 70
+  pinctrl: st: add irq_request/release_resources callbacks
+  pinctrl: qcom: Don't clear status bit on irq_unmask
+  pinctrl: samsung: Fix memory mapping code
+  pinctrl: meson-gxbb: Fix typo in i2c ao groups
+  pinctrl: ti: The IODelay driver is a DRA7xxx feature so depend on that SoC",drivers/pinctrl/qcom/pinctrl-msm.c,-,"[[690314, u'True', u'ExpressionStatement', u'writel ( val , pctrl -> regs + g -> intr_status_reg )']]","[[690315, None, u'CallExpression', u'writel ( val , pctrl -> regs + g -> intr_status_reg )'], [690327, None, u'Callee', u'writel'], [690316, None, u'ArgumentList', u'val'], [690328, None, u'Identifier', u'writel'], [690325, None, u'Argument', u'val'], [690317, None, u'Argument', u'pctrl -> regs + g -> intr_status_reg'], [690326, None, u'Identifier', u'val'], [690318, None, u'AdditiveExpression', u'pctrl -> regs + g -> intr_status_reg'], [690322, None, u'PtrMemberAccess', u'pctrl -> regs'], [690319, None, u'PtrMemberAccess', u'g -> intr_status_reg'], [690324, None, u'Identifier', u'pctrl'], [690323, None, u'Identifier', u'regs'], [690321, None, u'Identifier', u'g'], [690320, None, u'Identifier', u'intr_status_reg'], [690314, u'True', u'ExpressionStatement', u'writel ( val , pctrl -> regs + g -> intr_status_reg )'], [690418, u'True', u'CFGEntryNode', u'ENTRY']]","[[690315, None, u'CallExpression', u'writel ( val , pctrl -> regs + g -> intr_status_reg )'], [690327, None, u'Callee', u'writel'], [690316, None, u'ArgumentList', u'val'], [690328, None, u'Identifier', u'writel'], [690325, None, u'Argument', u'val'], [690317, None, u'Argument', u'pctrl -> regs + g -> intr_status_reg'], [690326, None, u'Identifier', u'val'], [690318, None, u'AdditiveExpression', u'pctrl -> regs + g -> intr_status_reg'], [690322, None, u'PtrMemberAccess', u'pctrl -> regs'], [690319, None, u'PtrMemberAccess', u'g -> intr_status_reg'], [690324, None, u'Identifier', u'pctrl'], [690323, None, u'Identifier', u'regs'], [690321, None, u'Identifier', u'g'], [690320, None, u'Identifier', u'intr_status_reg'], [690314, u'True', u'ExpressionStatement', u'writel ( val , pctrl -> regs + g -> intr_status_reg )'], [690395, None, u'IdentifierDecl', u'* pctrl = gpiochip_get_data ( gc )'], [690405, None, u'IdentifierDeclType', u'struct msm_pinctrl *'], [690404, None, u'Identifier', u'pctrl'], [690396, None, u'AssignmentExpr', u'* pctrl = gpiochip_get_data ( gc )'], [690403, None, u'Identifier', u'pctrl'], [690397, None, u'CallExpression', u'gpiochip_get_data ( gc )'], [690401, None, u'Callee', u'gpiochip_get_data'], [690398, None, u'ArgumentList', u'gc'], [690402, None, u'Identifier', u'gpiochip_get_data'], [690399, None, u'Argument', u'gc'], [690400, None, u'Identifier', u'gc'], [690394, u'True', u'IdentifierDeclStatement', u'struct msm_pinctrl * pctrl = gpiochip_get_data ( gc ) ;'], [690369, None, u'AssignmentExpr', u'g = & pctrl -> soc -> groups [ d -> hwirq ]'], [690381, None, u'Identifier', u'g'], [690370, None, u'UnaryOp', u'& pctrl -> soc -> groups [ d -> hwirq ]'], [690380, None, u'UnaryOperator', u'&'], [690371, None, u'ArrayIndexing', u'pctrl -> soc -> groups [ d -> hwirq ]'], [690375, None, u'PtrMemberAccess', u'pctrl -> soc -> groups'], [690372, None, u'PtrMemberAccess', u'd -> hwirq'], [690377, None, u'PtrMemberAccess', u'pctrl -> soc'], [690376, None, u'Identifier', u'groups'], [690374, None, u'Identifier', u'd'], [690373, None, u'Identifier', u'hwirq'], [690379, None, u'Identifier', u'pctrl'], [690378, None, u'Identifier', u'soc'], [690368, u'True', u'ExpressionStatement', u'g = & pctrl -> soc -> groups [ d -> hwirq ]'], [690330, None, u'AssignmentExpr', u'val &= ~BIT ( g -> intr_status_bit )'], [690339, None, u'Identifier', u'val'], [690331, None, u'CallExpression', u'~BIT ( g -> intr_status_bit )'], [690337, None, u'Callee', u'~BIT'], [690332, None, u'ArgumentList', u'g -> intr_status_bit'], [690338, None, u'Identifier', u'~BIT'], [690333, None, u'Argument', u'g -> intr_status_bit'], [690334, None, u'PtrMemberAccess', u'g -> intr_status_bit'], [690336, None, u'Identifier', u'g'], [690335, None, u'Identifier', u'intr_status_bit'], [690329, u'True', u'ExpressionStatement', u'val &= ~BIT ( g -> intr_status_bit )'], [690407, None, u'IdentifierDecl', u'* gc = irq_data_get_irq_chip_data ( d )'], [690417, None, u'IdentifierDeclType', u'struct gpio_chip *'], [690416, None, u'Identifier', u'gc'], [690408, None, u'AssignmentExpr', u'* gc = irq_data_get_irq_chip_data ( d )'], [690415, None, u'Identifier', u'gc'], [690409, None, u'CallExpression', u'irq_data_get_irq_chip_data ( d )'], [690413, None, u'Callee', u'irq_data_get_irq_chip_data'], [690410, None, u'ArgumentList', u'd'], [690414, None, u'Identifier', u'irq_data_get_irq_chip_data'], [690411, None, u'Argument', u'd'], [690412, None, u'Identifier', u'd'], [690406, u'True', u'IdentifierDeclStatement', u'struct gpio_chip * gc = irq_data_get_irq_chip_data ( d ) ;'], [690244, None, u'ParameterType', u'struct irq_data *'], [690243, None, u'Identifier', u'd'], [690242, u'True', u'Parameter', u'struct irq_data * d'], [690341, None, u'AssignmentExpr', u'val = readl ( pctrl -> regs + g -> intr_status_reg )'], [690354, None, u'Identifier', u'val'], [690342, None, u'CallExpression', u'readl ( pctrl -> regs + g -> intr_status_reg )'], [690352, None, u'Callee', u'readl'], [690343, None, u'ArgumentList', u'pctrl -> regs + g -> intr_status_reg'], [690353, None, u'Identifier', u'readl'], [690344, None, u'Argument', u'pctrl -> regs + g -> intr_status_reg'], [690345, None, u'AdditiveExpression', u'pctrl -> regs + g -> intr_status_reg'], [690349, None, u'PtrMemberAccess', u'pctrl -> regs'], [690346, None, u'PtrMemberAccess', u'g -> intr_status_reg'], [690351, None, u'Identifier', u'pctrl'], [690350, None, u'Identifier', u'regs'], [690348, None, u'Identifier', u'g'], [690347, None, u'Identifier', u'intr_status_reg'], [690340, u'True', u'ExpressionStatement', u'val = readl ( pctrl -> regs + g -> intr_status_reg )']]"
+"Merge tag 'gvt-fixes-2017-03-23' of https://github.com/01org/gvt-linux into drm-intel-fixes
+
+gvt-fixes-2017-03-23
+
+- KVM reference fix from Alex
+- shadow gtt entry partial update fix from Xiaoguang
+- gvt context notification check (Changbin)
+- other misc fixes.
+
+Signed-off-by: Jani Nikula <jani.nikula@intel.com>",drivers/gpu/drm/i915/gvt/handlers.c,+,"[[717454, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [717451, u'True', u'Parameter', u'unsigned int offset'], [717454, u'True', u'Parameter', u'struct intel_vgpu * vgpu']]","[[717456, None, u'ParameterType', u'struct intel_vgpu *'], [717455, None, u'Identifier', u'vgpu'], [717454, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [717482, u'True', u'CFGEntryNode', u'ENTRY'], [717453, None, u'ParameterType', u'unsigned int'], [717452, None, u'Identifier', u'offset'], [717451, u'True', u'Parameter', u'unsigned int offset'], [717482, u'True', u'CFGEntryNode', u'ENTRY'], [717456, None, u'ParameterType', u'struct intel_vgpu *'], [717455, None, u'Identifier', u'vgpu'], [717454, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [717482, u'True', u'CFGEntryNode', u'ENTRY']]","[[717456, None, u'ParameterType', u'struct intel_vgpu *'], [717455, None, u'Identifier', u'vgpu'], [717454, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [717453, None, u'ParameterType', u'unsigned int'], [717452, None, u'Identifier', u'offset'], [717451, u'True', u'Parameter', u'unsigned int offset'], [717456, None, u'ParameterType', u'struct intel_vgpu *'], [717455, None, u'Identifier', u'vgpu'], [717454, u'True', u'Parameter', u'struct intel_vgpu * vgpu']]"
+"Merge tag 'gvt-fixes-2017-03-23' of https://github.com/01org/gvt-linux into drm-intel-fixes
+
+gvt-fixes-2017-03-23
+
+- KVM reference fix from Alex
+- shadow gtt entry partial update fix from Xiaoguang
+- gvt context notification check (Changbin)
+- other misc fixes.
+
+Signed-off-by: Jani Nikula <jani.nikula@intel.com>",drivers/gpu/drm/i915/gvt/handlers.c,+,"[[717461, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )']]","[[717462, None, u'CallExpression', u'write_vreg ( vgpu , offset , p_data , bytes )'], [717472, None, u'Callee', u'write_vreg'], [717463, None, u'ArgumentList', u'vgpu'], [717473, None, u'Identifier', u'write_vreg'], [717470, None, u'Argument', u'vgpu'], [717468, None, u'Argument', u'offset'], [717466, None, u'Argument', u'p_data'], [717464, None, u'Argument', u'bytes'], [717471, None, u'Identifier', u'vgpu'], [717469, None, u'Identifier', u'offset'], [717467, None, u'Identifier', u'p_data'], [717465, None, u'Identifier', u'bytes'], [717461, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )'], [717482, u'True', u'CFGEntryNode', u'ENTRY']]","[[717462, None, u'CallExpression', u'write_vreg ( vgpu , offset , p_data , bytes )'], [717472, None, u'Callee', u'write_vreg'], [717463, None, u'ArgumentList', u'vgpu'], [717473, None, u'Identifier', u'write_vreg'], [717470, None, u'Argument', u'vgpu'], [717468, None, u'Argument', u'offset'], [717466, None, u'Argument', u'p_data'], [717464, None, u'Argument', u'bytes'], [717471, None, u'Identifier', u'vgpu'], [717469, None, u'Identifier', u'offset'], [717467, None, u'Identifier', u'p_data'], [717465, None, u'Identifier', u'bytes'], [717461, u'True', u'ExpressionStatement', u'write_vreg ( vgpu , offset , p_data , bytes )'], [717450, None, u'ParameterType', u'void *'], [717449, None, u'Identifier', u'p_data'], [717448, u'True', u'Parameter', u'void * p_data'], [717453, None, u'ParameterType', u'unsigned int'], [717452, None, u'Identifier', u'offset'], [717451, u'True', u'Parameter', u'unsigned int offset'], [717456, None, u'ParameterType', u'struct intel_vgpu *'], [717455, None, u'Identifier', u'vgpu'], [717454, u'True', u'Parameter', u'struct intel_vgpu * vgpu'], [717447, None, u'ParameterType', u'unsigned int'], [717446, None, u'Identifier', u'bytes'], [717445, u'True', u'Parameter', u'unsigned int bytes']]"
+"Merge branch 'stable-4.11' of git://git.infradead.org/users/pcmoore/audit
+
+Pull audit fix from Paul Moore:
+ ""We've got an audit fix, and unfortunately it is big.
+
+  While I'm not excited that we need to be sending you something this
+  large during the -rcX phase, it does fix some very real, and very
+  tangled, problems relating to locking, backlog queues, and the audit
+  daemon connection.
+
+  This code has passed our testsuite without problem and it has held up
+  to my ad-hoc stress tests (arguably better than the existing code),
+  please consider pulling this as fix for the next v4.11-rcX tag""
+
+* 'stable-4.11' of git://git.infradead.org/users/pcmoore/audit:
+  audit: fix auditd/kernel connection state tracking",kernel/audit.c,+,"[[817354, u'True', u'Condition', u'nlh -> nlmsg_type != AUDIT_EOE && printk_ratelimit ( )']]","[[817355, None, u'AndExpression', u'nlh -> nlmsg_type != AUDIT_EOE && printk_ratelimit ( )'], [817360, None, u'EqualityExpression', u'nlh -> nlmsg_type != AUDIT_EOE'], [817356, None, u'CallExpression', u'printk_ratelimit ( )'], [817362, None, u'PtrMemberAccess', u'nlh -> nlmsg_type'], [817361, None, u'Identifier', u'AUDIT_EOE'], [817358, None, u'Callee', u'printk_ratelimit'], [817357, None, u'ArgumentList', u''], [817364, None, u'Identifier', u'nlh'], [817363, None, u'Identifier', u'nlmsg_type'], [817359, None, u'Identifier', u'printk_ratelimit'], [817354, u'True', u'Condition', u'nlh -> nlmsg_type != AUDIT_EOE && printk_ratelimit ( )'], [817389, u'True', u'CFGEntryNode', u'ENTRY']]","[[817355, None, u'AndExpression', u'nlh -> nlmsg_type != AUDIT_EOE && printk_ratelimit ( )'], [817360, None, u'EqualityExpression', u'nlh -> nlmsg_type != AUDIT_EOE'], [817356, None, u'CallExpression', u'printk_ratelimit ( )'], [817362, None, u'PtrMemberAccess', u'nlh -> nlmsg_type'], [817361, None, u'Identifier', u'AUDIT_EOE'], [817358, None, u'Callee', u'printk_ratelimit'], [817357, None, u'ArgumentList', u''], [817364, None, u'Identifier', u'nlh'], [817363, None, u'Identifier', u'nlmsg_type'], [817359, None, u'Identifier', u'printk_ratelimit'], [817354, u'True', u'Condition', u'nlh -> nlmsg_type != AUDIT_EOE && printk_ratelimit ( )'], [817378, None, u'IdentifierDecl', u'* nlh = nlmsg_hdr ( skb )'], [817388, None, u'IdentifierDeclType', u'struct nlmsghdr *'], [817387, None, u'Identifier', u'nlh'], [817379, None, u'AssignmentExpr', u'* nlh = nlmsg_hdr ( skb )'], [817386, None, u'Identifier', u'nlh'], [817380, None, u'CallExpression', u'nlmsg_hdr ( skb )'], [817384, None, u'Callee', u'nlmsg_hdr'], [817381, None, u'ArgumentList', u'skb'], [817385, None, u'Identifier', u'nlmsg_hdr'], [817382, None, u'Argument', u'skb'], [817383, None, u'Identifier', u'skb'], [817377, u'True', u'IdentifierDeclStatement', u'struct nlmsghdr * nlh = nlmsg_hdr ( skb ) ;'], [817337, None, u'ParameterType', u'struct sk_buff *'], [817336, None, u'Identifier', u'skb'], [817335, u'True', u'Parameter', u'struct sk_buff * skb']]"
+"ping: implement proper locking
+
+We got a report of yet another bug in ping
+
+http://www.openwall.com/lists/oss-security/2017/03/24/6
+
+->disconnect() is not called with socket lock held.
+
+Fix this by acquiring ping rwlock earlier.
+
+Thanks to Daniel, Alexander and Andrey for letting us know this problem.
+
+Fixes: c319b4d76b9e (""net: ipv4: add IPPROTO_ICMP socket kind"")
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Reported-by: Daniel Jiang <danieljiang0415@gmail.com>
+Reported-by: Solar Designer <solar@openwall.com>
+Reported-by: Andrey Konovalov <andreyknvl@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>",net/ipv4/ping.c,+,"[[836365, u'True', u'ExpressionStatement', u'write_lock_bh ( & ping_table . lock )']]","[[836366, None, u'CallExpression', u'write_lock_bh ( & ping_table . lock )'], [836374, None, u'Callee', u'write_lock_bh'], [836367, None, u'ArgumentList', u'& ping_table . lock'], [836375, None, u'Identifier', u'write_lock_bh'], [836368, None, u'Argument', u'& ping_table . lock'], [836369, None, u'UnaryOp', u'& ping_table . lock'], [836373, None, u'UnaryOperator', u'&'], [836370, None, u'MemberAccess', u'ping_table . lock'], [836372, None, u'Identifier', u'ping_table'], [836371, None, u'Identifier', u'lock'], [836365, u'True', u'ExpressionStatement', u'write_lock_bh ( & ping_table . lock )'], [836401, u'True', u'CFGEntryNode', u'ENTRY']]","[[836366, None, u'CallExpression', u'write_lock_bh ( & ping_table . lock )'], [836374, None, u'Callee', u'write_lock_bh'], [836367, None, u'ArgumentList', u'& ping_table . lock'], [836375, None, u'Identifier', u'write_lock_bh'], [836368, None, u'Argument', u'& ping_table . lock'], [836369, None, u'UnaryOp', u'& ping_table . lock'], [836373, None, u'UnaryOperator', u'&'], [836370, None, u'MemberAccess', u'ping_table . lock'], [836372, None, u'Identifier', u'ping_table'], [836371, None, u'Identifier', u'lock'], [836365, u'True', u'ExpressionStatement', u'write_lock_bh ( & ping_table . lock )']]"
+"ping: implement proper locking
+
+We got a report of yet another bug in ping
+
+http://www.openwall.com/lists/oss-security/2017/03/24/6
+
+->disconnect() is not called with socket lock held.
+
+Fix this by acquiring ping rwlock earlier.
+
+Thanks to Daniel, Alexander and Andrey for letting us know this problem.
+
+Fixes: c319b4d76b9e (""net: ipv4: add IPPROTO_ICMP socket kind"")
+Signed-off-by: Eric Dumazet <edumazet@google.com>
+Reported-by: Daniel Jiang <danieljiang0415@gmail.com>
+Reported-by: Solar Designer <solar@openwall.com>
+Reported-by: Andrey Konovalov <andreyknvl@google.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>",net/ipv4/ping.c,+,"[[836284, u'True', u'ExpressionStatement', u'write_unlock_bh ( & ping_table . lock )']]","[[836285, None, u'CallExpression', u'write_unlock_bh ( & ping_table . lock )'], [836293, None, u'Callee', u'write_unlock_bh'], [836286, None, u'ArgumentList', u'& ping_table . lock'], [836294, None, u'Identifier', u'write_unlock_bh'], [836287, None, u'Argument', u'& ping_table . lock'], [836288, None, u'UnaryOp', u'& ping_table . lock'], [836292, None, u'UnaryOperator', u'&'], [836289, None, u'MemberAccess', u'ping_table . lock'], [836291, None, u'Identifier', u'ping_table'], [836290, None, u'Identifier', u'lock'], [836284, u'True', u'ExpressionStatement', u'write_unlock_bh ( & ping_table . lock )'], [836401, u'True', u'CFGEntryNode', u'ENTRY']]","[[836285, None, u'CallExpression', u'write_unlock_bh ( & ping_table . lock )'], [836293, None, u'Callee', u'write_unlock_bh'], [836286, None, u'ArgumentList', u'& ping_table . lock'], [836294, None, u'Identifier', u'write_unlock_bh'], [836287, None, u'Argument', u'& ping_table . lock'], [836288, None, u'UnaryOp', u'& ping_table . lock'], [836292, None, u'UnaryOperator', u'&'], [836289, None, u'MemberAccess', u'ping_table . lock'], [836291, None, u'Identifier', u'ping_table'], [836290, None, u'Identifier', u'lock'], [836284, u'True', u'ExpressionStatement', u'write_unlock_bh ( & ping_table . lock )']]"

@@ -140,8 +140,8 @@ def deal_commit(gh, sha, file_count, total_count, writer):
             total_count = total_count + 1
 
             # define old/new_store_name
-            new_store_name = '/data/download/' + user + '_' + repos + str(file_count) + '_new.cpp'
-            old_store_name = '/data/download/' + user + '_' + repos + str(file_count) + '_old.cpp'
+            new_store_name = '/data/download/' + repos + '/' + user + '_' + repos + str(file_count) + '_new.cpp'
+            old_store_name = '/data/download/' + repos + '/' + user + '_' + repos + str(file_count) + '_old.cpp'
 
             # call deal_patch to deal with the patch file
             has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
