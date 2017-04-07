@@ -104,8 +104,8 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
     return has_log
 
 """
-@ param  github parameters gh and sha of commit and the counter for stored files and fileWriter
-@ return file_count new counter of stored files 
+@ param  github parameters gh and sha of commit and the counter for stored/total files and fileWriter
+@ return file_count new counter of stored files, total_count counters of cpp files
 @ callee deal_patch( sha, file, writer)
 @ caller fetch_commit(user, repos, commit_sha='') ..
 @ involve deal with commit and involved changed file
@@ -161,7 +161,7 @@ def deal_commit(gh, sha, file_count, total_count, writer):
         else:
             print "not cpp without test"
 
-    return file_count
+    return file_count, total_count
 
 
 """
@@ -191,9 +191,9 @@ def fetch_commit(user, repos, commit_sha=''):
     total_count = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
-        file_count = deal_commit(gh, commit.sha, file_count, total_count, fetch_writer)
+        file_count, total_count = deal_commit(gh, commit.sha, file_count, total_count, fetch_writer)
         if file_count % 10 == 0:
-            print 'now saved the no. %d file' %file_count
+            print 'now saved the no. %d file, total file is %d' %(file_count, total_count)
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file 

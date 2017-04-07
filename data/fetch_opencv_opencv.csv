@@ -1,0 +1,113 @@
+commit_sha,commit_message,file_name,change_type,log_statement,log_loc,old_store_name,new_store_name
+297ba8532393c6a972dcf48d0176a626d4a64900,Merge pull request #8441 from alalek:dispatch_mathfuncs_core,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log32f(const float *src, float *dst, int n)",134,download/opencv_opencv0_old.cpp,download/opencv_opencv0_new.cpp
+297ba8532393c6a972dcf48d0176a626d4a64900,Merge pull request #8441 from alalek:dispatch_mathfuncs_core,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log64f(const double *src, double *dst, int n)",145,download/opencv_opencv0_old.cpp,download/opencv_opencv0_new.cpp
+297ba8532393c6a972dcf48d0176a626d4a64900,Merge pull request #8441 from alalek:dispatch_mathfuncs_core,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log(const float* src, float* dst, int n)",169,download/opencv_opencv0_old.cpp,download/opencv_opencv0_new.cpp
+297ba8532393c6a972dcf48d0176a626d4a64900,Merge pull request #8441 from alalek:dispatch_mathfuncs_core,modules/core/src/mathfuncs_core.dispatch.cpp,+,"log32f(src, dst, n);",171,download/opencv_opencv0_old.cpp,download/opencv_opencv0_new.cpp
+297ba8532393c6a972dcf48d0176a626d4a64900,Merge pull request #8441 from alalek:dispatch_mathfuncs_core,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log(const double* src, double* dst, int n)",174,download/opencv_opencv0_old.cpp,download/opencv_opencv0_new.cpp
+297ba8532393c6a972dcf48d0176a626d4a64900,Merge pull request #8441 from alalek:dispatch_mathfuncs_core,modules/core/src/mathfuncs_core.dispatch.cpp,+,"log64f(src, dst, n);",176,download/opencv_opencv0_old.cpp,download/opencv_opencv0_new.cpp
+36e801758038fa9d8114b2e77b2b8ec658c4c737,Merge pull request #8465 from claudiofantacci:enh/cudastreamhog,modules/cudaobjdetect/src/hog.cpp,-,CV_Assert( !stream );,458,download/opencv_opencv1_old.cpp,download/opencv_opencv1_new.cpp
+35f66340d730a50a8a19e61016e9dabfa6696910,"Add cuda::Stream capability to cuda::HOG::compute
+
+In the previous version only the default stream was/could be used, i.e.
+cv::cuda::Stream::Null().
+
+With this change, HOG::compute() will now run in parallel over different
+cuda::Streams.
+
+The code has been reordered so that all data allocation is completed
+first, then all the kernels are run in parallel over streams.
+
+Fix #8177",modules/cudaobjdetect/src/hog.cpp,-,CV_Assert( !stream );,458,download/opencv_opencv2_old.cpp,download/opencv_opencv2_new.cpp
+49e16a3c9f8e9e53c98aa1b85c05420c322c96d2,Merge pull request #8448 from jexner:foreach-segfault-fix,modules/core/test/test_mat.cpp,+,"ts->printf(cvtest::TS::LOG, ""forEach is not correct.\n""",774,download/opencv_opencv3_old.cpp,download/opencv_opencv3_new.cpp
+49e16a3c9f8e9e53c98aa1b85c05420c322c96d2,Merge pull request #8448 from jexner:foreach-segfault-fix,modules/core/test/test_mat.cpp,+,"ts->printf(cvtest::TS::LOG, ""forEach is not correct because total is invalid.\n"");",797,download/opencv_opencv3_old.cpp,download/opencv_opencv3_new.cpp
+46af07575e4c7f9bf9597beaacff414a9fe244db,"Add test case for cv::Mat::forEach
+
+This test case uses a matrix with more dimensions than columns. Without
+the fix in
+https://github.com/opencv/opencv/pull/8448/commits/b45e784bebe318826bb48a41023db3fe1660d91e
+this crashes with a segmentation fault, hangs or simply fails with wrong
+values.",modules/core/test/test_mat.cpp,+,"ts->printf(cvtest::TS::LOG, ""forEach is not correct.\n""",774,download/opencv_opencv4_old.cpp,download/opencv_opencv4_new.cpp
+46af07575e4c7f9bf9597beaacff414a9fe244db,"Add test case for cv::Mat::forEach
+
+This test case uses a matrix with more dimensions than columns. Without
+the fix in
+https://github.com/opencv/opencv/pull/8448/commits/b45e784bebe318826bb48a41023db3fe1660d91e
+this crashes with a segmentation fault, hangs or simply fails with wrong
+values.",modules/core/test/test_mat.cpp,+,"ts->printf(cvtest::TS::LOG, ""forEach is not correct because total is invalid.\n"");",797,download/opencv_opencv4_old.cpp,download/opencv_opencv4_new.cpp
+1e6ce1d2f827b5c04b0e7797e88c37a955563e31,core(mathfuncs_core): cpu optimization dispatched code,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log32f(const float *src, float *dst, int n)",134,download/opencv_opencv5_old.cpp,download/opencv_opencv5_new.cpp
+1e6ce1d2f827b5c04b0e7797e88c37a955563e31,core(mathfuncs_core): cpu optimization dispatched code,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log64f(const double *src, double *dst, int n)",145,download/opencv_opencv5_old.cpp,download/opencv_opencv5_new.cpp
+1e6ce1d2f827b5c04b0e7797e88c37a955563e31,core(mathfuncs_core): cpu optimization dispatched code,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log(const float* src, float* dst, int n)",169,download/opencv_opencv5_old.cpp,download/opencv_opencv5_new.cpp
+1e6ce1d2f827b5c04b0e7797e88c37a955563e31,core(mathfuncs_core): cpu optimization dispatched code,modules/core/src/mathfuncs_core.dispatch.cpp,+,"log32f(src, dst, n);",171,download/opencv_opencv5_old.cpp,download/opencv_opencv5_new.cpp
+1e6ce1d2f827b5c04b0e7797e88c37a955563e31,core(mathfuncs_core): cpu optimization dispatched code,modules/core/src/mathfuncs_core.dispatch.cpp,+,"void log(const double* src, double* dst, int n)",174,download/opencv_opencv5_old.cpp,download/opencv_opencv5_new.cpp
+1e6ce1d2f827b5c04b0e7797e88c37a955563e31,core(mathfuncs_core): cpu optimization dispatched code,modules/core/src/mathfuncs_core.dispatch.cpp,+,"log64f(src, dst, n);",176,download/opencv_opencv5_old.cpp,download/opencv_opencv5_new.cpp
+f70cc29edb8a606fb859eaa67a4c9609f7f904fa,"export SVM::trainAuto to python #7224 (#8373)
+
+* export SVM::trainAuto to python #7224
+
+* workaround for ABI compatibility of SVM::trainAuto
+
+* add parameter comments to new SVM::trainAuto function
+
+* Export ParamGrid member variables",modules/ml/src/svm.cpp,+,"CV_Error(Error::StsNotImplemented, ""the class is not SVMImpl"");",2315,download/opencv_opencv6_old.cpp,download/opencv_opencv6_new.cpp
+1857aa22b3871421898520072c6761ef486f030f,Merge pull request #8430 from sovrasov:interactive_calib_can_drop_aruco,apps/interactive-calibration/main.cpp,+,"CV_Error(cv::Error::StsNotImplemented, ""Aruco module is disabled in current build configuration.""",107,download/opencv_opencv7_old.cpp,download/opencv_opencv7_new.cpp
+a56bd1fbba37a9bd9b68d13f688c9cfc855fda63,Make aruco dependency optional for interactive calibration app,apps/interactive-calibration/main.cpp,+,"CV_Error(cv::Error::StsNotImplemented, ""Aruco module is disabled in current build configuration.""",107,download/opencv_opencv8_old.cpp,download/opencv_opencv8_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/core/src/dxt.cpp,+,CV_Assert( !((flags & DFT_COMPLEX_INPUT) && src.channels() != 2) );,3346,download/opencv_opencv9_old.cpp,download/opencv_opencv9_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( src.type() == CV_32FC1 || src.type() == CV_32FC2 );,286,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( !(flags & DFT_COMPLEX_OUTPUT) );,287,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( is_complex_input || is_complex_output );,288,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( dft_size_opt.width > 1 );,289,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( !(flags & DFT_COMPLEX_OUTPUT) );,367,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( is_complex_input || is_complex_output );,373,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( dft_size_opt.width > 1 );,388,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( src.type() == CV_32FC1 || src.type() == CV_32FC2 );,428,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( is_complex_input == (src.channels() == 2) );,429,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/src/arithm.cpp,+,"CV_Error(Error::StsNotImplemented, ""The library was build without CUFFT"");",502,download/opencv_opencv10_old.cpp,download/opencv_opencv10_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/test/test_arithm.cpp,+,"ASSERT_EQ(CV_32F, d_b.depth());",274,download/opencv_opencv11_old.cpp,download/opencv_opencv11_new.cpp
+e5dbd2c3a59f83928a237671ef819bca67f88105,Merge pull request #8406 from khnaba:dft-as-algorithm,modules/cudaarithm/test/test_arithm.cpp,+,"ASSERT_EQ(2, d_b.channels());",275,download/opencv_opencv11_old.cpp,download/opencv_opencv11_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"fprintf(stderr, ""\nOpenCV build configuration is:\n%s\n"",",305,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"fprintf(stderr, ""\n""",486,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"fprintf(stderr, ""\nRequired baseline features:\n"");",493,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"CV_ErrorNoReturn(cv::Error::StsAssert, ""Missing support for required CPU baseline features. Check OpenCV build configuration and required CPU/HW setup."");",495,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"if (dump) fprintf(stderr, ""%s - OK\n"", getHWFeatureNameSafe(feature));",511,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"if (dump) fprintf(stderr, ""%s - NOT AVAILABLE\n"", getHWFeatureNameSafe(feature));",516,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,CV_Assert(feature.size() > 0);,558,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"if (dump) fprintf(stderr, ""OPENCV: Trying to disable baseline CPU feature: '%s'. This has very limited effect, because code optimizations for this feature are executed unconditionally in the most cases.\n"", getHWFeatureNameSafe(i));",579,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"if (dump) fprintf(stderr, ""OPENCV: Trying to disable unavailable CPU feature on the current platform: '%s'.\n"", getHWFeatureNameSafe(i));",583,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+a57d144076222d2cd689671c80890e4ef41c4e64,Merge pull request #7462 from alalek:cpu_multi_target,modules/core/src/system.cpp,+,"if (dump) fprintf(stderr, ""OPENCV: Trying to disable unknown CPU feature: '%s'.\n"", feature.c_str());",593,download/opencv_opencv12_old.cpp,download/opencv_opencv12_new.cpp
+741e51396bec5d3e3a13dbb880e127d9eff9dd58,Merge pull request #8416 from berak:patch-2,modules/imgproc/src/undistort.cpp,-,"printf(""avg iters = %g\n"", (double)avgiter/avgn);",502,download/opencv_opencv13_old.cpp,download/opencv_opencv13_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/core/src/dxt.cpp,+,CV_Assert( !((flags & DFT_COMPLEX_INPUT) && src.channels() != 2) );,3346,download/opencv_opencv14_old.cpp,download/opencv_opencv14_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( src.type() == CV_32FC1 || src.type() == CV_32FC2 );,286,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( !(flags & DFT_COMPLEX_OUTPUT) );,287,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( is_complex_input || is_complex_output );,288,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,-,CV_Assert( dft_size_opt.width > 1 );,289,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( !(flags & DFT_COMPLEX_OUTPUT) );,367,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( is_complex_input || is_complex_output );,373,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( dft_size_opt.width > 1 );,388,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( src.type() == CV_32FC1 || src.type() == CV_32FC2 );,428,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,+,CV_Assert( is_complex_input == (src.channels() == 2) );,429,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/src/arithm.cpp,+,"CV_Error(Error::StsNotImplemented, ""The library was build without CUFFT"");",502,download/opencv_opencv15_old.cpp,download/opencv_opencv15_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/test/test_arithm.cpp,+,"ASSERT_EQ(CV_32F, d_b.depth());",274,download/opencv_opencv16_old.cpp,download/opencv_opencv16_new.cpp
+00f3ad721797d8013657f63142b2451b76556e9c,Implement DFT as cv::Algorithm to support concurrent streams,modules/cudaarithm/test/test_arithm.cpp,+,"ASSERT_EQ(2, d_b.channels());",275,download/opencv_opencv16_old.cpp,download/opencv_opencv16_new.cpp
+0b31eca9c28daa047c32946eaeb82512aef0cc56,"remove unnessecary print statement
+
+#resolves: 7881
+
+remove printf statement and associated variables from invMapPointSpherical() in undistort.cpp",modules/imgproc/src/undistort.cpp,-,"printf(""avg iters = %g\n"", (double)avgiter/avgn);",502,download/opencv_opencv17_old.cpp,download/opencv_opencv17_new.cpp
+27cf6e549e6051533778dd39b4b050a6d08d735b,"Merge pull request #8367 from khnaba:cuda-calchist-with-mask
+
+Implement cv::cuda::calcHist with mask support (#8367)
+
+* Implement cuda::calcHist with mask
+
+* Fix documentation build warning
+
+* Have their own step sizes for src and mask. Fix review comment.",modules/cudaimgproc/src/histogram.cpp,+,CV_Assert( mask.empty() || mask.type() == CV_8UC1 );,86,download/opencv_opencv18_old.cpp,download/opencv_opencv18_new.cpp
+27cf6e549e6051533778dd39b4b050a6d08d735b,"Merge pull request #8367 from khnaba:cuda-calchist-with-mask
+
+Implement cv::cuda::calcHist with mask support (#8367)
+
+* Implement cuda::calcHist with mask
+
+* Fix documentation build warning
+
+* Have their own step sizes for src and mask. Fix review comment.",modules/cudaimgproc/src/histogram.cpp,+,CV_Assert( mask.empty() || mask.size() == src.size() );,87,download/opencv_opencv18_old.cpp,download/opencv_opencv18_new.cpp
