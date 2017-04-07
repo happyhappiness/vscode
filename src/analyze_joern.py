@@ -110,13 +110,15 @@ def analyze(user, repos):
     count = 0
     # remove the table title
     for record in islice(records, 1, None):
-        # do not deal with delete log at this version
+        # default + type and use new file
+        file_index = 7
+        # use old file for - type
         if record[3] == '-':
-            print "delete record -> ignore"
+            file_index = 6
         if count % 10 == 0:
             print "now record the No. %d analyze" %count
         # call deal_line to retrieve location info(- included)
-        record, has_edit = analyze_record(joern_instance, record, 4, 5, 6)
+        record, has_edit = analyze_record(joern_instance, record, 4, 5, file_index)
 
         # update analyze data is has edited
         if has_edit:

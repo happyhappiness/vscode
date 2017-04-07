@@ -10,13 +10,41 @@ reload(sys);
 sys.setdefaultencoding('utf8')
 
 """
-@ param  commit sha sha, changed cpp file file, stored file name store_name, csv writer writer
+@ param  patch, line_count of the changed log, patch_delete array and type of this change
 @ return bool has log (whether this patch contained log or not)
 @ callee ..
+@ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
+@ involve deal with patch file and save commit info (just store and analyze +)
+"""
+def get_loc(patch, line_count, patch_delete, change_type):
+    
+    line_back = line_count
+    line_delete = 0
+    while line_back != -1:
+        line_back = line_back - 1 # start from the line above
+        line_delete = line_delete + patch_delete[line_back] # line deleted
+        # line number of description
+        log_loc = re.match('^@@.*-(.*),.*\+(.*),.*@@', patch[line_back])
+        if log_loc:
+            if change_type == '+':
+                # source file is the changed file -> loc depends on +(num)
+                # and distance of line_count and line_back except deleted lines
+                log_loc = int(log_loc.group(2)) + (line_count - line_back - 1 - line_delete)
+                # stop search and switch to next line
+            else:
+                log_loc = int(log_loc.group(1)) + line_delete
+            break
+
+    return log_loc
+
+"""
+@ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
+@ return bool has log (whether this patch contained log or not)
+@ callee get_loc(patch, line_count, patch_delete, change_type)
 @ caller  deal_commit(gh, sha, writer) ..
 @ involve deal with patch file and save commit info (just store and analyze +)
 """
-def deal_patch(sha, message, changed_file, store_name, writer):
+def deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer):
     
     has_log = False
 
@@ -60,26 +88,19 @@ def deal_patch(sha, message, changed_file, store_name, writer):
                 patch_delete[line_count] = 1 # mark to be delete change
             # backtrace to find the changed location in source file
             has_log = True
-            line_back = line_count
-            line_delete = 0
-            while line_back != 0:
-                line_back = line_back - 1 # start from the line above
-                line_delete = line_delete + patch_delete[line_back] # line deleted
-                # line number of description
-                log_loc = re.match('^@@.*\+(.*),.*@@', patch[line_back])
-                if log_loc:
-                    # source file is the changed file -> loc depends on +(num)
-                    # and distance of line_count and line_back except deleted lines
-                    log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_delete)
-                    data_row.append(log_loc)
-                    data_row.append(store_name)
-                    writer.writerow(data_row)
-                    # stop search and switch to next line
-                    break
+            # call get_loc to retrieve the changed log location in files
+            log_loc = get_loc(patch, line_count, patch_delete, change_type)
+            if log_loc:
+                # source file is the changed file -> loc depends on +(num)
+                # and distance of line_count and line_back except deleted lines
+                data_row.append(log_loc)
+                data_row.append(old_store_name)
+                data_row.append(new_store_name)
+                writer.writerow(data_row)
 
         # increment line_count
         line_count = line_count + 1
-    
+
     return has_log
 
 """
@@ -106,8 +127,12 @@ def deal_commit(gh, sha, file_count, total_count, writer):
             # increment the total file count
             total_count = total_count + 1
 
+            # define old/new_store_name
+            new_store_name = 'download/' + user + '_' + repos + str(file_count) + '_new.cpp'
+            old_store_name = 'download/' + user + '_' + repos + str(file_count) + '_old.cpp'
+
             # call deal_patch to deal with the patch file
-            has_log = deal_patch(sha, message, changed_file, store_name, writer)
+            has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
             if has_log:
                 # download the blob of file
                 source = gh.git_data.blobs.get(changed_file.sha).content
@@ -115,19 +140,17 @@ def deal_commit(gh, sha, file_count, total_count, writer):
                 source = base64.b64decode(source)
 
                 # write new file to temp file
-                new_store_name = 'download/' + user + '_' + repos + str(file_count) + '_new.cpp'
                 temp_file = open(new_store_name, 'wb')
                 temp_file.write(source)
                 temp_file.close()
 
                 # write patch file to temp file
-                patch_store_name = 'download/' + user + '_' + repos + str(file_count) + '_patch.cpp'
+                patch_store_name = 'download/temp.cpp'
                 temp_file = open(patch_store_name, 'wb')
                 temp_file.write(changed_file.patch)
                 temp_file.close()
 
                 # get old file with patch cmd and write back
-                old_store_name = 'download/' + user + '_' + repos + str(file_count) + '_old.cpp'
                 output = commands.getoutput('patch -R ' + new_store_name \
                         + ' -i ' + patch_store_name + ' -o ' + old_store_name)
                 output = commands.getoutput('rm ' + patch_store_name)
@@ -151,16 +174,16 @@ def deal_commit(gh, sha, file_count, total_count, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos 
-    gh = Github(login='993273596@qq.com', password='xx', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
     fetch = file('data/fetch_' + user + '_' + repos + '.csv', 'wb')
     fetch_writer = csv.writer(fetch)
 
-    # write table title (3:change_type, 4:log_statement, 5:log_loc, 6:store_name)
+    # write table title (3:change_type, 4:log_statement, 5:log_loc, 6:old_store_name, 7:new_store_name)
     fetch_writer.writerow(['commit_sha', 'commit_message', 'file_name', \
-                        'change_type', 'log_statement', 'log_loc', 'store_name'])
+                        'change_type', 'log_statement', 'log_loc', 'old_store_name', 'new_store_name'])
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list()
