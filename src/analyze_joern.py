@@ -37,6 +37,8 @@ def cdgNodeAnalysis(result):
 def getDependendedAstOfLog(filename, location, joern_instance):
 
     # query for log statement
+    # filename = '*/opencv_opencv67_new.cpp'
+    # location = '88'
     location = location + ':'
     base_query = 'getStatementByFileNameAndLoc("' + filename + '","' + location + '")'
     log_result = joern_instance.runGremlinQuery(base_query)
@@ -103,7 +105,7 @@ def analyze(user, repos):
     records = csv.reader(fetch)
     # initialize python-joern instance
     joern_instance = JoernSteps()
-    joern_instance.addStepsDir("/opt/joern-code/query/")
+    joern_instance.addStepsDir("/data/joern-code/query/")
     joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
     # connect to database
     joern_instance.connectToDatabase()
@@ -128,7 +130,7 @@ def analyze(user, repos):
             record.pop(6)
             analyze_writer.writerow(record)
             count = count + 1
-            
+
     # close files
     analysis.close()
     fetch.close()
@@ -141,9 +143,11 @@ main function
 # several configuration constant: user, repos
 # user = 'mongodb'
 # repos = 'mongo'
-user = 'opencv'
-repos = 'opencv'
+# user = 'opencv'
+# repos = 'opencv'
 # user = 'apple'
 # repos = 'swift'
+user = 'llvm-mirror'
+repos = 'clang'
 
 analyze( user, repos)

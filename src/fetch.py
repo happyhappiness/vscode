@@ -16,18 +16,20 @@ sys.setdefaultencoding('utf8')
 @ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
 @ involve get log location based on its location in patch and patch info
 """
-def get_loc(patch, line_count, patch_delete, change_type):
+def get_loc(patch, line_count, patch_delete, patch_add, change_type):
     
     line_back = line_count
     line_delete = 0
+    line_add = 0
     while line_back != -1:
         line_back = line_back - 1 # start from the line above
         line_delete = line_delete + patch_delete[line_back] # line deleted
+        line_add = line_add + patch_add[line_back] # line added
         # line number of description
         log_loc = re.match('^@@.*-(.*),.*\+(.*),.*@@', patch[line_back])
         if log_loc:
             if change_type == '-':
-                log_loc = int(log_loc.group(1)) + line_delete
+                log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_add)
             else:
                 # source file is the changed file -> loc depends on +(num)
                 # and distance of line_count and line_back except deleted lines
@@ -57,10 +59,23 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 
     # array to record the deleted changed lines
     patch_delete = [0 for i in range(len(patch))]
+    patch_add = [0 for i in range(len(patch))]
 
     line_count = 0 # line of log statement
     # deal with each line of patch
     for line in patch:
+
+        # use start character yto judge change type
+        change_type = line[0]
+        if change_type == '-':
+            patch_delete[line_count] = 1 # mark to be delete change
+        else:
+            if change_type == '+':
+                patch_add[line_count] = 1 # mark to be add change
+            else:
+                # no change so no log change: increment line_count and continue
+                line_count = line_count + 1
+                continue
 
         # filter out the one with log statement changes
         log_function = 'assert|log|debug|print|write|error'
@@ -76,19 +91,17 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # file name
             data_row.append(changed_file.filename)
             # change_type
-            change_type = is_log_change.group(1).strip()
+            # change_type = is_log_change.group(1).strip()
             data_row.append(change_type)
             # log_statement
             log_statement = is_log_change.group().strip()
             log_statement = log_statement[1:].strip()
             data_row.append(log_statement)
             # change type with - is not dealed and write back without context info
-            if change_type == '-':
-                patch_delete[line_count] = 1 # mark to be delete change
             # backtrace to find the changed location in source file
             has_log = True
             # call get_loc to retrieve the changed log location in files
-            log_loc = get_loc(patch, line_count, patch_delete, change_type)
+            log_loc = get_loc(patch, line_count, patch_delete, patch_add, change_type)
             if log_loc:
                 # source file is the changed file -> loc depends on +(num)
                 # and distance of line_count and line_back except deleted lines
@@ -127,8 +140,8 @@ def deal_commit(gh, sha, file_count, total_count, writer):
             total_count = total_count + 1
 
             # define old/new_store_name
-            new_store_name = 'download/' + user + '_' + repos + str(file_count) + '_new.cpp'
-            old_store_name = 'download/' + user + '_' + repos + str(file_count) + '_old.cpp'
+            new_store_name = '/data/download/' + user + '_' + repos + str(file_count) + '_new.cpp'
+            old_store_name = '/data/download/' + user + '_' + repos + str(file_count) + '_old.cpp'
 
             # call deal_patch to deal with the patch file
             has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
@@ -144,7 +157,7 @@ def deal_commit(gh, sha, file_count, total_count, writer):
                 temp_file.close()
 
                 # write patch file to temp file
-                patch_store_name = 'download/temp.cpp'
+                patch_store_name = '/data/download/temp.cpp'
                 temp_file = open(patch_store_name, 'wb')
                 temp_file.write(changed_file.patch)
                 temp_file.close()
@@ -195,7 +208,7 @@ def fetch_commit(user, repos, commit_sha=''):
             print 'now saved the no. %d file, total file is %d' %(file_count, total_count)
     # deal_commit(gh, commit_sha, writer)
 
-    # close the commit file 
+    # close the commit file
     fetch_writer.close()
 
 """
@@ -205,10 +218,12 @@ main function
 # several configuration constant: user, repos
 # user = 'mongodb'
 # repos = 'mongo'
-user = 'opencv'
-repos = 'opencv'
+# user = 'opencv'
+# repos = 'opencv'
 # user = 'apple'
 # repos = 'swift'
+user = 'llvm-mirror'
+repos = 'clang'
 
 commit_sha = 'a7e74d56036e94c3e4ed11ceeb4cd43e95209aa5'
 
