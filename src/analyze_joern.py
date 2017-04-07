@@ -38,10 +38,11 @@ def getDependendedAstOfLog(filename, location, joern_instance):
 
     # query for log statement
     location = location + ':'
-    base_query = 'getStatementByFileAndLoc("' + filename + '","' + location + '")'
+    base_query = 'getStatementByFileNameAndLoc("' + filename + '","' + location + '")'
     log_result = joern_instance.runGremlinQuery(base_query)
     # if no log node found return null
     if not log_result:
+        print filename + location
         return [],[],[]
 
     # query for ddg and cdg
@@ -63,7 +64,7 @@ def getDependendedAstOfLog(filename, location, joern_instance):
 
 """
 @ param  record of fetch_reader line, index of log, index of log_loc, index of store_name
-@ return edited record array and has edited flag
+@ return edited record array and has edited flag(log)
 @ caller analyze
 @ callee getDependendedAstOfLog
 @ involve retrieve context info through joern database
@@ -78,9 +79,10 @@ def analyze_record( joern_instance, record, log_index, loc_index, file_index):
 
     record[log_index] = log
     record[loc_index] = cdg_list
-    record[file_index] = ddg_list
+    # no.6 column
+    record[6] = ddg_list
 
-    return record
+    return record, log
 
 """
 @ param  user and repos
@@ -118,13 +120,15 @@ def analyze(user, repos):
         if count % 10 == 0:
             print "now record the No. %d analyze" %count
         # call deal_line to retrieve location info(- included)
-        record, has_edit = analyze_record(joern_instance, record, 4, 5, file_index)
+        record, log = analyze_record(joern_instance, record, 4, 5, file_index)
 
         # update analyze data is has edited
-        if has_edit:
+        if log:
             record.pop(0)
+            record.pop(6)
             analyze_writer.writerow(record)
             count = count + 1
+            
     # close files
     analysis.close()
     fetch.close()

@@ -11,10 +11,10 @@ sys.setdefaultencoding('utf8')
 
 """
 @ param  patch, line_count of the changed log, patch_delete array and type of this change
-@ return bool has log (whether this patch contained log or not)
+@ return log_loc
 @ callee ..
 @ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
-@ involve deal with patch file and save commit info (just store and analyze +)
+@ involve get log location based on its location in patch and patch info
 """
 def get_loc(patch, line_count, patch_delete, change_type):
     
@@ -26,13 +26,12 @@ def get_loc(patch, line_count, patch_delete, change_type):
         # line number of description
         log_loc = re.match('^@@.*-(.*),.*\+(.*),.*@@', patch[line_back])
         if log_loc:
-            if change_type == '+':
+            if change_type == '-':
+                log_loc = int(log_loc.group(1)) + line_delete
+            else:
                 # source file is the changed file -> loc depends on +(num)
                 # and distance of line_count and line_back except deleted lines
                 log_loc = int(log_loc.group(2)) + (line_count - line_back - 1 - line_delete)
-                # stop search and switch to next line
-            else:
-                log_loc = int(log_loc.group(1)) + line_delete
             break
 
     return log_loc
