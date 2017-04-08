@@ -28,9 +28,12 @@ def deal_commit(gh, sha):
         # filter to just deal with cpp and c files
         is_cpp = re.search('(.cpp|.c)$', changed_file.filename, re.I)
         # filter to not deal with test module files
-        is_test_cpp = re.search('(test.cpp|.c)$', changed_file.filename, re.I)
+        is_test_cpp = re.search('(test.cpp|test.c)$', changed_file.filename, re.I)
         if is_cpp and not is_test_cpp:
 
+            # ignore totally deleted file
+            if changed_file.status == 'removed':
+                continue
             # download the blob of file
             source = gh.git_data.blobs.get(changed_file.sha).content
             # decode to retrieve the source file
@@ -77,10 +80,10 @@ main function
 """
 
 # several configuration constant: user, repos
-user = 'opencv'
-repos = 'opencv'
+user = 'torvalds'
+repos = 'linux'
 
-commit_sha = '3fbe1f8d649ee709858b593bd69a4a85fe3224cb'
+commit_sha = 'e431e0e427799805461390df1db1e3478d4c475c'
 
 # with function to retieve all the commits of given path
 fetch_commit(user, repos, commit_sha)

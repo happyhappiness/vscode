@@ -135,7 +135,9 @@ def deal_commit(gh, sha, file_count, total_count, writer):
         is_cpp = re.search('(.cpp|.c|.cc)$', changed_file.filename, re.I)
         # filter to not deal with test module files
         is_test_cpp = re.search('(test.cpp|test.c)$', changed_file.filename, re.I)
-        if is_cpp and not is_test_cpp:
+        # do not deal with removed files
+        is_removed = changed_file.status
+        if is_cpp and not is_test_cpp and is_removed != 'removed':
             # increment the total file count
             total_count = total_count + 1
 
@@ -171,7 +173,7 @@ def deal_commit(gh, sha, file_count, total_count, writer):
                 file_count = file_count + 1
 
         else:
-            print "not cpp without test"
+            print "not cpp without test without removing"
 
     return file_count, total_count
 
@@ -218,14 +220,12 @@ main function
 # several configuration constant: user, repos
 # user = 'mongodb'
 # repos = 'mongo'
-# user = 'opencv'
-# repos = 'opencv'
+user = 'opencv'
+repos = 'opencv'
 # user = 'apple'
 # repos = 'swift'
-# user = 'llvm-mirror'
-# repos = 'clang'
-user = 'torvalds'
-repos = 'linux'
+# user = 'torvalds'
+# repos = 'linux'
 
 commit_sha = 'a7e74d56036e94c3e4ed11ceeb4cd43e95209aa5'
 

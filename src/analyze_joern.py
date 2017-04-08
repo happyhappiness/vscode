@@ -45,7 +45,29 @@ def getDependendedAstOfLog(filename, location, joern_instance):
     # if no log node found return null
     if not log_result:
         print filename + location
-        return [],[],[]
+
+        # print out other useful infomation
+        # functions in file
+        function_query = 'getFileByName("' + filename + '").out("IS_FILE_OF")'
+        functions = joern_instance.runGremlinQuery(function_query)
+        print '********************** function *******************************'
+        for function in functions:
+            print '\t',
+            print function
+        CFG_query = 'hasCFG("' + filename + '").filter{it != null}'
+        CFGs = joern_instance.runGremlinQuery(CFG_query)
+        print '********************** CFG *******************************'
+        for CFG in CFGs:
+            print '\t',
+            print CFG
+        # CFGNode_query = 'hasCFG("' + filename + '").filter{it != null}'
+        # CFGNodes = joern_instance.runGremlinQuery(CFGNode_query)
+        # print '********************** CFG *******************************'
+        # for CFGNode in CFGNodes:
+        #     print '\t',
+        #     print CFGNode
+
+        return [], [], []
 
     # query for ddg and cdg
     order = '5'
