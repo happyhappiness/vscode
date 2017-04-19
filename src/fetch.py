@@ -220,10 +220,10 @@ main function
 # several configuration constant: user, repos
 # user = 'mongodb'
 # repos = 'mongo'
-user = 'opencv'
-repos = 'opencv'
-# user = 'apple'
-# repos = 'swift'
+# user = 'opencv'
+# repos = 'opencv'
+user = 'apple'
+repos = 'swift'
 # user = 'torvalds'
 # repos = 'linux'
 

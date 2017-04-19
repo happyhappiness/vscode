@@ -1,25 +1,76 @@
 #-*-coding: utf-8 -*-
-import csv
-from itertools import islice  
+# import csv
+# from itertools import islice  
 """
 test for excel
 """
-csvfile = file('data/test.csv', 'ab')
+
+# """
+# split string
+# @ param string to split
+# @ return splitted list
+# @involve split string to list 
+# """
+
+# csvfile = file('data/test.csv', 'wb')
+# writer = csv.writer(csvfile)
+# writer.writerow(['id', 'url', 'keywords'])
+# data = []
+# list_a = [[1,2],[3,5]]
+# data.append(list_a)
+
+# writer.writerows(data)
+# csvfile.close()
+
+# csvfile = file('data/test.csv','rb')
+# reader = csv.reader(csvfile)
+# for row in islice(reader,1,None):
+#       print row
+# csvfile.close()
+
+"""
+test for pickle
+not human readable
+"""
+# import pickle
+
+# list_a = [[1,2],[3,5]]
+# with open('data/pickle.txt', 'wb') as fp:
+#     pickle.dump(list_a, fp)
+# with open ('data/pickle.txt', 'rb') as fp:
+#     list_a = pickle.load(fp)
+
+# print list_a
+
+
+"""
+test for json
+human readable
+"""
+import json
+import csv
+from itertools import islice
+
+
+csvfile = file('data/test.csv', 'wb')
 writer = csv.writer(csvfile)
 writer.writerow(['id', 'url', 'keywords'])
-data = [
-  ('1', 'http://www.xiaoheiseo.com/', '小黑'),
-  ('2', 'http://www.baidu.com/', '百度'),
-  ('3', 'http://www.jd.com/', '京东')
-]
-writer.writerows(data)
+data = []
+list_a = [[['233','12'],[2,4]],[[1,0],[2,3]]]
+list_b = [[1,4],[2,5]]
+data.append(json.dumps(list_a))
+data.append(json.dumps(list_b))
+writer.writerow(data)
 csvfile.close()
 
 csvfile = file('data/test.csv','rb')
 reader = csv.reader(csvfile)
-for row in islice(reader,1,None):
-    print row[0]
+for row in islice(reader, 1, None):
     print row
+    # json do not support single quotation mark
+    list_a = json.loads(row[0])
+    list_b = json.loads(row[1])
+
 csvfile.close()
 
 """
