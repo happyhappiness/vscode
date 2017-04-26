@@ -15,11 +15,11 @@ from itertools import islice
 """
 def longestCommonStr(cond_list_a, cond_list_b):
 
-    common_str = []
+    # common_str = []
     len_a = len(cond_list_a) + 1
     len_b = len(cond_list_b) + 1
     len_common = 0
-    index_end = 0
+    # index_end = 0
     memory = [[0 for col in range(len_b)] for row in range(len_a)]
     for i in range(1, len_a):
         for j in range(1, len_b):
@@ -84,6 +84,7 @@ def cluster_record( cdg_lists):
     cluster_lists = cdg_lists
 
     return cluster_lists
+
 """
 @ param  user and repos
 @ return nothing
