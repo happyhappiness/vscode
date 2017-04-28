@@ -42,7 +42,7 @@ def getdepth(clust):
 def draw_dendrogram(clust, labels, jpeg='clusters.jpg'):
     # set hight according to cluster height (number of entity)
     h = getheight(clust) * 20
-    w = 1200
+    w = 5000
     # get depth of cluster(total similarity)
     depth = max(getdepth(clust), 1)
 
