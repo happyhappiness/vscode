@@ -62,9 +62,18 @@ def getNeighborList(neighbor, context_lists, joern_instance):
 
     # update condition list to typed condition list
     for var in neighbor_list:
+        if var is None:
+            continue
         # update var to type if find in dictionary
         if var_dict.has_key(var):
             neighbor_list[neighbor_list.index(var)] = var_dict[var]
+            continue
+        # remove namespace before::
+        startpos = var.find("::")
+        while startpos != -1:
+            var = var[startpos + 2:]
+            startpos = var.find("::")
+        var = var.strip()
 
         # add type condition into conditin lists of log statement
         # context_lists.append([cond, control_label])
@@ -120,9 +129,18 @@ def getCondList(condition, context_lists, joern_instance):
     # update condition list to typed condition list
     for cond in cond_list:
         for var in cond:
+            if var is None:
+                continue
             # update var to type if find in dictionary
             if var_dict.has_key(var):
                 cond[cond.index(var)] = var_dict[var]
+                continue
+            # remove namespace before::
+            startpos = var.find("::")
+            while startpos != -1:
+                var = var[startpos + 2:]
+                startpos = var.find("::")
+            var = var.strip()
 
         # add type condition into conditin lists of log statement
         # context_lists.append([cond, control_label])

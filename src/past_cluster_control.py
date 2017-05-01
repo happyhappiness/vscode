@@ -5,6 +5,125 @@ import re
 import commands
 import json
 from itertools import islice
+from PIL import Image, ImageDraw
+
+
+"""
+@param: cluster
+@return int height
+@caller drawnode
+@callee self
+@involve: get height of the cluster with children
+"""
+def getheight(clust):
+    if clust.left is None and clust.right is None:
+        return 1
+    return getheight(clust.left) + getheight(clust.right)
+
+"""
+@param: cluster
+@return int depth
+@caller draw_dendrogram
+@callee self
+@involve: get depth of the cluster with children
+"""
+def getdepth(clust):
+    if clust.left is None and clust.right is None:
+        return 0
+    return max(getdepth(clust.left), getdepth(clust.right)) + clust.similarity
+
+"""
+@param: cluster, labels, img name to save
+@return none
+@caller main
+@callee drawnode, getdepth, getheight
+@involve: draw clusters with labels and save to given image file
+"""
+def draw_dendrogram(clust, labels, jpeg='clusters.jpg'):
+    # set hight according to cluster height (number of entity)
+    h = getheight(clust) * 20
+    w = 5000
+    # get depth of cluster(total similarity)
+    depth = max(getdepth(clust), 1)
+
+    scaling = float(w-150) / depth
+
+    img = Image.new('RGB', (w, h), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    draw.line((0, h/2, 10, h/2), fill=(255, 0, 0))
+    # draw the cluster from top by calling drawnode (center in h)
+    drawnode(draw, clust, 10, (h/2), scaling, labels)
+    img.save(jpeg, 'JPEG')
+
+"""
+@param: draw, cluster, x(w), y(h), scaling, labels
+@return int depth
+@caller draw_dendrogram
+@callee self
+@involve: draw cluster by coping with children
+"""
+def drawnode(draw, clust, x, y, scaling, labels):
+    if clust.id < 0:
+        h1 = getheight(clust.left) * 20
+        h2 = getheight(clust.right) * 20
+
+        top = y - (h1+h2)/2
+        bottom = y + (h1+h2)/2
+        #line length by similarity multiply scaling
+        ll = clust.similarity * scaling
+
+        # left line
+        draw.line((x, top+h1/2, x, bottom-h2/2), fill=(255, 0, 0))
+        # top line
+        draw.line((x, top+h1/2, x+ll, top+h1/2), fill=(255, 0, 0))
+        # bottom line
+        draw.line((x, bottom-h2/2, x+ll, bottom-h2/2), fill=(255, 0, 0))
+        # left children
+        drawnode(draw, clust.left, x+ll, top+h1/2, scaling, labels)
+        # right children
+        drawnode(draw, clust.right, x+ll, bottom-h2/2, scaling, labels)
+    else:
+        # draw label
+        draw.text((x+5, y-7), labels[clust.id], (0, 0, 0))
+
+"""
+@ param  string a and b to compute
+@ return lenth of common substring / min length
+@ callee ...
+@ caller computeSim ..
+@ involve compute the longgest common string (continuous) of two string
+"""
+def longestCommonStrBase(string_a, string_b):
+
+    # none in middle of list can be ignore
+    if string_a is None or string_b is None:
+        return 1.0
+
+    # if just one element, compare directly
+    len_a = len(string_a)
+    len_b = len(string_b)
+    if len_a == 1 or  len_b == 1:
+        return float(string_a[0] == string_b[0])
+
+    # length of a and b
+    len_a += 1
+    len_b += 1
+
+    len_common = 0
+    # index_end = 0
+    memory = [[0 for col in range(len_b)] for row in range(len_a)]
+    for i in range(1, len_a):
+        for j in range(1, len_b):
+            # update len_common with history
+            if string_a[i - 1] == string_b[j-1]:
+                memory[i][j] = memory[i-1][j-1] + 1
+                len_common = max(memory[i][j], len_common)
+            else:
+                memory[i][j] = 0
+
+    # simlarity value with common length / min length (0, 1)
+    return float(len_common)/min(len_a, len_b)
+
 
 """
 @ param  cond_list of a and b to compute
@@ -31,13 +150,9 @@ def longestCommonStr(cond_list_a, cond_list_b):
     for i in range(1, len_a):
         for j in range(1, len_b):
             # update len_common with history
-            # use func_similarity_dic firstly
-            if func_similarity_dic.has_key((cond_list_a[i - 1], cond_list_b[j - 1])):
-                print (cond_list_a[i - 1], cond_list_b[j - 1])
-                memory[i][j] = memory[i-1][j-1] + 1
-                len_common = max(memory[i][j], len_common)
-                continue
             if cond_list_a[i - 1] == cond_list_b[j-1]:
+            # if commmon substring length of two string is larger than 0.7 -> same
+            # if longestCommonStrBase(cond_list_a[i - 1], cond_list_b[j-1]) > 0.5:
                 memory[i][j] = memory[i-1][j-1] + 1
                 len_common = max(memory[i][j], len_common)
             else:
@@ -94,12 +209,13 @@ def computeSim(cond_lists_a, cond_lists_b):
 """
 @param vec, left, right, similarity, id
 @return new cluster
-@involve cluster class with children and similarity between children
+@involve cluster class with two children and similarity between children
 """
 class mycluster:
-    def __init__(self, vec=None, children=None, similarity=0.0, id=None):
+    def __init__(self, vec=None, left=None, right=None, similarity=0.0, id=None):
         # for drawing picture of clusters
-        self.children = children
+        self.left = left
+        self.right = right
         # feature vector
         self.vec = vec
         #  id label for locating label
@@ -125,19 +241,39 @@ def computeSimForCluster(cluster_a, cluster_b, similarity = 1):
         similarity = min(computeSim(cluster_a.vec, cluster_b.vec), similarity)
         return similarity
 
-    # first cluster (children)
+    # first cluster (left and right children)
     if cluster_a.id < 0:
-        # traverse children
-        for child in cluster_a.children:
-            similarity = min(computeSimForCluster(child, cluster_b, similarity), similarity)
+        similarity = min(computeSimForCluster(cluster_a.left, cluster_b, similarity), similarity)
+        similarity = min(computeSimForCluster(cluster_a.right, cluster_b, similarity), similarity)
         return similarity
 
-    # second cluster (children)
+    # second cluster (left and right children)
     if cluster_b.id < 0:
-        # traverse children
-        for child in cluster_b.children:
-            similarity = min(computeSimForCluster(cluster_a, child, similarity), similarity)
+        similarity = min(computeSimForCluster(cluster_a, cluster_b.left, similarity), similarity)
+        similarity = min(computeSimForCluster(cluster_a, cluster_b.right, similarity), similarity)
         return similarity
+
+"""
+@ param myclusters and cluster_lists and index of mycluster
+@ return cluster_lists
+@ callee  self
+@ caller cluster_record ..
+@ involve compute cluster index (cluster_lists) for each entity according to myclusters(the bi cluster tree)
+"""
+def computeClusterLists(mycluster, cluster_lists, index):
+
+    # if is entity, update its cluster index in cluster_lists
+    if mycluster.id >= 0:
+        cluster_lists[mycluster.id] = index
+        return cluster_lists
+
+    if mycluster.id < 0:
+        # left children
+        cluster_lists = computeClusterLists(mycluster.left, cluster_lists, index)
+        # right children
+        cluster_lists = computeClusterLists(mycluster.right, cluster_lists, index)
+        return cluster_lists
+
 
 """
 @param: cdg_lists(entiry vectors), label_lists(labels)
@@ -148,7 +284,7 @@ def computeSimForCluster(cluster_a, cluster_b, similarity = 1):
 """
 def cluster_record(cdg_lists, label_lists):
     # initialize the custers to consist of each entity
-    myclusters = [mycluster(children=[], vec=cdg_lists[i], id=i) for i in range(len(cdg_lists))]
+    myclusters = [mycluster(vec=cdg_lists[i], id=i) for i in range(len(cdg_lists))]
     flag = None
     currentclusted = -1
 
@@ -184,17 +320,7 @@ def cluster_record(cdg_lists, label_lists):
         # combine the two clusters
         mycluster1, mycluster2 = flag
         # create new bicluster(cluster id is minus number)
-        new_mycluster = mycluster(children=[], similarity=max_sim, id=currentclusted)
-        # children is basic level
-        if myclusters[mycluster1].id >= 0:
-            new_mycluster.children.append(myclusters[mycluster1])
-        else:
-            new_mycluster.children.extend(myclusters[mycluster1].children)
-
-        if  myclusters[mycluster2].id >= 0:
-            new_mycluster.children.append(myclusters[mycluster2])
-        else:
-            new_mycluster.children.extend(myclusters[mycluster2].children)
+        new_mycluster = mycluster(left=myclusters[mycluster1], right=myclusters[mycluster2], similarity=max_sim, id=currentclusted)
         currentclusted -= 1
         # remove old cluster from the clusters
         # have not destroy it
@@ -209,12 +335,7 @@ def cluster_record(cdg_lists, label_lists):
     cluster_lists = [0 for i in range(len(cdg_lists))]
     index = 0
     for now_cluster in myclusters:
-        if now_cluster.id < 0:
-            # traverse children
-            for child in now_cluster.children:
-                cluster_lists[child.id] = index
-        else:
-            cluster_lists[now_cluster.id] = index
+        cluster_lists = computeClusterLists(now_cluster, cluster_lists, index)
         index += 1
     return cluster_lists
 
@@ -226,13 +347,6 @@ def cluster_record(cdg_lists, label_lists):
 @ involve read from and write back to files
 """
 def cluster(user, repos):
-
-    # initialize func_similarity_dict
-    analyze_func = file('data/analyz_function_' + user + '_' + repos + '.csv', 'rb')
-    func_records = csv.reader(analyze_func)
-    for func_record in func_records:
-        func_similarity_dic[(func_record[0], func_record[1])] = func_record[2]
-    analyze_func.close()
 
     # initialize read file
     analyze_control = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'rb')
@@ -266,6 +380,10 @@ def cluster(user, repos):
         cluster_control_writer.writerow(record)
         index += 1
 
+    # close files
+    cluster_control.close()
+    analyze_control.close()
+
     similarity_control = file('data/similarity_' + user + '_' + repos + '.csv', 'wb')
     similarity_control_writer = csv.writer(similarity_control)
     similarity_control_writer.writerow(["left", "right", "similarity"])
@@ -273,10 +391,6 @@ def cluster(user, repos):
     for pair, similarity in similarity_dic.items():
         if pair[0] >= 0 and pair[1] >= 0:
             similarity_control_writer.writerow([pair[0], pair[1], similarity])
-
-    # close files
-    cluster_control.close()
-    analyze_control.close()
     similarity_control.close()
 
 """
@@ -297,7 +411,5 @@ repos = 'swift'
 
 # dictory for clustering
 similarity_dic = {}
-# function similarity dictionary
-func_similarity_dic = {}
 cluster_similarity = 0.5
 cluster( user, repos)

@@ -47,32 +47,31 @@ not human readable
 test for json
 human readable
 """
-import json
-import csv
-from itertools import islice
+# import json
+# import csv
+# from itertools import islice
 
 
-csvfile = file('data/test.csv', 'wb')
-writer = csv.writer(csvfile)
-writer.writerow(['id', 'url', 'keywords'])
-data = []
-list_a = [[['233','12'],[2,4]],[[1,0],[2,3]]]
-list_b = [[1,4],[2,5]]
-data.append(json.dumps(list_a))
-data.append(json.dumps(list_b))
-writer.writerow(data)
-csvfile.close()
+# csvfile = file('data/test.csv', 'wb')
+# writer = csv.writer(csvfile)
+# writer.writerow(['id', 'url', 'keywords'])
+# data = []
+# list_a = [[['233','12'],[2,4]],[[1,0],[2,3]]]
+# list_b = [[1,4],[2,5]]
+# data.append(json.dumps(list_a))
+# data.append(json.dumps(list_b))
+# writer.writerow(data)
+# csvfile.close()
 
-csvfile = file('data/test.csv','rb')
-reader = csv.reader(csvfile)
-for row in islice(reader, 1, None):
-    print row
-    # json do not support single quotation mark
-    list_a = json.loads(row[0])
-    list_b = json.loads(row[1])
+# csvfile = file('data/test.csv','rb')
+# reader = csv.reader(csvfile)
+# for row in islice(reader, 1, None):
+#     print row
+#     # json do not support single quotation mark
+#     list_a = json.loads(row[0])
+#     list_b = json.loads(row[1])
 
-csvfile.close()
-
+# csvfile.close()
 """
 test for string replace
 """
