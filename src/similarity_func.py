@@ -95,7 +95,7 @@ def maxCommonWord(string_a, string_b):
         print string_a + "\t," + string_b
 
     # simlarity value with common length / min length (0, 1)
-    return float(len_common)/max(len(word_list_a), len(word_list_b))
+    return float(len_common)/min(len(word_list_a), len(word_list_b))
 
 
 
@@ -163,7 +163,7 @@ def analyzeFunction(user, repos):
         for j in range(len_func):
             similarity = computeSim(functions[i], functions[j])
             # store back
-            if similarity > 0.6:
+            if similarity > 0.5:
                 analyze_writer.writerow([functions[i][0], functions[j][0], similarity])
 
     # close files

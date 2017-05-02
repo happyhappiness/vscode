@@ -31,13 +31,13 @@ def longestCommonStr(cond_list_a, cond_list_b):
     for i in range(1, len_a):
         for j in range(1, len_b):
             # update len_common with history
-            # use func_similarity_dic firstly
-            if func_similarity_dic.has_key((cond_list_a[i - 1], cond_list_b[j - 1])):
-                print (cond_list_a[i - 1], cond_list_b[j - 1])
+            if cond_list_a[i - 1] == cond_list_b[j-1]:
                 memory[i][j] = memory[i-1][j-1] + 1
                 len_common = max(memory[i][j], len_common)
                 continue
-            if cond_list_a[i - 1] == cond_list_b[j-1]:
+            # use func_similarity_dic firstly
+            if func_similarity_dic.has_key((cond_list_a[i - 1], cond_list_b[j - 1])):
+                print (cond_list_a[i - 1], cond_list_b[j - 1])
                 memory[i][j] = memory[i-1][j-1] + 1
                 len_common = max(memory[i][j], len_common)
             else:
