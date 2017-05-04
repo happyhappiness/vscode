@@ -241,7 +241,7 @@ def cluster(user, repos):
     cluster_control = file('data/cluster_' + user + '_' + repos + '.csv', 'wb')
     cluster_control_writer = csv.writer(cluster_control)
     cluster_control_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
-        'cdg_nodes', 'neighbor_nodes', 'condition_lists', 'store_name', 'log_loc', 'cluster_index'])
+        'cdg_nodes', 'neighbor_nodes', 'context_lists', 'ddg_nodes', 'ddg_lists', 'store_name', 'log_loc', 'cluster_index'])
 
     cdg_lists = []
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists

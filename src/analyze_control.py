@@ -5,6 +5,7 @@ import re
 import commands
 import base64
 import json
+import myUtil
 from itertools import islice
 from joern.all import JoernSteps
 
@@ -29,7 +30,62 @@ def nodeAnalysis(result):
     return cfg_list
 
 """
-@ param  condition, var map, context_lists and joern instance of the python-joern api
+@ param  ddg_node[ddg, variable], ddg_lists and joern instance of the python-joern api
+@ return ddg_lists
+@ callee ...
+@ caller getDependendedAstOfLog ..
+@ involve get ddg list by changing variables into type and callee into function name ...  
+"""
+def getDDGList(ddg_node, ddg_lists, joern_instance):
+    # get type
+    if not ddg_node:
+        return ddg_lists
+
+    # get statement and variable
+    ddg = ddg_node[1]
+    ddg_id = str(ddg[0])
+    variable = ddg_node[0]
+
+    # get use variable map(variable name, variable type)
+    var_query = '_().getVarMap(' + ddg_id +')'
+    ddg_var_map = joern_instance.runGremlinQuery(var_query)[0]
+    # make dictionary based on query result
+    var_dict = {}
+    for var_map in ddg_var_map:
+        var_dict[var_map[0]] = var_map[1]
+    # get def variable map(variable name, variable type)
+    var_query = '_().getVarMapForDDG(' + ddg_id +')'
+    ddg_var_map = joern_instance.runGremlinQuery(var_query)[0]
+    # append dictionary
+    for var_map in ddg_var_map:
+        var_dict[var_map[0]] = var_map[1]
+
+
+    # get statement list(postfix)
+    ddg_query = '_().getCFGStatementLists(' + ddg_id + ')'
+    ddg_list = joern_instance.runGremlinQuery(ddg_query)[0]
+
+    # update ddg list to typed ddg list
+    for var in ddg_list:
+        if var is None:
+            continue
+        # update var to type if find in dictionary
+        if var_dict.has_key(var):
+            ddg_list[ddg_list.index(var)] = var_dict[var]
+            continue
+        # remove namespace before::
+        var = myUtil.removeNamespace(var)
+
+    # update variable to variable type
+    variable = var_dict.get(variable, variable)
+    # add type ddg into ddg lists of log statement
+    # context_lists.append([cond, control_label])
+    ddg_lists.append([ddg_list, variable])
+
+    return ddg_lists
+
+"""
+@ param  neighbor,  context_lists and joern instance of the python-joern api
 @ return context_lists
 @ callee ...
 @ caller getDependendedAstOfLog ..
@@ -48,19 +104,25 @@ def getNeighborList(neighbor, context_lists, joern_instance):
     neighbor_id = str(neighbor_node[0])
 
 
-    # get condition variable map(variable name, variable type)
+    # get use variable map(variable name, variable type)
     var_query = '_().getVarMap(' + neighbor_id +')'
     neighbor_var_map = joern_instance.runGremlinQuery(var_query)[0]
     # make dictionary based on query result
     var_dict = {}
     for var_map in neighbor_var_map:
         var_dict[var_map[0]] = var_map[1]
+    # get def variable map(variable name, variable type)
+    var_query = '_().getVarMapForDDG(' + neighbor_id +')'
+    neighbor_var_map = joern_instance.runGremlinQuery(var_query)[0]
+    # append dictionary
+    for var_map in neighbor_var_map:
+        var_dict[var_map[0]] = var_map[1]
 
-    # if condition
-    neighbor_query = '_().getCFGStatementById(' + neighbor_id + ')'
+    # get neighbor statement(postfix)
+    neighbor_query = '_().getCFGStatementLists(' + neighbor_id + ')'
     neighbor_list = joern_instance.runGremlinQuery(neighbor_query)[0]
 
-    # update condition list to typed condition list
+    # update neighbor list to typed neighbor list
     for var in neighbor_list:
         if var is None:
             continue
@@ -69,21 +131,18 @@ def getNeighborList(neighbor, context_lists, joern_instance):
             neighbor_list[neighbor_list.index(var)] = var_dict[var]
             continue
         # remove namespace before::
-        startpos = var.find("::")
-        while startpos != -1:
-            var = var[startpos + 2:]
-            startpos = var.find("::")
-        var = var.strip()
+        var = myUtil.removeNamespace(var)
 
-        # add type condition into conditin lists of log statement
-        # context_lists.append([cond, control_label])
-        context_lists.append([neighbor_list])
+
+    # add type neighbor into context lists of log statement
+    # context_lists.append([cond, control_label])
+    context_lists.append([neighbor_list])
 
     return context_lists # cond + control_label
 
 
 """
-@ param  condition, var map, context_lists and joern instance of the python-joern api
+@ param  condition, context_lists and joern instance of the python-joern api
 @ return context_lists
 @ callee ...
 @ caller getDependendedAstOfLog ..
@@ -136,11 +195,7 @@ def getCondList(condition, context_lists, joern_instance):
                 cond[cond.index(var)] = var_dict[var]
                 continue
             # remove namespace before::
-            startpos = var.find("::")
-            while startpos != -1:
-                var = var[startpos + 2:]
-                startpos = var.find("::")
-            var = var.strip()
+            var = myUtil.removeNamespace(var)
 
         # add type condition into conditin lists of log statement
         # context_lists.append([cond, control_label])
@@ -151,7 +206,7 @@ def getCondList(condition, context_lists, joern_instance):
 
 """
 @ param  filename and location in file, joern instance of the python-joern api
-@ return node list (type and code)
+@ return log, cdg_list, neighbor_list, context_lists, ddg_node, ddg_lists
 @ callee cdgNodeAnalysis
 @ caller main ..
 @ involve retrieve ast of dependency node, include data dependence and control dependence
@@ -166,6 +221,8 @@ def getDependendedAstOfLog(filename, location, joern_instance):
     cdg_list = []
     neighbor_list = []
     context_lists = []
+    ddg_nodes = []
+    ddg_lists = []
     location = location + ":"
     order = str(contxt_len)
     # query for log statement
@@ -197,7 +254,14 @@ def getDependendedAstOfLog(filename, location, joern_instance):
         for neighbor in neighbor_list:
             context_lists = getNeighborList(neighbor, context_lists, joern_instance)
 
-    return log, cdg_list, neighbor_list, context_lists # cond + true/false
+        # get ddg node and ddg lists
+        ddg_query = '_().getDDG(' + log[0] + ')'
+        ddg_nodes = joern_instance.runGremlinQuery(ddg_query)[0]
+        # deal with each ddg_node to get ddg_lists
+        for ddg_node in ddg_nodes:
+            ddg_lists = getDDGList(ddg_node, ddg_lists, joern_instance)
+
+    return log, cdg_list, neighbor_list, context_lists, ddg_nodes, ddg_lists
 
 """
 @ param  record of fetch_reader line, index of log, index of log_loc, index of store_name
@@ -212,15 +276,19 @@ def analyze_record( joern_instance, record, log_index, loc_index, file_index):
     filename = record[file_index]
 
     # query database with loc and filename
-    log, cdg_list, neighbor_list, context_lists = getDependendedAstOfLog(filename, loc, joern_instance)
+    log, cdg_list, neighbor_list, context_lists, \
+        ddg_nodes, ddg_lists = getDependendedAstOfLog(filename, loc, joern_instance)
 
-    # record the info
+    # record the info: log node
     record[log_index] = json.dumps(log)
+    # cdg ndoe, neighbor node, context_lists
     record[loc_index] = json.dumps(cdg_list)
-    # no.6 column
     record[6] = json.dumps(neighbor_list)
-    # record store Name and log location
     record[7] = json.dumps(context_lists)
+    # ddg node, ddg lists
+    record.append(ddg_nodes)
+    record.append(ddg_lists)
+    # record store Name and log location
     record.append(filename)
     record.append(loc)
 
@@ -240,7 +308,7 @@ def analyze(user, repos):
     analysis = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'wb')
     analyze_writer = csv.writer(analysis)
     analyze_writer.writerow(['commit_message', 'file_name', 'change_type',\
-            'log_node', 'cdg_nodes', 'neighbor_nodes', 'condition_lists', 'store_name', 'log_loc'])
+            'log_node', 'cdg_nodes', 'neighbor_nodes', 'ddg_nodes', 'ddg_lists','context_lists', 'store_name', 'log_loc'])
     # initialize read file
     records = csv.reader(fetch)
     # initialize python-joern instance

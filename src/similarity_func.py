@@ -4,6 +4,7 @@ import sys
 import re
 import commands
 import json
+import myUtil
 from itertools import islice
 from itertools import islice
 from joern.all import JoernSteps
@@ -150,12 +151,9 @@ def analyzeFunction(user, repos):
     for function in functions_temp:
         if not function.startswith("operator "):
             # remove namespace before::
-            startpos = function.find("::")
-            while startpos != -1:
-                function = function[startpos + 2:]
-                startpos = function.find("::")
+            function = myUtil.removeNamespace(function)
 
-            functions.append([function.strip()])
+            functions.append([function])
 
     len_func = len(functions)
     # compute similarity and write back into file
