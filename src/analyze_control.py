@@ -154,10 +154,10 @@ def getCondList(condition, context_lists, joern_instance):
     if not condition:
         return context_lists
 
-    if not condition[0] or len(condition[0]) > 1:
+    if not condition[0]:
         control_label = ''
     else:
-        control_label = condition[0][0]
+        control_label = condition[0]
 
     # get condition node
     cond_node = condition[1]

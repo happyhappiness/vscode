@@ -252,6 +252,9 @@ def cluster(user, repos):
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
         cond_lists = json.loads(record[6])
+        # remove [[]] cond_list
+        while [[]] in cond_lists:
+            cond_lists.remove([[]])
         cdg_lists.append(cond_lists)
         # label for each entity [log node](index 3)
         label_lists.append(record[3])
