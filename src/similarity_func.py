@@ -33,7 +33,8 @@ def longestCommonStr(string_a, string_b):
                 memory[i][j] = 0
 
     # simlarity value with common length / min length (0, 1)
-    return float(len_common)/min(len_a, len_b)
+    # return float(len_common)/min(len_a, len_b)
+    return float(len_common)*2/(len_a + len_b)
 
 """
 @ param  string to split words
@@ -96,7 +97,8 @@ def maxCommonWord(string_a, string_b):
         print string_a + "\t," + string_b
 
     # simlarity value with common length / min length (0, 1)
-    return float(len_common)/min(len(word_list_a), len(word_list_b))
+    # return float(len_common)/min(len(word_list_a), len(word_list_b))
+    return float(len_common)*2/(len(word_list_a) + len(word_list_b))
 
 
 

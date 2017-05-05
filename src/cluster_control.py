@@ -18,9 +18,11 @@ def longestCommonStr(cond_list_a, cond_list_b):
     # if just one element, then compare that
     len_a = len(cond_list_a)
     len_b = len(cond_list_b)
-    if len_a == 1 or len_b == 1:
-        # return float(longestCommonStrBase(cond_list_a[0], cond_list_b[0]) > 0.5)
-        return float(cond_list_a[0] == cond_list_b[0])
+    if len_a == 0 or len_b == 0:
+        if (len_a + len_b) == 0:
+            return float(1)
+        else:
+            return float(0)
     # length of a and b
     len_a += 1
     len_b += 1
@@ -44,7 +46,8 @@ def longestCommonStr(cond_list_a, cond_list_b):
                 memory[i][j] = 0
 
     # simlarity value with common length / min length (0, 1)
-    return float(len_common)/min(len_a, len_b)
+    # return float(len_common)/min(len_a, len_b)
+    return float(len_common)*2/(len_a + len_b)
 
 
 """
@@ -60,7 +63,7 @@ def computeSim(cond_lists_a, cond_lists_b):
 
     # do not deal with 0 exception at this period
     if len_a == 0 or len_b == 0:
-        return 0
+        return float(0)
 
     # record the similarity matrix
     memory = [[0 for col in range(len_b)] for row in range(len_a)]
