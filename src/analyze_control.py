@@ -308,7 +308,7 @@ def analyze(user, repos):
     analysis = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'wb')
     analyze_writer = csv.writer(analysis)
     analyze_writer.writerow(['commit_message', 'file_name', 'change_type',\
-            'log_node', 'cdg_nodes', 'neighbor_nodes', 'ddg_nodes', 'ddg_lists','context_lists', 'store_name', 'log_loc'])
+            'log_node', 'cdg_nodes', 'neighbor_nodes','context_lists', 'ddg_nodes', 'ddg_lists', 'store_name', 'log_loc'])
     # initialize read file
     records = csv.reader(fetch)
     # initialize python-joern instance
