@@ -115,7 +115,7 @@ def computeSim(cond_lists_a, cond_lists_b):
             best_sim_value_a = max(memory[index_a][index_b], best_sim_value_a)
         # summary total similarity between a and b
         sim_value_a_b += best_sim_value_a
-    sim_value_a_b = sim_value_a_b / len_a # (0, 1)
+    # sim_value_a_b = sim_value_a_b / len_a # (0, 1)
 
     # similarity between b and a
     sim_value_b_a = 0
@@ -124,9 +124,9 @@ def computeSim(cond_lists_a, cond_lists_b):
         best_sim_value_b = max([row[index_b] for row in memory])
         # summary total similarity between a and b
         sim_value_b_a += best_sim_value_b
-    sim_value_b_a = sim_value_b_a / len_b # (0, 1)
+    # sim_value_b_a = sim_value_b_a / len_b # (0, 1)
 
-    return (sim_value_b_a + sim_value_a_b) / 2 # (0, 1)
+    return (sim_value_b_a + sim_value_a_b) / (len_a + len_b) # (0, 1)
 
 """
 @param vec, left, right, similarity, id
