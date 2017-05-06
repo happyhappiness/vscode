@@ -172,18 +172,14 @@ def getCondList(condition, context_lists, joern_instance):
     for var_map in cond_var_map:
         var_dict[var_map[0]] = var_map[1]
 
+    cond_query = '_().getConditionListByid(' + cond_id + ')'
+    cond_list = joern_instance.runGremlinQuery(cond_query)[0] # just one cond
     # get cond_list of this condition
     is_case = control_label.startswith("case")
     if is_case:
         # switch case
-        cond_query = '_().getConditionListByidSwitch(' + cond_id + ')'
-        cond_list = joern_instance.runGremlinQuery(cond_query) # just one cond
         cond_list[0].append(control_label[4:].strip())
         cond_list[0].append('==')
-    else:
-        # if condition
-        cond_query = '_().getConditionListByid(' + cond_id + ')'
-        cond_list = joern_instance.runGremlinQuery(cond_query)[0]
 
     # update condition list to typed condition list
     for cond in cond_list:

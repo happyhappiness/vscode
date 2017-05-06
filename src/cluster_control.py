@@ -4,6 +4,7 @@ import sys
 import re
 import commands
 import json
+import myUtil
 from itertools import islice
 
 """
@@ -27,23 +28,56 @@ def longestCommonStr(cond_list_a, cond_list_b):
     len_a += 1
     len_b += 1
 
-    len_common = 0
-    # index_end = 0
+    # find first common and build the common matrix(a*b)
     memory = [[0 for col in range(len_b)] for row in range(len_a)]
+    index_a = 0
+    index_b = 0
+    first_len_common = 0
     for i in range(1, len_a):
         for j in range(1, len_b):
             # update len_common with history
             if cond_list_a[i - 1] == cond_list_b[j-1]:
                 memory[i][j] = memory[i-1][j-1] + 1
-                len_common = max(memory[i][j], len_common)
+                if first_len_common < memory[i][j]:
+                    first_len_common = memory[i][j]
+                    index_a = i
+                    index_b = j
                 continue
             # use func_similarity_dic firstly
             if func_similarity_dic.has_key((cond_list_a[i - 1], cond_list_b[j - 1])):
                 print (cond_list_a[i - 1], cond_list_b[j - 1])
                 memory[i][j] = memory[i-1][j-1] + 1
-                len_common = max(memory[i][j], len_common)
+                if first_len_common < memory[i][j]:
+                    first_len_common = memory[i][j]
+                    index_a = i
+                    index_b = j
             else:
                 memory[i][j] = 0
+
+    len_common = first_len_common
+    # filter the totally different and equal condition
+    if len_common in range(1, min(len_a, len_b)):
+        curr_a = 0
+        curr_b = 0
+        # find all common in road decide by index_a, index_b
+        # forward [1, index_a - 1]
+        for i in range(1, min(index_a, index_b)):
+            # last common <-- element behind is 0
+            curr_a = index_a - i
+            curr_b = index_b - i
+            if memory[curr_a][curr_b] > 0 and memory[curr_a + 1][curr_b + 1] == 0:
+                len_common += memory[curr_a][curr_b]
+
+        # backward [index_a + 1, len_a - 2]
+        for i in range(1, min(len_a - index_a - 1, len_b - index_b - 1)):
+            # last common <-- element behind is 0
+            curr_a = index_a + i
+            curr_b = index_b + i
+            if memory[curr_a][curr_b] > 0 and memory[curr_a + 1][curr_b + 1] == 0:
+                len_common += memory[curr_a][curr_b]
+
+        # last element [len_a]
+        len_common += memory[len_a - 1][len_b - 1]
 
     # simlarity value with common length / min length (0, 1)
     # return float(len_common)/min(len_a, len_b)
@@ -253,8 +287,7 @@ def cluster(user, repos):
         # store cond_lists(index 6)
         cond_lists = json.loads(record[6])
         # remove [[]] cond_list
-        while [[]] in cond_lists:
-            cond_lists.remove([[]])
+        cond_lists = myUtil.removeGivenElement([[]], cond_lists)
         cdg_lists.append(cond_lists)
         # label for each entity [log node](index 3)
         label_lists.append(record[3])
@@ -305,5 +338,6 @@ repos = 'swift'
 similarity_dic = {}
 # function similarity dictionary
 func_similarity_dic = {}
+# longestCommonStr(["the", "happy","thanks", "dealing", "try","final"], ["the", "sad", "thanks", "dealing", "im", "final"])
 cluster_similarity = 0.5
 cluster( user, repos)
