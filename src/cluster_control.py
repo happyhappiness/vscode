@@ -278,7 +278,7 @@ def cluster(user, repos):
     cluster_control = file('data/cluster_' + user + '_' + repos + '.csv', 'wb')
     cluster_control_writer = csv.writer(cluster_control)
     cluster_control_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
-        'cdg_nodes', 'neighbor_nodes', 'context_lists', 'ddg_nodes', 'ddg_lists', 'store_name', 'log_loc', 'cluster_index'])
+        'cdg_nodes', 'neighbor_nodes', 'context_lists', 'ddg_nodes', 'ddg_lists', 'static_lists', 'store_name', 'log_loc', 'cluster_index'])
 
     cdg_lists = []
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
@@ -321,23 +321,23 @@ def cluster(user, repos):
 """
 main function
 """
+if __name__ == "__main__":
+    # several configuration constant: user, repos
+    # user = 'mongodb'
+    # repos = 'mongo'
+    # user = 'opencv'
+    # repos = 'opencv'
+    user = 'apple'
+    repos = 'swift'
+    # user = 'llvm-mirror'
+    # repos = 'clang'
+    # user = 'torvalds'
+    # repos = 'linux'
 
-# several configuration constant: user, repos
-# user = 'mongodb'
-# repos = 'mongo'
-# user = 'opencv'
-# repos = 'opencv'
-user = 'apple'
-repos = 'swift'
-# user = 'llvm-mirror'
-# repos = 'clang'
-# user = 'torvalds'
-# repos = 'linux'
-
-# dictory for clustering
-similarity_dic = {}
-# function similarity dictionary
-func_similarity_dic = {}
-# longestCommonStr(["the", "happy","thanks", "dealing", "try","final"], ["the", "sad", "thanks", "dealing", "im", "final"])
-cluster_similarity = 0.5
-cluster( user, repos)
+    # dictory for clustering
+    similarity_dic = {}
+    # function similarity dictionary
+    func_similarity_dic = {}
+    # longestCommonStr(["the", "happy","thanks", "dealing", "try","final"], ["the", "sad", "thanks", "dealing", "im", "final"])
+    cluster_similarity = 0.5
+    cluster( user, repos)

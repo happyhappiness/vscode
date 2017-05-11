@@ -72,6 +72,7 @@
                 ]
             }
         },
+
         {
             "name": "C++ Attach",
             "type": "cppdbg",
@@ -103,6 +104,7 @@
                 ]
             }
         },
+
         {
             "name": "Python",
             "type": "python",
@@ -118,5 +120,6 @@
                 "RedirectOutput"
             ]
         }
+
     ]
 }

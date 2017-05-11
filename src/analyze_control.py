@@ -219,6 +219,7 @@ def getDependendedAstOfLog(filename, location, joern_instance):
     context_lists = []
     ddg_nodes = []
     ddg_lists = []
+    static_lists = []
     location = location + ":"
     order = str(contxt_len)
     # query for log statement
@@ -253,11 +254,16 @@ def getDependendedAstOfLog(filename, location, joern_instance):
         # get ddg node and ddg lists
         ddg_query = '_().getDDG(' + log[0] + ')'
         ddg_nodes = joern_instance.runGremlinQuery(ddg_query)[0]
+
+        # get static string
+        static_query = '_().getStaticStr(' + log[0] + ')'
+        static_lists = joern_instance.runGremlinQuery(static_query)[0]
+
         # deal with each ddg_node to get ddg_lists
         for ddg_node in ddg_nodes:
             ddg_lists = getDDGList(ddg_node, ddg_lists, joern_instance)
 
-    return log, cdg_list, neighbor_list, context_lists, ddg_nodes, ddg_lists
+    return log, cdg_list, neighbor_list, context_lists, ddg_nodes, ddg_lists, static_lists
 
 """
 @ param  record of fetch_reader line, index of log, index of log_loc, index of store_name
@@ -273,7 +279,7 @@ def analyze_record( joern_instance, record, log_index, loc_index, file_index):
 
     # query database with loc and filename
     log, cdg_list, neighbor_list, context_lists, \
-        ddg_nodes, ddg_lists = getDependendedAstOfLog(filename, loc, joern_instance)
+        ddg_nodes, ddg_lists, static_lists = getDependendedAstOfLog(filename, loc, joern_instance)
 
     # record the info: log node
     record[log_index] = json.dumps(log)
@@ -284,6 +290,7 @@ def analyze_record( joern_instance, record, log_index, loc_index, file_index):
     # ddg node, ddg lists
     record.append(ddg_nodes)
     record.append(ddg_lists)
+    record.append(static_lists)
     # record store Name and log location
     record.append(filename)
     record.append(loc)
@@ -304,7 +311,7 @@ def analyze(user, repos):
     analysis = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'wb')
     analyze_writer = csv.writer(analysis)
     analyze_writer.writerow(['commit_message', 'file_name', 'change_type',\
-            'log_node', 'cdg_nodes', 'neighbor_nodes','context_lists', 'ddg_nodes', 'ddg_lists', 'store_name', 'log_loc'])
+            'log_node', 'cdg_nodes', 'neighbor_nodes','context_lists', 'ddg_nodes', 'ddg_lists', 'static_lists', 'store_name', 'log_loc'])
     # initialize read file
     records = csv.reader(fetch)
     # initialize python-joern instance
@@ -343,17 +350,17 @@ def analyze(user, repos):
 """
 main function
 """
+if __name__ == "__main__":
+    # several configuration constant: user, repos
+    # user = 'mongodb'
+    # repos = 'mongo'
+    # user = 'opencv'
+    # repos = 'opencv'
+    user = 'apple'
+    repos = 'swift'
+    # user = 'llvm-mirror'
+    # repos = 'clang'
+    # user = 'torvalds'
+    # repos = 'linux'
 
-# several configuration constant: user, repos
-# user = 'mongodb'
-# repos = 'mongo'
-# user = 'opencv'
-# repos = 'opencv'
-user = 'apple'
-repos = 'swift'
-# user = 'llvm-mirror'
-# repos = 'clang'
-# user = 'torvalds'
-# repos = 'linux'
-
-analyze( user, repos)
+    analyze( user, repos)
