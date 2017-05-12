@@ -235,18 +235,15 @@ def getDependendedAstOfLog(filename, location, joern_instance):
         # condition node list (control type, id, isCFGNode, type, code)
         cdg_query = '_().getCFGControlByLog(' + log[0] + ',' + order +')'
         cdg_list = joern_instance.runGremlinQuery(cdg_query)[0] # true/false + cond_node
-
+        # deal with each condition
+        for condition in cdg_list:
+            context_lists = getCondList(condition, context_lists, joern_instance)
 
         # add flowlabel to make sure the total context count is at least 5
         # context = control + neighbor
         if len(cdg_list) < contxt_len:
             neighbor_query = '_().getCFGStatementByLog(' + log[0] + ',' + order +')'
             neighbor_list = joern_instance.runGremlinQuery(neighbor_query)[0] #  + cond_node
-
-        # deal with each condition
-        for condition in cdg_list:
-            context_lists = getCondList(condition, context_lists, joern_instance)
-
         # deal with each neighbor
         for neighbor in neighbor_list:
             context_lists = getNeighborList(neighbor, context_lists, joern_instance)
@@ -254,14 +251,14 @@ def getDependendedAstOfLog(filename, location, joern_instance):
         # get ddg node and ddg lists
         ddg_query = '_().getDDG(' + log[0] + ')'
         ddg_nodes = joern_instance.runGremlinQuery(ddg_query)[0]
+        # deal with each ddg_node to get ddg_lists
+        for ddg_node in ddg_nodes:
+            ddg_lists = getDDGList(ddg_node, ddg_lists, joern_instance)
 
         # get static string
         static_query = '_().getStaticStr(' + log[0] + ')'
         static_lists = joern_instance.runGremlinQuery(static_query)[0]
 
-        # deal with each ddg_node to get ddg_lists
-        for ddg_node in ddg_nodes:
-            ddg_lists = getDDGList(ddg_node, ddg_lists, joern_instance)
 
     return log, cdg_list, neighbor_list, context_lists, ddg_nodes, ddg_lists, static_lists
 

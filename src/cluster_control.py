@@ -183,7 +183,7 @@ def computeSimForCluster(cluster_a, cluster_b, similarity = 1):
 @callee computeSimForCluster
 @involve: cluster entities based on similarity
 """
-def cluster_record(cdg_lists, label_lists):
+def cluster_record(cdg_lists, label_lists = []):
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=cdg_lists[i], id=i) for i in range(len(cdg_lists))]
     flag = None
@@ -280,21 +280,21 @@ def cluster(user, repos):
     cluster_control_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
         'cdg_nodes', 'neighbor_nodes', 'context_lists', 'ddg_nodes', 'ddg_lists', 'static_lists', 'store_name', 'log_loc', 'cluster_index'])
 
-    cdg_lists = []
+    context_lists = []
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     label_lists = []
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
-        cond_lists = json.loads(record[6])
+        context_list = json.loads(record[6])
         # remove [[]] cond_list
-        cond_lists = myUtil.removeGivenElement([[]], cond_lists)
-        cdg_lists.append(cond_lists)
+        context_list = myUtil.removeGivenElement([[]], context_list)
+        context_lists.append(context_list)
         # label for each entity [log node](index 3)
         label_lists.append(record[3])
 
     # cluster log statement based on cdg_lists and cdg_nodes(label)
     # cluster_lists = cdg_lists
-    cluster_lists = cluster_record(cdg_lists, label_lists)
+    cluster_lists = cluster_record(context_lists)
     # record cluster index of each log statement
     analyze_control.close()
     analyze_control = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'rb')
