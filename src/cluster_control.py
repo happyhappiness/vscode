@@ -8,13 +8,13 @@ import myUtil
 from itertools import islice
 
 """
-@ param  cond_list of a and b to compute
+@ param  cond_list of a and b to compute, func_similarity_dic
 @ return lenth of common substring / min length
 @ callee ...
 @ caller computeSim ..
 @ involve compute the longgest common string (continuous) of two cond_list
 """
-def longestCommonStr(cond_list_a, cond_list_b):
+def longestCommonStr(cond_list_a, cond_list_b, func_similarity_dic):
 
     # if just one element, then compare that
     len_a = len(cond_list_a)
@@ -85,13 +85,13 @@ def longestCommonStr(cond_list_a, cond_list_b):
 
 
 """
-@ param cond_list a and b for comparing
+@ param cond_list a and b for comparing, func_similarity_dic
 @ return similarity value
 @ callee longestCommonSeq
 @ caller computeSimForCluster ..
 @ involve compute similarity between cond_lists
 """
-def computeSim(cond_lists_a, cond_lists_b):
+def computeSim(cond_lists_a, cond_lists_b, func_similarity_dic):
     len_a = len(cond_lists_a)
     len_b = len(cond_lists_b)
 
@@ -111,7 +111,7 @@ def computeSim(cond_lists_a, cond_lists_b):
             # sim_value = 0
             # if cond_list_a[1] == cond_list_b[1]:
             # compute similarity between cond_list_a[0] and cond_list_b[0]
-            memory[index_a][index_b] = longestCommonStr(cond_lists_a[index_a][0], cond_lists_b[index_b][0])
+            memory[index_a][index_b] = longestCommonStr(cond_lists_a[index_a][0], cond_lists_b[index_b][0], func_similarity_dic)
             best_sim_value_a = max(memory[index_a][index_b], best_sim_value_a)
         # summary total similarity between a and b
         sim_value_a_b += best_sim_value_a
@@ -145,13 +145,13 @@ class mycluster:
 
 
 """
-@ param cluster a and b for comparing
+@ param cluster a and b for comparing, similarity_dic, func_similarity_dic, last similarity(1)
 @ return similarity value
 @ callee computeSim(cond_list_a, cond_list_b); self
 @ caller cluster_record ..
 @ involve compute similarity between clusters (the least similar cond_list pairs)
 """
-def computeSimForCluster(cluster_a, cluster_b, similarity = 1):
+def computeSimForCluster(cluster_a, cluster_b, similarity_dic, func_similarity_dic, similarity = 1):
 
     #  if has record in dictory, then use dictory
     if similarity_dic.get((cluster_a.id, cluster_b.id)) is not None:
@@ -159,35 +159,36 @@ def computeSimForCluster(cluster_a, cluster_b, similarity = 1):
 
     # compare cdg_list of entity
     if cluster_a.id >= 0 and cluster_b.id >= 0:
-        similarity = min(computeSim(cluster_a.vec, cluster_b.vec), similarity)
+        similarity = min(computeSim(cluster_a.vec, cluster_b.vec, func_similarity_dic), similarity)
         return similarity
 
     # first cluster (children)
     if cluster_a.id < 0:
         # traverse children
         for child in cluster_a.children:
-            similarity = min(computeSimForCluster(child, cluster_b, similarity), similarity)
+            similarity = min(computeSimForCluster(child, cluster_b, similarity, func_similarity_dic), similarity)
         return similarity
 
     # second cluster (children)
     if cluster_b.id < 0:
         # traverse children
         for child in cluster_b.children:
-            similarity = min(computeSimForCluster(cluster_a, child, similarity), similarity)
+            similarity = min(computeSimForCluster(cluster_a, child, similarity, func_similarity_dic), similarity)
         return similarity
 
 """
-@param: cdg_lists(entiry vectors), label_lists(labels)
+@param: cdg_lists(entiry vectors), func_similarity_dic, cluster_similarity = 0.5
 @return cluster index for each entity
 @caller cluster
 @callee computeSimForCluster
 @involve: cluster entities based on similarity
 """
-def cluster_record(cdg_lists, label_lists = []):
+def cluster_record(cdg_lists, func_similarity_dic, cluster_similarity = 0.5):
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=cdg_lists[i], id=i) for i in range(len(cdg_lists))]
     flag = None
     currentclusted = -1
+    similarity_dic = {}
 
     # stop clustering based on culster number ( == 1)
     while len(myclusters) > 1:
@@ -204,7 +205,7 @@ def cluster_record(cdg_lists, label_lists = []):
 
                     # compute similaritys by calling computeSim on (vector a, vector b)
                     similarity_dic[(myclusters[i].id, myclusters[j].id)] =\
-                                 computeSimForCluster(myclusters[i], myclusters[j])
+                                 computeSimForCluster(myclusters[i], myclusters[j], similarity_dic, func_similarity_dic)
                     # record symmetrical record
                     similarity_dic[(myclusters[j].id, myclusters[i].id)] =\
                                 similarity_dic[(myclusters[i].id, myclusters[j].id)]
@@ -239,9 +240,6 @@ def cluster_record(cdg_lists, label_lists = []):
         del myclusters[mycluster1]
         myclusters.append(new_mycluster)
 
-    # draw the cluster result into jpg file
-    # draw_dendrogram(myclusters, label_lists, jpeg='data/cdg_cluster.jpg')
-
     # compute cluster_lists based on clusters and cluster number
     cluster_lists = [0 for i in range(len(cdg_lists))]
     index = 0
@@ -253,7 +251,7 @@ def cluster_record(cdg_lists, label_lists = []):
         else:
             cluster_lists[now_cluster.id] = index
         index += 1
-    return cluster_lists
+    return cluster_lists, similarity_dic
 
 """
 @ param  user and repos
@@ -267,6 +265,7 @@ def cluster(user, repos):
     # initialize func_similarity_dict
     analyze_func = file('data/analyz_function_' + user + '_' + repos + '.csv', 'rb')
     func_records = csv.reader(analyze_func)
+    func_similarity_dic = {}
     for func_record in func_records:
         func_similarity_dic[(func_record[0], func_record[1])] = func_record[2]
     analyze_func.close()
@@ -294,7 +293,7 @@ def cluster(user, repos):
 
     # cluster log statement based on cdg_lists and cdg_nodes(label)
     # cluster_lists = cdg_lists
-    cluster_lists = cluster_record(context_lists)
+    cluster_lists, similarity_dic = cluster_record(context_lists, func_similarity_dic, 0.5)
     # record cluster index of each log statement
     analyze_control.close()
     analyze_control = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'rb')
@@ -334,10 +333,5 @@ if __name__ == "__main__":
     # user = 'torvalds'
     # repos = 'linux'
 
-    # dictory for clustering
-    similarity_dic = {}
-    # function similarity dictionary
-    func_similarity_dic = {}
     # longestCommonStr(["the", "happy","thanks", "dealing", "try","final"], ["the", "sad", "thanks", "dealing", "im", "final"])
-    cluster_similarity = 0.5
     cluster( user, repos)

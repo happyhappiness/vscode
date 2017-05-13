@@ -285,9 +285,9 @@ def analyze_record( joern_instance, record, log_index, loc_index, file_index):
     record[6] = json.dumps(neighbor_list)
     record[7] = json.dumps(context_lists)
     # ddg node, ddg lists
-    record.append(ddg_nodes)
-    record.append(ddg_lists)
-    record.append(static_lists)
+    record.append(json.dumps(ddg_nodes))
+    record.append(json.dumps(ddg_lists))
+    record.append(json.dumps(static_lists))
     # record store Name and log location
     record.append(filename)
     record.append(loc)
