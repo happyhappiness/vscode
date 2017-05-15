@@ -1,6 +1,4 @@
 #-*-coding: utf-8 -*-
-import cluster_control
-import analyze_control
 import myUtil
 import csv
 import json
@@ -41,7 +39,7 @@ def getLogInfo(log_functions, file_name, joern_instance):
     out_csv = file(file_name, 'wb')
     out_csv_writer = csv.writer(out_csv)
     out_csv_writer.writerow(['code', 'location', 'file', 'cdg_nodes', \
-        'neighbor_nodes', 'context_lists', 'ddg_lists', 'static_lists', 'cluster_index'])
+        'neighbor_node', 'context_list', 'ddg_list', 'static_list', 'cluster_index'])
 
     # get log statement id from log function name
     record_count = 0
@@ -66,36 +64,7 @@ def getLogInfo(log_functions, file_name, joern_instance):
             fileName = joern_instance.runGremlinQuery(file_query)[0]
             log_call_info.append(fileName[0])
             ########################################## context  #################################
-            order = '5'
-            context_list = []
-            ddg_list = []
-            log_call[0] = str(log_call[0])
-            # condition node list (control type, id, isCFGNode, type, code)
-            cdg_query = '_().getCFGControlByLog(' + log_call[0] + ',' + order +')'
-            cdg_list = joern_instance.runGremlinQuery(cdg_query)[0] # true/false + cond_node
-            # deal with each condition
-            for condition in cdg_list:
-                context_list = analyze_control.getCondList(condition, context_list, joern_instance)
-
-            # add flowlabel to make sure the total context count is at least 5
-            # context = control + neighbor
-            if len(cdg_list) < order:
-                neighbor_query = '_().getCFGStatementByLog(' + log_call[0] + ',' + order +')'
-                neighbor_list = joern_instance.runGremlinQuery(neighbor_query)[0] #  + cond_node
-            # deal with each neighbor
-            for neighbor in neighbor_list:
-                context_list = analyze_control.getNeighborList(neighbor, context_list, joern_instance)
-
-            # get ddg node and ddg lists
-            ddg_query = '_().getDDG(' + log_call[0] + ')'
-            ddg_nodes = joern_instance.runGremlinQuery(ddg_query)[0]
-            # deal with each ddg_node to get ddg_lists
-            for ddg_node in ddg_nodes:
-                ddg_list = analyze_control.getDDGList(ddg_node, ddg_list, joern_instance)
-
-            # get static string
-            static_query = '_().getStaticStr(' + log_call[0] + ')'
-            static_list = joern_instance.runGremlinQuery(static_query)[0]
+            cdg_list, neighbor_list, context_list, ddg_list, static_list = myUtil.getContextInfo(log_call[0], joern_instance)
             log_call_info.append(json.dumps(cdg_list))
             log_call_info.append(json.dumps(neighbor_list))
             log_call_info.append(json.dumps(context_list))
@@ -122,7 +91,7 @@ def getLogInfo(log_functions, file_name, joern_instance):
 @ callee retrieveLogFunction, getLogInfo
 @ involve get logging call infomation from logging name and performing clustering
 """
-def cluster_log_context(func_similarity_dic):
+def cluster_log_context(isFromFile):
 
     # initialize python-joern instance
     joern_instance = JoernSteps()
@@ -131,61 +100,37 @@ def cluster_log_context(func_similarity_dic):
     # connect to database
     joern_instance.connectToDatabase()
 
-    # get name of log functions
-    log_functions = retrieveLogFunction()
     # get call info of log functions
-    file_name = 'data/analyze/log_Info_' + user + '_' + repos + '.csv'
-    log_call_infos, context_lists = getLogInfo(log_functions, file_name, joern_instance)
-    # perform clustering
-    cluster_lists = cluster_control.cluster_record(context_lists, func_similarity_dic, 0.5)
-    # write back into file
-    out_csv = file('data/analyze/log_CallInfo_' + user + '_' + repos + '.csv', 'wb')
-    out_csv_writer = csv.writer(out_csv)
-    out_csv_writer.writerow(['code', 'location', 'file', 'cdg_node', \
-        'neighbor_nodes', 'context_lists', 'ddg_lists', 'static_lists', 'cluster_index'])
-    index = 0
-    for key, log_call_info in log_call_infos.items():
-        log_call_info.append(cluster_lists[index])
-        out_csv_writer.writerow(log_call_info)
-        index += 1
-    out_csv.close()
+    call_info_fileName = 'data/analyze/log_info_' + user + '_' + repos + '.csv'
+    if isFromFile:
+        in_csv = file(call_info_fileName, 'rb')
+        records = csv.reader(in_csv)
+        log_call_infos = {}
+        context_lists = []
+        index = 0
+        for record in islice(records, 1, None):
+            log_call_infos[index] = record
+            context_lists.append(json.loads(record[5]))
+        in_csv.close()
+    else:
+        # get name of log functions
+        log_functions = retrieveLogFunction()
+        log_call_infos, context_lists = getLogInfo(log_functions, call_info_fileName, joern_instance)
 
-"""
-@ param ...
-@ return ... 
-@ caller main
-@ callee retrieveLogFunction, getLogInfo
-@ involve get logging call infomation from logging name and performing clustering
-"""
-def cluster_log_context_with_file(func_similarity_dic):
-
-    # initialize python-joern instance
-    joern_instance = JoernSteps()
-    joern_instance.addStepsDir("/data/joern-code/query/")
-    joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
-    # connect to database
-    joern_instance.connectToDatabase()
-
-    # get call info of log functions for file
-    file_name = 'data/analyze/log_Info_' + user + '_' + repos + '.csv'
-    in_csv = file(file_name, 'rb')
-    records = csv.reader(in_csv)
-    log_call_infos = {}
-    context_lists = []
-    index = 0
-    for record in islice(records, 1, None):
-        log_call_infos[index] = record
-        context_lists.append(json.loads(record[5]))
-    in_csv.close()
+    # initialize function similarity dictionary
+    similarity_dic_fileName = 'data/analyze/similarity_info_' + user + '_' + repos + '.csv'
+    func_similarity_fileName = 'data/analyze/func_similarity_info_' + user + '_' + repos + '.csv'
+    func_similarity_dic = myUtil.getFunctionSimilarityDic(False, func_similarity_fileName)
 
     # perform clustering
-    cluster_lists = cluster_control.cluster_record(context_lists, func_similarity_dic, 0.5)
+    cluster_lists = myUtil.performCluster(context_lists, func_similarity_dic, 0.5, similarity_dic_fileName)
+    log_call_infos.values()
 
     # write back into file
-    out_csv = file('data/analyze/log_Call_Info_' + user + '_' + repos + '.csv', 'wb')
+    out_csv = file('data/analyze/cluster_log_info_' + user + '_' + repos + '.csv', 'wb')
     out_csv_writer = csv.writer(out_csv)
     out_csv_writer.writerow(['code', 'location', 'file', 'cdg_node', \
-        'neighbor_nodes', 'context_lists', 'ddg_lists', 'static_lists', 'cluster_index'])
+        'neighbor_node', 'context_list', 'ddg_list', 'static_list', 'cluster_index'])
     index = 0
     for key, log_call_info in log_call_infos.items():
         log_call_info.append(cluster_lists[index])
@@ -194,7 +139,11 @@ def cluster_log_context_with_file(func_similarity_dic):
     out_csv.close()
 
 
-user="squid"
-repos="squid"
-func_similarity_dic = {}
-cluster_log_context(func_similarity_dic)
+"""
+main function
+"""
+if __name__ == "__main__":
+    user="squid"
+    repos="squid"
+
+    cluster_log_context(False)

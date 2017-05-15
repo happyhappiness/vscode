@@ -263,12 +263,7 @@ def cluster_record(cdg_lists, func_similarity_dic, cluster_similarity = 0.5):
 def cluster(user, repos):
 
     # initialize func_similarity_dict
-    analyze_func = file('data/analyz_function_' + user + '_' + repos + '.csv', 'rb')
-    func_records = csv.reader(analyze_func)
-    func_similarity_dic = {}
-    for func_record in func_records:
-        func_similarity_dic[(func_record[0], func_record[1])] = func_record[2]
-    analyze_func.close()
+    func_similarity_dic = myUtil.getFunctionSimilarityDic(False, 'data/analyz_function_' + user + '_' + repos + '.csv')
 
     # initialize read file
     analyze_control = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'rb')
@@ -277,7 +272,7 @@ def cluster(user, repos):
     cluster_control = file('data/cluster_' + user + '_' + repos + '.csv', 'wb')
     cluster_control_writer = csv.writer(cluster_control)
     cluster_control_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
-        'cdg_nodes', 'neighbor_nodes', 'context_lists', 'ddg_nodes', 'ddg_lists', 'static_lists', 'store_name', 'log_loc', 'cluster_index'])
+        'cdg_node', 'neighbor_node', 'context_list', 'ddg_node', 'ddg_list', 'static_list', 'store_name', 'log_loc', 'cluster_index'])
 
     context_lists = []
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
@@ -304,18 +299,11 @@ def cluster(user, repos):
         cluster_control_writer.writerow(record)
         index += 1
 
-    similarity_control = file('data/similarity_' + user + '_' + repos + '.csv', 'wb')
-    similarity_control_writer = csv.writer(similarity_control)
-    similarity_control_writer.writerow(["left", "right", "similarity"])
-    # dump similarity
-    for pair, similarity in similarity_dic.items():
-        if pair[0] >= 0 and pair[1] >= 0:
-            similarity_control_writer.writerow([pair[0], pair[1], similarity])
+    myUtil.dumpSimilarityDic(similarity_dic, 'data/similarity_' + user + '_' + repos + '.csv')
 
     # close files
     cluster_control.close()
     analyze_control.close()
-    similarity_control.close()
 
 """
 main function

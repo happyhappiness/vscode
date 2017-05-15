@@ -9,32 +9,6 @@ from itertools import islice
 from itertools import islice
 from joern.all import JoernSteps
 
-"""
-@ param  string a and b to compute
-@ return lenth of common substring / min length
-@ callee ...
-@ caller computeSim ..
-@ involve compute the longgest common string (continuous) of two string to compare
-"""
-def longestCommonStr(string_a, string_b):
-
-    len_a = len(string_a) + 1
-    len_b = len(string_b) + 1
-    len_common = 0
-    # index_end = 0
-    memory = [[0 for col in range(len_b)] for row in range(len_a)]
-    for i in range(1, len_a):
-        for j in range(1, len_b):
-            # update len_common with history
-            if string_a[i - 1] == string_b[j-1]:
-                memory[i][j] = memory[i-1][j-1] + 1
-                len_common = max(memory[i][j], len_common)
-            else:
-                memory[i][j] = 0
-
-    # simlarity value with common length / min length (0, 1)
-    # return float(len_common)/min(len_a, len_b)
-    return float(len_common)*2/(len_a + len_b)
 
 """
 @ param  string to split words
@@ -76,7 +50,7 @@ def splitWords(string):
 @ caller computeSim ..
 @ involve split string into subwords and compare two word list
 """
-def maxCommonWord(string_a, string_b):
+def maxCommonWord(string_a, string_b, word_list_dict):
     # split word (collection) <- capital word, _,
     # use dictionary
     if word_list_dict.has_key(string_a):
@@ -106,8 +80,8 @@ def maxCommonWord(string_a, string_b):
 """
 @ param function a and function b for comparing
 @ return similarity value
-@ callee longestCommonStr, maxCommonWord
-@ caller analyzeFunction ..
+@ callee maxCommonWord
+@ caller getFunctionSimilarity ..
 @ involve compute similarity between two function
 @ involve function info is list of function name etc.
 """
@@ -117,8 +91,9 @@ def computeSim(func_a, func_b):
     func_name_a = func_a[0]
     func_name_b = func_b[0]
 
+    word_list_dict = {}
     # similarity between a and b
-    return maxCommonWord(func_name_a, func_name_b)
+    return maxCommonWord(func_name_a, func_name_b, word_list_dict)
 
 
 """
@@ -129,10 +104,10 @@ def computeSim(func_a, func_b):
 @ involve compute similarity between two function
 @ involve function info is list of function name etc.
 """
-def analyzeFunction(user, repos):
+def getFunctionSimilarity(fileName):
 
     # initialize write file
-    analysis = file('data/analyz_function_' + user + '_' + repos + '.csv', 'wb')
+    analysis = file(fileName, 'wb')
     analyze_writer = csv.writer(analysis)
     analyze_writer.writerow(['func_a', 'func_b', 'similarity'])
 
@@ -144,42 +119,46 @@ def analyzeFunction(user, repos):
     joern_instance.connectToDatabase()
 
     # fetch all function info
-    functions_query = '_().getFunctions()'
+    functions_query = '_().getFunctionCallees()'
     functions_temp = joern_instance.runGremlinQuery(functions_query)[0]
     len_func = len(functions_temp)
 
     # filter some operator reload functions
     functions = []
     for function in functions_temp:
+        # remove namespace before::
+        function = myUtil.removeNamespace(function)
         if not function.startswith("operator "):
-            # remove namespace before::
-            function = myUtil.removeNamespace(function)
-
             functions.append([function])
 
     len_func = len(functions)
     # compute similarity and write back into file
+    func_similarity_dic = {}
     for i in range(len_func):
         for j in range(len_func):
             similarity = computeSim(functions[i], functions[j])
             # store back
             if similarity > 0.5:
                 analyze_writer.writerow([functions[i][0], functions[j][0], similarity])
+                func_similarity_dic[(functions[i][0], functions[j][0])] = similarity
 
     # close files
     analysis.close()
 
-# several configuration constant: user, repos
-# user = 'mongodb'
-# repos = 'mongo'
-# user = 'opencv'
-# repos = 'opencv'
-user = 'apple'
-repos = 'swift'
-# user = 'llvm-mirror'
-# repos = 'clang'
-# user = 'torvalds'
-# repos = 'linux'
+    return func_similarity_dic
 
-word_list_dict = {}
-analyzeFunction( user, repos)
+"""main function"""
+if __name__ == "__main__":
+    # several configuration constant: user, repos
+    # user = 'mongodb'
+    # repos = 'mongo'
+    # user = 'opencv'
+    # repos = 'opencv'
+    user = 'apple'
+    repos = 'swift'
+    # user = 'llvm-mirror'
+    # repos = 'clang'
+    # user = 'torvalds'
+    # repos = 'linux'
+
+    getFunctionSimilarity( 'data/analyz_function_apple_swift.csv')
