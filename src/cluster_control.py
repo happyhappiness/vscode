@@ -165,14 +165,14 @@ def computeSimForCluster(cluster_a, cluster_b, similarity_dic, func_similarity_d
     if cluster_a.id < 0:
         # traverse children
         for child in cluster_a.children:
-            similarity = min(computeSimForCluster(child, cluster_b, similarity, func_similarity_dic), similarity)
+            similarity = min(computeSimForCluster(child, cluster_b, similarity_dic, func_similarity_dic, similarity), similarity)
         return similarity
 
     # second cluster (children)
     if cluster_b.id < 0:
         # traverse children
         for child in cluster_b.children:
-            similarity = min(computeSimForCluster(cluster_a, child, similarity, func_similarity_dic), similarity)
+            similarity = min(computeSimForCluster(cluster_a, child, similarity_dic, func_similarity_dic, similarity), similarity)
         return similarity
 
 """

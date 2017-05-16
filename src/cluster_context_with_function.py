@@ -16,13 +16,14 @@ from joern.all import JoernSteps
 def retrieveLogFunction():
     log_functions = []
     log_statement = open('data/analyze/logging_statement.out', 'rb')
-    log_function = file('data/analyze/function' + user + '_' + repos + '.csv', 'wb')
     lines = log_statement.readlines()
 
     for line in lines:
         log_function = line[0:line.find("@")]
         if not log_function in log_functions:
             log_functions.append(log_function)
+
+    log_statement.close()
     return log_functions
 
 """
@@ -111,6 +112,7 @@ def cluster_log_context(isFromFile):
         for record in islice(records, 1, None):
             log_call_infos[index] = record
             context_lists.append(json.loads(record[5]))
+            index += 1
         in_csv.close()
     else:
         # get name of log functions
@@ -120,7 +122,7 @@ def cluster_log_context(isFromFile):
     # initialize function similarity dictionary
     similarity_dic_fileName = 'data/analyze/similarity_info_' + user + '_' + repos + '.csv'
     func_similarity_fileName = 'data/analyze/func_similarity_info_' + user + '_' + repos + '.csv'
-    func_similarity_dic = myUtil.getFunctionSimilarityDic(False, func_similarity_fileName)
+    func_similarity_dic = myUtil.getFunctionSimilarityDic(True, func_similarity_fileName)
 
     # perform clustering
     cluster_lists = myUtil.performCluster(context_lists, func_similarity_dic, 0.5, similarity_dic_fileName)
