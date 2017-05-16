@@ -1,4 +1,9 @@
 .gitignore  
-         
-data/mongo/
+
 download/
+User/
+GPUCache/
+Cache/
+CachedData/
+Backups/
+Local Storage/

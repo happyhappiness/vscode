@@ -146,4 +146,4 @@ if __name__ == "__main__":
     user="squid"
     repos="squid"
 
-    cluster_log_context(False)
+    cluster_log_context(True)
