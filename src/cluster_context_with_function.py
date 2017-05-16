@@ -143,7 +143,9 @@ def cluster_log_context(isFromFile):
 main function
 """
 if __name__ == "__main__":
-    user="squid"
-    repos="squid"
+    # user="squid"
+    # repos="squid"
+    user="bftpd"
+    repos="bftpd"
 
     cluster_log_context(True)

@@ -45,7 +45,6 @@ def longestCommonStr(cond_list_a, cond_list_b, func_similarity_dic):
                 continue
             # use func_similarity_dic firstly
             if func_similarity_dic.has_key((cond_list_a[i - 1], cond_list_b[j - 1])):
-                print (cond_list_a[i - 1], cond_list_b[j - 1])
                 memory[i][j] = memory[i-1][j-1] + 1
                 if first_len_common < memory[i][j]:
                     first_len_common = memory[i][j]
