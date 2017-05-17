@@ -52,7 +52,7 @@
         },
         "workbench.action.closeWindow": {
             "id": "workbench.action.closeWindow",
-            "label": "Ctrl+Shift+W",
+            "label": "Ctrl+W",
             "isNative": true
         },
         "workbench.action.closeFolder": {
@@ -433,10 +433,10 @@
             "workspacePath": "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "uiState": {
                 "mode": 0,
-                "x": 0,
+                "x": 1280,
                 "y": 26,
-                "width": 1280,
-                "height": 997
+                "width": 1920,
+                "height": 1028
             }
         }
     }
