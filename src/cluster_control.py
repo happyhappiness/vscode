@@ -43,7 +43,7 @@ def longestCommonStr(cond_list_a, cond_list_b, func_similarity_dic):
                     index_a = i
                     index_b = j
                 continue
-            # use func_similarity_dic firstly
+            # use func_similarity_dic firstly (similarity between callee is greater than 0.5)
             if func_similarity_dic.has_key((cond_list_a[i - 1], cond_list_b[j - 1])):
                 memory[i][j] = memory[i-1][j-1] + 1
                 if first_len_common < memory[i][j]:
@@ -67,20 +67,17 @@ def longestCommonStr(cond_list_a, cond_list_b, func_similarity_dic):
             if memory[curr_a][curr_b] > 0 and memory[curr_a + 1][curr_b + 1] == 0:
                 len_common += memory[curr_a][curr_b]
 
-        # backward [index_a + 1, len_a - 2]
-        for i in range(1, min(len_a - index_a - 1, len_b - index_b - 1)):
+        # backward [index_a + 1, len_a - 1]
+        for i in range(1, min(len_a - index_a, len_b - index_b)):
             # last common <-- element behind is 0
             curr_a = index_a + i
             curr_b = index_b + i
-            if memory[curr_a][curr_b] > 0 and memory[curr_a + 1][curr_b + 1] == 0:
+            if memory[curr_a][curr_b] > 0 and (curr_a == len_a - 1 or curr_b == len_b - 1 or memory[curr_a + 1][curr_b + 1] == 0):
                 len_common += memory[curr_a][curr_b]
-
-        # last element [len_a]
-        len_common += memory[len_a - 1][len_b - 1]
 
     # simlarity value with common length / min length (0, 1)
     # return float(len_common)/min(len_a, len_b)
-    return float(len_common)*2/(len_a + len_b)
+    return float(len_common)*2/(len_a + len_b - 2)
 
 
 """
@@ -88,7 +85,7 @@ def longestCommonStr(cond_list_a, cond_list_b, func_similarity_dic):
 @ return similarity value
 @ callee longestCommonSeq
 @ caller computeSimForCluster ..
-@ involve compute similarity between cond_lists
+@ involve compute similarity between cond_lists, unordered common element
 """
 def computeSim(cond_lists_a, cond_lists_b, func_similarity_dic):
     len_a = len(cond_lists_a)
@@ -98,34 +95,33 @@ def computeSim(cond_lists_a, cond_lists_b, func_similarity_dic):
     if len_a == 0 or len_b == 0:
         return float(0)
 
-    # record the similarity matrix
-    memory = [[0 for col in range(len_b)] for row in range(len_a)]
-    # similarity between a and b
+    # record the similarity dictionary
+    memory = {}
+    # build similarity dictionary between a and b
     sim_value_a_b = 0
     for index_a in range(len_a):
-        # max in given row
-        best_sim_value_a = 0
         for index_b in range(len_b):
-            # # various flowLabel --> sim_value = 0
-            # sim_value = 0
-            # if cond_list_a[1] == cond_list_b[1]:
-            # compute similarity between cond_list_a[0] and cond_list_b[0]
-            memory[index_a][index_b] = longestCommonStr(cond_lists_a[index_a][0], cond_lists_b[index_b][0], func_similarity_dic)
-            best_sim_value_a = max(memory[index_a][index_b], best_sim_value_a)
-        # summary total similarity between a and b
-        sim_value_a_b += best_sim_value_a
-    # sim_value_a_b = sim_value_a_b / len_a # (0, 1)
+            # add one element is elements share higher similarity than 0.5
+            curr_similarity = longestCommonStr(cond_lists_a[index_a][0], \
+                            cond_lists_b[index_b][0], func_similarity_dic)
+            if curr_similarity > 0.5:
+                memory[(index_a, index_b)] = curr_similarity
 
-    # similarity between b and a
-    sim_value_b_a = 0
-    for index_b in range(len_b):
-        # max in given column
-        best_sim_value_b = max([row[index_b] for row in memory])
-        # summary total similarity between a and b
-        sim_value_b_a += best_sim_value_b
-    # sim_value_b_a = sim_value_b_a / len_b # (0, 1)
+    # iterate to find maxest and remove corresponding line and row
+    # initialization
+    len_common = 0
+    values_list = memory.values()
+    len_values = len(values_list)
+    while len_values != 0:
+        # find max element and remove corresponding row and col
+        max_value = max(values_list)
+        myUtil.removeDicElement(memory, values_list.index(max_value))
+        # iterator
+        len_common += 1
+        values_list = memory.values()
+        len_values = len(values_list)
 
-    return (sim_value_b_a + sim_value_a_b) / (len_a + len_b) # (0, 1)
+    return (len_common)*2 / (len_a + len_b) # (0, 1)
 
 """
 @param vec, left, right, similarity, id
@@ -192,7 +188,7 @@ def cluster_record(cdg_lists, func_similarity_dic, cluster_similarity = 0.5):
     # stop clustering based on culster number ( == 1)
     while len(myclusters) > 1:
         # the miniest similarity to merge two cluster
-        max_sim = -1
+        max_sim = cluster_similarity
 
         # traverse cluster a and cluster b in clusters
         myclusters_len = len(myclusters)
@@ -216,7 +212,7 @@ def cluster_record(cdg_lists, func_similarity_dic, cluster_similarity = 0.5):
                     max_sim = similarity
                     flag = (i, j)
         # stop clusterring when similarity is too small
-        if max_sim < cluster_similarity:
+        if max_sim == cluster_similarity:
             break
         # combine the two clusters
         mycluster1, mycluster2 = flag

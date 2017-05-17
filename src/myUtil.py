@@ -116,3 +116,22 @@ def performCluster(context_lists, func_similarity_dic, cluster_similarity, fileN
 
     return cluster_lists
 
+
+"""
+@ param  dict, key_index
+@ return dict
+@ callee ...
+@ caller cluster_control.computeSim
+@ involve remove key contains key_a or key_b specified key_index
+"""
+def removeDicElement(dictionary, key_index):
+
+    key_list = dictionary.keys()
+    key_a = key_list[key_index][0]
+    key_b = key_list[key_index][1]
+    for key in key_list:
+        # if key contains key_a or key_b
+        if key[0] == key_a or key[1] == key_b:
+            del dictionary[key]
+
+    return dictionary

@@ -71,7 +71,7 @@ def getLogInfo(log_functions, file_name, joern_instance):
             log_call_info.append(json.dumps(context_list))
             log_call_info.append(json.dumps(ddg_list))
             log_call_info.append(json.dumps(static_list))
-            log_call_infos[id] = log_call_info
+            log_call_infos[log_call[0]] = log_call_info
             out_csv_writer.writerow(log_call_info)
 
             context_list = myUtil.removeGivenElement([[]], context_list)

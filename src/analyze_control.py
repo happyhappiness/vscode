@@ -227,12 +227,13 @@ def getContextOfLog(log_id, joern_instance):
 
     # add flowlabel to make sure the total context count is at least 5
     # context = control + neighbor
-    if len(cdg_list) < contxt_len:
+    # if len(cdg_list) < contxt_len:
+    if len(cdg_list) < 1:
         neighbor_query = '_().getCFGStatementByLog(' + log_id + ',' + order +')'
         neighbor_list = joern_instance.runGremlinQuery(neighbor_query)[0] #  + cond_node
-    # deal with each neighbor
-    for neighbor in neighbor_list:
-        context_list = getNeighborList(neighbor, context_list, joern_instance)
+        # deal with each neighbor
+        for neighbor in neighbor_list:
+            context_list = getNeighborList(neighbor, context_list, joern_instance)
 
     # get ddg node and ddg lists
     ddg_query = '_().getDDG(' + log_id + ')'
