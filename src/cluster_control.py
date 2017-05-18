@@ -92,7 +92,7 @@ def computeSim(cond_lists_a, cond_lists_b, func_similarity_dic):
     len_b = len(cond_lists_b)
 
     # do not deal with 0 exception at this period
-    if len_a == 0 or len_b == 0:
+    if len_a == 0 or len_b == 0 or not len_a == len_b:
         return float(0)
 
     # record the similarity dictionary
@@ -121,7 +121,8 @@ def computeSim(cond_lists_a, cond_lists_b, func_similarity_dic):
         values_list = memory.values()
         len_values = len(values_list)
 
-    return (len_common)*2 / (len_a + len_b) # (0, 1)
+    # return float(len_common)*2 / (len_a + len_b) # (0, 1)
+    return float(len_common == len_a)
 
 """
 @param vec, left, right, similarity, id

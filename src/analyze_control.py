@@ -215,7 +215,7 @@ def getContextOfLog(log_id, joern_instance):
     ddg_list = []
     static_list = []
     # context length
-    contxt_len = 5
+    contxt_len = 3
     order = str(contxt_len)
 
     # condition node list (control type, id, isCFGNode, type, code)
@@ -258,16 +258,11 @@ def getContextOfLog(log_id, joern_instance):
 """
 def getDependendedAstOfLog(filename, location, joern_instance):
 
-    # context length
-    contxt_len = 5
     # initialize log, cfg_list, ddg_list
-    log = []
     location = location + ":"
-    order = str(contxt_len)
     # query for log statement
     base_query = '_().getLogByFileAndLoc("' + filename + '","' + location + '")'
     log_result = joern_instance.runGremlinQuery(base_query)[0]
-
 
     if log_result:
 

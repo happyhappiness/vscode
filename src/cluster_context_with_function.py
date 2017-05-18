@@ -149,5 +149,4 @@ if __name__ == "__main__":
     # repos="squid"
     user="bftpd"
     repos="bftpd"
-
     cluster_log_context(True)
