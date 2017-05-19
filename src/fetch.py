@@ -5,6 +5,7 @@ import sys
 import re
 import commands
 import base64
+import myUtil
 
 reload(sys);
 sys.setdefaultencoding('utf8')
@@ -28,15 +29,18 @@ def get_loc(patch, line_count, patch_delete, patch_add, change_type):
         # line number of description
         log_loc = re.match('^@@.*-(.*),.*\+(.*),.*@@', patch[line_back])
         if log_loc:
-            if change_type == '-':
-                log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_add)
-            else:
-                # source file is the changed file -> loc depends on +(num)
-                # and distance of line_count and line_back except deleted lines
-                log_loc = int(log_loc.group(2)) + (line_count - line_back - 1 - line_delete)
+            # if change_type == '-':
+            #     old_log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_add)
+            # else:
+            #     # source file is the changed file -> loc depends on +(num)
+            #     # and distance of line_count and line_back except deleted lines
+            #     new_log_loc = int(log_loc.group(2)) + (line_count - line_back - 1 - line_delete)
+            # break
+            old_log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_add)
+            new_log_loc = int(log_loc.group(2)) + (line_count - line_back - 1 - line_delete)
             break
 
-    return log_loc
+    return old_log_loc, new_log_loc
 
 """
 @ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
@@ -78,7 +82,8 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
                 continue
 
         # filter out the one with log statement changes
-        log_function = 'assert|log|debug|print|write|error'
+        log_functions = myUtil.retrieveLogFunction('data/fetch/GTK_logging_statement.csv')
+        log_function = myUtil.functionToRegrexStr(log_functions)
         pattern_log = '^(-|\+)([^/]*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
         is_log_change = re.match(pattern_log, line, re.I)
         if is_log_change:
@@ -101,12 +106,13 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # backtrace to find the changed location in source file
             has_log = True
             # call get_loc to retrieve the changed log location in files
-            log_loc = get_loc(patch, line_count, patch_delete, patch_add, change_type)
-            if log_loc:
+            old_log_loc, new_log_loc = get_loc(patch, line_count, patch_delete, patch_add, change_type)
+            if old_log_loc and new_log_loc:
                 # source file is the changed file -> loc depends on +(num)
                 # and distance of line_count and line_back except deleted lines
-                data_row.append(log_loc)
+                data_row.append(old_log_loc)
                 data_row.append(old_store_name)
+                data_row.append(new_log_loc)
                 data_row.append(new_store_name)
                 writer.writerow(data_row)
 
@@ -195,19 +201,19 @@ def fetch_commit(user, repos, commit_sha=''):
     fetch = file('data/fetch_' + user + '_' + repos + '.csv', 'wb')
     fetch_writer = csv.writer(fetch)
 
-    # write table title (3:change_type, 4:log_statement, 5:log_loc, 6:old_store_name, 7:new_store_name)
-    fetch_writer.writerow(['commit_sha', 'commit_message', 'file_name', \
-                        'change_type', 'log_statement', 'log_loc', 'old_store_name', 'new_store_name'])
+    # write table title (3:change_type, 4:log_statement, 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name)
+    fetch_writer.writerow(['commit_sha', 'commit_message', 'file_name', 'change_type', \
+                 'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name'])
 
     # fetch all the commits of given repos
-    commits = gh.repos.commits.list()
+    commits = gh.repos.commits.list(sha=commit_sha)
     file_count = 0
     total_count = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
         file_count, total_count = deal_commit(gh, commit.sha, file_count, total_count, fetch_writer)
-        if file_count % 10 == 0:
-            print 'now saved the no. %d file, total file is %d' %(file_count, total_count)
+        # if file_count % 10 == 0:
+        print 'now saved the no. %d file, total file is %d' %(file_count, total_count)
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file
@@ -216,19 +222,17 @@ def fetch_commit(user, repos, commit_sha=''):
 """
 main function
 """
+if __name__ == "__main__":
+    # several configuration constant: user, repos
+    # user = 'mongodb'
+    # repos = 'mongo'
+    # user = 'torvalds'
+    # repos = 'linux'
+    user = 'GNOME'
+    repos = 'gtk'
 
-# several configuration constant: user, repos
-# user = 'mongodb'
-# repos = 'mongo'
-# user = 'opencv'
-# repos = 'opencv'
-user = 'apple'
-repos = 'swift'
-# user = 'torvalds'
-# repos = 'linux'
+    commit_sha = ''
 
-commit_sha = 'a7e74d56036e94c3e4ed11ceeb4cd43e95209aa5'
-
-# with function to retieve all the commits of given path
-fetch_commit(user, repos, commit_sha)
+    # with function to retieve all the commits of given path
+    fetch_commit(user, repos, commit_sha)
 

@@ -7,26 +7,6 @@ from itertools import islice
 from joern.all import JoernSteps
 
 """
-@ param ...
-@ return log_function
-@ caller main
-@ callee ...
-@ involve retrieve log function name from logging_statement.out
-"""
-def retrieveLogFunction():
-    log_functions = []
-    log_statement = open('data/analyze/logging_statement.out', 'rb')
-    lines = log_statement.readlines()
-
-    for line in lines:
-        log_function = line[0:line.find("@")]
-        if not log_function in log_functions:
-            log_functions.append(log_function)
-
-    log_statement.close()
-    return log_functions
-
-"""
 @ param log function name, file_name, joern_instance
 @ return log info: code, location, file, cdg_list, neighbor_list, ddg_list, static_list, cluster index 
 @ caller main
@@ -116,7 +96,7 @@ def cluster_log_context(isFromFile):
         in_csv.close()
     else:
         # get name of log functions
-        log_functions = retrieveLogFunction()
+        log_functions = myUtil.retrieveLogFunction('data/analyze/logging_statement.out')
         log_call_infos, context_lists = getLogInfo(log_functions, call_info_fileName, joern_instance)
 
     # initialize function similarity dictionary

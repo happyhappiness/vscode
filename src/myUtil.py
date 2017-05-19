@@ -136,6 +136,42 @@ def removeDicElement(dictionary, key_index):
 
     return dictionary
 
-list_a = [[["chroot", "char [ MAX_STRING_LENGTH + 1 ]"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
-list_b = [[["chroot", "char *"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
-cluster_control.computeSim(list_a, list_b, {})
+
+"""
+@ param ...
+@ return log_functions
+@ caller cluster_context_with_function
+@ callee ...
+@ involve retrieve log function name from logging_statement.out
+"""
+def retrieveLogFunction(fileName):
+    log_functions = []
+    log_statement = open(fileName, 'rb')
+    lines = log_statement.readlines()
+
+    for line in lines:
+        log_function = line[0:line.find("@")]
+        if not log_function in log_functions:
+            log_functions.append(log_function)
+
+    log_statement.close()
+    return log_functions
+
+"""
+@ param log functions
+@ return regrex_string e.g. 'assert|log|debug|print|write|error'
+@ caller fetch
+@ callee ...
+@ involve concate log functions into regrex string
+"""
+def functionToRegrexStr(log_functions):
+    regrex_string = ''
+    for log_function in log_functions:
+        regrex_string += log_function + '|'
+
+    return regrex_string[:-1]
+
+
+# list_a = [[["chroot", "char [ MAX_STRING_LENGTH + 1 ]"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
+# list_b = [[["chroot", "char *"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
+# cluster_control.computeSim(list_a, list_b, {})
