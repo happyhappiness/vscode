@@ -228,10 +228,10 @@ if __name__ == "__main__":
     # repos = 'mongo'
     # user = 'torvalds'
     # repos = 'linux'
-    user = 'GNOME'
-    repos = 'gtk'
+    user = 'Kitware'
+    repos = 'CMake'
 
-    commit_sha = ''
+    commit_sha = '6bcb198023fbf02361b110b384bcd2c168dc6e51'
 
     # with function to retieve all the commits of given path
     fetch_commit(user, repos, commit_sha)
