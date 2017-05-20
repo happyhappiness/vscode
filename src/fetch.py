@@ -123,12 +123,12 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 
 """
 @ param  github parameters gh and sha of commit and the counter for stored/total files and fileWriter
-@ return file_count new counter of stored files, total_count counters of cpp files
+@ return total_log_cpp new counter of stored files, total_cpp counters of cpp files and total file all files have dealed with
 @ callee deal_patch( sha, file, writer)
 @ caller fetch_commit(user, repos, commit_sha='') ..
 @ involve deal with commit and involved changed file
 """
-def deal_commit(gh, sha, file_count, total_count, writer):
+def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 
     # retrieve info of commit with given sha
     commit = gh.repos.commits.get(sha=sha)
@@ -145,11 +145,11 @@ def deal_commit(gh, sha, file_count, total_count, writer):
         is_removed = changed_file.status
         if is_cpp and not is_test_cpp and is_removed != 'removed':
             # increment the total file count
-            total_count = total_count + 1
+            total_cpp = total_cpp + 1
 
             # define old/new_store_name
-            new_store_name = '/data/download/' + repos + '/' + user + '_' + repos + str(file_count) + '_new.cpp'
-            old_store_name = '/data/download/' + repos + '/' + user + '_' + repos + str(file_count) + '_old.cpp'
+            new_store_name = '/data/download/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_new.cpp'
+            old_store_name = '/data/download/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_old.cpp'
 
             # call deal_patch to deal with the patch file
             has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
@@ -176,12 +176,12 @@ def deal_commit(gh, sha, file_count, total_count, writer):
                 output = commands.getoutput('rm ' + patch_store_name)
 
                 # increment the file count
-                file_count = file_count + 1
+                total_log_cpp += 1
 
         else:
-            print "not cpp without test without removing"
+            total_file += 1
 
-    return file_count, total_count
+    return total_log_cpp, total_cpp, total_file
 
 
 """
@@ -207,13 +207,15 @@ def fetch_commit(user, repos, commit_sha=''):
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
-    file_count = 0
-    total_count = 0
+    total_log_cpp = 0
+    total_cpp = 0
+    total_file = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
-        file_count, total_count = deal_commit(gh, commit.sha, file_count, total_count, fetch_writer)
-        # if file_count % 10 == 0:
-        print 'now saved the no. %d file, total file is %d' %(file_count, total_count)
+        total_log_cpp, total_cpp, total_file = deal_commit(gh, commit.sha, total_log_cpp, total_cpp, total_file, fetch_writer)
+        if total_file % 10 == 0:
+            print 'now have deal with %d file ; find cpp is %d, have saved %d ; \
+                    now saved the no. %d file, ' %(total_file, total_cpp, total_log_cpp)
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file
