@@ -209,7 +209,8 @@ def getCondList(condition, context_lists, joern_instance):
 def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_fileName, joern_instance):
 
     # initialize log, cfg_list, ddg_list
-    location = old_loc + ":"
+    old_loc = old_loc + ":"
+    new_loc = new_loc + ":"
     # query for log statement
     base_query = '_().getLogByFileAndLoc("' + old_fileName + '","' + old_loc + '")'
     old_log_result = joern_instance.runGremlinQuery(base_query)[0]
@@ -230,45 +231,15 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
 
     # get old context_list
     if old_log_result:
-        old_log = nodeAnalysis(old_log_result)[0][0]
+        old_log = nodeAnalysis(old_log_result)[0]
         old_log_id = old_log[0]
-        # condition node list (control type, id, isCFGNode, type, code)
-        cdg_query = '_().getCFGControlByLog(' + old_log_id + ',' + order +')'
-        cdg_list = joern_instance.runGremlinQuery(cdg_query)[0] # true/false + cond_node
-        # deal with each condition
-        for condition in cdg_list:
-            old_context_list = getCondList(condition, old_context_list, joern_instance)
-
-        # add flowlabel to make sure the total context count is at least 5
-        # context = control + neighbor
-        # if len(cdg_list) < 1:
-        if len(cdg_list) < 1:
-            neighbor_query = '_().getCFGStatementByLog(' + old_log_id + ',' + order +')'
-            neighbor_list = joern_instance.runGremlinQuery(neighbor_query)[0] #  + cond_node
-            # deal with each neighbor
-            for neighbor in neighbor_list:
-                old_context_list = getNeighborList(neighbor, old_context_list, joern_instance)
+        old_context_list = myUtil.getContext(old_log_id, joern_instance)
 
      # get new context_list
     if new_log_result:
-        new_log = nodeAnalysis(new_log_result)[0][0]
+        new_log = nodeAnalysis(new_log_result)[0]
         new_log_id = new_log[0]
-        # condition node list (control type, id, isCFGNode, type, code)
-        cdg_query = '_().getCFGControlByLog(' + new_log_id + ',' + order +')'
-        cdg_list = joern_instance.runGremlinQuery(cdg_query)[0] # true/false + cond_node
-        # deal with each condition
-        for condition in cdg_list:
-            new_context_list = getCondList(condition, new_context_list, joern_instance)
-
-        # add flowlabel to make sure the total context count is at least 5
-        # context = control + neighbor
-        # if len(cdg_list) < 1:
-        if len(cdg_list) < 1:
-            neighbor_query = '_().getCFGStatementByLog(' + new_log_id + ',' + order +')'
-            neighbor_list = joern_instance.runGremlinQuery(neighbor_query)[0] #  + cond_node
-            # deal with each neighbor
-            for neighbor in neighbor_list:
-                new_context_list = getNeighborList(neighbor, new_context_list, joern_instance)
+        new_context_list = myUtil.getContext(new_log_id, joern_instance)
 
 
     # get ddg list and static list (-: old, + new)
@@ -279,17 +250,7 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
         log_id = new_log_id
         log = new_log
     if log_id != -1:
-        ddg_query = '_().getDDG(' + log_id + ')'
-        ddg_node = joern_instance.runGremlinQuery(ddg_query)[0]
-        # deal with each ddg_node to get ddg_lists
-        for ddg_node in ddg_node:
-            ddg_list = getDDGList(ddg_node, ddg_list, joern_instance)
-
-        # get static string
-        static_query = '_().getStaticStr(' + log_id + ')'
-        static_list = joern_instance.runGremlinQuery(static_query)[0]
-
-
+        ddg_list, static_list = myUtil.getDDGAndContent(log_id, joern_instance)
 
     return log, old_context_list, new_context_list, ddg_list, static_list
 
@@ -314,16 +275,11 @@ def analyze_record( joern_instance, record, change_type, log_index, old_loc_inde
     # record the info: log node
     record[log_index] = json.dumps(log)
     # cdg ndoe, neighbor node, context_lists
-    record[6] = json.dumps(old_context_list)
-    record[7] = json.dumps(new_context_list)
+    record.append(json.dumps(old_context_list))
+    record.append(json.dumps(new_context_list))
     # ddg node, ddg lists
     record.append(json.dumps(ddg_lists))
     record.append(json.dumps(static_lists))
-    # record store Name and log location
-    record.append(old_loc)
-    record.append(old_fileName)
-    record.append(new_loc)
-    record.append(new_fileName)
 
     return record, log
 
@@ -336,12 +292,13 @@ def analyze_record( joern_instance, record, change_type, log_index, old_loc_inde
 """
 def analyze(user, repos):
 
-    fetch = file('data/fetch_' + user + '_' + repos + '.csv', 'rb')
+    fetch = file('data/fetch/' + user + '_' + repos + '_fetch.csv', 'rb')
     # initialize write file
-    analysis = file('data/analyz_joern_' + user + '_' + repos + '.csv', 'wb')
+    analysis = file('data/fetch/' + user + '_' + repos + '_old_new_analyze.csv', 'wb')
     analyze_writer = csv.writer(analysis)
-    analyze_writer.writerow(['commit_message', 'file_name', 'change_type',\
-            'log_node', 'old_context_list',  'new_context_list', 'ddg_list', 'static_list', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name'])
+    analyze_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
+        'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
+        'old_context_list', 'new_context_list', 'ddg_list', 'static_list'])
     # initialize read file
     records = csv.reader(fetch)
     # initialize python-joern instance

@@ -148,8 +148,8 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
             total_cpp = total_cpp + 1
 
             # define old/new_store_name
-            new_store_name = '/data/download/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_new.cpp'
-            old_store_name = '/data/download/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_old.cpp'
+            new_store_name = '/data/download/' + repos + '/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_new.cpp'
+            old_store_name = '/data/download/' + repos + '/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_old.cpp'
 
             # call deal_patch to deal with the patch file
             has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
@@ -193,15 +193,16 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 """
 def fetch_commit(user, repos, commit_sha=''):
     
-    # initiate Github with given user and repos 
+    # initiate Github with given user and repos
     gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
-    fetch = file('data/fetch_' + user + '_' + repos + '.csv', 'wb')
+    fetch = file('data/fetch/' + user + '_' + repos + '_fetch.csv', 'wb')
     fetch_writer = csv.writer(fetch)
 
-    # write table title (3:change_type, 4:log_statement, 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name)
+    # write table title (3:change_type, 4:log_statement, \
+    # 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name)
     fetch_writer.writerow(['commit_sha', 'commit_message', 'file_name', 'change_type', \
                  'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name'])
 
@@ -212,10 +213,11 @@ def fetch_commit(user, repos, commit_sha=''):
     total_file = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
-        total_log_cpp, total_cpp, total_file = deal_commit(gh, commit.sha, total_log_cpp, total_cpp, total_file, fetch_writer)
+        total_log_cpp, total_cpp, total_file = deal_commit \
+                            (gh, commit.sha, total_log_cpp, total_cpp, total_file, fetch_writer)
         if total_file % 10 == 0:
-            print 'now have deal with %d file ; find cpp is %d, have saved %d ; \
-                    now saved the no. %d file, ' %(total_file, total_cpp, total_log_cpp)
+            print 'now have deal with %d file ; find cpp %d file ; have saved %d file \
+                    ' %(total_file, total_cpp, total_log_cpp)
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file
