@@ -43,8 +43,8 @@ def get_log_info(log_functions, file_name, joern_instance):
             fileName = joern_instance.runGremlinQuery(file_query)[0]
             log_call_info.append(fileName[0])
             ########################################## context  #################################
-            context_list = myUtil.getContext(log_call[0], joern_instance)
-            ddg_list, static_list = myUtil.getDDGAndContent(log_call[0], joern_instance)
+            context_list = myUtil.getContext(str(log_call[0]), joern_instance)
+            ddg_list, static_list = myUtil.getDDGAndContent(str(log_call[0]), joern_instance)
             log_call_info.append(json.dumps(context_list))
             log_call_info.append(json.dumps(ddg_list))
             log_call_info.append(json.dumps(static_list))
@@ -98,3 +98,4 @@ if __name__ == "__main__":
     # repos = 'linux'
 
     analyze_repos(user, repos)
+    
