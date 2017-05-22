@@ -82,7 +82,7 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
                 continue
 
         # filter out the one with log statement changes
-        log_functions = myUtil.retrieveLogFunction('data/fetch/GTK_logging_statement.csv')
+        log_functions = myUtil.retrieveLogFunction('data/fetch/' + repos + '_logging_statement.csv')
         log_function = myUtil.functionToRegrexStr(log_functions)
         pattern_log = '^(-|\+)([^/]*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
         is_log_change = re.match(pattern_log, line, re.I)

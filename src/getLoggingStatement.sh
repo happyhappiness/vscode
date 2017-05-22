@@ -5,7 +5,7 @@
 # CODE_DIR=${BFTPD_CODE}
 # REPOS="BFTPD"
 CODE_DIR=${CMAKE_CODE}
-REPOS="CMAKE"
+REPOS="CMake"
 
 # code
 echo "generating compiled_files.def and call_dependence.csv";

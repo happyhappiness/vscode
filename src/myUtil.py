@@ -4,6 +4,7 @@ import cluster_control
 import analyze_control
 import analyze_control_old_new
 import csv
+from itertools import islice
 """
 @ param  var to deal with
 @ return list of analyzed node info
@@ -63,7 +64,7 @@ def getFunctionSimilarityDic(isFromRead,fileName):
         # initialize func_similarity_dict
         analyze_func = file(fileName, 'rb')
         func_records = csv.reader(analyze_func)
-        for func_record in func_records:
+        for func_record in islice(func_records, 1, None):
             func_similarity_dic[(func_record[0], func_record[1])] = func_record[2]
         analyze_func.close()
     else:
@@ -143,7 +144,7 @@ def removeDicElement(dictionary, key_index):
 @ return log_functions
 @ caller cluster_context_with_function
 @ callee ...
-@ involve retrieve log function name from logging_statement.out
+@ involve retrieve log function name from given file
 """
 def retrieveLogFunction(fileName):
     log_functions = []

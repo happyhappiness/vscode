@@ -149,16 +149,4 @@ def getFunctionSimilarity(fileName):
 
 """main function"""
 if __name__ == "__main__":
-    # several configuration constant: user, repos
-    # user = 'mongodb'
-    # repos = 'mongo'
-    # user = 'opencv'
-    # repos = 'opencv'
-    user = 'apple'
-    repos = 'swift'
-    # user = 'llvm-mirror'
-    # repos = 'clang'
-    # user = 'torvalds'
-    # repos = 'linux'
-
     getFunctionSimilarity( 'data/analyz_function_apple_swift.csv')

@@ -3,7 +3,6 @@ import myUtil
 import csv
 import json
 import re
-from itertools import islice
 from joern.all import JoernSteps
 
 """
@@ -77,7 +76,7 @@ def analyze_repos(user, repos):
     joern_instance.connectToDatabase()
     # get name of log functions
     log_functions = myUtil.retrieveLogFunction('data/fetch/' + repos + '_logging_statement.csv')
-    file_name = 'data/fetch/' + user + '_' + repos + '_repos_analze.csv'
+    file_name = 'data/fetch/' + user + '_' + repos + '_repos_analyze.csv'
     get_log_info(log_functions, file_name, joern_instance)
 
 
@@ -85,13 +84,13 @@ def analyze_repos(user, repos):
 main function
 """
 if __name__ == "__main__":
-       # several configuration constant: user, repos
+    # several configuration constant: user, repos
     # user = 'mongodb'
     # repos = 'mongo'
     # user = 'opencv'
     # repos = 'opencv'
     user = 'Kitware'
-    repos = 'CMAKE'
+    repos = 'CMake'
     # user = 'llvm-mirror'
     # repos = 'clang'
     # user = 'torvalds'
