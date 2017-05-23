@@ -321,6 +321,7 @@ def analyze(user, repos):
         # update analyze data is has edited
         if log:
             record.pop(0)
+            
             # record.pop(6)
             analyze_writer.writerow(record)
             count = count + 1
