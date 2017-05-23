@@ -18,11 +18,11 @@ from joern.all import JoernSteps
 @ involve split string into subwords collection with regrex
 @ involve spilter( capital + noncapital / _ / erase word before::)
 """
-def splitWords(string):
+def splitWordsRe(string):
 
     word_list = set()
 
-    pattern_name = '[~]?([a-z0-9]*)?([A-Z0-9]*)?((?:[A-Z_][a-z0-9|A-Z]*[0-9]*)*)$'
+    pattern_name = '[~]?([a-z0-9]*)?([A-Z0-9]*)?((?:[A-Z_][a-z|A-Z]*[0-9]*)*)'
     words = re.match(pattern_name, string)
     if words:
         # upper case and lower case
@@ -40,6 +40,49 @@ def splitWords(string):
             word_list.add(subword.lower())
     else:
         print "can not anlyze " + string
+    if len(word_list) == 0:
+        print string
+
+    return word_list
+
+"""
+@ param  string to split words
+@ return sub word list
+@ callee ...
+@ caller maxCommonWord ..
+@ involve split string into subwords collection with regrex
+@ involve spilter( capital or _)
+"""
+def splitWords(function_name):
+
+    len_str = len(function_name)
+    word_list = set()
+    start = 0
+    # function name that start with _
+    if function_name[0] == '_':
+        start = 1
+    if function_name[0] == '~':
+        word_list.add('~')
+        start = 1
+    for i in range(1, len_str - 1):
+        # _
+        if function_name[i] == '_':
+            # do not add _
+            word_list.add(function_name[start:i].lower())
+            start = i + 1
+            continue
+        # capital letter
+        if function_name[i] >= 'A' and function_name[i] <= 'Z':
+            if (function_name[i + 1] < 'A' or function_name[i + 1] > 'Z') \
+            or (function_name[i - 1] < 'A' or function_name[i - 1] > 'Z'):
+                word_list.add(function_name[start:i].lower())
+                start = i
+    # the end
+    word_list.add(function_name[start:len_str].lower())
+    if '_' in word_list:
+        word_list.remove('_')
+    if '' in word_list:
+        word_list.remove('')
 
     return word_list
 
@@ -72,7 +115,7 @@ def maxCommonWord(string_a, string_b, word_list_dict):
 
     # simlarity value with common length / min length (0, 1)
     # return float(len_common)/min(len(word_list_a), len(word_list_b))
-    return float(len_common)*2/(len(word_list_a) + len(word_list_b))
+    return float(len_common)*2/(len(word_list_a) + len(word_list_b)), word_list_dict
 
 
 
@@ -85,13 +128,12 @@ def maxCommonWord(string_a, string_b, word_list_dict):
 @ involve compute similarity between two function
 @ involve function info is list of function name etc.
 """
-def computeSim(func_a, func_b):
+def computeSim(func_a, func_b, word_list_dict):
 
     # fetch function name: index 0
     func_name_a = func_a[0]
     func_name_b = func_b[0]
 
-    word_list_dict = {}
     # similarity between a and b
     return maxCommonWord(func_name_a, func_name_b, word_list_dict)
 
@@ -119,7 +161,7 @@ def getFunctionSimilarity(fileName):
     joern_instance.connectToDatabase()
 
     # fetch all function info
-    functions_query = '_().getFunctionCallees()'
+    functions_query = '_().getFunctions()'
     functions_temp = joern_instance.runGremlinQuery(functions_query)[0]
     len_func = len(functions_temp)
 
@@ -128,15 +170,20 @@ def getFunctionSimilarity(fileName):
     for function in functions_temp:
         # remove namespace before::
         function = myUtil.removeNamespace(function)
-        if not function.startswith("operator "):
+        if function == '':
+            continue
+        if not function.startswith("operator ") and [function] not in functions:
             functions.append([function])
 
     len_func = len(functions)
     # compute similarity and write back into file
     func_similarity_dic = {}
+    word_list_dict = {}
     for i in range(len_func):
         for j in range(len_func):
-            similarity = computeSim(functions[i], functions[j])
+            if i == j:
+                continue
+            similarity, word_list_dict = computeSim(functions[i], functions[j], word_list_dict)
             # store back
             if similarity > 0.5:
                 analyze_writer.writerow([functions[i][0], functions[j][0], similarity])

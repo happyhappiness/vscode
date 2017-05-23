@@ -178,7 +178,7 @@ def seek_clone(user, repos):
         index_patch += 1
 
     # write back into file
-    out_csv = file('data/fetch/cluster_log_info_' + user + '_' + repos + '.csv', 'wb')
+    out_csv = file('data/fetch/' + user + '_' + repos + '_seek_clone.csv', 'wb')
     out_csv_writer = csv.writer(out_csv)
     out_csv_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
         'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \

@@ -10,7 +10,9 @@ from itertools import islice
 @ return list of analyzed node info
 @ callee ...
 @ caller analyze_control.py, similarity_func.py ..
-@ involve remove namespace bafore ::, and remove caller before ->, .
+@ involve remove namespace bafore ::,
+          and remove caller before ->, .
+          and remove parameter after (
 """
 def removeNamespace(name):
     # remove namespace before ::
@@ -24,14 +26,19 @@ def removeNamespace(name):
     while startpos != -1:
         name = name[startpos + 2:]
         startpos = name.find("->")
-    name = name.strip()
 
-    # remove caller before ->
+    # remove caller before .
     startpos = name.find(".")
     while startpos != -1:
         name = name[startpos + 2:]
         startpos = name.find(".")
-    name = name.strip()
+
+    # # remove param after (
+    # startpos = name.find("(")
+    # while startpos != -1:
+    #     name = name[:startpos]
+    #     startpos = name.find("(")
+    # name = name.strip()
 
     return name
 

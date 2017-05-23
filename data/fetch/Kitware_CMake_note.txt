@@ -1,0 +1,8 @@
+fetch result:
+    now have deal with 20400 file ; find cpp 1721 file ; have saved 143 file
+    total 411 records
+analyze repos:
+    total 2148 records
+analyze old new patch:
+    total 372 records
+    
