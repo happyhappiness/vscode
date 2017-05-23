@@ -194,7 +194,7 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 def fetch_commit(user, repos, commit_sha=''):
     
     # initiate Github with given user and repos
-    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
+    gh = Github(login='1191482087@qq.com', password='147258zhu', user=user, repo=repos)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
@@ -216,7 +216,7 @@ def fetch_commit(user, repos, commit_sha=''):
         total_log_cpp, total_cpp, total_file = deal_commit \
                             (gh, commit.sha, total_log_cpp, total_cpp, total_file, fetch_writer)
         if total_file % 10 == 0:
-            print 'now have deal with %d file ; find cpp %d file ; have saved %d file \
+            print 'now have deal with %d none cpp file ; find cpp %d file ; have saved %d file \
                     ' %(total_file, total_cpp, total_log_cpp)
     # deal_commit(gh, commit_sha, writer)
 
