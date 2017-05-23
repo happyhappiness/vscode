@@ -159,7 +159,7 @@ def seek_clone(user, repos):
 
     # initialize function similarity dictionary
     func_similarity_file_name = 'data/fetch/' + user + '_' + repos + '_func_similarity.csv'
-    func_similarity_dic = myUtil.getFunctionSimilarityDic(False, func_similarity_file_name)
+    func_similarity_dic = myUtil.getFunctionSimilarityDic(True, func_similarity_file_name)
 
     # seek clones in repos of context for each log update in patch
     clone_patch_repos = []
@@ -168,8 +168,8 @@ def seek_clone(user, repos):
         index_repos = 0
         clone_count = 0
         # traverse repos to find similar contexts
-        for repos in context_repos:
-            if compute_context_similarity(patch, repos, func_similarity_dic) == 1:
+        for reposi in context_repos:
+            if compute_context_similarity(patch, reposi, func_similarity_dic) == 1:
                 clone_patch_repos.append(log_patch[index_patch] + log_repos[index_repos])
                 clone_count += 1
             index_repos += 1

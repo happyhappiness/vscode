@@ -138,7 +138,7 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
     for changed_file in commit.files:
 
         # filter to just deal with cpp and c files
-        is_cpp = re.search('(.cpp|.c|.cc)$', changed_file.filename, re.I)
+        is_cpp = re.search('(.cpp|.c|.cc|.cxx|.h)$', changed_file.filename, re.I)
         # filter to not deal with test module files
         is_test_cpp = re.search('(test.cpp|test.c)$', changed_file.filename, re.I)
         # do not deal with removed files
