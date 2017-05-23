@@ -4,5 +4,5 @@ fetch result:
 analyze repos:
     total 2148 records
 analyze old new patch:
-    total 372 records
+    total 641 records
     
