@@ -198,19 +198,20 @@ def fetch_commit(user, repos, commit_sha=''):
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
-    fetch = file('data/fetch/' + user + '_' + repos + '_fetch.csv', 'wb')
+    fetch = file('data/fetch/' + user + '_' + repos + '_fetch.csv', 'ab')
     fetch_writer = csv.writer(fetch)
 
     # write table title (3:change_type, 4:log_statement, \
     # 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name)
+    """" append or not
     fetch_writer.writerow(['commit_sha', 'commit_message', 'file_name', 'change_type', \
-                 'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name'])
-
+                'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name'])
+    """
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
-    total_log_cpp = 0
-    total_cpp = 0
-    total_file = 0
+    total_file = 6070
+    total_cpp = 7081
+    total_log_cpp = 84
     for commit in commits.iterator():
         # invoke the deal_commit function
         total_log_cpp, total_cpp, total_file = deal_commit \
@@ -235,7 +236,7 @@ if __name__ == "__main__":
     user = 'Kitware'
     repos = 'CMake'
 
-    commit_sha = '6bcb198023fbf02361b110b384bcd2c168dc6e51'
+    commit_sha = '67a7dcef45fef6172514d6df1bea3ca94a04735a'
 
     # with function to retieve all the commits of given path
     fetch_commit(user, repos, commit_sha)
