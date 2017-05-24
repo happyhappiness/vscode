@@ -212,13 +212,15 @@ def fetch_commit(user, repos, commit_sha=''):
     total_file = 6070
     total_cpp = 7081
     total_log_cpp = 84
+    total_commit = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
         total_log_cpp, total_cpp, total_file = deal_commit \
                             (gh, commit.sha, total_log_cpp, total_cpp, total_file, fetch_writer)
+        total_commit += 1
         if total_file % 10 == 0:
-            print 'now have deal with %d none cpp file ; find cpp %d file ; have saved %d file \
-                    ' %(total_file, total_cpp, total_log_cpp)
+            print 'total commit is %d ; now have deal with %d none cpp file ; find cpp %d file ; \
+                have saved %d file' %(total_commit, total_file, total_cpp, total_log_cpp)
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file
