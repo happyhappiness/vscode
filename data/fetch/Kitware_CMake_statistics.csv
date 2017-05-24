@@ -1,0 +1,712 @@
+commit_sha,commit_message,file_name,change_type,log_node,old_log_loc,old_store_name,new_log_loc,new_store_name,old_context_list,new_context_list,ddg_list,static_list
+35ad12f99e71515f9cc65b1219160b88095a5f6b,"Merge topic 'source_group-tree'
+
+b42330be source_group: Add options create groups matching directory tree",Tests/SourceGroups/main.c,+,"[""1147917"", ""True"", ""ExpressionStatement"", ""printf ( \""tree_foo: %d tree_bar: %d tree_foobar: %d tree_baz: %d\\n\"" , tree_foo ( ) , tree_bar ( ) , tree_foobar ( ) , tree_baz ( ) )""]",13,/data/download/CMake/CMake/Kitware_CMake_2_old.cpp,18,/data/download/CMake/CMake/Kitware_CMake_2_new.cpp,"[[[""printf"", ""\""foo: %d bar: %d foobar: %d barbar: %d baz: %d\\n\"""", ""foo"", ""bar"", ""foobar"", ""barbar"", ""baz""]], [[""ENTRY""]]]","[[[""printf"", ""\""foo: %d bar: %d foobar: %d barbar: %d baz: %d\\n\"""", ""foo"", ""bar"", ""foobar"", ""barbar"", ""baz""]], [[""ENTRY""]]]",[],"[""\""tree_foo: %d tree_bar: %d tree_foobar: %d tree_baz: %d\\n\""""]"
+b42330be21c0d3046aa0e6fdf046a492bddef520,"source_group: Add options create groups matching directory tree
+
+Add `TREE` and `PREFIX` arguments to enable this behavior.",Tests/SourceGroups/main.c,+,"[""1191844"", ""True"", ""ExpressionStatement"", ""printf ( \""tree_foo: %d tree_bar: %d tree_foobar: %d tree_baz: %d\\n\"" , tree_foo ( ) , tree_bar ( ) , tree_foobar ( ) , tree_baz ( ) )""]",13,/data/download/CMake/CMake/Kitware_CMake_3_old.cpp,18,/data/download/CMake/CMake/Kitware_CMake_3_new.cpp,"[[[""printf"", ""\""foo: %d bar: %d foobar: %d barbar: %d baz: %d\\n\"""", ""foo"", ""bar"", ""foobar"", ""barbar"", ""baz""]], [[""ENTRY""]]]","[[[""printf"", ""\""foo: %d bar: %d foobar: %d barbar: %d baz: %d\\n\"""", ""foo"", ""bar"", ""foobar"", ""barbar"", ""baz""]], [[""ENTRY""]]]",[],"[""\""tree_foo: %d tree_bar: %d tree_foobar: %d tree_baz: %d\\n\""""]"
+788581883fef05820f3f83ec5d1456490bc2397f,"Merge topic 'rebuild-lexers'
+
+c5df1f16 Regenerate lexer source code",Source/cmCommandArgumentLexer.cxx,-,"[""1237823"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmCommandArgument_yyset_lineno called with no buffer\"" , yyscanner )""]",1814,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1821,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmCommandArgument_yyset_lineno called with no buffer\""""]"
+788581883fef05820f3f83ec5d1456490bc2397f,"Merge topic 'rebuild-lexers'
+
+c5df1f16 Regenerate lexer source code",Source/cmCommandArgumentLexer.cxx,-,"[""1237868"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmCommandArgument_yyset_column called with no buffer\"" , yyscanner )""]",1829,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1836,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmCommandArgument_yyset_column called with no buffer\""""]"
+788581883fef05820f3f83ec5d1456490bc2397f,"Merge topic 'rebuild-lexers'
+
+c5df1f16 Regenerate lexer source code",Source/cmExprLexer.cxx,-,"[""1296630"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmExpr_yyset_lineno called with no buffer\"" , yyscanner )""]",1721,/data/download/CMake/CMake/Kitware_CMake_5_old.cpp,1796,/data/download/CMake/CMake/Kitware_CMake_5_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmExpr_yyset_lineno called with no buffer\""""]"
+788581883fef05820f3f83ec5d1456490bc2397f,"Merge topic 'rebuild-lexers'
+
+c5df1f16 Regenerate lexer source code",Source/cmExprLexer.cxx,-,"[""1296675"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmExpr_yyset_column called with no buffer\"" , yyscanner )""]",1736,/data/download/CMake/CMake/Kitware_CMake_5_old.cpp,1811,/data/download/CMake/CMake/Kitware_CMake_5_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmExpr_yyset_column called with no buffer\""""]"
+c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
+
+Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
+post-processing steps are no longer necessary with the current set of
+supported compilers.  Some steps changed with newer versions of flex.
+
+Then regenerate all lexers with flex version 2.6.1.",Source/cmCommandArgumentLexer.cxx,-,"[""1343557"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmCommandArgument_yyset_lineno called with no buffer\"" , yyscanner )""]",1814,/data/download/CMake/CMake/Kitware_CMake_6_old.cpp,1821,/data/download/CMake/CMake/Kitware_CMake_6_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmCommandArgument_yyset_lineno called with no buffer\""""]"
+c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
+
+Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
+post-processing steps are no longer necessary with the current set of
+supported compilers.  Some steps changed with newer versions of flex.
+
+Then regenerate all lexers with flex version 2.6.1.",Source/cmCommandArgumentLexer.cxx,-,"[""1343602"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmCommandArgument_yyset_column called with no buffer\"" , yyscanner )""]",1829,/data/download/CMake/CMake/Kitware_CMake_6_old.cpp,1836,/data/download/CMake/CMake/Kitware_CMake_6_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmCommandArgument_yyset_column called with no buffer\""""]"
+c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
+
+Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
+post-processing steps are no longer necessary with the current set of
+supported compilers.  Some steps changed with newer versions of flex.
+
+Then regenerate all lexers with flex version 2.6.1.",Source/cmExprLexer.cxx,-,"[""1406393"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmExpr_yyset_lineno called with no buffer\"" , yyscanner )""]",1721,/data/download/CMake/CMake/Kitware_CMake_7_old.cpp,1796,/data/download/CMake/CMake/Kitware_CMake_7_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmExpr_yyset_lineno called with no buffer\""""]"
+c5df1f165c7f8f1e31e3144d326c6836af2e678d,"Regenerate lexer source code
+
+Revise the manual procedure in the `*Lexer.in.l` files.  Some of our
+post-processing steps are no longer necessary with the current set of
+supported compilers.  Some steps changed with newer versions of flex.
+
+Then regenerate all lexers with flex version 2.6.1.",Source/cmExprLexer.cxx,-,"[""1406438"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmExpr_yyset_column called with no buffer\"" , yyscanner )""]",1736,/data/download/CMake/CMake/Kitware_CMake_7_old.cpp,1811,/data/download/CMake/CMake/Kitware_CMake_7_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmExpr_yyset_column called with no buffer\""""]"
+0290bfc35dee73fb534556700554536f1164caaf,"Merge topic 'update-curl'
+
+df7fa47c curl: Disable symbol hiding logic in build for CMake
+f8a1ba20 Merge branch 'upstream-curl' into update-curl
+93cc249f curl 2016-11-02 (3c561c65)
+25d7b1ca curl: Update script to get curl 7.51.0",Utilities/cmcurl/lib/formdata.c,-,"[""188182"", ""True"", ""ExpressionStatement"", ""vsnprintf ( s , sizeof ( s ) , fmt , ap )""]",912,/data/download/CMake/CMake/Kitware_CMake_11_old.cpp,921,/data/download/CMake/CMake/Kitware_CMake_11_new.cpp,"[[[""va_start"", ""va_list"", ""const char *""]], [[""va_list""]]]","[[[""va_start"", ""va_list"", ""const char *""]], [[""va_list""]]]","[[[""const char *""], ""const char *""], [[""va_list""], ""va_list""], [[""char [ 4096 ]"", ""4096""], ""char [ 4096 ]""]]",[]
+0290bfc35dee73fb534556700554536f1164caaf,"Merge topic 'update-curl'
+
+df7fa47c curl: Disable symbol hiding logic in build for CMake
+f8a1ba20 Merge branch 'upstream-curl' into update-curl
+93cc249f curl 2016-11-02 (3c561c65)
+25d7b1ca curl: Update script to get curl 7.51.0",Utilities/cmcurl/lib/mprintf.c,-,"[""452270"", ""True"", ""Parameter"", ""char * * endpos""]",228,/data/download/CMake/CMake/Kitware_CMake_14_old.cpp,230,/data/download/CMake/CMake/Kitware_CMake_14_new.cpp,"[[[""va_stack_t *""]], [[""const char *""]]]","[[[""va_stack_t *""]], [[""const char *""]]]",[],[]
+0290bfc35dee73fb534556700554536f1164caaf,"Merge topic 'update-curl'
+
+df7fa47c curl: Disable symbol hiding logic in build for CMake
+f8a1ba20 Merge branch 'upstream-curl' into update-curl
+93cc249f curl 2016-11-02 (3c561c65)
+25d7b1ca curl: Update script to get curl 7.51.0",Utilities/cmcurl/lib/mprintf.c,-,"[""455157"", ""True"", ""ExpressionStatement"", ""dprintf_Pass1 ( format , vto , endpos , ap_save )""]",586,/data/download/CMake/CMake/Kitware_CMake_14_old.cpp,592,/data/download/CMake/CMake/Kitware_CMake_14_new.cpp,"[[[""char *"", ""char *"", ""&"", ""char [ BUFFSIZE ]"", ""2"", ""-"", ""=""]], [[""va_stack_t *""]]]","[[[""char *"", ""char *"", ""&"", ""char [ BUFFSIZE ]"", ""2"", ""-"", ""=""]], [[""va_stack_t *""]]]","[[[""char * [ MAX_PARAMETERS ]"", ""MAX_PARAMETERS""], ""char * [ MAX_PARAMETERS ]""], [[""const char *""], ""const char *""], [[""va_stack_t [ MAX_PARAMETERS ]"", ""MAX_PARAMETERS""], ""va_stack_t [ MAX_PARAMETERS ]""], [[""va_list""], ""va_list""]]",[]
+f8a1ba202f51e70510f12f46fe0633ea908d5144,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-11-02 (3c561c65)",Utilities/cmcurl/lib/formdata.c,-,"[""1021748"", ""True"", ""ExpressionStatement"", ""vsnprintf ( s , sizeof ( s ) , fmt , ap )""]",912,/data/download/CMake/CMake/Kitware_CMake_19_old.cpp,921,/data/download/CMake/CMake/Kitware_CMake_19_new.cpp,"[[[""va_start"", ""va_list"", ""const char *""]], [[""va_list""]]]","[[[""va_start"", ""va_list"", ""const char *""]], [[""va_list""]]]","[[[""const char *""], ""const char *""], [[""va_list""], ""va_list""], [[""char [ 4096 ]"", ""4096""], ""char [ 4096 ]""]]",[]
+f8a1ba202f51e70510f12f46fe0633ea908d5144,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-11-02 (3c561c65)",Utilities/cmcurl/lib/mprintf.c,-,"[""1070204"", ""True"", ""Parameter"", ""char * * endpos""]",228,/data/download/CMake/CMake/Kitware_CMake_22_old.cpp,230,/data/download/CMake/CMake/Kitware_CMake_22_new.cpp,"[[[""va_stack_t *""]], [[""const char *""]]]","[[[""va_stack_t *""]], [[""const char *""]]]",[],[]
+f8a1ba202f51e70510f12f46fe0633ea908d5144,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-11-02 (3c561c65)",Utilities/cmcurl/lib/mprintf.c,-,"[""1073091"", ""True"", ""ExpressionStatement"", ""dprintf_Pass1 ( format , vto , endpos , ap_save )""]",586,/data/download/CMake/CMake/Kitware_CMake_22_old.cpp,592,/data/download/CMake/CMake/Kitware_CMake_22_new.cpp,"[[[""char *"", ""char *"", ""&"", ""char [ BUFFSIZE ]"", ""2"", ""-"", ""=""]], [[""va_stack_t *""]]]","[[[""char *"", ""char *"", ""&"", ""char [ BUFFSIZE ]"", ""2"", ""-"", ""=""]], [[""va_stack_t *""]]]","[[[""char * [ MAX_PARAMETERS ]"", ""MAX_PARAMETERS""], ""char * [ MAX_PARAMETERS ]""], [[""const char *""], ""const char *""], [[""va_stack_t [ MAX_PARAMETERS ]"", ""MAX_PARAMETERS""], ""va_stack_t [ MAX_PARAMETERS ]""], [[""va_list""], ""va_list""]]",[]
+93cc249f3dd7ecd621cd063e4c08bbdb54d971e8,"curl 2016-11-02 (3c561c65)
+
+Code extracted from:
+
+    https://github.com/curl/curl.git
+
+at commit 3c561c657c2f0e553b19115a506592a8bbd744bc (curl-7_51_0).",lib/formdata.c,-,"[""1095404"", ""True"", ""ExpressionStatement"", ""vsnprintf ( s , sizeof ( s ) , fmt , ap )""]",912,/data/download/CMake/CMake/Kitware_CMake_26_old.cpp,921,/data/download/CMake/CMake/Kitware_CMake_26_new.cpp,"[[[""va_start"", ""va_list"", ""const char *""]], [[""va_list""]]]","[[[""va_start"", ""va_list"", ""const char *""]], [[""va_list""]]]","[[[""va_list""], ""va_list""], [[""const char *""], ""const char *""], [[""char [ 4096 ]"", ""4096""], ""char [ 4096 ]""]]",[]
+93cc249f3dd7ecd621cd063e4c08bbdb54d971e8,"curl 2016-11-02 (3c561c65)
+
+Code extracted from:
+
+    https://github.com/curl/curl.git
+
+at commit 3c561c657c2f0e553b19115a506592a8bbd744bc (curl-7_51_0).",lib/mprintf.c,-,"[""1143745"", ""True"", ""Parameter"", ""char * * endpos""]",232,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,234,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp,"[[[""va_stack_t *""]], [[""const char *""]]]","[[[""va_stack_t *""]], [[""const char *""]]]",[],[]
+93cc249f3dd7ecd621cd063e4c08bbdb54d971e8,"curl 2016-11-02 (3c561c65)
+
+Code extracted from:
+
+    https://github.com/curl/curl.git
+
+at commit 3c561c657c2f0e553b19115a506592a8bbd744bc (curl-7_51_0).",lib/mprintf.c,-,"[""1146632"", ""True"", ""ExpressionStatement"", ""dprintf_Pass1 ( format , vto , endpos , ap_save )""]",590,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,596,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp,"[[[""char *"", ""char *"", ""&"", ""char [ BUFFSIZE ]"", ""2"", ""-"", ""=""]], [[""va_stack_t *""]]]","[[[""char *"", ""char *"", ""&"", ""char [ BUFFSIZE ]"", ""2"", ""-"", ""=""]], [[""va_stack_t *""]]]","[[[""char * [ MAX_PARAMETERS ]"", ""MAX_PARAMETERS""], ""char * [ MAX_PARAMETERS ]""], [[""const char *""], ""const char *""], [[""va_stack_t [ MAX_PARAMETERS ]"", ""MAX_PARAMETERS""], ""va_stack_t [ MAX_PARAMETERS ]""], [[""va_list""], ""va_list""]]",[]
+095279bc94c81c4076de20474f1d3dd186764388,"Merge topic 'ccmake_fix_print_keys'
+
+5ca4abb2 ccmake: Correctly display edit mode and associated keys
+a9562eac ccmake: Add missing spaces to match the previous text length",Source/CursesDialog/cmCursesMainForm.cxx,-,"[""1162198"", ""True"", ""ExpressionStatement"", ""sprintf ( firstLine , \""Page %d of %d\"" , cw -> GetPage ( ) , this -> NumberOfPages )""]",400,/data/download/CMake/CMake/Kitware_CMake_35_old.cpp,395,/data/download/CMake/CMake/Kitware_CMake_35_new.cpp,"[[[""cmCursesWidget *""]], [[""int"", ""cmCursesMainForm :: MIN_WIDTH"", ""<"", ""int"", ""this"", ""InitialWidth"", ""<"", ""int"", ""cmCursesMainForm :: MIN_HEIGHT"", ""<"", ""||"", ""||""]]]","[[[""cmCursesWidget *""]], [[""int"", ""cmCursesMainForm :: MIN_WIDTH"", ""<"", ""int"", ""this"", ""InitialWidth"", ""<"", ""int"", ""cmCursesMainForm :: MIN_HEIGHT"", ""<"", ""||"", ""||""]]]","[[[""cmCursesWidget *"", ""CM_NULLPTR"", ""CM_NULLPTR"", ""=""], ""cmCursesWidget *""], [[""char [ 512 ]"", ""512"", ""char [ 512 ]"", ""\""\"""", ""=""], ""char [ 512 ]""]]","[""\""Page %d of %d\""""]"
+5ca4abb27f314ce03fc337514c489e67bfcf0ee5,"ccmake: Correctly display edit mode and associated keys
+
+Specific widgets can implement `PrintKeys` but their effects were hidden
+by the main widget `PrintKeys`.  Fix this to give the user a better hint
+about the edit mode status.
+
+Closes: #13757",Source/CursesDialog/cmCursesMainForm.cxx,-,"[""1174908"", ""True"", ""ExpressionStatement"", ""sprintf ( firstLine , \""Page %d of %d\"" , cw -> GetPage ( ) , this -> NumberOfPages )""]",400,/data/download/CMake/CMake/Kitware_CMake_36_old.cpp,395,/data/download/CMake/CMake/Kitware_CMake_36_new.cpp,"[[[""cmCursesWidget *""]], [[""int"", ""cmCursesMainForm :: MIN_WIDTH"", ""<"", ""int"", ""this"", ""InitialWidth"", ""<"", ""int"", ""cmCursesMainForm :: MIN_HEIGHT"", ""<"", ""||"", ""||""]]]","[[[""cmCursesWidget *""]], [[""int"", ""cmCursesMainForm :: MIN_WIDTH"", ""<"", ""int"", ""this"", ""InitialWidth"", ""<"", ""int"", ""cmCursesMainForm :: MIN_HEIGHT"", ""<"", ""||"", ""||""]]]","[[[""cmCursesWidget *"", ""CM_NULLPTR"", ""CM_NULLPTR"", ""=""], ""cmCursesWidget *""], [[""char [ 512 ]"", ""512"", ""char [ 512 ]"", ""\""\"""", ""=""], ""char [ 512 ]""]]","[""\""Page %d of %d\""""]"
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testFail.c,+,"[""1191992"", ""True"", ""Statement"", ""\""The version of ctest is not able to handle intentionally failing \""""]",32,/data/download/CMake/CMake/Kitware_CMake_40_old.cpp,19,/data/download/CMake/CMake/Kitware_CMake_40_new.cpp,"[[[""int""]]]","[[[""int""]]]",[],[]
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,+,"[""1194082"", ""True"", ""ExpressionStatement"", ""fprintf ( stdout , \""Poll count reached limit %d.\\n\"" , MAXPOLL )""]",431,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,411,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""int"", ""MAXPOLL"", "">=""]], [[""int""]], [[""int"", ""kwsysProcess_Pipe_Timeout"", ""==""]]]","[[[""int"", ""MAXPOLL"", "">=""]], [[""int""]], [[""int"", ""kwsysProcess_Pipe_Timeout"", ""==""]]]",[],"[""\""Poll count reached limit %d.\\n\""""]"
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1197452"", ""True"", ""BreakStatement"", ""break ;""]",467,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,440,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Starting"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Starting"", ""==""]]]",[],[]
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1197442"", ""True"", ""BreakStatement"", ""break ;""]",469,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,443,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Executing"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Executing"", ""==""]]]",[],[]
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1197432"", ""True"", ""BreakStatement"", ""break ;""]",471,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,446,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Expired"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Expired"", ""==""]]]",[],[]
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1197416"", ""True"", ""ExpressionStatement"", ""printf ( \""Child exited with value = %d\\n\"" , kwsysProcess_GetExitValue ( kp ) )""]",473,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,449,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess *""], ""kwsysProcess *""]]","[""\""Child exited with value = %d\\n\""""]"
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,+,"[""1193944"", ""True"", ""ExpressionStatement"", ""printf ( \""Child exited with value = %d\\n\"" , kwsysProcess_GetExitValue ( kp ) )""]",475,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,449,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess *""], ""kwsysProcess *""]]","[""\""Child exited with value = %d\\n\""""]"
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1197385"", ""True"", ""BreakStatement"", ""break ;""]",478,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,454,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Killed"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Killed"", ""==""]]]",[],[]
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1197338"", ""True"", ""BreakStatement"", ""break ;""]",485,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,463,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Disowned"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Disowned"", ""==""]]]",[],[]
+88f38a2bb42599561e685dfba956866d857fe518,"Merge topic 'update-kwsys'
+
+95a97a40 Merge branch 'upstream-KWSys' into update-kwsys
+773b36e5 KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,+,"[""1193741"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""Poll count is %d, which is less than %d.\\n\"" , poll , MINPOLL )""]",521,/data/download/CMake/CMake/Kitware_CMake_41_old.cpp,494,/data/download/CMake/CMake/Kitware_CMake_41_new.cpp,"[[[""int""]], [[""int"", ""MINPOLL"", ""<""]]]","[[[""int""]], [[""int"", ""MINPOLL"", ""<""]]]","[[[""int""], ""int""]]","[""\""Poll count is %d, which is less than %d.\\n\""""]"
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testFail.c,+,"[""1211753"", ""True"", ""Statement"", ""\""The version of ctest is not able to handle intentionally failing \""""]",32,/data/download/CMake/CMake/Kitware_CMake_45_old.cpp,19,/data/download/CMake/CMake/Kitware_CMake_45_new.cpp,"[[[""int""]]]","[[[""int""]]]",[],[]
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,+,"[""1213843"", ""True"", ""ExpressionStatement"", ""fprintf ( stdout , \""Poll count reached limit %d.\\n\"" , MAXPOLL )""]",431,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,411,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""int"", ""MAXPOLL"", "">=""]], [[""int""]], [[""int"", ""kwsysProcess_Pipe_Timeout"", ""==""]]]","[[[""int"", ""MAXPOLL"", "">=""]], [[""int""]], [[""int"", ""kwsysProcess_Pipe_Timeout"", ""==""]]]",[],"[""\""Poll count reached limit %d.\\n\""""]"
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1217213"", ""True"", ""BreakStatement"", ""break ;""]",467,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,440,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Starting"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Starting"", ""==""]]]",[],[]
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1217203"", ""True"", ""BreakStatement"", ""break ;""]",469,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,443,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Executing"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Executing"", ""==""]]]",[],[]
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1217193"", ""True"", ""BreakStatement"", ""break ;""]",471,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,446,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Expired"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Expired"", ""==""]]]",[],[]
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1217177"", ""True"", ""ExpressionStatement"", ""printf ( \""Child exited with value = %d\\n\"" , kwsysProcess_GetExitValue ( kp ) )""]",473,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,449,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess *""], ""kwsysProcess *""]]","[""\""Child exited with value = %d\\n\""""]"
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,+,"[""1213705"", ""True"", ""ExpressionStatement"", ""printf ( \""Child exited with value = %d\\n\"" , kwsysProcess_GetExitValue ( kp ) )""]",475,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,449,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess *""], ""kwsysProcess *""]]","[""\""Child exited with value = %d\\n\""""]"
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1217146"", ""True"", ""BreakStatement"", ""break ;""]",478,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,454,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Killed"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Killed"", ""==""]]]",[],[]
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,-,"[""1217099"", ""True"", ""BreakStatement"", ""break ;""]",485,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,463,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Disowned"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Disowned"", ""==""]]]",[],[]
+95a97a40e48a0db2b206c4560d6962be3666812c,"Merge branch 'upstream-KWSys' into update-kwsys
+
+* upstream-KWSys:
+  KWSys 2016-11-09 (18c65411)",Source/kwsys/testProcess.c,+,"[""1213502"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""Poll count is %d, which is less than %d.\\n\"" , poll , MINPOLL )""]",521,/data/download/CMake/CMake/Kitware_CMake_46_old.cpp,494,/data/download/CMake/CMake/Kitware_CMake_46_new.cpp,"[[[""int""]], [[""int"", ""MINPOLL"", ""<""]]]","[[[""int""]], [[""int"", ""MINPOLL"", ""<""]]]","[[[""int""], ""int""]]","[""\""Poll count is %d, which is less than %d.\\n\""""]"
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testFail.c,+,"[""1238533"", ""True"", ""Statement"", ""\""The version of ctest is not able to handle intentionally failing \""""]",32,/data/download/CMake/CMake/Kitware_CMake_50_old.cpp,19,/data/download/CMake/CMake/Kitware_CMake_50_new.cpp,"[[[""int""]]]","[[[""int""]]]",[],[]
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,+,"[""1240623"", ""True"", ""ExpressionStatement"", ""fprintf ( stdout , \""Poll count reached limit %d.\\n\"" , MAXPOLL )""]",431,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,411,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""int"", ""MAXPOLL"", "">=""]], [[""int""]], [[""int"", ""kwsysProcess_Pipe_Timeout"", ""==""]]]","[[[""int"", ""MAXPOLL"", "">=""]], [[""int""]], [[""int"", ""kwsysProcess_Pipe_Timeout"", ""==""]]]",[],"[""\""Poll count reached limit %d.\\n\""""]"
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,-,"[""1243993"", ""True"", ""BreakStatement"", ""break ;""]",467,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,440,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Starting"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Starting"", ""==""]]]",[],[]
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,-,"[""1243983"", ""True"", ""BreakStatement"", ""break ;""]",469,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,443,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Executing"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Executing"", ""==""]]]",[],[]
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,-,"[""1243973"", ""True"", ""BreakStatement"", ""break ;""]",471,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,446,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Expired"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Expired"", ""==""]]]",[],[]
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,-,"[""1243957"", ""True"", ""ExpressionStatement"", ""printf ( \""Child exited with value = %d\\n\"" , kwsysProcess_GetExitValue ( kp ) )""]",473,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,449,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess *""], ""kwsysProcess *""]]","[""\""Child exited with value = %d\\n\""""]"
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,+,"[""1240485"", ""True"", ""ExpressionStatement"", ""printf ( \""Child exited with value = %d\\n\"" , kwsysProcess_GetExitValue ( kp ) )""]",475,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,449,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Exited"", ""==""]]]","[[[""kwsysProcess *""], ""kwsysProcess *""]]","[""\""Child exited with value = %d\\n\""""]"
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,-,"[""1243926"", ""True"", ""BreakStatement"", ""break ;""]",478,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,454,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Killed"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Killed"", ""==""]]]",[],[]
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,-,"[""1243879"", ""True"", ""BreakStatement"", ""break ;""]",485,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,463,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Disowned"", ""==""]]]","[[[""kwsysProcess_GetState"", ""kwsysProcess *"", ""kwsysProcess_State_Disowned"", ""==""]]]",[],[]
+773b36e5d4af3ac040625e0ea16bcfd30fcdeb6d,"KWSys 2016-11-09 (18c65411)
+
+Code extracted from:
+
+    http://public.kitware.com/KWSys.git
+
+at commit 18c654114de3aa65429542f95308720bc68f9231 (master).
+
+Upstream Shortlog
+-----------------
+
+Brad King (14):
+      37306a1c FStream: Quiet unused argument warning
+      15e90a3c Sort includes to stabilize include order w.r.t. clang-format
+      26509227 Copyright.txt: Add notice of copyright by contributors
+      fc42d3f2 Add temporary script to filter license notices
+      c41c1bc4 Simplify KWSys per-source license notices
+      1d4c0b4a Remove temporary script that filtered license notices
+      a4f5ef79 SystemInformation: Remove stray comment
+      8649a886 kwsysPrivate: Protect KWSYS_HEADER macro from clang-format
+      89b98af5 Configure clang-format for KWSys source tree
+      547dacad Add a script to run clang-format on the entire source tree
+      aa94be0c CONTRIBUTING: Add a section on coding style
+      6604c4b6 Empty commit at end of history preceding clang-format style transition
+      2b3e2b1c Tell Git to not export 'clang-format' infrastructure
+      18c65411 FStream: Include Configure.hxx before other headers
+
+Kitware Robot (1):
+      6c973b46 Revise C++ coding style using clang-format",testProcess.c,+,"[""1240282"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""Poll count is %d, which is less than %d.\\n\"" , poll , MINPOLL )""]",521,/data/download/CMake/CMake/Kitware_CMake_51_old.cpp,494,/data/download/CMake/CMake/Kitware_CMake_51_new.cpp,"[[[""int""]], [[""int"", ""MINPOLL"", ""<""]]]","[[[""int""]], [[""int"", ""MINPOLL"", ""<""]]]","[[[""int""], ""int""]]","[""\""Poll count is %d, which is less than %d.\\n\""""]"
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/conncache.c,-,"[""1475389"", ""True"", ""ReturnStatement"", ""return aprintf ( \""%s:%d\"" , conn -> bits . proxy ? conn -> proxy . name : conn -> host . name , conn -> localport ) ;""]",135,/data/download/CMake/CMake/Kitware_CMake_87_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_87_new.cpp,"[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""], ""struct connectdata *""]]","[""\""%s:%d\""""]"
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/cookie.c,-,"[""1481890"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""#\\n# Fatal libcurl error\\n\"" )""]",1283,/data/download/CMake/CMake/Kitware_CMake_88_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_88_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""], [[""FILE *"", ""stdout"", ""=""], ""FILE *""]]","[""\""#\\n# Fatal libcurl error\\n\""""]"
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/cookie.c,-,"[""1481863"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""%s\\n\"" , format_ptr )""]",1288,/data/download/CMake/CMake/Kitware_CMake_88_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_88_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""stdout"", ""=""], ""FILE *""], [[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""], [[""char *"", ""get_netscape_format"", ""struct Cookie *"", ""=""], ""char *""]]","[""\""%s\\n\""""]"
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/strerror.c,-,"[""1587283"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%04X%04X)\"" , txt , ( err >> 16 ) & 0xffff , err & 0xffff )""]",1081,/data/download/CMake/CMake/Kitware_CMake_98_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_98_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""]]","[""\""%s (0x%04X%04X)\"""", ""0xffff"", ""0xffff"", ""16""]"
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/strerror.c,+,"[""1585199"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%08X)\"" , txt , err )""]",1083,/data/download/CMake/CMake/Kitware_CMake_98_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_98_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""]]","[""\""%s (0x%08X)\""""]"
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/conncache.c,-,"[""2129"", ""True"", ""ReturnStatement"", ""return aprintf ( \""%s:%d\"" , conn -> bits . proxy ? conn -> proxy . name : conn -> host . name , conn -> localport ) ;""]",135,/data/download/CMake/CMake/Kitware_CMake_100_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_100_new.cpp,"[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""], ""struct connectdata *""]]","[""\""%s:%d\""""]"
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/cookie.c,-,"[""8630"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""#\\n# Fatal libcurl error\\n\"" )""]",1283,/data/download/CMake/CMake/Kitware_CMake_101_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_101_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""], [[""FILE *"", ""stdout"", ""=""], ""FILE *""]]","[""\""#\\n# Fatal libcurl error\\n\""""]"
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/cookie.c,-,"[""8603"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""%s\\n\"" , format_ptr )""]",1288,/data/download/CMake/CMake/Kitware_CMake_101_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_101_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""], [[""FILE *"", ""stdout"", ""=""], ""FILE *""], [[""char *"", ""get_netscape_format"", ""struct Cookie *"", ""=""], ""char *""]]","[""\""%s\\n\""""]"
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/strerror.c,-,"[""112240"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%04X%04X)\"" , txt , ( err >> 16 ) & 0xffff , err & 0xffff )""]",1081,/data/download/CMake/CMake/Kitware_CMake_111_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_111_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""]]","[""\""%s (0x%04X%04X)\"""", ""0xffff"", ""0xffff"", ""16""]"
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/strerror.c,+,"[""110156"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%08X)\"" , txt , err )""]",1083,/data/download/CMake/CMake/Kitware_CMake_111_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_111_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""]]","[""\""%s (0x%08X)\""""]"
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/conncache.c,-,"[""115275"", ""True"", ""ReturnStatement"", ""return aprintf ( \""%s:%d\"" , conn -> bits . proxy ? conn -> proxy . name : conn -> host . name , conn -> localport ) ;""]",135,/data/download/CMake/CMake/Kitware_CMake_113_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_113_new.cpp,"[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""], ""struct connectdata *""]]","[""\""%s:%d\""""]"
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/cookie.c,-,"[""121776"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""#\\n# Fatal libcurl error\\n\"" )""]",1283,/data/download/CMake/CMake/Kitware_CMake_114_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_114_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""stdout"", ""=""], ""FILE *""], [[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""]]","[""\""#\\n# Fatal libcurl error\\n\""""]"
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/cookie.c,-,"[""121749"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""%s\\n\"" , format_ptr )""]",1288,/data/download/CMake/CMake/Kitware_CMake_114_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_114_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""], [[""FILE *"", ""stdout"", ""=""], ""FILE *""], [[""char *"", ""get_netscape_format"", ""struct Cookie *"", ""=""], ""char *""]]","[""\""%s\\n\""""]"
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/strerror.c,-,"[""229450"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%04X%04X)\"" , txt , ( err >> 16 ) & 0xffff , err & 0xffff )""]",1081,/data/download/CMake/CMake/Kitware_CMake_124_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_124_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""]]","[""\""%s (0x%04X%04X)\"""", ""0xffff"", ""0xffff"", ""16""]"
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/strerror.c,+,"[""227366"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%08X)\"" , txt , err )""]",1083,/data/download/CMake/CMake/Kitware_CMake_124_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_124_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""]]","[""\""%s (0x%08X)\""""]"
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/conncache.c,-,"[""243786"", ""True"", ""ReturnStatement"", ""return aprintf ( \""%s:%d\"" , conn -> bits . proxy ? conn -> proxy . name : conn -> host . name , conn -> localport ) ;""]",135,/data/download/CMake/CMake/Kitware_CMake_127_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_127_new.cpp,"[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""]], [[""ENTRY""]]]","[[[""struct connectdata *""], ""struct connectdata *""]]","[""\""%s:%d\""""]"
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/cookie.c,-,"[""250287"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""#\\n# Fatal libcurl error\\n\"" )""]",1283,/data/download/CMake/CMake/Kitware_CMake_128_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_128_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""stdout"", ""=""], ""FILE *""], [[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""]]","[""\""#\\n# Fatal libcurl error\\n\""""]"
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/cookie.c,-,"[""250260"", ""True"", ""ExpressionStatement"", ""fprintf ( out , \""%s\\n\"" , format_ptr )""]",1288,/data/download/CMake/CMake/Kitware_CMake_128_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_128_new.cpp,"[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""char *"", ""NULL"", ""==""]], [[""!"", ""struct Cookie *"", ""domain""]]]","[[[""FILE *"", ""fopen"", ""const char *"", ""FOPEN_WRITETEXT"", ""=""], ""FILE *""], [[""FILE *"", ""stdout"", ""=""], ""FILE *""], [[""char *"", ""get_netscape_format"", ""struct Cookie *"", ""=""], ""char *""]]","[""\""%s\\n\""""]"
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/strerror.c,-,"[""385177"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%04X%04X)\"" , txt , ( err >> 16 ) & 0xffff , err & 0xffff )""]",1081,/data/download/CMake/CMake/Kitware_CMake_138_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_138_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""]]","[""\""%s (0x%04X%04X)\"""", ""0xffff"", ""0xffff"", ""16""]"
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/strerror.c,+,"[""383093"", ""True"", ""ExpressionStatement"", ""snprintf ( txtbuf , sizeof ( txtbuf ) , \""%s (0x%08X)\"" , txt , err )""]",1083,/data/download/CMake/CMake/Kitware_CMake_138_old.cpp,1088,/data/download/CMake/CMake/Kitware_CMake_138_new.cpp,"[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""int"", ""SEC_E_ILLEGAL_MESSAGE"", ""==""]], [[""int"", ""SEC_E_OK"", ""==""]]]","[[[""char [ 80 ]"", ""80""], ""char [ 80 ]""], [[""const char *"", ""\""SEC_E_KDC_UNABLE_TO_REFER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TIME_SKEW\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_PRINCIPAL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INSUFFICIENT_MEMORY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_POLICY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SHUTDOWN_IN_PROGRESS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_PARAMETER\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_NAME_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ALGORITHM_MISMATCH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_AUTHENTICATING_AUTHORITY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_OUT_OF_SEQUENCE\"""", ""=""], ""const char *""], [[""const char *"", ""\""No error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ENCRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNTRUSTED_ROOT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_PKINIT_CLIENT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CRYPTO_SYSTEM_INVALID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ISSUING_CA_UNTRUSTED_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_AND_CONTINUE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_ILLEGAL_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INTERNAL_ERROR\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_TOKEN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MULTIPLE_ACCOUNTS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_BINDINGS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_S4U_PROT_SUPPORT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BAD_PKGID\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INVALID_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DELEGATION_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CROSSREALM_DELEGATION_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MESSAGE_ALTERED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_INVALID_REQUEST\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_CERT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""Unknown error\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNKNOWN_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DOWNGRADE_DETECTED\"""", ""=""], ""const char *""], [[""int""], ""int""], [[""const char *"", ""\""SEC_E_CANNOT_PACK\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IMPERSONATION\"""", ""=""], ""const char *""], [[""const char *"", ""\""CRYPT_E_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_WRONG_USAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTINUE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_PREAUTH\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_REVOCATION_OFFLINE_C\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNSUPPORTED_FUNCTION\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_TGT_REPLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CERT_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_LOCAL_LOGON\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_UNFINISHED_CONTEXT_DELETED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_BUFFER_TOO_SMALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_RENEGOTIATE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_DECRYPT_FAILURE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TOO_MANY_PRINCIPALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_CERT_REVOKED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_LOGON_DENIED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECPKG_NOT_FOUND\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SMARTCARD_LOGON_REQUIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_CANNOT_INSTALL\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_CONTEXT_EXPIRED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_COMPLETE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_WRONG_CREDENTIAL_HANDLE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_PA_DATA\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_STRONG_CRYPTO_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_KDC_UNKNOWN_ETYPE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_SIGNATURE_NEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MUST_BE_KDC\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_QOP_NOT_SUPPORTED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_TARGET_UNKNOWN\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_IP_ADDRESSES\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_POLICY_NLTM_ONLY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_CREDENTIALS\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_I_NO_LSA_CONTEXT\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_SECURITY_QOS_FAILED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_MAX_REFERRALS_EXCEEDED\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_INCOMPLETE_MESSAGE\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NO_KERB_KEY\"""", ""=""], ""const char *""], [[""const char *"", ""\""SEC_E_NOT_OWNER\"""", ""=""], ""const char *""]]","[""\""%s (0x%08X)\""""]"
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,-,"[""632377"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmListFileLexer_yyset_lineno called with no buffer\"" , yyscanner )""]",2103,/data/download/CMake/CMake/Kitware_CMake_163_old.cpp,2161,/data/download/CMake/CMake/Kitware_CMake_163_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmListFileLexer_yyset_lineno called with no buffer\""""]"
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,-,"[""632422"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmListFileLexer_yyset_column called with no buffer\"" , yyscanner )""]",2118,/data/download/CMake/CMake/Kitware_CMake_163_old.cpp,2176,/data/download/CMake/CMake/Kitware_CMake_163_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmListFileLexer_yyset_column called with no buffer\""""]"
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,-,"[""642789"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmListFileLexer_yyset_lineno called with no buffer\"" , yyscanner )""]",2103,/data/download/CMake/CMake/Kitware_CMake_164_old.cpp,2168,/data/download/CMake/CMake/Kitware_CMake_164_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmListFileLexer_yyset_lineno called with no buffer\""""]"
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,-,"[""642834"", ""True"", ""ExpressionStatement"", ""yy_fatal_error ( \""cmListFileLexer_yyset_column called with no buffer\"" , yyscanner )""]",2118,/data/download/CMake/CMake/Kitware_CMake_164_old.cpp,2183,/data/download/CMake/CMake/Kitware_CMake_164_new.cpp,"[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""!"", ""YY_CURRENT_BUFFER""]]]","[[[""yyscan_t""], ""yyscan_t""]]","[""\""cmListFileLexer_yyset_column called with no buffer\""""]"
+7d2a0aa76c25d92f1e2a03778f5666bdd7e56b92,"Merge topic 'clang-format-source'
+
+d9fd2f54 Revise C++ coding style using clang-format
+82df6dea Empty commit at end of history preceding clang-format style transition
+6a13f43f CONTRIBUTING: Add a section on coding style
+bf451d9f Add a script to run clang-format on the entire source tree
+1e90d78f Configure clang-format for CMake source tree
+da60adc3 Tell Git to use a distinct conflict marker size in `.rst` files",Source/CPack/cmCPackDebGenerator.cxx,-,"[""653539"", ""True"", ""ExpressionStatement"", ""( void ) sprintf ( ar_hb , HDR1 , AR_EFMT1 , ( int ) lname , ( long int ) sb -> st_mtime , ( unsigned ) uid , ( unsigned ) gid , ( unsigned ) sb -> st_mode , ( long long ) sb -> st_size + lname , ARFMAG )""]",966,/data/download/CMake/CMake/Kitware_CMake_169_old.cpp,882,/data/download/CMake/CMake/Kitware_CMake_169_new.cpp,"[[[""size_t"", ""struct ar_hdr *"", ""ar_name"", "">"", ""strchr"", ""const char *"", ""' '"", ""||""]]]","[[[""size_t"", ""struct ar_hdr *"", ""ar_name"", "">"", ""strchr"", ""const char *"", ""' '"", ""||""]]]","[[[""gid_t"", ""USHRT_MAX"", ""=""], ""gid_t""], [[""gid_t"", ""gid_t"", ""struct stat *"", ""st_gid"", ""=""], ""gid_t""], [[""struct stat *""], ""struct stat *""], [[""size_t"", ""size_t"", ""strlen"", ""const char *"", ""=""], ""size_t""], [[""uid_t"", ""uid_t"", ""struct stat *"", ""st_uid"", ""=""], ""uid_t""], [[""uid_t"", ""USHRT_MAX"", ""=""], ""uid_t""]]",[]
+d9fd2f5402eeaa345691313658e02b51038f570b,"Revise C++ coding style using clang-format
+
+Run the `Utilities/Scripts/clang-format.bash` script to update
+all our C++ code to a new style defined by `.clang-format`.
+Use `clang-format` version 3.8.
+
+* If you reached this commit for a line in `git blame`, re-run the blame
+  operation starting at the parent of this commit to see older history
+  for the content.
+
+* See the parent commit for instructions to rebase a change across this
+  style transition commit.",Source/CPack/cmCPackDebGenerator.cxx,-,"[""663599"", ""True"", ""ExpressionStatement"", ""( void ) sprintf ( ar_hb , HDR1 , AR_EFMT1 , ( int ) lname , ( long int ) sb -> st_mtime , ( unsigned ) uid , ( unsigned ) gid , ( unsigned ) sb -> st_mode , ( long long ) sb -> st_size + lname , ARFMAG )""]",966,/data/download/CMake/CMake/Kitware_CMake_170_old.cpp,882,/data/download/CMake/CMake/Kitware_CMake_170_new.cpp,"[[[""size_t"", ""struct ar_hdr *"", ""ar_name"", "">"", ""strchr"", ""const char *"", ""' '"", ""||""]]]","[[[""size_t"", ""struct ar_hdr *"", ""ar_name"", "">"", ""strchr"", ""const char *"", ""' '"", ""||""]]]","[[[""gid_t"", ""USHRT_MAX"", ""=""], ""gid_t""], [[""gid_t"", ""gid_t"", ""struct stat *"", ""st_gid"", ""=""], ""gid_t""], [[""struct stat *""], ""struct stat *""], [[""size_t"", ""size_t"", ""strlen"", ""const char *"", ""=""], ""size_t""], [[""uid_t"", ""USHRT_MAX"", ""=""], ""uid_t""], [[""uid_t"", ""uid_t"", ""struct stat *"", ""st_uid"", ""=""], ""uid_t""]]",[]
+858aa5f9af8bdf096f6985eda468903ca266dc8f,"Merge topic 'update-libarchive'
+
+59d28b28 libarchive: Drop early use of crypto library
+fa425910 Utilities/Release: Define NTDDI_VERSION for Windows binaries
+e9bc469b Merge branch 'upstream-LibArchive' into update-libarchive
+db9c40b4 Merge branch 'upstream-LibArchive' into update-libarchive
+b2675cde libarchive: Remove CMake-specific README
+501345e4 LibArchive 2016-04-30 (167e97be)
+91e6da10 Add script to update LibArchive from upstream
+fc8fc40f LibArchive 2015-10-21 (3bfe5f1f)",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,-,"[""717850"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""unknowntag_start:%s\\n\"" , name )""]",1943,/data/download/CMake/CMake/Kitware_CMake_174_old.cpp,1942,/data/download/CMake/CMake/Kitware_CMake_174_new.cpp,"[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""const char *""], ""const char *""]]","[""\""unknowntag_start:%s\\n\""""]"
+858aa5f9af8bdf096f6985eda468903ca266dc8f,"Merge topic 'update-libarchive'
+
+59d28b28 libarchive: Drop early use of crypto library
+fa425910 Utilities/Release: Define NTDDI_VERSION for Windows binaries
+e9bc469b Merge branch 'upstream-LibArchive' into update-libarchive
+db9c40b4 Merge branch 'upstream-LibArchive' into update-libarchive
+b2675cde libarchive: Remove CMake-specific README
+501345e4 LibArchive 2016-04-30 (167e97be)
+91e6da10 Add script to update LibArchive from upstream
+fc8fc40f LibArchive 2015-10-21 (3bfe5f1f)",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,+,"[""701856"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""UNKNOWNTAG_START:%s\\n\"" , name )""]",1954,/data/download/CMake/CMake/Kitware_CMake_174_old.cpp,1952,/data/download/CMake/CMake/Kitware_CMake_174_new.cpp,"[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""struct unknown_tag *"", ""NULL"", ""==""]]]","[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""struct unknown_tag *"", ""NULL"", ""==""]]]","[[[""const char *""], ""const char *""]]","[""\""UNKNOWNTAG_START:%s\\n\""""]"
+858aa5f9af8bdf096f6985eda468903ca266dc8f,"Merge topic 'update-libarchive'
+
+59d28b28 libarchive: Drop early use of crypto library
+fa425910 Utilities/Release: Define NTDDI_VERSION for Windows binaries
+e9bc469b Merge branch 'upstream-LibArchive' into update-libarchive
+db9c40b4 Merge branch 'upstream-LibArchive' into update-libarchive
+b2675cde libarchive: Remove CMake-specific README
+501345e4 LibArchive 2016-04-30 (167e97be)
+91e6da10 Add script to update LibArchive from upstream
+fc8fc40f LibArchive 2015-10-21 (3bfe5f1f)",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,-,"[""717973"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""unknowntag_end:%s\\n\"" , name )""]",1967,/data/download/CMake/CMake/Kitware_CMake_174_old.cpp,1966,/data/download/CMake/CMake/Kitware_CMake_174_new.cpp,"[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""const char *""], ""const char *""]]","[""\""unknowntag_end:%s\\n\""""]"
+858aa5f9af8bdf096f6985eda468903ca266dc8f,"Merge topic 'update-libarchive'
+
+59d28b28 libarchive: Drop early use of crypto library
+fa425910 Utilities/Release: Define NTDDI_VERSION for Windows binaries
+e9bc469b Merge branch 'upstream-LibArchive' into update-libarchive
+db9c40b4 Merge branch 'upstream-LibArchive' into update-libarchive
+b2675cde libarchive: Remove CMake-specific README
+501345e4 LibArchive 2016-04-30 (167e97be)
+91e6da10 Add script to update LibArchive from upstream
+fc8fc40f LibArchive 2015-10-21 (3bfe5f1f)",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,+,"[""701991"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""UNKNOWNTAG_END:%s\\n\"" , name )""]",1977,/data/download/CMake/CMake/Kitware_CMake_174_old.cpp,1975,/data/download/CMake/CMake/Kitware_CMake_174_new.cpp,"[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""strcmp"", ""struct unknown_tag *"", ""const char *"", ""s"", ""const char *"", ""0"", ""==""]]]","[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""strcmp"", ""struct unknown_tag *"", ""const char *"", ""s"", ""const char *"", ""0"", ""==""]]]","[[[""const char *""], ""const char *""]]","[""\""UNKNOWNTAG_END:%s\\n\""""]"
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,-,"[""818440"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""unknowntag_start:%s\\n\"" , name )""]",1943,/data/download/CMake/CMake/Kitware_CMake_179_old.cpp,1942,/data/download/CMake/CMake/Kitware_CMake_179_new.cpp,"[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""const char *""], ""const char *""]]","[""\""unknowntag_start:%s\\n\""""]"
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,+,"[""802446"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""UNKNOWNTAG_START:%s\\n\"" , name )""]",1954,/data/download/CMake/CMake/Kitware_CMake_179_old.cpp,1952,/data/download/CMake/CMake/Kitware_CMake_179_new.cpp,"[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""struct unknown_tag *"", ""NULL"", ""==""]]]","[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""struct unknown_tag *"", ""NULL"", ""==""]]]","[[[""const char *""], ""const char *""]]","[""\""UNKNOWNTAG_START:%s\\n\""""]"
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,-,"[""818563"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""unknowntag_end:%s\\n\"" , name )""]",1967,/data/download/CMake/CMake/Kitware_CMake_179_old.cpp,1966,/data/download/CMake/CMake/Kitware_CMake_179_new.cpp,"[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""const char *""], ""const char *""]]","[""\""unknowntag_end:%s\\n\""""]"
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,+,"[""802581"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""UNKNOWNTAG_END:%s\\n\"" , name )""]",1977,/data/download/CMake/CMake/Kitware_CMake_179_old.cpp,1975,/data/download/CMake/CMake/Kitware_CMake_179_new.cpp,"[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""strcmp"", ""struct unknown_tag *"", ""const char *"", ""s"", ""const char *"", ""0"", ""==""]]]","[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""strcmp"", ""struct unknown_tag *"", ""const char *"", ""s"", ""const char *"", ""0"", ""==""]]]","[[[""const char *""], ""const char *""]]","[""\""UNKNOWNTAG_END:%s\\n\""""]"
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",libarchive/archive_read_support_format_xar.c,-,"[""928518"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""unknowntag_start:%s\\n\"" , name )""]",1943,/data/download/CMake/CMake/Kitware_CMake_185_old.cpp,1942,/data/download/CMake/CMake/Kitware_CMake_185_new.cpp,"[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""const char *""], ""const char *""]]","[""\""unknowntag_start:%s\\n\""""]"
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",libarchive/archive_read_support_format_xar.c,+,"[""912524"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""UNKNOWNTAG_START:%s\\n\"" , name )""]",1954,/data/download/CMake/CMake/Kitware_CMake_185_old.cpp,1952,/data/download/CMake/CMake/Kitware_CMake_185_new.cpp,"[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""struct unknown_tag *"", ""NULL"", ""==""]]]","[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""struct unknown_tag *"", ""NULL"", ""==""]]]","[[[""const char *""], ""const char *""]]","[""\""UNKNOWNTAG_START:%s\\n\""""]"
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",libarchive/archive_read_support_format_xar.c,-,"[""928641"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""unknowntag_end:%s\\n\"" , name )""]",1967,/data/download/CMake/CMake/Kitware_CMake_185_old.cpp,1966,/data/download/CMake/CMake/Kitware_CMake_185_new.cpp,"[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""struct unknown_tag *""]], [[""const char *""]]]","[[[""const char *""], ""const char *""]]","[""\""unknowntag_end:%s\\n\""""]"
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",libarchive/archive_read_support_format_xar.c,+,"[""912659"", ""True"", ""ExpressionStatement"", ""fprintf ( stderr , \""UNKNOWNTAG_END:%s\\n\"" , name )""]",1977,/data/download/CMake/CMake/Kitware_CMake_185_old.cpp,1975,/data/download/CMake/CMake/Kitware_CMake_185_new.cpp,"[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""strcmp"", ""struct unknown_tag *"", ""const char *"", ""s"", ""const char *"", ""0"", ""==""]]]","[[[""struct xar *"", ""unknowntags"", ""NULL"", ""==""]], [[""strcmp"", ""struct unknown_tag *"", ""const char *"", ""s"", ""const char *"", ""0"", ""==""]]]","[[[""const char *""], ""const char *""]]","[""\""UNKNOWNTAG_END:%s\\n\""""]"
+79d4b5bec911f057c87dd6c558cbe112afbc3a7e,"Merge topic 'try_compile-target-type'
+
+7f1bd9fe try_compile: Add option to control type of target",Source/cmCoreTryCompile.cxx,-,"[""1002673"", ""True"", ""ExpressionStatement"", ""fprintf ( fout , \""set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \\\""%s\\\"")\\n\"" , this -> BinaryDirectory . c_str ( ) )""]",490,/data/download/CMake/CMake/Kitware_CMake_195_old.cpp,518,/data/download/CMake/CMake/Kitware_CMake_195_new.cpp,"[[[""!"", ""cmExportTryCompileFileGenerator"", ""GenerateImportFile""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""FILE *""]]]","[[[""!"", ""cmExportTryCompileFileGenerator"", ""GenerateImportFile""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""FILE *""]]]","[[[""this"", ""SrcFileSignature"", ""true"", ""=""], ""* this""], [[""this"", ""SrcFileSignature"", ""false"", ""=""], ""* this""], [[""this"", ""BinaryDirectory"", ""\""/CMakeTmp\"""", ""+=""], ""* this""], [[""FILE *"", ""FILE *"", ""cmsys :: SystemTools :: Fopen"", ""std :: string"", ""\""w\"""", ""=""], ""FILE *""], [[""this"", ""BinaryDirectory"", ""\""/CMakeTmp\"""", ""+=""], ""this -> BinaryDirectory""], [[""this"", ""BinaryDirectory"", ""std :: vector < std :: string > const &"", ""1"", ""c_str"", ""=""], ""this -> BinaryDirectory""]]","[""\""set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \\\""%s\\\"")\\n\""""]"
+79d4b5bec911f057c87dd6c558cbe112afbc3a7e,"Merge topic 'try_compile-target-type'
+
+7f1bd9fe try_compile: Add option to control type of target",Source/cmCoreTryCompile.cxx,-,"[""1002657"", ""True"", ""ExpressionStatement"", ""fprintf ( fout , \""add_executable(%s\"" , targetName . c_str ( ) )""]",493,/data/download/CMake/CMake/Kitware_CMake_195_old.cpp,518,/data/download/CMake/CMake/Kitware_CMake_195_new.cpp,"[[[""!"", ""cmExportTryCompileFileGenerator"", ""GenerateImportFile""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""FILE *""]]]","[[[""!"", ""cmExportTryCompileFileGenerator"", ""GenerateImportFile""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""std :: vector < std :: string >"", ""empty""]], [[""!"", ""FILE *""]]]","[[[""FILE *"", ""FILE *"", ""cmsys :: SystemTools :: Fopen"", ""std :: string"", ""\""w\"""", ""=""], ""FILE *""], [[""std :: string"", ""char [ 64 ]"", ""=""], ""std :: string""]]","[""\""add_executable(%s\""""]"
