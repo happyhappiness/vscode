@@ -52,7 +52,7 @@
         },
         "workbench.action.closeWindow": {
             "id": "workbench.action.closeWindow",
-            "label": "Ctrl+W",
+            "label": "Ctrl+Shift+W",
             "isNative": true
         },
         "workbench.action.closeFolder": {
@@ -423,6 +423,7 @@
     "openedPathsList": {
         "files": [],
         "folders": [
+            "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "/usr/info/code/cpp/LogMonitor"
         ]

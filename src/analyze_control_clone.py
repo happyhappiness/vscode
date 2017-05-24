@@ -139,8 +139,8 @@ def seek_clone(user, repos):
     patch_file = file(patch_file_name, 'rb')
     patch_records = csv.reader(patch_file)
     for patch_record in islice(patch_records, 1, None):
-        # old_context_list 8
-        context_patch.append(json.loads(patch_record[8]))
+        # old_context_list 9 (add commit sha)
+        context_patch.append(json.loads(patch_record[9]))
         log_patch.append(patch_record)
     # initialize log_repos from given repos analysis result
     log_repos = []
@@ -180,7 +180,8 @@ def seek_clone(user, repos):
     # write back into file
     out_csv = file('data/fetch/' + user + '_' + repos + '_seek_clone.csv', 'wb')
     out_csv_writer = csv.writer(out_csv)
-    out_csv_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
+    out_csv_writer.writerow(['commit_sha', 'commit_message', 'file_name',\
+        'change_type', 'log_node', \
         'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
         'old_context_list', 'new_context_list', 'ddg_list', 'static_list', \
         'clone_log', 'clone_location', 'clone_file_name', 'clone_context_list',\

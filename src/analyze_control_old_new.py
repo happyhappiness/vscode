@@ -296,7 +296,8 @@ def analyze(user, repos):
     # initialize write file
     analysis = file('data/fetch/' + user + '_' + repos + '_old_new_analyze.csv', 'wb')
     analyze_writer = csv.writer(analysis)
-    analyze_writer.writerow(['commit_message', 'file_name', 'change_type', 'log_node', \
+    analyze_writer.writerow(['commit_sha', 'commit_message', 'file_name', \
+        'change_type', 'log_node', \
         'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
         'old_context_list', 'new_context_list', 'ddg_list', 'static_list'])
     # initialize read file
@@ -320,8 +321,7 @@ def analyze(user, repos):
 
         # update analyze data is has edited
         if log:
-            record.pop(0)
-            
+            # record.pop(0)
             # record.pop(6)
             analyze_writer.writerow(record)
             count = count + 1
