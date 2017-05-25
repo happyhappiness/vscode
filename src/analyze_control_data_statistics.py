@@ -7,7 +7,7 @@ import base64
 import json
 import myUtil
 from itertools import islice
-from joern.all import JoernSteps
+# from joern.all import JoernSteps
 
 """
 @ param  user and repos
