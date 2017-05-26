@@ -26,10 +26,10 @@ def get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc):
     old_log_loc = 0
     new_log_loc = 0
     for hunk_index in range(0, hunk_loc):
-        if flag[hunk_index] == myUtil.FLAG_ADD:
+        if flag[hunk_index] > myUtil.FLAG_NO_CHANGE:
             line_add += 1
             continue
-        if flag[hunk_index] == myUtil.FLAG_DELETE:
+        if flag[hunk_index] < myUtil.FLAG_NO_CHANGE:
             line_delete += 1
             continue
         if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
@@ -56,14 +56,11 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
         log = logs[log_index]
         hunk_loc = log[0]
         log.pop(0)
-        # already paired
-        if flag[hunk_loc] == myUtil.FLAG_NO_CHANGE:
-            continue
         # get change type and log statement
         change_type = log[myUtil.FETCH_CHANGE_TYPE]
         log_statement = log[myUtil.FETCH_LOG]
         # try to fing pair for modification
-        if flag[hunk_loc] == myUtil.FLAG_DELETE:
+        if flag[hunk_loc] == myUtil.FLAG_LOG_ADD:
             # backtrace to find - start location
             delta = 0
             hunk_index = hunk_loc - 1
@@ -75,16 +72,17 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
             # forward going to find pair for delete
             add_delta = 0
             pair_log = None
-            # prior to choose the pair with same delta
-            max_score = -1
+            # prior to choose the pair with same delta as well as similarity
+            max_score = 3
             for hunk_index in range(hunk_loc, len_hunk):
-                if flag[hunk_index] == myUtil.FLAG_DELETE:
-                    continue
                 if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
                     break
                 if flag[hunk_index] == myUtil.FLAG_ADD:
-                    hunk_score = float(abs(delta - add_delta))*len(log_statement)/2
-                    curr_score = myUtil.longestCommon(log, logs[hunk_index]) - hunk_score
+                    add_delta += 1
+                    continue
+                if flag[hunk_index] == myUtil.FLAG_LOG_ADD:
+                    hunk_score = float(abs(delta - add_delta))*len(log_statement)/5
+                    curr_score = myUtil.longestCommon(hunk[hunk_loc], hunk[hunk_index]) - hunk_score
                     if curr_score > max_score:
                         max_score = curr_score
                         pair_log = hunk_index
@@ -94,31 +92,32 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
             if pair_log is not None:
                 log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_MODIFY
                 # call function to get old and new log loc by hunk loc and hunk index
-                log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                log[myUtil.FETCH_OLD_LOC], tmp =\
                      get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+                tmp, log[myUtil.FETCH_NEW_LOC] =\
+                     get_loc(pair_log, flag, old_hunk_loc, new_hunk_loc)
                 writer.writerow(log)
                 # remove pair log change
-                flag[hunk_loc] = myUtil.FLAG_NO_CHANGE
-                flag[pair_log] = myUtil.FLAG_NO_CHANGE
-                continue
-
+                flag[hunk_loc] = myUtil.FLAG_DELETE
+                flag[pair_log] = myUtil.FLAG_ADD
             # DELETE
-            log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_DELETE
+            else:
+                log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_DELETE
+                # call function to get old and new log loc by hunk loc and hunk index
+                log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                        get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+                writer.writerow(log)
+                # remove pair log change
+                flag[hunk_loc] = myUtil.FLAG_DELETE
+        # ADD
+        else:
+            log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_ADD
             # call function to get old and new log loc by hunk loc and hunk index
             log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
                     get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
             writer.writerow(log)
             # remove pair log change
-            flag[hunk_loc] = myUtil.FLAG_NO_CHANGE
-            continue
-        # ADD
-        log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_ADD
-        # call function to get old and new log loc by hunk loc and hunk index
-        log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
-                get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-        writer.writerow(log)
-        # remove pair log change
-        flag[hunk_loc] = myUtil.FLAG_NO_CHANGE
+            flag[hunk_loc] = myUtil.FLAG_ADD
 
 """
 @ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
@@ -169,24 +168,19 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             hunk_loc = 0
             flag = []
             hunk = []
-            logs= []
+            logs = []
             continue
-        
+
+        # record hunk content
+        hunk.append(line[1:])
+
         # record change type flag
         change_type = line[0]
-        if change_type == '-':
-            flag.append(myUtil.FLAG_DELETE)
-        else:
-            if change_type == '+':
-                flag.append(myUtil.FLAG_ADD)
-            else:
-                # no change so no log change: increment line_count and continue
-                flag.append(myUtil.FLAG_NO_CHANGE)
-                continue
-
-        
-        # record hunk content
-        hunk.append(line.pop(0))
+        if not (change_type == '-' or changed_file == '+'):
+            flag.append(myUtil.FLAG_NO_CHANGE)
+            # update hunk location
+            hunk_loc += 1
+            continue
 
         # record log info
         # decide if it belongs to log change
@@ -202,6 +196,10 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             data_row.append(changed_file.filename)
             # change_type
             data_row.append(change_type)
+            if change_type == '-':
+                flag.append(myUtil.LOG_DELETE)
+            else:
+                flag.append(myUtil.LOG_ADD)
             # log_statement
             log_statement = is_log_change.group().strip()
             log_statement = log_statement[1:].strip()
@@ -214,7 +212,13 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             data_row.append(new_log_loc)
             data_row.append(new_store_name)
             # hunk_loc 0->
-            logs.append(hunk_loc + datarow)
+            logs.append([hunk_loc] + data_row)
+        else:
+            if change_type == '-':
+                flag.append(myUtil.LOG_DELETE)
+            else:
+                flag.append(myUtil.LOG_ADD)
+        
         # update hunk location
         hunk_loc += 1
 
@@ -312,15 +316,12 @@ def fetch_commit(commit_sha=''):
     total_file = 0
     total_cpp = 0
     total_log_cpp = 0
-    total_commit = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
         total_log_cpp, total_cpp, total_file = deal_commit \
                             (gh, commit.sha, total_log_cpp, total_cpp, total_file, fetch_writer)
-        total_commit += 1
         if total_file % 10 == 0:
-            print 'total commit is %d ; now have deal with %d none cpp file ; find cpp %d file ; \
-                have saved %d file' %(total_commit, total_file, total_cpp, total_log_cpp)
+            print 'now have deal with %d none cpp file ; find cpp %d file ; have saved %d file ' %(total_file, total_cpp, total_log_cpp)
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file

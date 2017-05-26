@@ -182,7 +182,7 @@ def seek_clone():
             index_repos += 1
         print "now analyze the no.%d patch; the clone count is %d"\
                  %(index_patch, clone_count)
-        clone_num_csv_writer.writerow(clone_count)
+        clone_num_csv_writer.writerow([clone_count])
         index_patch += 1
 
     clone_csv.close()
