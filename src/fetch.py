@@ -70,14 +70,14 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
             for hunk_index in range(hunk_loc, len_hunk):
                 if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
                     break
-                if flag[hunk_index] == myUtil.FLAG_DELETE:
+                if flag[hunk_index] < myUtil.FLAG_NO_CHANGE:
                     continue
-                if flag[hunk_index] == myUtil.FLAG_ADD:
+                if flag[hunk_index] > myUtil.FLAG_NO_CHANGE:
                     # backtrace to find - start location
                     delta = 0
-                    hunk_index = hunk_loc - 1
-                    while hunk_index >= 0:
-                        if flag[hunk_index] == myUtil.FLAG_DELETE:
+                    tmp_index = hunk_loc - 1
+                    while tmp_index >= 0:
+                        if flag[tmp_index] < myUtil.FLAG_NO_CHANGE:
                             delta += 1
                         else:
                             break
