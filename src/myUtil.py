@@ -10,11 +10,53 @@ from itertools import islice
 """
 @ involve : constant definition
 """
-user = 'Kitware'
-repos = 'CMake'
-fetch_file_name = 'data/fetch/' + user + '_' + repos + '_fetch.csv'
-fetch_title = ['commit_sha', 'commit_message', 'file_name', 'change_type', \
+USER = 'Kitware'
+REPOS = 'CMake'
+
+LOG_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_logging_statement.csv'
+FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_func_similarity.csv'
+FETCH_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_fetch.csv'
+ANALYZE_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_analyze.csv'
+ANALYZE_REPOS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_analyze.csv'
+ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_seek_clone.csv'
+STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_clone_statistics.csv'
+STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics.csv'
+
+FETCH_TITLE = ['commit_sha', 'commit_message', 'file_name', 'change_type', \
                 'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name']
+FETCH_CHANGE_TYPE = FETCH_TITLE.index('change_type')
+FETCH_LOG = FETCH_TITLE.index('log_statement')
+FETCH_OLD_LOC = FETCH_TITLE.index('old_log_loc')
+FETCH_OLD_FILE = FETCH_TITLE.index('old_store_name')
+FETCH_NEW_LOC = FETCH_TITLE.index('new_log_loc')
+FETCH_NEW_FILE = FETCH_TITLE.index('new_store_name')
+
+ANALYZE_OLD_NEW_TITLE = ['commit_sha', 'commit_message', 'file_name', \
+        'change_type', 'log_node', \
+        'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
+        'old_context_list', 'new_context_list', 'ddg_list', 'static_list']
+ANALYZE_OLD_NEW_OLD_CONTEXT = ANALYZE_OLD_NEW_TITLE.index('old_context_list')
+ANALYZE_OLD_NEW_NEW_CONTEXT = ANALYZE_OLD_NEW_TITLE.index('new_context_list')
+
+ANALYZE_REPOS_TITLE = ['code', 'location', 'file', 'context_list', 'ddg_list', 'static_list']
+ANALYZE_REPOS_CONTEXT = ANALYZE_REPOS_TITLE.index('context_list')
+
+ANALYZE_CLONE_TITLE = ['commit_sha', 'commit_message', 'file_name',\
+        'change_type', 'log_node', \
+        'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
+        'old_context_list', 'new_context_list', 'ddg_list', 'static_list', \
+        'clone_log', 'clone_location', 'clone_file_name', 'clone_context_list',\
+        'clone_ddg_list', 'clone_static_list']
+
+FLAG_NO_CHANGE = 0
+FLAG_DELETE = 1
+FLAG_ADD = 2
+
+LOG_ADD = 0
+LOG_DELETE = 1
+LOG_MOVE = 2
+LOG_MODIFY = 3
+
 """
 @ param  var to deal with
 @ return list of analyzed node info
@@ -68,24 +110,24 @@ def removeGivenElement(element, in_list):
     return in_list
 
 """
-@ param  filename
+@ param  isFromRead
 @ return function_similarity_dic
 @ callee similarity_func.getFunctionSimilarity
 @ caller cluster_context_with_function
 @ involve call similarity_func.getFunctionSimilarity to get similarity_dic between functions
 """
-def getFunctionSimilarityDic(isFromRead,fileName):
+def getFunctionSimilarityDic(isFromRead):
 
     func_similarity_dic = {}
     if isFromRead:
         # initialize func_similarity_dict
-        analyze_func = file(fileName, 'rb')
+        analyze_func = file(FUNC_SIMILAIRTY_FILE_NAME, 'rb')
         func_records = csv.reader(analyze_func)
         for func_record in islice(func_records, 1, None):
             func_similarity_dic[(func_record[0], func_record[1])] = func_record[2]
         analyze_func.close()
     else:
-        func_similarity_dic = similarity_func.getFunctionSimilarity(fileName)
+        func_similarity_dic = similarity_func.getFunctionSimilarity()
     return func_similarity_dic
 
 """
@@ -241,6 +283,74 @@ def getDDGAndContent(log_id, joern_instance):
     static_list = joern_instance.runGremlinQuery(static_query)[0]
 
     return ddg_list, static_list
+
+"""
+@ param  cond_list of a and b to compute, func_similarity_dic
+@ return lenth of common substring / min length
+@ callee ...
+@ caller compute_context_similarity ..
+@ involve compute the longgest common string (continuous) of two cond_list
+"""
+def longestCommon(list_a, list_b):
+
+    # if just one element, then compare that
+    len_a = len(list_a)
+    len_b = len(list_b)
+    if len_a == 0 or len_b == 0:
+        if (len_a + len_b) == 0:
+            return float(1)
+        else:
+            return float(0)
+    # length of a and b
+    len_a += 1
+    len_b += 1
+
+    # find first common and build the common matrix(a*b)
+    memory = [[0 for col in range(len_b)] for row in range(len_a)]
+    index_a = 0
+    index_b = 0
+    first_len_common = 0
+    for i in range(1, len_a):
+        for j in range(1, len_b):
+            # update len_common with history
+            if list_a[i - 1] == list_b[j-1]:
+                memory[i][j] = memory[i-1][j-1] + 1
+                if first_len_common < memory[i][j]:
+                    first_len_common = memory[i][j]
+                    index_a = i
+                    index_b = j
+                continue
+            else:
+                memory[i][j] = 0
+
+    len_common = first_len_common
+    # filter the totally different and equal condition
+    if len_common in range(1, min(len_a, len_b)):
+        curr_a = 0
+        curr_b = 0
+        # find all common in road decide by index_a, index_b
+        # forward [1, index_a - 1]
+        for i in range(1, min(index_a, index_b)):
+            # last common <-- element behind is 0
+            curr_a = index_a - i
+            curr_b = index_b - i
+            if memory[curr_a][curr_b] > 0 and memory[curr_a + 1][curr_b + 1] == 0:
+                len_common += memory[curr_a][curr_b]
+
+        # backward [index_a + 1, len_a - 1]
+        for i in range(1, min(len_a - index_a, len_b - index_b)):
+            # last common <-- element behind is 0
+            curr_a = index_a + i
+            curr_b = index_b + i
+            if memory[curr_a][curr_b] > 0 and \
+                (curr_a == len_a - 1 or curr_b == len_b - 1 or memory[curr_a + 1][curr_b + 1] == 0):
+                len_common += memory[curr_a][curr_b]
+
+    # simlarity value with common length / min length (0, 1)
+    # return float(len_common)/min(len_a, len_b)
+    return  len_common
+
+
 
 # list_a = [[["chroot", "char [ MAX_STRING_LENGTH + 1 ]"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
 # list_b = [[["chroot", "char *"]], [["!", "strcasecmp", "config_getoption", "\"DO_CHROOT\"", "\"yes\""]], [["!", "char *", "0"]], [["int"]], [["!", "char *", "0"]], [["!", "int"]]]
