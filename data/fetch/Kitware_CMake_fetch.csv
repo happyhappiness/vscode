@@ -1,0 +1,769 @@
+commit_sha,commit_message,file_name,change_type,log_statement,old_log_loc,old_store_name,new_log_loc,new_store_name
+67a7dcef45fef6172514d6df1bea3ca94a04735a,"Merge topic 'readability-named-parameter'
+
+e7b842e1 Make sure unnused parameters are /*named*/",Source/CursesDialog/cmCursesMainForm.cxx,0,"void cmCursesMainForm::AddError(const char* message, const char*)",678,/data/download/CMake/CMake/Kitware_CMake_0_old.cpp,678,/data/download/CMake/CMake/Kitware_CMake_0_new.cpp
+e7b842e18955d13f6d9c021bab4a8935bf282744,Make sure unnused parameters are /*named*/,Source/CursesDialog/cmCursesMainForm.cxx,0,"void cmCursesMainForm::AddError(const char* message, const char*)",678,/data/download/CMake/CMake/Kitware_CMake_1_old.cpp,678,/data/download/CMake/CMake/Kitware_CMake_1_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/conncache.c,0,"return aprintf(""%s:%d"",",135,/data/download/CMake/CMake/Kitware_CMake_2_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_2_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/cookie.c,0,"fprintf(out, ""#\n# Fatal libcurl error\n"");",1275,/data/download/CMake/CMake/Kitware_CMake_3_old.cpp,1321,/data/download/CMake/CMake/Kitware_CMake_3_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/cookie.c,0,"fprintf(out, ""%s\n"", format_ptr);",1275,/data/download/CMake/CMake/Kitware_CMake_3_old.cpp,1326,/data/download/CMake/CMake/Kitware_CMake_3_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf((char *)&dest[i*2], 3, ""%02x"", source[i]);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,180,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"return aprintf(""%s/%s"", service, host);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,289,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,response = aprintf(,71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,486,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(cnonce, sizeof(cnonce), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,648,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&HA1_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,681,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&HA2_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,704,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&resp_hash_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,734,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"",realm=\""%s\"",nonce=\""%s\"",""",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,737,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(cnoncebuf, sizeof(cnoncebuf), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,933,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"aprintf(""%s:%s:%s"", userp, digest->realm, passwdp);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,957,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s:%s:%s"", ha1, digest->nonce, digest->cnonce);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,968,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s"", request, uripath);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,991,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"aprintf(""%s:%s"", md5this, ""d41d8cd98f00b204e9800998ecf8427e"");",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,997,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%08x:%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1011,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1020,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1052,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1075,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s, opaque=\""%s\"""", response, digest->opaque);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1093,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s, algorithm=\""%s\"""", response, digest->algorithm);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1103,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/curl_sasl.c,0,"xoauth = aprintf(""user=%s\1auth=Bearer %s\1\1"", user, bearer);",71,/data/download/CMake/CMake/Kitware_CMake_4_old.cpp,1192,/data/download/CMake/CMake/Kitware_CMake_4_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/file.c,0,"snprintf(buf, BUFSIZE-1,",482,/data/download/CMake/CMake/Kitware_CMake_5_old.cpp,498,/data/download/CMake/CMake/Kitware_CMake_5_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/ftp.c,0,"cmd = aprintf( ""%s%s%s"",",1516,/data/download/CMake/CMake/Kitware_CMake_6_old.cpp,1527,/data/download/CMake/CMake/Kitware_CMake_6_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/http_proxy.c,0,"aprintf(""%s%s%s:%hu"", conn->bits.ipv6_ip?""["":"""",",156,/data/download/CMake/CMake/Kitware_CMake_7_old.cpp,168,/data/download/CMake/CMake/Kitware_CMake_7_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/sendf.c,0,"void Curl_failf(struct SessionHandle *data, const char *fmt, ...)",143,/data/download/CMake/CMake/Kitware_CMake_8_old.cpp,228,/data/download/CMake/CMake/Kitware_CMake_8_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/sendf.h,0,"void Curl_failf(struct SessionHandle *, const char *fmt, ...);",29,/data/download/CMake/CMake/Kitware_CMake_9_old.cpp,30,/data/download/CMake/CMake/Kitware_CMake_9_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/conncache.c,0,"return aprintf(""%s:%d"",",135,/data/download/CMake/CMake/Kitware_CMake_10_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_10_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/cookie.c,0,"fprintf(out, ""#\n# Fatal libcurl error\n"");",1275,/data/download/CMake/CMake/Kitware_CMake_11_old.cpp,1321,/data/download/CMake/CMake/Kitware_CMake_11_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/cookie.c,0,"fprintf(out, ""%s\n"", format_ptr);",1275,/data/download/CMake/CMake/Kitware_CMake_11_old.cpp,1326,/data/download/CMake/CMake/Kitware_CMake_11_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf((char *)&dest[i*2], 3, ""%02x"", source[i]);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,180,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"return aprintf(""%s/%s"", service, host);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,289,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,response = aprintf(,71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,486,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(cnonce, sizeof(cnonce), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,648,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&HA1_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,681,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&HA2_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,704,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&resp_hash_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,734,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"",realm=\""%s\"",nonce=\""%s\"",""",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,737,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(cnoncebuf, sizeof(cnoncebuf), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,933,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"aprintf(""%s:%s:%s"", userp, digest->realm, passwdp);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,957,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s:%s:%s"", ha1, digest->nonce, digest->cnonce);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,968,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s"", request, uripath);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,991,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"aprintf(""%s:%s"", md5this, ""d41d8cd98f00b204e9800998ecf8427e"");",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,997,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%08x:%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,1011,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,1020,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,1052,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,1075,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s, opaque=\""%s\"""", response, digest->opaque);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,1093,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s, algorithm=\""%s\"""", response, digest->algorithm);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,1103,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/curl_sasl.c,0,"xoauth = aprintf(""user=%s\1auth=Bearer %s\1\1"", user, bearer);",71,/data/download/CMake/CMake/Kitware_CMake_12_old.cpp,1192,/data/download/CMake/CMake/Kitware_CMake_12_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/file.c,0,"snprintf(buf, BUFSIZE-1,",482,/data/download/CMake/CMake/Kitware_CMake_13_old.cpp,498,/data/download/CMake/CMake/Kitware_CMake_13_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/ftp.c,0,"cmd = aprintf( ""%s%s%s"",",1516,/data/download/CMake/CMake/Kitware_CMake_14_old.cpp,1527,/data/download/CMake/CMake/Kitware_CMake_14_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/http_proxy.c,0,"aprintf(""%s%s%s:%hu"", conn->bits.ipv6_ip?""["":"""",",156,/data/download/CMake/CMake/Kitware_CMake_15_old.cpp,168,/data/download/CMake/CMake/Kitware_CMake_15_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/sendf.c,0,"void Curl_failf(struct SessionHandle *data, const char *fmt, ...)",143,/data/download/CMake/CMake/Kitware_CMake_16_old.cpp,228,/data/download/CMake/CMake/Kitware_CMake_16_new.cpp
+5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,Utilities/cmcurl/lib/sendf.h,0,"void Curl_failf(struct SessionHandle *, const char *fmt, ...);",29,/data/download/CMake/CMake/Kitware_CMake_17_old.cpp,30,/data/download/CMake/CMake/Kitware_CMake_17_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/conncache.c,0,"return aprintf(""%s:%d"",",135,/data/download/CMake/CMake/Kitware_CMake_18_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_18_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/cookie.c,0,"fprintf(out, ""#\n# Fatal libcurl error\n"");",1275,/data/download/CMake/CMake/Kitware_CMake_19_old.cpp,1321,/data/download/CMake/CMake/Kitware_CMake_19_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/cookie.c,0,"fprintf(out, ""%s\n"", format_ptr);",1275,/data/download/CMake/CMake/Kitware_CMake_19_old.cpp,1326,/data/download/CMake/CMake/Kitware_CMake_19_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf((char *)&dest[i*2], 3, ""%02x"", source[i]);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,180,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"return aprintf(""%s/%s"", service, host);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,289,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,response = aprintf(,71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,486,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(cnonce, sizeof(cnonce), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,648,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&HA1_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,681,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&HA2_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,704,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(&resp_hash_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,734,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"",realm=\""%s\"",nonce=\""%s\"",""",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,737,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"snprintf(cnoncebuf, sizeof(cnoncebuf), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,933,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"aprintf(""%s:%s:%s"", userp, digest->realm, passwdp);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,957,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s:%s:%s"", ha1, digest->nonce, digest->cnonce);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,968,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s"", request, uripath);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,991,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"aprintf(""%s:%s"", md5this, ""d41d8cd98f00b204e9800998ecf8427e"");",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,997,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%08x:%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,1011,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,1020,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,1052,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,1075,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s, opaque=\""%s\"""", response, digest->opaque);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,1093,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"tmp = aprintf(""%s, algorithm=\""%s\"""", response, digest->algorithm);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,1103,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/curl_sasl.c,0,"xoauth = aprintf(""user=%s\1auth=Bearer %s\1\1"", user, bearer);",71,/data/download/CMake/CMake/Kitware_CMake_20_old.cpp,1192,/data/download/CMake/CMake/Kitware_CMake_20_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/file.c,0,"snprintf(buf, BUFSIZE-1,",482,/data/download/CMake/CMake/Kitware_CMake_21_old.cpp,498,/data/download/CMake/CMake/Kitware_CMake_21_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/ftp.c,0,"cmd = aprintf( ""%s%s%s"",",1516,/data/download/CMake/CMake/Kitware_CMake_22_old.cpp,1527,/data/download/CMake/CMake/Kitware_CMake_22_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/http_proxy.c,0,"aprintf(""%s%s%s:%hu"", conn->bits.ipv6_ip?""["":"""",",156,/data/download/CMake/CMake/Kitware_CMake_23_old.cpp,168,/data/download/CMake/CMake/Kitware_CMake_23_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/sendf.c,0,"void Curl_failf(struct SessionHandle *data, const char *fmt, ...)",143,/data/download/CMake/CMake/Kitware_CMake_24_old.cpp,228,/data/download/CMake/CMake/Kitware_CMake_24_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/sendf.h,0,"void Curl_failf(struct SessionHandle *, const char *fmt, ...);",29,/data/download/CMake/CMake/Kitware_CMake_25_old.cpp,30,/data/download/CMake/CMake/Kitware_CMake_25_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/tftp.c,0,"snprintf(buf, sizeof(buf), ""%"" CURL_FORMAT_CURL_OFF_T,",497,/data/download/CMake/CMake/Kitware_CMake_26_old.cpp,499,/data/download/CMake/CMake/Kitware_CMake_26_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/tftp.c,0,"snprintf( buf, sizeof(buf), ""%d"", state->requested_blksize );",497,/data/download/CMake/CMake/Kitware_CMake_26_old.cpp,510,/data/download/CMake/CMake/Kitware_CMake_26_new.cpp
+f53f4a8a2d215dac634effea575a27e000dfcb29,"Merge branch 'upstream-curl' into update-curl
+
+* upstream-curl:
+  curl 2016-08-03 (f2cb3a01)",Utilities/cmcurl/lib/tftp.c,0,"snprintf( buf, sizeof(buf), ""%d"", state->retry_time);",497,/data/download/CMake/CMake/Kitware_CMake_26_old.cpp,518,/data/download/CMake/CMake/Kitware_CMake_26_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/conncache.c,0,"return aprintf(""%s:%d"",",135,/data/download/CMake/CMake/Kitware_CMake_27_old.cpp,134,/data/download/CMake/CMake/Kitware_CMake_27_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/cookie.c,0,"fprintf(out, ""#\n# Fatal libcurl error\n"");",1275,/data/download/CMake/CMake/Kitware_CMake_28_old.cpp,1321,/data/download/CMake/CMake/Kitware_CMake_28_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/cookie.c,0,"fprintf(out, ""%s\n"", format_ptr);",1275,/data/download/CMake/CMake/Kitware_CMake_28_old.cpp,1326,/data/download/CMake/CMake/Kitware_CMake_28_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"snprintf((char *)&dest[i*2], 3, ""%02x"", source[i]);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,180,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"return aprintf(""%s/%s"", service, host);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,289,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,response = aprintf(,71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,486,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"snprintf(cnonce, sizeof(cnonce), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,648,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"snprintf(&HA1_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,681,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"snprintf(&HA2_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,704,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"snprintf(&resp_hash_hex[2 * i], 3, ""%02x"", digest[i]);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,734,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"",realm=\""%s\"",nonce=\""%s\"",""",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,737,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"snprintf(cnoncebuf, sizeof(cnoncebuf), ""%08x%08x%08x%08x"",",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,933,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"aprintf(""%s:%s:%s"", userp, digest->realm, passwdp);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,957,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"tmp = aprintf(""%s:%s:%s"", ha1, digest->nonce, digest->cnonce);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,968,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s"", request, uripath);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,991,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"aprintf(""%s:%s"", md5this, ""d41d8cd98f00b204e9800998ecf8427e"");",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,997,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%08x:%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,1011,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"md5this = (unsigned char *)aprintf(""%s:%s:%s"",",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,1020,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,1052,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"response = aprintf(""username=\""%s\"", """,71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,1075,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"tmp = aprintf(""%s, opaque=\""%s\"""", response, digest->opaque);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,1093,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"tmp = aprintf(""%s, algorithm=\""%s\"""", response, digest->algorithm);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,1103,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/curl_sasl.c,0,"xoauth = aprintf(""user=%s\1auth=Bearer %s\1\1"", user, bearer);",71,/data/download/CMake/CMake/Kitware_CMake_29_old.cpp,1192,/data/download/CMake/CMake/Kitware_CMake_29_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/file.c,0,"snprintf(buf, BUFSIZE-1,",482,/data/download/CMake/CMake/Kitware_CMake_30_old.cpp,498,/data/download/CMake/CMake/Kitware_CMake_30_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/ftp.c,0,"cmd = aprintf( ""%s%s%s"",",1516,/data/download/CMake/CMake/Kitware_CMake_31_old.cpp,1527,/data/download/CMake/CMake/Kitware_CMake_31_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/http_proxy.c,0,"aprintf(""%s%s%s:%hu"", conn->bits.ipv6_ip?""["":"""",",156,/data/download/CMake/CMake/Kitware_CMake_32_old.cpp,168,/data/download/CMake/CMake/Kitware_CMake_32_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/sendf.c,0,"void Curl_failf(struct SessionHandle *data, const char *fmt, ...)",143,/data/download/CMake/CMake/Kitware_CMake_33_old.cpp,228,/data/download/CMake/CMake/Kitware_CMake_33_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/sendf.h,0,"void Curl_failf(struct SessionHandle *, const char *fmt, ...);",29,/data/download/CMake/CMake/Kitware_CMake_34_old.cpp,30,/data/download/CMake/CMake/Kitware_CMake_34_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/tftp.c,0,"snprintf(buf, sizeof(buf), ""%"" CURL_FORMAT_CURL_OFF_T,",497,/data/download/CMake/CMake/Kitware_CMake_35_old.cpp,499,/data/download/CMake/CMake/Kitware_CMake_35_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/tftp.c,0,"snprintf( buf, sizeof(buf), ""%d"", state->requested_blksize );",497,/data/download/CMake/CMake/Kitware_CMake_35_old.cpp,510,/data/download/CMake/CMake/Kitware_CMake_35_new.cpp
+202adcfe056681109fe61569ecdb3bd69f0b4f97,"curl 2016-08-03 (f2cb3a01)
+
+Code extracted from:
+
+    https://github.com/bagder/curl.git
+
+at commit f2cb3a01192d36395d16acec6cdb93446ca6fd45 (curl-7_50_1).",lib/tftp.c,0,"snprintf( buf, sizeof(buf), ""%d"", state->retry_time);",497,/data/download/CMake/CMake/Kitware_CMake_35_old.cpp,518,/data/download/CMake/CMake/Kitware_CMake_35_new.cpp
+36d9a01a31560ff3eb66e914c0a36a5d6a09844a,"Merge topic 'try_compile-custom-variables'
+
+d256ba07 try_compile: Optionally forward custom platform variables to test project
+fb4791b3 cmCoreTryCompile: Refactor forwarding of variables to test project",Source/cmCoreTryCompile.cxx,0,"fprintf(fout, ""set(CMAKE_POSITION_INDEPENDENT_CODE \""ON\"")\n"");",386,/data/download/CMake/CMake/Kitware_CMake_36_old.cpp,471,/data/download/CMake/CMake/Kitware_CMake_36_new.cpp
+36d9a01a31560ff3eb66e914c0a36a5d6a09844a,"Merge topic 'try_compile-custom-variables'
+
+d256ba07 try_compile: Optionally forward custom platform variables to test project
+fb4791b3 cmCoreTryCompile: Refactor forwarding of variables to test project",Source/cmCoreTryCompile.cxx,0,"fprintf(fout, ""set(CMAKE_LINK_SEARCH_START_STATIC \""%s\"")\n"", lssDef);",386,/data/download/CMake/CMake/Kitware_CMake_36_old.cpp,475,/data/download/CMake/CMake/Kitware_CMake_36_new.cpp
+36d9a01a31560ff3eb66e914c0a36a5d6a09844a,"Merge topic 'try_compile-custom-variables'
+
+d256ba07 try_compile: Optionally forward custom platform variables to test project
+fb4791b3 cmCoreTryCompile: Refactor forwarding of variables to test project",Source/cmCoreTryCompile.cxx,0,"fprintf(fout, ""set(CMAKE_LINK_SEARCH_END_STATIC \""%s\"")\n"", lssDef);",386,/data/download/CMake/CMake/Kitware_CMake_36_old.cpp,479,/data/download/CMake/CMake/Kitware_CMake_36_new.cpp
+fb4791b37ccea1f38b8625b31df952408ab942f3,"cmCoreTryCompile: Refactor forwarding of variables to test project
+
+De-duplicate the logic that constructs the cmake `-D` flag used to pass
+variables into the test project cache.  Also subsume variables that were
+propagated by generating `set()` commands in the project and pass them
+as cache entries instead.",Source/cmCoreTryCompile.cxx,0,"fprintf(fout, ""set(CMAKE_POSITION_INDEPENDENT_CODE \""ON\"")\n"");",386,/data/download/CMake/CMake/Kitware_CMake_37_old.cpp,469,/data/download/CMake/CMake/Kitware_CMake_37_new.cpp
+fb4791b37ccea1f38b8625b31df952408ab942f3,"cmCoreTryCompile: Refactor forwarding of variables to test project
+
+De-duplicate the logic that constructs the cmake `-D` flag used to pass
+variables into the test project cache.  Also subsume variables that were
+propagated by generating `set()` commands in the project and pass them
+as cache entries instead.",Source/cmCoreTryCompile.cxx,0,"fprintf(fout, ""set(CMAKE_LINK_SEARCH_START_STATIC \""%s\"")\n"", lssDef);",386,/data/download/CMake/CMake/Kitware_CMake_37_old.cpp,473,/data/download/CMake/CMake/Kitware_CMake_37_new.cpp
+fb4791b37ccea1f38b8625b31df952408ab942f3,"cmCoreTryCompile: Refactor forwarding of variables to test project
+
+De-duplicate the logic that constructs the cmake `-D` flag used to pass
+variables into the test project cache.  Also subsume variables that were
+propagated by generating `set()` commands in the project and pass them
+as cache entries instead.",Source/cmCoreTryCompile.cxx,0,"fprintf(fout, ""set(CMAKE_LINK_SEARCH_END_STATIC \""%s\"")\n"", lssDef);",386,/data/download/CMake/CMake/Kitware_CMake_37_old.cpp,477,/data/download/CMake/CMake/Kitware_CMake_37_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""input in flex scanner failed"" ); \",764,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,789,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""input in flex scanner failed"" ); \",764,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,799,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,YY_FATAL_ERROR(,1210,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1347,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,YY_FATAL_ERROR(,1353,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1503,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,YY_FATAL_ERROR(,1353,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1571,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );",1353,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1615,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yy_create_buffer()"" );",1697,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1757,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yy_create_buffer()"" );",1703,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1770,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()"" );",1862,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1939,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()"" );",1876,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1970,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yy_scan_buffer()"" );",1911,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,1976,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yy_scan_bytes()"" );",1958,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,2024,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""bad buffer in cmListFileLexer_yy_scan_bytes()"" );",1969,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,2041,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"(void) fprintf( stderr, ""%s\n"", msg );",1987,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,2045,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"yy_fatal_error( ""cmListFileLexer_yyset_lineno called with no buffer"" , yyscanner);",2103,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,2163,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+1e876b46911928b614ba89e234375f7f8a45d0e2,"Merge topic 'clang-format-lexer'
+
+030556b7 cmListFileLexer: Revise C++ coding style using clang-format
+e4a92dab cmListFileLexer: Update to flex 2.6",Source/cmListFileLexer.c,0,"yy_fatal_error( ""cmListFileLexer_yyset_column called with no buffer"" , yyscanner);",2118,/data/download/CMake/CMake/Kitware_CMake_38_old.cpp,2182,/data/download/CMake/CMake/Kitware_CMake_38_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""input in flex scanner failed"" ); \",764,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,789,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""input in flex scanner failed"" ); \",764,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,799,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,YY_FATAL_ERROR(,1210,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,1354,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,YY_FATAL_ERROR(,1353,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,1510,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,YY_FATAL_ERROR(,1353,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,1578,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in yy_get_next_buffer()"" );",1353,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,1622,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yy_create_buffer()"" );",1697,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,1764,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yy_create_buffer()"" );",1703,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,1777,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",Source/cmListFileLexer.c,0,"YY_FATAL_ERROR( ""out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()"" );",1862,/data/download/CMake/CMake/Kitware_CMake_39_old.cpp,1946,/data/download/CMake/CMake/Kitware_CMake_39_new.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs
