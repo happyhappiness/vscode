@@ -5,6 +5,16 @@ import analyze_control
 import analyze_control_old_new
 import csv
 from itertools import islice
+
+
+"""
+@ involve : constant definition
+"""
+user = 'Kitware'
+repos = 'CMake'
+fetch_file_name = 'data/fetch/' + user + '_' + repos + '_fetch.csv'
+fetch_title = ['commit_sha', 'commit_message', 'file_name', 'change_type', \
+                'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name']
 """
 @ param  var to deal with
 @ return list of analyzed node info
