@@ -1,0 +1,14 @@
+commit_sha,commit_message,file_name,change_type,log_statement,old_log_loc,old_store_name,new_log_loc,new_store_name
+67a7dcef45fef6172514d6df1bea3ca94a04735a,"Merge topic 'readability-named-parameter'
+
+e7b842e1 Make sure unnused parameters are /*named*/",Source/CursesDialog/cmCursesMainForm.cxx,3,"void cmCursesMainForm::AddError(const char* message, const char*)",678,/data/download/CMake/CMake/Kitware_CMake_0_old.cpp,678,/data/download/CMake/CMake/Kitware_CMake_0_new.cpp
+e7b842e18955d13f6d9c021bab4a8935bf282744,Make sure unnused parameters are /*named*/,Source/CursesDialog/cmCursesMainForm.cxx,3,"void cmCursesMainForm::AddError(const char* message, const char*)",678,/data/download/CMake/CMake/Kitware_CMake_1_old.cpp,678,/data/download/CMake/CMake/Kitware_CMake_1_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/conncache.c,3,"return aprintf(""%s:%d"",",135,/data/download/CMake/CMake/Kitware_CMake_2_old.cpp,143,/data/download/CMake/CMake/Kitware_CMake_2_new.cpp

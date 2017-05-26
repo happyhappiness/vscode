@@ -86,8 +86,8 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
                     if flag[delta_index] == myUtil.FLAG_LOG_ADD:
                         pair_log = delta_index
                     else:
-                        for neighbor_index in range(delta_index + 5, delta_index + 5):
-                            if flag[delta_index] == myUtil.FLAG_LOG_ADD:
+                        for neighbor_index in range(max(0, delta_index - 5), delta_index + 5):
+                            if flag[neighbor_index] == myUtil.FLAG_LOG_ADD:
                                 pair_log = neighbor_index
                     # compute corresponding pair location
                     # delta_index = delta + hunk_index
