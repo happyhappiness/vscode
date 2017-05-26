@@ -48,9 +48,11 @@ ANALYZE_CLONE_TITLE = ['commit_sha', 'commit_message', 'file_name',\
         'clone_log', 'clone_location', 'clone_file_name', 'clone_context_list',\
         'clone_ddg_list', 'clone_static_list']
 
+FLAG_LOG_DELETE = -2
+FLAG_DELETE = -1
 FLAG_NO_CHANGE = 0
-FLAG_DELETE = 1
-FLAG_ADD = 2
+FLAG_ADD = 1
+FLAG_LOG_ADD = 2
 
 LOG_ADD = 0
 LOG_DELETE = 1
