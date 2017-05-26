@@ -60,7 +60,7 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
         change_type = log[myUtil.FETCH_CHANGE_TYPE]
         log_statement = log[myUtil.FETCH_LOG]
         # try to fing pair for modification
-        if flag[hunk_loc] == myUtil.FLAG_LOG_ADD:
+        if flag[hunk_loc] == myUtil.FLAG_LOG_DELETE:
             # backtrace to find - start location
             delta = 0
             hunk_index = hunk_loc - 1
@@ -111,13 +111,14 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
                 flag[hunk_loc] = myUtil.FLAG_DELETE
         # ADD
         else:
-            log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_ADD
-            # call function to get old and new log loc by hunk loc and hunk index
-            log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
-                    get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-            writer.writerow(log)
-            # remove pair log change
-            flag[hunk_loc] = myUtil.FLAG_ADD
+            if flag[hunk_loc] == myUtil.FLAG_LOG_ADD:
+                log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_ADD
+                # call function to get old and new log loc by hunk loc and hunk index
+                log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                        get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+                writer.writerow(log)
+                # remove pair log change
+                flag[hunk_loc] = myUtil.FLAG_ADD
 
 """
 @ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
