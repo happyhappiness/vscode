@@ -204,8 +204,7 @@ def fetch_commit(user, repos, commit_sha=''):
     # write table title (3:change_type, 4:log_statement, \
     # 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name)
     """" append or not
-    fetch_writer.writerow(['commit_sha', 'commit_message', 'file_name', 'change_type', \
-                'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name'])
+    fetch_writer.writerow()
     """
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
