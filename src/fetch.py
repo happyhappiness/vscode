@@ -59,34 +59,45 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
         # get change type and log statement
         change_type = log[myUtil.FETCH_CHANGE_TYPE]
         log_statement = log[myUtil.FETCH_LOG]
+
         # try to fing pair for modification
         if flag[hunk_loc] == myUtil.FLAG_LOG_DELETE:
-            # backtrace to find - start location
-            delta = 0
-            hunk_index = hunk_loc - 1
-            while hunk_index >= 0:
-                if flag[hunk_index] == myUtil.FLAG_DELETE:
-                    delta += 1
-                else:
-                    break
+
             # forward going to find pair for delete
-            add_delta = 0
             pair_log = None
             # prior to choose the pair with same delta as well as similarity
             max_score = 3
             for hunk_index in range(hunk_loc, len_hunk):
                 if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
                     break
-                if flag[hunk_index] == myUtil.FLAG_ADD:
-                    add_delta += 1
+                if flag[hunk_index] == myUtil.FLAG_DELETE:
                     continue
-                if flag[hunk_index] == myUtil.FLAG_LOG_ADD:
-                    hunk_score = float(abs(delta - add_delta))*len(log_statement)/5
-                    curr_score = myUtil.longestCommon(hunk[hunk_loc], hunk[hunk_index]) - hunk_score
-                    if curr_score > max_score:
-                        max_score = curr_score
-                        pair_log = hunk_index
-                    add_delta += 1
+                if flag[hunk_index] == myUtil.FLAG_ADD:
+                    # backtrace to find - start location
+                    delta = 0
+                    hunk_index = hunk_loc - 1
+                    while hunk_index >= 0:
+                        if flag[hunk_index] == myUtil.FLAG_DELETE:
+                            delta += 1
+                        else:
+                            break
+                    # compute corresponding pair location
+                    delta_index = delta + hunk_index
+                    if flag[delta_index] == myUtil.FLAG_LOG_ADD:
+                        pair_log = delta_index
+                    else:
+                        for neighbor_index in range(delta_index + 5, delta_index + 5):
+                            if flag[delta_index] == myUtil.FLAG_LOG_ADD:
+                                pair_log = neighbor_index
+                    # compute corresponding pair location
+                    # delta_index = delta + hunk_index
+                    # for hunk_index1 in range(delta_index - 5, delta_index + 5):
+                    #     if flag[hunk_index1] == myUtil.FLAG_LOG_ADD:
+                    #         hunk_score = float(abs(hunk_index1 - hunk_index - delta))*len(log_statement)/5
+                    #         curr_score = myUtil.longestCommon(hunk[hunk_loc], hunk[hunk_index1]) - hunk_score
+                    #         if curr_score > max_score:
+                    #             max_score = curr_score
+                    #             pair_log = hunk_index
 
             # MODIFICATION if find pair
             if pair_log is not None:
@@ -177,11 +188,12 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 
         # record change type flag
         change_type = line[0]
-        if not (change_type == '-' or changed_file == '+'):
-            flag.append(myUtil.FLAG_NO_CHANGE)
-            # update hunk location
-            hunk_loc += 1
-            continue
+        if not change_type == '-':
+            if not change_type == '+':
+                flag.append(myUtil.FLAG_NO_CHANGE)
+                # update hunk location
+                hunk_loc += 1
+                continue
 
         # record log info
         # decide if it belongs to log change
@@ -198,9 +210,9 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # change_type
             data_row.append(change_type)
             if change_type == '-':
-                flag.append(myUtil.LOG_DELETE)
+                flag.append(myUtil.FLAG_LOG_DELETE)
             else:
-                flag.append(myUtil.LOG_ADD)
+                flag.append(myUtil.FLAG_LOG_ADD)
             # log_statement
             log_statement = is_log_change.group().strip()
             log_statement = log_statement[1:].strip()
@@ -216,10 +228,10 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             logs.append([hunk_loc] + data_row)
         else:
             if change_type == '-':
-                flag.append(myUtil.LOG_DELETE)
+                flag.append(myUtil.FLAG_DELETE)
             else:
-                flag.append(myUtil.LOG_ADD)
-        
+                flag.append(myUtil.FLAG_ADD)
+
         # update hunk location
         hunk_loc += 1
 
