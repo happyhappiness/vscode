@@ -146,10 +146,10 @@ def computeSim(func_a, func_b, word_list_dict):
 @ involve compute similarity between two function
 @ involve function info is list of function name etc.
 """
-def getFunctionSimilarity(fileName):
+def getFunctionSimilarity():
 
     # initialize write file
-    analysis = file(fileName, 'wb')
+    analysis = file(myUtil.FUNC_SIMILAIRTY_FILE_NAME, 'wb')
     analyze_writer = csv.writer(analysis)
     analyze_writer.writerow(['func_a', 'func_b', 'similarity'])
 
@@ -196,4 +196,5 @@ def getFunctionSimilarity(fileName):
 
 """main function"""
 if __name__ == "__main__":
-    getFunctionSimilarity( 'data/analyz_function_apple_swift.csv')
+    # getFunctionSimilarity( 'data/analyz_function_apple_swift.csv')
+    print "main function"

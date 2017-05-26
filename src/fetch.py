@@ -6,41 +6,119 @@ import re
 import commands
 import base64
 import myUtil
+import analyze_control_clone
 
 reload(sys);
 sys.setdefaultencoding('utf8')
 
 """
-@ param  patch, line_count of the changed log, patch_delete array and type of this change
+@ param hunk location, flag info and log location in hunk
 @ return log_loc
 @ callee ..
-@ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
-@ involve get log location based on its location in patch and patch info
+@ caller deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer)
+@ involve get log location based on its location in hunk and hunk location
 """
-def get_loc(patch, line_count, patch_delete, patch_add, change_type):
-    
-    line_back = line_count
+def get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc):
+
     line_delete = 0
     line_add = 0
-    while line_back != -1:
-        line_back = line_back - 1 # start from the line above
-        line_delete = line_delete + patch_delete[line_back] # line deleted
-        line_add = line_add + patch_add[line_back] # line added
-        # line number of description
-        log_loc = re.match('^@@.*-(.*),.*\+(.*),.*@@', patch[line_back])
-        if log_loc:
-            # if change_type == '-':
-            #     old_log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_add)
-            # else:
-            #     # source file is the changed file -> loc depends on +(num)
-            #     # and distance of line_count and line_back except deleted lines
-            #     new_log_loc = int(log_loc.group(2)) + (line_count - line_back - 1 - line_delete)
-            # break
-            old_log_loc = int(log_loc.group(1)) + (line_count - line_back - 1 - line_add)
-            new_log_loc = int(log_loc.group(2)) + (line_count - line_back - 1 - line_delete)
-            break
-
+    line_no_change = 0
+    old_log_loc = 0
+    new_log_loc = 0
+    for hunk_index in range(0, hunk_loc):
+        if flag[hunk_index] == myUtil.FLAG_ADD:
+            line_add += 1
+            continue
+        if flag[hunk_index] == myUtil.FLAG_DELETE:
+            line_delete += 1
+            continue
+        if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
+            line_no_change += 1
+            continue
+    old_log_loc = old_hunk_loc + line_no_change + line_delete
+    new_log_loc = new_hunk_loc + line_no_change + line_add
     return old_log_loc, new_log_loc
+
+"""
+@ param  change flag, hunk code, log update info, old hunk loc, new hunk loc and writer
+@ return ...
+@ callee get_loc(patch, line_count, patch_delete, change_type)
+@ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer) ..
+@ involve deal with change hunk, find modification pair
+@ involve write back log modification type and old location, new location
+"""
+def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
+
+    len_hunk = len(hunk)
+    len_log = len(logs)
+    for log_index in range(len_log):
+        # deal with each log to get its modification type and location
+        log = logs[log_index]
+        hunk_loc = log[0]
+        log.pop(0)
+        # already paired
+        if flag[hunk_loc] == myUtil.FLAG_NO_CHANGE:
+            continue
+        # get change type and log statement
+        change_type = log[myUtil.FETCH_CHANGE_TYPE]
+        log_statement = log[myUtil.FETCH_LOG]
+        # try to fing pair for modification
+        if flag[hunk_loc] == myUtil.FLAG_DELETE:
+            # backtrace to find - start location
+            delta = 0
+            hunk_index = hunk_loc - 1
+            while hunk_index >= 0:
+                if flag[hunk_index] == myUtil.FLAG_DELETE:
+                    delta += 1
+                else:
+                    break
+            # forward going to find pair for delete
+            add_delta = 0
+            pair_log = None
+            # prior to choose the pair with same delta
+            max_score = -1
+            for hunk_index in range(hunk_loc, len_hunk):
+                if flag[hunk_index] == myUtil.FLAG_DELETE:
+                    continue
+                if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
+                    break
+                if flag[hunk_index] == myUtil.FLAG_ADD:
+                    hunk_score = float(abs(delta - add_delta))*len(log_statement)/2
+                    curr_score = myUtil.longestCommon(log, logs[hunk_index]) - hunk_score
+                    if curr_score > max_score:
+                        max_score = curr_score
+                        pair_log = hunk_index
+                    add_delta += 1
+
+            # MODIFICATION if find pair
+            if pair_log is not None:
+                log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_MODIFY
+                # call function to get old and new log loc by hunk loc and hunk index
+                log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                     get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+                writer.writerow(log)
+                # remove pair log change
+                flag[hunk_loc] = myUtil.FLAG_NO_CHANGE
+                flag[pair_log] = myUtil.FLAG_NO_CHANGE
+                continue
+
+            # DELETE
+            log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_DELETE
+            # call function to get old and new log loc by hunk loc and hunk index
+            log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                    get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+            writer.writerow(log)
+            # remove pair log change
+            flag[hunk_loc] = myUtil.FLAG_NO_CHANGE
+            continue
+        # ADD
+        log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_ADD
+        # call function to get old and new log loc by hunk loc and hunk index
+        log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+        writer.writerow(log)
+        # remove pair log change
+        flag[hunk_loc] = myUtil.FLAG_NO_CHANGE
 
 """
 @ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
@@ -50,7 +128,7 @@ def get_loc(patch, line_count, patch_delete, patch_add, change_type):
 @ involve deal with patch file and save commit info (just store and analyze +)
 """
 def deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer):
-    
+
     has_log = False
 
     # try exception to validate patch existence
@@ -61,30 +139,57 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
         print ae.message
         return has_log
 
-    # array to record the deleted changed lines
-    patch_delete = [0 for i in range(len(patch))]
-    patch_add = [0 for i in range(len(patch))]
+    # flag to record change type(0/1/2)
+    flag = []
+    # hunk patch content
+    hunk = []
+    # log change in hunk
+    logs = []
+    # old file location and new file location of hunk top
+    old_hunk_loc = 0
+    new_hunk_loc = 0
+    hunk_loc = 0
+    # filter out the one with log statement changes
+    log_functions = myUtil.retrieveLogFunction(myUtil.LOG_CALL_FILE_NAME)
+    log_function = myUtil.functionToRegrexStr(log_functions)
+    pattern_log = '^(-|\+)([^/]*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
 
-    line_count = 0 # line of log statement
     # deal with each line of patch
     for line in patch:
-
-        # use start character yto judge change type
+        # recognize change hunk by description info
+        is_hunk = re.match('^@@.*-(.*),.*\+(.*),.*@@', line)
+        # deal with past hunk and record new one
+        if is_hunk:
+            # if has log update, so deal with it
+            if not len(logs) == 0:
+                has_log = True
+                deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer)
+            old_hunk_loc = int(is_hunk.group(1))
+            new_hunk_loc = int(is_hunk.group(2))
+            hunk_loc = 0
+            flag = []
+            hunk = []
+            logs= []
+            continue
+        
+        # record change type flag
         change_type = line[0]
         if change_type == '-':
-            patch_delete[line_count] = 1 # mark to be delete change
+            flag.append(myUtil.FLAG_DELETE)
         else:
             if change_type == '+':
-                patch_add[line_count] = 1 # mark to be add change
+                flag.append(myUtil.FLAG_ADD)
             else:
                 # no change so no log change: increment line_count and continue
-                line_count = line_count + 1
+                flag.append(myUtil.FLAG_NO_CHANGE)
                 continue
 
-        # filter out the one with log statement changes
-        log_functions = myUtil.retrieveLogFunction('data/fetch/' + repos + '_logging_statement.csv')
-        log_function = myUtil.functionToRegrexStr(log_functions)
-        pattern_log = '^(-|\+)([^/]*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
+        
+        # record hunk content
+        hunk.append(line.pop(0))
+
+        # record log info
+        # decide if it belongs to log change
         is_log_change = re.match(pattern_log, line, re.I)
         if is_log_change:
             # store this changed log statement
@@ -96,28 +201,22 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # file name
             data_row.append(changed_file.filename)
             # change_type
-            # change_type = is_log_change.group(1).strip()
             data_row.append(change_type)
             # log_statement
             log_statement = is_log_change.group().strip()
             log_statement = log_statement[1:].strip()
             data_row.append(log_statement)
-            # change type with - is not dealed and write back without context info
-            # backtrace to find the changed location in source file
-            has_log = True
-            # call get_loc to retrieve the changed log location in files
-            old_log_loc, new_log_loc = get_loc(patch, line_count, patch_delete, patch_add, change_type)
-            if old_log_loc and new_log_loc:
-                # source file is the changed file -> loc depends on +(num)
-                # and distance of line_count and line_back except deleted lines
-                data_row.append(old_log_loc)
-                data_row.append(old_store_name)
-                data_row.append(new_log_loc)
-                data_row.append(new_store_name)
-                writer.writerow(data_row)
-
-        # increment line_count
-        line_count = line_count + 1
+            # location and file info
+            old_log_loc = 0
+            new_log_loc = 0
+            data_row.append(old_log_loc)
+            data_row.append(old_store_name)
+            data_row.append(new_log_loc)
+            data_row.append(new_store_name)
+            # hunk_loc 0->
+            logs.append(hunk_loc + datarow)
+        # update hunk location
+        hunk_loc += 1
 
     return has_log
 
@@ -148,8 +247,10 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
             total_cpp = total_cpp + 1
 
             # define old/new_store_name
-            new_store_name = '/data/download/' + repos + '/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_new.cpp'
-            old_store_name = '/data/download/' + repos + '/' + repos + '/' + user + '_' + repos + '_' + str(total_log_cpp) + '_old.cpp'
+            base_store_name = '/data/download/' + myUtil.REPOS + '/' + myUtil.REPOS \
+                + '/' + myUtil.USER + '_' + myUtil.REPOS + '_' + str(total_log_cpp)
+            new_store_name = base_store_name + '_new.cpp'
+            old_store_name = base_store_name + '_old.cpp'
 
             # call deal_patch to deal with the patch file
             has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
@@ -191,26 +292,26 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 @ caller main ..
 @ involve save commit info of given repos
 """
-def fetch_commit(user, repos, commit_sha=''):
+def fetch_commit(commit_sha=''):
     
     # initiate Github with given user and repos
-    gh = Github(login='993273596@qq.com', password='nx153156', user=user, repo=repos)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=myUtil.USER, repo=myUtil.REPOS)
 
     # initiate csvfile which store the commit info
     # csvfile = file('commit_mongodb_mongo.csv', 'wb')
-    fetch = file('data/fetch/' + user + '_' + repos + '_fetch.csv', 'ab')
+    fetch = file(myUtil.FETCH_FILE_NAME, 'wb')
     fetch_writer = csv.writer(fetch)
 
     # write table title (3:change_type, 4:log_statement, \
     # 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name)
-    """" append or not
-    fetch_writer.writerow()
-    """
+    # """" append or not
+    fetch_writer.writerow(myUtil.FETCH_TITLE)
+    # """
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
-    total_file = 6070
-    total_cpp = 7081
-    total_log_cpp = 84
+    total_file = 0
+    total_cpp = 0
+    total_log_cpp = 0
     total_commit = 0
     for commit in commits.iterator():
         # invoke the deal_commit function
@@ -234,11 +335,9 @@ if __name__ == "__main__":
     # repos = 'mongo'
     # user = 'torvalds'
     # repos = 'linux'
-    user = 'Kitware'
-    repos = 'CMake'
 
     commit_sha = '67a7dcef45fef6172514d6df1bea3ca94a04735a'
 
     # with function to retieve all the commits of given path
-    fetch_commit(user, repos, commit_sha)
+    fetch_commit(commit_sha)
 
