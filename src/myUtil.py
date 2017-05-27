@@ -42,7 +42,8 @@ FETCH_LOG_NEW_FILE = FETCH_LOG_TITLE.index('new_store_name')
 ANALYZE_OLD_NEW_TITLE = ['commit_sha', 'commit_message', 'file_name', \
         'change_type', 'log_node', \
         'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
-        'old_context_list', 'new_context_list', 'ddg_list', 'static_list']
+        'old_context_list', 'new_context_list', 'old_ddg_list', 'old_static_list', \
+        'new_ddg_list', 'new_static_list']
 ANALYZE_OLD_NEW_OLD_CONTEXT = ANALYZE_OLD_NEW_TITLE.index('old_context_list')
 ANALYZE_OLD_NEW_NEW_CONTEXT = ANALYZE_OLD_NEW_TITLE.index('new_context_list')
 
@@ -52,7 +53,8 @@ ANALYZE_REPOS_CONTEXT = ANALYZE_REPOS_TITLE.index('context_list')
 ANALYZE_CLONE_TITLE = ['commit_sha', 'commit_message', 'file_name',\
         'change_type', 'log_node', \
         'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
-        'old_context_list', 'new_context_list', 'ddg_list', 'static_list', \
+        'old_context_list', 'new_context_list', 'old_ddg_list', 'old_static_list', \
+        'new_ddg_list', 'new_static_list', \
         'clone_log', 'clone_location', 'clone_file_name', 'clone_context_list',\
         'clone_ddg_list', 'clone_static_list']
 
