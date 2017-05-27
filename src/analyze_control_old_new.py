@@ -263,17 +263,17 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
 """
 def analyze_record( joern_instance, record, change_type):
 
-    old_loc = record[myUtil.FETCH_OLD_LOC]
-    new_loc = record[myUtil.FETCH_NEW_LOC]
-    old_fileName = record[myUtil.FETCH_OLD_FILE]
-    new_fileName = record[myUtil.FETCH_NEW_FILE]
+    old_loc = record[myUtil.FETCH_LOG_OLD_LOC]
+    new_loc = record[myUtil.FETCH_LOG_NEW_LOC]
+    old_fileName = record[myUtil.FETCH_LOG_OLD_FILE]
+    new_fileName = record[myUtil.FETCH_LOG_NEW_FILE]
 
     # query database with loc and filename
     log, old_context_list, new_context_list, \
         ddg_lists, static_lists = getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_fileName, joern_instance)
 
     # record the info: log node
-    record[myUtil.FETCH_LOG] = json.dumps(log)
+    record[myUtil.FETCH_LOG_LOG] = json.dumps(log)
     # cdg ndoe, neighbor node, context_lists
     record.append(json.dumps(old_context_list))
     record.append(json.dumps(new_context_list))
@@ -292,7 +292,7 @@ def analyze_record( joern_instance, record, change_type):
 """
 def analyze_old_new():
 
-    fetch = file(myUtil.FETCH_FILE_NAME, 'rb')
+    fetch = file(myUtil.FETCH_LOG_FILE_NAME, 'rb')
     # initialize write file
     analysis = file(myUtil.ANALYZE_OLD_NEW_FILE_NAME, 'wb')
     analyze_writer = csv.writer(analysis)
@@ -313,7 +313,7 @@ def analyze_old_new():
         if count % 10 == 0:
             print "now record the No. %d analyze" %count
         # call deal_line to retrieve location info(- included)
-        record, log = analyze_record(joern_instance, record, record[myUtil.FETCH_CHANGE_TYPE])
+        record, log = analyze_record(joern_instance, record, record[myUtil.FETCH_LOG_CHANGE_TYPE])
 
         # update analyze data is has edited
         if log:

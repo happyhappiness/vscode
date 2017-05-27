@@ -6,6 +6,7 @@ import re
 import commands
 import base64
 import myUtil
+from itertools import islice
 import analyze_control_clone
 
 reload(sys);
@@ -47,7 +48,7 @@ def get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc):
 @ involve deal with change hunk, find modification pair
 @ involve write back log modification type and old location, new location
 """
-def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
+def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 
     len_hunk = len(hunk)
     len_log = len(logs)
@@ -57,8 +58,8 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
         hunk_loc = log[0]
         log.pop(0)
         # get change type and log statement
-        change_type = log[myUtil.FETCH_CHANGE_TYPE]
-        log_statement = log[myUtil.FETCH_LOG]
+        change_type = log[myUtil.FETCH_LOG_CHANGE_TYPE]
+        log_statement = log[myUtil.FETCH_LOG_LOG]
 
         # try to fing pair for modification
         if flag[hunk_loc] == myUtil.FLAG_LOG_DELETE:
@@ -101,11 +102,11 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
 
             # MODIFICATION if find pair
             if pair_log is not None:
-                log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_MODIFY
+                log[myUtil.FETCH_LOG_CHANGE_TYPE] = myUtil.LOG_MODIFY
                 # call function to get old and new log loc by hunk loc and hunk index
-                log[myUtil.FETCH_OLD_LOC], tmp =\
+                log[myUtil.FETCH_LOG_OLD_LOC], tmp =\
                      get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-                tmp, log[myUtil.FETCH_NEW_LOC] =\
+                tmp, log[myUtil.FETCH_LOG_NEW_LOC] =\
                      get_loc(pair_log, flag, old_hunk_loc, new_hunk_loc)
                 writer.writerow(log)
                 # remove pair log change
@@ -113,9 +114,9 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
                 flag[pair_log] = myUtil.FLAG_ADD
             # DELETE
             else:
-                log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_DELETE
+                log[myUtil.FETCH_LOG_CHANGE_TYPE] = myUtil.LOG_DELETE
                 # call function to get old and new log loc by hunk loc and hunk index
-                log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                log[myUtil.FETCH_LOG_OLD_LOC], log[myUtil.FETCH_LOG_NEW_LOC] =\
                         get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
                 writer.writerow(log)
                 # remove pair log change
@@ -123,20 +124,46 @@ def deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer):
         # ADD
         else:
             if flag[hunk_loc] == myUtil.FLAG_LOG_ADD:
-                log[myUtil.FETCH_CHANGE_TYPE] = myUtil.LOG_ADD
+                log[myUtil.FETCH_LOG_CHANGE_TYPE] = myUtil.LOG_ADD
                 # call function to get old and new log loc by hunk loc and hunk index
-                log[myUtil.FETCH_OLD_LOC], log[myUtil.FETCH_NEW_LOC] =\
+                log[myUtil.FETCH_LOG_OLD_LOC], log[myUtil.FETCH_LOG_NEW_LOC] =\
                         get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
                 writer.writerow(log)
                 # remove pair log change
                 flag[hunk_loc] = myUtil.FLAG_ADD
 
 """
+@ param flag about wheter to read hunk from file
+@ return ...
+@ callee deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
+@ caller 
+@ involve initialize hunk file reader and log file writer, deal with each hunk
+"""
+def fetch_hunk(is_from_file, commit_sha):
+
+    # initialize writer
+    log_file = file(myUtil.FETCH_LOG_FILE_NAME, 'wb')
+    log_writer = csv.writer(log_file)
+    log_writer.writerow(myUtil.FETCH_LOG_TITLE)
+    if not is_from_file:
+        fetch_commit(commit_sha)
+    # initialize reader
+    hunk_reader = file(myUtil.FETCH_HUNK_FILE_NAME, 'rb')
+    hunk_records = csv.reader(hunk_reader)
+    hunk_count = 0
+    for hunk_record in islice(hunk_records, 1, None):
+        deal_change_hunk(hunk_record[myUtil.FETCH_HUNK_HUNK], hunk_record[myUtil.FETCH_HUNK_FLAG],\
+            hunk_record[myUtil.FETCH_HUNK_LOGS], hunk_record[myUtil.FETCH_HUNK_OLD_HUNK_LOC],\
+            hunk_record[myUtil.FETCH_HUNK_NEW_HUNK_LOC], log_writer)
+        print 'now dealing with no. %d hunk' %hunk_count
+        hunk_count += 1
+
+"""
 @ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
 @ return bool has log (whether this patch contained log or not)
-@ callee get_loc(patch, line_count, patch_delete, change_type)
+@ callee ...
 @ caller  deal_commit(gh, sha, writer) ..
-@ involve deal with patch file and save commit info (just store and analyze +)
+@ involve deal with patch file and save hunk info(with log)
 """
 def deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer):
 
@@ -174,7 +201,8 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # if has log update, so deal with it
             if not len(logs) == 0:
                 has_log = True
-                deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer)
+                # deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer)
+                writer.writerow(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
             old_hunk_loc = int(is_hunk.group(1))
             new_hunk_loc = int(is_hunk.group(2))
             hunk_loc = 0
@@ -306,24 +334,19 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 @ param  configuration parameters like user, repos and start_sha
 @ return nothing 
 @ callee deal_commit(gh, sha, writer)
-@ caller main ..
-@ involve save commit info of given repos
+@ caller fetch_hunk
+@ involve fetch and analyze each commit and save hunk info with log
 """
 def fetch_commit(commit_sha=''):
-    
+
     # initiate Github with given user and repos
     gh = Github(login='993273596@qq.com', password='nx153156', user=myUtil.USER, repo=myUtil.REPOS)
 
     # initiate csvfile which store the commit info
-    # csvfile = file('commit_mongodb_mongo.csv', 'wb')
-    fetch = file(myUtil.FETCH_FILE_NAME, 'wb')
-    fetch_writer = csv.writer(fetch)
+    hunk_file = file(myUtil.FETCH_HUNK_FILE_NAME, 'wb')
+    hunk_writer = csv.writer(hunk_file)
+    hunk_writer.writerow(myUtil.FETCH_HUNK_TITLE)
 
-    # write table title (3:change_type, 4:log_statement, \
-    # 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name)
-    # """" append or not
-    fetch_writer.writerow(myUtil.FETCH_TITLE)
-    # """
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
     total_file = 0
@@ -332,13 +355,13 @@ def fetch_commit(commit_sha=''):
     for commit in commits.iterator():
         # invoke the deal_commit function
         total_log_cpp, total_cpp, total_file = deal_commit \
-                            (gh, commit.sha, total_log_cpp, total_cpp, total_file, fetch_writer)
+                            (gh, commit.sha, total_log_cpp, total_cpp, total_file, hunk_writer)
         if total_file % 10 == 0:
             print 'now have deal with %d none cpp file ; find cpp %d file ; have saved %d file ' %(total_file, total_cpp, total_log_cpp)
     # deal_commit(gh, commit_sha, writer)
 
     # close the commit file
-    fetch_writer.close()
+    hunk_file.close()
 
 """
 main function
@@ -350,8 +373,7 @@ if __name__ == "__main__":
     # user = 'torvalds'
     # repos = 'linux'
 
-    commit_sha = '67a7dcef45fef6172514d6df1bea3ca94a04735a'
-
+    commit_sha = ''
     # with function to retieve all the commits of given path
-    fetch_commit(commit_sha)
-
+    fetch_hunk(False, commit_sha)
+    # deal with hunk

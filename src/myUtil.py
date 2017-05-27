@@ -15,21 +15,29 @@ REPOS = 'CMake'
 
 LOG_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_logging_statement.csv'
 FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_func_similarity.csv'
-FETCH_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_fetch.csv'
+FETCH_HUNK_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_hunk_fetch.csv'
+FETCH_LOG_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_log_fetch.csv'
 ANALYZE_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_analyze.csv'
 ANALYZE_REPOS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_analyze.csv'
 ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_clone_statistics.csv'
 STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics.csv'
 
-FETCH_TITLE = ['commit_sha', 'commit_message', 'file_name', 'change_type', \
+FETCH_HUNK_TITLE = ['hunk', 'flag', 'logs', 'old_hunk_loc', 'new_hunk_loc']
+FETCH_HUNK_HUNK = FETCH_HUNK_TITLE.index('hunk')
+FETCH_HUNK_FLAG = FETCH_HUNK_TITLE.index('flag')
+FETCH_HUNK_LOGS = FETCH_HUNK_TITLE.index('logs')
+FETCH_HUNK_OLD_HUNK_LOC = FETCH_HUNK_TITLE.index('old_hunk_loc')
+FETCH_HUNK_NEW_HUNK_LOC = FETCH_HUNK_TITLE.index('new_hunk_loc')
+
+FETCH_LOG_TITLE = ['commit_sha', 'commit_message', 'file_name', 'change_type', \
                 'log_statement', 'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name']
-FETCH_CHANGE_TYPE = FETCH_TITLE.index('change_type')
-FETCH_LOG = FETCH_TITLE.index('log_statement')
-FETCH_OLD_LOC = FETCH_TITLE.index('old_log_loc')
-FETCH_OLD_FILE = FETCH_TITLE.index('old_store_name')
-FETCH_NEW_LOC = FETCH_TITLE.index('new_log_loc')
-FETCH_NEW_FILE = FETCH_TITLE.index('new_store_name')
+FETCH_LOG_CHANGE_TYPE = FETCH_LOG_TITLE.index('change_type')
+FETCH_LOG_LOG = FETCH_LOG_TITLE.index('log_statement')
+FETCH_LOG_OLD_LOC = FETCH_LOG_TITLE.index('old_log_loc')
+FETCH_LOG_OLD_FILE = FETCH_LOG_TITLE.index('old_store_name')
+FETCH_LOG_NEW_LOC = FETCH_LOG_TITLE.index('new_log_loc')
+FETCH_LOG_NEW_FILE = FETCH_LOG_TITLE.index('new_store_name')
 
 ANALYZE_OLD_NEW_TITLE = ['commit_sha', 'commit_message', 'file_name', \
         'change_type', 'log_node', \
