@@ -130,27 +130,27 @@ def compute_context_similarity(cond_lists_a, cond_lists_b, func_similarity_dic):
 @ callee compute_context_similarity
 @ involve get clone of context in repos for each log updates
 """
-def seek_clone(user, repos):
+def seek_clone():
 
     # initialize log_patch from given patch analysis result
     log_patch = []
     context_patch = []
-    patch_file_name = 'data/fetch/' + user + '_' + repos + '_old_new_analyze.csv'
+    patch_file_name = myUtil.ANALYZE_OLD_NEW_FILE_NAME
     patch_file = file(patch_file_name, 'rb')
     patch_records = csv.reader(patch_file)
     for patch_record in islice(patch_records, 1, None):
-        # old_context_list 9 (add commit sha)
-        context_patch.append(json.loads(patch_record[9]))
+        # old_context_list index (add commit sha)
+        context_patch.append(json.loads(patch_record[myUtil.ANALYZE_OLD_NEW_OLD_CONTEXT]))
         log_patch.append(patch_record)
     # initialize log_repos from given repos analysis result
     log_repos = []
     context_repos = []
-    repos_file_name = 'data/fetch/' + user + '_' + repos + '_repos_analyze.csv'
+    repos_file_name = myUtil.ANALYZE_REPOS_FILE_NAME
     repos_file = file(repos_file_name, 'rb')
     repos_records = csv.reader(repos_file)
     for repos_record in islice(repos_records, 1, None):
-        # context_list 3
-        context_repos.append(json.loads(repos_record[3]))
+        # context_list index
+        context_repos.append(json.loads(repos_record[myUtil.ANALYZE_REPOS_CONTEXT]))
         log_repos.append(repos_record)
 
     # close files
@@ -158,11 +158,18 @@ def seek_clone(user, repos):
     repos_file.close()
 
     # initialize function similarity dictionary
-    func_similarity_file_name = 'data/fetch/' + user + '_' + repos + '_func_similarity.csv'
-    func_similarity_dic = myUtil.getFunctionSimilarityDic(True, func_similarity_file_name)
+    func_similarity_dic = myUtil.getFunctionSimilarityDic(True)
 
     # seek clones in repos of context for each log update in patch
-    clone_patch_repos = []
+
+    # write back into file
+    clone_csv = file(myUtil.ANALYZE_CLONE_FILE_NAME, 'wb')
+    clone_csv_writer = csv.writer(clone_csv)
+    clone_csv_writer.writerow(myUtil.ANALYZE_CLONE_TITLE)
+    clone_num_csv = file(myUtil.STATISTICS_CLONE_NUM_FILE_NAME, 'wb')
+    clone_num_csv_writer = csv.writer(clone_num_csv)
+    clone_num_csv_writer.writerow(['count'])
+
     index_patch = 0
     for patch in context_patch:
         index_repos = 0
@@ -170,41 +177,21 @@ def seek_clone(user, repos):
         # traverse repos to find similar contexts
         for reposi in context_repos:
             if compute_context_similarity(patch, reposi, func_similarity_dic) == 1:
-                clone_patch_repos.append(log_patch[index_patch] + log_repos[index_repos])
+                clone_csv_writer.writerow(log_patch[index_patch] + log_repos[index_repos])
                 clone_count += 1
             index_repos += 1
         print "now analyze the no.%d patch; the clone count is %d"\
                  %(index_patch, clone_count)
+        clone_num_csv_writer.writerow([clone_count])
         index_patch += 1
 
-    # write back into file
-    out_csv = file('data/fetch/' + user + '_' + repos + '_seek_clone.csv', 'wb')
-    out_csv_writer = csv.writer(out_csv)
-    out_csv_writer.writerow(['commit_sha', 'commit_message', 'file_name',\
-        'change_type', 'log_node', \
-        'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
-        'old_context_list', 'new_context_list', 'ddg_list', 'static_list', \
-        'clone_log', 'clone_location', 'clone_file_name', 'clone_context_list',\
-        'clone_ddg_list', 'clone_static_list'])
-    for clone in clone_patch_repos:
-        out_csv_writer.writerow(clone)
-    out_csv.close()
+    clone_csv.close()
+    clone_num_csv.close()
 
 
 """
 main function
 """
 if __name__ == "__main__":
-    # several configuration constant: user, repos
-    # user = 'mongodb'
-    # repos = 'mongo'
-    # user = 'opencv'
-    # repos = 'opencv'
-    user = 'Kitware'
-    repos = 'CMake'
-    # user = 'llvm-mirror'
-    # repos = 'clang'
-    # user = 'torvalds'
-    # repos = 'linux'
 
-    seek_clone(user, repos)
+    seek_clone()

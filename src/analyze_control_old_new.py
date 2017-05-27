@@ -219,8 +219,10 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
 
     old_context_list = []
     new_context_list = []
-    ddg_list = []
-    static_list = []
+    old_ddg_list = []
+    old_static_list = []
+    new_ddg_list = []
+    new_static_list = []
     old_log = []
     new_log = []
     old_log_id = -1
@@ -234,72 +236,71 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
         old_log = nodeAnalysis(old_log_result)[0]
         old_log_id = old_log[0]
         old_context_list = myUtil.getContext(old_log_id, joern_instance)
+        old_ddg_list, old_static_list = myUtil.getDDGAndContent(old_log_id, joern_instance)
 
      # get new context_list
     if new_log_result:
         new_log = nodeAnalysis(new_log_result)[0]
         new_log_id = new_log[0]
         new_context_list = myUtil.getContext(new_log_id, joern_instance)
+        new_ddg_list, new_static_list = myUtil.getDDGAndContent(new_log_id, joern_instance)
 
-
-    # get ddg list and static list (-: old, + new)
-    if change_type == '-':
-        log_id = old_log_id
-        log = old_log
-    else:
-        log_id = new_log_id
+    # # get ddg list and static list (-: old, + new)
+    if change_type == myUtil.LOG_ADD:
         log = new_log
-    if log_id != -1:
-        ddg_list, static_list = myUtil.getDDGAndContent(log_id, joern_instance)
+    else:
+        log = old_log
+    # if log_id != -1:
+    #     ddg_list, static_list = myUtil.getDDGAndContent(log_id, joern_instance)
 
-    return log, old_context_list, new_context_list, ddg_list, static_list
+    return log, old_context_list, new_context_list, old_ddg_list, old_static_list, new_ddg_list, new_static_list
 
 """
-@ param  record of fetch_reader line, change_type, index of log, index of old and new log_loc, index of old and new store_name
+@ param  record of fetch_reader line, change_type, 
 @ return edited record array, has edited flag(log)
-@ caller analyze
+@ caller analyze_old_new
 @ callee getDependendedAstOfLog
 @ involve retrieve old and new contexts of log statements and store it
 """
-def analyze_record( joern_instance, record, change_type, log_index, old_loc_index, old_file_index, new_loc_index, new_file_index):
+def analyze_record( joern_instance, record, change_type):
 
-    old_loc = record[old_loc_index]
-    new_loc = record[new_loc_index]
-    old_fileName = record[old_file_index]
-    new_fileName = record[new_file_index]
+    old_loc = record[myUtil.FETCH_LOG_OLD_LOC]
+    new_loc = record[myUtil.FETCH_LOG_NEW_LOC]
+    old_fileName = record[myUtil.FETCH_LOG_OLD_FILE]
+    new_fileName = record[myUtil.FETCH_LOG_NEW_FILE]
 
     # query database with loc and filename
     log, old_context_list, new_context_list, \
-        ddg_lists, static_lists = getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_fileName, joern_instance)
+        old_ddg_list, old_static_list, new_ddg_list, new_static_list \
+= getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_fileName, joern_instance)
 
     # record the info: log node
-    record[log_index] = json.dumps(log)
+    record[myUtil.FETCH_LOG_LOG] = json.dumps(log)
     # cdg ndoe, neighbor node, context_lists
     record.append(json.dumps(old_context_list))
     record.append(json.dumps(new_context_list))
     # ddg node, ddg lists
-    record.append(json.dumps(ddg_lists))
-    record.append(json.dumps(static_lists))
+    record.append(json.dumps(old_ddg_list))
+    record.append(json.dumps(old_static_list))
+    record.append(json.dumps(new_ddg_list))
+    record.append(json.dumps(new_static_list))
 
     return record, log
 
 """
-@ param  user and repos
+@ param ...
 @ return nothing
 @ caller main
 @ callee analyze_record
 @ involve operate fetch and analyze files
 """
-def analyze(user, repos):
+def analyze_old_new():
 
-    fetch = file('data/fetch/' + user + '_' + repos + '_fetch.csv', 'rb')
+    fetch = file(myUtil.FETCH_LOG_FILE_NAME, 'rb')
     # initialize write file
-    analysis = file('data/fetch/' + user + '_' + repos + '_old_new_analyze.csv', 'wb')
+    analysis = file(myUtil.ANALYZE_OLD_NEW_FILE_NAME, 'wb')
     analyze_writer = csv.writer(analysis)
-    analyze_writer.writerow(['commit_sha', 'commit_message', 'file_name', \
-        'change_type', 'log_node', \
-        'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
-        'old_context_list', 'new_context_list', 'ddg_list', 'static_list'])
+    analyze_writer.writerow(myUtil.ANALYZE_OLD_NEW_TITLE)
     # initialize read file
     records = csv.reader(fetch)
     # initialize python-joern instance
@@ -316,8 +317,7 @@ def analyze(user, repos):
         if count % 10 == 0:
             print "now record the No. %d analyze" %count
         # call deal_line to retrieve location info(- included)
-        # 3:changeType, 4:log_statement, 5:old log_loc, 6:old_store_name, 7: new log_loc 8:new_store_name
-        record, log = analyze_record(joern_instance, record, record[3], 4, 5, 6, 7, 8)
+        record, log = analyze_record(joern_instance, record, record[myUtil.FETCH_LOG_CHANGE_TYPE])
 
         # update analyze data is has edited
         if log:
@@ -335,16 +335,5 @@ def analyze(user, repos):
 main function
 """
 if __name__ == "__main__":
-    # several configuration constant: user, repos
-    # user = 'mongodb'
-    # repos = 'mongo'
-    # user = 'opencv'
-    # repos = 'opencv'
-    user = 'Kitware'
-    repos = 'CMake'
-    # user = 'llvm-mirror'
-    # repos = 'clang'
-    # user = 'torvalds'
-    # repos = 'linux'
 
-    analyze( user, repos)
+    analyze_old_new()
