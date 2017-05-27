@@ -6,18 +6,18 @@ import re
 from joern.all import JoernSteps
 
 """
-@ param log function name, fileName name for storing repos info, joern_instance
+@ param log function name, joern_instance
 @ return log info: code, location, file, cdg_list, neighbor_list, ddg_list, static_list, cluster index 
 @ caller main
 @ callee ...
 @ involve get log call info starts from function name
 """
-def get_log_info(log_functions, file_name, joern_instance):
+def get_log_info(log_functions, joern_instance):
     log_call_infos = {}
     # initiation log info writer csv
-    out_csv = file(file_name, 'wb')
+    out_csv = file(myUtil.ANALYZE_REPOS_FILE_NAME, 'wb')
     out_csv_writer = csv.writer(out_csv)
-    out_csv_writer.writerow(['code', 'location', 'file', 'context_list', 'ddg_list', 'static_list'])
+    out_csv_writer.writerow(myUtil.ANALYZE_REPOS_TITLE)
 
     # get log statement id from log function name
     record_count = 0
@@ -60,13 +60,13 @@ def get_log_info(log_functions, file_name, joern_instance):
     return log_call_infos
 
 """
-@ param user and repos
+@ param ...
 @ return ... 
 @ caller main
 @ callee retrieveLogFunction, getLogInfo
 @ involve get logging call infomation from logging name and performing clustering
 """
-def analyze_repos(user, repos):
+def analyze_repos():
 
     # initialize python-joern instance
     joern_instance = JoernSteps()
@@ -75,26 +75,14 @@ def analyze_repos(user, repos):
     # connect to database
     joern_instance.connectToDatabase()
     # get name of log functions
-    log_functions = myUtil.retrieveLogFunction('data/fetch/' + repos + '_logging_statement.csv')
-    file_name = 'data/fetch/' + user + '_' + repos + '_repos_analyze.csv'
-    get_log_info(log_functions, file_name, joern_instance)
+    log_functions = myUtil.retrieveLogFunction(myUtil.LOG_CALL_FILE_NAME)
+    get_log_info(log_functions, joern_instance)
 
 
 """
 main function
 """
 if __name__ == "__main__":
-    # several configuration constant: user, repos
-    # user = 'mongodb'
-    # repos = 'mongo'
-    # user = 'opencv'
-    # repos = 'opencv'
-    user = 'Kitware'
-    repos = 'CMake'
-    # user = 'llvm-mirror'
-    # repos = 'clang'
-    # user = 'torvalds'
-    # repos = 'linux'
 
-    analyze_repos(user, repos)
+    analyze_repos()
     
