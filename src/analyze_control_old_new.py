@@ -219,8 +219,10 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
 
     old_context_list = []
     new_context_list = []
-    ddg_list = []
-    static_list = []
+    old_ddg_list = []
+    old_static_list = []
+    new_ddg_list = []
+    new_static_list = []
     old_log = []
     new_log = []
     old_log_id = -1
@@ -234,25 +236,24 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
         old_log = nodeAnalysis(old_log_result)[0]
         old_log_id = old_log[0]
         old_context_list = myUtil.getContext(old_log_id, joern_instance)
+        old_ddg_list, old_static_list = myUtil.getDDGAndContent(old_log_id, joern_instance)
 
      # get new context_list
     if new_log_result:
         new_log = nodeAnalysis(new_log_result)[0]
         new_log_id = new_log[0]
         new_context_list = myUtil.getContext(new_log_id, joern_instance)
+        new_ddg_list, new_static_list = myUtil.getDDGAndContent(new_log_id, joern_instance)
 
-
-    # get ddg list and static list (-: old, + new)
-    if change_type == '-':
-        log_id = old_log_id
-        log = old_log
-    else:
-        log_id = new_log_id
+    # # get ddg list and static list (-: old, + new)
+    if change_type == myUtil.LOG_ADD:
         log = new_log
-    if log_id != -1:
-        ddg_list, static_list = myUtil.getDDGAndContent(log_id, joern_instance)
+    else:
+        log = old_log
+    # if log_id != -1:
+    #     ddg_list, static_list = myUtil.getDDGAndContent(log_id, joern_instance)
 
-    return log, old_context_list, new_context_list, ddg_list, static_list
+    return log, old_context_list, new_context_list, old_ddg_list, old_static_list, new_ddg_list, new_static_list
 
 """
 @ param  record of fetch_reader line, change_type, 
@@ -270,7 +271,8 @@ def analyze_record( joern_instance, record, change_type):
 
     # query database with loc and filename
     log, old_context_list, new_context_list, \
-        ddg_lists, static_lists = getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_fileName, joern_instance)
+        old_ddg_list, old_static_list, new_ddg_list, new_static_list \
+= getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_fileName, joern_instance)
 
     # record the info: log node
     record[myUtil.FETCH_LOG_LOG] = json.dumps(log)
@@ -278,8 +280,10 @@ def analyze_record( joern_instance, record, change_type):
     record.append(json.dumps(old_context_list))
     record.append(json.dumps(new_context_list))
     # ddg node, ddg lists
-    record.append(json.dumps(ddg_lists))
-    record.append(json.dumps(static_lists))
+    record.append(json.dumps(old_ddg_list))
+    record.append(json.dumps(old_static_list))
+    record.append(json.dumps(new_ddg_list))
+    record.append(json.dumps(new_static_list))
 
     return record, log
 

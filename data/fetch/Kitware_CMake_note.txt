@@ -6,9 +6,10 @@ analyze repos:
 analyze old new patch:
     total 641 records
 
-// date: 2017/5/26/22/21
+// date: 2017/5/27/11/53
 fetch result:
-    now have deal with 10270 none cpp file ; find cpp 14799 file ; have saved 99 file
-    total 308 records
-analyze old new patch:
+    150 or so file
+    300 or so chunk
+    700 or so records
+    430 or so analyzed
     
