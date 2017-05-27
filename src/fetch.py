@@ -6,6 +6,7 @@ import re
 import commands
 import base64
 import myUtil
+import json
 from itertools import islice
 import analyze_control_clone
 
@@ -67,8 +68,7 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
             # forward going to find pair for delete
             pair_log = None
             # prior to choose the pair with same delta as well as similarity
-            max_score = 3
-            for hunk_index in range(hunk_loc, len_hunk):
+            for hunk_index in range(hunk_loc + 1, len_hunk):
                 if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
                     break
                 if flag[hunk_index] < myUtil.FLAG_NO_CHANGE:
@@ -80,6 +80,7 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
                     while tmp_index >= 0:
                         if flag[tmp_index] < myUtil.FLAG_NO_CHANGE:
                             delta += 1
+                            tmp_index -= 1
                         else:
                             break
                     # compute corresponding pair location
@@ -152,12 +153,16 @@ def fetch_hunk(is_from_file, commit_sha):
     hunk_records = csv.reader(hunk_reader)
     hunk_count = 0
     for hunk_record in islice(hunk_records, 1, None):
-        deal_change_hunk(hunk_record[myUtil.FETCH_HUNK_HUNK], hunk_record[myUtil.FETCH_HUNK_FLAG],\
-            hunk_record[myUtil.FETCH_HUNK_LOGS], hunk_record[myUtil.FETCH_HUNK_OLD_HUNK_LOC],\
-            hunk_record[myUtil.FETCH_HUNK_NEW_HUNK_LOC], log_writer)
+        hunk = json.loads(hunk_record[myUtil.FETCH_HUNK_HUNK])
+        flag = json.loads(hunk_record[myUtil.FETCH_HUNK_FLAG])
+        logs = json.loads(hunk_record[myUtil.FETCH_HUNK_LOGS])
+        old_hunk_loc = int(hunk_record[myUtil.FETCH_HUNK_OLD_HUNK_LOC])
+        new_hunk_loc = int(hunk_record[myUtil.FETCH_HUNK_NEW_HUNK_LOC])
+        deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, log_writer)
         print 'now dealing with no. %d hunk' %hunk_count
         hunk_count += 1
-
+    log_file.close()
+    hunk_reader.close()
 """
 @ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
 @ return bool has log (whether this patch contained log or not)
@@ -202,9 +207,12 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             if not len(logs) == 0:
                 has_log = True
                 # deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer)
-                writer.writerow(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
-            old_hunk_loc = int(is_hunk.group(1))
-            new_hunk_loc = int(is_hunk.group(2))
+                hunk = json.dumps(hunk)
+                flag = json.dumps(flag)
+                logs = json.dumps(logs)
+                writer.writerow([hunk, flag, logs, old_hunk_loc, new_hunk_loc])
+            old_hunk_loc = is_hunk.group(1)
+            new_hunk_loc = is_hunk.group(2)
             hunk_loc = 0
             flag = []
             hunk = []
@@ -375,5 +383,5 @@ if __name__ == "__main__":
 
     commit_sha = ''
     # with function to retieve all the commits of given path
-    fetch_hunk(False, commit_sha)
+    fetch_hunk(True, commit_sha)
     # deal with hunk
