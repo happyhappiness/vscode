@@ -5,10 +5,9 @@ import sys
 import re
 import commands
 import base64
-import myUtil
+import my_constant
 import json
 from itertools import islice
-import analyze_control_clone
 
 reload(sys);
 sys.setdefaultencoding('utf8')
@@ -28,13 +27,13 @@ def get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc):
     old_log_loc = 0
     new_log_loc = 0
     for hunk_index in range(0, hunk_loc):
-        if flag[hunk_index] > myUtil.FLAG_NO_CHANGE:
+        if flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
             line_add += 1
             continue
-        if flag[hunk_index] < myUtil.FLAG_NO_CHANGE:
+        if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
             line_delete += 1
             continue
-        if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
+        if flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
             line_no_change += 1
             continue
     old_log_loc = old_hunk_loc + line_no_change + line_delete
@@ -58,80 +57,104 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
         log = logs[log_index]
         hunk_loc = log[0]
         log.pop(0)
-        # get change type and log statement
-        change_type = log[myUtil.FETCH_LOG_CHANGE_TYPE]
-        log_statement = log[myUtil.FETCH_LOG_LOG]
 
-        # try to fing pair for modification
-        if flag[hunk_loc] == myUtil.FLAG_LOG_DELETE:
+        # -: MODIFICATION, MOVE, DELETE
+        if flag[hunk_loc] == my_constant.FLAG_LOG_DELETE:
 
-            # forward going to find pair for delete
             pair_log = None
-            # prior to choose the pair with same delta as well as similarity
+            log_type = my_constant.LOG_DELETE
+            # find MODIFICATION pair: prior to choose the pair with same delta as well as similarity
             for hunk_index in range(hunk_loc + 1, len_hunk):
-                if flag[hunk_index] == myUtil.FLAG_NO_CHANGE:
+                if flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
                     break
-                if flag[hunk_index] < myUtil.FLAG_NO_CHANGE:
+                if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
                     continue
-                if flag[hunk_index] > myUtil.FLAG_NO_CHANGE:
+                if flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
                     # backtrace to find - start location
                     delta = 0
-                    tmp_index = hunk_loc - 1
-                    while tmp_index >= 0:
-                        if flag[tmp_index] < myUtil.FLAG_NO_CHANGE:
+                    backward_index = hunk_loc - 1
+                    while backward_index >= 0:
+                        if flag[backward_index] < my_constant.FLAG_NO_CHANGE:
                             delta += 1
-                            tmp_index -= 1
+                            backward_index -= 1
                         else:
                             break
                     # compute corresponding pair location
-                    delta_index = min(delta + hunk_index, len_hunk - 1)
-                    if flag[delta_index] == myUtil.FLAG_LOG_ADD:
-                        pair_log = delta_index
+                    forward_index = min(delta + hunk_index, len_hunk - 1)
+                    if flag[forward_index] == my_constant.FLAG_LOG_ADD:
+                        pair_log = forward_index
+                        log_type = my_constant.LOG_MODIFY
                     else:
-                        for neighbor_index in range(max(0, delta_index - 5), min(delta_index + 5, len_hunk)):
-                            if flag[neighbor_index] == myUtil.FLAG_LOG_ADD:
+                        # traverse neighbors
+                        for neighbor_index in range(max(0, forward_index - 5), min(forward_index + 5, len_hunk)):
+                            if flag[neighbor_index] == my_constant.FLAG_LOG_ADD:
                                 pair_log = neighbor_index
-                    # compute corresponding pair location
-                    # delta_index = delta + hunk_index
-                    # for hunk_index1 in range(delta_index - 5, delta_index + 5):
-                    #     if flag[hunk_index1] == myUtil.FLAG_LOG_ADD:
-                    #         hunk_score = float(abs(hunk_index1 - hunk_index - delta))*len(log_statement)/5
-                    #         curr_score = myUtil.longestCommon(hunk[hunk_loc], hunk[hunk_index1]) - hunk_score
-                    #         if curr_score > max_score:
-                    #             max_score = curr_score
-                    #             pair_log = hunk_index
+                                log_type = my_constant.LOG_MODIFY
+                    break
+            # MOVE
+            if pair_log is None:
+                # find move pair, same hunk
+                for candidate_log_index in range(log_index + 1, len_log):
+                    candidate_loc = logs[candidate_log_index][0]
+                    # add with same content
+                    if isinstance(candidate_loc, int) and flag[candidate_loc] == \
+            my_constant.FLAG_LOG_ADD and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
+                        pair_log = candidate_loc
+                        log_type = my_constant.LOG_MOVE
+                        break
 
             # MODIFICATION if find pair
             if pair_log is not None:
-                log[myUtil.FETCH_LOG_CHANGE_TYPE] = myUtil.LOG_MODIFY
+                log[my_constant.FETCH_LOG_CHANGE_TYPE] = log_type
                 # call function to get old and new log loc by hunk loc and hunk index
-                log[myUtil.FETCH_LOG_OLD_LOC], tmp =\
+                log[my_constant.FETCH_LOG_OLD_LOC], tmp =\
                      get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-                tmp, log[myUtil.FETCH_LOG_NEW_LOC] =\
+                tmp, log[my_constant.FETCH_LOG_NEW_LOC] =\
                      get_loc(pair_log, flag, old_hunk_loc, new_hunk_loc)
                 writer.writerow(log)
                 # remove pair log change
-                flag[hunk_loc] = myUtil.FLAG_DELETE
-                flag[pair_log] = myUtil.FLAG_ADD
+                flag[hunk_loc] = my_constant.FLAG_DELETE
+                flag[pair_log] = my_constant.FLAG_ADD
             # DELETE
             else:
-                log[myUtil.FETCH_LOG_CHANGE_TYPE] = myUtil.LOG_DELETE
+                log[my_constant.FETCH_LOG_CHANGE_TYPE] = my_constant.LOG_DELETE
                 # call function to get old and new log loc by hunk loc and hunk index
-                log[myUtil.FETCH_LOG_OLD_LOC], log[myUtil.FETCH_LOG_NEW_LOC] =\
+                log[my_constant.FETCH_LOG_OLD_LOC], log[my_constant.FETCH_LOG_NEW_LOC] =\
                         get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
                 writer.writerow(log)
                 # remove pair log change
-                flag[hunk_loc] = myUtil.FLAG_DELETE
-        # ADD
+                flag[hunk_loc] = my_constant.FLAG_DELETE
+        # + : MOVE ADD
         else:
-            if flag[hunk_loc] == myUtil.FLAG_LOG_ADD:
-                log[myUtil.FETCH_LOG_CHANGE_TYPE] = myUtil.LOG_ADD
-                # call function to get old and new log loc by hunk loc and hunk index
-                log[myUtil.FETCH_LOG_OLD_LOC], log[myUtil.FETCH_LOG_NEW_LOC] =\
-                        get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-                writer.writerow(log)
-                # remove pair log change
-                flag[hunk_loc] = myUtil.FLAG_ADD
+            if flag[hunk_loc] == my_constant.FLAG_LOG_ADD:
+                pair_log = None
+                # MOVE
+                for candidate_log_index in range(log_index + 1, len_log):
+                    candidate_loc = logs[candidate_log_index][0]
+                    # add with same content
+                    if isinstance(candidate_loc, int) and flag[candidate_loc] == \
+            my_constant.FLAG_LOG_DELETE and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
+                        pair_log = candidate_loc
+                        log[my_constant.FETCH_LOG_CHANGE_TYPE] = my_constant.LOG_MOVE
+                        # call function to get old and new log loc by hunk loc and hunk index
+                        log[my_constant.FETCH_LOG_OLD_LOC], tmp =\
+                            get_loc(candidate_loc, flag, old_hunk_loc, new_hunk_loc)
+                        tmp, log[my_constant.FETCH_LOG_NEW_LOC] =\
+                            get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+                        writer.writerow(log)
+                        # remove pair log change
+                        flag[hunk_loc] = my_constant.FLAG_ADD
+                        flag[pair_log] = my_constant.FLAG_DELETE
+                        break
+                # ADD
+                if pair_log is None:
+                    log[my_constant.FETCH_LOG_CHANGE_TYPE] = my_constant.LOG_ADD
+                    # call function to get old and new log loc by hunk loc and hunk index
+                    log[my_constant.FETCH_LOG_OLD_LOC], log[my_constant.FETCH_LOG_NEW_LOC] =\
+                            get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+                    writer.writerow(log)
+                    # remove pair log change
+                    flag[hunk_loc] = my_constant.FLAG_ADD
 
 """
 @ param flag about wheter to read hunk from file
@@ -143,21 +166,21 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 def fetch_hunk(is_from_file, commit_sha):
 
     # initialize writer
-    log_file = file(myUtil.FETCH_LOG_FILE_NAME, 'wb')
+    log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'wb')
     log_writer = csv.writer(log_file)
-    log_writer.writerow(myUtil.FETCH_LOG_TITLE)
+    log_writer.writerow(my_constant.FETCH_LOG_TITLE)
     if not is_from_file:
         fetch_commit(commit_sha)
     # initialize reader
-    hunk_reader = file(myUtil.FETCH_HUNK_FILE_NAME, 'rb')
+    hunk_reader = file(my_constant.FETCH_HUNK_FILE_NAME, 'rb')
     hunk_records = csv.reader(hunk_reader)
     hunk_count = 0
     for hunk_record in islice(hunk_records, 1, None):
-        hunk = json.loads(hunk_record[myUtil.FETCH_HUNK_HUNK])
-        flag = json.loads(hunk_record[myUtil.FETCH_HUNK_FLAG])
-        logs = json.loads(hunk_record[myUtil.FETCH_HUNK_LOGS])
-        old_hunk_loc = int(hunk_record[myUtil.FETCH_HUNK_OLD_HUNK_LOC])
-        new_hunk_loc = int(hunk_record[myUtil.FETCH_HUNK_NEW_HUNK_LOC])
+        hunk = json.loads(hunk_record[my_constant.FETCH_HUNK_HUNK])
+        flag = json.loads(hunk_record[my_constant.FETCH_HUNK_FLAG])
+        logs = json.loads(hunk_record[my_constant.FETCH_HUNK_LOGS])
+        old_hunk_loc = int(hunk_record[my_constant.FETCH_HUNK_OLD_HUNK_LOC])
+        new_hunk_loc = int(hunk_record[my_constant.FETCH_HUNK_NEW_HUNK_LOC])
         deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, log_writer)
         print 'now dealing with no. %d hunk' %hunk_count
         hunk_count += 1
@@ -193,8 +216,8 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
     new_hunk_loc = 0
     hunk_loc = 0
     # filter out the one with log statement changes
-    log_functions = myUtil.retrieveLogFunction(myUtil.LOG_CALL_FILE_NAME)
-    log_function = myUtil.functionToRegrexStr(log_functions)
+    log_functions = my_constant.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
+    log_function = my_constant.functionToRegrexStr(log_functions)
     pattern_log = '^(-|\+)([^/]*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
 
     # deal with each line of patch
@@ -226,7 +249,7 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
         change_type = line[0]
         if not change_type == '-':
             if not change_type == '+':
-                flag.append(myUtil.FLAG_NO_CHANGE)
+                flag.append(my_constant.FLAG_NO_CHANGE)
                 # update hunk location
                 hunk_loc += 1
                 continue
@@ -246,9 +269,9 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # change_type
             data_row.append(change_type)
             if change_type == '-':
-                flag.append(myUtil.FLAG_LOG_DELETE)
+                flag.append(my_constant.FLAG_LOG_DELETE)
             else:
-                flag.append(myUtil.FLAG_LOG_ADD)
+                flag.append(my_constant.FLAG_LOG_ADD)
             # log_statement
             log_statement = is_log_change.group().strip()
             log_statement = log_statement[1:].strip()
@@ -264,9 +287,9 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             logs.append([hunk_loc] + data_row)
         else:
             if change_type == '-':
-                flag.append(myUtil.FLAG_DELETE)
+                flag.append(my_constant.FLAG_DELETE)
             else:
-                flag.append(myUtil.FLAG_ADD)
+                flag.append(my_constant.FLAG_ADD)
 
         # update hunk location
         hunk_loc += 1
@@ -300,8 +323,8 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
             total_cpp = total_cpp + 1
 
             # define old/new_store_name
-            base_store_name = '/data/download/' + myUtil.REPOS + '/' + myUtil.REPOS \
-                + '/' + myUtil.USER + '_' + myUtil.REPOS + '_' + str(total_log_cpp)
+            base_store_name = '/data/download/' + my_constant.REPOS + '/' + my_constant.REPOS \
+                + '/' + my_constant.USER + '_' + my_constant.REPOS + '_' + str(total_log_cpp)
             new_store_name = base_store_name + '_new.cpp'
             old_store_name = base_store_name + '_old.cpp'
 
@@ -348,12 +371,12 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 def fetch_commit(commit_sha=''):
 
     # initiate Github with given user and repos
-    gh = Github(login='993273596@qq.com', password='nx153156', user=myUtil.USER, repo=myUtil.REPOS)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=my_constant.USER, repo=my_constant.REPOS)
 
     # initiate csvfile which store the commit info
-    hunk_file = file(myUtil.FETCH_HUNK_FILE_NAME, 'wb')
+    hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
     hunk_writer = csv.writer(hunk_file)
-    hunk_writer.writerow(myUtil.FETCH_HUNK_TITLE)
+    hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)

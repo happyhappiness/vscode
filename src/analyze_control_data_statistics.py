@@ -6,6 +6,7 @@ import commands
 import base64
 import json
 import myUtil
+import my_constant
 from itertools import islice
 # from joern.all import JoernSteps
 
@@ -19,12 +20,12 @@ from itertools import islice
 def statistics():
 
     # initialize read file
-    analysis = file(myUtil.ANALYZE_OLD_NEW_FILE_NAME, 'rb')
+    analysis = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'rb')
     records = csv.reader(analysis)
     # initialize write file
-    statistic = file(myUtil.STATISTICS_OLD_NEW_FILE_NAME, 'wb')
+    statistic = file(my_constant.STATISTICS_OLD_NEW_FILE_NAME, 'wb')
     statistic_writer = csv.writer(statistic)
-    statistic_writer.writerow(myUtil.ANALYZE_OLD_NEW_TITLE)
+    statistic_writer.writerow(my_constant.ANALYZE_OLD_NEW_TITLE)
     # traverse to find same old and new context(no context change)
     log_count = 0
     same_count = 0

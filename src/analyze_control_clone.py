@@ -1,5 +1,6 @@
 #-*-coding: utf-8 -*-
 import myUtil
+import my_constant
 import csv
 import json
 import re
@@ -135,22 +136,22 @@ def seek_clone():
     # initialize log_patch from given patch analysis result
     log_patch = []
     context_patch = []
-    patch_file_name = myUtil.ANALYZE_OLD_NEW_FILE_NAME
+    patch_file_name = my_constant.ANALYZE_OLD_NEW_FILE_NAME
     patch_file = file(patch_file_name, 'rb')
     patch_records = csv.reader(patch_file)
     for patch_record in islice(patch_records, 1, None):
         # old_context_list index (add commit sha)
-        context_patch.append(json.loads(patch_record[myUtil.ANALYZE_OLD_NEW_OLD_CONTEXT]))
+        context_patch.append(json.loads(patch_record[my_constant.ANALYZE_OLD_NEW_OLD_CONTEXT]))
         log_patch.append(patch_record)
     # initialize log_repos from given repos analysis result
     log_repos = []
     context_repos = []
-    repos_file_name = myUtil.ANALYZE_REPOS_FILE_NAME
+    repos_file_name = my_constant.ANALYZE_REPOS_FILE_NAME
     repos_file = file(repos_file_name, 'rb')
     repos_records = csv.reader(repos_file)
     for repos_record in islice(repos_records, 1, None):
         # context_list index
-        context_repos.append(json.loads(repos_record[myUtil.ANALYZE_REPOS_CONTEXT]))
+        context_repos.append(json.loads(repos_record[my_constant.ANALYZE_REPOS_CONTEXT]))
         log_repos.append(repos_record)
 
     # close files
@@ -163,10 +164,10 @@ def seek_clone():
     # seek clones in repos of context for each log update in patch
 
     # write back into file
-    clone_csv = file(myUtil.ANALYZE_CLONE_FILE_NAME, 'wb')
+    clone_csv = file(my_constant.ANALYZE_CLONE_FILE_NAME, 'wb')
     clone_csv_writer = csv.writer(clone_csv)
-    clone_csv_writer.writerow(myUtil.ANALYZE_CLONE_TITLE)
-    clone_num_csv = file(myUtil.STATISTICS_CLONE_NUM_FILE_NAME, 'wb')
+    clone_csv_writer.writerow(my_constant.ANALYZE_CLONE_TITLE)
+    clone_num_csv = file(my_constant.STATISTICS_CLONE_NUM_FILE_NAME, 'wb')
     clone_num_csv_writer = csv.writer(clone_num_csv)
     clone_num_csv_writer.writerow(['count'])
 
