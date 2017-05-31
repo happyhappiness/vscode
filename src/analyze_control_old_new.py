@@ -276,7 +276,7 @@ def analyze_record( joern_instance, record, change_type):
 = getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_fileName, joern_instance)
 
     # record the info: log node
-    record[myUtil.FETCH_LOG_LOG] = json.dumps(log)
+    record[my_constant.FETCH_LOG_LOG] = json.dumps(log)
     # cdg ndoe, neighbor node, context_lists
     record.append(json.dumps(old_context_list))
     record.append(json.dumps(new_context_list))
