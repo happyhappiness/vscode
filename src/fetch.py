@@ -7,6 +7,7 @@ import commands
 import base64
 import my_constant
 import json
+import myUtil
 from itertools import islice
 
 reload(sys);
@@ -216,8 +217,8 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
     new_hunk_loc = 0
     hunk_loc = 0
     # filter out the one with log statement changes
-    log_functions = my_constant.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
-    log_function = my_constant.functionToRegrexStr(log_functions)
+    log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
+    log_function = myUtil.functionToRegrexStr(log_functions)
     pattern_log = '^(-|\+)([^/]*(?:'+ log_function + ')[\w]*[\d]*)\((.*)$'
 
     # deal with each line of patch
