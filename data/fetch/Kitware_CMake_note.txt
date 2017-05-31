@@ -13,3 +13,5 @@ fetch result:
     700 or so records
     430 or so analyzed
     
+move detection
+try to find add false positives

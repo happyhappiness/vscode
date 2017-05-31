@@ -1,5 +1,6 @@
 #-*-coding: utf-8 -*-
 import myUtil
+import my_constant
 import csv
 import json
 import re
@@ -15,9 +16,9 @@ from joern.all import JoernSteps
 def get_log_info(log_functions, joern_instance):
     log_call_infos = {}
     # initiation log info writer csv
-    out_csv = file(myUtil.ANALYZE_REPOS_FILE_NAME, 'wb')
+    out_csv = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'wb')
     out_csv_writer = csv.writer(out_csv)
-    out_csv_writer.writerow(myUtil.ANALYZE_REPOS_TITLE)
+    out_csv_writer.writerow(my_constant.ANALYZE_REPOS_TITLE)
 
     # get log statement id from log function name
     record_count = 0
@@ -75,7 +76,7 @@ def analyze_repos():
     # connect to database
     joern_instance.connectToDatabase()
     # get name of log functions
-    log_functions = myUtil.retrieveLogFunction(myUtil.LOG_CALL_FILE_NAME)
+    log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
     get_log_info(log_functions, joern_instance)
 
 

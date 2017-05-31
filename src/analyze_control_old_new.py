@@ -6,6 +6,7 @@ import commands
 import base64
 import json
 import myUtil
+import my_constant
 from itertools import islice
 from joern.all import JoernSteps
 
@@ -246,7 +247,7 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
         new_ddg_list, new_static_list = myUtil.getDDGAndContent(new_log_id, joern_instance)
 
     # # get ddg list and static list (-: old, + new)
-    if change_type == myUtil.LOG_ADD:
+    if change_type == my_constant.LOG_ADD:
         log = new_log
     else:
         log = old_log
@@ -264,10 +265,10 @@ def getDependendedAstOfLog(change_type, old_loc, old_fileName, new_loc, new_file
 """
 def analyze_record( joern_instance, record, change_type):
 
-    old_loc = record[myUtil.FETCH_LOG_OLD_LOC]
-    new_loc = record[myUtil.FETCH_LOG_NEW_LOC]
-    old_fileName = record[myUtil.FETCH_LOG_OLD_FILE]
-    new_fileName = record[myUtil.FETCH_LOG_NEW_FILE]
+    old_loc = record[my_constant.FETCH_LOG_OLD_LOC]
+    new_loc = record[my_constant.FETCH_LOG_NEW_LOC]
+    old_fileName = record[my_constant.FETCH_LOG_OLD_FILE]
+    new_fileName = record[my_constant.FETCH_LOG_NEW_FILE]
 
     # query database with loc and filename
     log, old_context_list, new_context_list, \
@@ -296,11 +297,11 @@ def analyze_record( joern_instance, record, change_type):
 """
 def analyze_old_new():
 
-    fetch = file(myUtil.FETCH_LOG_FILE_NAME, 'rb')
+    fetch = file(my_constant.FETCH_LOG_FILE_NAME, 'rb')
     # initialize write file
-    analysis = file(myUtil.ANALYZE_OLD_NEW_FILE_NAME, 'wb')
+    analysis = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'wb')
     analyze_writer = csv.writer(analysis)
-    analyze_writer.writerow(myUtil.ANALYZE_OLD_NEW_TITLE)
+    analyze_writer.writerow(my_constant.ANALYZE_OLD_NEW_TITLE)
     # initialize read file
     records = csv.reader(fetch)
     # initialize python-joern instance
@@ -317,7 +318,7 @@ def analyze_old_new():
         if count % 10 == 0:
             print "now record the No. %d analyze" %count
         # call deal_line to retrieve location info(- included)
-        record, log = analyze_record(joern_instance, record, record[myUtil.FETCH_LOG_CHANGE_TYPE])
+        record, log = analyze_record(joern_instance, record, record[my_constant.FETCH_LOG_CHANGE_TYPE])
 
         # update analyze data is has edited
         if log:
