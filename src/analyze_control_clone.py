@@ -121,7 +121,8 @@ def compute_context_similarity(cond_lists_a, cond_lists_b, func_similarity_dic):
         len_values = len(values_list)
 
     # return float(len_common)*2 / (len_a + len_b) # (0, 1)
-    return float(len_common == min(len_a, len_b))
+    # at least 3 common element
+    return float(len_common == min(max(len_a, len_b), 3))
 
 """
 @ param user and repos
