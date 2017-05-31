@@ -3,6 +3,7 @@ import similarity_func
 import cluster_control
 import analyze_control
 import analyze_control_old_new
+import my_constant
 import csv
 from itertools import islice
 
@@ -70,7 +71,7 @@ def getFunctionSimilarityDic(isFromRead):
     func_similarity_dic = {}
     if isFromRead:
         # initialize func_similarity_dict
-        analyze_func = file(FUNC_SIMILAIRTY_FILE_NAME, 'rb')
+        analyze_func = file(my_constant.FUNC_SIMILAIRTY_FILE_NAME, 'rb')
         func_records = csv.reader(analyze_func)
         for func_record in islice(func_records, 1, None):
             func_similarity_dic[(func_record[0], func_record[1])] = func_record[2]
