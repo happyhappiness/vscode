@@ -1,0 +1,28 @@
+commit_sha,commit_message,file_name,change_type,log_statement,old_log_loc,old_store_name,new_log_loc,new_store_name
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/cookie.c,3,"fprintf(out, ""#\n# Fatal libcurl error\n"");",1283,/data/download/CMake/CMake/Kitware_CMake_111_old.cpp,1319,/data/download/CMake/CMake/Kitware_CMake_111_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/cookie.c,1,"fprintf(out, ""%s\n"", format_ptr);",1288,/data/download/CMake/CMake/Kitware_CMake_111_old.cpp,1309,/data/download/CMake/CMake/Kitware_CMake_111_new.cpp
+85d966dcd7a29a17e42fde7b1c109e642f063d82,"Merge topic 'update-curl'
+
+f59ab433 curl: Remove CMake-specific README
+f53f4a8a Merge branch 'upstream-curl' into update-curl
+202adcfe curl 2016-08-03 (f2cb3a01)
+e1c11352 curl: Update script to get curl 7.50.1
+a51c6c53 Merge branch 'upstream-curl' into update-curl
+7ec709d3 curl 2015-08-11 (1a7f66a3)
+3e9b0343 Add script to update curl from upstream",Utilities/cmcurl/lib/cookie.c,0,"fprintf(out, ""#\n# Fatal libcurl error\n"");",1290,/data/download/CMake/CMake/Kitware_CMake_111_old.cpp,1314,/data/download/CMake/CMake/Kitware_CMake_111_new.cpp

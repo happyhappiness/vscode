@@ -167,13 +167,15 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 def fetch_hunk(is_from_file, commit_sha):
 
     # initialize writer
-    log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'wb')
+    # log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'wb')
+    log_file = file('data/fetch/tmp-out.csv', 'wb')
     log_writer = csv.writer(log_file)
     log_writer.writerow(my_constant.FETCH_LOG_TITLE)
     if not is_from_file:
         fetch_commit(commit_sha)
     # initialize reader
-    hunk_reader = file(my_constant.FETCH_HUNK_FILE_NAME, 'rb')
+    # hunk_reader = file(my_constant.FETCH_HUNK_FILE_NAME, 'rb')
+    hunk_reader = file('data/fetch/tmp.csv', 'rb')    
     hunk_records = csv.reader(hunk_reader)
     hunk_count = 0
     for hunk_record in islice(hunk_records, 1, None):
