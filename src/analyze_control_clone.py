@@ -82,7 +82,7 @@ def longestCommonStr(cond_list_a, cond_list_b, func_similarity_dic):
 
 """
 @ param cond_list a and b for comparing, func_similarity_dic
-@ return similarity value
+@ return similarity value 0 | 1
 @ callee longestCommonStr
 @ caller seek_clone ..
 @ involve compute similarity between two context lists (subset)
@@ -126,6 +126,53 @@ def compute_context_similarity(cond_lists_a, cond_lists_b, func_similarity_dic):
     return float(len_common == min(max(len_a, len_b), 3))
 
 """
+@ param ddg_list a and b for comparing, func_similarity_dic
+@ return similarity value 0 | 1
+@ callee longestCommonStr
+@ caller seek_clone ..
+@ involve compute similarity between two ddg list
+"""
+def compute_ddg_similarity(ddg_lists_a, ddg_lists_b, func_similarity_dic):
+    len_a = len(ddg_lists_a)
+    len_b = len(ddg_lists_b)
+
+    # do not deal with 0 exception at this period
+    if len_a == 0 or len_b == 0:
+        return float(1)
+
+    # record the similarity dictionary
+    memory = {}
+    # build similarity dictionary between a and b
+    sim_value_a_b = 0
+    for index_a in range(len_a):
+        for index_b in range(len_b):
+            # if same variable type then compare their assignment
+            if ddg_lists_a[index_a][1] == ddg_lists_b[index_b][1]:
+                # add one element is elements share higher similarity than 0.5
+                curr_similarity = longestCommonStr(ddg_lists_a[index_a][0], \
+                                ddg_lists_b[index_b][0], func_similarity_dic)
+                if curr_similarity > 0.5:
+                    memory[(index_a, index_b)] = curr_similarity
+
+    # iterate to find maxest and remove corresponding line and row
+    # initialization
+    len_common = 0
+    values_list = memory.values()
+    len_values = len(values_list)
+    while len_values != 0:
+        # find max element and remove corresponding row and col
+        max_value = max(values_list)
+        myUtil.removeDicElement(memory, values_list.index(max_value))
+        # iterator
+        len_common += 1
+        values_list = memory.values()
+        len_values = len(values_list)
+
+    # return float(len_common)*2 / (len_a + len_b) # (0, 1)
+    # at least 3 common element
+    return float(len_common == max(len_a, len_b))
+
+"""
 @ param user and repos
 @ return ...
 @ caller main
@@ -137,22 +184,26 @@ def seek_clone():
     # initialize log_patch from given patch analysis result
     log_patch = []
     context_patch = []
+    ddg_patch = []
     patch_file_name = my_constant.ANALYZE_OLD_NEW_FILE_NAME
     patch_file = file(patch_file_name, 'rb')
     patch_records = csv.reader(patch_file)
     for patch_record in islice(patch_records, 1, None):
         # old_context_list index (add commit sha)
         context_patch.append(json.loads(patch_record[my_constant.ANALYZE_OLD_NEW_OLD_CONTEXT]))
+        ddg_patch.append(json.loads(patch_record[my_constant.ANALYZE_OLD_NEW_OLD_DDG]))
         log_patch.append(patch_record)
     # initialize log_repos from given repos analysis result
     log_repos = []
     context_repos = []
+    ddg_repos = []
     repos_file_name = my_constant.ANALYZE_REPOS_FILE_NAME
     repos_file = file(repos_file_name, 'rb')
     repos_records = csv.reader(repos_file)
     for repos_record in islice(repos_records, 1, None):
         # context_list index
         context_repos.append(json.loads(repos_record[my_constant.ANALYZE_REPOS_CONTEXT]))
+        ddg_repos.append(json.loads(repos_record[my_constant.ANALYZE_REPOS_DDG]))
         log_repos.append(repos_record)
 
     # close files
@@ -178,7 +229,8 @@ def seek_clone():
         clone_count = 0
         # traverse repos to find similar contexts
         for reposi in context_repos:
-            if compute_context_similarity(patch, reposi, func_similarity_dic) == 1:
+            if compute_ddg_similarity(ddg_patch[index_patch], ddg_repos[index_repos], \
+func_similarity_dic) == 1 and compute_context_similarity(patch, reposi, func_similarity_dic) == 1:
                 clone_csv_writer.writerow(log_patch[index_patch] + log_repos[index_repos])
                 clone_count += 1
             index_repos += 1
