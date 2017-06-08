@@ -37,10 +37,13 @@ ANALYZE_OLD_NEW_TITLE = ['commit_sha', 'commit_message', 'file_name', \
         'old_context_list', 'new_context_list', 'old_ddg_list', 'old_static_list', \
         'new_ddg_list', 'new_static_list']
 ANALYZE_OLD_NEW_OLD_CONTEXT = ANALYZE_OLD_NEW_TITLE.index('old_context_list')
+ANALYZE_OLD_NEW_OLD_DDG = ANALYZE_OLD_NEW_TITLE.index('old_ddg_list')
 ANALYZE_OLD_NEW_NEW_CONTEXT = ANALYZE_OLD_NEW_TITLE.index('new_context_list')
+ANALYZE_OLD_NEW_NEW_DDG = ANALYZE_OLD_NEW_TITLE.index('new_ddg_list')
 
 ANALYZE_REPOS_TITLE = ['code', 'location', 'file', 'context_list', 'ddg_list', 'static_list']
 ANALYZE_REPOS_CONTEXT = ANALYZE_REPOS_TITLE.index('context_list')
+ANALYZE_REPOS_DDG = ANALYZE_REPOS_TITLE.index('ddg_list')
 
 ANALYZE_CLONE_TITLE = ['commit_sha', 'commit_message', 'file_name',\
         'change_type', 'log_node', \

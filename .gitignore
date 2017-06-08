@@ -1,8 +1,11 @@
+Cookies
+.gitignore
+storage.json
+
 download/
 User/
 GPUCache/
 Cache/
-Cookies/
 CachedData/
 Backups/
 Local Storage/
