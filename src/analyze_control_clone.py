@@ -138,7 +138,7 @@ def compute_ddg_similarity(ddg_lists_a, ddg_lists_b, func_similarity_dic):
 
     # do not deal with 0 exception at this period
     if len_a == 0 or len_b == 0:
-        return float(1)
+        return float(0)
 
     # record the similarity dictionary
     memory = {}
