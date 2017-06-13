@@ -91,6 +91,8 @@ def compute_context_similarity(cond_lists_a, cond_lists_b, func_similarity_dic):
     len_a = len(cond_lists_a)
     len_b = len(cond_lists_b)
 
+    if len_a == 0 and len_b == 0:
+        return float(1)
     # do not deal with 0 exception at this period
     if len_a == 0 or len_b == 0:
         return float(0)
