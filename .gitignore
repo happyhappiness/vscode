@@ -1,4 +1,6 @@
-.gitignore  
+Cookies
+.gitignore
+storage.json
 
 download/
 User/
