@@ -1,7 +1,7 @@
 #-*-coding: utf-8 -*-
 import similarity_func
-import cluster_control
-import analyze_control
+import test_cluster_control
+import test_analyze_control
 import analyze_control_old_new
 import my_constant
 import csv
@@ -81,28 +81,15 @@ def getFunctionSimilarityDic(isFromRead):
     return func_similarity_dic
 
 """
-@ param  log id and joern instance
-@ return cdg_list, neighbor_list, context_list, ddg_list, static_list
-@ callee analyze_control.getContextOfLog
-@ caller cluster_context_with_function
-@ involve get context infomation of given log id
-"""
-def getContextInfo(log_id, joern_instance):
-
-    cdg_list, neighbor_list, context_list, ddg_node,\
-         ddg_list, static_list = analyze_control.getContextOfLog(str(log_id), joern_instance)
-    return cdg_list, neighbor_list, context_list, ddg_list, static_list
-
-"""
 @ param  similarity_dic, filename
 @ return ...
 @ callee ...
 @ caller self, cluster_context_with_function
-@ involve dump similarity_dic into given fileName
+@ involve dump similarity_dic
 """
-def dumpSimilarityDic(similarity_dic, fileName):
+def dumpSimilarityDic(similarity_dic):
 
-    similarity_control = file(fileName, 'wb')
+    similarity_control = file(my_constant.REPOS_SIMILARITY_FILE_NAME, 'wb')
     similarity_control_writer = csv.writer(similarity_control)
     similarity_control_writer.writerow(["left", "right", "similarity"])
     # dump similarity
@@ -112,20 +99,6 @@ def dumpSimilarityDic(similarity_dic, fileName):
 
     # close files
     similarity_control.close()
-
-"""
-@ param  context_lists, func_similarity_dic, cluster_similarity
-@ return cluster_lists
-@ callee cluster_control.cluster_record
-@ caller cluster_context_with_function
-@ involve cluster the context_lists according to cluster_similarity
-"""
-def performCluster(context_lists, func_similarity_dic, cluster_similarity, fileName):
-
-    cluster_lists, similarity_dic = cluster_control.cluster_record(context_lists, func_similarity_dic, cluster_similarity)
-    dumpSimilarityDic(similarity_dic, fileName)
-
-    return cluster_lists
 
 
 """
