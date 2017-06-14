@@ -5,6 +5,7 @@ import re
 import commands
 import json
 import myUtil
+import my_constant
 from itertools import islice
 from itertools import islice
 from joern.all import JoernSteps
@@ -149,7 +150,7 @@ def computeSim(func_a, func_b, word_list_dict):
 def getFunctionSimilarity():
 
     # initialize write file
-    analysis = file(myUtil.FUNC_SIMILAIRTY_FILE_NAME, 'wb')
+    analysis = file(my_constant.FUNC_SIMILAIRTY_FILE_NAME, 'wb')
     analyze_writer = csv.writer(analysis)
     analyze_writer.writerow(['func_a', 'func_b', 'similarity'])
 

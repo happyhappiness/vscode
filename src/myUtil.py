@@ -1,7 +1,6 @@
 #-*-coding: utf-8 -*-
 import similarity_func
 import test_cluster_control
-import test_analyze_control
 import analyze_control_old_new
 import my_constant
 import csv

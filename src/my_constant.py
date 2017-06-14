@@ -2,8 +2,10 @@
 """
 @ involve : constant definition
 """
-USER = 'Kitware'
-REPOS = 'CMake'
+# USER = 'Kitware'
+# REPOS = 'CMake'
+USER = 'bftpd'
+REPOS = 'bftpd'
 
 LOG_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_logging_statement.csv'
 FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_func_similarity.csv'
@@ -44,6 +46,8 @@ ANALYZE_OLD_NEW_NEW_CONTEXT = ANALYZE_OLD_NEW_TITLE.index('new_context_list')
 ANALYZE_OLD_NEW_NEW_DDG = ANALYZE_OLD_NEW_TITLE.index('new_ddg_list')
 
 ANALYZE_REPOS_TITLE = ['code', 'location', 'file', 'context_list', 'ddg_list', 'static_list']
+CLUSTER_REPOS_TITLE = ['code', 'location', 'file', 'context_list', 'ddg_list', \
+                                                                'static_list', 'cluster_index']
 ANALYZE_REPOS_CONTEXT = ANALYZE_REPOS_TITLE.index('context_list')
 ANALYZE_REPOS_DDG = ANALYZE_REPOS_TITLE.index('ddg_list')
 
