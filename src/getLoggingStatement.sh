@@ -1,11 +1,10 @@
 #!/bin/sh
 
 # parameter
-# CODE_DIR=${SQUID_DIR}
-# CODE_DIR=${BFTPD_CODE}
-# REPOS="BFTPD"
-CODE_DIR=${CMAKE_CODE}
-REPOS="CMake"
+CODE_DIR=${BFTPD_CODE}
+REPOS="bftpd"
+# CODE_DIR=${CMAKE_CODE}
+# REPOS="CMake"
 
 # code
 echo "generating compiled_files.def and call_dependence.csv";

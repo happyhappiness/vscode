@@ -23,8 +23,10 @@ def computeSimForContext(context_list_a, context_list_b, func_similarity_dic):
 
     cdg_list_b = context_list_b[0]
     ddg_list_b = context_list_b[1]
-    if analyze_control_clone.compute_ddg_similarity(ddg_list_a, ddg_list_b, func_similarity_dic) == 1:
-        return analyze_control_clone.compute_context_similarity(cdg_list_a, cdg_list_b, func_similarity_dic)
+    if analyze_control_clone.compute_ddg_similarity \
+            (ddg_list_a, ddg_list_b, func_similarity_dic) == 1:
+        return analyze_control_clone.compute_context_similarity\
+                    (cdg_list_a, cdg_list_b, func_similarity_dic)
     return float(0)
 
 """
@@ -170,18 +172,17 @@ def cluster():
     # initialize write file
     cluster_control = file(my_constant.CLUSTER_REPOS_FILE_NAME, 'wb')
     cluster_control_writer = csv.writer(cluster_control)
-    cluster_control_writer.writerow(my_constant.ANALYZE_REPOS_TITLE.append('cluster_index'))
+    cluster_control_writer.writerow(my_constant.CLUSTER_REPOS_TITLE)
 
     context_lists = []
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
-        context_list = json.loads(record[my_constant.ANALYZE_REPOS_CONTEXT])
+        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_CONTEXT])
         ddg_list = json.loads(record[my_constant.ANALYZE_REPOS_DDG])
         # # remove [[]] cond_list
         # context_list = myUtil.removeGivenElement([[]], context_list)
-        context_lists.append(context_list)
-        context_lists.append(ddg_list)
+        context_lists.append([cdg_list, ddg_list])
 
     # cluster log statement based on cdg_list and ddg_list
     cluster_lists, similarity_dict = cluster_record(context_lists, func_similarity_dic, 0.5)
