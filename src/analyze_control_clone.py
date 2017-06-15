@@ -106,7 +106,10 @@ def compute_context_similarity(cond_lists_a, cond_lists_b, func_similarity_dic):
             # add one element is elements share higher similarity than 0.5
             curr_similarity = longestCommonStr(cond_lists_a[index_a][0], \
                             cond_lists_b[index_b][0], func_similarity_dic)
-            if curr_similarity > 0.5:
+            if curr_similarity >= 0.5:
+                # # high similarity between
+                # if curr_similarity == 1:
+                #     return float(1)
                 memory[(index_a, index_b)] = curr_similarity
 
     # iterate to find maxest and remove corresponding line and row
@@ -138,6 +141,9 @@ def compute_ddg_similarity(ddg_lists_a, ddg_lists_b, func_similarity_dic):
     len_a = len(ddg_lists_a)
     len_b = len(ddg_lists_b)
 
+    # if both 0
+    if len_a == 0 and len_b == 0:
+        return float(1)
     # do not deal with 0 exception at this period
     if len_a == 0 or len_b == 0:
         return float(0)
@@ -251,3 +257,6 @@ main function
 if __name__ == "__main__":
 
     seek_clone()
+    # list_a = [[["!", "struct group_of_users *"]], [["strstr", "char *", "\"group \"", "char *", "=="]]]
+    # list_b = [[["!", "struct user *"]], [["strstr", "char *", "\"user \"", "char *", "=="]]]
+    # print compute_context_similarity(list_a, list_b, {})
