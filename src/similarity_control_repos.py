@@ -47,6 +47,8 @@ def compute_cluster(context_lists, func_similarity_dic):
     cluster_cnt = 1
     for i in range(len_repos):
         for j in range(len_repos):
+            if i == j:
+                continue
             if compute_similarity_for_context\
                     (context_lists[i], context_lists[j], func_similarity_dic) == 1:
                 # have been saved in one cluster, so with transition, merge the later with the first
@@ -54,15 +56,13 @@ def compute_cluster(context_lists, func_similarity_dic):
                     cluster_i = repos_cluster_vec[i]
                     if not repos_cluster_vec[j] == 0:
                         cluster_j = repos_cluster_vec[j]
+                        # update repos_cluster_dic to i cluster
+                        for k in range(len_repos):
+                            if repos_cluster_vec[k] == cluster_j:
+                                repos_cluster_vec[k] = cluster_i
                     else:
                         # the later no class, avoid traverse
                         repos_cluster_vec[j] = cluster_i
-                        continue
-
-                    # update repos_cluster_dic to i cluster
-                    for k in range(len_repos):
-                        if repos_cluster_vec[k] == cluster_j:
-                            repos_cluster_vec[k] = cluster_i
                     continue
                 # have been saved in the later one, so with transition, add the first into the later
                 if not repos_cluster_vec[j] == 0:
