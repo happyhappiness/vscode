@@ -116,8 +116,7 @@
             "args": [],
             "debugOptions": [
                 "WaitOnAbnormalExit",
-                "WaitOnNormalExit",
-                "RedirectOutput"
+                "WaitOnNormalExit"
             ]
         }
 

@@ -1,6 +1,5 @@
 #-*-coding: utf-8 -*-
 import similarity_func
-import test_cluster_control
 import analyze_control_old_new
 import my_constant
 import csv
@@ -57,6 +56,22 @@ def removeGivenElement(element, in_list):
         in_list.remove(element)
 
     return in_list
+
+
+"""
+@ param  list
+@ return dictionary
+@ callee ...
+@ caller block
+@ involve transform list into dict
+"""
+def dict_from_list(in_list):
+    len_list = len(in_list)
+    out_dict = {}
+    for i in range(len_list):
+        out_dict[in_list[i]] = i
+
+    return out_dict
 
 """
 @ param  isFromRead
