@@ -178,11 +178,11 @@ def cluster():
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
-        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_CONTEXT])
-        ddg_list = json.loads(record[my_constant.ANALYZE_REPOS_DDG])
+        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_VECTOR])
+        # ddg_list = json.loads(record[my_constant.ANALYZE_REPOS_DDG])
         # # remove [[]] cond_list
         # context_list = myUtil.removeGivenElement([[]], context_list)
-        context_lists.append([cdg_list, ddg_list])
+        context_lists.append([cdg_list])
 
     # cluster log statement based on cdg_list and ddg_list
     cluster_lists, similarity_dict = cluster_record(context_lists, func_similarity_dic, 0.5)
