@@ -4,31 +4,21 @@ import sys
 import re
 import commands
 import json
-import myUtil
-import my_constant
 import analyze_control_clone
 from itertools import islice
-
+import block
+import myUtil
+import my_constant
 
 """
-@ param cond_list a and b for comparing, func_similarity_dic
+@ param cond_list a and b for comparing
 @ return similarity value
 @ callee longestCommonSeq
 @ caller computeSimForCluster ..
 @ involve compute similarity between cond_lists, unordered common element
 """
-def computeSimForContext(context_list_a, context_list_b, func_similarity_dic):
-    cdg_list_a = context_list_a[0]
-    ddg_list_a = context_list_a[1]
-
-    cdg_list_b = context_list_b[0]
-    ddg_list_b = context_list_b[1]
-    if analyze_control_clone.compute_ddg_similarity \
-            (ddg_list_a, ddg_list_b, func_similarity_dic) == 1:
-        return analyze_control_clone.compute_context_similarity\
-                    (cdg_list_a, cdg_list_b, func_similarity_dic)
-    return float(0)
-
+def computeSimForContext(context_list_a, context_list_b):
+    return block.cos_similarity(context_list_a, context_list_b)
 """
 @param vec, left, right, similarity, id
 @return new cluster
@@ -46,13 +36,13 @@ class mycluster:
 
 
 """
-@ param cluster a and b for comparing, similarity_dic, func_similarity_dic, last similarity(1)
+@ param cluster a and b for comparing, similarity_dic, last similarity(1)
 @ return similarity value
 @ callee computeSim(cond_list_a, cond_list_b); self
 @ caller cluster_record ..
 @ involve compute similarity between clusters (the least similar cond_list pairs)
 """
-def computeSimForCluster(cluster_a, cluster_b, similarity_dic, func_similarity_dic, similarity = 1):
+def computeSimForCluster(cluster_a, cluster_b, similarity_dic, similarity = 1):
 
     #  if has record in dictory, then use dictory
     if similarity_dic.get((cluster_a.id, cluster_b.id)) is not None:
@@ -60,31 +50,31 @@ def computeSimForCluster(cluster_a, cluster_b, similarity_dic, func_similarity_d
 
     # compare cdg_list of entity
     if cluster_a.id >= 0 and cluster_b.id >= 0:
-        similarity = min(computeSimForContext(cluster_a.vec, cluster_b.vec, func_similarity_dic), similarity)
+        similarity = min(computeSimForContext(cluster_a.vec, cluster_b.vec), similarity)
         return similarity
 
     # first cluster (children)
     if cluster_a.id < 0:
         # traverse children
         for child in cluster_a.children:
-            similarity = min(computeSimForCluster(child, cluster_b, similarity_dic, func_similarity_dic, similarity), similarity)
+            similarity = min(computeSimForCluster(child, cluster_b, similarity_dic, similarity), similarity)
         return similarity
 
     # second cluster (children)
     if cluster_b.id < 0:
         # traverse children
         for child in cluster_b.children:
-            similarity = min(computeSimForCluster(cluster_a, child, similarity_dic, func_similarity_dic, similarity), similarity)
+            similarity = min(computeSimForCluster(cluster_a, child, similarity_dic, similarity), similarity)
         return similarity
 
 """
-@param: cdg_lists(entiry vectors), func_similarity_dic, cluster_similarity = 0.5
+@param: cdg_lists(entiry vectors), cluster_similarity = 0.90
 @return cluster index for each entity
 @caller cluster
 @callee computeSimForCluster
 @involve: cluster entities based on similarity
 """
-def cluster_record(context_lists, func_similarity_dic, cluster_similarity = 0.5):
+def cluster_record(context_lists, cluster_similarity = 0.95):
     # initialize the custers to consist of each entity
     myclusters = [mycluster(children=[], vec=context_lists[i], id=i) for i in range(len(context_lists))]
     flag = None
@@ -106,7 +96,7 @@ def cluster_record(context_lists, func_similarity_dic, cluster_similarity = 0.5)
 
                     # compute similaritys by calling computeSim on (vector a, vector b)
                     similarity_dic[(myclusters[i].id, myclusters[j].id)] =\
-                        computeSimForCluster(myclusters[i], myclusters[j], similarity_dic, func_similarity_dic)
+                        computeSimForCluster(myclusters[i], myclusters[j], similarity_dic)
                     # record symmetrical record
                     similarity_dic[(myclusters[j].id, myclusters[i].id)] =\
                                 similarity_dic[(myclusters[i].id, myclusters[j].id)]
@@ -152,7 +142,7 @@ def cluster_record(context_lists, func_similarity_dic, cluster_similarity = 0.5)
         else:
             cluster_lists[now_cluster.id] = index
         index += 1
-    return cluster_lists, similarity_dic
+    return cluster_lists
 
 """
 @ param  user and repos
@@ -179,16 +169,13 @@ def cluster():
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
         cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_VECTOR])
-        # ddg_list = json.loads(record[my_constant.ANALYZE_REPOS_DDG])
-        # # remove [[]] cond_list
-        # context_list = myUtil.removeGivenElement([[]], context_list)
-        context_lists.append([cdg_list])
+        context_lists.append(cdg_list)
 
     # cluster log statement based on cdg_list and ddg_list
-    cluster_lists, similarity_dict = cluster_record(context_lists, func_similarity_dic, 0.5)
+    cluster_lists = cluster_record(context_lists, 0.99)
     # record cluster index of each log statement
     analyze_control.close()
-    analyze_control = file(my_constant.CLUSTER_REPOS_FILE_NAME, 'rb')
+    analyze_control = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'rb')
     records = csv.reader(analyze_control)
     index = 0
     for record in islice(records, 1, None):
@@ -196,7 +183,7 @@ def cluster():
         cluster_control_writer.writerow(record)
         index += 1
 
-    myUtil.dumpSimilarityDic(similarity_dict)
+    # myUtil.dumpSimilarityDic(similarity_dict)
     # close files
     cluster_control.close()
     analyze_control.close()
