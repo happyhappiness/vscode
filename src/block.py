@@ -1,6 +1,7 @@
 #-*-coding: utf-8 -*-
 from joern.all import JoernSteps
 import numpy as np
+from scipy.spatial.distance import pdist
 import json
 import my_constant
 import myUtil
@@ -53,7 +54,7 @@ class Block:
         self.vector = self.condition_vector + self.statement_vector
 
     def similarity_block(self, in_block):
-        similairy = cos_similarity(self.vector, in_block.vector)
+        similairy = compute_similarity(self.vector, in_block.vector)
         return similairy
 
     def get_info(self):
@@ -103,14 +104,19 @@ def initialize_joern():
 @ caller *
 @ involve compute cos similarity of two vectors
 """
-def cos_similarity(in_vector1, in_vector2):
-    multi = np.sum(np.multiply(in_vector1, in_vector2))
-    base = (np.linalg.norm(in_vector1) * np.linalg.norm(in_vector1))
-    if base > 0:
-        similairy = float(multi) / base
-    else:
-        return np.sum(in_vector1 + in_vector2) == 0
-    return similairy
+def compute_similarity(in_vector1, in_vector2, method='braycurtis'):
+    # multi = np.sum(np.multiply(in_vector1, in_vector2))
+    # base = (np.linalg.norm(in_vector1) * np.linalg.norm(in_vector1))
+    # if base > 0:
+    #     similairy = float(multi) / base
+    # else:
+    #     return np.sum(in_vector1 + in_vector2) == 0
+    # return similairy
+    X = np.vstack([in_vector1, in_vector2])
+    # standard distance
+    distance = pdist(X, metric=method)
+    similairty = 1 - distance
+    return similairty
 
 """
 @ param  file name, log location and block dictionary
