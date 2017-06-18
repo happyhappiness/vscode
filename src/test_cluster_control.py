@@ -18,7 +18,7 @@ import my_constant
 @ involve compute similarity between cond_lists, unordered common element
 """
 def computeSimForContext(context_list_a, context_list_b):
-    return block.cos_similarity(context_list_a, context_list_b)
+    return block.compute_similarity(context_list_a, context_list_b)
 """
 @param vec, left, right, similarity, id
 @return new cluster
@@ -172,7 +172,7 @@ def cluster():
         context_lists.append(cdg_list)
 
     # cluster log statement based on cdg_list and ddg_list
-    cluster_lists = cluster_record(context_lists, 0.99)
+    cluster_lists = cluster_record(context_lists, 0.9999999)
     # record cluster index of each log statement
     analyze_control.close()
     analyze_control = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'rb')
