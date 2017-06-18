@@ -53,11 +53,11 @@ class Block:
         self.vector = self.condition_vector + self.statement_vector
 
     def similarity_block(self, in_block):
-        similairy = self.__cos_similarity(self.vector, in_block.vector)
+        similairy = cos_similarity(self.vector, in_block.vector)
         return similairy
 
     def get_info(self):
-        info = [] 
+        info = []
         info.append(self.identity)
         info.append(self.file_name)
         info.append(self.log_loc)
@@ -65,11 +65,6 @@ class Block:
         info.append(self.statement_feature)
         info.append(json.dumps(self.vector))
         return info
-
-    def __cos_similarity(self, in_vector1, in_vector2):
-        multi = np.sum(np.multiply(in_vector1, in_vector2))
-        similairy = float(multi) / (np.linalg.norm(in_vector1) * np.linalg.norm(in_vector1))
-        return similairy
 
     def __feature_to_vector(self, in_feature):
         out_vector = [0 for i in range(len(Block.node_index_dic))]
@@ -102,6 +97,22 @@ def initialize_joern():
 
 
 """
+@ param vactors to compare
+@ return similarity
+@ callee ...
+@ caller *
+@ involve compute cos similarity of two vectors
+"""
+def cos_similarity(in_vector1, in_vector2):
+    multi = np.sum(np.multiply(in_vector1, in_vector2))
+    base = (np.linalg.norm(in_vector1) * np.linalg.norm(in_vector1))
+    if base > 0:
+        similairy = float(multi) / base
+    else:
+        return np.sum(in_vector1 + in_vector2) == 0
+    return similairy
+
+"""
 @ param  file name, log location and block dictionary
 @ return block objecr
 @ callee ...
@@ -110,17 +121,16 @@ def initialize_joern():
         store into block ditionary
 """
 def get_blocks(log_id, block_dic):
-    block_dic = {}
     block = Block(log_id)
     block.get_block_identity()
     # already saved identity
-    if not block_dic.has_key(block.identity):
+    if block_dic.has_key(block.identity):
+        return block_dic, None
+    else:
         block.get_block_feature()
         block.get_block_vector()
         block_dic[block.identity] = block
         return block_dic, block
-    else:
-        return block_dic, None
 
 """
 @ param  file name, log location and block dictionary
