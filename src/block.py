@@ -1,11 +1,11 @@
 #-*-coding: utf-8 -*-
-from joern.all import JoernSteps
+import json
+import csv
 import numpy as np
 from scipy.spatial.distance import pdist
-import json
+from joern.all import JoernSteps
 import my_constant
 import myUtil
-import csv
 
 class Block:
     # joern instance shared by all objects
@@ -13,7 +13,7 @@ class Block:
     # node type dictionary between type and index
     node_index_dic = {}
 
-    def __init__(self, log_id):
+    def __init__(self, log_id = None):
         if Block.joern_instance is None:
             initialize_joern()
         self.log_id = log_id
@@ -26,13 +26,16 @@ class Block:
         self.statement_vector = None
         self.vector = None
 
+    def set_log_id(self, log_id):
+        self.log_id = log_id
+
     def get_block_identity(self):
         ident_query = "_().logToLogBlock(" + str(self.log_id) + ")"
         ident = Block.joern_instance.runGremlinQuery(ident_query)[0]
         self.log_loc = ident[1]
         file_name_query = "_().getFileInfo(" + str(ident[2]) + ")"
         self.file_name = Block.joern_instance.runGremlinQuery(file_name_query)[0]
-        if(not ident[3] == "CFGEntryNode"):
+        if not ident[3] == "CFGEntryNode":
             flag_query = "_().logToLogBlockFlag(" + str(self.log_id) + ")"
             flag = Block.joern_instance.runGremlinQuery(flag_query)[0]
         else:
@@ -60,6 +63,15 @@ class Block:
     def get_info(self):
         info = []
         info.append(self.identity)
+        info.append(self.file_name)
+        info.append(self.log_loc)
+        info.append(self.condition_feature)
+        info.append(self.statement_feature)
+        info.append(json.dumps(self.vector))
+        return info
+
+    def get_info_except_identity(self):
+        info = []
         info.append(self.file_name)
         info.append(self.log_loc)
         info.append(self.condition_feature)
