@@ -65,6 +65,7 @@ def analyze_record_to_block(log_record, old_new_block_dict):
         if old_new_block_dict.has_key(identity):
             analyze_record = old_new_block_dict[identity]
             analyze_record[my_constant.ANALYZE_OLD_NEW_LOG_INFO] += log_info
+            print log_info
         else:
             analyze_record = []
             analyze_record.append(identity)

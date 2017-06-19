@@ -60,6 +60,7 @@ class Block:
         similairy = compute_similarity(self.vector, in_block.vector)
         return similairy
 
+    # for repos analyze
     def get_info(self):
         info = []
         info.append(self.identity)
@@ -70,13 +71,14 @@ class Block:
         info.append(json.dumps(self.vector))
         return info
 
+    # for old new block anlayze 
     def get_info_except_identity(self):
         info = []
         info.append(self.file_name)
         info.append(self.log_loc)
         info.append(self.condition_feature)
         info.append(self.statement_feature)
-        info.append(json.dumps(self.vector))
+        info.append(self.vector)
         return info
 
     def __feature_to_vector(self, in_feature):
