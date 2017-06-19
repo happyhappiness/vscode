@@ -1,9 +1,8 @@
 #-*-coding: utf-8 -*-
-import similarity_func
-import analyze_control_old_new
-import my_constant
 import csv
 from itertools import islice
+import similarity_func
+import my_constant
 
 """
 @ param  var to deal with
@@ -168,58 +167,6 @@ def functionToRegrexStr(log_functions):
         regrex_string += log_function + '|'
 
     return regrex_string[:-1]
-
-
-"""
-@ param log id and joernInstance
-@ return context list
-@ caller analyze_control_repos
-@ callee analyze_control_old_new, analyze_control_old_new
-@ involve get context info with given log id and joern_instance
-"""
-def getContext(log_id, joern_instance):
-    context_list = []
-    order = str(3)
-    # condition node list (control type, id, isCFGNode, type, code)
-    cdg_query = '_().getCFGControlByLog(' + log_id + ',' + order +')'
-    cdg_list = joern_instance.runGremlinQuery(cdg_query)[0] # true/false + cond_node
-    # deal with each condition
-    for condition in cdg_list:
-        context_list = analyze_control_old_new.getCondList(condition, context_list, joern_instance)
-
-    # add flowlabel to make sure the total context count is at least 5
-    # context = control + neighbor
-    # if len(cdg_list) < 1:
-    if len(cdg_list) < 1:
-        neighbor_query = '_().getCFGStatementByLog(' + log_id + ',' + order +')'
-        neighbor_list = joern_instance.runGremlinQuery(neighbor_query)[0] #  + cond_node
-        # deal with each neighbor
-        for neighbor in neighbor_list:
-            context_list = analyze_control_old_new.getNeighborList(neighbor, context_list, joern_instance)
-
-    return context_list
-
-"""
-@ param log id and joernInstance
-@ return ddg list and static list
-@ caller analyze_control_repos, analyze_control_old_new
-@ callee analyze_control_old_new
-@ involve get context info with given log id and joern_instance
-"""
-def getDDGAndContent(log_id, joern_instance):
-    ddg_list = []
-    static_list = []
-    ddg_query = '_().getDDG(' + log_id + ')'
-    ddg_node = joern_instance.runGremlinQuery(ddg_query)[0]
-    # deal with each ddg_node to get ddg_lists
-    for ddg_node in ddg_node:
-        ddg_list = analyze_control_old_new.getDDGList(ddg_node, ddg_list, joern_instance)
-
-    # get static string
-    static_query = '_().getStaticStr(' + log_id + ')'
-    static_list = joern_instance.runGremlinQuery(static_query)[0]
-
-    return ddg_list, static_list
 
 """
 @ param  cond_list of a and b to compute, func_similarity_dic
