@@ -4,6 +4,7 @@ import csv
 import numpy as np
 from scipy.spatial.distance import pdist
 from joern.all import JoernSteps
+from itertools import islice
 import my_constant
 import myUtil
 
@@ -11,7 +12,7 @@ class Block:
     # joern instance shared by all objects
     joern_instance = None
     # node type dictionary between type and index
-    node_index_dic = {}
+    node_index_dic = None
 
     def __init__(self, log_id = None):
         if Block.joern_instance is None:
@@ -89,13 +90,13 @@ class Block:
             out_vector[Block.node_index_dic[node]] += 1
         return out_vector
 """
-@ param nothing
+@ param is to rebuild node dictionary or not, if not read from file
 @ return nothing
 @ callee ...
 @ caller *
 @ involve initialize Bolck.joern instance and node index dictionary
 """
-def initialize_joern():
+def initialize_joern(is_rebuild = True):
     # initialization
     if Block.joern_instance is None:
         # initialization joern
@@ -104,11 +105,24 @@ def initialize_joern():
         Block.joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
         # connect to database
         Block.joern_instance.connectToDatabase()
+    if is_rebuild or Block.node_index_dic is None:
         # get node type dictionary
         node_index_query = "_().getAllASTNodeType()"
         node_index = Block.joern_instance.runGremlinQuery(node_index_query)
-        # build dic from list
-        Block.node_index_dic = myUtil.dict_from_list(node_index)
+        # store list
+        node_dic_csv = file(my_constant.NODE_DICT_FILE_NAME, 'wb')
+        node_dic_csv_writer = csv.writer(node_dic_csv)
+        node_dic_csv_writer.writerow([json.dumps(node_index)])
+        node_dic_csv.close()
+    else:
+        node_dic_csv = file(my_constant.NODE_DICT_FILE_NAME, 'rb')
+        node_dic_records = csv.reader(node_dic_csv)
+        # fisrt line first column
+        for record in islice(node_dic_records, 0, 1):
+            node_index = json.loads(record[0])
+        node_dic_csv.close()
+    # build dic from list
+    Block.node_index_dic = myUtil.dict_from_list(node_index)
 
 
 """
