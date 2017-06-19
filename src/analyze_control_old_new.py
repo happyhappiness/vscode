@@ -100,7 +100,7 @@ def analyze_old_new():
     # traverse the fetch csv file to update context info
     count = 0
     old_new_block_dict = {}
-    block.initialize_joern()
+    block.initialize_joern(False)
     for record in islice(records, 1, None):
         print "now record the No. %d analyze" %count
         # call analyze_record_to_block to retrieve block info

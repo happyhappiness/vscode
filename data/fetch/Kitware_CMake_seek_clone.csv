@@ -1,0 +1,1 @@
+commit_sha,commit_message,file_name,change_type,log_node,old_log_loc,old_store_name,new_log_loc,new_store_name,old_context_list,new_context_list,old_ddg_list,old_static_list,new_ddg_list,new_static_list,clone_log,clone_location,clone_file_name,clone_context_list,clone_ddg_list,clone_static_list
