@@ -42,9 +42,6 @@ def seek_clone():
     patch_file.close()
     repos_file.close()
 
-    # initialize function similarity dictionary
-    func_similarity_dic = myUtil.getFunctionSimilarityDic(True)
-
     # seek clones in repos of context for each log update in patch
 
     # write back into file
