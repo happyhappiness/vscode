@@ -58,7 +58,7 @@ def seek_clone():
         clone_count = 0
         # traverse repos to find similar contexts
         for reposi in context_repos:
-            if block.compute_similarity(patch, reposi) >= 0.99:
+            if block.compute_similarity(patch, reposi) >= 0.95:
                 clone_csv_writer.writerow(log_patch[index_patch] + log_repos[index_repos])
                 clone_count += 1
             index_repos += 1
