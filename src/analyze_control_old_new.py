@@ -53,10 +53,6 @@ def analyze_record_to_block(log_record, old_new_block_dict):
         old_block.get_block_identity()
         new_block.get_block_identity()
         identity = old_block.identity + new_block.identity
-        old_block.get_block_feature()
-        new_block.get_block_feature()
-        old_block.get_block_vector()
-        new_block.get_block_vector()
         # log info (change type, log statement, old and new loc)
         log_info = []
         log_info.append([log_record[my_constant.FETCH_LOG_CHANGE_TYPE],\
@@ -69,6 +65,11 @@ def analyze_record_to_block(log_record, old_new_block_dict):
         else:
             analyze_record = []
             analyze_record.append(identity)
+            # get context for old and new block
+            old_block.get_block_feature()
+            new_block.get_block_feature()
+            old_block.get_block_vector()
+            new_block.get_block_vector()
             analyze_record += old_block.get_info_except_identity()
             analyze_record += new_block.get_info_except_identity()
             # update info and log info
@@ -100,7 +101,6 @@ def analyze_old_new():
     # traverse the fetch csv file to update context info
     count = 0
     old_new_block_dict = {}
-    block.initialize_joern(False)
     for record in islice(records, 1, None):
         print "now record the No. %d analyze" %count
         # call analyze_record_to_block to retrieve block info
@@ -126,4 +126,6 @@ main function
 """
 if __name__ == "__main__":
 
+
+    block.initialize_joern(False)
     analyze_old_new()
