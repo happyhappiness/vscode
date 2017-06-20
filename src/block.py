@@ -105,7 +105,7 @@ def initialize_joern(is_rebuild = True):
         Block.joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
         # connect to database
         Block.joern_instance.connectToDatabase()
-    if is_rebuild or Block.node_index_dic is None:
+    if is_rebuild:
         # get node type dictionary
         node_index_query = "_().getAllASTNodeType()"
         node_index = Block.joern_instance.runGremlinQuery(node_index_query)
