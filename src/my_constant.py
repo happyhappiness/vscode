@@ -73,13 +73,13 @@ ANALYZE_REPOS_VECTOR = ANALYZE_REPOS_TITLE.index('vector')
 """
 analyze clone title
 """
-ANALYZE_CLONE_TITLE = ['commit_sha', 'commit_message', 'file_name',\
-        'change_type', 'log_node', \
-        'old_log_loc', 'old_store_name', 'new_log_loc', 'new_store_name', \
-        'old_context_list', 'new_context_list', 'old_ddg_list', 'old_static_list', \
-        'new_ddg_list', 'new_static_list', \
-        'clone_log', 'clone_location', 'clone_file_name', 'clone_context_list',\
-        'clone_ddg_list', 'clone_static_list']
+ANALYZE_CLONE_TITLE = ['identity', 'old_block_file', 'old_block_location',\
+        'old_block_condition_feature', 'old_block_statement_feature', 'old_block_vector',\
+        'new_block_file', 'new_block_location', \
+        'new_block_condition_feature', 'new_block_statement_feature', 'new_block_vector', \
+        'commit_sha', 'commit_message', 'file_name', 'log_info', \
+        \
+        'identity', 'file', 'location', 'condition_feature', 'statement_feature', 'vector']
 
 FLAG_LOG_DELETE = -2
 FLAG_DELETE = -1
