@@ -64,44 +64,45 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 
             pair_log = None
             log_type = my_constant.LOG_DELETE
-            # find MODIFICATION pair: prior to choose the pair with same delta as well as similarity
-            for hunk_index in range(hunk_loc + 1, len_hunk):
-                if flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
+            # find move pair, same hunk
+            for candidate_log_index in range(log_index + 1, len_log):
+                candidate_loc = logs[candidate_log_index][0]
+                # add with same content
+                if isinstance(candidate_loc, int) and flag[candidate_loc] == \
+        my_constant.FLAG_LOG_ADD and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
+                    pair_log = candidate_loc
+                    log_type = my_constant.LOG_MOVE
                     break
-                if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
-                    continue
-                if flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
-                    # backtrace to find - start location
-                    delta = 0
-                    backward_index = hunk_loc - 1
-                    while backward_index >= 0:
-                        if flag[backward_index] < my_constant.FLAG_NO_CHANGE:
-                            delta += 1
-                            backward_index -= 1
-                        else:
-                            break
-                    # compute corresponding pair location
-                    forward_index = min(delta + hunk_index, len_hunk - 1)
-                    if flag[forward_index] == my_constant.FLAG_LOG_ADD:
-                        pair_log = forward_index
-                        log_type = my_constant.LOG_MODIFY
-                    else:
-                        # traverse neighbors
-                        for neighbor_index in range(max(0, forward_index - 5), min(forward_index + 5, len_hunk)):
-                            if flag[neighbor_index] == my_constant.FLAG_LOG_ADD:
-                                pair_log = neighbor_index
-                                log_type = my_constant.LOG_MODIFY
-                    break
-            # MOVE
+
+            # MODIFY
             if pair_log is None:
-                # find move pair, same hunk
-                for candidate_log_index in range(log_index + 1, len_log):
-                    candidate_loc = logs[candidate_log_index][0]
-                    # add with same content
-                    if isinstance(candidate_loc, int) and flag[candidate_loc] == \
-            my_constant.FLAG_LOG_ADD and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
-                        pair_log = candidate_loc
-                        log_type = my_constant.LOG_MOVE
+                 # find MODIFICATION pair: prior to choose the pair with same delta as well as similarity
+                for hunk_index in range(hunk_loc + 1, len_hunk):
+                    if flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
+                        break
+                    if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
+                        continue
+                    if flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
+                        # backtrace to find - start location
+                        delta = 0
+                        backward_index = hunk_loc - 1
+                        while backward_index >= 0:
+                            if flag[backward_index] < my_constant.FLAG_NO_CHANGE:
+                                delta += 1
+                                backward_index -= 1
+                            else:
+                                break
+                        # compute corresponding pair location
+                        forward_index = min(delta + hunk_index, len_hunk - 1)
+                        if flag[forward_index] == my_constant.FLAG_LOG_ADD:
+                            pair_log = forward_index
+                            log_type = my_constant.LOG_MODIFY
+                        else:
+                            # traverse neighbors
+                            for neighbor_index in range(max(0, forward_index - 5), min(forward_index + 5, len_hunk)):
+                                if flag[neighbor_index] == my_constant.FLAG_LOG_ADD:
+                                    pair_log = neighbor_index
+                                    log_type = my_constant.LOG_MODIFY
                         break
 
             # MODIFICATION if find pair
@@ -167,15 +168,15 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 def fetch_hunk(is_from_file, commit_sha):
 
     # initialize writer
-    # log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'wb')
-    log_file = file('data/fetch/tmp-out.csv', 'wb')
+    log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'wb')
+    # log_file = file('data/fetch/tmp-out.csv', 'wb')
     log_writer = csv.writer(log_file)
     log_writer.writerow(my_constant.FETCH_LOG_TITLE)
     if not is_from_file:
         fetch_commit(commit_sha)
     # initialize reader
-    # hunk_reader = file(my_constant.FETCH_HUNK_FILE_NAME, 'rb')
-    hunk_reader = file('data/fetch/tmp.csv', 'rb')    
+    hunk_reader = file(my_constant.FETCH_HUNK_FILE_NAME, 'rb')
+    # hunk_reader = file('data/fetch/tmp.csv', 'rb')
     hunk_records = csv.reader(hunk_reader)
     hunk_count = 0
     for hunk_record in islice(hunk_records, 1, None):
