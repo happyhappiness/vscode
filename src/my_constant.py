@@ -81,6 +81,9 @@ ANALYZE_CLONE_TITLE = ['identity', 'old_block_file', 'old_block_location',\
         \
         'identity', 'file', 'location', 'condition_feature', 'statement_feature', 'vector']
 
+"""
+flag type && log type
+"""
 FLAG_LOG_DELETE = -2
 FLAG_DELETE = -1
 FLAG_NO_CHANGE = 0
@@ -91,3 +94,9 @@ LOG_ADD = 0
 LOG_DELETE = 1
 LOG_MOVE = 2
 LOG_MODIFY = 3
+LOG_COCHANGE = 4
+
+"""
+split string for statement to get tokens
+"""
+SPLIT_STR = ' |.|(|)|,'
