@@ -133,6 +133,18 @@ def removeDicElement(dictionary, key_index):
 
     return dictionary
 
+"""
+@ param ...
+@ return delta_set
+@ caller fetch
+@ callee ...
+@ involve calculate (A U B) - (A J B)[occurrence diff]
+"""
+def get_delta_of_two_set(set_a, set_b):
+    union_set = set_a.union(set_b)
+    join_set = set_a.intersection(set_b)
+    delta_set = union_set.difference(join_set)
+    return delta_set
 
 """
 @ param ...

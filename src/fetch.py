@@ -97,19 +97,41 @@ def find_log_change_type(hunk, flag, logs, log_index, hunk_loc):
                 break
         # no add break or after dealing break
         return log_type, edit_type, pair_log
-    
+
     # log add with no pairs
     return my_constant.LOG_ADD, edit_type, pair_log
-    
+"""
+@ param two edit statements
+@ return modification
+@ callee myUtil
+@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer) ..
+@ involve get modification set from two edit statements(conconated)
+"""
+def get_modification(edit_statements_one, edit_statements_two):
+    edit_set_one = set(re.split(my_constant.SPLIT_STR, edit_statements_one))
+    edit_set_two = set(re.split(my_constant.SPLIT_STR, edit_statements_two))
+    modification = myUtil.get_delta_of_two_set(edit_set_one, edit_set_two)
+    return modification
 """
 @ param  change flag, hunk code, log update info, old hunk loc, new hunk loc and writer
 @ return ...
-@ callee get_loc(patch, line_count, patch_delete, change_type)
+@ callee get_loc, is_dependent_log_change, myUtil, find_log_change_type
 @ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer) ..
 @ involve deal with change hunk, find modification pair
 @ involve write back log modification type and old location, new location
 """
 def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
+
+    # call myUtil to computer feature modified set(lose frequency modification)
+    add = []
+    delete = []
+    len_hunk = len(hunk)
+    for hunk_index in range(len_hunk):
+        if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
+            delete += hunk[hunk_index]
+        elif flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
+            add += hunk[hunk_index]
+    feature_modified_set = get_modification(add, delete)
 
     len_log = len(logs)
     for log_index in range(len_log):
@@ -120,11 +142,15 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
         log_type, edit_type, pair_log = find_log_change_type(hunk, flag, logs, log_index, hunk_loc)
         if log_type is None:
             continue
+        # try to filter the co change log
+        log_modified_set = get_modification(hunk[hunk_loc], hunk[pair_log])
+        if feature_modified_set.issuperset(log_modified_set):
+            log_type = my_constant.LOG_COCHANGE
         # modify log type and location info
         log.pop(0)
         log[my_constant.FETCH_LOG_CHANGE_TYPE] = log_type
-        # modify log location info according to log_type
-        if log_type == my_constant.LOG_MOVE or log_type == my_constant.LOG_MODIFY:
+        # modify log location info according to log_type(pair_log is none or not)
+        if pair_log is not None:
             # for log delete -> old_loc(hunk_loc), new_loc(pair_log)
             if edit_type < my_constant.FLAG_NO_CHANGE:
                 for_old_loc = hunk_loc
