@@ -18,7 +18,7 @@ sys.setdefaultencoding('utf8')
 @ return log_loc
 @ callee ..
 @ caller deal_change_hunk(flag, hunk, logs, old_hunk_loc, new_hunk_loc, writer)
-@ involve get log location based on its location in hunk and hunk location
+@ involve get log location based on its location in hunk and hunk edit flag
 """
 def get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc):
 
@@ -30,133 +30,147 @@ def get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc):
     for hunk_index in range(0, hunk_loc):
         if flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
             line_add += 1
-            continue
-        if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
+        elif flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
             line_delete += 1
-            continue
-        if flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
+        elif flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
             line_no_change += 1
-            continue
+    # just like count lines
     old_log_loc = old_hunk_loc + line_no_change + line_delete
     new_log_loc = new_hunk_loc + line_no_change + line_add
     return old_log_loc, new_log_loc
 
 """
+@ param  change flag, hunk code, logs in hunk, index in logs, and hunk location of specific log
+@ return log_type, pair_log
+@ callee nothing
+@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer) ..
+@ involve make sure change type for specific log [move > modify > add/delete]
+"""
+def find_log_change_type(hunk, flag, logs, log_index, hunk_loc):
+    # edit type and log/hunk length
+    edit_type = flag[hunk_loc]
+    if edit_type == my_constant.FLAG_DELETE or edit_type == my_constant.FLAG_ADD:
+        return None, edit_type, None
+    pair_edit_type = -1 * edit_type
+    len_log = len(logs)
+    len_hunk = len(hunk)
+
+    log_type = None
+    pair_log = None
+    # MOVE [same hunk info]
+    for candidate_log_index in range(log_index + 1, len_log):
+        candidate_loc = logs[candidate_log_index][0]
+        # add with same content
+        if isinstance(candidate_loc, int) and flag[candidate_loc] == \
+    pair_edit_type and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
+            pair_log = candidate_loc
+            log_type = my_constant.LOG_MOVE
+            return log_type, edit_type, pair_log
+
+    # MODIFY FOR DELETE[prior to choose the pair with same delta as well as similarity]
+    if edit_type == my_constant.FLAG_LOG_DELETE:
+        log_type = my_constant.LOG_DELETE
+        for hunk_index in range(hunk_loc + 1, len_hunk):
+            if flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
+                break
+            elif flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
+                # backtrace to find - start location
+                delta = 0
+                backward_index = hunk_loc - 1
+                while backward_index >= 0:
+                    if flag[backward_index] < my_constant.FLAG_NO_CHANGE:
+                        delta += 1
+                        backward_index -= 1
+                    else:
+                        break
+                # compute corresponding pair location
+                forward_index = min(delta + hunk_index, len_hunk - 1)
+                if flag[forward_index] == my_constant.FLAG_LOG_ADD:
+                    pair_log = forward_index
+                    log_type = my_constant.LOG_MODIFY
+                else:
+                    # traverse neighbors
+                    for neighbor_index in range(max(0, forward_index - 5), min(forward_index + 5, len_hunk)):
+                        if flag[neighbor_index] == my_constant.FLAG_LOG_ADD:
+                            pair_log = neighbor_index
+                            log_type = my_constant.LOG_MODIFY
+                break
+        # no add break or after dealing break
+        return log_type, edit_type, pair_log
+
+    # log add with no pairs
+    return my_constant.LOG_ADD, edit_type, pair_log
+"""
+@ param two edit statements
+@ return modification
+@ callee myUtil
+@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer) ..
+@ involve get modification set from two edit statements(conconated)
+"""
+def get_modification(edit_statements_one, edit_statements_two):
+    edit_set_one = set(re.split(my_constant.SPLIT_STR, edit_statements_one))
+    edit_set_two = set(re.split(my_constant.SPLIT_STR, edit_statements_two))
+    modification = myUtil.get_delta_of_two_set(edit_set_one, edit_set_two)
+    return modification
+"""
 @ param  change flag, hunk code, log update info, old hunk loc, new hunk loc and writer
 @ return ...
-@ callee get_loc(patch, line_count, patch_delete, change_type)
+@ callee get_loc, is_dependent_log_change, myUtil, find_log_change_type
 @ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer) ..
 @ involve deal with change hunk, find modification pair
 @ involve write back log modification type and old location, new location
 """
 def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 
+    # call myUtil to computer feature modified set(lose frequency modification)
+    add = []
+    delete = []
     len_hunk = len(hunk)
+    for hunk_index in range(len_hunk):
+        if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
+            delete += hunk[hunk_index]
+        elif flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
+            add += hunk[hunk_index]
+    feature_modified_set = get_modification(add, delete)
+
     len_log = len(logs)
     for log_index in range(len_log):
         # deal with each log to get its modification type and location
         log = logs[log_index]
         hunk_loc = log[0]
+        # try find log type and pair log
+        log_type, edit_type, pair_log = find_log_change_type(hunk, flag, logs, log_index, hunk_loc)
+        if log_type is None:
+            continue
+        # try to filter the co change log
+        log_modified_set = get_modification(hunk[hunk_loc], hunk[pair_log])
+        if feature_modified_set.issuperset(log_modified_set):
+            log_type = my_constant.LOG_COCHANGE
+        # modify log type and location info
         log.pop(0)
-
-        # -: MODIFICATION, MOVE, DELETE
-        if flag[hunk_loc] == my_constant.FLAG_LOG_DELETE:
-
-            pair_log = None
-            log_type = my_constant.LOG_DELETE
-            # find move pair, same hunk
-            for candidate_log_index in range(log_index + 1, len_log):
-                candidate_loc = logs[candidate_log_index][0]
-                # add with same content
-                if isinstance(candidate_loc, int) and flag[candidate_loc] == \
-        my_constant.FLAG_LOG_ADD and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
-                    pair_log = candidate_loc
-                    log_type = my_constant.LOG_MOVE
-                    break
-
-            # MODIFY
-            if pair_log is None:
-                 # find MODIFICATION pair: prior to choose the pair with same delta as well as similarity
-                for hunk_index in range(hunk_loc + 1, len_hunk):
-                    if flag[hunk_index] == my_constant.FLAG_NO_CHANGE:
-                        break
-                    if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
-                        continue
-                    if flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
-                        # backtrace to find - start location
-                        delta = 0
-                        backward_index = hunk_loc - 1
-                        while backward_index >= 0:
-                            if flag[backward_index] < my_constant.FLAG_NO_CHANGE:
-                                delta += 1
-                                backward_index -= 1
-                            else:
-                                break
-                        # compute corresponding pair location
-                        forward_index = min(delta + hunk_index, len_hunk - 1)
-                        if flag[forward_index] == my_constant.FLAG_LOG_ADD:
-                            pair_log = forward_index
-                            log_type = my_constant.LOG_MODIFY
-                        else:
-                            # traverse neighbors
-                            for neighbor_index in range(max(0, forward_index - 5), min(forward_index + 5, len_hunk)):
-                                if flag[neighbor_index] == my_constant.FLAG_LOG_ADD:
-                                    pair_log = neighbor_index
-                                    log_type = my_constant.LOG_MODIFY
-                        break
-
-            # MODIFICATION if find pair
-            if pair_log is not None:
-                log[my_constant.FETCH_LOG_CHANGE_TYPE] = log_type
-                # call function to get old and new log loc by hunk loc and hunk index
-                log[my_constant.FETCH_LOG_OLD_LOC], tmp =\
-                     get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-                tmp, log[my_constant.FETCH_LOG_NEW_LOC] =\
-                     get_loc(pair_log, flag, old_hunk_loc, new_hunk_loc)
-                writer.writerow(log)
-                # remove pair log change
-                flag[hunk_loc] = my_constant.FLAG_DELETE
-                flag[pair_log] = my_constant.FLAG_ADD
-            # DELETE
+        log[my_constant.FETCH_LOG_CHANGE_TYPE] = log_type
+        # modify log location info according to log_type(pair_log is none or not)
+        if pair_log is not None:
+            # for log delete -> old_loc(hunk_loc), new_loc(pair_log)
+            if edit_type < my_constant.FLAG_NO_CHANGE:
+                for_old_loc = hunk_loc
+                for_new_loc = pair_log
+            # for log add -> old_loc(pair_log), new_loc(hunk_loc)
             else:
-                log[my_constant.FETCH_LOG_CHANGE_TYPE] = my_constant.LOG_DELETE
-                # call function to get old and new log loc by hunk loc and hunk index
-                log[my_constant.FETCH_LOG_OLD_LOC], log[my_constant.FETCH_LOG_NEW_LOC] =\
-                        get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-                writer.writerow(log)
-                # remove pair log change
-                flag[hunk_loc] = my_constant.FLAG_DELETE
-        # + : MOVE ADD
+                for_old_loc = pair_log
+                for_new_loc = hunk_loc
+            log[my_constant.FETCH_LOG_OLD_LOC], tmp = \
+                     get_loc(for_old_loc, flag, old_hunk_loc, new_hunk_loc)
+            tmp, log[my_constant.FETCH_LOG_NEW_LOC] =\
+                    get_loc(for_new_loc, flag, old_hunk_loc, new_hunk_loc)
+            # mark have dealed with paired log
+            flag[pair_log] = -1 * edit_type / 2
         else:
-            if flag[hunk_loc] == my_constant.FLAG_LOG_ADD:
-                pair_log = None
-                # MOVE
-                for candidate_log_index in range(log_index + 1, len_log):
-                    candidate_loc = logs[candidate_log_index][0]
-                    # add with same content
-                    if isinstance(candidate_loc, int) and flag[candidate_loc] == \
-            my_constant.FLAG_LOG_DELETE and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
-                        pair_log = candidate_loc
-                        log[my_constant.FETCH_LOG_CHANGE_TYPE] = my_constant.LOG_MOVE
-                        # call function to get old and new log loc by hunk loc and hunk index
-                        log[my_constant.FETCH_LOG_OLD_LOC], tmp =\
-                            get_loc(candidate_loc, flag, old_hunk_loc, new_hunk_loc)
-                        tmp, log[my_constant.FETCH_LOG_NEW_LOC] =\
-                            get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-                        writer.writerow(log)
-                        # remove pair log change
-                        flag[hunk_loc] = my_constant.FLAG_ADD
-                        flag[pair_log] = my_constant.FLAG_DELETE
-                        break
-                # ADD
-                if pair_log is None:
-                    log[my_constant.FETCH_LOG_CHANGE_TYPE] = my_constant.LOG_ADD
-                    # call function to get old and new log loc by hunk loc and hunk index
-                    log[my_constant.FETCH_LOG_OLD_LOC], log[my_constant.FETCH_LOG_NEW_LOC] =\
-                            get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
-                    writer.writerow(log)
-                    # remove pair log change
-                    flag[hunk_loc] = my_constant.FLAG_ADD
+            log[my_constant.FETCH_LOG_OLD_LOC], log[my_constant.FETCH_LOG_NEW_LOC] =\
+                        get_loc(hunk_loc, flag, old_hunk_loc, new_hunk_loc)
+        # mark have dealed with specific log
+        flag[hunk_loc] = edit_type / 2
+        writer.writerow(log)
 
 """
 @ param flag about wheter to read hunk from file
@@ -190,6 +204,7 @@ def fetch_hunk(is_from_file, commit_sha):
         hunk_count += 1
     log_file.close()
     hunk_reader.close()
+
 """
 @ param  commit sha sha, changed cpp file file, stored file name new/old_store_name, csv writer writer
 @ return bool has log (whether this patch contained log or not)

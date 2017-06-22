@@ -416,15 +416,14 @@
             "isNative": true
         }
     },
-    "telemetry.machineId": "b3b4169f91887f807d0cf696e3e1af58faeeafce8e49c668623e8524a16a8675",
+    "telemetry.machineId": "ba712e8fd4d54d93a78e4d76608bfcd30b8d5e06c4fa3ddf5854d62c53ad3ce8",
     "theme": "vs-dark vscode-theme-defaults-themes-dark_plus-json",
     "themeBackground": "#1e1e1e",
     "pickerWorkingDir": "/usr/info/code/cpp/LogMonitor",
     "openedPathsList": {
         "files": [],
         "folders": [
-            "/usr/info/code/cpp/LogMonitor/LogMonitor",
-            "/usr/info/code/cpp/LogMonitor"
+            "/usr/info/code/cpp/LogMonitor/LogMonitor"
         ]
     },
     "windowsState": {
@@ -432,11 +431,19 @@
         "lastActiveWindow": {
             "workspacePath": "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "uiState": {
+<<<<<<< HEAD
                 "mode": 1,
                 "x": 1696,
                 "y": 266,
                 "width": 1024,
                 "height": 768
+=======
+                "mode": 0,
+                "x": 73,
+                "y": 27,
+                "width": 1847,
+                "height": 1053
+>>>>>>> e99ecaa7346c152b7187ec256f98b5356a380e3b
             }
         }
     }
