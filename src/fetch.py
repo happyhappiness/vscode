@@ -107,11 +107,12 @@ def find_log_change_type(hunk, flag, logs, log_index, hunk_loc):
 @ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer) ..
 @ involve get modification set from two edit statements(conconated)
 """
-def get_modification(edit_statements_one, edit_statements_two):
+def get_modification(edit_statements_one, edit_statements_two = ''):
     edit_set_one = set(re.split(my_constant.SPLIT_STR, edit_statements_one))
     edit_set_two = set(re.split(my_constant.SPLIT_STR, edit_statements_two))
     modification = myUtil.get_delta_of_two_set(edit_set_one, edit_set_two)
     return modification
+
 """
 @ param  change flag, hunk code, log update info, old hunk loc, new hunk loc and writer
 @ return ...
@@ -123,14 +124,14 @@ def get_modification(edit_statements_one, edit_statements_two):
 def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 
     # call myUtil to computer feature modified set(lose frequency modification)
-    add = []
-    delete = []
+    add = ''
+    delete = ''
     len_hunk = len(hunk)
     for hunk_index in range(len_hunk):
         if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
-            delete += hunk[hunk_index]
+            delete += hunk[hunk_index].strip()
         elif flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
-            add += hunk[hunk_index]
+            add += hunk[hunk_index].strip()
     feature_modified_set = get_modification(add, delete)
 
     len_log = len(logs)
@@ -143,7 +144,10 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
         if log_type is None:
             continue
         # try to filter the co change log
-        log_modified_set = get_modification(hunk[hunk_loc], hunk[pair_log])
+        if pair_log is not None:
+            log_modified_set = get_modification(hunk[hunk_loc].strip(), hunk[pair_log].strip())
+        else:
+            log_modified_set = get_modification(hunk[hunk_loc].strip())
         if feature_modified_set.issuperset(log_modified_set):
             log_type = my_constant.LOG_COCHANGE
         # modify log type and location info
