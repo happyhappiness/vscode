@@ -128,9 +128,9 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
     delete = ''
     len_hunk = len(hunk)
     for hunk_index in range(len_hunk):
-        if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
+        if flag[hunk_index] < my_constant.FLAG_LOG_DELETE:
             delete += hunk[hunk_index].strip()
-        elif flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
+        elif flag[hunk_index] == my_constant.FLAG_LOG_ADD:
             add += hunk[hunk_index].strip()
     feature_modified_set = get_modification(add, delete)
 
