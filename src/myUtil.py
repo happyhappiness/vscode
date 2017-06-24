@@ -16,19 +16,19 @@ import my_constant
 def removeNamespace(name):
     # remove namespace before ::
     startpos = name.find("::")
-    while startpos != -1:
+    while not startpos == -1:
         name = name[startpos + 2:]
         startpos = name.find("::")
 
     # remove caller before ->
     startpos = name.find("->")
-    while startpos != -1:
+    while not startpos == -1:
         name = name[startpos + 2:]
         startpos = name.find("->")
 
     # remove caller before .
     startpos = name.find(".")
-    while startpos != -1:
+    while not startpos == -1:
         name = name[startpos + 2:]
         startpos = name.find(".")
 
