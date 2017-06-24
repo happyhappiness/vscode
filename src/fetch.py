@@ -60,9 +60,9 @@ def find_log_change_type(hunk, flag, logs, log_index, hunk_loc):
     # MOVE [same hunk info]
     for candidate_log_index in range(log_index + 1, len_log):
         candidate_loc = logs[candidate_log_index][0]
-        # add with same content
-        if isinstance(candidate_loc, int) and flag[candidate_loc] == \
-    pair_edit_type and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
+        # add with same content while opposite edit type
+        if isinstance(candidate_loc, int) and flag[candidate_loc] == pair_edit_type \
+        and get_log_statement(flag, hunk, hunk_loc) == get_log_statement(flag, hunk, candidate_loc):
             pair_log = candidate_loc
             log_type = my_constant.LOG_MOVE
             return log_type, edit_type, pair_log
@@ -161,13 +161,13 @@ def get_feature_modify_set(flag, hunk):
     return feature_modified_set
 
 """
-@ param flag info, hunk statements and location of log and its paired log
-@ return log modified set
-@ callee get_modification(edit_statements_one, edit_statements_two = '')
-@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
-@ involve get modified statements set of given log
+@ param flag info, hunk statements and location of log
+@ return log statements
+@ callee nothing
+@ caller get_log_modify_set, find_log_change_type
+@ involve get log statement with consideration of log continue
 """
-def get_log_modify_set(flag, hunk, hunk_loc, pair_log):
+def get_log_statement(flag, hunk, hunk_loc):
     hunk_statement = hunk[hunk_loc].strip()
     len_hunk = len(hunk)
     for hunk_index in range(hunk_loc + 1, len_hunk):
@@ -175,15 +175,21 @@ def get_log_modify_set(flag, hunk, hunk_loc, pair_log):
             hunk_statement += hunk[hunk_index].strip()
         else:
             break
+    return hunk_statement
+
+"""
+@ param flag info, hunk statements and location of log and its paired log
+@ return log modified set
+@ callee get_modification(edit_statements_one, edit_statements_two = ''), get_log_statement
+@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
+@ involve get modified statements set of given log
+"""
+def get_log_modify_set(flag, hunk, hunk_loc, pair_log):
+    hunk_statement = get_log_statement(flag, hunk, hunk_loc)
     pair_statement = ''
     # try to filter the co change log
     if pair_log is not None:
-        pair_statement = hunk[pair_log].strip()
-        for hunk_index in range(pair_log + 1, len_hunk):
-            if abs(flag[hunk_index]) == my_constant.FLAG_LOG_ADD_CONTINUE:
-                pair_statement += hunk[hunk_index].strip()
-            else:
-                break
+        pair_statement = get_log_statement(flag, hunk, pair_log)
     log_modified_set = get_modification(hunk_statement, pair_statement)
     return log_modified_set
 
@@ -215,7 +221,7 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
         # get log modified set
         log_modified_set = get_log_modify_set(flag, hunk, hunk_loc, pair_log)
         if feature_modified_set.issuperset(log_modified_set):
-            log_type = my_constant.LOG_COCHANGE
+            log_type = log_type #my_constant.LOG_COCHANGE
 
         # modify log type and location info
         log.pop(0)
