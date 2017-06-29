@@ -101,4 +101,4 @@ LOG_COCHANGE = 4
 """
 split string for statement to get tokens
 """
-SPLIT_STR = r'[\W\s]'
+SPLIT_STR = r'[\W\s_]'
