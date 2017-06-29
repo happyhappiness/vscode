@@ -108,8 +108,8 @@ def find_log_change_type(hunk, flag, logs, log_index, hunk_loc):
 @ involve get modification set from two edit statements(conconated)
 """
 def get_modification(edit_statements_one, edit_statements_two = ''):
-    edit_set_one = set(re.split(my_constant.SPLIT_STR, edit_statements_one))
-    edit_set_two = set(re.split(my_constant.SPLIT_STR, edit_statements_two))
+    edit_set_one = set(re.split(my_constant.SPLIT_STR, edit_statements_one.lower()))
+    edit_set_two = set(re.split(my_constant.SPLIT_STR, edit_statements_two.lower()))
     modification = myUtil.get_delta_of_two_set(edit_set_one, edit_set_two)
     return modification
 
@@ -157,9 +157,9 @@ def get_feature_modify_set(flag, hunk):
     len_hunk = len(hunk)
     for hunk_index in range(len_hunk):
         if flag[hunk_index] == my_constant.FLAG_DELETE:
-            delete += hunk[hunk_index].strip()
+            delete += hunk[hunk_index].strip() + '\n'
         elif flag[hunk_index] == my_constant.FLAG_ADD:
-            add += hunk[hunk_index].strip()
+            add += hunk[hunk_index].strip() + '\n'
     feature_modified_set = get_modification(add, delete)
 
     return feature_modified_set
@@ -172,11 +172,11 @@ def get_feature_modify_set(flag, hunk):
 @ involve get log statement with consideration of log continue
 """
 def get_log_statement(flag, hunk, hunk_loc):
-    hunk_statement = hunk[hunk_loc].strip()
+    hunk_statement = hunk[hunk_loc].strip() + '\n'
     len_hunk = len(hunk)
     for hunk_index in range(hunk_loc + 1, len_hunk):
         if abs(flag[hunk_index]) == my_constant.FLAG_LOG_ADD_CONTINUE:
-            hunk_statement += hunk[hunk_index].strip()
+            hunk_statement += hunk[hunk_index].strip() + '\n'
         else:
             break
     return hunk_statement
@@ -274,7 +274,7 @@ def fetch_hunk(is_from_file, commit_sha):
     # hunk_reader = file('data/fetch/tmp.csv', 'rb')
     hunk_records = csv.reader(hunk_reader)
     hunk_count = 0
-    for hunk_record in islice(hunk_records, 160, None):
+    for hunk_record in islice(hunk_records, 1, None):
         hunk = json.loads(hunk_record[my_constant.FETCH_HUNK_HUNK])
         flag = json.loads(hunk_record[my_constant.FETCH_HUNK_FLAG])
         logs = json.loads(hunk_record[my_constant.FETCH_HUNK_LOGS])
