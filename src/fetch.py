@@ -127,13 +127,17 @@ def flag_log_continue(flag, hunk, logs):
         hunk_loc = log[0]
         edit_type = flag[hunk_loc]
         # encounter with ; at the log location
-        if hunk[hunk_loc].find(";") != -1:
-            break
+        if hunk[hunk_loc].find(';') != -1:
+            continue
         for hunk_index in range(hunk_loc + 1, len_hunk):
             # no different flag and no encounter ;
-            if flag[hunk_index] * edit_type > 0 and hunk[hunk_index].find(";") == -1:
+            if flag[hunk_index] * edit_type > 0:
                 flag[hunk_index] = edit_type / my_constant.FLAG_LOG_ADD * \
                                     my_constant.FLAG_LOG_ADD_CONTINUE
+                # encounter the end ;
+                if hunk[hunk_index].find(';') != -1:
+                    break
+            # encounter different marked flag
             else:
                 break
 
@@ -221,7 +225,7 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
         # get log modified set
         log_modified_set = get_log_modify_set(flag, hunk, hunk_loc, pair_log)
         if feature_modified_set.issuperset(log_modified_set):
-            log_type = log_type #my_constant.LOG_COCHANGE
+            log_type = my_constant.LOG_COCHANGE
 
         # modify log type and location info
         log.pop(0)
@@ -270,7 +274,7 @@ def fetch_hunk(is_from_file, commit_sha):
     # hunk_reader = file('data/fetch/tmp.csv', 'rb')
     hunk_records = csv.reader(hunk_reader)
     hunk_count = 0
-    for hunk_record in islice(hunk_records, 1, None):
+    for hunk_record in islice(hunk_records, 160, None):
         hunk = json.loads(hunk_record[my_constant.FETCH_HUNK_HUNK])
         flag = json.loads(hunk_record[my_constant.FETCH_HUNK_FLAG])
         logs = json.loads(hunk_record[my_constant.FETCH_HUNK_LOGS])
