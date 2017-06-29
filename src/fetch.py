@@ -396,6 +396,50 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 
     return has_log
 
+
+"""
+@ param gh and sha
+@ return commit, message
+@ callee nothing
+@ caller deal commit...
+@ involve filter out commit which has dealed before (sha, file number, file name)
+"""
+def filter_commit(gh, sha):
+
+    record = []
+    # commit info
+    commit = gh.repos.commits.get(sha=sha)
+    message = commit.commit.message
+
+    # has brother
+    is_has_brother = re.search(r'\n([0-9a-fA-F]{8})\s', message, re.M)
+    # do not deal with top ones
+    if is_has_brother:
+        return None, None
+
+    return commit, message
+
+"""
+@ param gh and sha
+@ return commit, message
+@ callee nothing
+@ caller deal commit...
+@ involve filter out file which is not cpp like
+@ involve or not modified
+"""
+def filter_file(changed_file):
+
+    # cpp like
+    is_cpp = re.search(r'(.cpp|.c|.cc|.cxx|.h)$', changed_file.filename, re.I)
+    # test like
+    # is_test_cpp = re.search(r'(test)$', changed_file.filename, re.I)
+    # modified
+    is_removed = changed_file.status
+    if is_cpp and is_removed == 'modified':
+        return True
+    else:
+        return False
+
 """
 @ param  github parameters gh and sha of commit and the counter for stored/total files and fileWriter
 @ return total_log_cpp new counter of stored files, total_cpp counters of cpp files and total file all files have dealed with
@@ -405,58 +449,53 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 """
 def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 
-    # retrieve info of commit with given sha
-    commit = gh.repos.commits.get(sha=sha)
-    message = commit.commit.message
+    # filter sha by message and retrieve info if pass
+    commit, message = filter_commit(gh, sha)
+    if commit is not None:
 
-    # save commit patch according to files
-    for changed_file in commit.files:
+        # deal with changed file and save patch with log modifications
+        for changed_file in commit.files:
 
-        # filter to just deal with cpp and c files
-        is_cpp = re.search('(.cpp|.c|.cc|.cxx|.h)$', changed_file.filename, re.I)
-        # filter to not deal with test module files
-        is_test_cpp = re.search('(test.cpp|test.c)$', changed_file.filename, re.I)
-        # do not deal with removed files
-        is_removed = changed_file.status
-        if is_cpp and not is_test_cpp and is_removed != 'removed':
-            # increment the total file count
-            total_cpp = total_cpp + 1
+            # filter file to choose the modified cpp like file
+            is_ok = filter_file(changed_file)
+            if is_ok:
+                # increment the total file count
+                total_cpp = total_cpp + 1
 
-            # define old/new_store_name
-            base_store_name = '/data/download/' + my_constant.REPOS + '/' + my_constant.REPOS \
-                + '/' + my_constant.USER + '_' + my_constant.REPOS + '_' + str(total_log_cpp)
-            new_store_name = base_store_name + '_new.cpp'
-            old_store_name = base_store_name + '_old.cpp'
+                # old/new_store_name
+                base_store_name = '/data/download/' + my_constant.REPOS + '/' + my_constant.REPOS \
+                    + '/' + my_constant.USER + '_' + my_constant.REPOS + '_' + str(total_log_cpp)
+                new_store_name = base_store_name + '_new.cpp'
+                old_store_name = base_store_name + '_old.cpp'
 
-            # call deal_patch to deal with the patch file
-            has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
-            if has_log:
-                # download the blob of file
-                source = gh.git_data.blobs.get(changed_file.sha).content
-                # decode to retrieve the source file
-                source = base64.b64decode(source)
+                # call deal_patch to deal with the patch file
+                has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
+                if has_log:
+                    # download the blob of file
+                    source = gh.git_data.blobs.get(changed_file.sha).content
+                    # decode to retrieve the source file
+                    source = base64.b64decode(source)
 
-                # write new file to temp file
-                temp_file = open(new_store_name, 'wb')
-                temp_file.write(source)
-                temp_file.close()
+                    # write new file to temp file
+                    temp_file = open(new_store_name, 'wb')
+                    temp_file.write(source)
+                    temp_file.close()
 
-                # write patch file to temp file
-                patch_store_name = '/data/download/temp.cpp'
-                temp_file = open(patch_store_name, 'wb')
-                temp_file.write(changed_file.patch)
-                temp_file.close()
+                    # write patch file to temp file
+                    patch_store_name = '/data/download/temp.cpp'
+                    temp_file = open(patch_store_name, 'wb')
+                    temp_file.write(changed_file.patch)
+                    temp_file.close()
 
-                # get old file with patch cmd and write back
-                output = commands.getoutput('patch -R ' + new_store_name \
-                        + ' -i ' + patch_store_name + ' -o ' + old_store_name)
-                output = commands.getoutput('rm ' + patch_store_name)
+                    # get old file with patch cmd and write back
+                    output = commands.getoutput('patch -R ' + new_store_name \
+                            + ' -i ' + patch_store_name + ' -o ' + old_store_name)
+                    output = commands.getoutput('rm ' + patch_store_name)
 
-                # increment the file count
-                total_log_cpp += 1
-
-        else:
-            total_file += 1
+                    # increment the file count
+                    total_log_cpp += 1
+            else:
+                total_file += 1
 
     return total_log_cpp, total_cpp, total_file
 
@@ -484,12 +523,12 @@ def fetch_commit(commit_sha=''):
     total_cpp = 0
     total_log_cpp = 0
     for commit in commits.iterator():
-        # invoke the deal_commit function
+        # call deal_commit function to deal with each commit
         total_log_cpp, total_cpp, total_file = deal_commit \
                             (gh, commit.sha, total_log_cpp, total_cpp, total_file, hunk_writer)
         if total_file % 10 == 0:
-            print 'now have deal with %d none cpp file ; find cpp %d file ; have saved %d file ' %(total_file, total_cpp, total_log_cpp)
-    # deal_commit(gh, commit_sha, writer)
+            print 'now have deal with %d none cpp file ; find cpp %d file ; \
+                        have saved %d file ' %(total_file, total_cpp, total_log_cpp)
 
     # close the commit file
     hunk_file.close()
@@ -506,5 +545,7 @@ if __name__ == "__main__":
 
     commit_sha = ''
     # with function to retieve all the commits of given path
-    fetch_hunk(True, commit_sha)
+    # fetch_hunk(True, commit_sha)
+    gh = Github(login='993273596@qq.com', password='nx153156', user=my_constant.USER, repo=my_constant.REPOS)
+    filter_commit(gh, commit_sha)
     # deal with hunk

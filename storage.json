@@ -200,6 +200,11 @@
             "label": "Ctrl+Shift+F",
             "isNative": true
         },
+        "workbench.view.scm": {
+            "id": "workbench.view.scm",
+            "label": "Ctrl+Shift+G",
+            "isNative": true
+        },
         "workbench.view.debug": {
             "id": "workbench.view.debug",
             "label": "Ctrl+Shift+D",
@@ -358,6 +363,11 @@
         "editor.action.goToDeclaration": {
             "id": "editor.action.goToDeclaration",
             "label": "F12",
+            "isNative": true
+        },
+        "editor.action.goToImplementation": {
+            "id": "editor.action.goToImplementation",
+            "label": "Ctrl+F12",
             "isNative": true
         },
         "workbench.action.gotoLine": {

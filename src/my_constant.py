@@ -22,6 +22,7 @@ STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_st
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_cluster.csv'
 REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_similarity.csv'
 NODE_DICT_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_node_dict.csv'
+COMMIT_ANALYZE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_commit_analyze.csv'
 
 """
 fetch hunk file title and index
@@ -80,6 +81,13 @@ ANALYZE_CLONE_TITLE = ['identity', 'old_block_file', 'old_block_location',\
         'commit_sha', 'commit_message', 'file_name', 'log_info', \
         \
         'identity', 'file', 'location', 'condition_feature', 'statement_feature', 'vector']
+
+
+"""
+commit analyze title and index
+"""
+COMMIT_ANALYZE_TITLE = ['sha', 'message', 'changes', \
+                'brother sha', 'brother message', 'brother changes']
 
 """
 flag type && log type
