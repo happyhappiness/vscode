@@ -75,6 +75,7 @@ def analyze_record_to_block(log_record, old_new_block_dict):
             # update info and log info
             analyze_record.append(log_record[my_constant.FETCH_LOG_COMMIT_SHA])
             analyze_record.append(log_record[my_constant.FETCH_LOG_COMMIT_MESSAGE])
+            analyze_record.append(log_record[my_constant.FETCH_LOG_ISSUE_ADDRESS])
             analyze_record.append(log_record[my_constant.FETCH_LOG_FILE])
             analyze_record.append(log_info)
         old_new_block_dict[identity] = analyze_record

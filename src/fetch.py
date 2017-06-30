@@ -293,7 +293,7 @@ def fetch_hunk(is_from_file, commit_sha):
 @ caller  deal_commit(gh, sha, writer) ..
 @ involve deal with patch file and save hunk info(with log)
 """
-def deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer):
+def deal_patch(commit_info, changed_file, old_store_name, new_store_name, writer):
 
     has_log = False
 
@@ -359,15 +359,9 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
         is_log_change = re.match(pattern_log, line, re.I)
         if is_log_change:
             # store this changed log statement
-            data_row = []
-            # commit sha
-            data_row.append(sha)
-            # commit message
-            data_row.append(message)
-            # file name
-            data_row.append(changed_file.filename)
+            commit_info.append(changed_file.filename)
             # change_type
-            data_row.append(change_type)
+            commit_info.append(change_type)
             if change_type == '-':
                 flag.append(my_constant.FLAG_LOG_DELETE)
             else:
@@ -375,16 +369,16 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # log_statement
             log_statement = is_log_change.group().strip()
             log_statement = log_statement[1:].strip()
-            data_row.append(log_statement)
+            commit_info.append(log_statement)
             # location and file info
             old_log_loc = 0
             new_log_loc = 0
-            data_row.append(old_log_loc)
-            data_row.append(old_store_name)
-            data_row.append(new_log_loc)
-            data_row.append(new_store_name)
+            commit_info.append(old_log_loc)
+            commit_info.append(old_store_name)
+            commit_info.append(new_log_loc)
+            commit_info.append(new_store_name)
             # hunk_loc 0->
-            logs.append([hunk_loc] + data_row)
+            logs.append([hunk_loc] + commit_info)
         else:
             if change_type == '-':
                 flag.append(my_constant.FLAG_DELETE)
@@ -406,7 +400,6 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 """
 def filter_commit(gh, sha):
 
-    record = []
     # commit info
     commit = gh.repos.commits.get(sha=sha)
     message = commit.commit.message
@@ -416,8 +409,15 @@ def filter_commit(gh, sha):
     # do not deal with top ones
     if is_has_brother:
         return None, None
+    else:
+        # deal to get issue number
+        issue_numbers = re.findall(r'#(\d{1,5})', message, re.M)
+        issue_addresses = []
+        for issue_number in issue_numbers:
+            issue_addresses.append(my_constant.ISSUE_ADDRESS + issue_number)
+        commit_info = [sha, message, issue_addresses]
 
-    return commit, message
+        return commit, commit_info
 
 """
 @ param gh and sha
@@ -450,7 +450,7 @@ def filter_file(changed_file):
 def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 
     # filter sha by message and retrieve info if pass
-    commit, message = filter_commit(gh, sha)
+    commit, commit_info = filter_commit(gh, sha)
     if commit is not None:
 
         # deal with changed file and save patch with log modifications
@@ -469,7 +469,7 @@ def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
                 old_store_name = base_store_name + '_old.cpp'
 
                 # call deal_patch to deal with the patch file
-                has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
+                has_log = deal_patch(commit_info, changed_file, old_store_name, new_store_name, writer)
                 if has_log:
                     # download the blob of file
                     source = gh.git_data.blobs.get(changed_file.sha).content
@@ -545,7 +545,6 @@ if __name__ == "__main__":
 
     commit_sha = ''
     # with function to retieve all the commits of given path
-    # fetch_hunk(True, commit_sha)
-    gh = Github(login='993273596@qq.com', password='nx153156', user=my_constant.USER, repo=my_constant.REPOS)
-    filter_commit(gh, commit_sha)
+    fetch_hunk(False, commit_sha)
+    # filter_commit(gh, commit_sha)
     # deal with hunk
