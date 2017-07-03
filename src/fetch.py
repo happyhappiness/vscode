@@ -405,7 +405,7 @@ def filter_commit(gh, sha):
     message = commit.commit.message
 
     # has brother
-    is_has_brother = re.search(r'\n([0-9a-fA-F]{8})\s', message, re.M)
+    is_has_brother = re.search(r'\n([0-9a-fA-F]{6,8})\s', message, re.M)
     # do not deal with top ones
     if is_has_brother:
         return None, None
@@ -545,6 +545,6 @@ if __name__ == "__main__":
 
     commit_sha = ''
     # with function to retieve all the commits of given path
-    fetch_hunk(False, commit_sha)
+    fetch_hunk(True, commit_sha)
     # filter_commit(gh, commit_sha)
     # deal with hunk
