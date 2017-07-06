@@ -1,0 +1,30 @@
+//1842
+digraph {
+	node [label="\N"];
+	1847	 [color=lightblue,
+		fontsize=10,
+		label="code:serverGlobalParams . featureCompatibility . version . store ( ServerGlobalParams :: FeatureCompatibility :: Version :: k32 )\nisCFGNode:\
+True\nchildNum:1\nlocation:7:4:184:303\nid:1847\ntype:ExpressionStatement\nfunctionId:1842",
+		style=filled];
+	1870	 [color=lightblue,
+		fontsize=10,
+		label="id:1870\ncode:EXIT\ntype:CFGExitNode\nfunctionId:1842\nisCFGNode:True",
+		style=filled];
+	1847 -> 1870	 [color=lightblue,
+		fontsize=10];
+	1860	 [color=lightblue,
+		fontsize=10,
+		label="code:log ( ) << \"setting featureCompatibilityVersion to \" << FeatureCompatibilityVersionCommandParser :: kVersion32\nisCFGNode:True\nchildNum:\
+0\nlocation:3:4:60:177\nid:1860\ntype:ExpressionStatement\nfunctionId:1842",
+		style=filled];
+	1860 -> 1847	 [color=lightblue,
+		fontsize=10];
+	1869	 [color=lightblue,
+		fontsize=10,
+		label="id:1869\ncode:ENTRY\ntype:CFGEntryNode\nfunctionId:1842\nisCFGNode:True",
+		style=filled];
+	1869 -> 1860	 [color=lightblue,
+		fontsize=10];
+}
+
+//###
