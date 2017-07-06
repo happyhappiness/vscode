@@ -16,6 +16,8 @@ import com.github.gumtreediff.matchers.Mapping;
 import com.github.gumtreediff.matchers.Matcher;
 import com.github.gumtreediff.matchers.Matchers;
 import com.github.gumtreediff.tree.ITree;
+import com.github.gumtreediff.tree.TreeContext;
+
 import java.io.LineNumberReader;
 
 public class GumTreeApi {
@@ -23,17 +25,24 @@ public class GumTreeApi {
 	public static void main(String args[])
 	{
 		System.out.println("hello I am gumtree api");
+		String old_file = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/old.cpp";
+	    String new_file = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/new.cpp";
+		/*String old_file = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/java/SayHello.java";
+	    String new_file = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/java/SayHelloWorld.java";*/
+		GumTreeApi g = new GumTreeApi();
+		g.getAction(old_file, new_file);
 	}
 	
 	public void getMapping(String filename1, String filename2)
 	{
 		Run.initGenerators();
-		try {
-//			parse to get tree info
-			ITree oldFile = Generators.getInstance().getTree(filename1).getRoot();
-			ITree newFile = Generators.getInstance().getTree(filename2).getRoot(); 
+		try {//			parse to get tree info
+			TreeContext oldTreeContext = Generators.getInstance().getTree(filename1);
+			TreeContext newTreeContext = Generators.getInstance().getTree(filename2);
+			ITree oldTree = oldTreeContext.getRoot();
+			ITree newTree = newTreeContext.getRoot(); 
 //			match two trees
-			Matcher m = Matchers.getInstance().getMatcher(oldFile, newFile);
+			Matcher m = Matchers.getInstance().getMatcher(oldTree, newTree);
 			m.match();
 			Iterator<Mapping> mappingIter = m.getMappings().iterator();
 			ITree srcNode, dstNode;
@@ -42,11 +51,11 @@ public class GumTreeApi {
 				Mapping mapping = mappingIter.next();
 				srcNode = mapping.getFirst();
 				dstNode = mapping.getSecond();
-				System.out.printf("1) src info. type:%s, value:%s, line:%d \n", srcNode.getType(), srcNode.getLabel(), getLineNumber(srcNode.getPos(), filename1));
-				System.out.printf("2) dst info. type:%s, value:%s, line:%d \n", dstNode.getType(), dstNode.getLabel(), getLineNumber(dstNode.getPos(), filename2));
+				System.out.printf("1) src info. type:%s, value:%s, line:%d \n", oldTreeContext.getTypeLabel(srcNode), srcNode.getLabel(), getLineNumber(srcNode.getPos(), filename1));
+				System.out.printf("2) dst info. type:%s, value:%s, line:%d \n", newTreeContext.getTypeLabel(dstNode), dstNode.getLabel(), getLineNumber(dstNode.getPos(), filename2));
 			}
 //			generate actions
-			ActionGenerator actionGenerator = new ActionGenerator(oldFile, newFile, m.getMappings());
+			ActionGenerator actionGenerator = new ActionGenerator(oldTree, newTree, m.getMappings());
 			actionGenerator.generate();
 			List<Action> actions = actionGenerator.getActions();
 			System.out.printf("3) element edit distance: %d \n", actions.size());
@@ -57,56 +66,58 @@ public class GumTreeApi {
 	}
 
 	
-	public void getAction(String filename1, String filename2)
+	public void getAction(String oldFile, String newFile)
 	{
 		Run.initGenerators();
 		try {
 //			parse to get tree info
-			ITree oldFile = Generators.getInstance().getTree(filename1).getRoot();
-			ITree newFile = Generators.getInstance().getTree(filename2).getRoot(); 
+			TreeContext oldTreeContext = Generators.getInstance().getTree(oldFile);
+			TreeContext newTreeContext = Generators.getInstance().getTree(newFile);
+			ITree oldTree = oldTreeContext.getRoot();
+			ITree newTree = newTreeContext.getRoot(); 
 //			match two trees
-			Matcher m = Matchers.getInstance().getMatcher(oldFile, newFile);
+			Matcher m = Matchers.getInstance().getMatcher(oldTree, newTree);
 			m.match();
 			m.getMappings();
 //			generate actions
-			ActionGenerator actionGenerator = new ActionGenerator(oldFile, newFile, m.getMappings());
+			ActionGenerator actionGenerator = new ActionGenerator(oldTree, newTree, m.getMappings());
 			actionGenerator.generate();
 			List<Action> actions = actionGenerator.getActions();
-			int n = actions.size();
 //			parse actions according to type
 			Action action;
-			ITree srcNode, dstNode;
-			for(int i = 0; i < n; i++)
+			ITree tempNode;
+			for(Iterator<Action> iter = actions.iterator(); iter.hasNext(); )
 			{
-				action = actions.get(i);
-			
+				action = iter.next();		
 //				change type
 				String changeType = action.getName();
 				System.out.printf("1) change info. change type: %s \n", changeType);
-//				dst info
-				String type = "";
-				String value = "";
-				int lineNumber = -1;
+//				value and loc info
+				String oldValue = "";
+				String newValue = "";
+				int oldLoc = -1;
+				int newLoc = -1;
 				switch(changeType)
 				{
-				case "UPD":
-					srcNode = action.getNode();
-					value = ((Update)action).getValue();
-					break;
-				case "MOV":
+//				INSERT: new value, new loc
 				case "INS":
-					srcNode = ((Addition)action).getParent();
-					dstNode = action.getNode();
-					type =  String.valueOf(dstNode.getType());
-					value = dstNode.getLabel();
-					lineNumber = getLineNumber(dstNode.getPos(), filename2);
+					tempNode = action.getNode();
+					newValue = tempNode.getLabel();
+					newLoc = getLineNumber(tempNode.getPos(), newFile);
 					break;
+//				UPDATE: old / new value; old loc[old value and old loc by default]
+				case "UPD":
+					newValue = ((Update)action).getValue();
+//				MOVE/DELETE: old value, old loc
 				default:
-					srcNode = action.getNode();
+					tempNode = action.getNode();	
+					oldValue = tempNode.getLabel();
+					oldLoc = getLineNumber(tempNode.getPos(), oldFile);
 					break;
 				}
-				System.out.printf("2) src info. type:%s, value: %s, line: %d \n", srcNode.getType(), srcNode.getLabel(), getLineNumber(srcNode.getPos(), filename1));
-				System.out.printf("3) dst info. type:%s, value:%s, line:%d \n", type, value, lineNumber);
+				System.out.printf("2) old info. value: %s, line: %d \n", oldValue, oldLoc);
+				System.out.printf("3) new info. value:%s, line:%d \n", newValue, newLoc);
+				System.out.println("******************************************************");
 			}
 		} catch (UnsupportedOperationException | IOException e) {
 			e.printStackTrace();
@@ -123,6 +134,18 @@ public class GumTreeApi {
 		lineReader.close();
 		
 		return lineNumber;
+	}
+	
+	String getValue(int beginPos, int endPos, String filename) throws IOException
+	{
+		FileReader fileReader = new FileReader(filename);
+		fileReader.skip(beginPos);
+		
+		char[] value = new char[100];
+		fileReader.read(value, 0, endPos - beginPos);
+		fileReader.close();
+		
+		return String.valueOf(value).trim();
 	}
 	
 }

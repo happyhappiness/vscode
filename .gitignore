@@ -9,5 +9,10 @@ User/
 CachedData/
 
 
-download/
-joern-query/
+second/.Trash-0/
+second/ide_work/
+second/lost+found/
+second/joern-code/.joernIndex/
+second/download/CMake/cmake-master/cmake-master/
+
+*.pyc
