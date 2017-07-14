@@ -15,6 +15,11 @@
             "label": "Ctrl+Shift+T",
             "isNative": true
         },
+        "workbench.action.openRecent": {
+            "id": "workbench.action.openRecent",
+            "label": "Ctrl+R",
+            "isNative": true
+        },
         "workbench.action.files.save": {
             "id": "workbench.action.files.save",
             "label": "Ctrl+S",
@@ -52,7 +57,7 @@
         },
         "workbench.action.closeWindow": {
             "id": "workbench.action.closeWindow",
-            "label": "Ctrl+W",
+            "label": "Ctrl+Shift+W",
             "isNative": true
         },
         "workbench.action.closeFolder": {
@@ -198,6 +203,11 @@
         "workbench.view.search": {
             "id": "workbench.view.search",
             "label": "Ctrl+Shift+F",
+            "isNative": true
+        },
+        "workbench.view.scm": {
+            "id": "workbench.view.scm",
+            "label": "Ctrl+Shift+G",
             "isNative": true
         },
         "workbench.view.debug": {
@@ -360,6 +370,11 @@
             "label": "F12",
             "isNative": true
         },
+        "editor.action.goToImplementation": {
+            "id": "editor.action.goToImplementation",
+            "label": "Ctrl+F12",
+            "isNative": true
+        },
         "workbench.action.gotoLine": {
             "id": "workbench.action.gotoLine",
             "label": "Ctrl+G",
@@ -414,6 +429,11 @@
             "id": "editor.debug.action.toggleColumnBreakpoint",
             "label": "Shift+F9",
             "isNative": true
+        },
+        "workbench.action.tasks.build": {
+            "id": "workbench.action.tasks.build",
+            "label": "Ctrl+Shift+B",
+            "isNative": true
         }
     },
     "telemetry.machineId": "ba712e8fd4d54d93a78e4d76608bfcd30b8d5e06c4fa3ddf5854d62c53ad3ce8",
@@ -433,10 +453,11 @@
             "uiState": {
                 "mode": 1,
                 "x": 740,
-                "y": 128,
+                "y": 160,
                 "width": 1024,
                 "height": 768
             }
-        }
+        },
+        "openedWindows": []
     }
 }
