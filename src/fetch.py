@@ -60,9 +60,9 @@ def find_log_change_type(hunk, flag, logs, log_index, hunk_loc):
     # MOVE [same hunk info]
     for candidate_log_index in range(log_index + 1, len_log):
         candidate_loc = logs[candidate_log_index][0]
-        # add with same content
-        if isinstance(candidate_loc, int) and flag[candidate_loc] == \
-    pair_edit_type and hunk[hunk_loc].strip() == hunk[candidate_loc].strip():
+        # add with same content while opposite edit type
+        if isinstance(candidate_loc, int) and flag[candidate_loc] == pair_edit_type \
+        and get_log_statement(flag, hunk, hunk_loc) == get_log_statement(flag, hunk, candidate_loc):
             pair_log = candidate_loc
             log_type = my_constant.LOG_MOVE
             return log_type, edit_type, pair_log
@@ -107,31 +107,110 @@ def find_log_change_type(hunk, flag, logs, log_index, hunk_loc):
 @ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer) ..
 @ involve get modification set from two edit statements(conconated)
 """
-def get_modification(edit_statements_one, edit_statements_two):
-    edit_set_one = set(re.split(my_constant.SPLIT_STR, edit_statements_one))
-    edit_set_two = set(re.split(my_constant.SPLIT_STR, edit_statements_two))
+def get_modification(edit_statements_one, edit_statements_two = ''):
+    edit_set_one = set(re.split(my_constant.SPLIT_STR, edit_statements_one.lower()))
+    edit_set_two = set(re.split(my_constant.SPLIT_STR, edit_statements_two.lower()))
     modification = myUtil.get_delta_of_two_set(edit_set_one, edit_set_two)
     return modification
+
+
+"""
+@ param old flag info, hunk statements and logs
+@ return new flag info
+@ callee nothing
+@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
+@ involve mark log continue flag util encounter ; or differenr marked flag
+"""
+def flag_log_continue(flag, hunk, logs):
+    len_hunk = len(hunk)
+    for log in logs:
+        hunk_loc = log[0]
+        edit_type = flag[hunk_loc]
+        # encounter with ; at the log location
+        if hunk[hunk_loc].find(';') != -1:
+            continue
+        for hunk_index in range(hunk_loc + 1, len_hunk):
+            # no different flag and no encounter ;
+            if flag[hunk_index] * edit_type > 0:
+                flag[hunk_index] = edit_type / my_constant.FLAG_LOG_ADD * \
+                                    my_constant.FLAG_LOG_ADD_CONTINUE
+                # encounter the end ;
+                if hunk[hunk_index].find(';') != -1:
+                    break
+            # encounter different marked flag
+            else:
+                break
+
+    return flag
+
+"""
+@ param flag nfo and hunk statements
+@ return feature modified set
+@ callee get_modification(edit_statements_one, edit_statements_two = '')
+@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
+@ involve get modified statements set
+"""
+def get_feature_modify_set(flag, hunk):
+    # compute modification set (lose frequency modification)
+    add = ''
+    delete = ''
+    len_hunk = len(hunk)
+    for hunk_index in range(len_hunk):
+        if flag[hunk_index] == my_constant.FLAG_DELETE:
+            delete += hunk[hunk_index].strip() + '\n'
+        elif flag[hunk_index] == my_constant.FLAG_ADD:
+            add += hunk[hunk_index].strip() + '\n'
+    feature_modified_set = get_modification(add, delete)
+
+    return feature_modified_set
+
+"""
+@ param flag info, hunk statements and location of log
+@ return log statements
+@ callee nothing
+@ caller get_log_modify_set, find_log_change_type
+@ involve get log statement with consideration of log continue
+"""
+def get_log_statement(flag, hunk, hunk_loc):
+    hunk_statement = hunk[hunk_loc].strip() + '\n'
+    len_hunk = len(hunk)
+    for hunk_index in range(hunk_loc + 1, len_hunk):
+        if abs(flag[hunk_index]) == my_constant.FLAG_LOG_ADD_CONTINUE:
+            hunk_statement += hunk[hunk_index].strip() + '\n'
+        else:
+            break
+    return hunk_statement
+
+"""
+@ param flag info, hunk statements and location of log and its paired log
+@ return log modified set
+@ callee get_modification(edit_statements_one, edit_statements_two = ''), get_log_statement
+@ caller deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc)
+@ involve get modified statements set of given log
+"""
+def get_log_modify_set(flag, hunk, hunk_loc, pair_log):
+    hunk_statement = get_log_statement(flag, hunk, hunk_loc)
+    pair_statement = ''
+    # try to filter the co change log
+    if pair_log is not None:
+        pair_statement = get_log_statement(flag, hunk, pair_log)
+    log_modified_set = get_modification(hunk_statement, pair_statement)
+    return log_modified_set
+
 """
 @ param  change flag, hunk code, log update info, old hunk loc, new hunk loc and writer
 @ return ...
-@ callee get_loc, is_dependent_log_change, myUtil, find_log_change_type
+@ callee get_loc, is_dependent_log_change, myUtil, find_log_change_type ...
 @ caller deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer) ..
 @ involve deal with change hunk, find modification pair
 @ involve write back log modification type and old location, new location
 """
 def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
 
-    # call myUtil to computer feature modified set(lose frequency modification)
-    add = []
-    delete = []
-    len_hunk = len(hunk)
-    for hunk_index in range(len_hunk):
-        if flag[hunk_index] < my_constant.FLAG_NO_CHANGE:
-            delete += hunk[hunk_index]
-        elif flag[hunk_index] > my_constant.FLAG_NO_CHANGE:
-            add += hunk[hunk_index]
-    feature_modified_set = get_modification(add, delete)
+    # flag log continue
+    flag = flag_log_continue(flag, hunk, logs)
+    # get modified set
+    feature_modified_set = get_feature_modify_set(flag, hunk)
 
     len_log = len(logs)
     for log_index in range(len_log):
@@ -142,10 +221,12 @@ def deal_change_hunk(hunk, flag, logs, old_hunk_loc, new_hunk_loc, writer):
         log_type, edit_type, pair_log = find_log_change_type(hunk, flag, logs, log_index, hunk_loc)
         if log_type is None:
             continue
-        # try to filter the co change log
-        log_modified_set = get_modification(hunk[hunk_loc], hunk[pair_log])
+
+        # get log modified set
+        log_modified_set = get_log_modify_set(flag, hunk, hunk_loc, pair_log)
         if feature_modified_set.issuperset(log_modified_set):
             log_type = my_constant.LOG_COCHANGE
+
         # modify log type and location info
         log.pop(0)
         log[my_constant.FETCH_LOG_CHANGE_TYPE] = log_type
@@ -212,7 +293,7 @@ def fetch_hunk(is_from_file, commit_sha):
 @ caller  deal_commit(gh, sha, writer) ..
 @ involve deal with patch file and save hunk info(with log)
 """
-def deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer):
+def deal_patch(commit_info, changed_file, old_store_name, new_store_name, writer):
 
     has_log = False
 
@@ -278,15 +359,9 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
         is_log_change = re.match(pattern_log, line, re.I)
         if is_log_change:
             # store this changed log statement
-            data_row = []
-            # commit sha
-            data_row.append(sha)
-            # commit message
-            data_row.append(message)
-            # file name
-            data_row.append(changed_file.filename)
+            commit_info.append(changed_file.filename)
             # change_type
-            data_row.append(change_type)
+            commit_info.append(change_type)
             if change_type == '-':
                 flag.append(my_constant.FLAG_LOG_DELETE)
             else:
@@ -294,16 +369,16 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
             # log_statement
             log_statement = is_log_change.group().strip()
             log_statement = log_statement[1:].strip()
-            data_row.append(log_statement)
+            commit_info.append(log_statement)
             # location and file info
             old_log_loc = 0
             new_log_loc = 0
-            data_row.append(old_log_loc)
-            data_row.append(old_store_name)
-            data_row.append(new_log_loc)
-            data_row.append(new_store_name)
+            commit_info.append(old_log_loc)
+            commit_info.append(old_store_name)
+            commit_info.append(new_log_loc)
+            commit_info.append(new_store_name)
             # hunk_loc 0->
-            logs.append([hunk_loc] + data_row)
+            logs.append([hunk_loc] + commit_info)
         else:
             if change_type == '-':
                 flag.append(my_constant.FLAG_DELETE)
@@ -315,6 +390,56 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 
     return has_log
 
+
+"""
+@ param gh and sha
+@ return commit, message
+@ callee nothing
+@ caller deal commit...
+@ involve filter out commit which has dealed before (sha, file number, file name)
+"""
+def filter_commit(gh, sha):
+
+    # commit info
+    commit = gh.repos.commits.get(sha=sha)
+    message = commit.commit.message
+
+    # has brother
+    is_has_brother = re.search(r'\n([0-9a-fA-F]{6,8})\s', message, re.M)
+    # do not deal with top ones
+    if is_has_brother:
+        return None, None
+    else:
+        # deal to get issue number
+        issue_numbers = re.findall(r'#(\d{1,5})', message, re.M)
+        issue_addresses = []
+        for issue_number in issue_numbers:
+            issue_addresses.append(my_constant.ISSUE_ADDRESS + issue_number)
+        commit_info = [sha, message, issue_addresses]
+
+        return commit, commit_info
+
+"""
+@ param gh and sha
+@ return commit, message
+@ callee nothing
+@ caller deal commit...
+@ involve filter out file which is not cpp like
+@ involve or not modified
+"""
+def filter_file(changed_file):
+
+    # cpp like
+    is_cpp = re.search(r'(.cpp|.c|.cc|.cxx|.h)$', changed_file.filename, re.I)
+    # test like
+    # is_test_cpp = re.search(r'(test)$', changed_file.filename, re.I)
+    # modified
+    is_removed = changed_file.status
+    if is_cpp and is_removed == 'modified':
+        return True
+    else:
+        return False
+
 """
 @ param  github parameters gh and sha of commit and the counter for stored/total files and fileWriter
 @ return total_log_cpp new counter of stored files, total_cpp counters of cpp files and total file all files have dealed with
@@ -324,58 +449,53 @@ def deal_patch(sha, message, changed_file, old_store_name, new_store_name, write
 """
 def deal_commit(gh, sha, total_log_cpp, total_cpp, total_file, writer):
 
-    # retrieve info of commit with given sha
-    commit = gh.repos.commits.get(sha=sha)
-    message = commit.commit.message
+    # filter sha by message and retrieve info if pass
+    commit, commit_info = filter_commit(gh, sha)
+    if commit is not None:
 
-    # save commit patch according to files
-    for changed_file in commit.files:
+        # deal with changed file and save patch with log modifications
+        for changed_file in commit.files:
 
-        # filter to just deal with cpp and c files
-        is_cpp = re.search('(.cpp|.c|.cc|.cxx|.h)$', changed_file.filename, re.I)
-        # filter to not deal with test module files
-        is_test_cpp = re.search('(test.cpp|test.c)$', changed_file.filename, re.I)
-        # do not deal with removed files
-        is_removed = changed_file.status
-        if is_cpp and not is_test_cpp and is_removed != 'removed':
-            # increment the total file count
-            total_cpp = total_cpp + 1
+            # filter file to choose the modified cpp like file
+            is_ok = filter_file(changed_file)
+            if is_ok:
+                # increment the total file count
+                total_cpp = total_cpp + 1
 
-            # define old/new_store_name
-            base_store_name = '/data/download/' + my_constant.REPOS + '/' + my_constant.REPOS \
-                + '/' + my_constant.USER + '_' + my_constant.REPOS + '_' + str(total_log_cpp)
-            new_store_name = base_store_name + '_new.cpp'
-            old_store_name = base_store_name + '_old.cpp'
+                # old/new_store_name
+                base_store_name = '/data/download/' + my_constant.REPOS + '/' + my_constant.REPOS \
+                    + '/' + my_constant.USER + '_' + my_constant.REPOS + '_' + str(total_log_cpp)
+                new_store_name = base_store_name + '_new.cpp'
+                old_store_name = base_store_name + '_old.cpp'
 
-            # call deal_patch to deal with the patch file
-            has_log = deal_patch(sha, message, changed_file, old_store_name, new_store_name, writer)
-            if has_log:
-                # download the blob of file
-                source = gh.git_data.blobs.get(changed_file.sha).content
-                # decode to retrieve the source file
-                source = base64.b64decode(source)
+                # call deal_patch to deal with the patch file
+                has_log = deal_patch(commit_info, changed_file, old_store_name, new_store_name, writer)
+                if has_log:
+                    # download the blob of file
+                    source = gh.git_data.blobs.get(changed_file.sha).content
+                    # decode to retrieve the source file
+                    source = base64.b64decode(source)
 
-                # write new file to temp file
-                temp_file = open(new_store_name, 'wb')
-                temp_file.write(source)
-                temp_file.close()
+                    # write new file to temp file
+                    temp_file = open(new_store_name, 'wb')
+                    temp_file.write(source)
+                    temp_file.close()
 
-                # write patch file to temp file
-                patch_store_name = '/data/download/temp.cpp'
-                temp_file = open(patch_store_name, 'wb')
-                temp_file.write(changed_file.patch)
-                temp_file.close()
+                    # write patch file to temp file
+                    patch_store_name = '/data/download/temp.cpp'
+                    temp_file = open(patch_store_name, 'wb')
+                    temp_file.write(changed_file.patch)
+                    temp_file.close()
 
-                # get old file with patch cmd and write back
-                output = commands.getoutput('patch -R ' + new_store_name \
-                        + ' -i ' + patch_store_name + ' -o ' + old_store_name)
-                output = commands.getoutput('rm ' + patch_store_name)
+                    # get old file with patch cmd and write back
+                    output = commands.getoutput('patch -R ' + new_store_name \
+                            + ' -i ' + patch_store_name + ' -o ' + old_store_name)
+                    output = commands.getoutput('rm ' + patch_store_name)
 
-                # increment the file count
-                total_log_cpp += 1
-
-        else:
-            total_file += 1
+                    # increment the file count
+                    total_log_cpp += 1
+            else:
+                total_file += 1
 
     return total_log_cpp, total_cpp, total_file
 
@@ -403,12 +523,12 @@ def fetch_commit(commit_sha=''):
     total_cpp = 0
     total_log_cpp = 0
     for commit in commits.iterator():
-        # invoke the deal_commit function
+        # call deal_commit function to deal with each commit
         total_log_cpp, total_cpp, total_file = deal_commit \
                             (gh, commit.sha, total_log_cpp, total_cpp, total_file, hunk_writer)
         if total_file % 10 == 0:
-            print 'now have deal with %d none cpp file ; find cpp %d file ; have saved %d file ' %(total_file, total_cpp, total_log_cpp)
-    # deal_commit(gh, commit_sha, writer)
+            print 'now have deal with %d none cpp file ; find cpp %d file ; \
+                        have saved %d file ' %(total_file, total_cpp, total_log_cpp)
 
     # close the commit file
     hunk_file.close()
@@ -426,4 +546,5 @@ if __name__ == "__main__":
     commit_sha = ''
     # with function to retieve all the commits of given path
     fetch_hunk(True, commit_sha)
+    # filter_commit(gh, commit_sha)
     # deal with hunk

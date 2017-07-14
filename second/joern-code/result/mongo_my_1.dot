@@ -1,0 +1,55 @@
+//1875
+digraph {
+	node [label="\N"];
+	1880	 [color=lightblue,
+		fontsize=10,
+		label="code:return fassertStatusOK ( 40384 , SHA1Block :: fromBuffer ( keyBuffer . data ( ) , SHA1Block :: kHashLength ) ) ;\nisCFGNode:\
+True\nchildNum:4\nlocation:27:4:685:777\nid:1880\ntype:ReturnStatement\nfunctionId:1875",
+		style=filled];
+	1901	 [color=lightblue,
+		fontsize=10,
+		label="code:std :: generate ( keyBuffer . begin ( ) , keyBuffer . end ( ) )\nisCFGNode:True\nchildNum:3\nlocation:23:4:627:676\nid:1901\ntype:\
+ExpressionStatement\nfunctionId:1875",
+		style=filled];
+	1920	 [color=lightblue,
+		fontsize=10,
+		label="code:std :: unique_ptr < SecureRandom > rng ( SecureRandom :: create ( ) ) ;\nisCFGNode:True\nchildNum:2\nlocation:21:4:563:620\nid:\
+1920\ntype:IdentifierDeclStatement\nfunctionId:1875",
+		style=filled];
+	1928	 [color=lightblue,
+		fontsize=10,
+		label="code:std :: array < std :: int64_t , kRandomNumbers > keyBuffer ;\nisCFGNode:True\nchildNum:1\nlocation:19:4:506:556\nid:1928\ntype:\
+IdentifierDeclStatement\nfunctionId:1875",
+		style=filled];
+	1928 -> 1880	 [color=lightcoral,
+		fontsize=10,
+		label=keyBuffer];
+	1928 -> 1901	 [color=lightcoral,
+		fontsize=10,
+		label=keyBuffer];
+	1932	 [color=lightblue,
+		fontsize=10,
+		label="code:const size_t kRandomNumbers = 3 ;\nisCFGNode:True\nchildNum:0\nlocation:17:4:468:499\nid:1932\ntype:IdentifierDeclStatement\nfunctionId:\
+1875",
+		style=filled];
+	1939	 [color=lightblue,
+		fontsize=10,
+		label="id:1939\ncode:ENTRY\ntype:CFGEntryNode\nfunctionId:1875\nisCFGNode:True",
+		style=filled];
+	1939 -> 1880	 [color=khaki,
+		fontsize=10];
+	1939 -> 1901	 [color=khaki,
+		fontsize=10];
+	1939 -> 1920	 [color=khaki,
+		fontsize=10];
+	1939 -> 1928	 [color=khaki,
+		fontsize=10];
+	1939 -> 1932	 [color=khaki,
+		fontsize=10];
+	1940	 [color=lightblue,
+		fontsize=10,
+		label="id:1940\ncode:EXIT\ntype:CFGExitNode\nfunctionId:1875\nisCFGNode:True",
+		style=filled];
+}
+
+//###
