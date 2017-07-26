@@ -1,0 +1,1 @@
+archive_string_vsprintf(&(a->error_string), fmt, ap);

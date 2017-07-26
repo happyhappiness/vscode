@@ -5,6 +5,7 @@ from itertools import islice
 import block
 import myUtil
 import my_constant
+from gumtree_api import Gumtree
 
 """
 @ param user and repos
@@ -16,59 +17,54 @@ import my_constant
 def seek_clone():
 
     # initialize log_patch from given patch analysis result
-    log_patch = []
-    context_patch = []
-    patch_file_name = my_constant.ANALYZE_OLD_NEW_FILE_NAME
-    patch_file = file(patch_file_name, 'rb')
-    patch_records = csv.reader(patch_file)
-    for patch_record in islice(patch_records, 1, None):
-        # old_context_list index (add commit sha)
-        context_patch.append(json.loads(patch_record[my_constant.ANALYZE_OLD_NEW_OLD_BLOCK_VECTOR]))
-        # ddg_patch.append(json.loads(patch_record[my_constant.ANALYZE_OLD_NEW_OLD_DDG]))
-        log_patch.append(patch_record)
+    old_new_logs = []
+    old_new_record_info = []
+    old_new_file = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'rb')
+    old_new_records = csv.reader(old_new_file)
+    for old_new_record in islice(old_new_records, 1, None):
+        old_new_logs.append(old_new_record[my_constant.ANALYZE_OLD_NEW_LOG_FILE])
+        old_new_record_info.append(old_new_record)
     # initialize log_repos from given repos analysis result
-    log_repos = []
-    context_repos = []
-    repos_file_name = my_constant.ANALYZE_REPOS_FILE_NAME
-    repos_file = file(repos_file_name, 'rb')
+    repos_logs = []
+    repos_record_info = []
+    repos_file = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'rb')
     repos_records = csv.reader(repos_file)
     for repos_record in islice(repos_records, 1, None):
-        # context_list index
-        context_repos.append(json.loads(repos_record[my_constant.ANALYZE_REPOS_VECTOR]))
-        # ddg_repos.append(json.loads(repos_record[my_constant.ANALYZE_REPOS_DDG]))
-        log_repos.append(repos_record)
-
+        repos_logs.append(repos_record[my_constant.ANALYZE_REPOS_LOG_FILE])
+        repos_record_info.append(repos_record)
     # close files
-    patch_file.close()
+    old_new_file.close()
     repos_file.close()
 
     # seek clones in repos of context for each log update in patch
 
     # write back into file
-    clone_csv = file(my_constant.ANALYZE_CLONE_FILE_NAME, 'wb')
-    clone_csv_writer = csv.writer(clone_csv)
-    clone_csv_writer.writerow(my_constant.ANALYZE_CLONE_TITLE)
-    clone_num_csv = file(my_constant.STATISTICS_CLONE_NUM_FILE_NAME, 'wb')
-    clone_num_csv_writer = csv.writer(clone_num_csv)
-    clone_num_csv_writer.writerow(['count'])
+    clone_file = file(my_constant.ANALYZE_CLONE_FILE_NAME, 'wb')
+    clone_writer = csv.writer(clone_file)
+    clone_writer.writerow(my_constant.ANALYZE_CLONE_TITLE)
+    clone_num_file = file(my_constant.STATISTICS_CLONE_NUM_FILE_NAME, 'wb')
+    clone_num_writer = csv.writer(clone_num_file)
+    clone_num_writer.writerow(['count'])
 
-    index_patch = 0
-    for patch in context_patch:
+    gumtree = Gumtree()
+    index_old_new = 0
+    for old_new_log in old_new_logs:
         index_repos = 0
         clone_count = 0
         # traverse repos to find similar contexts
-        for reposi in context_repos:
-            if block.compute_similarity(patch, reposi) >= 0.95:
-                clone_csv_writer.writerow(log_patch[index_patch] + log_repos[index_repos])
+        for repos_log in repos_logs:
+            if gumtree.is_match(old_new_log, repos_log):
+                clone_writer.writerow(old_new_record_info[index_old_new] + repos_record_info[index_repos])
                 clone_count += 1
             index_repos += 1
         print "now analyze the no.%d patch; the clone count is %d"\
-                 %(index_patch, clone_count)
-        clone_num_csv_writer.writerow([clone_count])
-        index_patch += 1
+                 %(index_old_new, clone_count)
+        clone_num_writer.writerow([clone_count])
+        index_old_new += 1
 
-    clone_csv.close()
-    clone_num_csv.close()
+    clone_file.close()
+    clone_num_file.close()
+    gumtree.close()
 
 
 """

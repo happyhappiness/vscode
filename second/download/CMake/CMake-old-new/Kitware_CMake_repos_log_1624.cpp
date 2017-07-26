@@ -1,0 +1,1 @@
+fprintf(header, "const uch _length_code[MAX_MATCH-MIN_MATCH+1]= {\n");

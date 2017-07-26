@@ -1,0 +1,1 @@
+archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);

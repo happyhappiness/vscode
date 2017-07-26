@@ -1,0 +1,1 @@
+(struct archive_string *as, const char *fmt, ...)

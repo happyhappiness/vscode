@@ -1,0 +1,1 @@
+fprintf(stderr, "xml_end:[%s]\n", name);

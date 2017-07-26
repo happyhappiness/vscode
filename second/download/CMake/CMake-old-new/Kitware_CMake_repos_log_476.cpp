@@ -1,0 +1,1 @@
+wprintf(L"new flags='%s'\n", archive_entry_fflags_text(entry));

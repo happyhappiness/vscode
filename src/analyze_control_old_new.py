@@ -1,132 +1,69 @@
 #-*-coding: utf-8 -*-
+"""
+input: hunk info
+BY: gumtree
+output: log info
+log info [hunk info, log type, old log statement, new log statement, log action]
+"""
 import csv
+import sys
+import re
+import os
+import commands
+import base64
 import json
+from pygithub3 import Github
 from itertools import islice
-import block
-from block import Block
+from gumtree_api import Gumtree
 import my_constant
+import myUtil
+
+reload(sys);
+sys.setdefaultencoding('utf8')
 
 """
-@ param  old and new log location and file name
-@ return old block and new block object
-@ caller analyze_record_to_block
-@ callee nothing
-@ involve from log loc and file -> block
+@ param log record, log function, old new writer, gumtree object and log counter
+@ return total_log
+@ involve deal with each old new log and save info
 """
-def get_old_new_block(old_loc, old_file, new_loc, new_file):
+def deal_log( log_record, writer, total_log):
 
-    # get old log id and new log id
-    old_block = None
-    new_block = None
-    old_log_query = "_().getLogByFileAndLoc('" + old_file + "','"+ str(old_loc) + ":')"
-    old_log_id = Block.joern_instance.runGremlinQuery(old_log_query)
-    if not len(old_log_id) == 0:
-        old_log_id = old_log_id[0][0][0]
-        old_block = Block(old_log_id)
+    log = log_record[my_constant.FETCH_LOG_OLD_LOG]
+    log_file_name = my_constant.SAVE_OLD_NEW_LOG + str(total_log) + '.cpp'
+    log_file = open(log_file_name, 'wb')
+    log_file.write(log)
+    log_file.close()
+    writer.writerow(log_record + [log_file_name])
+    total_log += 1
 
-    new_log_query = "_().getLogByFileAndLoc('" + new_file + "','"+ str(new_loc) + ":')"
-    new_log_id = Block.joern_instance.runGremlinQuery(new_log_query)
-    if not len(new_log_id) == 0:
-        new_log_id = new_log_id[0][0][0]
-        new_block = Block(new_log_id)
-
-    return old_block, new_block
-
+    return total_log
 """
-@ param fetch record and dictionary for old and new block
-@ return dictionary modified and flag 
-@ caller main
-@ callee get_old_new_block
-@ involve from log loc and file -> block record (log in same old_new_block aggregate together)
+@ param
+@ return nothing 
+@ involve fetch and analyze each hunk
 """
-def analyze_record_to_block(log_record, old_new_block_dict):
+def fetch_old_new():
 
-    old_loc = log_record[my_constant.FETCH_LOG_OLD_LOC]
-    new_loc = log_record[my_constant.FETCH_LOG_NEW_LOC]
-    old_file_name = log_record[my_constant.FETCH_LOG_OLD_FILE]
-    new_file_name = log_record[my_constant.FETCH_LOG_NEW_FILE]
+    # read record from fetched log
+    log_file = file(my_constant.FETCH_LOG_FILE_NAME, 'rb')
+    log_records = csv.reader(log_file)        
+    old_new_file = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'wb')
+    old_new_writer = csv.writer(old_new_file)
+    old_new_writer.writerow(my_constant.ANALYZE_OLD_NEW_TITLE)
+    total_log = 0
+    total_record = 0
+    for log_record in islice(log_records, 1, None):
+        total_record += 1
+        total_log = deal_log(log_record, old_new_writer, total_log)
+        if total_record % 10 == 0:
+            print 'have dealed with %d record, have dealed with %d log' %(total_record, total_log)
 
-    # call get_old_new_block to get block from loc and file
-    analyze_record = None
-    old_block, new_block = get_old_new_block(old_loc, old_file_name, new_loc, new_file_name)
-    if(old_block is not None) and (new_block is not None):
-        old_block.get_block_identity()
-        new_block.get_block_identity()
-        identity = old_block.identity + new_block.identity
-        # log info (change type, log statement, old and new loc)
-        log_info = []
-        log_info.append([log_record[my_constant.FETCH_LOG_CHANGE_TYPE],\
-                        log_record[my_constant.FETCH_LOG_LOG], old_loc, new_loc])
-        # create new record or modify past
-        if old_new_block_dict.has_key(identity):
-            analyze_record = old_new_block_dict[identity]
-            analyze_record[my_constant.ANALYZE_OLD_NEW_LOG_INFO] += log_info
-            print log_info
-        else:
-            analyze_record = []
-            analyze_record.append(identity)
-            # get context for old and new block
-            old_block.get_block_feature()
-            new_block.get_block_feature()
-            old_block.get_block_vector()
-            new_block.get_block_vector()
-            analyze_record += old_block.get_info_except_identity()
-            analyze_record += new_block.get_info_except_identity()
-            # update info and log info
-            analyze_record.append(log_record[my_constant.FETCH_LOG_COMMIT_SHA])
-            analyze_record.append(log_record[my_constant.FETCH_LOG_COMMIT_MESSAGE])
-            analyze_record.append(log_record[my_constant.FETCH_LOG_ISSUE_ADDRESS])
-            analyze_record.append(log_record[my_constant.FETCH_LOG_FILE])
-            analyze_record.append(log_info)
-        old_new_block_dict[identity] = analyze_record
-
-    return old_new_block_dict, analyze_record
-
-"""
-@ param ...
-@ return nothing
-@ caller main
-@ callee analyze_record_to_block
-@ involve operate fetch and analyze files
-"""
-def analyze_old_new():
-
-    fetch = file(my_constant.FETCH_LOG_FILE_NAME, 'rb')
-    # initialize write file
-    analysis = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'wb')
-    analyze_writer = csv.writer(analysis)
-    analyze_writer.writerow(my_constant.ANALYZE_OLD_NEW_TITLE)
-    # initialize read file
-    records = csv.reader(fetch)
-
-    # traverse the fetch csv file to update context info
-    count = 0
-    old_new_block_dict = {}
-    for record in islice(records, 1, None):
-        print "now record the No. %d analyze" %count
-        # call analyze_record_to_block to retrieve block info
-        old_new_block_dict, flag = analyze_record_to_block(record, old_new_block_dict)
-        if flag is not None:
-            count += 1
-    # write back to analyze old new file
-    for analyzed_record in old_new_block_dict.values():
-        analyzed_record[my_constant.ANALYZE_OLD_NEW_OLD_BLOCK_VECTOR] = \
-            json.dumps(analyzed_record[my_constant.ANALYZE_OLD_NEW_OLD_BLOCK_VECTOR])
-        analyzed_record[my_constant.ANALYZE_OLD_NEW_NEW_BLOCK_VECTOR] = \
-            json.dumps(analyzed_record[my_constant.ANALYZE_OLD_NEW_NEW_BLOCK_VECTOR])
-        analyzed_record[my_constant.ANALYZE_OLD_NEW_LOG_INFO] = \
-            json.dumps(analyzed_record[my_constant.ANALYZE_OLD_NEW_LOG_INFO])
-        analyze_writer.writerow(analyzed_record)
-    # close files
-    analysis.close()
-    fetch.close()
-
+    # close file
+    log_file.close()
+    old_new_file.close()
 
 """
 main function
 """
 if __name__ == "__main__":
-
-
-    block.initialize_joern(False)
-    analyze_old_new()
+    fetch_old_new()

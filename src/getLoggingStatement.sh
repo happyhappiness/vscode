@@ -1,10 +1,10 @@
 #!/bin/sh
 
-# parameter
-CODE_DIR=${BFTPD_CODE}
+MYCODE_DIR="/usr/info/code/cpp/LogMonitor/LogMonitor"
 REPOS="bftpd"
-# CODE_DIR=${CMAKE_CODE}
 # REPOS="CMake"
+# parameter
+CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}"
 
 # code
 echo "generating compiled_files.def and call_dependence.csv";

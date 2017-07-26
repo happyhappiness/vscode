@@ -1,0 +1,1 @@
+fprintf(header, "local const ct_data static_ltree[L_CODES+2] = {\n");

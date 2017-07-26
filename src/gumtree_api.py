@@ -1,0 +1,125 @@
+#-*-coding: utf-8 -*-
+from jpype import *
+import my_constant
+
+class Gumtree:  
+    gumtree = None
+
+    def __init__(self, class_name='gumtree.GumTreeApi'):
+        # class path
+        jvm_arg = "-Djava.class.path=" + my_constant.JAVA_CLASS_PATH
+        startJVM(getDefaultJVMPath(), '-d64', jvm_arg)
+        # initial class and object
+        GumtreeApi = JClass(class_name)
+        Gumtree.gumtree = GumtreeApi()
+
+    """
+    @ param old and new file
+    @ return
+    @ involve set old and new file
+    """
+    def set_old_new_file(self, old_file, new_file):
+        Gumtree.gumtree.setOldAndNewFile(old_file, new_file)
+
+    """
+    @ param line
+    @ return flag about whether find old log
+    @ involve set line for gumtree object
+    """
+    def set_old_loc(self, line):
+        return Gumtree.gumtree.setOldLoc(line)
+
+    """
+    @ param 
+    @ return line
+    @ involve get mapping line of old log
+    """
+    def get_new_loc(self):
+        return Gumtree.gumtree.getNewLoc()
+
+    """
+    @ param 
+    @ return new log
+    @ involve get mapping log of old log
+    """
+    def get_new_log(self):
+        return Gumtree.gumtree.getNewLog()
+
+    """
+    @ param 
+    @ return old log
+    @ involve get old log
+    """
+    def get_old_log(self):
+        return Gumtree.gumtree.getOldLog()
+
+    """
+    @ param 
+    @ return
+    @ involve add log node into log nodes
+    """
+    def add_log_nodes(self, lines):
+        for line in lines:
+            Gumtree.gumtree.addLogNode(line)
+
+    """
+    @ param 
+    @ return
+    @ involve get action type
+    """
+    def get_action_type(self):
+        return Gumtree.gumtree.getActionType()
+
+    """
+    @ param filename
+    @ return
+    @ involve set file
+    """
+    def set_file(self, filename):
+        Gumtree.gumtree.setFile(filename)
+
+    """
+    @ param line
+    @ return flag about whether success
+    @ involve set loccation of log
+    """
+    def set_loc(self, line):
+        return Gumtree.gumtree.setLoc(line)
+
+    """
+    @ param
+    @ return
+    @ involve get log statement
+    """
+    def get_log(self):
+        return Gumtree.gumtree.getLog()
+
+
+    """
+    @ param odl and new log file
+    @ return flag about match or not
+    @ involve just update action
+    """
+    def is_match(self, old_log_file, new_log_file):
+        Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
+        return Gumtree.gumtree.isMatch()
+
+    """
+    @ param 
+    @ return
+    @ involve close jvm
+    """
+    def close(self):
+        shutdownJVM()
+
+
+"""
+main function
+"""
+if __name__ == "__main__":
+    old_file = 'second/gumtree/c/old.cpp'
+    new_file = 'second/gumtree/c/new.cpp'
+    gumtree = Gumtree()
+    gumtree.set_old_loc(7)
+    gumtree.get_new_log()
+  

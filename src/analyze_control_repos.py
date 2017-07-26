@@ -1,89 +1,93 @@
 #-*-coding: utf-8 -*-
-import myUtil
-import my_constant
+"""
+input: hunk info
+BY: gumtree
+output: log info
+log info [hunk info, log type, old log statement, new log statement, log action]
+"""
 import csv
-import json
+import sys
 import re
-from joern.all import JoernSteps
+import os
+import commands
+import base64
+import json
+from pygithub3 import Github
+from itertools import islice
+from gumtree_api import Gumtree
+import my_constant
+import myUtil
+
+reload(sys);
+sys.setdefaultencoding('utf8')
 
 """
-@ param log function name, joern_instance
-@ return log info: code, location, file, cdg_list, neighbor_list, ddg_list, static_list, cluster index 
-@ caller main
-@ callee ...
-@ involve get log call info starts from function name
+@ param filename, log function, repos writer, gumtree object and log counter
+@ return total_log
+@ involve deal with each file and record log info
 """
-def get_log_info(log_functions, joern_instance):
-    log_call_infos = {}
-    # initiation log info writer csv
-    out_csv = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'wb')
-    out_csv_writer = csv.writer(out_csv)
-    out_csv_writer.writerow(my_constant.ANALYZE_REPOS_TITLE)
+def deal_file( filename, log_function, writer, gumtree, total_log):
 
-    # get log statement id from log function name
-    record_count = 0
-    for log_function in log_functions:
-        log_call_query = '_().logToCallStatements("' + log_function +'")'
-        log_calls = joern_instance.runGremlinQuery(log_call_query)
+    gumtree.set_file(filename)
+    file_reader = open(filename, 'rb')
+    lines = file_reader.readlines()
+    loc = 0
+    for line in lines:
+        is_log = re.search(log_function, line, re.I)
+        if is_log:
+            if gumtree.set_loc(loc):
+                # get and save log
+                log = gumtree.get_log()
+                log_file_name = my_constant.SAVE_REPOS_LOG + str(total_log) + '.cpp'
+                log_file = open(log_file_name, 'wb')
+                log_file.write(log)
+                log_file.close()
+                writer.writerow([filename, loc, log, log_file_name])
+                total_log += 1
+        loc += 1
 
-        # deal with each call statement of log_function
-        for log_call in log_calls:
-            # check whether occurred before
-            log_call = log_call[0]
-            if log_call_infos.has_key(log_call[0]):
-                continue
-            ########################################## code, location, file ####################
-            log_call_info = []
-            # code
-            log_call_info.append(log_call[1])
-            # location
-            log_call_info.append(log_call[2])
-            # file
-            file_query = '_().getFileInfo(' + str(log_call[3]) +')'
-            fileName = joern_instance.runGremlinQuery(file_query)[0]
-            log_call_info.append(fileName[0])
-            ########################################## context  #################################
-            context_list = myUtil.getContext(str(log_call[0]), joern_instance)
-            ddg_list, static_list = myUtil.getDDGAndContent(str(log_call[0]), joern_instance)
-            log_call_info.append(json.dumps(context_list))
-            log_call_info.append(json.dumps(ddg_list))
-            log_call_info.append(json.dumps(static_list))
-            out_csv_writer.writerow(log_call_info)
-
-            log_call_infos[log_call[0]] = log_call_info
-
-            record_count += 1
-            if record_count%10 == 0:
-                print "now analyzing record: %d " %record_count
-
-    out_csv.close()
-
-    return log_call_infos
-
+    file_reader.close()
+    return total_log
 """
-@ param ...
-@ return ... 
-@ caller main
-@ callee retrieveLogFunction, getLogInfo
-@ involve get logging call infomation from logging name and performing clustering
+@ param
+@ return nothing 
+@ involve fetch and analyze each hunk
 """
-def analyze_repos():
+def fetch_file():
 
-    # initialize python-joern instance
-    joern_instance = JoernSteps()
-    joern_instance.addStepsDir("/data/joern-code/query/")
-    joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
-    # connect to database
-    joern_instance.connectToDatabase()
-    # get name of log functions
+    # read file from directory
+    filenames = []
+    for item in os.walk(my_constant.REPOS_DIR):
+        for filename in item[2]:
+            # deal with cpp file
+            is_cpp = re.search(my_constant.FILE_FORMAT, filename, re.I)
+            if is_cpp:
+                filenames.append(os.path.join(item[0], filename))
+
+    repos_file = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'wb')
+    repos_writer = csv.writer(repos_file)
+    repos_writer.writerow(my_constant.ANALYZE_REPOS_TITLE)
+    total_log = 0
+    total_file = 0
+    # analyze each file to record repos log info
     log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
-    get_log_info(log_functions, joern_instance)
+    log_function = myUtil.functionToRegrexStr(log_functions)
+    gumtree = Gumtree()
+    for filename in filenames:
+        total_file += 1
+        total_log = deal_file(filename, log_function, repos_writer, gumtree, total_log)
+        if total_file % 10 == 0:
+            print 'have dealed with %d file, have dealed with %d log' %(total_file, total_log)
 
+    # close file
+    repos_file.close()
+    gumtree.close()
 
 """
 main function
 """
 if __name__ == "__main__":
+    fetch_file()
 
-    analyze_repos()
+
     

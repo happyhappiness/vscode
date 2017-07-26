@@ -1,0 +1,1 @@
+(struct archive *a, int error_number, const char *fmt, ...)

@@ -1,0 +1,1 @@
+fprintf( stderr, "\nChange to %d bits\n", cdata->n_bits );

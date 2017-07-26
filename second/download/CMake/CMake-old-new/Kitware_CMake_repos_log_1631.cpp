@@ -1,0 +1,1 @@
+printf("    static const code lenfix[%u] = {", size);

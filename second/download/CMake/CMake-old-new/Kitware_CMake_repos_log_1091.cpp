@@ -1,0 +1,1 @@
+(void)printf("Input: %s\n", *argv);

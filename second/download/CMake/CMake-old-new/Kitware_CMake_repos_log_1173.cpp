@@ -1,0 +1,1 @@
+fprintf(stderr, "\tlen=%d:\"%s\"\n", len, buff);

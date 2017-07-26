@@ -1,0 +1,1 @@
+archive_string_sprintf(&shar->work, "echo x %s\n", shar->quoted_name.s);
