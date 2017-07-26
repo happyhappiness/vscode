@@ -1,0 +1,1 @@
+fprintf(out, "#ifdef BYFOUR\n");

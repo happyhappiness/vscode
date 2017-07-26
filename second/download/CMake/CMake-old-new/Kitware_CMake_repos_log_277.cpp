@@ -1,0 +1,1 @@
+archive_string_vsprintf(&xar->vstr, fmt, ap);

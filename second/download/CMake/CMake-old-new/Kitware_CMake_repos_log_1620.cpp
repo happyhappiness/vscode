@@ -1,0 +1,1 @@
+fprintf(header, "local const ct_data static_dtree[D_CODES] = {\n");

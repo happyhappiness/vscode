@@ -1,0 +1,1 @@
+(void)printf("Output: %s\n", ctime(&d));

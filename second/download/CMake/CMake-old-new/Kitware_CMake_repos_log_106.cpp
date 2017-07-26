@@ -1,0 +1,1 @@
+#define	__LA_PRINTF(fmtarg, firstvararg)	/* nothing */

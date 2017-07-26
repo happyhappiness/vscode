@@ -1,0 +1,1 @@
+printf("\n    static const code distfix[%u] = {", size);

@@ -1,0 +1,1 @@
+archive_string_sprintf(str, " nlink=%u", me->nlink);

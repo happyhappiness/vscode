@@ -1,0 +1,1 @@
+fprintf(stderr, "xml_sta:[%s]\n", name);

@@ -1,0 +1,1 @@
+archive_set_error(a, errno, "No memory");

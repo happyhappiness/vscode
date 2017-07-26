@@ -1,0 +1,1 @@
+/*printf("cmcompress_compress(%p, %p, %d)\n", cdata, buff, n);*/

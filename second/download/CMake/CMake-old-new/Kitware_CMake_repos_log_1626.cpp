@@ -1,0 +1,1 @@
+fprintf(header, "local const int base_length[LENGTH_CODES] = {\n");

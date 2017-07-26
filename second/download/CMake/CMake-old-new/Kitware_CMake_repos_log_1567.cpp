@@ -1,0 +1,1 @@
+printf("%4" PRIu32, rc_prices[i]);

@@ -1,0 +1,8 @@
+--- /dev/null
++++ /dev/null
+@@ -984,4 +1175,5 @@ lzip_bidder_init(struct archive_read_filter *self)
+ 	return (r);
+ }
+ 
++
+ 

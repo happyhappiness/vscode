@@ -1,0 +1,275 @@
+--- /dev/null
++++ /dev/null
+@@ -677,176 +720,181 @@ void CommandLineArguments::GenerateHelp()
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(bool* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  bool* variable, const std::string& value)
+ {
+-  if (value == "1" || value == "ON" || value == "on" || value == "On" ||
+-      value == "TRUE" || value == "true" || value == "True" ||
+-      value == "yes" || value == "Yes" || value == "YES") {
++  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
++    value == "TRUE" || value == "true" || value == "True" ||
++    value == "yes" || value == "Yes" || value == "YES" )
++    {
+     *variable = true;
+-  } else {
++    }
++  else
++    {
+     *variable = false;
+-  }
++    }
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(int* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  int* variable, const std::string& value)
+ {
+   char* res = 0;
+   *variable = static_cast<int>(strtol(value.c_str(), &res, 10));
+-  // if ( res && *res )
++  //if ( res && *res )
+   //  {
+   //  Can handle non-int
+   //  }
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(double* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  double* variable, const std::string& value)
+ {
+   char* res = 0;
+   *variable = strtod(value.c_str(), &res);
+-  // if ( res && *res )
++  //if ( res && *res )
+   //  {
+   //  Can handle non-double
+   //  }
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(char** variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  char** variable, const std::string& value)
+ {
+-  if (*variable) {
+-    delete[] * variable;
++  if ( *variable )
++    {
++    delete [] *variable;
+     *variable = 0;
+-  }
+-  *variable = new char[value.size() + 1];
++    }
++  *variable = new char[ value.size() + 1 ];
+   strcpy(*variable, value.c_str());
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(std::string* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  std::string* variable, const std::string& value)
+ {
+   *variable = value;
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(std::vector<bool>* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  std::vector<bool>* variable, const std::string& value)
+ {
+   bool val = false;
+-  if (value == "1" || value == "ON" || value == "on" || value == "On" ||
+-      value == "TRUE" || value == "true" || value == "True" ||
+-      value == "yes" || value == "Yes" || value == "YES") {
++  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
++    value == "TRUE" || value == "true" || value == "True" ||
++    value == "yes" || value == "Yes" || value == "YES" )
++    {
+     val = true;
+-  }
++    }
+   variable->push_back(val);
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(std::vector<int>* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  std::vector<int>* variable, const std::string& value)
+ {
+   char* res = 0;
+   variable->push_back(static_cast<int>(strtol(value.c_str(), &res, 10)));
+-  // if ( res && *res )
++  //if ( res && *res )
+   //  {
+   //  Can handle non-int
+   //  }
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(std::vector<double>* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  std::vector<double>* variable, const std::string& value)
+ {
+   char* res = 0;
+   variable->push_back(strtod(value.c_str(), &res));
+-  // if ( res && *res )
++  //if ( res && *res )
+   //  {
+   //  Can handle non-int
+   //  }
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(std::vector<char*>* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  std::vector<char*>* variable, const std::string& value)
+ {
+-  char* var = new char[value.size() + 1];
++  char* var = new char[ value.size() + 1 ];
+   strcpy(var, value.c_str());
+   variable->push_back(var);
+ }
+ 
+ //----------------------------------------------------------------------------
+-void CommandLineArguments::PopulateVariable(std::vector<std::string>* variable,
+-                                            const std::string& value)
++void CommandLineArguments::PopulateVariable(
++  std::vector<std::string>* variable,
++  const std::string& value)
+ {
+   variable->push_back(value);
+ }
+ 
+ //----------------------------------------------------------------------------
+-bool CommandLineArguments::PopulateVariable(
+-  CommandLineArgumentsCallbackStructure* cs, const char* value)
++bool CommandLineArguments::PopulateVariable(CommandLineArgumentsCallbackStructure* cs,
++  const char* value)
+ {
+   // Call the callback
+-  if (cs->Callback) {
+-    if (!cs->Callback(cs->Argument, value, cs->CallData)) {
+-      this->Internals->LastArgument--;
++  if ( cs->Callback )
++    {
++    if ( !cs->Callback(cs->Argument, value, cs->CallData) )
++      {
++      this->Internals->LastArgument --;
+       return 0;
++      }
+     }
+-  }
+-  CommandLineArguments_DEBUG("Set argument: " << cs->Argument << " to "
+-                                              << value);
+-  if (cs->Variable) {
++  CommandLineArguments_DEBUG("Set argument: " << cs->Argument << " to " << value);
++  if ( cs->Variable )
++    {
+     std::string var = "1";
+-    if (value) {
++    if ( value )
++      {
+       var = value;
++      }
++    switch ( cs->VariableType )
++      {
++    case CommandLineArguments::INT_TYPE:
++      this->PopulateVariable(static_cast<int*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::DOUBLE_TYPE:
++      this->PopulateVariable(static_cast<double*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::STRING_TYPE:
++      this->PopulateVariable(static_cast<char**>(cs->Variable), var);
++      break;
++    case CommandLineArguments::STL_STRING_TYPE:
++      this->PopulateVariable(static_cast<std::string*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::BOOL_TYPE:
++      this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::VECTOR_BOOL_TYPE:
++      this->PopulateVariable(static_cast<std::vector<bool>*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::VECTOR_INT_TYPE:
++      this->PopulateVariable(static_cast<std::vector<int>*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::VECTOR_DOUBLE_TYPE:
++      this->PopulateVariable(static_cast<std::vector<double>*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::VECTOR_STRING_TYPE:
++      this->PopulateVariable(static_cast<std::vector<char*>*>(cs->Variable), var);
++      break;
++    case CommandLineArguments::VECTOR_STL_STRING_TYPE:
++      this->PopulateVariable(static_cast<std::vector<std::string>*>(cs->Variable), var);
++      break;
++    default:
++      std::cerr << "Got unknown variable type: \"" << cs->VariableType << "\"" << std::endl;
++      this->Internals->LastArgument --;
++      return 0;
++      }
+     }
+-    switch (cs->VariableType) {
+-      case CommandLineArguments::INT_TYPE:
+-        this->PopulateVariable(static_cast<int*>(cs->Variable), var);
+-        break;
+-      case CommandLineArguments::DOUBLE_TYPE:
+-        this->PopulateVariable(static_cast<double*>(cs->Variable), var);
+-        break;
+-      case CommandLineArguments::STRING_TYPE:
+-        this->PopulateVariable(static_cast<char**>(cs->Variable), var);
+-        break;
+-      case CommandLineArguments::STL_STRING_TYPE:
+-        this->PopulateVariable(static_cast<std::string*>(cs->Variable), var);
+-        break;
+-      case CommandLineArguments::BOOL_TYPE:
+-        this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
+-        break;
+-      case CommandLineArguments::VECTOR_BOOL_TYPE:
+-        this->PopulateVariable(static_cast<std::vector<bool>*>(cs->Variable),
+-                               var);
+-        break;
+-      case CommandLineArguments::VECTOR_INT_TYPE:
+-        this->PopulateVariable(static_cast<std::vector<int>*>(cs->Variable),
+-                               var);
+-        break;
+-      case CommandLineArguments::VECTOR_DOUBLE_TYPE:
+-        this->PopulateVariable(static_cast<std::vector<double>*>(cs->Variable),
+-                               var);
+-        break;
+-      case CommandLineArguments::VECTOR_STRING_TYPE:
+-        this->PopulateVariable(static_cast<std::vector<char*>*>(cs->Variable),
+-                               var);
+-        break;
+-      case CommandLineArguments::VECTOR_STL_STRING_TYPE:
+-        this->PopulateVariable(
+-          static_cast<std::vector<std::string>*>(cs->Variable), var);
+-        break;
+-      default:
+-        std::cerr << "Got unknown variable type: \"" << cs->VariableType
+-                  << "\"" << std::endl;
+-        this->Internals->LastArgument--;
+-        return 0;
+-    }
+-  }
+   return 1;
+ }
+ 
++
+ 

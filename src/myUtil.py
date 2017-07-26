@@ -75,8 +75,6 @@ def dict_from_list(in_list):
 """
 @ param  isFromRead
 @ return function_similarity_dic
-@ callee similarity_func.getFunctionSimilarity
-@ caller cluster_context_with_function
 @ involve call similarity_func.getFunctionSimilarity to get similarity_dic between functions
 """
 def getFunctionSimilarityDic(isFromRead):
@@ -168,17 +166,17 @@ def retrieveLogFunction(fileName):
 
 """
 @ param log functions
-@ return regrex_string e.g. 'assert|log|debug|print|write|error'
-@ caller fetch
-@ callee ...
+@ return regrex_string e.g. '[assert|log|debug|print|write|error]('
 @ involve concate log functions into regrex string
 """
 def functionToRegrexStr(log_functions):
-    regrex_string = ''
+    regrex_string = r'('
     for log_function in log_functions:
-        regrex_string += log_function + '|'
+        regrex_string += log_function + r'|'
+    regrex_string = regrex_string[:-1]
+    regrex_string += r')\('
 
-    return regrex_string[:-1]
+    return regrex_string
 
 """
 @ param  cond_list of a and b to compute, func_similarity_dic

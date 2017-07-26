@@ -1,0 +1,1 @@
+archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode);

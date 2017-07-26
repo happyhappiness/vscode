@@ -1,0 +1,1 @@
+archive_string_sprintf(&shar->work, "chflags %s ", p);
