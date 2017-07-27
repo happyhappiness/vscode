@@ -1,0 +1,1 @@
+printf("Passed: TEST_C_FLAGS passed\n");

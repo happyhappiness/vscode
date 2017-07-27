@@ -1,0 +1,1 @@
+s = vaprintf(fmt_crlf, args);

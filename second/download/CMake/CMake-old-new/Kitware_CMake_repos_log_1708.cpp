@@ -1,0 +1,1 @@
+return snprintf(p, len, " nghttp2/%s", h2->version_str);

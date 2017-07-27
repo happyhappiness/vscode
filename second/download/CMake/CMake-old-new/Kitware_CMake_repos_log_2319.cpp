@@ -1,0 +1,1 @@
+printf("Running '%s'\n", argv[0])

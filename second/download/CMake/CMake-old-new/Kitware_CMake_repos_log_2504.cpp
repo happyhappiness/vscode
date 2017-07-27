@@ -1,0 +1,1 @@
+fprintf(stderr, "any regex [%s]\n", reg_any.c_str())

@@ -1,0 +1,1 @@
+sprintf(vb[i], "%u", v[i])

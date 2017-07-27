@@ -1,0 +1,1 @@
+printf(LANG "KWIML_ABI_ENDIAN_ID: unknown, FAILED\n");

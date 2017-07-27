@@ -1,0 +1,1 @@
+fprintf(out, "%-*s ", (int)u_width, p)

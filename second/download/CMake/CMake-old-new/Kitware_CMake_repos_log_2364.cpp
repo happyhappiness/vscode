@@ -1,0 +1,1 @@
+fprintf(stderr, "FILE_DEF_DEBUG should not be defined in CXX\n")

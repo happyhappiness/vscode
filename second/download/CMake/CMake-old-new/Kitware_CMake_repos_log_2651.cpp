@@ -1,0 +1,1 @@
+sprintf(debugMessage, "Message widget handling input, key: %d", key)

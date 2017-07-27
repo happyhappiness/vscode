@@ -1,0 +1,1 @@
+fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str())

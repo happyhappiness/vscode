@@ -1,0 +1,1 @@
+fprintf(stdout, "buf='%s'\n", buf)

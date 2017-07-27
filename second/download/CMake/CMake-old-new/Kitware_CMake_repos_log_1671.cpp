@@ -1,0 +1,1 @@
+snprintf(buf, sizeof(buf), "Unknown system error %d", err);

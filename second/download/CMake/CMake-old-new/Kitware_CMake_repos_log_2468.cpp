@@ -1,0 +1,1 @@
+fprintf(stdout, "str='%s'\n", str)

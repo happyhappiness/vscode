@@ -1,0 +1,1 @@
+sprintf(temp, "%d", cmVersion::GetMajorVersion())

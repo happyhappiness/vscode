@@ -1,0 +1,1 @@
+len = snprintf(buffer, sizeof(buffer), "1e+9999")

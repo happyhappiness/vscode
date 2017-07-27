@@ -1,0 +1,1 @@
+aprintf("%s:%s:%s", userp, digest->realm, passwdp)

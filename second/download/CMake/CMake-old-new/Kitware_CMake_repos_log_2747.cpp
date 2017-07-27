@@ -1,0 +1,1 @@
+fprintf(stdout, "Output after crash on stdout from crash test.\n");

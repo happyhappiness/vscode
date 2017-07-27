@@ -1,0 +1,1 @@
+fprintf(out, " link to %s", archive_entry_hardlink(entry))

@@ -1,0 +1,1 @@
+sprintf(buf, "%d", exitCode)

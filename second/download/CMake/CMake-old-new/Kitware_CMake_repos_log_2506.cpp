@@ -1,0 +1,1 @@
+fprintf(stderr, "shared regex [%s]\n", reg_shared.c_str())

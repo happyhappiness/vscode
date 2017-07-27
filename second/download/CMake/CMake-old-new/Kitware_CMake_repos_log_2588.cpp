@@ -1,0 +1,1 @@
+sprintf(buffer, "%04d", ni)

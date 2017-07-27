@@ -1,0 +1,1 @@
+printf("Started with: %d arguments\n", argc)

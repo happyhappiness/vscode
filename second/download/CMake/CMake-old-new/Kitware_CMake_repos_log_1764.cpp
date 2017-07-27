@@ -1,0 +1,1 @@
+DEBUGF(fprintf(stderr, "DISCONNECT without easy handle, ignoring\n"));

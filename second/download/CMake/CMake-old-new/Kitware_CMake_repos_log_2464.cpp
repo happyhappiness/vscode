@@ -1,0 +1,1 @@
+fprintf(stdout, "FindResource worked\n")

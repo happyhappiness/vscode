@@ -1,0 +1,1 @@
+fprintf(stderr, "TARGET_DEF_DEBUG should be defined in CXX\n")

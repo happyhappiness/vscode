@@ -1,0 +1,1 @@
+return addError("Bad escape sequence in string", token, current);

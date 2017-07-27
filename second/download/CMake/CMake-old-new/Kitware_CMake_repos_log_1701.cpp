@@ -1,0 +1,1 @@
+printf("Cannot create curl object\n");

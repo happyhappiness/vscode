@@ -1,0 +1,1 @@
+fprintf(stderr, "Checking bundle prefix [%s]\n", prefix_in.c_str())

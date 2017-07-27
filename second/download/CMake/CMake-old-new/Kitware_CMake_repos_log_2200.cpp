@@ -1,0 +1,1 @@
+void print() const { printf("abc\n"); }

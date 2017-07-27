@@ -1,0 +1,1 @@
+fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");

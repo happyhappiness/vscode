@@ -1,0 +1,1 @@
+fprintf(stderr, "FILE_DEF not defined in CXX\n")

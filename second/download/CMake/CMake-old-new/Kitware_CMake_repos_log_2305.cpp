@@ -1,0 +1,1 @@
+printf("Foo: %s %d\n", foo, class);

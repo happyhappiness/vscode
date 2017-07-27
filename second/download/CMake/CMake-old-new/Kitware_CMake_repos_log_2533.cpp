@@ -1,0 +1,1 @@
+fprintf(fout, "add_library(%s STATIC", targetName.c_str())

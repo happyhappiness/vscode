@@ -1,0 +1,1 @@
+d = aprintf("ADAT %s", p);

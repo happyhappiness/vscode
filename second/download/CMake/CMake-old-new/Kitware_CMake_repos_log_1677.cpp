@@ -1,0 +1,1 @@
+snprintf(trypath, sizeof(trypath) - 1, "%s/%s", token, args);

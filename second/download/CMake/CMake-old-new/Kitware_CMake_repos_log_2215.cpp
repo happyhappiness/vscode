@@ -1,0 +1,1 @@
+printf("arg[%d] = %s\n", i, av[i]);

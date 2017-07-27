@@ -1,0 +1,1 @@
+if (i == nOut) fprintf(stderr, "really ok!\n" );

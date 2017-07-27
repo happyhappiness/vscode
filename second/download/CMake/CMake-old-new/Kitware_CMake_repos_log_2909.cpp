@@ -1,0 +1,1 @@
+YY_FATAL_ERROR( "bad buffer in cmExpr_yy_scan_bytes()" )

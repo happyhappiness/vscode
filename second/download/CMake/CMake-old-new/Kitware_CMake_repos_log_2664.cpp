@@ -1,0 +1,1 @@
+sprintf(debugMessage, "Main form handling input, key: %d", key)

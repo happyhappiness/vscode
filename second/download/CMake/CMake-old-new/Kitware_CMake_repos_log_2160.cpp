@@ -1,0 +1,1 @@
+fprintf(fout, "0};\n")

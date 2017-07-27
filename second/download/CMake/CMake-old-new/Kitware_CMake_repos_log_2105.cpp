@@ -1,0 +1,1 @@
+std::printf("%p\n", static_cast<double (*)(double)>(&std::sin))

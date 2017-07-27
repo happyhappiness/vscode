@@ -1,0 +1,1 @@
+fprintf(stderr, "%02.2x", (unsigned int)*p++);

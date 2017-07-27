@@ -1,0 +1,1 @@
+fprintf(stderr, "TARGET_PATH_DEF not defined in CXX\n")

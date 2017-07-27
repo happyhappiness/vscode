@@ -1,0 +1,1 @@
+len = snprintf(ptr, left, " libpsl/%s", psl_get_version());

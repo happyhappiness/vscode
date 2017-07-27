@@ -1,0 +1,1 @@
+sprintf(fpath, "%s/%s", nexec, file)

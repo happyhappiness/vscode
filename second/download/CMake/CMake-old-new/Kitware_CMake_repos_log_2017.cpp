@@ -1,0 +1,1 @@
+int curl_mfprintf(FILE *fd, const char *format, ...);

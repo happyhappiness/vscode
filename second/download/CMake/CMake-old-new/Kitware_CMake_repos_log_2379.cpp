@@ -1,0 +1,1 @@
+fprintf(stderr, "RELEASE and DEBUG definitions inconsistent in CXX\n")

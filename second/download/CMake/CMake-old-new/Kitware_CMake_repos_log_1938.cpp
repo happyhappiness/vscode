@@ -1,0 +1,1 @@
+fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");

@@ -1,0 +1,1 @@
+printf("%s: This test intentionally fails\n", argv[0]);

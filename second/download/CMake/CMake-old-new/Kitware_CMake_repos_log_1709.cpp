@@ -1,0 +1,1 @@
+h = aprintf("%s:%s", name, value);

@@ -1,0 +1,1 @@
+input = aprintf("TT %s\n", conn->challenge_header);

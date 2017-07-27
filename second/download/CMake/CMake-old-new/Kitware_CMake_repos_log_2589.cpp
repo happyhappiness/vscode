@@ -1,0 +1,1 @@
+sprintf(pHashPrint, "%02X", hashData[i])

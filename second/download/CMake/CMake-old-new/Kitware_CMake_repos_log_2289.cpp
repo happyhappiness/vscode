@@ -1,0 +1,1 @@
+Foo() { printf("This one has nonstandard extension\n"); }

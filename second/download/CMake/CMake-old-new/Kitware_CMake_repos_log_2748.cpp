@@ -1,0 +1,1 @@
+fprintf(stderr, "Output after crash on stderr from crash test.\n");

@@ -1,0 +1,1 @@
+fprintf(stderr, "Checking prefix [%s]\n", prefix_in.c_str())

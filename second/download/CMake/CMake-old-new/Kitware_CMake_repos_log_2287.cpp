@@ -1,0 +1,1 @@
+fprintf(stderr, "Something wrong with T7\n");

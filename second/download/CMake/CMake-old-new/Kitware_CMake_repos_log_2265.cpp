@@ -1,0 +1,1 @@
+printf("got 0x%04X\n", uc)

@@ -1,0 +1,1 @@
+printf("RegularExpression::compile(): Out of memory.\n")

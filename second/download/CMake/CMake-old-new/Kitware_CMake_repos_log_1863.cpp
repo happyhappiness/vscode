@@ -1,0 +1,1 @@
+taggedfmt = aprintf("%s %s", imapc->resptag, fmt);

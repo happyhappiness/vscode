@@ -1,0 +1,1 @@
+snprintf(service, sizeof(service), "%d", tsd->port);

@@ -1,0 +1,1 @@
+fprintf(stderr, "num_prompts=%d\n", num_prompts);

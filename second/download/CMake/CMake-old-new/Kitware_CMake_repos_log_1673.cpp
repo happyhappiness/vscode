@@ -1,0 +1,1 @@
+extern int snprintf(char*, size_t, const char*, ...);

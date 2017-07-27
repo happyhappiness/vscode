@@ -1,0 +1,1 @@
+snprintf(pp, sizeof(pp), "/proc/%lu/psinfo", (unsigned long) getpid());

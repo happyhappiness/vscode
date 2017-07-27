@@ -1,0 +1,1 @@
+sprintf(buffer, "%02x;", (unsigned int)ch)

@@ -1,0 +1,1 @@
+printf("%s: decoding bad  ", passed ? "pass" : "FAIL")

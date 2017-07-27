@@ -1,0 +1,1 @@
+printf("#define A_VALUE %d\n", A())

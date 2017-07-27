@@ -1,0 +1,1 @@
+tmpLine = aprintf("%s\n", sshc->readdir_filename);

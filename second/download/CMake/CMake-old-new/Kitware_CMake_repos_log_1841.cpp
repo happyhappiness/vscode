@@ -1,0 +1,1 @@
+len = snprintf(ptr, left, " c-ares/%s", ares_version(NULL));

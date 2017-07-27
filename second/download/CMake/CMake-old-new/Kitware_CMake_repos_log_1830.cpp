@@ -1,0 +1,1 @@
+void Curl_failf(struct Curl_easy *, const char *fmt, ...);

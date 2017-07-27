@@ -1,0 +1,1 @@
+fprintf(stderr, "  item %d [%s]\n", i, this->EntryList[i].Item.c_str())

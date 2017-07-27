@@ -1,0 +1,1 @@
+printf("Process executable path: %s\n", nexec)

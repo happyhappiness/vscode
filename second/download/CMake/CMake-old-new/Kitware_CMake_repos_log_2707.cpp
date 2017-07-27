@@ -1,0 +1,1 @@
+sprintf(fname, "/proc/%d/stat", pid);

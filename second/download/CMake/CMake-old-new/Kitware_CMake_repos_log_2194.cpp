@@ -1,0 +1,1 @@
+printf("%s\n", regen_string)

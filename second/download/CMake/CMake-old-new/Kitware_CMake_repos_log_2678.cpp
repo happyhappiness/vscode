@@ -1,0 +1,1 @@
+sprintf(updateVar, "CTEST_EXTRA_UPDATES_%i", i)

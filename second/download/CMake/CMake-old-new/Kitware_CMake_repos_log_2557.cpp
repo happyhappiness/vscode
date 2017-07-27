@@ -1,0 +1,1 @@
+fprintf(fout, "%s\n", (*d)->FullPath.c_str())

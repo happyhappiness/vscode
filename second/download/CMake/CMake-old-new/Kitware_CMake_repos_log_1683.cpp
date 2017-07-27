@@ -1,0 +1,1 @@
+sprintf(cmd, "/aha/fs/modFile.monFactory");

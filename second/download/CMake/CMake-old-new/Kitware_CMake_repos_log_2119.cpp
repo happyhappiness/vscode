@@ -1,0 +1,1 @@
+printf("The value of Foo: %s\n", foo)

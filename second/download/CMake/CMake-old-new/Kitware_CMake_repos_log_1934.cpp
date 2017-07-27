@@ -1,0 +1,1 @@
+fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");

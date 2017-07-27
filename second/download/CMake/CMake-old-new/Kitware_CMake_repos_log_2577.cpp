@@ -1,0 +1,1 @@
+fprintf(stderr, "Checking framework prefix [%s]\n", prefix_in.c_str())

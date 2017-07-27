@@ -1,0 +1,1 @@
+fprintf(fp, "int generated() { return gen_redirect(); }\n")

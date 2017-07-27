@@ -1,0 +1,1 @@
+printf("error: [%s]\n", *fname);

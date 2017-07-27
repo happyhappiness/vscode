@@ -1,0 +1,1 @@
+YY_FATAL_ERROR( "input in flex scanner failed" );

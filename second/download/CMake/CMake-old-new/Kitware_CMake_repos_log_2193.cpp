@@ -1,0 +1,1 @@
+printf("FAILED: noregen.h was regenerated!\n")

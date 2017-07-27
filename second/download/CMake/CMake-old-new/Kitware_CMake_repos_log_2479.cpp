@@ -1,0 +1,1 @@
+sprintf(rsp, "objects%u.rsp", i + 1)

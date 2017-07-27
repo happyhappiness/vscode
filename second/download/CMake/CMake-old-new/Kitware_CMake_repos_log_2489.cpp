@@ -1,0 +1,1 @@
+fprintf(file, "\t%s \t DATA\n", i->c_str())

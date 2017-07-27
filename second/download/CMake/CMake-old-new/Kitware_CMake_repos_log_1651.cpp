@@ -1,0 +1,1 @@
+fprintf(stderr,zf,za1,za2,za3)

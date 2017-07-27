@@ -1,0 +1,1 @@
+snprintf(namebuf, sizeof(namebuf), "%s(%s)", type, name);
