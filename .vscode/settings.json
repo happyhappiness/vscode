@@ -6,5 +6,41 @@
         "${env.SPARK_HOME}/python/pyspark"
     ]
 ,
-"files.associations": {"iosfwd":"cpp","fstream":"cpp","string":"cpp","istream":"cpp","array":"cpp","ostream":"cpp","vector":"cpp","cctype":"cpp","clocale":"cpp","cstdarg":"cpp","cstdint":"cpp","cstdio":"cpp","cstdlib":"cpp","ctime":"cpp","cwchar":"cpp","cwctype":"cpp","exception":"cpp","initializer_list":"cpp","new":"cpp","typeinfo":"cpp","__config":"cpp","*.tcc":"cpp","unordered_map":"cpp","unordered_set":"cpp","__hash_table":"cpp","iostream":"cpp","limits":"cpp","cmath":"cpp","regex":"cpp","deque":"cpp"}
+"files.associations": {
+    "iosfwd": "cpp",
+    "fstream": "cpp",
+    "string": "cpp",
+    "istream": "cpp",
+    "array": "cpp",
+    "ostream": "cpp",
+    "vector": "cpp",
+    "cctype": "cpp",
+    "clocale": "cpp",
+    "cstdarg": "cpp",
+    "cstdint": "cpp",
+    "cstdio": "cpp",
+    "cstdlib": "cpp",
+    "ctime": "cpp",
+    "cwchar": "cpp",
+    "cwctype": "cpp",
+    "exception": "cpp",
+    "initializer_list": "cpp",
+    "new": "cpp",
+    "typeinfo": "cpp",
+    "__config": "cpp",
+    "*.tcc": "cpp",
+    "unordered_map": "cpp",
+    "unordered_set": "cpp",
+    "__hash_table": "cpp",
+    "iostream": "cpp",
+    "limits": "cpp",
+    "cmath": "cpp",
+    "regex": "cpp",
+    "deque": "cpp",
+    "compress.c": "cpp",
+    "deflate.c": "cpp",
+    "inflate.c": "cpp",
+    "uncompr.c": "cpp",
+    "zutil.c": "cpp"
+}
 }

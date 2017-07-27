@@ -292,7 +292,7 @@ public class GumTreeApi {
 	{
 		int beginPos = node.getPos();
 		int endPos = node.getEndPos();
-		if(beginPos == -1)
+		if(beginPos < 0 || endPos < 0)
 		{
 			return  "";
 		}
@@ -318,7 +318,7 @@ public class GumTreeApi {
 	{
 //		String filename = isOld ? oldFile : newFile;
 		int characterPos = isStart ? node.getPos() : node.getEndPos();
-		if(characterPos == -1)
+		if(characterPos < 0)
 		{
 			return -1;
 		}
