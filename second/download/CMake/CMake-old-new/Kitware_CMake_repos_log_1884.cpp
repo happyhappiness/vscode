@@ -1,0 +1,1 @@
+snprintf(&md5buffer[i*2], 3, "%02x", (unsigned char) fingerprint[i]);

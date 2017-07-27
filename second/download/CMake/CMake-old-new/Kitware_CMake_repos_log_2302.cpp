@@ -1,0 +1,1 @@
+printf("foo is: %d\n", foo())

@@ -1,0 +1,1 @@
+sprintf(mon_file, "/aha/fs/modDir.monFactory");

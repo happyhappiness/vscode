@@ -1,0 +1,1 @@
+fmt_crlf = aprintf("%s\r\n", fmt);

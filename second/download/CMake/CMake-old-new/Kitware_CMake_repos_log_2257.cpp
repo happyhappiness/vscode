@@ -1,0 +1,1 @@
+printf("NP_Initialize()\n")

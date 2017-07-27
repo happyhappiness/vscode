@@ -1,0 +1,1 @@
+char *slot_name = aprintf("PEM Token #%d", slot_id);

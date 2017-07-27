@@ -1,0 +1,1 @@
+sprintf(buf, ".%02x", static_cast<unsigned int>(*i))

@@ -1,0 +1,1 @@
+printf("can't open [%s]\n",fn_r);

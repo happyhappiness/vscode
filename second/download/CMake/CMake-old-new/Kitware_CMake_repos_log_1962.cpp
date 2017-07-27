@@ -1,0 +1,1 @@
+snprintf((char *) &dest[i * 2], 3, "%02x", source[i]);

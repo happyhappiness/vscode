@@ -1,0 +1,1 @@
+fprintf(stdout, "LoadResource worked\n")

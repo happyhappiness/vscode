@@ -1,0 +1,1 @@
+printf("%s is there! Good.", av[1])

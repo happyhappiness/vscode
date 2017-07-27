@@ -1,0 +1,1 @@
+snprintf(option_arg, sizeof(option_arg), "USER,%s", conn->user);

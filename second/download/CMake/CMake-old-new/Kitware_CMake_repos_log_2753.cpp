@@ -1,0 +1,1 @@
+fprintf(stdout, "Output on stdout before sleep.\n");

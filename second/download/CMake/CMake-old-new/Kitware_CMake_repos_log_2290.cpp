@@ -1,0 +1,1 @@
+printf("Count: %d/%d\n", class, private);

@@ -1,0 +1,1 @@
+sprintf(targetNameBuf, "cmTC_%05x", cmSystemTools::RandomSeed() & 0xFFFFF)

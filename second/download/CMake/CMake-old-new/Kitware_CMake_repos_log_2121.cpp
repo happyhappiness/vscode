@@ -1,0 +1,1 @@
+printf("Usage: %s\n", argv[0])

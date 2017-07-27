@@ -1,0 +1,1 @@
+return snprintf(buffer, size, "CyaSSL/%s", "<1.8.8");

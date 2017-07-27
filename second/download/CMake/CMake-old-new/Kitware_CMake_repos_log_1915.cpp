@@ -1,0 +1,1 @@
+utf8_spn = aprintf("%s/%s", service, host);

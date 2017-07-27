@@ -1,0 +1,1 @@
+conn->allocptr.rangeline = aprintf("Range: %s\r\n", data->state.range);

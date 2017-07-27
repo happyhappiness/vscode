@@ -1,0 +1,1 @@
+fprintf(stderr, "Component (%d):\n", c)

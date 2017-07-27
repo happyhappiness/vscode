@@ -1,0 +1,1 @@
+sprintf(debugMessage, "String widget handling input, key: %d", key)

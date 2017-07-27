@@ -1,0 +1,1 @@
+tp += sprintf(tp, "%x", words[i]);

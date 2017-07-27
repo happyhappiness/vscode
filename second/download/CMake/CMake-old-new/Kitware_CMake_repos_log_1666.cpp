@@ -1,0 +1,1 @@
+printf("can't bz2openstream\n");

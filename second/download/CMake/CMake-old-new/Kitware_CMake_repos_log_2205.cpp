@@ -1,0 +1,1 @@
+printf("Hello automoc: %d\n", ff.getValue())

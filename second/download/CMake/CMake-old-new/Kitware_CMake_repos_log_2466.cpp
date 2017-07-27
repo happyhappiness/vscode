@@ -1,0 +1,1 @@
+fprintf(stdout, "SizeofResource returned datasize='%d'\n", datasize)

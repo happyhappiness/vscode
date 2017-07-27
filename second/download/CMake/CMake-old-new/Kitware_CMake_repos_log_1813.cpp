@@ -1,0 +1,1 @@
+DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));

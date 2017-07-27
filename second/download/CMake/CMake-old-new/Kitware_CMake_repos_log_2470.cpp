@@ -1,0 +1,1 @@
+fprintf(stdout, "LoadString worked\n")

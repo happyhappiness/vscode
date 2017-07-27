@@ -1,0 +1,1 @@
+fprintf(stderr, "Couldn't open definition file '%s'\n", filename)

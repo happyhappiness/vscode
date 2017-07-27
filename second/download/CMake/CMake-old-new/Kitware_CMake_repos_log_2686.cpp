@@ -1,0 +1,1 @@
+printf("RegularExpression::compile(): Expression too big.\n")

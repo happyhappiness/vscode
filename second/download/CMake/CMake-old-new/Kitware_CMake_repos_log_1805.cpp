@@ -1,0 +1,1 @@
+snprintf(outbuf, outmax, "%s - %s", str, msg);

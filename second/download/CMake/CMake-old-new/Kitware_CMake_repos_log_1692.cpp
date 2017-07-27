@@ -1,0 +1,1 @@
+snprintf(path, sizeof(path), "/proc/self/fd/%d", (int) req->file);

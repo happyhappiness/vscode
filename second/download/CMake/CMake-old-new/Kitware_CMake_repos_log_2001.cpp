@@ -1,0 +1,1 @@
+BIO_printf(mem, "%02x:", psig->data[j]);

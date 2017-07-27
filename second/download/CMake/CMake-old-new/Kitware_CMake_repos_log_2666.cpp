@@ -1,0 +1,1 @@
+sprintf(buf,"%.*ld",(prec>0?prec:0),val);

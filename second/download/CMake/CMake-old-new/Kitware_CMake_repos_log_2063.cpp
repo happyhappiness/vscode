@@ -1,0 +1,1 @@
+len = _snprintf(buffer, sizeof(buffer), "%.16g", value)

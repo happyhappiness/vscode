@@ -1,0 +1,1 @@
+#define YY_FATAL_ERROR(msg) yy_fatal_error( msg , yyscanner)

@@ -1,0 +1,1 @@
+ringp = aprintf("%s@%s", service, host);

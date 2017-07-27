@@ -1,0 +1,1 @@
+snprintf(&secret[2 * i], 3, "%02x", digest[i]);

@@ -1,0 +1,1 @@
+# define __request(msg)       Printf(msg "\n\a")

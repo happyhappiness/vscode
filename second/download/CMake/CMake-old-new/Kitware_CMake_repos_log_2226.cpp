@@ -1,0 +1,1 @@
+printf("Process executable name: %s\n", exec)

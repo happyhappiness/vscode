@@ -1,0 +1,1 @@
+sprintf(tmp, "%lu", (unsigned long)archive_entry_gid(entry))

@@ -1,0 +1,1 @@
+snprintf(&ns[strindex], 4, "%%%02X", in);

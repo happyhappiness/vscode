@@ -1,0 +1,1 @@
+fprintf(stdout, "CTEST_FULL_OUTPUT (Avoid ctest truncation of output)\n")

@@ -1,0 +1,1 @@
+printf("RegularExpression::compile(): Trailing backslash.\n")

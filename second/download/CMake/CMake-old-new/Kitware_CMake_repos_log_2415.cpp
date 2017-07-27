@@ -1,0 +1,1 @@
+fprintf(file, "%s", "x");

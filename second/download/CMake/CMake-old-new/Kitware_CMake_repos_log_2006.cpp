@@ -1,0 +1,1 @@
+config_string = aprintf("library=%s name=%s", library, name);

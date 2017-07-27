@@ -1,0 +1,1 @@
+sshc->rsa = aprintf("%s/.ssh/id_dsa", home);

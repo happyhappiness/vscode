@@ -1,0 +1,1 @@
+sprintf(hex, "%.2x", c & 0xff)

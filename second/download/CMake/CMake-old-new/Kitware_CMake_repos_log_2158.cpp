@@ -1,0 +1,1 @@
+fprintf(fout, "double sqrtTable[] = {\n")

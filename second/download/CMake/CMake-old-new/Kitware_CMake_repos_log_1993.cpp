@@ -1,0 +1,1 @@
+snprintf(unknown, sizeof(unknown), "(%x)", ssl_ver);

@@ -1,0 +1,1 @@
+snprintf(buf, max, "Unknown error %d", err);

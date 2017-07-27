@@ -1,0 +1,1 @@
+sprintf(buffer, "%d", static_cast<int>(length))

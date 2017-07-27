@@ -1,0 +1,1 @@
+BIO_printf(mem, "%lx", X509_get_version(x));

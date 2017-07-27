@@ -1,0 +1,1 @@
+fprintf(stdout, "CMAKE_RCDEFINE defined\n")

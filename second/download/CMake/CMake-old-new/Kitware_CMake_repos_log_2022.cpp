@@ -1,0 +1,1 @@
+int curl_mvsprintf(char *buffer, const char *format, va_list args);

@@ -1,0 +1,1 @@
+_snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column)

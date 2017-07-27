@@ -1,0 +1,1 @@
+fprintf(stderr, "FILE_DEF_RELEASE should be defined in CXX\n")

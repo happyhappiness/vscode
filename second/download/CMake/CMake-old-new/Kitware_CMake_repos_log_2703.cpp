@@ -1,0 +1,1 @@
+printf("cm RegularExpression::find(): Internal error.\n")

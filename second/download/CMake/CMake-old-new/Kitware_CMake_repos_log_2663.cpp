@@ -1,0 +1,1 @@
+r(const char* message, const char* /*unused*/)

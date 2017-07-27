@@ -1,0 +1,1 @@
+fprintf(stderr, "Checking file [%s]\n", file.c_str())

@@ -1,0 +1,1 @@
+fprintf(stderr, "static regex [%s]\n", reg_static.c_str())

@@ -1,0 +1,1 @@
+tp += snprintf(tp, 5, "%lx", words[i]);

@@ -1,0 +1,1 @@
+fprintf(fout, "static const char* %s_string = \"%s\";\n", argv[2], foo())

@@ -1,0 +1,1 @@
+snprintf(optr, 4, "%%%02x", *iptr);

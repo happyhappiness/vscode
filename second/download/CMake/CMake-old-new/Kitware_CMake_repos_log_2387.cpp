@@ -1,0 +1,1 @@
+printf("All preprocessor definitions are correct.\n")

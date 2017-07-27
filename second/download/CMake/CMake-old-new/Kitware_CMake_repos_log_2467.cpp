@@ -1,0 +1,1 @@
+fprintf(stdout, "LockResource worked\n")

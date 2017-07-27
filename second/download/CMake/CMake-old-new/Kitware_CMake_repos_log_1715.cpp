@@ -1,0 +1,1 @@
+aprintf("Accept-Encoding: %s\r\n", data->set.str[STRING_ENCODING])

@@ -1,0 +1,1 @@
+fprintf(fp, "int wrapped_help() { return 5; }\n")

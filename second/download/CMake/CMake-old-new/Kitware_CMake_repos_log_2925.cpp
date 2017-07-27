@@ -1,0 +1,1 @@
+YY_FATAL_ERROR( "bad buffer in cmFortran_yy_scan_bytes()" )

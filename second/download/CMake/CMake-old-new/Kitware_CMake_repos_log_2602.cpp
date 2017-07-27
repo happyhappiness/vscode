@@ -1,0 +1,1 @@
+fprintf(out, " -> %s", archive_entry_symlink(entry))

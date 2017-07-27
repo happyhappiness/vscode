@@ -1,0 +1,1 @@
+fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n")

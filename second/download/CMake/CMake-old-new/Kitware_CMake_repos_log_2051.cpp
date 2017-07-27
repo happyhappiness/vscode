@@ -1,0 +1,1 @@
+return addError("Empty escape sequence in string", token, current);

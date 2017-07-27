@@ -1,0 +1,1 @@
+fprintf(out, "%*s", (int)(gs_width - w), tmp)

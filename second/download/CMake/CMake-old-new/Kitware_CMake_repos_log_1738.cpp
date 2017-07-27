@@ -1,0 +1,1 @@
+conn->response_header = aprintf("NTLM %.*s", len_out - 4, buf + 3);

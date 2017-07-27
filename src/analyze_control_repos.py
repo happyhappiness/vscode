@@ -53,7 +53,7 @@ def deal_file( filename, log_function, writer, gumtree, total_log):
 @ return nothing 
 @ involve fetch and analyze each hunk
 """
-def fetch_file():
+def fetch_file(isFromBegin, start_file, start_log):
 
     # read file from directory
     filenames = []
@@ -62,22 +62,38 @@ def fetch_file():
             # deal with cpp file
             is_cpp = re.search(my_constant.FILE_FORMAT, filename, re.I)
             if is_cpp:
-                filenames.append(os.path.join(item[0], filename))
+                is_unsupport = re.search(my_constant.UNSPORT_FILE_FORMAT, filename, re.I)
+                filename = os.path.join(item[0], filename)
+                # transform format to be supported
+                if is_unsupport:
+                    new_filename = filename.replace(is_unsupport.group(), '.cpp')
+                    os.rename(filename, new_filename)
+                    filenames.append(new_filename)
+                else:
+                    filenames.append(filename)   
 
-    repos_file = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'wb')
-    repos_writer = csv.writer(repos_file)
-    repos_writer.writerow(my_constant.ANALYZE_REPOS_TITLE)
-    total_log = 0
-    total_file = 0
+
+    # support continue from given location
+    if isFromBegin:
+        repos_file = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'wb')
+        repos_writer = csv.writer(repos_file)
+        repos_writer.writerow(my_constant.ANALYZE_REPOS_TITLE)
+        total_file = 0
+        total_log = 0
+    else:
+        repos_file = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'ab')
+        repos_writer = csv.writer(repos_file)
+        total_file = start_file
+        total_log = start_log
     # analyze each file to record repos log info
     log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
     log_function = myUtil.functionToRegrexStr(log_functions)
     gumtree = Gumtree()
-    for filename in filenames:
+    for filename in filenames[total_file:]:
         total_file += 1
         total_log = deal_file(filename, log_function, repos_writer, gumtree, total_log)
-        if total_file % 10 == 0:
-            print 'have dealed with %d file, have dealed with %d log' %(total_file, total_log)
+        # if total_file % 10 == 0:
+        print 'have dealed with %d file, have dealed with %d log' %(total_file, total_log)
 
     # close file
     repos_file.close()
@@ -87,7 +103,22 @@ def fetch_file():
 main function
 """
 if __name__ == "__main__":
-    fetch_file()
+    fetch_file(True,742, 2040)
+
+    # filenames = []
+    # for item in os.walk('User'):
+    #     for filename in item[2]:
+    #         # deal with cpp file
+    #         is_cpp = re.search(my_constant.FILE_FORMAT, filename, re.I)
+    #         if is_cpp:
+    #             is_unsupport = re.search(my_constant.UNSPORT_FILE_FORMAT, filename, re.I)
+    #             if is_unsupport:
+    #                 filename = os.path.join(item[0], filename)
+    #                 new_filename = filename.replace(is_unsupport.group(), '.cpp')
+    #                 os.rename(filename, new_filename)
+    #                 print new_filename
+    #                 filenames.append(new_filename)
+
 
 
     

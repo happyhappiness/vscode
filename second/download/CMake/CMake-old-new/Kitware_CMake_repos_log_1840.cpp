@@ -1,0 +1,1 @@
+len = snprintf(ptr, left, " zlib/%s", zlibVersion());

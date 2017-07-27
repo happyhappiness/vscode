@@ -1,0 +1,1 @@
+cmsysTerminal_cfprintf(color | assumeTTY, stdout, "%s", message)

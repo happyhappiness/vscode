@@ -1,0 +1,1 @@
+printf("RegularExpression::compile() : *+ operand could be empty.\n")

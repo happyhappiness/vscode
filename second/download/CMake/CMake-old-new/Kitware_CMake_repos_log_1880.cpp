@@ -1,0 +1,1 @@
+fprintf(stderr, "name_len=%d\n", name_len);
