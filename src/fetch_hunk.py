@@ -157,7 +157,7 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, write
             if is_ok:
                 # increment the total file count
                 total_cpp = total_cpp + 1
-         
+
                 # old/new_store_name
                 old_store_name = my_constant.DOWNLOAD_OLD_FILE + str(total_log_cpp) + '.cpp'
                 new_store_name = my_constant.DOWNLOAD_NEW_FILE + str(total_log_cpp) + '.cpp'
@@ -204,22 +204,25 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, write
 @ return nothing 
 @ involve fetch and analyze each commit and save hunk that has log
 """
-def fetch_commit(commit_sha=''):
+def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, start_log_cpp=0, start_hunk=0):
 
     # initiate Github with given user and repos
     gh = Github(login='993273596@qq.com', password='nx153156', user=my_constant.USER, repo=my_constant.REPOS)
 
     # initiate csvfile which store the commit info
-    hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
+    if isFromStart:
+        hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
+    else:
+        hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'ab')
     hunk_writer = csv.writer(hunk_file)
     hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
-    total_file = 0
-    total_cpp = 0
-    total_log_cpp = 0
-    total_hunk = 0
+    total_file = start_file
+    total_cpp = start_cpp
+    total_log_cpp = start_log_cpp
+    total_hunk = start_hunk
     for commit in commits.iterator():
         # call deal_commit function to deal with each commit
         total_hunk, total_log_cpp, total_cpp, total_file = deal_commit \
@@ -241,9 +244,9 @@ if __name__ == "__main__":
     # user = 'torvalds'
     # repos = 'linux'
 
-    commit_sha = ''
+    sha = ''
     # with function to retieve all the commits of given path
-    fetch_commit(commit_sha)
+    fetch_commit(True, sha)
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)

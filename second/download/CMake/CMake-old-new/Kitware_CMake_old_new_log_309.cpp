@@ -1,0 +1,1 @@
+vsnprintf(s, sizeof(s), fmt, ap)
