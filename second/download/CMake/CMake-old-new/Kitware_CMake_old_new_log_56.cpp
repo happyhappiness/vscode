@@ -1,0 +1,1 @@
+return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);

@@ -11,6 +11,7 @@ import java.util.Set;
 import com.github.gumtreediff.actions.ActionGenerator;
 import com.github.gumtreediff.actions.model.Action;
 import com.github.gumtreediff.actions.model.Addition;
+import com.github.gumtreediff.actions.model.Insert;
 import com.github.gumtreediff.actions.model.Update;
 import com.github.gumtreediff.client.Run;
 import com.github.gumtreediff.gen.Generators;
@@ -38,6 +39,7 @@ public class GumTreeApi {
 	final int LOG_OVER_MODIFY = -1;
 	final int LOG_NO_MODIFY = 0;
 	final int LOG_MODIFY = 1;
+	final String COMMENT_TYPE = "comment";
 	// application specific info for analyze file
 	private int loc;
 	private ITree tree;
@@ -88,11 +90,16 @@ public class GumTreeApi {
 		// g.setOldAndNewFile(oldFile, newFile);
 		// g.setOldLoc(15);
 		// System.out.println(g.getNewLog());
-		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Source/cmTryRunCommand.cxx";
+		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_265.cpp";
 		GumTreeApi g = new GumTreeApi();
 		g.setFile(filename);
-		g.setLoc(196);
+		g.setLoc(12);
 		System.out.println(g.getLog());
+//		GumTreeApi g = new GumTreeApi();
+//		g.setOldAndNewFile();
+//		g.addLogNode(5);
+//		g.setOldLoc(5);
+//		System.out.println(g.getActionType());
 	}
 
 	public boolean setOldLoc(int oldLoc) {
@@ -103,10 +110,13 @@ public class GumTreeApi {
 			System.out.printf("line: %d in file: %s no node found\n", this.oldLoc, this.oldFile);
 			return false;
 		}
-		// else
-		// {
-		// printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
-		// }
+		else if(this.oldTreeContext.getTypeLabel(this.oldLogNode).equals(COMMENT_TYPE))
+		{
+			System.out.printf("line: %d in file: %s found to be comment\n", this.oldLoc, this.oldFile);
+			return false;
+		}
+		
+//		printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
 		this.newLogNode = mappings.getDst(this.oldLogNode);
 		return true;
 	}
@@ -149,14 +159,16 @@ public class GumTreeApi {
 		boolean isLogModify = true;
 		while (actionIter.hasNext()) {
 			action = actionIter.next();
-			changeType = action.getName();
-			// do not deal with insert
-			if (changeType.equals("INS")) {
-				return LOG_OVER_MODIFY;
+			// do not deal with comment modification
+			if(this.isActionOfComment(action))
+			{
+				continue;
 			}
+			changeType = action.getName();
 			// judge if leaf edition is edition of logs
-			tempNode = action.getNode();
+			tempNode = changeType.equals("INS") ? ((Insert)action).getParent() : action.getNode();
 			if (tempNode.isLeaf()) {
+//				printNode(tempNode, this.oldTreeContext, this.oldFile);
 				isLogModify = false;
 				// traverse all log nodes
 				Iterator<ITree> logIter = this.oldLogs.iterator();
@@ -214,13 +226,29 @@ public class GumTreeApi {
 		Action action;
 		while (actionIter.hasNext()) {
 			action = actionIter.next();
-			if (!action.getName().equals("UPD")) {
+			if (!isActionOfComment(action) && !action.getName().equals("UPD")) {
 				return false;
 			}
 		}
 		return true;
 	}
 
+	// judge whether an action is about comment
+	private boolean isActionOfComment(Action action)
+	{
+		boolean isComment;
+		ITree operatedNode = action.getNode();
+		switch(action.getName())
+		{
+		case "INS":
+			isComment = this.newTreeContext.getTypeLabel(operatedNode).equals(COMMENT_TYPE);
+			break;
+		default:
+			isComment = this.oldTreeContext.getTypeLabel(operatedNode).equals(COMMENT_TYPE);
+			break;
+		}
+		return isComment;
+	}
 	// one line to src node
 	private ITree getTopNodeOfLine(int line, ITree rootNode, String filename) {
 		// ITree topNode = isOld ? oldTree : newTree;
@@ -384,5 +412,15 @@ public class GumTreeApi {
 	 * return String.valueOf(value).trim(); } catch (IOException e) {
 	 * e.printStackTrace(); return ""; } }
 	 */
+	
+//	if(action.getName().equals("INS"))
+//	{
+//		printNode(action.getNode(), this.newTreeContext, this.newFile);
+//		printNode(((Insert)action).getParent(), this.oldTreeContext, this.oldFile);
+//	}
+//	else
+//	{
+//		printNode(action.getNode(), this.oldTreeContext, this.oldFile);
+//	}
 
 }

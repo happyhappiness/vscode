@@ -1,0 +1,1 @@
+printf("Child was killed by parent.\n")

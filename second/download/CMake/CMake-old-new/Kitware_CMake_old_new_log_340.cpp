@@ -1,0 +1,1 @@
+fprintf(stdout, "Output before crash on stdout from crash test.\n")

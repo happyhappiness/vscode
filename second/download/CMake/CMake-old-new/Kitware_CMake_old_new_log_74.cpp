@@ -1,0 +1,1 @@
+fprintf(stderr, "Couldn't map view of file with MapViewOfFile()\n")

@@ -1,0 +1,1 @@
+return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);

@@ -84,13 +84,9 @@ CLUSTER_REPOS_TITLE = ['identity', 'file', 'location', 'condition_feature',\
 """
 analyze clone title
 """
-ANALYZE_CLONE_TITLE = ['identity', 'old_block_file', 'old_block_location',\
-        'old_block_condition_feature', 'old_block_statement_feature', 'old_block_vector',\
-        'new_block_file', 'new_block_location', \
-        'new_block_condition_feature', 'new_block_statement_feature', 'new_block_vector', \
-        'commit_sha', 'issue_address', 'commit_message', 'file_name', 'log_info', \
-        \
-        'identity', 'file', 'location', 'condition_feature', 'statement_feature', 'vector']
+ANALYZE_CLONE_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'log_file'\
+ 'file', 'loc', 'log', 'log_file']
 
 """
 flag type && log type

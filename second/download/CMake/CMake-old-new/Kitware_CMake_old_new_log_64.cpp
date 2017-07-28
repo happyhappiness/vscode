@@ -1,0 +1,1 @@
+f(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd)
