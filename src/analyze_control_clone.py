@@ -53,6 +53,8 @@ def seek_clone():
         clone_count = 0
         # traverse repos to find similar contexts
         for repos_log in repos_logs:
+            print "now analyze the no.%d old new log; %d repos log"\
+                 %(index_old_new, index_repos)
             if gumtree.is_match(old_new_log, repos_log):
                 clone_writer.writerow(old_new_record_info[index_old_new] + repos_record_info[index_repos])
                 clone_count += 1
