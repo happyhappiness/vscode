@@ -1642,7 +1642,7 @@ void kwsysTerminal_cfprintf(int color, FILE* stream, const char* format, ...)
 void kwsysTerminal_cfprintf(int color, FILE* stream, const char* format, ...)
 {
   /* Setup the stream with the given color if possible.  */
-",47,44,51,47,"f(int color, FILE* stream, const char* format, ...)","f(int color, FILE* stream, const char* format, ...)",1
+",47,44,51,47,"f(int color, FILE* stream, const char* format, ...)","f(int color, FILE* stream, const char* format, ...)",0
 7be70ca6cc888df532d2f1560e74d13642730ee5,"KWSys 2017-05-16 (fe1f22ce)
 
 Code extracted from:
@@ -1759,7 +1759,7 @@ void kwsysTerminal_cfprintf(int color, FILE* stream, const char* format, ...)
 void kwsysTerminal_cfprintf(int color, FILE* stream, const char* format, ...)
 {
   /* Setup the stream with the given color if possible.  */
-",47,44,51,47,"f(int color, FILE* stream, const char* format, ...)","f(int color, FILE* stream, const char* format, ...)",1
+",47,44,51,47,"f(int color, FILE* stream, const char* format, ...)","f(int color, FILE* stream, const char* format, ...)",0
 299975908ada992800791fac7f3739050e0ae2a9,"Merge branch 'upstream-curl' into update-curl
 
 * upstream-curl:
@@ -2617,7 +2617,7 @@ bool DumpFile(const char* filename, std::set<std::string>& symbols,
 }
 
 bool bindexplib::AddObjectFile(const char* filename)
-",339,342,367,369,"fprintf(stderr, ""Couldn't open file '%s' with CreateFile()\n"", filename)","fprintf(stderr, ""Couldn't open file '%s' with CreateFile()\n"", filename)",1
+",339,342,367,369,"fprintf(stderr, ""Couldn't open file '%s' with CreateFile()\n"", filename)","fprintf(stderr, ""Couldn't open file '%s' with CreateFile()\n"", filename)",0
 7a8860afbc614f2215e083adadb25963fe8f4dfe,bindexplib: clang-format,[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/Kitware_CMake_old_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_69.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_69.cpp,"      pSymbolTable++;
     }
   }
@@ -2791,7 +2791,7 @@ bool DumpFile(const char* filename, std::set<std::string>& symbols,
 }
 
 bool bindexplib::AddObjectFile(const char* filename)
-",339,342,374,376,"fprintf(stderr, ""Couldn't open file mapping with CreateFileMapping()\n"")","fprintf(stderr, ""Couldn't open file mapping with CreateFileMapping()\n"")",1
+",339,342,374,376,"fprintf(stderr, ""Couldn't open file mapping with CreateFileMapping()\n"")","fprintf(stderr, ""Couldn't open file mapping with CreateFileMapping()\n"")",0
 7a8860afbc614f2215e083adadb25963fe8f4dfe,bindexplib: clang-format,[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/Kitware_CMake_old_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_69.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_69.cpp,"      pSymbolTable++;
     }
   }
@@ -2965,7 +2965,7 @@ bool DumpFile(const char* filename, std::set<std::string>& symbols,
 }
 
 bool bindexplib::AddObjectFile(const char* filename)
-",339,342,382,384,"fprintf(stderr, ""Couldn't map view of file with MapViewOfFile()\n"")","fprintf(stderr, ""Couldn't map view of file with MapViewOfFile()\n"")",1
+",339,342,382,384,"fprintf(stderr, ""Couldn't map view of file with MapViewOfFile()\n"")","fprintf(stderr, ""Couldn't map view of file with MapViewOfFile()\n"")",0
 7a8860afbc614f2215e083adadb25963fe8f4dfe,bindexplib: clang-format,[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/Kitware_CMake_old_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_69.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_69.cpp,"      pSymbolTable++;
     }
   }
@@ -3139,7 +3139,7 @@ bool DumpFile(const char* filename, std::set<std::string>& symbols,
 }
 
 bool bindexplib::AddObjectFile(const char* filename)
-",339,342,388,390,"fprintf(stderr, ""File is an executable.  I don't dump those.\n"")","fprintf(stderr, ""File is an executable.  I don't dump those.\n"")",1
+",339,342,388,390,"fprintf(stderr, ""File is an executable.  I don't dump those.\n"")","fprintf(stderr, ""File is an executable.  I don't dump those.\n"")",0
 7a8860afbc614f2215e083adadb25963fe8f4dfe,bindexplib: clang-format,[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/Kitware_CMake_old_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_file_48.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_69.cpp,second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_69.cpp,"      pSymbolTable++;
     }
   }
@@ -3313,7 +3313,7 @@ bool DumpFile(const char* filename, std::set<std::string>& symbols,
 }
 
 bool bindexplib::AddObjectFile(const char* filename)
-",339,342,417,415,"printf(""unrecognized file format in '%s'\n"", filename)","printf(""unrecognized file format in '%s'\n"", filename)",1
+",339,342,417,415,"printf(""unrecognized file format in '%s'\n"", filename)","printf(""unrecognized file format in '%s'\n"", filename)",0
 62d0e22325d36e5f9d61ccfbef0d68cfe1935f1b,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
@@ -3816,7 +3816,7 @@ a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' int
 		 * for pathconf() function. */
 		t->current_filesystem->xfer_align = sfs.f_frsize;
 		t->current_filesystem->max_xfer_size = -1;
-",1643,1656,1643,1656,"archive_set_error(&a->archive, errno, ""statvfs failed"");","archive_set_error(&a->archive, errno, ""statvfs failed"");",1
+",1643,1656,1643,1656,"archive_set_error(&a->archive, errno, ""statvfs failed"");","archive_set_error(&a->archive, errno, ""statvfs failed"");",0
 a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
@@ -3960,7 +3960,7 @@ a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' int
 		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"");
 ",595,595,600,600,"archive_set_error(&(self->archive->archive),
 		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"")","archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"")",1
+		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"")",0
 a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
@@ -6945,7 +6945,7 @@ a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' int
 		break;
 	default:
 		archive_set_error(&a->archive,
-",1500,1548,1506,1554,"archive_set_error(&a->archive,","archive_set_error(&a->archive,",1
+",1500,1548,1506,1554,"archive_set_error(&a->archive,","archive_set_error(&a->archive,",0
 a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
@@ -6965,7 +6965,7 @@ a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' int
 	return (ARCHIVE_FAILED);
 ",1609,1657,1613,1661,"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
 	    ""Encrypted file is unsupported"")","archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    ""Encrypted file is unsupported"")",1
+	    ""Encrypted file is unsupported"")",0
 a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
@@ -7005,7 +7005,7 @@ a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' int
 			return (ARCHIVE_FATAL);
 ",1402,1437,1406,1441,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 			    ""Seek failed"")","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    ""Seek failed"")",1
+			    ""Seek failed"")",0
 a59a7ee95601f3496ec9ba9ae1283a8d980460bf,"Merge branch 'upstream-LibArchive' into update-libarchive
 
 * upstream-LibArchive:
@@ -9382,7 +9382,7 @@ at commit 100ee75a01f1f785fc681f616db49a33405f8bf3 (v3.3.0).",[],libarchive/arch
 		 * for pathconf() function. */
 		t->current_filesystem->xfer_align = sfs.f_frsize;
 		t->current_filesystem->max_xfer_size = -1;
-",1643,1656,1643,1656,"archive_set_error(&a->archive, errno, ""statvfs failed"");","archive_set_error(&a->archive, errno, ""statvfs failed"");",1
+",1643,1656,1643,1656,"archive_set_error(&a->archive, errno, ""statvfs failed"");","archive_set_error(&a->archive, errno, ""statvfs failed"");",0
 c206211af647dd1f7039da91c34c9c72e50aefdf,"LibArchive 2017-02-19 (100ee75a)
 
 Code extracted from:
@@ -9547,7 +9547,7 @@ at commit 100ee75a01f1f785fc681f616db49a33405f8bf3 (v3.3.0).",[],libarchive/arch
 		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"");
 ",595,595,600,600,"archive_set_error(&(self->archive->archive),
 		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"")","archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"")",1
+		    ARCHIVE_ERRNO_MISC, ""lz4 decompression failed"")",0
 c206211af647dd1f7039da91c34c9c72e50aefdf,"LibArchive 2017-02-19 (100ee75a)
 
 Code extracted from:
@@ -12676,7 +12676,7 @@ at commit 100ee75a01f1f785fc681f616db49a33405f8bf3 (v3.3.0).",[],libarchive/arch
 		break;
 	default:
 		archive_set_error(&a->archive,
-",1500,1548,1506,1554,"archive_set_error(&a->archive,","archive_set_error(&a->archive,",1
+",1500,1548,1506,1554,"archive_set_error(&a->archive,","archive_set_error(&a->archive,",0
 c206211af647dd1f7039da91c34c9c72e50aefdf,"LibArchive 2017-02-19 (100ee75a)
 
 Code extracted from:
@@ -12699,7 +12699,7 @@ at commit 100ee75a01f1f785fc681f616db49a33405f8bf3 (v3.3.0).",[],libarchive/arch
 	return (ARCHIVE_FAILED);
 ",1609,1657,1613,1661,"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
 	    ""Encrypted file is unsupported"")","archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    ""Encrypted file is unsupported"")",1
+	    ""Encrypted file is unsupported"")",0
 c206211af647dd1f7039da91c34c9c72e50aefdf,"LibArchive 2017-02-19 (100ee75a)
 
 Code extracted from:
@@ -12745,7 +12745,7 @@ at commit 100ee75a01f1f785fc681f616db49a33405f8bf3 (v3.3.0).",[],libarchive/arch
 			return (ARCHIVE_FATAL);
 ",1402,1437,1406,1441,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 			    ""Seek failed"")","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    ""Seek failed"")",1
+			    ""Seek failed"")",0
 c206211af647dd1f7039da91c34c9c72e50aefdf,"LibArchive 2017-02-19 (100ee75a)
 
 Code extracted from:

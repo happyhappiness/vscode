@@ -82,24 +82,24 @@ public class GumTreeApi {
 
 	public static void main(String args[]) {
 		// System.out.println("hello I am gumtree api");
-		// String oldFile =
-		// "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_11.cpp";
-		// String newFile =
-		// "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_11.cpp";
-		// GumTreeApi g = new GumTreeApi();
-		// g.setOldAndNewFile(oldFile, newFile);
-		// g.setOldLoc(15);
-		// System.out.println(g.getNewLog());
-		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_265.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setFile(filename);
-		g.setLoc(12);
-		System.out.println(g.getLog());
+		 String oldFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_83.cpp";
+		 String newFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_83.cpp";
+		 GumTreeApi g = new GumTreeApi();
+		 g.setOldAndNewFile(oldFile, newFile);
+		 g.setOldLoc(0);
+		 System.out.println(g.getNewLog());
+		 System.out.println(g.getActionType());
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_265.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setFile(filename);
+//		g.setLoc(12);
+//		System.out.println(g.getLog());
 //		GumTreeApi g = new GumTreeApi();
 //		g.setOldAndNewFile();
 //		g.addLogNode(5);
 //		g.setOldLoc(5);
-//		System.out.println(g.getActionType());
 	}
 
 	public boolean setOldLoc(int oldLoc) {
@@ -149,9 +149,7 @@ public class GumTreeApi {
 
 	// one line to action type NO, OVER, ..
 	public int getActionType() {
-		if (actions.size() == 0) {
-			return LOG_NO_MODIFY;
-		}
+		int actionType = LOG_NO_MODIFY;
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
 		String changeType;
@@ -164,6 +162,7 @@ public class GumTreeApi {
 			{
 				continue;
 			}
+			actionType = LOG_MODIFY;
 			changeType = action.getName();
 			// judge if leaf edition is edition of logs
 			tempNode = changeType.equals("INS") ? ((Insert)action).getParent() : action.getNode();
@@ -184,7 +183,7 @@ public class GumTreeApi {
 			}
 		}
 
-		return LOG_MODIFY;
+		return actionType;
 	}
 
 	public void setFile(String filename) {
