@@ -1,0 +1,49 @@
+; ModuleID = '/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/xxhash.c'
+target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+%struct.archive_xxhash = type { i32 (i8*, i32, i32)*, i8* (i32)*, i32 (i8*, i8*, i32)*, i32 (i8*)* }
+
+@__archive_xxhash = constant %struct.archive_xxhash zeroinitializer, align 8
+
+!llvm.dbg.cu = !{!0}
+!llvm.module.flags = !{!34, !35}
+!llvm.ident = !{!36}
+
+!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 3.8.0 (tags/RELEASE_380/final)", isOptimized: false, runtimeVersion: 0, emissionKind: 1, enums: !2, globals: !8)
+!1 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/xxhash.c", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!2 = !{!3}
+!3 = !DICompositeType(tag: DW_TAG_enumeration_type, file: !4, line: 34, size: 32, align: 32, elements: !5)
+!4 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive_xxhash.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!5 = !{!6, !7}
+!6 = !DIEnumerator(name: "XXH_OK", value: 0)
+!7 = !DIEnumerator(name: "XXH_ERROR", value: 1)
+!8 = !{!9}
+!9 = !DIGlobalVariable(name: "__archive_xxhash", scope: !0, file: !1, line: 508, type: !10, isLocal: false, isDefinition: true, variable: %struct.archive_xxhash* @__archive_xxhash)
+!10 = !DIDerivedType(tag: DW_TAG_const_type, baseType: !11)
+!11 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_xxhash", file: !4, line: 36, size: 256, align: 64, elements: !12)
+!12 = !{!13, !20, !25, !30}
+!13 = !DIDerivedType(tag: DW_TAG_member, name: "XXH32", scope: !11, file: !4, line: 37, baseType: !14, size: 64, align: 64)
+!14 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !15, size: 64, align: 64)
+!15 = !DISubroutineType(types: !16)
+!16 = !{!17, !18, !17, !17}
+!17 = !DIBasicType(name: "unsigned int", size: 32, align: 32, encoding: DW_ATE_unsigned)
+!18 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !19, size: 64, align: 64)
+!19 = !DIDerivedType(tag: DW_TAG_const_type, baseType: null)
+!20 = !DIDerivedType(tag: DW_TAG_member, name: "XXH32_init", scope: !11, file: !4, line: 39, baseType: !21, size: 64, align: 64, offset: 64)
+!21 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !22, size: 64, align: 64)
+!22 = !DISubroutineType(types: !23)
+!23 = !{!24, !17}
+!24 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: null, size: 64, align: 64)
+!25 = !DIDerivedType(tag: DW_TAG_member, name: "XXH32_update", scope: !11, file: !4, line: 40, baseType: !26, size: 64, align: 64, offset: 128)
+!26 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !27, size: 64, align: 64)
+!27 = !DISubroutineType(types: !28)
+!28 = !{!29, !24, !18, !17}
+!29 = !DIDerivedType(tag: DW_TAG_typedef, name: "XXH_errorcode", file: !4, line: 34, baseType: !3)
+!30 = !DIDerivedType(tag: DW_TAG_member, name: "XXH32_digest", scope: !11, file: !4, line: 42, baseType: !31, size: 64, align: 64, offset: 192)
+!31 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !32, size: 64, align: 64)
+!32 = !DISubroutineType(types: !33)
+!33 = !{!17, !24}
+!34 = !{i32 2, !"Dwarf Version", i32 4}
+!35 = !{i32 2, !"Debug Info Version", i32 3}
+!36 = !{!"clang version 3.8.0 (tags/RELEASE_380/final)"}

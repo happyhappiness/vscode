@@ -1,0 +1,400 @@
+; ModuleID = '/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c'
+target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-unknown-linux-gnu"
+
+%struct.archive = type { i32, i32, %struct.archive_vtable*, i32, i8*, i32, i8*, i32, i32, i8*, %struct.archive_string, i8*, i32, i32, %struct.archive_string_conv*, i8*, i64, i64, i64, i8, i64 }
+%struct.archive_vtable = type { {}*, {}*, i32 (%struct.archive*, %struct.archive_entry*)*, {}*, i64 (%struct.archive*, i8*, i64)*, i64 (%struct.archive*, i8*, i64, i64)*, i32 (%struct.archive*, %struct.archive_entry**)*, i32 (%struct.archive*, %struct.archive_entry*)*, i32 (%struct.archive*, i8**, i64*, i64*)*, {}*, i64 (%struct.archive*, i32)*, i32 (%struct.archive*, i32)*, i8* (%struct.archive*, i32)* }
+%struct.archive_entry = type opaque
+%struct.archive_string = type { i8*, i64, i64 }
+%struct.archive_string_conv = type opaque
+%struct.archive_read = type { %struct.archive, %struct.archive_entry*, i32, i64, i64, %struct.archive_read_client, [16 x %struct.archive_read_filter_bidder], %struct.archive_read_filter*, i32, i64, i32, i32, [16 x %struct.archive_format_descriptor], %struct.archive_format_descriptor*, %struct.archive_read_extract*, i32 (%struct.archive_read*)*, %struct.anon }
+%struct.archive_read_client = type { i32 (%struct.archive*, i8*)*, i64 (%struct.archive*, i8*, i8**)*, i64 (%struct.archive*, i8*, i64)*, i64 (%struct.archive*, i8*, i64, i32)*, i32 (%struct.archive*, i8*)*, i32 (%struct.archive*, i8*, i8*)*, i32, i32, i64, %struct.archive_read_data_node* }
+%struct.archive_read_data_node = type { i64, i64, i8* }
+%struct.archive_read_filter_bidder = type { i8*, i8*, i32 (%struct.archive_read_filter_bidder*, %struct.archive_read_filter*)*, i32 (%struct.archive_read_filter*)*, i32 (%struct.archive_read_filter_bidder*, i8*, i8*)*, i32 (%struct.archive_read_filter_bidder*)* }
+%struct.archive_read_filter = type { i64, %struct.archive_read_filter_bidder*, %struct.archive_read_filter*, %struct.archive_read*, i32 (%struct.archive_read_filter*)*, i64 (%struct.archive_read_filter*, i8**)*, i64 (%struct.archive_read_filter*, i64)*, i64 (%struct.archive_read_filter*, i64, i32)*, i32 (%struct.archive_read_filter*)*, i32 (%struct.archive_read_filter*, i32)*, i8*, i8*, i32, i8*, i64, i8*, i64, i8*, i64, i8*, i64, i8, i8, i8 }
+%struct.archive_format_descriptor = type { i8*, i8*, i32 (%struct.archive_read*, i32)*, i32 (%struct.archive_read*, i8*, i8*)*, i32 (%struct.archive_read*, %struct.archive_entry*)*, i32 (%struct.archive_read*, i8**, i64*, i64*)*, i32 (%struct.archive_read*)*, i64 (%struct.archive_read*, i64, i32)*, i32 (%struct.archive_read*)*, i32 (%struct.archive_read*)*, i32 (%struct.archive_read*)* }
+%struct.archive_read_extract = type { %struct.archive*, void (i8*)*, i8* }
+%struct.anon = type { %struct.archive_read_passphrase*, %struct.archive_read_passphrase**, i32, i8* (%struct.archive*, i8*)*, i8* }
+%struct.archive_read_passphrase = type { i8*, %struct.archive_read_passphrase* }
+
+@.str = private unnamed_addr constant [32 x i8] c"archive_read_support_format_xar\00", align 1
+@.str.1 = private unnamed_addr constant [35 x i8] c"Xar not supported on this platform\00", align 1
+
+; Function Attrs: nounwind uwtable
+define i32 @archive_read_support_format_xar(%struct.archive* %_a) #0 !dbg !293 {
+entry:
+  %retval = alloca i32, align 4
+  %_a.addr = alloca %struct.archive*, align 8
+  %a = alloca %struct.archive_read*, align 8
+  %magic_test = alloca i32, align 4
+  store %struct.archive* %_a, %struct.archive** %_a.addr, align 8
+  call void @llvm.dbg.declare(metadata %struct.archive** %_a.addr, metadata !297, metadata !298), !dbg !299
+  call void @llvm.dbg.declare(metadata %struct.archive_read** %a, metadata !300, metadata !298), !dbg !301
+  %0 = load %struct.archive*, %struct.archive** %_a.addr, align 8, !dbg !302
+  %1 = bitcast %struct.archive* %0 to %struct.archive_read*, !dbg !303
+  store %struct.archive_read* %1, %struct.archive_read** %a, align 8, !dbg !301
+  br label %do.body, !dbg !304
+
+do.body:                                          ; preds = %entry
+  call void @llvm.dbg.declare(metadata i32* %magic_test, metadata !305, metadata !298), !dbg !307
+  %2 = load %struct.archive*, %struct.archive** %_a.addr, align 8, !dbg !308
+  %call = call i32 @__archive_check_magic(%struct.archive* %2, i32 14594245, i32 1, i8* getelementptr inbounds ([32 x i8], [32 x i8]* @.str, i32 0, i32 0)), !dbg !308
+  store i32 %call, i32* %magic_test, align 4, !dbg !308
+  %3 = load i32, i32* %magic_test, align 4, !dbg !308
+  %cmp = icmp eq i32 %3, -30, !dbg !308
+  br i1 %cmp, label %if.then, label %if.end, !dbg !308
+
+if.then:                                          ; preds = %do.body
+  store i32 -30, i32* %retval, align 4, !dbg !310
+  br label %return, !dbg !310
+
+if.end:                                           ; preds = %do.body
+  br label %do.end, !dbg !313
+
+do.end:                                           ; preds = %if.end
+  %4 = load %struct.archive_read*, %struct.archive_read** %a, align 8, !dbg !315
+  %archive = getelementptr inbounds %struct.archive_read, %struct.archive_read* %4, i32 0, i32 0, !dbg !316
+  call void (%struct.archive*, i32, i8*, ...) @archive_set_error(%struct.archive* %archive, i32 -1, i8* getelementptr inbounds ([35 x i8], [35 x i8]* @.str.1, i32 0, i32 0)), !dbg !317
+  store i32 -20, i32* %retval, align 4, !dbg !318
+  br label %return, !dbg !318
+
+return:                                           ; preds = %do.end, %if.then
+  %5 = load i32, i32* %retval, align 4, !dbg !319
+  ret i32 %5, !dbg !319
+}
+
+; Function Attrs: nounwind readnone
+declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
+
+declare i32 @__archive_check_magic(%struct.archive*, i32, i32, i8*) #2
+
+declare void @archive_set_error(%struct.archive*, i32, i8*, ...) #2
+
+attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { nounwind readnone }
+attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
+
+!llvm.dbg.cu = !{!0}
+!llvm.module.flags = !{!294, !295}
+!llvm.ident = !{!296}
+
+!0 = distinct !DICompileUnit(language: DW_LANG_C99, file: !1, producer: "clang version 3.8.0 (tags/RELEASE_380/final)", isOptimized: false, runtimeVersion: 0, emissionKind: 1, enums: !2, retainedTypes: !3, subprograms: !292)
+!1 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!2 = !{}
+!3 = !{!4}
+!4 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !5, size: 64, align: 64)
+!5 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_read", file: !6, line: 159, size: 20288, align: 64, elements: !7)
+!6 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive_read_private.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!7 = !{!8, !111, !112, !113, !114, !115, !159, !223, !224, !225, !226, !227, !228, !261, !263, !273, !274}
+!8 = !DIDerivedType(tag: DW_TAG_member, name: "archive", scope: !5, file: !6, line: 160, baseType: !9, size: 1280, align: 64)
+!9 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive", file: !10, line: 89, size: 1280, align: 64, elements: !11)
+!10 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive_private.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!11 = !{!12, !14, !15, !83, !84, !85, !86, !87, !88, !89, !90, !98, !99, !100, !101, !105, !106, !107, !108, !109, !110}
+!12 = !DIDerivedType(tag: DW_TAG_member, name: "magic", scope: !9, file: !10, line: 96, baseType: !13, size: 32, align: 32)
+!13 = !DIBasicType(name: "unsigned int", size: 32, align: 32, encoding: DW_ATE_unsigned)
+!14 = !DIDerivedType(tag: DW_TAG_member, name: "state", scope: !9, file: !10, line: 97, baseType: !13, size: 32, align: 32, offset: 32)
+!15 = !DIDerivedType(tag: DW_TAG_member, name: "vtable", scope: !9, file: !10, line: 103, baseType: !16, size: 64, align: 64, offset: 64)
+!16 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !17, size: 64, align: 64)
+!17 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_vtable", file: !10, line: 63, size: 832, align: 64, elements: !18)
+!18 = !{!19, !25, !26, !33, !34, !48, !54, !59, !60, !67, !68, !72, !76}
+!19 = !DIDerivedType(tag: DW_TAG_member, name: "archive_close", scope: !17, file: !10, line: 64, baseType: !20, size: 64, align: 64)
+!20 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !21, size: 64, align: 64)
+!21 = !DISubroutineType(types: !22)
+!22 = !{!23, !24}
+!23 = !DIBasicType(name: "int", size: 32, align: 32, encoding: DW_ATE_signed)
+!24 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !9, size: 64, align: 64)
+!25 = !DIDerivedType(tag: DW_TAG_member, name: "archive_free", scope: !17, file: !10, line: 65, baseType: !20, size: 64, align: 64, offset: 64)
+!26 = !DIDerivedType(tag: DW_TAG_member, name: "archive_write_header", scope: !17, file: !10, line: 66, baseType: !27, size: 64, align: 64, offset: 128)
+!27 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !28, size: 64, align: 64)
+!28 = !DISubroutineType(types: !29)
+!29 = !{!23, !24, !30}
+!30 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !31, size: 64, align: 64)
+!31 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_entry", file: !32, line: 180, flags: DIFlagFwdDecl)
+!32 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!33 = !DIDerivedType(tag: DW_TAG_member, name: "archive_write_finish_entry", scope: !17, file: !10, line: 68, baseType: !20, size: 64, align: 64, offset: 192)
+!34 = !DIDerivedType(tag: DW_TAG_member, name: "archive_write_data", scope: !17, file: !10, line: 69, baseType: !35, size: 64, align: 64, offset: 256)
+!35 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !36, size: 64, align: 64)
+!36 = !DISubroutineType(types: !37)
+!37 = !{!38, !24, !43, !45}
+!38 = !DIDerivedType(tag: DW_TAG_typedef, name: "ssize_t", file: !39, line: 109, baseType: !40)
+!39 = !DIFile(filename: "/usr/include/x86_64-linux-gnu/sys/types.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!40 = !DIDerivedType(tag: DW_TAG_typedef, name: "__ssize_t", file: !41, line: 172, baseType: !42)
+!41 = !DIFile(filename: "/usr/include/x86_64-linux-gnu/bits/types.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!42 = !DIBasicType(name: "long int", size: 64, align: 64, encoding: DW_ATE_signed)
+!43 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !44, size: 64, align: 64)
+!44 = !DIDerivedType(tag: DW_TAG_const_type, baseType: null)
+!45 = !DIDerivedType(tag: DW_TAG_typedef, name: "size_t", file: !46, line: 62, baseType: !47)
+!46 = !DIFile(filename: "/opt/llvm-build/bin/../lib/clang/3.8.0/include/stddef.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!47 = !DIBasicType(name: "long unsigned int", size: 64, align: 64, encoding: DW_ATE_unsigned)
+!48 = !DIDerivedType(tag: DW_TAG_member, name: "archive_write_data_block", scope: !17, file: !10, line: 71, baseType: !49, size: 64, align: 64, offset: 320)
+!49 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !50, size: 64, align: 64)
+!50 = !DISubroutineType(types: !51)
+!51 = !{!38, !24, !43, !45, !52}
+!52 = !DIDerivedType(tag: DW_TAG_typedef, name: "int64_t", file: !53, line: 40, baseType: !42)
+!53 = !DIFile(filename: "/usr/include/stdint.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!54 = !DIDerivedType(tag: DW_TAG_member, name: "archive_read_next_header", scope: !17, file: !10, line: 74, baseType: !55, size: 64, align: 64, offset: 384)
+!55 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !56, size: 64, align: 64)
+!56 = !DISubroutineType(types: !57)
+!57 = !{!23, !24, !58}
+!58 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !30, size: 64, align: 64)
+!59 = !DIDerivedType(tag: DW_TAG_member, name: "archive_read_next_header2", scope: !17, file: !10, line: 76, baseType: !27, size: 64, align: 64, offset: 448)
+!60 = !DIDerivedType(tag: DW_TAG_member, name: "archive_read_data_block", scope: !17, file: !10, line: 78, baseType: !61, size: 64, align: 64, offset: 512)
+!61 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !62, size: 64, align: 64)
+!62 = !DISubroutineType(types: !63)
+!63 = !{!23, !24, !64, !65, !66}
+!64 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !43, size: 64, align: 64)
+!65 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !45, size: 64, align: 64)
+!66 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !52, size: 64, align: 64)
+!67 = !DIDerivedType(tag: DW_TAG_member, name: "archive_filter_count", scope: !17, file: !10, line: 81, baseType: !20, size: 64, align: 64, offset: 576)
+!68 = !DIDerivedType(tag: DW_TAG_member, name: "archive_filter_bytes", scope: !17, file: !10, line: 82, baseType: !69, size: 64, align: 64, offset: 640)
+!69 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !70, size: 64, align: 64)
+!70 = !DISubroutineType(types: !71)
+!71 = !{!52, !24, !23}
+!72 = !DIDerivedType(tag: DW_TAG_member, name: "archive_filter_code", scope: !17, file: !10, line: 83, baseType: !73, size: 64, align: 64, offset: 704)
+!73 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !74, size: 64, align: 64)
+!74 = !DISubroutineType(types: !75)
+!75 = !{!23, !24, !23}
+!76 = !DIDerivedType(tag: DW_TAG_member, name: "archive_filter_name", scope: !17, file: !10, line: 84, baseType: !77, size: 64, align: 64, offset: 768)
+!77 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !78, size: 64, align: 64)
+!78 = !DISubroutineType(types: !79)
+!79 = !{!80, !24, !23}
+!80 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !81, size: 64, align: 64)
+!81 = !DIDerivedType(tag: DW_TAG_const_type, baseType: !82)
+!82 = !DIBasicType(name: "char", size: 8, align: 8, encoding: DW_ATE_signed_char)
+!83 = !DIDerivedType(tag: DW_TAG_member, name: "archive_format", scope: !9, file: !10, line: 105, baseType: !23, size: 32, align: 32, offset: 128)
+!84 = !DIDerivedType(tag: DW_TAG_member, name: "archive_format_name", scope: !9, file: !10, line: 106, baseType: !80, size: 64, align: 64, offset: 192)
+!85 = !DIDerivedType(tag: DW_TAG_member, name: "compression_code", scope: !9, file: !10, line: 108, baseType: !23, size: 32, align: 32, offset: 256)
+!86 = !DIDerivedType(tag: DW_TAG_member, name: "compression_name", scope: !9, file: !10, line: 109, baseType: !80, size: 64, align: 64, offset: 320)
+!87 = !DIDerivedType(tag: DW_TAG_member, name: "file_count", scope: !9, file: !10, line: 112, baseType: !23, size: 32, align: 32, offset: 384)
+!88 = !DIDerivedType(tag: DW_TAG_member, name: "archive_error_number", scope: !9, file: !10, line: 114, baseType: !23, size: 32, align: 32, offset: 416)
+!89 = !DIDerivedType(tag: DW_TAG_member, name: "error", scope: !9, file: !10, line: 115, baseType: !80, size: 64, align: 64, offset: 448)
+!90 = !DIDerivedType(tag: DW_TAG_member, name: "error_string", scope: !9, file: !10, line: 116, baseType: !91, size: 192, align: 64, offset: 512)
+!91 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_string", file: !92, line: 58, size: 192, align: 64, elements: !93)
+!92 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive_string.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!93 = !{!94, !96, !97}
+!94 = !DIDerivedType(tag: DW_TAG_member, name: "s", scope: !91, file: !92, line: 59, baseType: !95, size: 64, align: 64)
+!95 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !82, size: 64, align: 64)
+!96 = !DIDerivedType(tag: DW_TAG_member, name: "length", scope: !91, file: !92, line: 60, baseType: !45, size: 64, align: 64, offset: 64)
+!97 = !DIDerivedType(tag: DW_TAG_member, name: "buffer_length", scope: !91, file: !92, line: 61, baseType: !45, size: 64, align: 64, offset: 128)
+!98 = !DIDerivedType(tag: DW_TAG_member, name: "current_code", scope: !9, file: !10, line: 118, baseType: !95, size: 64, align: 64, offset: 704)
+!99 = !DIDerivedType(tag: DW_TAG_member, name: "current_codepage", scope: !9, file: !10, line: 119, baseType: !13, size: 32, align: 32, offset: 768)
+!100 = !DIDerivedType(tag: DW_TAG_member, name: "current_oemcp", scope: !9, file: !10, line: 120, baseType: !13, size: 32, align: 32, offset: 800)
+!101 = !DIDerivedType(tag: DW_TAG_member, name: "sconv", scope: !9, file: !10, line: 121, baseType: !102, size: 64, align: 64, offset: 832)
+!102 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !103, size: 64, align: 64)
+!103 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_string_conv", file: !104, line: 36, flags: DIFlagFwdDecl)
+!104 = !DIFile(filename: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive/archive_entry_locale.h", directory: "/data/download/cmake/cmake-master/Utilities/cmlibarchive/libarchive")
+!105 = !DIDerivedType(tag: DW_TAG_member, name: "read_data_block", scope: !9, file: !10, line: 127, baseType: !80, size: 64, align: 64, offset: 896)
+!106 = !DIDerivedType(tag: DW_TAG_member, name: "read_data_offset", scope: !9, file: !10, line: 128, baseType: !52, size: 64, align: 64, offset: 960)
+!107 = !DIDerivedType(tag: DW_TAG_member, name: "read_data_output_offset", scope: !9, file: !10, line: 129, baseType: !52, size: 64, align: 64, offset: 1024)
+!108 = !DIDerivedType(tag: DW_TAG_member, name: "read_data_remaining", scope: !9, file: !10, line: 130, baseType: !45, size: 64, align: 64, offset: 1088)
+!109 = !DIDerivedType(tag: DW_TAG_member, name: "read_data_is_posix_read", scope: !9, file: !10, line: 137, baseType: !82, size: 8, align: 8, offset: 1152)
+!110 = !DIDerivedType(tag: DW_TAG_member, name: "read_data_requested", scope: !9, file: !10, line: 138, baseType: !45, size: 64, align: 64, offset: 1216)
+!111 = !DIDerivedType(tag: DW_TAG_member, name: "entry", scope: !5, file: !6, line: 162, baseType: !30, size: 64, align: 64, offset: 1280)
+!112 = !DIDerivedType(tag: DW_TAG_member, name: "skip_file_set", scope: !5, file: !6, line: 165, baseType: !23, size: 32, align: 32, offset: 1344)
+!113 = !DIDerivedType(tag: DW_TAG_member, name: "skip_file_dev", scope: !5, file: !6, line: 166, baseType: !52, size: 64, align: 64, offset: 1408)
+!114 = !DIDerivedType(tag: DW_TAG_member, name: "skip_file_ino", scope: !5, file: !6, line: 167, baseType: !52, size: 64, align: 64, offset: 1472)
+!115 = !DIDerivedType(tag: DW_TAG_member, name: "client", scope: !5, file: !6, line: 170, baseType: !116, size: 576, align: 64, offset: 1536)
+!116 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_read_client", file: !6, line: 134, size: 576, align: 64, elements: !117)
+!117 = !{!118, !124, !130, !136, !141, !144, !149, !150, !151, !152}
+!118 = !DIDerivedType(tag: DW_TAG_member, name: "opener", scope: !116, file: !6, line: 135, baseType: !119, size: 64, align: 64)
+!119 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !120, size: 64, align: 64)
+!120 = !DIDerivedType(tag: DW_TAG_typedef, name: "archive_open_callback", file: !32, line: 241, baseType: !121)
+!121 = !DISubroutineType(types: !122)
+!122 = !{!23, !24, !123}
+!123 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: null, size: 64, align: 64)
+!124 = !DIDerivedType(tag: DW_TAG_member, name: "reader", scope: !116, file: !6, line: 136, baseType: !125, size: 64, align: 64, offset: 64)
+!125 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !126, size: 64, align: 64)
+!126 = !DIDerivedType(tag: DW_TAG_typedef, name: "archive_read_callback", file: !32, line: 218, baseType: !127)
+!127 = !DISubroutineType(types: !128)
+!128 = !{!129, !24, !123, !64}
+!129 = !DIDerivedType(tag: DW_TAG_typedef, name: "la_ssize_t", file: !32, line: 95, baseType: !38)
+!130 = !DIDerivedType(tag: DW_TAG_member, name: "skipper", scope: !116, file: !6, line: 137, baseType: !131, size: 64, align: 64, offset: 128)
+!131 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !132, size: 64, align: 64)
+!132 = !DIDerivedType(tag: DW_TAG_typedef, name: "archive_skip_callback", file: !32, line: 226, baseType: !133)
+!133 = !DISubroutineType(types: !134)
+!134 = !{!135, !24, !123, !135}
+!135 = !DIDerivedType(tag: DW_TAG_typedef, name: "la_int64_t", file: !32, line: 73, baseType: !52)
+!136 = !DIDerivedType(tag: DW_TAG_member, name: "seeker", scope: !116, file: !6, line: 138, baseType: !137, size: 64, align: 64, offset: 192)
+!137 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !138, size: 64, align: 64)
+!138 = !DIDerivedType(tag: DW_TAG_typedef, name: "archive_seek_callback", file: !32, line: 233, baseType: !139)
+!139 = !DISubroutineType(types: !140)
+!140 = !{!135, !24, !123, !135, !23}
+!141 = !DIDerivedType(tag: DW_TAG_member, name: "closer", scope: !116, file: !6, line: 139, baseType: !142, size: 64, align: 64, offset: 256)
+!142 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !143, size: 64, align: 64)
+!143 = !DIDerivedType(tag: DW_TAG_typedef, name: "archive_close_callback", file: !32, line: 243, baseType: !121)
+!144 = !DIDerivedType(tag: DW_TAG_member, name: "switcher", scope: !116, file: !6, line: 140, baseType: !145, size: 64, align: 64, offset: 320)
+!145 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !146, size: 64, align: 64)
+!146 = !DIDerivedType(tag: DW_TAG_typedef, name: "archive_switch_callback", file: !32, line: 249, baseType: !147)
+!147 = !DISubroutineType(types: !148)
+!148 = !{!23, !24, !123, !123}
+!149 = !DIDerivedType(tag: DW_TAG_member, name: "nodes", scope: !116, file: !6, line: 141, baseType: !13, size: 32, align: 32, offset: 384)
+!150 = !DIDerivedType(tag: DW_TAG_member, name: "cursor", scope: !116, file: !6, line: 142, baseType: !13, size: 32, align: 32, offset: 416)
+!151 = !DIDerivedType(tag: DW_TAG_member, name: "position", scope: !116, file: !6, line: 143, baseType: !52, size: 64, align: 64, offset: 448)
+!152 = !DIDerivedType(tag: DW_TAG_member, name: "dataset", scope: !116, file: !6, line: 144, baseType: !153, size: 64, align: 64, offset: 512)
+!153 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !154, size: 64, align: 64)
+!154 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_read_data_node", file: !6, line: 129, size: 192, align: 64, elements: !155)
+!155 = !{!156, !157, !158}
+!156 = !DIDerivedType(tag: DW_TAG_member, name: "begin_position", scope: !154, file: !6, line: 130, baseType: !52, size: 64, align: 64)
+!157 = !DIDerivedType(tag: DW_TAG_member, name: "total_size", scope: !154, file: !6, line: 131, baseType: !52, size: 64, align: 64, offset: 64)
+!158 = !DIDerivedType(tag: DW_TAG_member, name: "data", scope: !154, file: !6, line: 132, baseType: !123, size: 64, align: 64, offset: 128)
+!159 = !DIDerivedType(tag: DW_TAG_member, name: "bidders", scope: !5, file: !6, line: 173, baseType: !160, size: 6144, align: 64, offset: 2112)
+!160 = !DICompositeType(tag: DW_TAG_array_type, baseType: !161, size: 6144, align: 64, elements: !221)
+!161 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_read_filter_bidder", file: !6, line: 60, size: 384, align: 64, elements: !162)
+!162 = !{!163, !164, !165, !212, !213, !217}
+!163 = !DIDerivedType(tag: DW_TAG_member, name: "data", scope: !161, file: !6, line: 62, baseType: !123, size: 64, align: 64)
+!164 = !DIDerivedType(tag: DW_TAG_member, name: "name", scope: !161, file: !6, line: 64, baseType: !80, size: 64, align: 64, offset: 64)
+!165 = !DIDerivedType(tag: DW_TAG_member, name: "bid", scope: !161, file: !6, line: 66, baseType: !166, size: 64, align: 64, offset: 128)
+!166 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !167, size: 64, align: 64)
+!167 = !DISubroutineType(types: !168)
+!168 = !{!23, !169, !170}
+!169 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !161, size: 64, align: 64)
+!170 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !171, size: 64, align: 64)
+!171 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_read_filter", file: !6, line: 82, size: 1408, align: 64, elements: !172)
+!172 = !{!173, !174, !175, !176, !177, !181, !185, !189, !193, !194, !198, !199, !200, !201, !202, !203, !204, !205, !206, !207, !208, !209, !210, !211}
+!173 = !DIDerivedType(tag: DW_TAG_member, name: "position", scope: !171, file: !6, line: 83, baseType: !52, size: 64, align: 64)
+!174 = !DIDerivedType(tag: DW_TAG_member, name: "bidder", scope: !171, file: !6, line: 86, baseType: !169, size: 64, align: 64, offset: 64)
+!175 = !DIDerivedType(tag: DW_TAG_member, name: "upstream", scope: !171, file: !6, line: 87, baseType: !170, size: 64, align: 64, offset: 128)
+!176 = !DIDerivedType(tag: DW_TAG_member, name: "archive", scope: !171, file: !6, line: 88, baseType: !4, size: 64, align: 64, offset: 192)
+!177 = !DIDerivedType(tag: DW_TAG_member, name: "open", scope: !171, file: !6, line: 90, baseType: !178, size: 64, align: 64, offset: 256)
+!178 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !179, size: 64, align: 64)
+!179 = !DISubroutineType(types: !180)
+!180 = !{!23, !170}
+!181 = !DIDerivedType(tag: DW_TAG_member, name: "read", scope: !171, file: !6, line: 92, baseType: !182, size: 64, align: 64, offset: 320)
+!182 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !183, size: 64, align: 64)
+!183 = !DISubroutineType(types: !184)
+!184 = !{!38, !170, !64}
+!185 = !DIDerivedType(tag: DW_TAG_member, name: "skip", scope: !171, file: !6, line: 94, baseType: !186, size: 64, align: 64, offset: 384)
+!186 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !187, size: 64, align: 64)
+!187 = !DISubroutineType(types: !188)
+!188 = !{!52, !170, !52}
+!189 = !DIDerivedType(tag: DW_TAG_member, name: "seek", scope: !171, file: !6, line: 96, baseType: !190, size: 64, align: 64, offset: 448)
+!190 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !191, size: 64, align: 64)
+!191 = !DISubroutineType(types: !192)
+!192 = !{!52, !170, !52, !23}
+!193 = !DIDerivedType(tag: DW_TAG_member, name: "close", scope: !171, file: !6, line: 98, baseType: !178, size: 64, align: 64, offset: 512)
+!194 = !DIDerivedType(tag: DW_TAG_member, name: "sswitch", scope: !171, file: !6, line: 100, baseType: !195, size: 64, align: 64, offset: 576)
+!195 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !196, size: 64, align: 64)
+!196 = !DISubroutineType(types: !197)
+!197 = !{!23, !170, !13}
+!198 = !DIDerivedType(tag: DW_TAG_member, name: "data", scope: !171, file: !6, line: 102, baseType: !123, size: 64, align: 64, offset: 640)
+!199 = !DIDerivedType(tag: DW_TAG_member, name: "name", scope: !171, file: !6, line: 104, baseType: !80, size: 64, align: 64, offset: 704)
+!200 = !DIDerivedType(tag: DW_TAG_member, name: "code", scope: !171, file: !6, line: 105, baseType: !23, size: 32, align: 32, offset: 768)
+!201 = !DIDerivedType(tag: DW_TAG_member, name: "buffer", scope: !171, file: !6, line: 108, baseType: !95, size: 64, align: 64, offset: 832)
+!202 = !DIDerivedType(tag: DW_TAG_member, name: "buffer_size", scope: !171, file: !6, line: 109, baseType: !45, size: 64, align: 64, offset: 896)
+!203 = !DIDerivedType(tag: DW_TAG_member, name: "next", scope: !171, file: !6, line: 110, baseType: !95, size: 64, align: 64, offset: 960)
+!204 = !DIDerivedType(tag: DW_TAG_member, name: "avail", scope: !171, file: !6, line: 111, baseType: !45, size: 64, align: 64, offset: 1024)
+!205 = !DIDerivedType(tag: DW_TAG_member, name: "client_buff", scope: !171, file: !6, line: 112, baseType: !43, size: 64, align: 64, offset: 1088)
+!206 = !DIDerivedType(tag: DW_TAG_member, name: "client_total", scope: !171, file: !6, line: 113, baseType: !45, size: 64, align: 64, offset: 1152)
+!207 = !DIDerivedType(tag: DW_TAG_member, name: "client_next", scope: !171, file: !6, line: 114, baseType: !80, size: 64, align: 64, offset: 1216)
+!208 = !DIDerivedType(tag: DW_TAG_member, name: "client_avail", scope: !171, file: !6, line: 115, baseType: !45, size: 64, align: 64, offset: 1280)
+!209 = !DIDerivedType(tag: DW_TAG_member, name: "end_of_file", scope: !171, file: !6, line: 116, baseType: !82, size: 8, align: 8, offset: 1344)
+!210 = !DIDerivedType(tag: DW_TAG_member, name: "closed", scope: !171, file: !6, line: 117, baseType: !82, size: 8, align: 8, offset: 1352)
+!211 = !DIDerivedType(tag: DW_TAG_member, name: "fatal", scope: !171, file: !6, line: 118, baseType: !82, size: 8, align: 8, offset: 1360)
+!212 = !DIDerivedType(tag: DW_TAG_member, name: "init", scope: !161, file: !6, line: 69, baseType: !178, size: 64, align: 64, offset: 192)
+!213 = !DIDerivedType(tag: DW_TAG_member, name: "options", scope: !161, file: !6, line: 71, baseType: !214, size: 64, align: 64, offset: 256)
+!214 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !215, size: 64, align: 64)
+!215 = !DISubroutineType(types: !216)
+!216 = !{!23, !169, !80, !80}
+!217 = !DIDerivedType(tag: DW_TAG_member, name: "free", scope: !161, file: !6, line: 74, baseType: !218, size: 64, align: 64, offset: 320)
+!218 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !219, size: 64, align: 64)
+!219 = !DISubroutineType(types: !220)
+!220 = !{!23, !169}
+!221 = !{!222}
+!222 = !DISubrange(count: 16)
+!223 = !DIDerivedType(tag: DW_TAG_member, name: "filter", scope: !5, file: !6, line: 176, baseType: !170, size: 64, align: 64, offset: 8256)
+!224 = !DIDerivedType(tag: DW_TAG_member, name: "bypass_filter_bidding", scope: !5, file: !6, line: 179, baseType: !23, size: 32, align: 32, offset: 8320)
+!225 = !DIDerivedType(tag: DW_TAG_member, name: "header_position", scope: !5, file: !6, line: 182, baseType: !52, size: 64, align: 64, offset: 8384)
+!226 = !DIDerivedType(tag: DW_TAG_member, name: "data_start_node", scope: !5, file: !6, line: 185, baseType: !13, size: 32, align: 32, offset: 8448)
+!227 = !DIDerivedType(tag: DW_TAG_member, name: "data_end_node", scope: !5, file: !6, line: 186, baseType: !13, size: 32, align: 32, offset: 8480)
+!228 = !DIDerivedType(tag: DW_TAG_member, name: "formats", scope: !5, file: !6, line: 209, baseType: !229, size: 11264, align: 64, offset: 8512)
+!229 = !DICompositeType(tag: DW_TAG_array_type, baseType: !230, size: 11264, align: 64, elements: !221)
+!230 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_format_descriptor", file: !6, line: 196, size: 704, align: 64, elements: !231)
+!231 = !{!232, !233, !234, !238, !242, !246, !250, !254, !258, !259, !260}
+!232 = !DIDerivedType(tag: DW_TAG_member, name: "data", scope: !230, file: !6, line: 197, baseType: !123, size: 64, align: 64)
+!233 = !DIDerivedType(tag: DW_TAG_member, name: "name", scope: !230, file: !6, line: 198, baseType: !80, size: 64, align: 64, offset: 64)
+!234 = !DIDerivedType(tag: DW_TAG_member, name: "bid", scope: !230, file: !6, line: 199, baseType: !235, size: 64, align: 64, offset: 128)
+!235 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !236, size: 64, align: 64)
+!236 = !DISubroutineType(types: !237)
+!237 = !{!23, !4, !23}
+!238 = !DIDerivedType(tag: DW_TAG_member, name: "options", scope: !230, file: !6, line: 200, baseType: !239, size: 64, align: 64, offset: 192)
+!239 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !240, size: 64, align: 64)
+!240 = !DISubroutineType(types: !241)
+!241 = !{!23, !4, !80, !80}
+!242 = !DIDerivedType(tag: DW_TAG_member, name: "read_header", scope: !230, file: !6, line: 202, baseType: !243, size: 64, align: 64, offset: 256)
+!243 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !244, size: 64, align: 64)
+!244 = !DISubroutineType(types: !245)
+!245 = !{!23, !4, !30}
+!246 = !DIDerivedType(tag: DW_TAG_member, name: "read_data", scope: !230, file: !6, line: 203, baseType: !247, size: 64, align: 64, offset: 320)
+!247 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !248, size: 64, align: 64)
+!248 = !DISubroutineType(types: !249)
+!249 = !{!23, !4, !64, !65, !66}
+!250 = !DIDerivedType(tag: DW_TAG_member, name: "read_data_skip", scope: !230, file: !6, line: 204, baseType: !251, size: 64, align: 64, offset: 384)
+!251 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !252, size: 64, align: 64)
+!252 = !DISubroutineType(types: !253)
+!253 = !{!23, !4}
+!254 = !DIDerivedType(tag: DW_TAG_member, name: "seek_data", scope: !230, file: !6, line: 205, baseType: !255, size: 64, align: 64, offset: 448)
+!255 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !256, size: 64, align: 64)
+!256 = !DISubroutineType(types: !257)
+!257 = !{!52, !4, !52, !23}
+!258 = !DIDerivedType(tag: DW_TAG_member, name: "cleanup", scope: !230, file: !6, line: 206, baseType: !251, size: 64, align: 64, offset: 512)
+!259 = !DIDerivedType(tag: DW_TAG_member, name: "format_capabilties", scope: !230, file: !6, line: 207, baseType: !251, size: 64, align: 64, offset: 576)
+!260 = !DIDerivedType(tag: DW_TAG_member, name: "has_encrypted_entries", scope: !230, file: !6, line: 208, baseType: !251, size: 64, align: 64, offset: 640)
+!261 = !DIDerivedType(tag: DW_TAG_member, name: "format", scope: !5, file: !6, line: 210, baseType: !262, size: 64, align: 64, offset: 19776)
+!262 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !230, size: 64, align: 64)
+!263 = !DIDerivedType(tag: DW_TAG_member, name: "extract", scope: !5, file: !6, line: 215, baseType: !264, size: 64, align: 64, offset: 19840)
+!264 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !265, size: 64, align: 64)
+!265 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_read_extract", file: !6, line: 151, size: 192, align: 64, elements: !266)
+!266 = !{!267, !268, !272}
+!267 = !DIDerivedType(tag: DW_TAG_member, name: "ad", scope: !265, file: !6, line: 152, baseType: !24, size: 64, align: 64)
+!268 = !DIDerivedType(tag: DW_TAG_member, name: "extract_progress", scope: !265, file: !6, line: 155, baseType: !269, size: 64, align: 64, offset: 64)
+!269 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !270, size: 64, align: 64)
+!270 = !DISubroutineType(types: !271)
+!271 = !{null, !123}
+!272 = !DIDerivedType(tag: DW_TAG_member, name: "extract_progress_user_data", scope: !265, file: !6, line: 156, baseType: !123, size: 64, align: 64, offset: 128)
+!273 = !DIDerivedType(tag: DW_TAG_member, name: "cleanup_archive_extract", scope: !5, file: !6, line: 216, baseType: !251, size: 64, align: 64, offset: 19904)
+!274 = !DIDerivedType(tag: DW_TAG_member, name: "passphrases", scope: !5, file: !6, line: 227, baseType: !275, size: 320, align: 64, offset: 19968)
+!275 = !DICompositeType(tag: DW_TAG_structure_type, scope: !5, file: !6, line: 221, size: 320, align: 64, elements: !276)
+!276 = !{!277, !283, !285, !286, !291}
+!277 = !DIDerivedType(tag: DW_TAG_member, name: "first", scope: !275, file: !6, line: 222, baseType: !278, size: 64, align: 64)
+!278 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !279, size: 64, align: 64)
+!279 = !DICompositeType(tag: DW_TAG_structure_type, name: "archive_read_passphrase", file: !6, line: 146, size: 128, align: 64, elements: !280)
+!280 = !{!281, !282}
+!281 = !DIDerivedType(tag: DW_TAG_member, name: "passphrase", scope: !279, file: !6, line: 147, baseType: !95, size: 64, align: 64)
+!282 = !DIDerivedType(tag: DW_TAG_member, name: "next", scope: !279, file: !6, line: 148, baseType: !278, size: 64, align: 64, offset: 64)
+!283 = !DIDerivedType(tag: DW_TAG_member, name: "last", scope: !275, file: !6, line: 223, baseType: !284, size: 64, align: 64, offset: 64)
+!284 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !278, size: 64, align: 64)
+!285 = !DIDerivedType(tag: DW_TAG_member, name: "candidate", scope: !275, file: !6, line: 224, baseType: !23, size: 32, align: 32, offset: 128)
+!286 = !DIDerivedType(tag: DW_TAG_member, name: "callback", scope: !275, file: !6, line: 225, baseType: !287, size: 64, align: 64, offset: 192)
+!287 = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: !288, size: 64, align: 64)
+!288 = !DIDerivedType(tag: DW_TAG_typedef, name: "archive_passphrase_callback", file: !32, line: 256, baseType: !289)
+!289 = !DISubroutineType(types: !290)
+!290 = !{!80, !24, !123}
+!291 = !DIDerivedType(tag: DW_TAG_member, name: "client_data", scope: !275, file: !6, line: 226, baseType: !123, size: 64, align: 64, offset: 256)
+!292 = !{!293}
+!293 = distinct !DISubprogram(name: "archive_read_support_format_xar", scope: !1, file: !1, line: 72, type: !21, isLocal: false, isDefinition: true, scopeLine: 73, flags: DIFlagPrototyped, isOptimized: false, variables: !2)
+!294 = !{i32 2, !"Dwarf Version", i32 4}
+!295 = !{i32 2, !"Debug Info Version", i32 3}
+!296 = !{!"clang version 3.8.0 (tags/RELEASE_380/final)"}
+!297 = !DILocalVariable(name: "_a", arg: 1, scope: !293, file: !1, line: 72, type: !24)
+!298 = !DIExpression()
+!299 = !DILocation(line: 72, column: 49, scope: !293)
+!300 = !DILocalVariable(name: "a", scope: !293, file: !1, line: 74, type: !4)
+!301 = !DILocation(line: 74, column: 23, scope: !293)
+!302 = !DILocation(line: 74, column: 50, scope: !293)
+!303 = !DILocation(line: 74, column: 27, scope: !293)
+!304 = !DILocation(line: 75, column: 2, scope: !293)
+!305 = !DILocalVariable(name: "magic_test", scope: !306, file: !1, line: 75, type: !23)
+!306 = distinct !DILexicalBlock(scope: !293, file: !1, line: 75, column: 2)
+!307 = !DILocation(line: 75, column: 2, scope: !306)
+!308 = !DILocation(line: 75, column: 2, scope: !309)
+!309 = !DILexicalBlockFile(scope: !306, file: !1, discriminator: 1)
+!310 = !DILocation(line: 75, column: 2, scope: !311)
+!311 = !DILexicalBlockFile(scope: !312, file: !1, discriminator: 2)
+!312 = distinct !DILexicalBlock(scope: !306, file: !1, line: 75, column: 2)
+!313 = !DILocation(line: 75, column: 2, scope: !314)
+!314 = !DILexicalBlockFile(scope: !306, file: !1, discriminator: 3)
+!315 = !DILocation(line: 78, column: 21, scope: !293)
+!316 = !DILocation(line: 78, column: 24, scope: !293)
+!317 = !DILocation(line: 78, column: 2, scope: !293)
+!318 = !DILocation(line: 80, column: 2, scope: !293)
+!319 = !DILocation(line: 81, column: 1, scope: !293)
