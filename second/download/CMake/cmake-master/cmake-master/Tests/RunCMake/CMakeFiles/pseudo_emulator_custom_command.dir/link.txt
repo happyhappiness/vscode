@@ -1,1 +1,0 @@
-/usr/bin/gcc  -Wcast-align -Werror-implicit-function-declaration -Wchar-subscripts -Wall -W -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fno-common -Wundef  -rdynamic CMakeFiles/pseudo_emulator_custom_command.dir/pseudo_emulator_custom_command.c.o  -o pseudo_emulator_custom_command 
