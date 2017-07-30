@@ -1,1 +1,0 @@
-/usr/bin/gcc  -Wcast-align -Werror-implicit-function-declaration -Wchar-subscripts -Wall -W -Wpointer-arith -Wwrite-strings -Wformat-security -Wmissing-format-attribute -fno-common -Wundef  -rdynamic CMakeFiles/pseudo_tidy.dir/pseudo_tidy.c.o  -o pseudo_tidy 
