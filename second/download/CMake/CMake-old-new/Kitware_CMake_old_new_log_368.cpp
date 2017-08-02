@@ -1,1 +1,1 @@
-fprintf(stderr, "kwsysProcess_New returned NULL!\n")
+archive_set_error(&a->archive, errno, "fchdir failed");

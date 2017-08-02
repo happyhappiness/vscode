@@ -1,2 +1,2 @@
-printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp))
+archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter")

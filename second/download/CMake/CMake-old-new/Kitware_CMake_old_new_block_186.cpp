@@ -1,5 +1,1 @@
-{
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file body");
-		return (ARCHIVE_FATAL);
-	}
+snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++)

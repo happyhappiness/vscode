@@ -1,1 +1,1 @@
-sprintf(argument, "%s", sit->c_str())
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])

@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, 0,
-				    "Cannot extract through symlink %s",
-				    a->name)
+YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" )

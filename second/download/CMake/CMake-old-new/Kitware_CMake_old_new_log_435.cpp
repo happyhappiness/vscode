@@ -1,5 +1,2 @@
-define YYDPRINTF(Args)      \
-do {            \
-  if (yydebug)          \
-    YYFPRINTF Args;        \
-} while (0)
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data")

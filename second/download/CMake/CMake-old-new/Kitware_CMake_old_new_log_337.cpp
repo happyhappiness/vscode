@@ -1,1 +1,2 @@
-fprintf(stdout, "Output before crash on stdout from crash test.\n")
+YY_FATAL_ERROR(
+                        "fatal flex scanner internal error--no action found" )

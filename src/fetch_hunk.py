@@ -216,6 +216,7 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
         hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
     else:
         hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'ab')
+        hunk_writer = csv.writer(hunk_file)
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)

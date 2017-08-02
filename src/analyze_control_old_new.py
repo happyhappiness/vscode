@@ -33,7 +33,7 @@ def deal_log( log_record, writer, gumtree, total_log):
     old_loc = log_record[my_constant.FETCH_LOG_OLD_LOC]
     # do not deal with LOG_NO_MODIFY
     action_type = log_record[my_constant.FETCH_LOG_ACTION_TYPE]
-    if action_type == my_constant.LOG_NO_MODIFY:
+    if int(action_type) == my_constant.LOG_NO_MODIFY:
         return total_log
     # write log file
     log_file_name = my_constant.SAVE_OLD_NEW_LOG + str(total_log) + '.cpp'

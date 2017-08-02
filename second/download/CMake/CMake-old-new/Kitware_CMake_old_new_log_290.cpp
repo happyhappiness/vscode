@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from grandchild before sleep.\n")
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath)

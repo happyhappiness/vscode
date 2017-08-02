@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, errno,
-					    "Could not remove symlink %s",
-					    a->name)
+YY_FATAL_ERROR(
+                        "fatal flex scanner internal error--no action found" )

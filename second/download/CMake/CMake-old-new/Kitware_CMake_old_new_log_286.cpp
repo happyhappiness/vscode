@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout after recursive test.\n")
+snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i])

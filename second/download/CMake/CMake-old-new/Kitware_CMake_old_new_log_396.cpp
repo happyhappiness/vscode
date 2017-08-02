@@ -1,1 +1,2 @@
-fprintf(stdout, "Output before crash on stdout from crash test.\n")
+archive_set_error(&a->archive, EINVAL,
+		    "Incorrect file header signature")

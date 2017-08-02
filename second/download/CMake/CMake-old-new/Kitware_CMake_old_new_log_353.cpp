@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from grandchild before sleep.\n")
+archive_set_error(&a->archive, errno, "Can't allocate memory")

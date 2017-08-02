@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, errno,
-				    "Couldn't change dir")
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header")

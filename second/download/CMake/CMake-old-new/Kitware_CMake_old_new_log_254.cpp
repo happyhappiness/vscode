@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp)
+YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" )

@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "bad buffer in cmExpr_yy_scan_bytes()" )
+YY_FATAL_ERROR(
+                        "fatal flex scanner internal error--no action found" )

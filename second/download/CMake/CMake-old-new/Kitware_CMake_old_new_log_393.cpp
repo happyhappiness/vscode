@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from test returning 123.\n")
+yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner)

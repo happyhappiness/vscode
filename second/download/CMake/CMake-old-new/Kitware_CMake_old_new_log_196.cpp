@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty pathname")
+YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" )

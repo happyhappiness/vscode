@@ -1,26 +1,20 @@
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	struct archive_read_filter_bidder *bidder;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_filter_lzma");
-
-	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-
-	bidder->data = NULL;
-	bidder->name = "lzma";
-	bidder->bid = lzma_bidder_bid;
-	bidder->init = lzma_bidder_init;
-	bidder->options = NULL;
-	bidder->free = NULL;
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	return (ARCHIVE_OK);
-#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzma program for lzma decompression");
-	return (ARCHIVE_WARN);
-#endif
-}
+		case LZMADEC_STREAM_END: /* Found end of stream. */
+			state->eof = 1;
+			/* FALL THROUGH */
+		case LZMADEC_OK: /* Decompressor made some progress. */
+			__archive_read_filter_consume(self->upstream,
+			    avail_in - state->stream.avail_in);
+			break;
+		case LZMADEC_BUF_ERROR: /* Insufficient input data? */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Insufficient compressed data");
+			return (ARCHIVE_FATAL);
+		default:
+			/* Return an error. */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Lzma decompression failed");
+			return (ARCHIVE_FATAL);
+		}

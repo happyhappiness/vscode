@@ -1,3 +1,1 @@
-printf("md5sum 1: expected [%s]\n"
-         "               got [%s]\n",
-         testMD5output1, md5out)
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str())

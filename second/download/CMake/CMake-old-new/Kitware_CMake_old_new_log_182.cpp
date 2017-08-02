@@ -1,5 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header")
+len = curl_msnprintf(fptr, left, "%ld", width)

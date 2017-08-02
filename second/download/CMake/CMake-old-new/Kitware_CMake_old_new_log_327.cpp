@@ -1,1 +1,2 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_WHITE)
+snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
+               data->state.infilesize)

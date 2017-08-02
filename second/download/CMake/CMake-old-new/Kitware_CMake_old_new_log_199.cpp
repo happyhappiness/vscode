@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "Can't test directory '%s'", path)
+YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yyensure_buffer_stack()" )

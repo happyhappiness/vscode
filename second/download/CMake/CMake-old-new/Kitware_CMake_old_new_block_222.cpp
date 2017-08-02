@@ -1,1 +1,0 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" )

@@ -1,1 +1,1 @@
-write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap)
+YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_buffer()" )

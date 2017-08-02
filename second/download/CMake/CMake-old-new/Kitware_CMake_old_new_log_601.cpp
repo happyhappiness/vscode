@@ -1,0 +1,1 @@
+sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages)

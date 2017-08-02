@@ -1,2 +1,2 @@
-fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL)
+archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed")

@@ -1,6 +1,1 @@
-{
-          data->set.ssl.certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
-        }
+YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_scan_buffer()" )

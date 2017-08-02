@@ -1,5 +1,1 @@
-{
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
-        }
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])

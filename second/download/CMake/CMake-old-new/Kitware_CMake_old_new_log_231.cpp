@@ -1,1 +1,1 @@
-yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)
+vsnprintf(print_buffer, sizeof(print_buffer), message, args);

@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}

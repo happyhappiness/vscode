@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Invalid extended attribute encountered")
+YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_bytes()" )

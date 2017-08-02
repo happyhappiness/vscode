@@ -1,1 +1,1 @@
-printf("No process has been executed.\n")
+archive_set_error(&a->archive, ENOMEM, "Out of memory")

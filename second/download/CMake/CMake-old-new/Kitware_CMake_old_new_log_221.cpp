@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-                                "fatal error - scanner input buffer overflow" )
+vsnprintf(s, sizeof(s), fmt, ap)

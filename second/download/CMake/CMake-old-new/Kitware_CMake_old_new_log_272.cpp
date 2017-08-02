@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL)
+tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque)

@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from grandchild before sleep.\n")
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_bytes()" )

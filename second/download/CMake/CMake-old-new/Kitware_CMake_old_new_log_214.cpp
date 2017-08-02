@@ -1,1 +1,1 @@
-len = curl_msnprintf(fptr, left, ".%ld", prec)
+(void) fprintf( stderr, "%s\n", msg )

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, en, "Can't create '%s'",
-		    a->name)
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate v7tar data")

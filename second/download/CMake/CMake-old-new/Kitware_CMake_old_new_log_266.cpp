@@ -1,1 +1,1 @@
-sprintf(buf, "%s/*", name.c_str())
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce)

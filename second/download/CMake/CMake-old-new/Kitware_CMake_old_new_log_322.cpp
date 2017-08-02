@@ -1,1 +1,1 @@
-sprintf(buf, "%s/*", name.c_str())
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)

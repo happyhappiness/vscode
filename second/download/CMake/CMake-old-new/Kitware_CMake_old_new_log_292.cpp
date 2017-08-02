@@ -1,1 +1,4 @@
-fprintf(stderr, "Output on stderr before grandchild test.\n");
+md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2)

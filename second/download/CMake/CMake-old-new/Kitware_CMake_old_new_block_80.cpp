@@ -1,6 +1,5 @@
 {
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated lzma input");
-			return (ARCHIVE_FATAL);
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for file name");
+			return (NULL);
 		}

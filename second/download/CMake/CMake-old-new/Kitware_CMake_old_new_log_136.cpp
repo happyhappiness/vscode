@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path)
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory")

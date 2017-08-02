@@ -1,5 +1,2 @@
-{
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, ".%ld", prec);
-          fptr += len;
-        }
+YY_FATAL_ERROR(
+        "fatal error - scanner input buffer overflow" )

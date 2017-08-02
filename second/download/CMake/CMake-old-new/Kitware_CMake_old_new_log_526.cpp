@@ -1,0 +1,1 @@
+f(stderr, "Invalid test number %d.\n", n)

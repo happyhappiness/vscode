@@ -1,6 +1,6 @@
 {
-  va_list var_args;
-  va_start(var_args, format);
-  vfprintf(stream, format, var_args);
-  va_end(var_args);
-  }
+			archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}

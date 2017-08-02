@@ -1,2 +1,2 @@
-fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str())
+fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize)

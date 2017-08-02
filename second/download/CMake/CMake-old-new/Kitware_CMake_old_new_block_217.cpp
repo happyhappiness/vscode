@@ -1,6 +1,1 @@
-{
-          data->set.ssl.certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
-        }
+YY_FATAL_ERROR( "flex scanner push-back overflow" )

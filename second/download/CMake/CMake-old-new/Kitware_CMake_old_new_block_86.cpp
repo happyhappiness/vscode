@@ -1,5 +1,6 @@
 {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for file name");
-			return (NULL);
-		}
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Invalid Rockridge CL");
+					return (NULL);
+				}

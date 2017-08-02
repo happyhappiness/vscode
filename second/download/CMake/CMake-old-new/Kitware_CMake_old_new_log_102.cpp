@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default")
+archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, ver % 10000)

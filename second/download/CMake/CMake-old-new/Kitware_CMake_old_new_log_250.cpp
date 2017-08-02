@@ -1,1 +1,1 @@
-vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_bytes()" )

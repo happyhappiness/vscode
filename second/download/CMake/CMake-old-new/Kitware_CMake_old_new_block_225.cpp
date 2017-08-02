@@ -1,1 +1,5 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yyensure_buffer_stack()" )
+{
+    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
+    left -= len;
+    ptr += len;
+  }

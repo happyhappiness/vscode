@@ -1,2 +1,3 @@
-printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp))
+archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer")

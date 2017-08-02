@@ -1,1 +1,2 @@
-len = curl_msnprintf(fptr, left, "%ld", width)
+YY_FATAL_ERROR(
+    "fatal flex scanner internal error--end of buffer missed" )

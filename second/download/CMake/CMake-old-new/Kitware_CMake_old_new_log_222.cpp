@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" )
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap)

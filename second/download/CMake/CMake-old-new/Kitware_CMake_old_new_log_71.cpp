@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching))
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "Internal error initializing lzma library")

@@ -1,5 +1,6 @@
 {
-      CloseHandle(hFile);
-      fprintf(stderr, "Couldn't open file mapping with CreateFileMapping()\n");
-      return false;
-   }
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate tar data");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}

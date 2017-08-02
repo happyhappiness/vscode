@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate pax data")
+yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)

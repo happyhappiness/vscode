@@ -1,12 +1,8 @@
 {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access");
-					return (err);
-				}
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
-			}
+		/* nightmare!  the specs say content-length is mandatory
+		 * so I don't feel overly bad stopping the reader here */
+		archive_set_error(
+			&a->archive, EINVAL,
+			"Bad content length");
+		return (ARCHIVE_FATAL);
+	}

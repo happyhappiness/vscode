@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from grandchild before sleep.\n")
+yy_fatal_error( "cmListFileLexer_yyset_lineno called with no buffer" , yyscanner)

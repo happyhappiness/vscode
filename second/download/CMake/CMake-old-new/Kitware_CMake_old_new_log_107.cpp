@@ -1,3 +1,2 @@
-archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length")
+archive_set_error(&a->archive, en, "Can't create '%s'",
+		    a->name)

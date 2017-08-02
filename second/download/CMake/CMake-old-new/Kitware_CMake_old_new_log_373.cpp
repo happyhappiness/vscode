@@ -1,2 +1,1 @@
-fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str())
+archive_set_error(&a->archive, ENOMEM, "Out of memory")

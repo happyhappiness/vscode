@@ -1,13 +1,28 @@
-{
-  unsigned char digest[16];
-  char md5out[33];
-  kwsysMD5_Initialize(md5);
-  kwsysMD5_Append(md5, testMD5input2, testMD5input2len);
-  kwsysMD5_Finalize(md5, digest);
-  kwsysMD5_DigestToHex(digest, md5out);
-  md5out[32] = 0;
-  printf("md5sum 2: expected [%s]\n"
-         "               got [%s]\n",
-         testMD5output2, md5out);
-  return (strcmp(md5out, testMD5output2) != 0)? 1:0;
-}
+struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
+    &conn->data->state.negotiate;
+  char *encoded = NULL;
+  size_t len = 0;
+  char *userp;
+  CURLcode result;
+  OM_uint32 discard_st;
+
+  result = Curl_base64_encode(conn->data,
+                              neg_ctx->output_token.value,
+                              neg_ctx->output_token.length,
+                              &encoded, &len);
+  if(result) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return result;
+  }
+
+  if(!encoded || !len) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return CURLE_REMOTE_ACCESS_DENIED;
+  }
+
+  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

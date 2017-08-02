@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching))
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external lzma program for lzma decompression")

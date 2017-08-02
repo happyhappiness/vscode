@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'")
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching))

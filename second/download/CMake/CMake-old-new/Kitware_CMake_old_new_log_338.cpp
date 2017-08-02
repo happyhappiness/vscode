@@ -1,1 +1,2 @@
-fprintf(stderr, "Output before crash on stderr from crash test.\n")
+YY_FATAL_ERROR(
+                "fatal flex scanner internal error--end of buffer missed" )

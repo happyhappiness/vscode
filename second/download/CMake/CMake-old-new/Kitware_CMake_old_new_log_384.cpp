@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_WHITE)
+fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);

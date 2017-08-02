@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from test returning 123.\n")
+fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n")

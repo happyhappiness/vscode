@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from test returning 0.\n")
+fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1)

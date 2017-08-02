@@ -1,1 +1,2 @@
-sprintf(buf, "%s/*", name.c_str())
+archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter")

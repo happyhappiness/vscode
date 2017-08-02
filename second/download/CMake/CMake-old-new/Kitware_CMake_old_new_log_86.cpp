@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "No memory for file name")
+archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Invalid Rockridge CL")

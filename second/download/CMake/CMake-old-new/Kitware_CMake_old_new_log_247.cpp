@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"))
+YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yyensure_buffer_stack()" )

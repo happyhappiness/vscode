@@ -1,1 +1,1 @@
-vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

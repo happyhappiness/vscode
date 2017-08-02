@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from test returning 0.\n")
+fprintf(out, "%-*s ", (int)u_width, p);

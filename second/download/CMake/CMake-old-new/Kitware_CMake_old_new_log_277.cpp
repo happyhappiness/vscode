@@ -1,1 +1,2 @@
-fprintf(stdout, "Output on stdout from test returning 0.\n")
+fprintf(stderr, "* Multi status: %d handles, %d alive\n",
+          multi->num_easy, multi->num_alive)

@@ -1,4 +1,2 @@
-archive_set_error(&a->archive, errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system")
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching))

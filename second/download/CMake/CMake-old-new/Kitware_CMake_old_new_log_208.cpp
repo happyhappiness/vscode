@@ -1,1 +1,2 @@
-len = curl_msnprintf(fptr, left, ".%ld", prec)
+YY_FATAL_ERROR(
+        "fatal error - scanner input buffer overflow" )

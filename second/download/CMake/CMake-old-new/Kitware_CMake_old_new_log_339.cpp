@@ -1,1 +1,2 @@
-fprintf(stderr, "Output on stderr before recursive test.\n");
+YY_FATAL_ERROR(
+                                "fatal error - scanner input buffer overflow" )

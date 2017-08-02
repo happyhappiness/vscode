@@ -1,1 +1,2 @@
-fprintf(stderr, "Couldn't open file mapping with CreateFileMapping()\n")
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate tar data")

@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout after grandchild test.\n")
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)

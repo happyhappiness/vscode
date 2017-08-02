@@ -1,1 +1,1 @@
-txt_len = snprintf(ssl_buf, sizeof(ssl_buf), "%s (%s), %s, %s (%d):\n",
+YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" )

@@ -1,12 +1,16 @@
 {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default");
-					return (err);
-				}
+			case LZMADEC_HEADER_ERROR:
 				archive_set_error(&a->archive,
 				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
+				    "Internal error initializing "
+				    "compression library: "
+				    "invalid header");
+				break;
+			case LZMADEC_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "out of memory");
+				break;
 			}

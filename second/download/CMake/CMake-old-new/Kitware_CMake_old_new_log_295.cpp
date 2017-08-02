@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before grandchild test.\n");
+tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque)

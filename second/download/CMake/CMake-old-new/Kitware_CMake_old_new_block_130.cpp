@@ -1,4 +1,2 @@
-{
-		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
-		return (ARCHIVE_FATAL);
-	}
+archive_set_error(a, errno, "Can't stat '%s'",
+			    filename)

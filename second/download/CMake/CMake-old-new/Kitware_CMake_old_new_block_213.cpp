@@ -1,6 +1,1 @@
-{
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, "%ld", width);
-          fptr += len;
-          left -= len;
-        }
+YY_FATAL_ERROR( "bad buffer in cmExpr_yy_scan_bytes()" )
