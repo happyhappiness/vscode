@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BOLD)
+fprintf(stdout, "Output on stdout from test returning 0.\n")

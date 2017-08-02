@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzop program for lzop decompression");
+archive_set_error(&a->archive, errno,
+						"Can't open %s", path)

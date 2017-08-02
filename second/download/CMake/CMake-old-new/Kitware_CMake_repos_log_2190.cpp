@@ -1,1 +1,1 @@
-fprintf(stderr, "*** Failed LOADED COMMAND Final Pass\n");
+printf("This is T8\n")

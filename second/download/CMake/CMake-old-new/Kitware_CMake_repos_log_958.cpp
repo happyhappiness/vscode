@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "Can't allocate memory");
+fprintf(stderr, "\n---TOC-- %d bytes --\n%s\n",
+	    strlen((const char *)bp->content), bp->content)

@@ -1,1 +1,1 @@
-*curl_mvaprintf(const char *format, va_list ap_save)
+fprintf(stderr, "File is an executable.  I don't dump those.\n")

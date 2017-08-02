@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid ZIP compression type");
+archive_set_error(&a->archive, errno,
+			    "Can't GetFileInformationByHandle")

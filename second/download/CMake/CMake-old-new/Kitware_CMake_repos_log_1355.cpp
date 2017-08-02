@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Uname");
+archive_set_error(a, ENOMEM, "No memory")

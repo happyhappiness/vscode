@@ -1,6 +1,8 @@
 #-*-coding: utf-8 -*-
 import csv
 from itertools import islice
+import numpy as np
+from scipy.spatial.distance import pdist
 import similarity_func
 import my_constant
 
@@ -179,10 +181,32 @@ def functionToRegrexStr(log_functions):
     return regrex_string
 
 """
+@ param vactors to compare
+@ return similarity
+@ involve compute cos similarity of two vectors
+"""
+def compute_similarity(in_vector1, in_vector2, method='braycurtis'):
+    # multi = np.sum(np.multiply(in_vector1, in_vector2))
+    # base = (np.linalg.norm(in_vector1) * np.linalg.norm(in_vector1))
+    # if base > 0:
+    #     similairy = float(multi) / base
+    # else:
+    #     return np.sum(in_vector1 + in_vector2) == 0
+    # return similairy
+    if in_vector1 == [] or in_vector2 == []:
+        return 1.0
+    # print in_vector1
+    # print in_vector2
+    X = np.vstack([in_vector1, in_vector2])
+    # standard distance
+    distance = pdist(X, metric=method)
+    similairty = 1 - distance
+    return similairty
+
+
+"""
 @ param  cond_list of a and b to compute, func_similarity_dic
 @ return lenth of common substring / min length
-@ callee ...
-@ caller compute_context_similarity ..
 @ involve compute the longgest common string (continuous) of two cond_list
 """
 def longestCommon(list_a, list_b):

@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp)
+fprintf(stderr, "Output on stderr after grandchild test.\n")

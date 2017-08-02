@@ -1,2 +1,2 @@
-void		 archive_set_error(struct archive *, int _err,
-			    const char *fmt, ...) __LA_PRINTF(3, 4);
+snprintf((char *)&temp[len], sizeof(temp) - len,
+               "%c%c", CURL_IAC, CURL_SE)

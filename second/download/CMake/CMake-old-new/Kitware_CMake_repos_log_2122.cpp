@@ -1,1 +1,1 @@
-printf("%s: %d math tests failed\n", argv[0], res)
+printf("%s is not there! Good.", av[2])

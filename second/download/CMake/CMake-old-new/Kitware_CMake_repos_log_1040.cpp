@@ -1,2 +1,2 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate uname/gname lookup cache");
+archive_set_error(a, errno,
+			    "Can't convert '%S' to MBS", wcs)

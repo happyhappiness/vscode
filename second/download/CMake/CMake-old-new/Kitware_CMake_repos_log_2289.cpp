@@ -1,1 +1,1 @@
-Foo() { printf("This one has nonstandard extension\n"); }
+fprintf(fout, "%g,\n", result)

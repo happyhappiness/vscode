@@ -1,1 +1,1 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue)
+printf("arg %d is %s\n", ac, av[i])

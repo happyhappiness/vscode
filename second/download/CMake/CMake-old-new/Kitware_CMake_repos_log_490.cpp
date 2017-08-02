@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "Cannot restore xattr:%s", DECMPFS_XATTR_NAME);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Internal error extracting RAR file.")

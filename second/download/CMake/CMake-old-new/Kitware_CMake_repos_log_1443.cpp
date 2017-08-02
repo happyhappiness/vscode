@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory "
-					    " for Symlink");
+archive_set_error(&a->archive, errno,
+				    "Can't FindFirstFileW")

@@ -1,1 +1,1 @@
-archive_set_error(&a->archive,
+(void) fprintf( stderr, "%s\n", msg )

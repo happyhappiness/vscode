@@ -1,1 +1,1 @@
-BIO_printf(mem, "%d", BN_num_bits(rsa->n));
+printf("Command:")

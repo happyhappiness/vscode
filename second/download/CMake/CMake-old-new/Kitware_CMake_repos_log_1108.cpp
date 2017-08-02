@@ -1,1 +1,2 @@
-archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Group name too long")

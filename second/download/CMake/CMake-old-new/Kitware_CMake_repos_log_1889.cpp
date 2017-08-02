@@ -1,1 +1,2 @@
-tmpLine = aprintf("%s\n", sshc->readdir_filename);
+printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp))

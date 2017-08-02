@@ -1,1 +1,1 @@
-fprintf(stderr, "Missing name of file to create.\n")
+sprintf(fpath, "%s/%s", nexec, file)

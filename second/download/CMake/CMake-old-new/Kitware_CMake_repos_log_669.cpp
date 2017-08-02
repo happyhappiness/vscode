@@ -1,2 +1,2 @@
-archive_set_error(a,
-		    ENOMEM, "Out of memory adding file to list");
+archive_string_sprintf(info, "%c%s=%s",
+		    prefix, key, s)

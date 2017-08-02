@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+printf(",%s", (b+1) % 4 == 0 ? "" : " ")

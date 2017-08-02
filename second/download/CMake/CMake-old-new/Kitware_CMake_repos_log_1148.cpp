@@ -1,2 +1,2 @@
-archive_set_error(&a->archive,
-			    ENOMEM, "Out of memory");
+archive_string_sprintf(&shar->work,
+					    "begin %o ", mode)

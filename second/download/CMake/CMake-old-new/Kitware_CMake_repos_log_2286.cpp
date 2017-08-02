@@ -1,1 +1,1 @@
-printf("This is T9. This one should work.\n");
+fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue)

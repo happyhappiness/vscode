@@ -1,4 +1,5 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s: Directories too deep.",
-		    archive_entry_pathname(
-			iso9660->directories_too_deep->file->entry));
+			    "ZIP compressed data is wrong size "
+			    "(read %jd, expected %jd)",
+			    (intmax_t)zip->entry_compressed_bytes_read,
+			    (intmax_t)zip->entry->compressed_size)

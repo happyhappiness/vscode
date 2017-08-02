@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
+printf("RegularExpression::compile(): Unmatched [].\n")

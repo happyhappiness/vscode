@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to close %s!\n", argv[1])
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n")

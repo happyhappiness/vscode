@@ -1,1 +1,2 @@
-fprintf(stdout, "Output on stdout from grandchild before sleep.\n")
+fprintf(stdout, "Poll count reached limit %d.\n",
+                    MAXPOLL)

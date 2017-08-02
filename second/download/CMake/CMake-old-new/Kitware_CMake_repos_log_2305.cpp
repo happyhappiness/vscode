@@ -1,1 +1,1 @@
-printf("Foo: %s %d\n", foo, class);
+printf("  clsid starts with '0x%08lx'\n", (long)clsid.Data1)

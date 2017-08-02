@@ -1,3 +1,4 @@
-archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.access")
+archive_set_error(&a->archive, errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system")

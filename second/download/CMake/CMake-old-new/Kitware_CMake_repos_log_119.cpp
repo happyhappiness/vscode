@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-	    "Can't allocate memory for CAB data");
+q = curl_maprintf("%lu", len)

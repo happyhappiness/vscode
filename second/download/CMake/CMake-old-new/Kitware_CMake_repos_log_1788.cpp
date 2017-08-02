@@ -1,1 +1,1 @@
-q = curl_maprintf("%lu", len);
+(void) fprintf( stderr, "%s\n", msg )

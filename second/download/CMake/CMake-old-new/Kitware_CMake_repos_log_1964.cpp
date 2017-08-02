@@ -1,1 +1,1 @@
-snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+printf("passed foo is 21\n")

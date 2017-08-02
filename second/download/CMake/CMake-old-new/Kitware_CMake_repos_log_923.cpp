@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-	    "Not enough slots for filter registration");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r)

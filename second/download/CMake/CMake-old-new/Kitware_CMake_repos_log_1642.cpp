@@ -1,1 +1,2 @@
-fprintf(stream, "%d.%02d%%", q / 100, q % 100);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname")

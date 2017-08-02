@@ -1,1 +1,2 @@
-wprintf(L"set=0x%lX clear=0x%lX remainder='%ls'\n", set, clear, remainder);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Truncated RAR file data")

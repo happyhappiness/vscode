@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, EINVAL,
-		    "Special header too large");
+archive_set_error(&a->archive, err,
+			    "Internal error initializing decompressor: %s",
+			    detail != NULL ? detail : "??")

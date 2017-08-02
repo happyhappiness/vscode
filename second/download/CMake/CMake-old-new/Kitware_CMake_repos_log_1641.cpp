@@ -1,1 +1,2 @@
-/*printf("cmcompress_compress(%p, %p, %d)\n", cdata, buff, n);*/
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ustar data")

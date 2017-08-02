@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" )
+fprintf(stdout, "Output on stdout after recursive test.\n")

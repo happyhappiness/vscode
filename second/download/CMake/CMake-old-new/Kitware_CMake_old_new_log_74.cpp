@@ -1,1 +1,1 @@
-fprintf(stderr, "Couldn't map view of file with MapViewOfFile()\n")
+archive_set_error(a, ENOMEM, "No memory")

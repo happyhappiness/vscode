@@ -1,1 +1,1 @@
-printf("Hello automoc: %d\n", ff.getValue())
+fprintf(stderr, "*** Failed LOADED COMMAND Final Pass\n")

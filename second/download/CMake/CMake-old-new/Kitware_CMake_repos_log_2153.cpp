@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result)
+printf("number of threads is %s\n", argv[2])

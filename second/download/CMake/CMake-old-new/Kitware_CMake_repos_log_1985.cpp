@@ -1,1 +1,1 @@
-return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
+fprintf(stdout, "CMAKE_BUILD_TYPE is %s\n", CMAKE_BUILD_TYPE)

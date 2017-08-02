@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, EINVAL,
-		    "Invalid filename");
+archive_set_error(_a, EINVAL, "No comparison flag")

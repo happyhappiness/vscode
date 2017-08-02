@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Seek error");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file")

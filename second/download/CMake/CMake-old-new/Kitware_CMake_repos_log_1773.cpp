@@ -1,1 +1,1 @@
-tp += snprintf(tp, 5, "%lx", words[i]);
+fprintf(out, "%s \\\n", tmp.c_str())

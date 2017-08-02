@@ -1,1 +1,1 @@
-printf("no threads\n");
+printf("hello world\n")

@@ -1,4 +1,1 @@
-return addError(
-        "Bad unicode escape sequence in string: four digits expected.",
-        token,
-        current);
+printf("%3d is an invalid test number.\n", testNum)

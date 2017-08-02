@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "xmlTextWriterEndDocument() failed: %d", r);
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not chdir %s", path)

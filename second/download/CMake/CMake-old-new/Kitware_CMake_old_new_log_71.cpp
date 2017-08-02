@@ -1,1 +1,2 @@
-fprintf(stderr, "File is an executable.  I don't dump those.\n");
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching))

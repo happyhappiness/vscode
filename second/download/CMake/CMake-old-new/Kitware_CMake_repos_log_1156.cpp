@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s compression not supported on this platform",
-		    detail);
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC, "Buffer overflow")

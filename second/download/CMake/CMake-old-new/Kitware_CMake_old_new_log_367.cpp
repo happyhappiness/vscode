@@ -1,3 +1,2 @@
-fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp))
+fprintf(stderr, "Poll count is %d, which is less than %d.\n",
+            poll, MINPOLL)

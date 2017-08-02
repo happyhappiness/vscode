@@ -1,2 +1,1 @@
-archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
-			    "Decompressed size error");
+archive_string_sprintf(&shar->work, "echo x %s\n", shar->quoted_name.s)

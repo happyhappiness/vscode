@@ -1,2 +1,3 @@
-fprintf(header, "{{%2u},{%2u}}%s", static_dtree[i].Code,
-                static_dtree[i].Len, SEPARATOR(i, D_CODES-1, 5));
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported CAB compression : %s",
+		    cab->entry_cffolder->compname)

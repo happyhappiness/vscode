@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ar data")
+archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name)

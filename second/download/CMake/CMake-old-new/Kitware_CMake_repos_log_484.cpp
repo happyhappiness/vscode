@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "Couldn't stat file");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Truncated RAR file data")

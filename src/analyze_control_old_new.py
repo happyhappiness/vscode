@@ -26,14 +26,31 @@ sys.setdefaultencoding('utf8')
 @ return total_log
 @ involve deal with each old new log and save info
 """
-def deal_log( log_record, writer, total_log):
+def deal_log( log_record, writer, gumtree, total_log):
 
     log = log_record[my_constant.FETCH_LOG_OLD_LOG]
+    old_file_name = log_record[my_constant.FETCH_LOG_OLD_FILE]
+    old_loc = log_record[my_constant.FETCH_LOG_OLD_LOC]
+    # write log file
     log_file_name = my_constant.SAVE_OLD_NEW_LOG + str(total_log) + '.cpp'
     log_file = open(log_file_name, 'wb')
     log_file.write(log)
     log_file.close()
-    writer.writerow(log_record + [log_file_name])
+    # write block file
+    gumtree.set_file(old_file_name)
+    block = ""
+    block_file_name = my_constant.SAVE_OLD_NEW_BLOCK + str(total_log) + '.cpp'
+    block_feature = []
+    if gumtree.set_loc(int(old_loc) - 1):
+        block = gumtree.get_block()
+        block_file = open(block_file_name, 'wb')
+        block_file.write(block)
+        block_file.close()
+        gumtree.set_file(block_file_name)
+        # get block feature
+        block_feature = gumtree.get_block_feature()
+        block_feature = json.dumps(block_feature)
+    writer.writerow(log_record + [log_file_name, block, block_file_name, block_feature])
     total_log += 1
 
     return total_log
@@ -50,17 +67,20 @@ def fetch_old_new():
     old_new_file = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'wb')
     old_new_writer = csv.writer(old_new_file)
     old_new_writer.writerow(my_constant.ANALYZE_OLD_NEW_TITLE)
+
     total_log = 0
     total_record = 0
+    gumtree = Gumtree()
     for log_record in islice(log_records, 1, None):
         total_record += 1
-        total_log = deal_log(log_record, old_new_writer, total_log)
+        total_log = deal_log(log_record, old_new_writer, gumtree, total_log)
         if total_record % 10 == 0:
             print 'have dealed with %d record, have dealed with %d log' %(total_record, total_log)
 
     # close file
     log_file.close()
     old_new_file.close()
+    gumtree.close()
 
 """
 main function

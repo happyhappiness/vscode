@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
+sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen))

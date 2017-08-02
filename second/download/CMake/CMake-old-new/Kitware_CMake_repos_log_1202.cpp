@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
+fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize)

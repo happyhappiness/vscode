@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Invalid extended attribute encountered")
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge RE and CL")

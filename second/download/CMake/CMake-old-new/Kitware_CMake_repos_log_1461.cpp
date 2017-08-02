@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC, "Program error.");
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor")

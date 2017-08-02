@@ -1,1 +1,2 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp)
+printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp))

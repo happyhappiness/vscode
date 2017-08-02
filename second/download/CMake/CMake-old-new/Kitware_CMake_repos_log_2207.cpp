@@ -1,1 +1,1 @@
-printf("shared\n")
+printf("Wrap creating \"%s\"\n", argv[argc - 1])

@@ -1,1 +1,2 @@
-archive_string_sprintf(tgt, "Content-Length: %ju\r\n", (uintmax_t)hdr.cntlen);
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->socks_proxy.host.name)

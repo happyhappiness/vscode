@@ -1,1 +1,1 @@
-snprintf((char *)temp, sizeof(temp),
+sprintf(buffer, format, argument)

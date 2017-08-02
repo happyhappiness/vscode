@@ -1,1 +1,1 @@
-printf("#define A_VALUE %d\n", A())
+fprintf(stderr, "No current working directory\n")

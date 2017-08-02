@@ -1,1 +1,2 @@
-archive_set_error(a, ENOMEM, "No memory");
+archive_set_error(a, errno,
+				    "Failed to clear flags from an NFSv4 ACL flagset")

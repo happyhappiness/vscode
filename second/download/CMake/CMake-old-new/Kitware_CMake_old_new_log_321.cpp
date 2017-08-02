@@ -1,1 +1,1 @@
-sprintf(buf, "%s/*", name.c_str())
+sprintf(buf, "%s*", name.c_str())

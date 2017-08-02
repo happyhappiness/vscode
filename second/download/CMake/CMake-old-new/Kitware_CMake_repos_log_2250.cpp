@@ -1,1 +1,1 @@
-fprintf(fout, "The file \"%s\" does not exist.\n", name)
+fprintf(stderr, "FILE_PATH_DEF not defined in C\n")

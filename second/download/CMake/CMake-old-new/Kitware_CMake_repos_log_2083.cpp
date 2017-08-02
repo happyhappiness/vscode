@@ -1,1 +1,1 @@
-fprintf(stderr, "stderr from bad command line arg '-bad'\n");
+printf("Problem with lib1\n")

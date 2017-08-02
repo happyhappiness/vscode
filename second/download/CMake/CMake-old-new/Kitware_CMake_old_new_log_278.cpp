@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_bytes()" )
+fprintf(stderr, "Output on stderr from test returning 0.\n")

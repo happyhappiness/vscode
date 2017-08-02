@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Uname");
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Lzma library error: Cannot allocate memory")

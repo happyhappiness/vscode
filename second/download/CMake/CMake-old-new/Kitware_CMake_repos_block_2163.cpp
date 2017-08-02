@@ -1,0 +1,3 @@
+{
+  printf("Hello bar !\n");
+}

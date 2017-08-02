@@ -1,1 +1,2 @@
-fprintf(header, "local const int base_length[LENGTH_CODES] = {\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Deflate decompression failed (%d)", r)

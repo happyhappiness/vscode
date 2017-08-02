@@ -1,5 +1,1 @@
-archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory")
+YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" )

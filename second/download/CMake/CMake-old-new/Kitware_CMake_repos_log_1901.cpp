@@ -1,1 +1,1 @@
-snprintf
+fprintf(stderr, "Output on stderr after test %d.\n", n)

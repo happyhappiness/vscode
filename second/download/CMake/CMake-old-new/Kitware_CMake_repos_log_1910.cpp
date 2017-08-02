@@ -1,1 +1,1 @@
-snprintf(scope, sizeof(scope), "%%%u", scopeid);
+printf("RegularExpression::compile(): Unmatched parentheses.\n")

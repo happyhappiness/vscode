@@ -1,1 +1,4 @@
-archive_set_error(&a->archive, -1, "Header CRC error");
+archive_string_sprintf(str,
+		    " resdevice=native,%ju,%ju",
+		    (uintmax_t)me->devmajor,
+		    (uintmax_t)me->devminor)

@@ -1,1 +1,1 @@
-printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name)
+fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result)

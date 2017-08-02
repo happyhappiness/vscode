@@ -1,1 +1,2 @@
-archive_set_error(_a, ENOMEM, "Can't allocate memory");
+archive_set_error(&a->archive, errno,
+			    "Failed to get metadata(xattr)")

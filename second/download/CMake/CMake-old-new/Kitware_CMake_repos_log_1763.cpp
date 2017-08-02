@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+printf("\n};\n")

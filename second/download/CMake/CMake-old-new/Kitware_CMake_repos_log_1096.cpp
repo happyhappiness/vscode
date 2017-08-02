@@ -1,2 +1,2 @@
-archive_string_sprintf(&setstr, " mode=%o",
-		    (unsigned int)mtree->set.mode);
+archive_set_error(&a->archive, ENAMETOOLONG,
+			    "Pathname too long")

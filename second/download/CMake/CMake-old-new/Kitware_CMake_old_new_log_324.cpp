@@ -1,1 +1,1 @@
-sprintf(buffer, format, value)
+vfprintf(stream, format, var_args)

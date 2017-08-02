@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yyensure_buffer_stack()" )
+printf("md5sum 1: expected [%s]\n"
+         "               got [%s]\n",
+         testMD5output1, md5out)

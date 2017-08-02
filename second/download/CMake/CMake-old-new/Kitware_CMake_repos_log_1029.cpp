@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Error seeking in stdin");
+archive_set_error(&a->archive, ERANGE,
+		    "Raw format only supports filetype AE_IFREG")

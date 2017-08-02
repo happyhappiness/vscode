@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
+printf("cm RegularExpression::find(): Internal error.\n")

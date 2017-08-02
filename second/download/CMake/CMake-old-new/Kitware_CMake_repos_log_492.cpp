@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Failed to initialize compressor");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                    "Truncated RAR file data")

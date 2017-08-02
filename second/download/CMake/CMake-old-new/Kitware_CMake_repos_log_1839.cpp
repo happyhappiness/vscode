@@ -1,1 +1,2 @@
-snprintf(&secret[2 * i], 3, "%02x", digest[i]);
+_snprintf(cp->ProcessResults[idx].ExitExceptionString,
+                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code)

@@ -1,3 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "out of memory");
+printf("{%u,%u,%d}", state.lencode[low].op, state.lencode[low].bits,
+               state.lencode[low].val)

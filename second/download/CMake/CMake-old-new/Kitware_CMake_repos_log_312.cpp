@@ -1,4 +1,2 @@
-archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "xmlTextWriterWriteAttribute() "
-					    "failed: %d", r);
+fsobj_error(a_eno, a_estr, errno,
+				    "Could not stat %s", path)

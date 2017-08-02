@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute")
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ar data")

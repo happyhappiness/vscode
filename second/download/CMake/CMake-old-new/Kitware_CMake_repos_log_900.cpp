@@ -1,2 +1,2 @@
-fprintf(out, " a %d,",
-	    toi(isodirrec + DR_ext_attr_length_offset, DR_ext_attr_length_size));
+archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_DATA) failed")

@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
+printf("-R needs an additional parameter.\n")

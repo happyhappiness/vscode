@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "bad buffer in cmCommandArgument_yy_scan_bytes()" )
+fprintf(stdout, "Output on stdout from test returning 123.\n")

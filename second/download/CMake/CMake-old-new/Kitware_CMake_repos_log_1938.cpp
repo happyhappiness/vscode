@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
+printf("Couldn't parse that input as a number\n")

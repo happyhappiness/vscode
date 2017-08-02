@@ -1,1 +1,2 @@
-aprintf("Accept-Encoding: %s\r\n", data->set.str[STRING_ENCODING])
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external lrzip program for lrzip decompression")

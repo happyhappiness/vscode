@@ -1,1 +1,1 @@
-aprintf("%s:%s:%s", userp, digest->realm, passwdp)
+printf("error: [%s]\n", *fname)

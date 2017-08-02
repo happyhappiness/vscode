@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
+printf("To run a test, enter the test number: ")

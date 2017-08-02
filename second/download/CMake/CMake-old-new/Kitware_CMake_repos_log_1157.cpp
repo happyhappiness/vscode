@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Couldn't allocate memory for out buffer");
+archive_string_sprintf(&shar->work, "chmod %o ",
+		    (unsigned int)(archive_entry_mode(shar->entry) & 07777))

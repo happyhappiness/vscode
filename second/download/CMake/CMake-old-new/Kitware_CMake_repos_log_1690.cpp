@@ -1,2 +1,2 @@
-snprintf(absolute_path, sizeof(absolute_path), "%s%s", readlink_cwd,
-             filename + str_offset);
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname")

@@ -1,3 +1,1 @@
-snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
+fprintf(stderr, "Unable to open %s for writing!\n", argv[1])

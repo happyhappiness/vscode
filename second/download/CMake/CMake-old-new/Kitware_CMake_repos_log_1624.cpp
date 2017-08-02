@@ -1,1 +1,3 @@
-fprintf(header, "const uch _length_code[MAX_MATCH-MIN_MATCH+1]= {\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid uncompressed size (%d < %d)",
+		    uavail, cfdata->uncompressed_size)

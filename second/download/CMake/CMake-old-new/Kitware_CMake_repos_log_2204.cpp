@@ -1,1 +1,1 @@
-printf("This is xyz !\n")
+sprintf(buffer, "Should be 0 (source file abstract property): [%p]", cstr)

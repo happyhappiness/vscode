@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory\n");
+fprintf(stderr, "Could not save png to '%s'\n", filename)

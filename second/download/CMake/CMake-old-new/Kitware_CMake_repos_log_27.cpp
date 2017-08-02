@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
+printf("Loading of %s succeeded.  Library version is %s.\n",
+          BZ2_LIBNAME, BZ2_bzlibVersion() )

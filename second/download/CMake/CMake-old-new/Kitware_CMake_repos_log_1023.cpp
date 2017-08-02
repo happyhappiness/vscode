@@ -1,2 +1,2 @@
-archive_set_error(a, errno, "Can't stat '%S'",
-			    wfilename);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Using external lz4 program")

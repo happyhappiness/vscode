@@ -1,1 +1,1 @@
-char *curl_mvaprintf(const char *format, va_list args);
+printf("\n")

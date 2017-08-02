@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "xmlTextWriterStartDocument() failed: %d", r);
+archive_set_error(&a->archive, errno,
+			    "Can't remove already-existing dir")

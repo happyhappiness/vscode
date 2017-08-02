@@ -1,1 +1,1 @@
-fprintf(stderr, "Output before crash on stderr from crash test.\n")
+fprintf(stderr, "Output on stderr after recursive test.\n")

@@ -1,1 +1,1 @@
-YY_FATAL_ERROR(
+fprintf(stderr, "Output on stderr from grandchild before sleep.\n")

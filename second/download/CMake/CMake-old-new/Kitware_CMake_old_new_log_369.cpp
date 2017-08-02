@@ -1,3 +1,1 @@
-fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp))
+fprintf(stderr, "Invalid test number %d.\n", n)

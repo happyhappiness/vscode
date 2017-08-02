@@ -1,2 +1,3 @@
-#define	__LA_PRINTF(fmtarg, firstvararg) \
-	__attribute__((__format__ (__printf__, fmtarg, firstvararg)))
+snprintf((char *)temp, sizeof(temp),
+               "%c%c%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_NEW_ENVIRON,
+               CURL_TELQUAL_IS)

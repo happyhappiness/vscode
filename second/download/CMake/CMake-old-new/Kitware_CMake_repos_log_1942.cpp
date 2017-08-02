@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
+printf("Available tests:\n")

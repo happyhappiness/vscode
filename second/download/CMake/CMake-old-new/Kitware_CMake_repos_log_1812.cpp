@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
+fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_RED)

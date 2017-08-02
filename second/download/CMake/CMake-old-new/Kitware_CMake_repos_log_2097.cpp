@@ -1,1 +1,1 @@
-printf("This doesn't happen.\n");
+printf("Hello from subdirectory\n")

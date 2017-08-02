@@ -1,2 +1,1 @@
-out, "%s\n", format_ptr);
-    fre
+sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig)

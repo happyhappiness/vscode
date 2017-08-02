@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "%s %s", "Can't allocate memory for ",
-			    errstr);
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC, "BCJ2 conversion Failed")

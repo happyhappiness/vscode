@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated ar archive");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r)

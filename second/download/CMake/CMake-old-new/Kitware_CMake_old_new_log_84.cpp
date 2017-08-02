@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-				    "Couldn't change dir")
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ar data")

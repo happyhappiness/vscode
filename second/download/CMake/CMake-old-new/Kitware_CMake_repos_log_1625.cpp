@@ -1,2 +1,2 @@
-fprintf(header, "%2u%s", _length_code[i],
-                SEPARATOR(i, MAX_MATCH-MIN_MATCH, 20));
+archive_set_error(&a->archive, ENOMEM,
+		    "Out of memory for deflate decompression")

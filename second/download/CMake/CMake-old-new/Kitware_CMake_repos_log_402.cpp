@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			"Couldn't retrieve extended attributes");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "lzma_properties_encode failed")

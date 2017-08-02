@@ -1,1 +1,1 @@
-BIO_printf(mem, "%02x:", psig->data[j]);
+printf(" \"%s\"", argv[ii])

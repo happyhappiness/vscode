@@ -1,1 +1,1 @@
-snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"))

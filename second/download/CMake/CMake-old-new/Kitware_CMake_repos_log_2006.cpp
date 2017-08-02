@@ -1,1 +1,1 @@
-config_string = aprintf("library=%s name=%s", library, name);
+fprintf(stdout, "%s:0:0: warning: message [checker]\n", argv[i])

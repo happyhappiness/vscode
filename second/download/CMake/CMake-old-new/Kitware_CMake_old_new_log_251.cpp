@@ -1,1 +1,1 @@
-len = curl_msnprintf(fptr, left, "%ld", width)
+md5this = (unsigned char *) aprintf("%s:%s", request, uripath)

@@ -1,1 +1,2 @@
-fprintf(header, "const uch _dist_code[DIST_CODE_LEN] = {\n");
+archive_set_error(&a->archive, ENOMEM,
+			    "No memory for CAB reader")

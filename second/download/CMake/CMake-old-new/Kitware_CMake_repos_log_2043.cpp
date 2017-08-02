@@ -1,1 +1,1 @@
-return addError(message, token);
+fprintf(fout, "Error opening \"%s\" for reading.\n", name)

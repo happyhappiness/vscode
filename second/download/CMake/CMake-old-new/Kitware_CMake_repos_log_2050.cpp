@@ -1,3 +1,1 @@
-return addError("'" + std::string(token.start_, token.end_) +
-                        "' is not a number.",
-                    token);
+printf("HEADER_STRING: %s\n", HEADER_STRING)

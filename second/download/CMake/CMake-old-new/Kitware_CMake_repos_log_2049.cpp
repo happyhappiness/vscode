@@ -1,1 +1,1 @@
-return addError("Unable to parse token length", token);
+fprintf(stderr, "Could not open output file \"%s\"", argv[1])

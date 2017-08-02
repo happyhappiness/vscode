@@ -1,1 +1,2 @@
-vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+fprintf(stdout, "Poll count reached limit %d.\n",
+                    MAXPOLL)

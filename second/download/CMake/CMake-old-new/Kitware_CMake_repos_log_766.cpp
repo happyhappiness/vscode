@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, EINVAL, "Damaged tar archive");
+sprintf(zip->format_name, "7-Zip")

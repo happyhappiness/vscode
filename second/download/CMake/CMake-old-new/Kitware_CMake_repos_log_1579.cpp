@@ -1,1 +1,2 @@
-printf(",%s", (b+1) % 4 == 0 ? "" : " ");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+				    "Ignoring malformed pax extended attributes")

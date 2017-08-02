@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "No memory for CAB reader");
+host = aprintf("Host: %s\r\n", hostheader)

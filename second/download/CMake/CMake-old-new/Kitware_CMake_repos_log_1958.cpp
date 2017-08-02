@@ -1,1 +1,1 @@
-fprintf
+sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF)

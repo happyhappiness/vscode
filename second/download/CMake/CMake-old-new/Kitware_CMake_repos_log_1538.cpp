@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-                          "Unable to allocate memory for node data.");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "LHa header sum error")

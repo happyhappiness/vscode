@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENAMETOOLONG,
-			    "Pathname too long");
+size = aprintf("%" CURL_FORMAT_CURL_OFF_T, data->state.infilesize)

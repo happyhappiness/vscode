@@ -1,1 +1,2 @@
-printf("No process has been executed.\n")
+printf("Child exited with value = %d\n",
+             kwsysProcess_GetExitValue(kp))

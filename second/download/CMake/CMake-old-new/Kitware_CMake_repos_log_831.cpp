@@ -1,5 +1,4 @@
-archive_set_error(&a->archive,
-						    0,
-						    "Skipped %d bytes before "
-						    "finding valid header",
-						    (int)skipped);
+archive_set_error(&(a->archive),
+					    ARCHIVE_ERRNO_MISC,
+					    "Unsupported form of "
+					    "BCJ2 streams")

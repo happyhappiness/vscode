@@ -1,1 +1,1 @@
-fprintf(stderr, "instruction_len=%d\n", instruction_len);
+fprintf(stdout, "WaitForData timeout reached.\n")

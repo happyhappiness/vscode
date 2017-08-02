@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
+reurl = aprintf("%s://%s", conn->handler->scheme, data->change.url)

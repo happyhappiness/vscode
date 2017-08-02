@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathame");
+archive_set_error(&a->archive, 0,
+		    "Can't add archive to itself")

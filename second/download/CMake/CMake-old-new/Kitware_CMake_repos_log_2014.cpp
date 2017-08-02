@@ -1,2 +1,1 @@
-DEBUGF(fprintf(stderr,
-                     "Error: polarsslthreadlock_unlock_function failed\n"));
+printf("This does happen.\n")

@@ -1,1 +1,1 @@
-return snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());
+fprintf(stdout, "%s\n", argv[i])

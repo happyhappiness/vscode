@@ -1,1 +1,1 @@
-return aprintf("%s:%d", hostname, conn->port);
+DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"))

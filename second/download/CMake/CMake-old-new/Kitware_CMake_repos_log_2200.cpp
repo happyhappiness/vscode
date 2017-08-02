@@ -1,1 +1,1 @@
-void print() const { printf("abc\n"); }
+printf("Problem with libcxx2.h include dir probably!\n")

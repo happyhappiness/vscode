@@ -1,2 +1,2 @@
-fprintf(stderr, "ignoring non-SCM_RIGHTS ancillary data: %d\n",
-          cmsg->cmsg_type);
+archive_set_error(&a->archive, EINVAL,
+		    "Incorrect file header signature")

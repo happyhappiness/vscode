@@ -1,1 +1,3 @@
-archive_set_error(&a->archive, errno, "Can't allocate memory")
+archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name)

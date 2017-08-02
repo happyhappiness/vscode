@@ -1,2 +1,3 @@
-printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp))
+fprintf(stderr, "Mismatch in state.  "
+            "Should have been %d, was %d.\n",
+            state, kwsysProcess_GetState(kp))

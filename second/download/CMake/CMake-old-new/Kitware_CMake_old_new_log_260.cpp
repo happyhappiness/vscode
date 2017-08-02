@@ -1,1 +1,1 @@
-len = curl_msnprintf(fptr, left, "%ld", width)
+len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL))

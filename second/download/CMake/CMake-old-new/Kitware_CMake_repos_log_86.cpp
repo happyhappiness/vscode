@@ -1,1 +1,2 @@
-archive_string_sprintf(tgt, "WARC-Type: %s\r\n", _typ[hdr.type]);
+printf("    fam %2d, CNAME %s, ",
+           ai->ai_family, ai->ai_canonname ? ai->ai_canonname : "<none>")

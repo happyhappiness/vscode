@@ -1,3 +1,3 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "zip: hdrcharset option needs a character-set name"
-			);
+			"Can only use archive_write_zip_set_compression_store"
+			" with zip format")

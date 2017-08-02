@@ -1,0 +1,5 @@
+{
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for UTF-16BE");
+			return (ARCHIVE_FATAL);
+		}

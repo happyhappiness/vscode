@@ -1,1 +1,1 @@
-sprintf(fpath, "%s/%s", nexec, file)
+fprintf(file, "%s", "x")

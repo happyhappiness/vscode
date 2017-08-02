@@ -1,2 +1,2 @@
-archive_set_error(&a->archive,
-			    -1, "Invalid central directory signature");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Files > 4GB require Zip64 extensions")

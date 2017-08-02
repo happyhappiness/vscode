@@ -1,2 +1,1 @@
-snprintf(p, sizeof(ftp_typecode) - 1, ";type=%c",
-                   data->set.prefer_ascii ? 'a' : 'i');
+fprintf(stderr, "%s: (%d) %s", syscall, errorno, errmsg)

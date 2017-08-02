@@ -443,10 +443,10 @@
             "workspacePath": "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "uiState": {
                 "mode": 1,
-                "x": 1503,
-                "y": 162,
-                "width": 1024,
-                "height": 768
+                "x": 0,
+                "y": 26,
+                "width": 1280,
+                "height": 970
             }
         }
     }

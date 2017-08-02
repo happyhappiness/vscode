@@ -1,0 +1,3 @@
+{
+    fprintf(stderr, "Could not save png to '%s'\n", filename);
+  }

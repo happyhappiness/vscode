@@ -1,1 +1,1 @@
-fprintf(stderr, "Invalid test number %d.\n", n)
+sprintf(num, "%d", static_cast<int>(this->Makefiles.size()));

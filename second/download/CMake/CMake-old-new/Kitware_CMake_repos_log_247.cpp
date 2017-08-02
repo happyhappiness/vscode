@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Numeric group ID too large");
+fprintf(stderr, "UNKNOWNTAG_END:%s\n", name)

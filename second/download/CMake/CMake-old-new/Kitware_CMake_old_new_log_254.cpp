@@ -1,1 +1,1 @@
-snprintf((char *)temp, sizeof(temp),
+snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp)

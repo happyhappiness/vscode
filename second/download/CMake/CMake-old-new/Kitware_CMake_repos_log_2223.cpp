@@ -1,1 +1,1 @@
-printf("The value of Foo: %s\n", foo)
+fprintf(fp, "extern int wrapped_help();\n")

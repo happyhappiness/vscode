@@ -1,2 +1,1 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for xz decompression");
+archive_set_error(&a->archive, EINVAL, "Damaged tar archive")

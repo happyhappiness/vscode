@@ -1,1 +1,1 @@
-void
+printf("Problem with libcxx1\n")

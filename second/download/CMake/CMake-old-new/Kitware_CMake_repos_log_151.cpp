@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Lzma library error: Out of memory");
+char *certpath = aprintf("sql:%s", cert_dir)

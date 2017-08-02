@@ -1,3 +1,2 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated gzip input");
+fprintf(stderr, " start %u, match %u, length %d\n",
+                start, match, length)

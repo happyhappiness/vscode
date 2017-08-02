@@ -1,3 +1,1 @@
-archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Invalid record version");
+archive_set_error(&(a->archive), EINVAL, "entry is NULL")

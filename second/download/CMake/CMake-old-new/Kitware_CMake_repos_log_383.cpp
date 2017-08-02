@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-				    "Invalid NFSv4 ACL entry type");
+archive_set_error(&(a->archive), errno,
+			    "Can't read temporary file(%jd)",
+			    (intmax_t)rs)

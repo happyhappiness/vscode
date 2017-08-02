@@ -1,1 +1,1 @@
-vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);
+snprintf(absolute_path, sizeof(absolute_path), "%s", filename)

@@ -1,2 +1,1 @@
-conn->allocptr.te = cptr? aprintf("%s, TE\r\n" TE_HEADER, cptr):
-      strdup("Connection: TE\r\n" TE_HEADER);
+l = snprintf(tmp, sizeof(tmp), fmt, src[0], src[1], src[2], src[3])

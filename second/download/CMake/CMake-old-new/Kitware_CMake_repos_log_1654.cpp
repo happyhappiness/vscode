@@ -1,2 +1,2 @@
-fprintf(stderr, 
-                    "\trestrictions on size of recovered file: None\n");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate v7tar data")

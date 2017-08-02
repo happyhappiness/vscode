@@ -1,1 +1,2 @@
-err = set_conversion_failed_error(a, tar->sconv, "Pathname");
+archive_set_error(&a->archive, ENOMEM,
+			    "Coludn't allocate memory for PPMd")

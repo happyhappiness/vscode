@@ -1,2 +1,2 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for PPMd");
+archive_set_error(a, errno,
+			    "Failed to create a new ACL entry")

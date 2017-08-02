@@ -1,1 +1,1 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue)
+printf("Problem with lib2\n")

@@ -1,5 +1,2 @@
-snprintf(data->state.buffer,
-           BUFSIZE,
-           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT",
-           text,
-           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd)

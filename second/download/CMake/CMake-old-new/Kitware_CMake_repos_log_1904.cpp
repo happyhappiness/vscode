@@ -1,1 +1,1 @@
-snprintf
+fprintf(stdout, "\n")

@@ -1,1 +1,1 @@
-printf("Passed: TEST_C_FLAGS passed\n");
+fprintf(stderr, "DIRECTORY_DEF_RELEASE should be defined in C\n")

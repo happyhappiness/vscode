@@ -1,1 +1,2 @@
-printf("Child was killed when timeout expired.\n")
+printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp))

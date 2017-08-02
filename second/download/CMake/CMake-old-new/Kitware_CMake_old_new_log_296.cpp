@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_bytes()" )
+fprintf(stdout, "Output on stdout after grandchild test.\n")

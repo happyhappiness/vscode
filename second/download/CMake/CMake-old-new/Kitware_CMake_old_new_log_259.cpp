@@ -1,1 +1,1 @@
-snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++)
+md5this = (unsigned char *) aprintf("%s:%s", request, uripath)

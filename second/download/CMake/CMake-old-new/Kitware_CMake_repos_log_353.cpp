@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Using external lz4 program");
+archive_set_error(&a->archive, errno,
+			    "Failed to open the data fork for metadata")

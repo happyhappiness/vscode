@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " libpsl/%s", psl_get_version());
+fprintf(stderr, "Output on stderr from test returning 123.\n")

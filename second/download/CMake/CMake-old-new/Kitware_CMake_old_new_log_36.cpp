@@ -1,1 +1,1 @@
-snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer)
+char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename)

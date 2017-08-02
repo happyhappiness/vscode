@@ -1,1 +1,1 @@
-snprintf((char *) &dest[i * 2], 3, "%02x", source[i]);
+printf("Count: %d/%d\n", class, private)

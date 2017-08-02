@@ -1,1 +1,1 @@
-fprintf(stderr, "should add these lines:\n#include <...>\n");
+printf("NP_GetEntryPoints()\n")

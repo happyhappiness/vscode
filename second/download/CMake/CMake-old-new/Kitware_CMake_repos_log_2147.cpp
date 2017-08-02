@@ -1,1 +1,1 @@
-fprintf(fout, "double sqrtTable[] = {\n")
+printf("The value of Foo: %s\n", foo)

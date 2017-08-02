@@ -1,1 +1,2 @@
-archive_set_error
+archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate compression buffer")

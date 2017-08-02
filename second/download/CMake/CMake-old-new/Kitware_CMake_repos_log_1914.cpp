@@ -1,1 +1,1 @@
-spn = aprintf("%s@%s", service, realm);
+printf("RegularExpression::compile(): Nested *?+.\n")

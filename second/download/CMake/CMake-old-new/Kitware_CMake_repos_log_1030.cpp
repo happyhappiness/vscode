@@ -1,2 +1,2 @@
-archive_set_error(a, errno, "Error seeking in '%s'",
-		    mine->filename.m);
+archive_set_error(&a->archive, ERANGE,
+		    "Raw format only supports one entry per archive")

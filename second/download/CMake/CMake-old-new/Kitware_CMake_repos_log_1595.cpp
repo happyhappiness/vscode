@@ -1,1 +1,1 @@
-fprintf(out, " * Generated automatically by crc32.c\n */\n\n");
+archive_set_error(&a->archive, ENOMEM, "Out of memory")

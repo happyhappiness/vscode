@@ -1,2 +1,4 @@
-snprintf(header, sizeof(header),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  error, GetLastError())

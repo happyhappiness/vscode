@@ -1,1 +1,1 @@
-f(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd)
+fprintf(stderr, "Couldn't map view of file with MapViewOfFile()\n")

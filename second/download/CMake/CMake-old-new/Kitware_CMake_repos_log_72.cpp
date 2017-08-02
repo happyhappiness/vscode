@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Numeric mode too large");
+DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"))

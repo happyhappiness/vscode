@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC, "Invalid level");
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unknown format `%s'", val)

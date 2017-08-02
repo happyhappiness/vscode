@@ -1,1 +1,1 @@
-char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename)
+fprintf(stderr, "Couldn't open file mapping with CreateFileMapping()\n")

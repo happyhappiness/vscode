@@ -1,1 +1,1 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue)
+printf("Placeholder for another strange file in subdirectory\n")

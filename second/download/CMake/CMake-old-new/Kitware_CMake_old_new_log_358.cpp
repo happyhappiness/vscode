@@ -1,2 +1,1 @@
-fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL)
+printf("Child was killed when timeout expired.\n")

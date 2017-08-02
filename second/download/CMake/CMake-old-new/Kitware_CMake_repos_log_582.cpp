@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "File size could not be restored");
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+		    "lzo_init(type check) failed")

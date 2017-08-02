@@ -1,1 +1,1 @@
-sprintf(buffer, "Shold be empty (source file name): [%s]", cstr);
+fprintf(fout, "#include <bar.h>\nBAR_EXPORT int bar(){ return 10;}\n")

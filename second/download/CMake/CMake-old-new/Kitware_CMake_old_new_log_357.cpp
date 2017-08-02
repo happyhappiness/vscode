@@ -1,1 +1,1 @@
-fprintf(stdout, "WaitForData timeout reached.\n")
+printf("The process is still executing.\n")

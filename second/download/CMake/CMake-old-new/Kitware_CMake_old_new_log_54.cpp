@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"))
+printf("unrecognized file format in '%s'\n", filename)

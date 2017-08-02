@@ -1,3 +1,1 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "gzip decompression failed");
+fprintf(stderr, "%c%c", s->window[match++], s->window[start++])

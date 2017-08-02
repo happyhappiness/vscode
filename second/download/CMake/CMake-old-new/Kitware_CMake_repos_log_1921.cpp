@@ -1,1 +1,2 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
+printf(
+      "RegularExpression::find(): Compiled regular expression corrupted.\n")

@@ -1,1 +1,2 @@
-vsnprintf(s, sizeof(s), fmt, ap)
+printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp))

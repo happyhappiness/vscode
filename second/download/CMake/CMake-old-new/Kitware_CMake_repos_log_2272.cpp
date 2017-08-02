@@ -1,1 +1,1 @@
-printf("To run a test, enter the test number: ")
+fprintf(fout, "double sqrtTable[] = {\n")

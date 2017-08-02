@@ -1,1 +1,1 @@
-sprintf(cp->ExitExceptionString, "Signal %d", sig)
+char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename)

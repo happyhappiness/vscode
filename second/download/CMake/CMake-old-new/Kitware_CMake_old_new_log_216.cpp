@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default")
+txt_len = snprintf(ssl_buf, sizeof(ssl_buf), "%s (%s), %s, %s (%d):\n",

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-				    "Can't FindFirstFileW");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate data")

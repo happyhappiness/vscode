@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
+printf("\n\t")

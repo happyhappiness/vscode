@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC, "Corrupted data");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unrecognized key %s=%s", key, val)

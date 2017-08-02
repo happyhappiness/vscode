@@ -1,3 +1,2 @@
-fprintf( stderr,
-                  "%s: Input file %s is a directory.\n",
-                  progName,inName);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Linkname")

@@ -1,1 +1,1 @@
-fprintf(stderr, "%02.2x", (unsigned int)*p++);
+sprintf(buf, "%s\\*", name.c_str())

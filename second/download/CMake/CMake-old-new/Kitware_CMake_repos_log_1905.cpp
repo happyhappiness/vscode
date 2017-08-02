@@ -1,1 +1,1 @@
-snprintf
+printf("RegularExpression::compile(): No expression supplied.\n")

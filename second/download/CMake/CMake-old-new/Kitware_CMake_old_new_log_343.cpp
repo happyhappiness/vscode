@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout after recursive test.\n")
+fprintf(stderr, "Output on stderr before sleep.\n")

@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " libssh2/%s", CURL_LIBSSH2_VERSION);
+fprintf(stderr, "Output after sleep on stderr from timeout test.\n")

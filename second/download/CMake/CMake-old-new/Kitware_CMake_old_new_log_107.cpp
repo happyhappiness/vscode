@@ -1,3 +1,3 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Lzma decompression failed")
+archive_set_error(
+			&a->archive, EINVAL,
+			"Bad content length")

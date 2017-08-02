@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for decmpfs");
+                          "Unable to allocate memory for node data.")

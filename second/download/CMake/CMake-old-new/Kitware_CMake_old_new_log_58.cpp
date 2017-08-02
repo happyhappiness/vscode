@@ -1,1 +1,2 @@
-BIO_printf(mem, "%d", BN_num_bits(rsa->n))
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Cannot restore access time on this system")

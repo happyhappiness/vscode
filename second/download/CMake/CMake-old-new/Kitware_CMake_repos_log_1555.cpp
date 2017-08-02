@@ -1,3 +1,3 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma library error: Invalid options");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated tar archive")

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data")
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap)

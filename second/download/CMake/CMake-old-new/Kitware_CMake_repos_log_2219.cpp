@@ -1,1 +1,1 @@
-printf("hello world\n");
+fprintf(fp, "int generated() { return 3; }\n")
