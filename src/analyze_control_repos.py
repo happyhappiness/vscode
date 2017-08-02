@@ -51,10 +51,12 @@ def deal_file( filename, log_function, writer, gumtree, total_log):
                 block_file.write(block)
                 block_file.close()
                 # get block feature
+                gumtree.set_file(block_file_name)
                 block_feature = gumtree.get_block_feature()
                 block_feature = json.dumps(block_feature)
                 writer.writerow([filename, loc, log, log_file_name, block, block_file_name, block_feature])
                 total_log += 1
+                gumtree.set_file(filename)
         loc += 1
 
     file_reader.close()

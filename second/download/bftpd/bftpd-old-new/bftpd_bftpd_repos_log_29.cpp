@@ -1,0 +1,1 @@
+bftpd_log("Login as user '%s' failed. Too many users on server.\n", user)

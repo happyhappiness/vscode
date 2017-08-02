@@ -1,0 +1,1 @@
+bftpd_statuslog(2, 0, "%s", str)

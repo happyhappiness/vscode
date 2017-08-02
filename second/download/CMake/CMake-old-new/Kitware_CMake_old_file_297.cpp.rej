@@ -1,0 +1,15 @@
+--- /dev/null
++++ /dev/null
+@@ -346,11 +345,9 @@
+       */
+       DumpObjFile((PIMAGE_FILE_HEADER) lpFileBase, fout);
+    } else {
+-      printf("unrecognized file format in '%s'\n", filename);
+-      return false;
++      printf("unrecognized file format\n");
+    }
+    UnmapViewOfFile(lpFileBase);
+    CloseHandle(hFileMapping);
+    CloseHandle(hFile);
+-   return true;
+ 

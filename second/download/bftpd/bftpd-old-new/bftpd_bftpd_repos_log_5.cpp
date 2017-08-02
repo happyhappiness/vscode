@@ -1,0 +1,1 @@
+control_printf(SL_FAILURE, "421 Kicked from the server due to data connection timeout.")

@@ -1,8 +1,35 @@
-    return CURLE_FAILED_INIT;
+               table64[obuf[0]],
+               table64[obuf[1]]);
+      break;
+
+    case 2: /* two bytes read */
+      snprintf(output, 5, "%c%c%c=",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]]);
+      break;
+
+    default:
+      snprintf(output, 5, "%c%c%c%c",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]],
+               table64[obuf[3]]);
+      break;
+    }
+    output += 4;
   }
 
-  (void)Curl_ipv6works();
+  /* Zero terminate */
+  *output = '\0';
 
-#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
-  if(libssh2_init(0)) {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+  /* Return the pointer to the new data (allocated memory) */
+  *outptr = base64data;
+
+  free(convbuf);
+
+  /* Return the length of the new data */
+  *outlen = strlen(base64data);
+
+  return CURLE_OK;
+}

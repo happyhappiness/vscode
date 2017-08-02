@@ -84,8 +84,7 @@ ANALYZE_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 
 ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_TITLE.index('log_file')
 ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_TITLE.index('block_file')
 ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_TITLE.index('block_feature')
-CLUSTER_REPOS_TITLE = ['identity', 'file', 'location', 'condition_feature',\
-                                        'statement_feature', 'vector', 'cluster_index']
+CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'cluster_index']
 
 """
 analyze clone title

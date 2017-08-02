@@ -1,0 +1,1 @@
+bftpd_log("Error getting max users per HOST in bftpd_login.\n", 0)
