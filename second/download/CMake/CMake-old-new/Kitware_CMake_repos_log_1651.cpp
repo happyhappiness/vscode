@@ -1,1 +1,2 @@
-fprintf(stderr,zf,za1,za2,za3)
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't record entry in tar file without pathname")

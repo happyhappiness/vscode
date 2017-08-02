@@ -1,1 +1,1 @@
-(void) fprintf( stderr, "%s\n", msg )
+fprintf(stderr, "Output on stderr from test returning 123.\n")

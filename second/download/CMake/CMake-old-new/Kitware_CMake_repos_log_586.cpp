@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, 0,
-			    "Refusing to overwrite archive");
+archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate data for compression buffer")

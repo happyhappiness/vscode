@@ -1,1 +1,3 @@
-archive_set_error(&a->archive, EINVAL, "Too many special headers");
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated 7-Zip file body")

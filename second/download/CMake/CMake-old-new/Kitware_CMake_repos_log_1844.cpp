@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " WinIDN");
+fprintf(stdout, "Output before sleep on stdout from timeout test.\n")

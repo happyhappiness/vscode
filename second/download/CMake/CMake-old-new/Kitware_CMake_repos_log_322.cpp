@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "A name buffer is too small");
+fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+		    "Invalid empty ", "pathname")

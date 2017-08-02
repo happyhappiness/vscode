@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Linkname");
+fprintf(stderr, "* Multi status: %d handles, %d alive\n",
+          multi->num_easy, multi->num_alive)

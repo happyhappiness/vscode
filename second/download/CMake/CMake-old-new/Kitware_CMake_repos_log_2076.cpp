@@ -1,1 +1,1 @@
-printf("error: [%s]\n", *fname);
+printf("Failed to open module1\n%s\n", dlerror())

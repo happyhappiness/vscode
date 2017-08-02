@@ -1,1 +1,1 @@
-snprintf(namebuf, sizeof(namebuf), "%s(%s)", type, name);
+fprintf(stderr, "Unable to close %s!\n", argv[1])

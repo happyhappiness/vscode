@@ -1,0 +1,4 @@
+{
+      fprintf(stderr, "Couldn't open file '%s' with CreateFile()\n", filename);
+      return false;
+   }

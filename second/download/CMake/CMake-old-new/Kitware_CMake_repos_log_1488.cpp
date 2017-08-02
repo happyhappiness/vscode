@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Unsupported compression method for RAR file.");
+archive_string_sprintf(tgt, "WARC-Type: %s\r\n", _typ[hdr.type])

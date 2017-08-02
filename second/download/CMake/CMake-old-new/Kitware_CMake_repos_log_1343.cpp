@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate data for compression buffer");
+fprintf(out, " s %d,",
+	    toi(isodirrec + DR_size_offset, DR_extent_size))

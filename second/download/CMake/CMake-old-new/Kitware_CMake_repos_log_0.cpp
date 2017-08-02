@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for rpm");
+fprintf(s->file, "%c%c%c%c%c%c%c%c%c%c", gz_magic[0], gz_magic[1],
+             Z_DEFLATED, 0 /*flags*/, 0,0,0,0 /*time*/, 0 /*xflags*/, OS_CODE)

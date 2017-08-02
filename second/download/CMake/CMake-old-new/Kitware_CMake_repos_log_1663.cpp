@@ -1,1 +1,2 @@
-fprintf(stderr,"Loading of %s failed.  Giving up.\n", BZ2_LIBNAME);
+archive_set_error(&a->archive, ERANGE,
+		    "Numeric mode too large")

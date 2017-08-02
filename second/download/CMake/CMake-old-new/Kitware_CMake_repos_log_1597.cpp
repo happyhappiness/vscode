@@ -1,1 +1,3 @@
-fprintf(out, "crc_table[TBLS][256] =\n{\n  {\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated tar archive "
+			    "detected while reading sparse file data")

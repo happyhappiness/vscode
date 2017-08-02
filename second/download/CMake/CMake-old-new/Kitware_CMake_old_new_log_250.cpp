@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate v7tar data")
+vsnprintf(print_buffer, sizeof(print_buffer), message, args);

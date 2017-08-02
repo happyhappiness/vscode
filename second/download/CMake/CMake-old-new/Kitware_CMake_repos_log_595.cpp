@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Path is a physical drive name");
+archive_set_error(&a->archive, errno, "Write failed")

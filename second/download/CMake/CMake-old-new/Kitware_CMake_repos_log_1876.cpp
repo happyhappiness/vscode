@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "%d", state->requested_blksize);
+fprintf(stdout, "Output on stdout after grandchild test.\n")

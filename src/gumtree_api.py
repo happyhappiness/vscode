@@ -94,6 +94,23 @@ class Gumtree:
     def get_log(self):
         return Gumtree.gumtree.getLog()
 
+    """
+    @ param
+    @ return
+    @ involve get block which contains log
+    """
+    def get_block(self):
+        return Gumtree.gumtree.getBlock()
+
+    """
+    @ param
+    @ return
+    @ involve get feature vector for block[type vs frequence]
+    """
+    def get_block_feature(self):
+        vector_str = Gumtree.gumtree.getBlockFeature()
+        vector = vector_str[1:-1]
+        return vector.split(",")
 
     """
     @ param odl and new log file

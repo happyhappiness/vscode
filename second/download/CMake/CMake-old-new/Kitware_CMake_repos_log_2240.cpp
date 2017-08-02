@@ -1,1 +1,1 @@
-fprintf(stderr, "Missing name of file to create.\n")
+fprintf(stderr, "FILE_DEF_DEBUG should be defined in C\n")

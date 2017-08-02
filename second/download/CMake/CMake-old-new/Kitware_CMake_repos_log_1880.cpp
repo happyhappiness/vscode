@@ -1,1 +1,1 @@
-fprintf(stderr, "name_len=%d\n", name_len);
+fprintf(stdout, "Output on stdout from grandchild after sleep.\n")

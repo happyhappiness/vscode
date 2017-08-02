@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, errno,
-			    "Can't read temporary file(%jd)",
-			    (intmax_t)rs);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Illegal zisofs file body")

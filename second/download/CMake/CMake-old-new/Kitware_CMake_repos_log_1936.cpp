@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name)

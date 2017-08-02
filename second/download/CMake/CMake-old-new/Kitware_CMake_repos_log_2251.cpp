@@ -1,5 +1,1 @@
-fprintf(
-      fout,
-      "Contents of \"%s\":\n"
-      "----------------------------------------------------------------\n",
-      name)
+fprintf(stderr, "TARGET_PATH_DEF not defined in C\n")

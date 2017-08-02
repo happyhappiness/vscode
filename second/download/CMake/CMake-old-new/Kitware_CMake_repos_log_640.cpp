@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
-			    tree_current_path(t));
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up gzip decompressor")

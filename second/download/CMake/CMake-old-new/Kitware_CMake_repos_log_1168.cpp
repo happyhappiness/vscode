@@ -1,1 +1,1 @@
-fprintf(stderr, "UNKNOWNTAG_START:%s\n", name);
+archive_set_error(&a->archive, errno, "Seek error")

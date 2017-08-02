@@ -1,2 +1,1 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "lzop decompression failed: %d", r);
+archive_set_error(&a->archive, errno, "Can't read")

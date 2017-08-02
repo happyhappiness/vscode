@@ -1,2 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
+len = curl_msnprintf(fptr, left, ".%ld", prec)

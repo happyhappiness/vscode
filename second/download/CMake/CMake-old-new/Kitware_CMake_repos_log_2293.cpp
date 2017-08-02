@@ -1,1 +1,1 @@
-fprintf(fp, "int wrapped() { return wrapped_help(); }\n")
+fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue)

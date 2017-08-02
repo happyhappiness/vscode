@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data");
+snprintf(sbuf, sizeof(sbuf), "%d", port)

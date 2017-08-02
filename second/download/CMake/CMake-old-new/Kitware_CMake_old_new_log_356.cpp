@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from grandchild before sleep.\n")
+printf("No process has been executed.\n")

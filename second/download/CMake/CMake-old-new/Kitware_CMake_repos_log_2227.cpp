@@ -1,1 +1,1 @@
-printf("Process executable path: %s\n", nexec)
+printf("&glGetString = %p\n", &glGetString)

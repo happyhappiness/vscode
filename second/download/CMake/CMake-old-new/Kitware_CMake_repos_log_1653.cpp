@@ -1,1 +1,2 @@
-fprintf(stderr,zf,za1,za2,za3,za4,za5)
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate v7tar data")

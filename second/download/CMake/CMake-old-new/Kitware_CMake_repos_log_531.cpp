@@ -1,2 +1,1 @@
-fsobj_error(a_eno, a_estr, errno,
-			    "chdir() failure", "");
+archive_set_error(a, ENOMEM, "No memory")

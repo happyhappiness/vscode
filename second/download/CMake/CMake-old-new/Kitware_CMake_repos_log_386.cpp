@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Failed to get ACL permission set");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for UTF-16LE")

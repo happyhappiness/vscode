@@ -1,1 +1,2 @@
-archive_set_error(_a, EINVAL, "Invalid time flag");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+          "Header CRC error")

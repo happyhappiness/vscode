@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Seek failed")
+YY_FATAL_ERROR(
+      "fatal flex scanner internal error--no action found" )

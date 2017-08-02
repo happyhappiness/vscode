@@ -1,1 +1,3 @@
-archive_set_error(&a->archive, errno, "Read error");
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory")

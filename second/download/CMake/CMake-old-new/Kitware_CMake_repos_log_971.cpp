@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic mode \"%s\" unsupported", val);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory")

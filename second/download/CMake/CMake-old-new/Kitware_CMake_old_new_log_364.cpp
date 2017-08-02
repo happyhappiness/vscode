@@ -1,2 +1,3 @@
-printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp))
+fprintf(stderr, "Mismatch in exit exception.  "
+              "Should have been %d, was %d.\n",
+              exception, kwsysProcess_GetExitException(kp))

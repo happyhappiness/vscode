@@ -1,3 +1,2 @@
-archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Cannot seek.");
+archive_string_sprintf(&shar->work, " %s\n",
+		    shar->quoted_name.s)

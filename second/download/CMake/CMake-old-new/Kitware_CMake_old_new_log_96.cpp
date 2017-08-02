@@ -1,2 +1,1 @@
-archive_set_error(a, errno, "Can't stat '%s'",
-			    filename)
+archive_set_error(&a->archive, errno, "Can't allocate memory")

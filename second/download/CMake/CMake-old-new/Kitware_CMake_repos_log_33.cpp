@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "LHa header sum error");
+fprintf(stderr, "mismatch at %d\n", i )

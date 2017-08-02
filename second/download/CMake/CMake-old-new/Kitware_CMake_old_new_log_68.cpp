@@ -1,1 +1,1 @@
-return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
+archive_set_error(&a->archive, errno, "statvfs failed");

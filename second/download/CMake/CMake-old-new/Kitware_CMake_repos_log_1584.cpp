@@ -1,1 +1,1 @@
-printf("0x%08" PRIX32, crc32_table[0][b]);
+err = set_conversion_failed_error(a, sconv, "Linkname")

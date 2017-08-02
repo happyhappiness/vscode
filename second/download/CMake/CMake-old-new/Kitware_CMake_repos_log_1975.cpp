@@ -1,1 +1,1 @@
-tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+fprintf(stdout, "FindResource worked\n")

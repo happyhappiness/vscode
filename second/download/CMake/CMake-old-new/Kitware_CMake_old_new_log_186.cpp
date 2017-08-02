@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library")
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file body")

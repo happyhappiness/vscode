@@ -1,3 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma library error: format not recognized");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated tar archive")

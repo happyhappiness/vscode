@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Raw format only supports filetype AE_IFREG");
+len = snprintf(ptr, left, " c-ares/%s", ares_version(NULL))

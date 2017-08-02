@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name)
+YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" )

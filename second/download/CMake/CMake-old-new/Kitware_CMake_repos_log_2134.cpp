@@ -1,1 +1,1 @@
-fprintf(fout, "0};\n")
+printf("Placeholder for a strange file in subdirectory\n")

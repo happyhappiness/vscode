@@ -1,1 +1,1 @@
-snprintf(buf, max, "Unknown error %d", err);
+fprintf(stderr, "No ldd-like tool is known to this executable.\n")

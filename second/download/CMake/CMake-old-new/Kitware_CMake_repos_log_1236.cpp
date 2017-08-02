@@ -1,2 +1,3 @@
-(struct archive_string *as, const char *fmt,
-    va_list ap)
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Overflow of 64-bit file sizes")

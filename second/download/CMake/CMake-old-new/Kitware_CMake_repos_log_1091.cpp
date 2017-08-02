@@ -1,1 +1,2 @@
-(void)printf("Input: %s\n", *argv);
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate ustar data")

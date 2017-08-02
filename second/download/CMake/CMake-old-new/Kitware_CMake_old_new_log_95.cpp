@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Unexpedted operation in archive_read_open_filename")
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate mtree data")

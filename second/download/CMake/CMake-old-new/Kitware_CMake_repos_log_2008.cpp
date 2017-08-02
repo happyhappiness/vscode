@@ -1,1 +1,1 @@
-char *fullpath = aprintf("%s/%s", capath, entry->name);
+fprintf(stderr, "should add these lines:\n#include <...>\n")

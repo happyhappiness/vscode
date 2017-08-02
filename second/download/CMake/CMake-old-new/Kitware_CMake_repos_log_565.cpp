@@ -1,2 +1,3 @@
-rchive_set_error(&a->archive, errno,
-			    "Failed to restore metadata");
+archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			"Bad record header")

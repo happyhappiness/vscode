@@ -1,1 +1,2 @@
-len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL))
+printf("Child exited with value = %d\n",
+             kwsysProcess_GetExitValue(kp))

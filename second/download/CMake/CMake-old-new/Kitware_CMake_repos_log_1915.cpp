@@ -1,1 +1,1 @@
-utf8_spn = aprintf("%s/%s", service, host);
+printf("RegularExpression::compile(): Invalid range in [].\n")

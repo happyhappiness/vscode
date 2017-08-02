@@ -1,2 +1,1 @@
-fprintf(stderr, "Failed to find string '%s' in '%s'\n", substring_success,
-          str);
+printf("Failed to open module2\n%s\n", dlerror())

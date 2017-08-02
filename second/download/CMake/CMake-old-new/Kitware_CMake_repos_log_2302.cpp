@@ -1,1 +1,1 @@
-printf("foo is: %d\n", foo())
+printf("Unhandled event.\n")

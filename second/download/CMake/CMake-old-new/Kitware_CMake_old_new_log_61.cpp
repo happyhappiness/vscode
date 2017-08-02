@@ -1,3 +1,2 @@
-snprintf(buf, sizeof(conn->data->state.buffer),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second)
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't open file to read extended attributes: No name")

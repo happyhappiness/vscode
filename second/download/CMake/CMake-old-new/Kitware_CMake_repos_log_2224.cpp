@@ -1,1 +1,1 @@
-printf("Hello from TSD\n")
+fprintf(fp, "int wrapped() { return wrapped_help(); }\n")

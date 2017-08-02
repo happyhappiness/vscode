@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-					    "Malformed 64-bit local header offset");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for UTF-16BE")

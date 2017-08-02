@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Failed to clean up compressor");
+archive_set_error(&a->archive, ENOMEM,
+			    "No memory for ZIP decompression")

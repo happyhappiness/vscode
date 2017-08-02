@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data");
+				    "Can't allocate ustar data")

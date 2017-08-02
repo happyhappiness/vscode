@@ -1,2 +1,3 @@
-fsobj_error(a_eno, a_estr, errno,
-				    "Could not stat %s", path);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Unacceptable dictionary size for lzip: %d",
+			    dict_size)

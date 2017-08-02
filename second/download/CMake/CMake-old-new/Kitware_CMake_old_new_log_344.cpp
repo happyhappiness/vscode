@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr after recursive test.\n")
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n")

@@ -1,2 +1,2 @@
-fprintf(header, "%5u%s", base_dist[i],
-                SEPARATOR(i, D_CODES-1, 10));
+archive_set_error(&a->archive, ENOMEM,
+			    "No memory for CAB reader")

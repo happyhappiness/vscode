@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external grzip program for grzip compression");
+archive_set_error(&a->archive, errno,
+		    "Failed to get metadata(acl)")

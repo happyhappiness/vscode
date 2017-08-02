@@ -1,3 +1,2 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Insufficient compressed data");
+len = snprintf(ptr, left, " iconv/%d.%d",
+                 _LIBICONV_VERSION >> 8, _LIBICONV_VERSION & 255)

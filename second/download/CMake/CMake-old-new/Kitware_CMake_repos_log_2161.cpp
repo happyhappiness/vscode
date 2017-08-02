@@ -1,1 +1,1 @@
-fprintf(stdout, "fakefluid is creating file \"%s\"\n", av[i + 1])
+fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var)

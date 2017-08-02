@@ -1,1 +1,2 @@
-BIO_printf(mem, "%02x", num->data[j]);
+fprintf(stderr, "Failed to find string '%s' in '%s'\n", substring_success,
+          str)

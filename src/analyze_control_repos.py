@@ -38,11 +38,22 @@ def deal_file( filename, log_function, writer, gumtree, total_log):
             if gumtree.set_loc(loc):
                 # get and save log
                 log = gumtree.get_log()
+                # save log
                 log_file_name = my_constant.SAVE_REPOS_LOG + str(total_log) + '.cpp'
                 log_file = open(log_file_name, 'wb')
                 log_file.write(log)
                 log_file.close()
-                writer.writerow([filename, loc, log, log_file_name])
+                # get and save block
+                block = gumtree.get_block()
+                # save block
+                block_file_name = my_constant.SAVE_REPOS_BLOCK + str(total_log) + '.cpp'
+                block_file = open(block_file_name, 'wb')
+                block_file.write(block)
+                block_file.close()
+                # get block feature
+                block_feature = gumtree.get_block_feature()
+                block_feature = json.dumps(block_feature)
+                writer.writerow([filename, loc, log, log_file_name, block, block_file_name, block_feature])
                 total_log += 1
         loc += 1
 
@@ -62,15 +73,15 @@ def fetch_file(isFromBegin, start_file, start_log):
             # deal with cpp file
             is_cpp = re.search(my_constant.FILE_FORMAT, filename, re.I)
             if is_cpp:
-                is_unsupport = re.search(my_constant.UNSPORT_FILE_FORMAT, filename, re.I)
+                is_unsupport = re.search(my_constant.UNSRCML_FILE_FORMAT, filename, re.I)
                 filename = os.path.join(item[0], filename)
                 # transform format to be supported
-                if is_unsupport:
+                if is_unsupport:                    
                     new_filename = filename.replace(is_unsupport.group(), '.cpp')
                     os.rename(filename, new_filename)
                     filenames.append(new_filename)
                 else:
-                    filenames.append(filename)   
+                    filenames.append(filename)
 
 
     # support continue from given location

@@ -1,4 +1,2 @@
-archive_set_error(&self->archive->archive, err,
-				    "Internal error initializing decompressor%s%s",
-				    detail == NULL ? "" : ": ",
-				    detail);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to initialize HMAC-SHA1")

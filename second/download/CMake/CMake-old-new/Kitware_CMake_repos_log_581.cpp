@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, 0,
-		    "Write request too large");
+archive_set_error(_a, ENOMEM, "Can't allocate memory")

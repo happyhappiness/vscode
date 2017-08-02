@@ -1,1 +1,1 @@
-printf("expected failure, got 0x%04X\n", uc)
+fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result)

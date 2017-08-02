@@ -1,1 +1,1 @@
-printf("Error...\n");
+archive_set_error(&a->archive, -1, "Size required")

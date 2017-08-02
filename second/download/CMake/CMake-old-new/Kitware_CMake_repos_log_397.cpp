@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "Out of memory");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor")

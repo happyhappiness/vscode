@@ -1,4 +1,1 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "lzmadec decompression failed(%d)",
-			    r)
+YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yyensure_buffer_stack()" )

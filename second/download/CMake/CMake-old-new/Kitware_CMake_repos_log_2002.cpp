@@ -1,1 +1,1 @@
-return snprintf(buffer, size, OSSL_PACKAGE);
+printf("\n")

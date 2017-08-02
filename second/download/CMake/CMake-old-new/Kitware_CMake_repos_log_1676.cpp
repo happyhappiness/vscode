@@ -1,1 +1,2 @@
-snprintf(buf, sizeof(buf), "/proc/%lu/path/a.out", (unsigned long) getpid());
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Filename table too large")

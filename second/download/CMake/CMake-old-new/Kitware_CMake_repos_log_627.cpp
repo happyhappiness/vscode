@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "File is too large for cpio format.");
+archive_set_error(_a, ENOMEM, "Can't allocate memory")

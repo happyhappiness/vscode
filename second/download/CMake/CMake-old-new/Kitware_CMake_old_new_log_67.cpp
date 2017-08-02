@@ -1,1 +1,2 @@
-return snprintf(buffer, size, "axTLS/%s", ssl_version());
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching))

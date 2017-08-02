@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lz4 decompression");
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC, "Internal error "
+	    "initializing compression library")

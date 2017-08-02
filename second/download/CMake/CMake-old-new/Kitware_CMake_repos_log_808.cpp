@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated tar archive "
-			    "detected while reading sparse file data");
+archive_set_error(&a->archive, -1, "Not 7-Zip archive file")

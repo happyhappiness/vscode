@@ -1,1 +1,1 @@
-fprintf(fout, "double sqrtTable[] = {\n")
+printf("arg %d is %s\n", ac, av[i])

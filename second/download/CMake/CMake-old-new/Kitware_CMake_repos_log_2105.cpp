@@ -1,1 +1,1 @@
-std::printf("%p\n", static_cast<double (*)(double)>(&std::sin))
+printf("File %s should be in subdirectory\n", av[2])

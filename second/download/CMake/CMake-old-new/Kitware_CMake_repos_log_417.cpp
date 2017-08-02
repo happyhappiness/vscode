@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Failed to open '%S'", wcs);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "/unset shall not contain `='")

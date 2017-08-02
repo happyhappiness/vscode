@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-		    "Failed to FindFirstFile");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Header CRC error")

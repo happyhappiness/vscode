@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, -1,
-				    "Couldn't allocate memory");
+archive_string_sprintf(&mtree->buf, "# %s/%s\n",
+			n->parentdir.s, n->basename.s)

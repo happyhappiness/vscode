@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL))
+fprintf(stderr, "Invalid test number %d.\n", n)

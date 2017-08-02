@@ -1,2 +1,2 @@
-aprintf("%s:%d:%d:%s:%hu", ssl_cafile,
-                verifypeer, SSL_CONN_CONFIG(verifyhost), hostname, port)
+fprintf(stdout, "Done processing %s\nTotal errors found: %i\n", argv[i],
+              error)

@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, ENOMEM, "Out of memory");
+archive_set_error(&a->archive, -1, "Malformed 7-Zip archive")

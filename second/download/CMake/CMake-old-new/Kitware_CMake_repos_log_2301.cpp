@@ -1,1 +1,1 @@
-fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var)
+printf("You pressed the %c key!\n", text[0])

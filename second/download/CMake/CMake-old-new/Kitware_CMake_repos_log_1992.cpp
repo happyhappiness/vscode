@@ -1,1 +1,1 @@
-size = snprintf(buffer, size, "WinSSL");
+printf("TEST_C_FLAGS failed\n")

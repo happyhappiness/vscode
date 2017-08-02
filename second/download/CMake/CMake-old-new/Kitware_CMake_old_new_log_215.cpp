@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default")
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name)

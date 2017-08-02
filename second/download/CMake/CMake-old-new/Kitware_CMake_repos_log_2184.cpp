@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory.\n");
+fprintf(stderr, "Usage: %s OUTPUT_FILENAME\n", argv[0])

@@ -1,1 +1,1 @@
-fprintf(fp, "int generated() { return 3; }\n")
+fprintf(stderr, "build_config_name is not \"minsizerel\"\n")

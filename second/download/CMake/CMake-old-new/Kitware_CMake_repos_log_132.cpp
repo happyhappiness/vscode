@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Out of memory for deflate decompression");
+snprintf(txtbuf, sizeof(txtbuf), "%s (0x%08X)", txt, err)

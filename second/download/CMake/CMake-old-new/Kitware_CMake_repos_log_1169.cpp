@@ -1,1 +1,1 @@
-fprintf(stderr, "UNKNOWNTAG_END:%s\n", name);
+archive_set_error(&a->archive, errno, "Read error")

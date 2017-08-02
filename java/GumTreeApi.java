@@ -4,6 +4,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -39,7 +40,9 @@ public class GumTreeApi {
 	final int LOG_OVER_MODIFY = -1;
 	final int LOG_NO_MODIFY = 0;
 	final int LOG_MODIFY = 1;
-	final String COMMENT_TYPE = "comment";
+//	final String COMMENT_TYPE = "comment";
+//	final String BLOCK_TYPE = "block";
+	final String IF_TYPE = "if";
 	// application specific info for analyze file
 	private int loc;
 	private ITree tree;
@@ -82,20 +85,37 @@ public class GumTreeApi {
 
 	public static void main(String args[]) {
 		// System.out.println("hello I am gumtree api");
+		
+		
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_83.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_1.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_83.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_1.cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(oldFile, newFile);
-		 g.setOldLoc(0);
+		 g.addLogNode(7);
+		 g.setOldLoc(7);
+		 System.out.println(g.getOldLog());
 		 System.out.println(g.getNewLog());
 		 System.out.println(g.getActionType());
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_265.cpp";
+		
+		
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.c";
 //		GumTreeApi g = new GumTreeApi();
 //		g.setFile(filename);
-//		g.setLoc(12);
+//		g.setLoc(7);
 //		System.out.println(g.getLog());
+//		System.out.println(g.getBlock());
+//		
+		
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setOldAndNewFile(oldFile, newFile);
+//		System.out.println(g.isMatch());
+//		System.out.println(g.getBlockFeature());
+		
+		
 //		GumTreeApi g = new GumTreeApi();
 //		g.setOldAndNewFile();
 //		g.addLogNode(5);
@@ -104,13 +124,13 @@ public class GumTreeApi {
 
 	public boolean setOldLoc(int oldLoc) {
 		this.oldLoc = oldLoc;
-		this.oldLogNode = getTopNodeOfLine(this.oldLoc, this.oldTree, this.oldFile);
+		this.oldLogNode = getTopNodeOfLine(this.oldLoc, this.oldTree, this.oldTreeContext, this.oldFile);
 		// commented line
 		if (oldLogNode == null) {
 			System.out.printf("line: %d in file: %s no node found\n", this.oldLoc, this.oldFile);
 			return false;
 		}
-		else if(this.oldTreeContext.getTypeLabel(this.oldLogNode).equals(COMMENT_TYPE))
+		else if(this.isComment(this.oldLogNode, this.oldTreeContext, this.oldFile))
 		{
 			System.out.printf("line: %d in file: %s found to be comment\n", this.oldLoc, this.oldFile);
 			return false;
@@ -144,7 +164,7 @@ public class GumTreeApi {
 	}
 
 	public void addLogNode(int line) {
-		this.oldLogs.add(this.getTopNodeOfLine(line, this.oldTree, this.oldFile));
+		this.oldLogs.add(this.getTopNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile));
 	}
 
 	// one line to action type NO, OVER, ..
@@ -154,7 +174,7 @@ public class GumTreeApi {
 		Action action;
 		String changeType;
 		ITree tempNode;
-		boolean isLogModify = true;
+		boolean isLogModify = false;
 		while (actionIter.hasNext()) {
 			action = actionIter.next();
 			// do not deal with comment modification
@@ -162,7 +182,7 @@ public class GumTreeApi {
 			{
 				continue;
 			}
-			actionType = LOG_MODIFY;
+			actionType = LOG_OVER_MODIFY;
 			changeType = action.getName();
 			// judge if leaf edition is edition of logs
 			tempNode = changeType.equals("INS") ? ((Insert)action).getParent() : action.getNode();
@@ -178,9 +198,14 @@ public class GumTreeApi {
 					}
 				}
 				if (isLogModify == false) {
-					return LOG_OVER_MODIFY;
+					break;
 				}
 			}
+		}
+		
+		if(isLogModify == true)
+		{
+			actionType = LOG_MODIFY;
 		}
 
 		return actionType;
@@ -203,16 +228,13 @@ public class GumTreeApi {
 
 	public boolean setLoc(int line) {
 		this.loc = line;
-		this.logNode = getTopNodeOfLine(this.loc, this.tree, this.filename);
+		this.logNode = getTopNodeOfLine(this.loc, this.tree, this.treeContext, this.filename);
 		// commented line
 		if (this.logNode == null) {
 			System.out.printf("line: %d in file: %s no node found\n", this.loc, this.filename);
 			return false;
 		}
-		// else
-		// {
-		// printNode(this.logNode, this.treeContext, this.filename);
-		// }
+		
 		return true;
 	}
 
@@ -220,6 +242,138 @@ public class GumTreeApi {
 		return getValue(this.logNode, this.filename);
 	}
 
+	public String getBlock(){
+		// first parent that contains block type
+		ITree parentNode = this.logNode.getParent();
+		while(parentNode != null)
+		{
+			if(!this.isBlock(parentNode, this.treeContext, this.filename))
+			{
+				parentNode = parentNode.getParent();
+			}
+			else
+			{
+				return getValue(parentNode, this.filename);
+			}
+		}
+		
+		return "";
+	}
+	
+	private final List<String> AST_TYPE = Arrays.asList(
+			"if",
+			"while",
+			"for",
+			"do",
+			"break",
+			"continue",
+			"return",
+			"switch",
+			"case",
+			"default",
+			"block",
+			"label",
+			"goto",
+			"empty_stmt",
+			"specifier",
+			"name",
+			"extern",
+			"friend",
+			"decl_stmt",
+			"decl",
+			"function_decl",
+			"function",
+			"init",
+			"literal",
+			"lambda",
+			"namespace",
+			"using",
+			"typedef",
+			"modifier",
+			"range",
+			"call",
+			"class",
+			"class_decl",
+			"super",
+			"public",
+			"private",
+			"protected",
+			"constructor",
+			"constructor_decl",
+			"destructor",
+			"destructor_decl",
+			"struct_decl",
+			"struct",
+			"union_decl",
+			"union",
+			"enum",
+			"operator",
+			"ternary",
+			"expr",
+			"cast",
+			"assert",
+			"sizeof",
+			"typeid",
+			"noexcept",
+			"alignof",
+			"alignas",
+			"decltype",
+			"attribute",
+			"asm",
+			"template",
+			"parameter_list",
+			"typename",
+			"throw",
+			"try",
+			"catch",
+			"type",
+			"capture",
+			"index",
+			"member_list",
+			"condition",
+			"then",
+			"else",
+			"operator",
+			"argument_list",
+			"parameter",
+			"param",
+			"expr_stmt",
+			"elseif",
+			"argument",
+			"directive");
+	
+	// syntax feature of block file 
+	public String getBlockFeature()
+	{
+		int ast_type_num = this.AST_TYPE.size();
+		Integer[] frequence = new Integer[ast_type_num];
+		for(int i = 0; i < ast_type_num; i++)
+		{
+			frequence[i] = 0;
+		}
+		// traverse all nodes to count frequence vector
+		Iterator<ITree> allNodesIter = this.tree.getDescendants().iterator();
+		String tempType;
+		int index;
+		while(allNodesIter.hasNext())
+		{
+			tempType = getType(allNodesIter.next(), this.treeContext);
+//			System.out.printf("type: %s\n", tempType);
+
+			index = this.AST_TYPE.indexOf(tempType);
+			if(index != -1)
+			{
+				frequence[index] += 1;
+			}
+			else
+			{
+				System.out.printf("type: %s can not be found\n", tempType);
+			}
+		}
+		
+		return Arrays.asList(frequence).toString();
+	}
+	
 	public boolean isMatch() {
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
@@ -240,28 +394,35 @@ public class GumTreeApi {
 		switch(action.getName())
 		{
 		case "INS":
-			isComment = this.newTreeContext.getTypeLabel(operatedNode).equals(COMMENT_TYPE);
+			isComment = this.isComment(operatedNode, this.newTreeContext, this.newFile);
 			break;
 		default:
-			isComment = this.oldTreeContext.getTypeLabel(operatedNode).equals(COMMENT_TYPE);
+			isComment = this.isComment(operatedNode, this.oldTreeContext, this.oldFile);
 			break;
 		}
 		return isComment;
 	}
 	// one line to src node
-	private ITree getTopNodeOfLine(int line, ITree rootNode, String filename) {
+	private ITree getTopNodeOfLine(int line, ITree rootNode, TreeContext treeContext, String filename) {
 		// ITree topNode = isOld ? oldTree : newTree;
 		line = line + 1;
-		Iterator<ITree> allNodesIter = rootNode.getDescendants().iterator();
+//		Iterator<ITree> allNodesIter = rootNode.getDescendants().iterator();
+		// bread first, so the first one from this line is top one from this line
+		Iterator<ITree> allNodesIter = rootNode.breadthFirst().iterator();
+//		ignore the toppest level
+		allNodesIter.next();
 		ITree tempNode, largestNode = null;
 
 		while (allNodesIter.hasNext()) {
 			tempNode = allNodesIter.next();
-			// printNode(tempNode, isOld);
-			// the node with most children in given line
-			if (getLineNumber(tempNode, filename, true) == line
-					&& (largestNode == null || tempNode.getSize() > largestNode.getSize())) {
+//			printNode(tempNode, treeContext , filename);
+			// the node with most children in given line [!block fault!]
+			if (getLineNumber(tempNode, filename, true) == line && 
+//					!this.isBlock(tempNode, treeContext, filename)){
+					this.isStatement(tempNode, treeContext, filename)){
+//					&& (largestNode == null || tempNode.getSize() > largestNode.getSize())) {
 				largestNode = tempNode;
+				break;
 			}
 		}
 
@@ -288,10 +449,15 @@ public class GumTreeApi {
 	// print node
 	private void printNode(ITree node, TreeContext treeContext, String filename) {
 		System.out.printf("node value: %s, type:%s, line: %d, size: %d \n", getValue(node, filename),
-				treeContext.getTypeLabel(node.getType()), getLineNumber(node, filename, true), node.getSize());
+				getType(node, treeContext), getLineNumber(node, filename, true), node.getSize());
 
 	}
-
+	
+	// get text value of given node
+	private String getType(ITree node, TreeContext treeContext) {
+		return treeContext.getTypeLabel(node.getType());
+	}
+	
 	// get text value of given node
 	private String getValue(ITree node, String filename) {
 		int beginPos = node.getPos();
@@ -337,6 +503,45 @@ public class GumTreeApi {
 		}
 
 		return lineNumber;
+	}
+	
+	private boolean isBlock(ITree node, TreeContext treeContext, String filename)
+	{
+		String block = filename.endsWith(".cpp") ? "block" : "Compound";
+		boolean isBlockFlag = getType(node, treeContext).equals(block);
+		if(!isBlockFlag)
+		{
+			Iterator<ITree> children = node.breadthFirst().iterator();
+			while(children.hasNext())
+			{
+				if(getType(children.next(), treeContext).equals(block))
+				{
+					isBlockFlag = true;
+					break;
+				}
+			}
+		}
+		
+		return isBlockFlag;
+	}
+	
+	private boolean isStatement(ITree node, TreeContext treeContext, String filename)
+	{
+		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
+		return getType(node, treeContext).endsWith(statement);
+	}
+	
+	private boolean isComment(ITree node, TreeContext treeContext, String filename)
+	{
+		if(filename.endsWith(".cpp"))
+		{
+			return getType(node, treeContext).equals("comment");
+		}
+		else
+		{
+//			c/h file do not analyze comment
+			return false;
+		}
 	}
 
 	/*

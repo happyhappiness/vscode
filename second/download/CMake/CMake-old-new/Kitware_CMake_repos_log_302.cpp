@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "xmlTextWriterSetIndent() failed: %d", r);
+archive_set_error(&a->archive, errno,
+			    "Can't stat existing object")

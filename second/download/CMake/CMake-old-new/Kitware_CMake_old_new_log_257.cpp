@@ -1,1 +1,1 @@
-txt_len = snprintf(ssl_buf, sizeof(ssl_buf), "%s (%s), %s, %s (%d):\n",
+write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap)

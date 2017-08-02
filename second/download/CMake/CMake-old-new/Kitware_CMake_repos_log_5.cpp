@@ -1,1 +1,1 @@
-archive_set_error(a, ENOMEM, "No memory");
+len = vsnprintf(buf, sizeof(buf), format, va)

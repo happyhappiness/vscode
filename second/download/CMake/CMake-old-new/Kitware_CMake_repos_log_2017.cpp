@@ -1,1 +1,1 @@
-int curl_mfprintf(FILE *fd, const char *format, ...);
+printf("This does happen.\n")

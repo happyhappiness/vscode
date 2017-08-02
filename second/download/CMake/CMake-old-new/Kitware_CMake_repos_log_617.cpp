@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for Pathname");
+archive_set_error(&a->archive, errno,
+		    "Can't set UID=%jd", (intmax_t)a->uid)

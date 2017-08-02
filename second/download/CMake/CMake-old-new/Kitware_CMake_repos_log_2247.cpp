@@ -1,1 +1,1 @@
-printf("Problem with libcxx2.h include dir probably!\n")
+fprintf(stderr, "DEBUG and RELEASE definitions inconsistent in C\n")

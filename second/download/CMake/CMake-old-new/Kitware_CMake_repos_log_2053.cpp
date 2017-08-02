@@ -1,4 +1,1 @@
-return addError(
-          "additional six characters expected to parse unicode surrogate pair.",
-          token,
-          current);
+printf("To run a test, enter the test number: ")

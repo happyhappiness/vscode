@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC, "bzip decompression failed");
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "name option requires a string")

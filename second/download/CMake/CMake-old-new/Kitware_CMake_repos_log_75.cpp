@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "File size out of range");
+DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"))

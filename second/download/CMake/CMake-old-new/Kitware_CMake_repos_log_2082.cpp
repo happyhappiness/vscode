@@ -1,1 +1,1 @@
-fprintf(stdout, "stdout from bad command line arg '-bad'\n");
+printf("B\n")

@@ -1,1 +1,1 @@
-printf("Passed: TEST_C_FLAGS passed\n");
+printf("Process executable path: %s\n", nexec)

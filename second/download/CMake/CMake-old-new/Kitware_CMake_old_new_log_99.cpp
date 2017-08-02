@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size?")

@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in yy_get_next_buffer()" )
+fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL)

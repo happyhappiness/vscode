@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
+printf("-R needs an additional parameter.\n")

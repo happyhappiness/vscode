@@ -1,1 +1,1 @@
-yy_fatal_error( "cmCommandArgument_yyset_column called with no buffer" , yyscanner)
+fprintf(stderr, "Output before sleep on stderr from timeout test.\n")

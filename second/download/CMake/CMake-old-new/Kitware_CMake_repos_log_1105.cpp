@@ -1,2 +1,2 @@
-archive_string_sprintf(str, " time=%jd.%jd",
-		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Username too long")

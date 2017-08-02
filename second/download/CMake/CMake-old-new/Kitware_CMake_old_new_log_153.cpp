@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name)
+archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated lzma input")

@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-		    "Couldn't allocate memory for xml parser");
+		    "Can't allocate tar data")

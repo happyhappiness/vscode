@@ -1,1 +1,1 @@
-snprintf(ssh_buffer, sizeof(ssh_buffer), "libssh2/%s", LIBSSH2_VERSION);
+fprintf(stderr, "Output before crash on stderr from crash test.\n")

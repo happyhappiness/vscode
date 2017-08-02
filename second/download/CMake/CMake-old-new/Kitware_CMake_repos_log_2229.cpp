@@ -1,1 +1,1 @@
-printf("Check for file: %s\n", fpath)
+printf("Running command: %s with %d arguments\n", argv[0], argc)

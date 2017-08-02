@@ -1,3 +1,3 @@
-*userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization);
+archive_set_error(&a->archive,
+					    ENOMEM,
+					    "Can't allocate memory")

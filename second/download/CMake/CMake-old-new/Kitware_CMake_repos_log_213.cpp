@@ -1,3 +1,2 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unsupported form of BCJ2 streams");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Gname")

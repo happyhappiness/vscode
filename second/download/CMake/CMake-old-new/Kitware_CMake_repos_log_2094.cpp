@@ -1,1 +1,1 @@
-printf("hello exec:%i", own_auto_export_function(41));
+printf("Placeholder for another strange file in subdirectory\n")

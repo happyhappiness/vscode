@@ -1,1 +1,1 @@
-sprintf(zip->format_name, "7-Zip");
+snprintf(output, outlen, "%s:", label)

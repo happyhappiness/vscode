@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-                                "fatal error - scanner input buffer overflow" )
+fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL)

@@ -1,1 +1,4 @@
-printf("Process executable name: %s\n", exec)
+fprintf(stderr, "Did not receive expected configuration argument:\n"
+                    "  expected [" CMAKE_INTDIR "]\n"
+                    "  received [%s]\n",
+            cfg)

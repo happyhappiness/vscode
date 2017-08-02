@@ -1,2 +1,3 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Uncompressed size error");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Malformed Solaris ACL attribute (unsupported type %o)",
+		    (int)type)

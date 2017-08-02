@@ -1,1 +1,2 @@
-fprintf(stderr, "Usage: %s <file1> <file2>\n", argv[0])
+fprintf(stdout, "%s Version %d.%d\n", argv[0], Tutorial_VERSION_MAJOR,
+            Tutorial_VERSION_MINOR)

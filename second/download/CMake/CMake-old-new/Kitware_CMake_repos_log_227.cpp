@@ -1,1 +1,1 @@
-errmsg(" invoked with invalid archive handle.\n");
+archive_set_error(&a->archive, ENOMEM, "Out of memory")

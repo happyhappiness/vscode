@@ -1,1 +1,1 @@
-char *slot_name = aprintf("PEM Token #%d", slot_id);
+fprintf(stdout, "stdout from bad command line arg '-bad'\n")

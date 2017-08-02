@@ -1,2 +1,1 @@
-archive_string_sprintf(&cp, "CP%d",
-					    (int)archive_le32dec(extdheader));
+sprintf(proxy, "%s:%s", getenv("HTTP_PROXY"), getenv("HTTP_PROXY_PORT"))

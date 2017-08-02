@@ -1,3 +1,1 @@
-snprintf(output, 5, "%c%c==",
-               table64[obuf[0]],
-               table64[obuf[1]]);
+fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_CYAN)

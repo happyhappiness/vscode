@@ -1,2 +1,2 @@
-fprintf(header, "{{%3u},{%3u}}%s", static_ltree[i].Code,
-                static_ltree[i].Len, SEPARATOR(i, L_CODES+1, 5));
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for CAB data")

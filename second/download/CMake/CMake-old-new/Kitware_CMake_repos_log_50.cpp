@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data");
+Curl_failf(data, "base64-decoding: %s",
+                       curl_easy_strerror(result))

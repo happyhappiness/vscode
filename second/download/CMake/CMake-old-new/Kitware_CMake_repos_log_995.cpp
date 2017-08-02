@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Failed to clean up compressor");
+archive_set_error(f->archive, EINVAL,
+		    "Can't launch external program: %s", cmd)

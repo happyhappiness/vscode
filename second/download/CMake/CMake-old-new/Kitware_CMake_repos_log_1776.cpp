@@ -1,1 +1,2 @@
-snprintf(dest, 20, ",%d,%d", (int)(port>>8), (int)(port&0xff));
+YY_FATAL_ERROR(
+			"fatal flex scanner internal error--no action found" )

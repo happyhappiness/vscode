@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "File size could not be restored");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Invalid location to Huffman tree specified.")

@@ -1,1 +1,1 @@
-archive_set_error(a, errno, "Couldn't stat fd %d", mine->fd);
+DEBUGF(fprintf(stderr, "Error: win32_init failed\n"))

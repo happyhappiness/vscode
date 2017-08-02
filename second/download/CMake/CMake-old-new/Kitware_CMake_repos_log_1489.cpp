@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Attempt to seek past beginning of RAR data block");
+archive_string_sprintf(tgt,
+			"WARC-Target-URI: %s%s\r\n", u, hdr.tgturi)

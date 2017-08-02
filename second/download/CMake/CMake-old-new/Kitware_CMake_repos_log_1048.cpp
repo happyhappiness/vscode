@@ -1,2 +1,3 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "Unknown ACL tag");
+archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Insufficient compressed data")

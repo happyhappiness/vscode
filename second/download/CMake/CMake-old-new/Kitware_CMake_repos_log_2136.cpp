@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s number\n", argv[0])
+printf("Problem with libc2\n")

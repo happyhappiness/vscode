@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, 0,
-		    "Attempt to write to an empty file");
+archive_set_error(f->archive, ARCHIVE_ERRNO_PROGRAMMER,
+		    "Failed to clean up compressor")

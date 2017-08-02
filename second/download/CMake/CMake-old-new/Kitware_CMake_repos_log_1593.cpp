@@ -1,1 +1,1 @@
-fprintf(stderr, "%s\n", m);
+err = set_conversion_failed_error(a, tar->sconv, "Uname")

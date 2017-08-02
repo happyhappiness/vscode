@@ -1,2 +1,2 @@
-archive_set_error(a, errno,
-		    "Failed to initialize ACL working storage");
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for uudecode")

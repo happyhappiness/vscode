@@ -1,2 +1,2 @@
-archive_set_error(a, errno,
-			    "Failed to open '%s'", filename);
+archive_set_error(a, errno, "Failed to set %s acl",
+			    tname)

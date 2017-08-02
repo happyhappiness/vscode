@@ -1,2 +1,3 @@
-archive_set_error(&(a->archive), 0,
-			    "Truncated xar archive");
+fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not chdir %s", path)

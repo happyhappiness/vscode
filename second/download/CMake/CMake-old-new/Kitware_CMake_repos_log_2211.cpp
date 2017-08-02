@@ -1,1 +1,1 @@
-fprintf(stderr, "before sleep\n");
+printf("%f", d)

@@ -1,1 +1,1 @@
-fprintf(stderr, "|<%d>| %s", level, str);
+fprintf(stderr, "before sleep\n")

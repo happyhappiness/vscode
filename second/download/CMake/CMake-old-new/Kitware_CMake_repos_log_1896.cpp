@@ -1,1 +1,1 @@
-snprintf(r, 9, "%7" CURL_FORMAT_CURL_OFF_T "d", d);
+fprintf(stderr, "kwsysProcess_New returned NULL!\n")

@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Truncated archive file");
+archive_string_sprintf(&shar->work,
+				    "test -e \"%s\" || :> \"%s\"\n",
+				    shar->quoted_name.s, shar->quoted_name.s)

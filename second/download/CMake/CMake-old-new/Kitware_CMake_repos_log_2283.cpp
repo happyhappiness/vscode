@@ -1,1 +1,1 @@
-printf
+fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result)

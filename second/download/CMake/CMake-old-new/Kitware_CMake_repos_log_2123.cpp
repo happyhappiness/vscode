@@ -1,1 +1,1 @@
-printf("Running command: %s with %d arguments\n", argv[0], argc);
+printf("%s is there! Good.", av[1])

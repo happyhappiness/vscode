@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "flex scanner push-back overflow" )
+fprintf(stderr, "Output on stderr before grandchild test.\n");

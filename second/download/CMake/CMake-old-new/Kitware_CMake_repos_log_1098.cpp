@@ -1,1 +1,2 @@
-archive_string_sprintf(&mtree->buf, "/set%s\n", setstr.s);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Linkname")

@@ -1,3 +1,1 @@
-archive_set_error(&self->archive->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Insufficient compressed data");
+snprintf(option_arg, sizeof(option_arg), "USER,%s", conn->user)

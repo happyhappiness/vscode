@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to open %s for writing!\n", argv[1])
+printf("Check for file: %s\n", fpath)

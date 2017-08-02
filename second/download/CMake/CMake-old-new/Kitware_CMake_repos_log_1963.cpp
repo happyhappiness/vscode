@@ -1,1 +1,1 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+printf("This one has nonstandard extension\n")

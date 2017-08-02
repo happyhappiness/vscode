@@ -1,1 +1,1 @@
-printf("This is T8\n");
+fprintf(fout, "double sqrtTable[] = {\n")

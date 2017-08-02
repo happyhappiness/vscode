@@ -1,2 +1,2 @@
-rchive_set_error(&a->archive, errno,
-		    "Can't set file flags on symlink.");
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Unsupported method")

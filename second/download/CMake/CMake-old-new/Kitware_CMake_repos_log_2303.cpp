@@ -1,1 +1,1 @@
-printf("Problem with libc1\n");
+printf("Running '%s'\n", argv[0])

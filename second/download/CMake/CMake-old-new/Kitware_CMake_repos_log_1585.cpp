@@ -1,1 +1,1 @@
-printf(",%s", (b+1) % 4 == 0 ? "" : " ");
+err = set_conversion_failed_error(a, sconv, "Pathname")

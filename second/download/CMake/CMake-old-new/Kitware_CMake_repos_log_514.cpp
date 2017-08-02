@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-				    "Can't unlink already-existing object");
+archive_set_error(a, ENOMEM, "No memory")

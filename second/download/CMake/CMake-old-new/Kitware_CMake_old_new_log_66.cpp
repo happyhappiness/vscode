@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"))
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching))

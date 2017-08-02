@@ -1,8 +1,3 @@
-{
-  ErrorInfo info;
-  info.token_ = token;
-  info.message_ = message;
-  info.extra_ = extra;
-  errors_.push_back(info);
-  return false;
-}
+printf("testToRun was modified by TestDriver code to an invalid value: "
+             "%3d.\n",
+             testNum)

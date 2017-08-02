@@ -1,1 +1,1 @@
-len = snprintf(buffer, sizeof(buffer), "1e+9999")
+printf("expected 0x%04X, got 0x%04X\n", entry.chr, uc)

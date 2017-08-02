@@ -1,1 +1,1 @@
-snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++)
+sprintf(buf, "%s/*", name.c_str())

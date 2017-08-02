@@ -1,1 +1,1 @@
-size = aprintf("%" CURL_FORMAT_CURL_OFF_T, data->state.infilesize);
+fprintf(stderr, "Output on stderr before grandchild test.\n")

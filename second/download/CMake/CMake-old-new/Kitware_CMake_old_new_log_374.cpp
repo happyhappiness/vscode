@@ -1,1 +1,1 @@
-sprintf(buffer, format, argument)
+fprintf(fout, "add_executable(%s", targetName.c_str())

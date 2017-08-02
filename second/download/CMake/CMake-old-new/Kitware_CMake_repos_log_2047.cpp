@@ -1,2 +1,1 @@
-return addErrorAndRecover(
-          "Missing ',' or ']' in array declaration", token, tokenArrayEnd);
+fprintf(stderr, "Must specify output file and symbol prefix!")

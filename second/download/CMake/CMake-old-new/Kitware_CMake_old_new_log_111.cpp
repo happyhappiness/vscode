@@ -1,1 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
+archive_set_error(&(a->archive),
+				    ARCHIVE_ERRNO_MISC,
+				    "Failed to clean up lzmadec decompressor")

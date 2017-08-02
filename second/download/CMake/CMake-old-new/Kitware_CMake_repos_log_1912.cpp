@@ -1,1 +1,1 @@
-spn = aprintf("%s/%s@%s", service, host, realm);
+printf("RegularExpression::compile(): Internal error.\n")

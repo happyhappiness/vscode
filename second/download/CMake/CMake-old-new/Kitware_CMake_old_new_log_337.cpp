@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from test returning 123.\n")
+fprintf(stdout, "Output before crash on stdout from crash test.\n")

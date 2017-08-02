@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno, "Failed to create dir '%ls'",
-	    path);
+archive_set_error(&a->archive, 0,
+			    "Refusing to overwrite archive")

@@ -1,1 +1,1 @@
-from = aprintf("%s", data->set.str[STRING_MAIL_FROM]);
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n")

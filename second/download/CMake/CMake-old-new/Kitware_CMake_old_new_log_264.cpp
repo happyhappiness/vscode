@@ -1,1 +1,1 @@
-snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+sprintf(buf, "%s*", name.c_str())

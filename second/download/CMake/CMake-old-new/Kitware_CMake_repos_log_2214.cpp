@@ -1,1 +1,1 @@
-printf("ac = [%d]\n", ac);
+fprintf(stderr, "Missing name of file to create.\n")

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "File modification time too large");
+DEBUGF(fprintf(stderr, "DISCONNECT without easy handle, ignoring\n"))

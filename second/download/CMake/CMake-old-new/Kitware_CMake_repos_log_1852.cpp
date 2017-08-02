@@ -1,1 +1,1 @@
-d = aprintf("ADAT %s", p);
+fprintf(stdout, "Output on stdout before recursive test.\n")

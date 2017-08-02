@@ -1,1 +1,2 @@
-aprintf("Accept-Encoding: %s\r\n", data->set.str[STRING_ENCODING])
+fprintf(stderr, "Error converting self path \"%s\" to real path: %s\n",
+            self_path, msgbuf)

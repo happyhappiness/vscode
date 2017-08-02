@@ -1,1 +1,1 @@
-fprintf(stderr, "Could not open output file \"%s\"", argv[1])
+printf("This is T1\n")

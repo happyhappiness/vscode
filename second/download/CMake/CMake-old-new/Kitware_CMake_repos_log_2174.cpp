@@ -1,1 +1,1 @@
-printf("No X on this computer\n");
+fprintf(file, "%s", "x")

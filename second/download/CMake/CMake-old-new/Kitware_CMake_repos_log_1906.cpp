@@ -1,1 +1,1 @@
-fprintf(data->set.err, "\n");
+printf("RegularExpression::compile(): Error in compile.\n")

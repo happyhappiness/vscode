@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data")
+snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++)

@@ -1,1 +1,1 @@
-nprintf(print_buffer, sizeof(print_buffer), message, args);
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_RED)

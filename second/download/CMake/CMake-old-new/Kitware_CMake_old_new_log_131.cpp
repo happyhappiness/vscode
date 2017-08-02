@@ -1,3 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default")
+		    "Can't allocate pax data")

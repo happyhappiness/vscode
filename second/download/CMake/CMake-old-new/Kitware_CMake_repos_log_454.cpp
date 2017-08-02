@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), -1,
-		    "Failed to convert WCS to MBS");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+              "Error during seek of RAR file")

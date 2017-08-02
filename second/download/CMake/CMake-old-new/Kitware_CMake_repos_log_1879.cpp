@@ -1,1 +1,1 @@
-fprintf(stderr, "name=%s\n", name);
+fprintf(stderr, "Output on stderr from grandchild before sleep.\n")

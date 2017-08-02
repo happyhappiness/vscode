@@ -1,1 +1,1 @@
-return addError("Syntax error: value, object or array expected.", token);
+fprintf(fout, "&amp;")

@@ -1,1 +1,1 @@
-printf
+printf("This is T2\n")

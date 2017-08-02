@@ -1,3 +1,1 @@
-fprintf(stderr, "handle %p, state %s, %d sockets\n",
-              (void *)data,
-              statename[data->mstate], data->numsocks);
+snprintf(trypath, sizeof(trypath) - 1, "%s/%s", token, args)

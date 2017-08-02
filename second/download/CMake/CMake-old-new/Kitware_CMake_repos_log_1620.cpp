@@ -1,1 +1,2 @@
-fprintf(header, "local const ct_data static_dtree[D_CODES] = {\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Invalid CFDATA")

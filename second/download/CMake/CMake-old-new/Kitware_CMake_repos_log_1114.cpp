@@ -1,2 +1,2 @@
-archive_string_sprintf(&mtree->buf, "# %s/%s\n",
-			n->parentdir.s, n->basename.s);
+archive_set_error(&a->archive, ERANGE,
+			    "Major device number too large")

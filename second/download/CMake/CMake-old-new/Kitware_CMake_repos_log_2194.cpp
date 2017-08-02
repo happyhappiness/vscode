@@ -1,1 +1,1 @@
-printf("%s\n", regen_string)
+fprintf(stderr, "Something wrong with T2\n")

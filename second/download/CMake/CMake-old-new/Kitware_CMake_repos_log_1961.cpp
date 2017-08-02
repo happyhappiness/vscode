@@ -1,1 +1,1 @@
-fprintf
+printf("VerifyC\n")

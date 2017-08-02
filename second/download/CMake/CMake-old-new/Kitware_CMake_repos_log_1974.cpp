@@ -1,10 +1,2 @@
-response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
+fprintf(stdout, "CMAKE_RCDEFINE='%s', and is a string constant\n",
+          CMAKE_RCDEFINE)

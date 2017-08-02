@@ -1,1 +1,1 @@
-printf("The process is still executing.\n")
+printf("Child was killed by parent.\n")

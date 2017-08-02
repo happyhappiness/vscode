@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-				    "Can't set permissions to 0%o", (int)mode);
+archive_set_error(&a->archive, 0,
+					    "Removing symlink %ls",
+					    a->name)

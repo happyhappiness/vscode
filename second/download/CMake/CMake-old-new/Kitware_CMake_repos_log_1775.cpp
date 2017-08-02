@@ -1,1 +1,1 @@
-snprintf(optr, 4, "%%%02x", *iptr);
+fprintf(stdout, "%s\n", line.c_str())

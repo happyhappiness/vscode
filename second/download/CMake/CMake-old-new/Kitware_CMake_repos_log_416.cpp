@@ -1,1 +1,1 @@
-archive_set_error(a, errno, "Failed to open '%s'", mbs);
+archive_set_error(&a->archive, errno, "Can't allocate memory")

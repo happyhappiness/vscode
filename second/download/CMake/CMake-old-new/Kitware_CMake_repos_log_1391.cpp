@@ -1,2 +1,3 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzop compression failed: returned status %d", r);
+archive_set_error(&a->archive, ERANGE,
+		    "Numeric group ID %jd too large",
+		    (intmax_t)archive_entry_gid(entry))

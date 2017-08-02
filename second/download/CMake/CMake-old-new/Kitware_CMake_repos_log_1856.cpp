@@ -1,1 +1,1 @@
-host = aprintf("Host: %s\r\n", hostheader);
+fprintf(stdout, "Output on stdout before sleep.\n")

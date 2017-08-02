@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Failed to clean up compressor");
+archive_set_error(a, ENOMEM, "No memory")

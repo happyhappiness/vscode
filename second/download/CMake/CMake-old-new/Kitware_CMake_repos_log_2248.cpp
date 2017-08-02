@@ -1,1 +1,2 @@
-fprintf(fout, "Avoid ctest truncation of output: CTEST_FULL_OUTPUT\n")
+fprintf(stderr,
+            "FILE_DEF_RELEASE and TARGET_DEF_RELEASE inconsistent in C\n")

@@ -1,4 +1,1 @@
-return addError("expecting another \\u token to begin the second half of "
-                      "a unicode surrogate pair",
-                      token,
-                      current);
+printf("Couldn't parse that input as a number\n")

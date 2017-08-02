@@ -1,1 +1,2 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
+printf(
+          "RegularExpression::find(): Internal error -- memory corrupted.\n")

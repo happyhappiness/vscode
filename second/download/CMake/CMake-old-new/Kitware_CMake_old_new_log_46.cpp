@@ -1,1 +1,1 @@
-f(int color, FILE* stream, const char* format, ...)
+*curl_mvaprintf(const char *format, va_list ap_save)

@@ -1,3 +1,2 @@
-archive_string_sprintf(&mtree->buf,
-				    "# %s/%s\n",
-				    me->parentdir.s, me->basename.s);
+archive_set_error(&a->archive, ENAMETOOLONG,
+			    "Link contents too long")

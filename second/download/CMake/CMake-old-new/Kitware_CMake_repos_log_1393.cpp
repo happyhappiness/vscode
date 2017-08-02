@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
-        "Internal error: Unable to set format");
+archive_set_error(&a->archive, ERANGE,
+			    "Major device number too large")

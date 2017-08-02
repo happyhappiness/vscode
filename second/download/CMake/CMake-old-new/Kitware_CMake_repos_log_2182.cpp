@@ -1,1 +1,1 @@
-fprintf(stdout, ">> Creating %s!\n", argv[1])
+fprintf(stderr, "No current working directory.\n")

@@ -1,1 +1,1 @@
-printf("Couldn't parse that input as a number\n")
+fprintf(fout, "%g,\n", result)

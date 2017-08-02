@@ -1,1 +1,1 @@
-fprintf(stdout, "Output before sleep on stdout from timeout test.\n")
+fprintf(stderr, "Output before crash on stderr from crash test.\n")

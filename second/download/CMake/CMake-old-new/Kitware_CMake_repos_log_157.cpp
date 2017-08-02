@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated RAR file data");
+DEBUGF(fprintf(stderr,
+                     "Error: polarsslthreadlock_unlock_function failed\n"))

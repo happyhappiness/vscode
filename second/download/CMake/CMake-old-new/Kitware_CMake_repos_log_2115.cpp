@@ -1,1 +1,1 @@
-fprintf(stdout, "CMAKE_INTDIR is %s\n", CMAKE_INTDIR)
+sprintf(buffer, "Should be 0 (source file abstract property): [%p]", cstr)

@@ -1,1 +1,3 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK)
+printf("md5sum 1: expected [%s]\n"
+         "               got [%s]\n",
+         testMD5output1, md5out)
