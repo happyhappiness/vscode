@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from test returning 123.\n")
+printf("%s %s\n", includeFlags.c_str(), definitions.c_str())

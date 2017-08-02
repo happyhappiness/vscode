@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE)
+snprintf( buf, sizeof(buf), "%d", state->requested_blksize )

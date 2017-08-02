@@ -1,0 +1,1 @@
+f(out, "%s\n", format_ptr)

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Seek failed")
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name)

@@ -1,4 +1,5 @@
 {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-    }
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}

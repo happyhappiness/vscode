@@ -1,3 +1,2 @@
-fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp))
+archive_set_error(&a->archive, EINVAL,
+			    "More than one string tables exist")

@@ -1,1 +1,2 @@
-fprintf(stderr, "File is an executable.  I don't dump those.\n")
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Cannot restore access time on this system")

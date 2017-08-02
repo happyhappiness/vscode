@@ -1,1 +1,2 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL)
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

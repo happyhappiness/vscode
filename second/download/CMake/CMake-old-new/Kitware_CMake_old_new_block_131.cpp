@@ -1,5 +1,6 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate pax data");
+		archive_set_error(a, ENOMEM, "No memory");
+		free(mine);
+		free(buffer);
 		return (ARCHIVE_FATAL);
 	}

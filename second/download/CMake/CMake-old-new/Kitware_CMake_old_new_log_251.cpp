@@ -1,1 +1,1 @@
-md5this = (unsigned char *) aprintf("%s:%s", request, uripath)
+YY_FATAL_ERROR( "bad buffer in cmFortran_yy_scan_bytes()" )

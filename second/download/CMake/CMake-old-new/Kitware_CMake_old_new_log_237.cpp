@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" )
+sprintf(num, "%d", static_cast<int>(this->Makefiles.size()));

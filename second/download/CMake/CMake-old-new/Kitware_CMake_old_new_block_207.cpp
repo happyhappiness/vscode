@@ -1,6 +1,2 @@
-{
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, "%ld", width);
-          fptr += len;
-          left -= len;
-        }
+YY_FATAL_ERROR(
+    "fatal flex scanner internal error--end of buffer missed" )

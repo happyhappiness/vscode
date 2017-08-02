@@ -1,2 +1,3 @@
 archive_set_error(&a->archive, ENOMEM,
-			    "No memory for file name")
+					    "Can't allocate memory for "
+					    "SCHILY.acl.default")

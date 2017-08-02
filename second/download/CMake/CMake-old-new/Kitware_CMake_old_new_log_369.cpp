@@ -1,1 +1,1 @@
-fprintf(stderr, "Invalid test number %d.\n", n)
+archive_set_error(&a->archive, errno, "fchdir failed");

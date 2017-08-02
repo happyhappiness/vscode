@@ -1,4 +1,4 @@
 {
-		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
-		return (ARCHIVE_FATAL);
-	}
+        (void) fprintf( stderr, "%s\n", msg );
+        exit( YY_EXIT_FAILURE );
+}

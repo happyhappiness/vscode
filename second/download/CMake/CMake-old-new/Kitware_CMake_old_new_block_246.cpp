@@ -1,4 +1,1 @@
-{
-    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
-    putenv(buf);
-  }
+YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_create_buffer()" )

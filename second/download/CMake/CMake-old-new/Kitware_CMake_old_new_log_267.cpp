@@ -1,1 +1,1 @@
-sprintf(buf, "%s*", name.c_str())
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath)

@@ -174,6 +174,7 @@ public class GumTreeApi {
 		Action action;
 		ITree tempNode;
 		boolean isLogModify = true;
+		boolean isModify = false;
 		while (isLogModify && actionIter.hasNext()) {
 			action = actionIter.next();
 			// do not deal with comment modification
@@ -181,6 +182,7 @@ public class GumTreeApi {
 			{
 				continue;
 			}
+			isModify = true;
 // 			judge if leaf edition is edition of logs
 			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
 //			printNode(tempNode, this.oldTreeContext, this.oldFile);
@@ -195,7 +197,7 @@ public class GumTreeApi {
 			}
 		}
 		
-		actionType = isLogModify ? LOG_MODIFY : LOG_OVER_MODIFY;
+		actionType = isModify ? (isLogModify ? LOG_MODIFY : LOG_OVER_MODIFY) : LOG_NO_MODIFY;
 
 		return actionType;
 	}

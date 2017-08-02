@@ -1,1 +1,1 @@
-sprintf(buffer, format, value)
+xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer)

@@ -1,1 +1,1 @@
-fprintf(stdout, "Output before sleep on stdout from timeout test.\n")
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

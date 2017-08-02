@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "chdir() failure")
+len = curl_msnprintf(fptr, left, ".%ld", prec)

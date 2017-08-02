@@ -1,1 +1,2 @@
-fprintf(stderr, "Output on stderr from grandchild before sleep.\n")
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

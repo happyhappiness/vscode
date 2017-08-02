@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from test returning 123.\n")
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner)

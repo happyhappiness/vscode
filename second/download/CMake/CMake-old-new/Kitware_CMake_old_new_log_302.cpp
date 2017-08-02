@@ -1,1 +1,1 @@
-printf("No process has been executed.\n")
+snprintf( buf, sizeof(buf), "%d", state->requested_blksize )

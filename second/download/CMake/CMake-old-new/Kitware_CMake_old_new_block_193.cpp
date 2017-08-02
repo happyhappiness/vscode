@@ -1,5 +1,2 @@
-{
-					archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name);
-				}
+YY_FATAL_ERROR(
+                "fatal flex scanner internal error--end of buffer missed" )

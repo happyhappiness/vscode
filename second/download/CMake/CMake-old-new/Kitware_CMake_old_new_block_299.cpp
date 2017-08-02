@@ -1,15 +1,28 @@
-{
-  /* The grandchild just sleeps for a few seconds and handles signals.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 6 seconds.  */
-  testProcess_sleep(6);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
+struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
+    &conn->data->state.negotiate;
+  char *encoded = NULL;
+  size_t len = 0;
+  char *userp;
+  CURLcode result;
+  OM_uint32 discard_st;
+
+  result = Curl_base64_encode(conn->data,
+                              neg_ctx->output_token.value,
+                              neg_ctx->output_token.length,
+                              &encoded, &len);
+  if(result) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return result;
+  }
+
+  if(!encoded || !len) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return CURLE_REMOTE_ACCESS_DENIED;
+  }
+
+  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

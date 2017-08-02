@@ -442,11 +442,11 @@
         "lastActiveWindow": {
             "workspacePath": "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "uiState": {
-                "mode": 1,
-                "x": 1547,
-                "y": 84,
-                "width": 1278,
-                "height": 970
+                "mode": 0,
+                "x": 1280,
+                "y": 26,
+                "width": 1920,
+                "height": 1028
             }
         }
     }

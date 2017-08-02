@@ -1,2 +1,3 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzma program for lzma decompression")
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL")

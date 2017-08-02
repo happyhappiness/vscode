@@ -1,3 +1,1 @@
-fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp))
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])

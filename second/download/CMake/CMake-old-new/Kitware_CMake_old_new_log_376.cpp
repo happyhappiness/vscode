@@ -1,1 +1,3 @@
-sprintf(buf, "%s\\*", name.c_str())
+archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer")

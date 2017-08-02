@@ -1,2 +1,2 @@
-printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp))
+archive_set_error(f->archive, EIO,
+			    "Can't write to filter")

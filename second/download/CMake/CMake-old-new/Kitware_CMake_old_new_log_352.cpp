@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from grandchild before sleep.\n")
+archive_set_error(&a->archive, errno, "fchdir failed");

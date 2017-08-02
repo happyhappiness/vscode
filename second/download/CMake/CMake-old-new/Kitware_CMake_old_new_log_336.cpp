@@ -1,1 +1,1 @@
-fprintf(stderr, "Output before sleep on stderr from timeout test.\n")
+fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef)

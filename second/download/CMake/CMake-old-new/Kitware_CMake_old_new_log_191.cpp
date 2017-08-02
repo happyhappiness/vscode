@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, en, "Can't create '%s'",
-		    a->name)
+snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++)

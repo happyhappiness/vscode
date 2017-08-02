@@ -1,4 +1,1 @@
-archive_set_error(&a->archive, errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system")
+YY_FATAL_ERROR( "bad buffer in cmCommandArgument_yy_scan_bytes()" )

@@ -1,2 +1,5 @@
-fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL)
+response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop)

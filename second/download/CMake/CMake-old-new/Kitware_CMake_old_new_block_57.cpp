@@ -1,6 +1,5 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");
+				return (ARCHIVE_FAILED);
+		}

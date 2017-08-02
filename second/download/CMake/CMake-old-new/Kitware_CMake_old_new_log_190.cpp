@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize)
+snprintf(error_buffer, sizeof(error_buffer),
+                   "SSL certificate problem: %s",
+                   X509_verify_cert_error_string(lerr))

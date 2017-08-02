@@ -1,1 +1,2 @@
-yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner)
+YY_FATAL_ERROR(
+                                "fatal error - scanner input buffer overflow" )

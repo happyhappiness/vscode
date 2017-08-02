@@ -1,1 +1,1 @@
-printf("Child was killed by parent.\n")
+fprintf(out, "#\n# Fatal libcurl error\n")

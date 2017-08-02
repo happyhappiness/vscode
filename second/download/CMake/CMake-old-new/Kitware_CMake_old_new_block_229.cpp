@@ -1,1 +1,9 @@
-YY_FATAL_ERROR( "bad buffer in cmCommandArgument_yy_scan_bytes()" )
+{
+  char s[4096];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(s, sizeof(s), fmt, ap);
+  va_end(ap);
+
+  return AddFormData(formp, FORM_DATA, s, 0, size);
+}

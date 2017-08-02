@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before sleep.\n")
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce)

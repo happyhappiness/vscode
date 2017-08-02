@@ -1,5 +1,6 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ar data");
-		return (ARCHIVE_FATAL);
-	}
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.access");
+					return (err);
+				}

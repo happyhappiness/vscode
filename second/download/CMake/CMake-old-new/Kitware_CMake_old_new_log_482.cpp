@@ -1,0 +1,1 @@
+snprintf(scope, sizeof(scope), "%%%u", scopeid)

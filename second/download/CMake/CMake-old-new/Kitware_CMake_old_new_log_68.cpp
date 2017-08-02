@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "statvfs failed");
+archive_set_error(a, ENOMEM, "No memory")

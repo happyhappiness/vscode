@@ -1,8 +1,6 @@
 {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
+		/* Everything failed; give up here. */
+		archive_set_error(&a->archive, en, "Can't create '%s'",
+		    a->name);
+		return (ARCHIVE_FAILED);
 	}

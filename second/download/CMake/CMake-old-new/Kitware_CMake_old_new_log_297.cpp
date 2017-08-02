@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr after grandchild test.\n")
+xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer)

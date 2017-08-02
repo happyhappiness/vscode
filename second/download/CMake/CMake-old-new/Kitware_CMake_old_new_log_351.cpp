@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr after grandchild test.\n")
+archive_set_error(&a->archive, errno, "fchdir failed");

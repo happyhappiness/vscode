@@ -1,5 +1,4 @@
 {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, ".%ld", prec);
-          fptr += len;
-        }
+      (void) fprintf( stderr, "%s\n", msg );
+  exit( YY_EXIT_FAILURE );
+}

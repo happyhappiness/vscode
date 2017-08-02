@@ -1,1 +1,2 @@
-printf("unrecognized file format in '%s'\n", filename)
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate tar data")

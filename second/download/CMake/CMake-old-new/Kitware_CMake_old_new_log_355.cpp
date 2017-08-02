@@ -1,2 +1,1 @@
-fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL)
+fprintf(stderr, "unknowntag_start:%s\n", name)

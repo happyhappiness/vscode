@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before recursive test.\n");
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])

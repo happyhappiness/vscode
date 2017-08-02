@@ -1,6 +1,6 @@
 {
-		archive_set_error(a, ENOMEM, "No memory");
-		free(mine);
-		free(buffer);
-		return (ARCHIVE_FATAL);
-	}
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL");
+				return (NULL);
+			}

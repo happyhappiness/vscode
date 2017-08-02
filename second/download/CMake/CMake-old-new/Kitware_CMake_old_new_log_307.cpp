@@ -1,2 +1,1 @@
-printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp))
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

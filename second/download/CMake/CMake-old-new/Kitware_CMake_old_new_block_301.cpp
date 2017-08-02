@@ -1,5 +1,2 @@
-{
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
-            }
+snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
+               data->state.infilesize)

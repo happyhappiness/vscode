@@ -1,2 +1,3 @@
-fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL)
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "LHa data CRC error")

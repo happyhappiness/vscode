@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data")
+yy_fatal_error( "cmCommandArgument_yyset_column called with no buffer" , yyscanner)

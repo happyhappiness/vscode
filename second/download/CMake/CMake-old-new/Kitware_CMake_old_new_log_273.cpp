@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_WHITE)
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)

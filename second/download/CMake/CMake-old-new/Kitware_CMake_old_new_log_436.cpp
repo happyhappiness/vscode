@@ -1,10 +1,2 @@
-define YYDSYMPRINTF(Title, Token, Value, Location)    \
-do {                \
-  if (yydebug)              \
-    {                \
-      YYFPRINTF (stderr, "%s ", Title);        \
-      yysymprint (stderr,           \
-                  Token, Value);  \
-      YYFPRINTF (stderr, "\n");          \
-    }                \
-} while (0)
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header")

@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-      "fatal flex scanner internal error--no action found" )
+len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL))

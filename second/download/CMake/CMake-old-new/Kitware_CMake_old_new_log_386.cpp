@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE)
+fprintf(fout, "add_executable(%s", targetName.c_str())

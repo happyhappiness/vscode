@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "bad buffer in cmCommandArgument_yy_scan_bytes()" )
+vsnprintf(s, sizeof(s), fmt, ap)

@@ -1,5 +1,4 @@
 {
-    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
-    left -= len;
-    ptr += len;
-  }
+        (void) fprintf( stderr, "%s\n", msg );
+        exit( YY_EXIT_FAILURE );
+}

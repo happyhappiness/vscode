@@ -1,2 +1,2 @@
-printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp))
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Archives > 4GB require Zip64 extensions")

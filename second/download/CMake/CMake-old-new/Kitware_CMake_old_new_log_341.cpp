@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr after recursive test.\n")
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" )

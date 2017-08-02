@@ -1,30 +1,23 @@
 {
-  /* The grandchild just sleeps for a few seconds while ignoring signals.  */
-  (void)argc; (void)argv;
-#if defined(_WIN32)
-  if(!SetConsoleCtrlHandler(test9_grandchild_handler, TRUE))
-    {
-    return 1;
-    }
-#else
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = SIG_IGN;
-  sigemptyset(&sa.sa_mask);
-  if(sigaction(SIGINT, &sa, 0) < 0)
-    {
-    return 1;
-    }
-#endif
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 9 seconds.  */
-  testProcess_sleep(9);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "cnonce=\"%s\", "
+                       "nc=%08x, "
+                       "qop=%s, "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);
+
+    if(Curl_raw_equal(digest->qop, "auth"))
+      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
+                       padded which tells to the server how many times you are
+                       using the same nonce in the qop=auth mode */
+  }

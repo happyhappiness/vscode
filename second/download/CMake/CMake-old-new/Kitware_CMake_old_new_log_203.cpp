@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data")
+(void) fprintf( stderr, "%s\n", msg )

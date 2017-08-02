@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from test returning 123.\n")
+fprintf(out, "#\n# Fatal libcurl error\n")

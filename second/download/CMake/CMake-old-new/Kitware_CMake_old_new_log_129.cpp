@@ -1,4 +1,2 @@
-archive_set_error(&a->archive, errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system")
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Unexpedted operation in archive_read_open_filename")

@@ -1,1 +1,2 @@
-fprintf(stderr, "Output before crash on stderr from crash test.\n")
+archive_set_error(&a->archive, EINVAL,
+			    "Invalid string table")

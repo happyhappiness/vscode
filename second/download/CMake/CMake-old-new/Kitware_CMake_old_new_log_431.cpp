@@ -1,1 +1,2 @@
-sprintf(num, "%d", static_cast<int>(this->Makefiles.size()));
+archive_set_error(&a->archive, ENOMEM,
+                      "Unable to allocate memory for node data.")

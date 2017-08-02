@@ -1,1 +1,4 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_bytes()" )
+{
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }

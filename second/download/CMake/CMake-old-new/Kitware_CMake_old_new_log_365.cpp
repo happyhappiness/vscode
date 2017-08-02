@@ -1,3 +1,2 @@
-fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp))
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Files > 4GB require Zip64 extensions")
