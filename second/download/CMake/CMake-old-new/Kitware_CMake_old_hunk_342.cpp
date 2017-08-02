@@ -1,10 +1,6 @@
+  return snprintf(p, len, " nghttp2/%s", h2->version_str);
 }
 
-#ifdef DEBUGBUILD
-void Curl_multi_dump(const struct Curl_multi *multi_handle)
-{
-  struct Curl_multi *multi=(struct Curl_multi *)multi_handle;
-  struct SessionHandle *data;
-  int i;
-  fprintf(stderr, "* Multi status: %d handles, %d alive\n",
-          multi->num_easy, multi->num_alive);
+/*
+ * The implementation of nghttp2_send_callback type. Here we write |data| with
+ * size |length| to the network and return the number of bytes actually

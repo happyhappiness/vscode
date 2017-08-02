@@ -1,16 +1,7 @@
-/* returns an allocated key to find a bundle for this connection */
-static char *hashkey(struct connectdata *conn)
-{
-  const char *hostname;
-
-  if(conn->bits.proxy)
-    hostname = conn->proxy.name;
-  else if(conn->bits.conn_to_host)
-    hostname = conn->conn_to_host.name;
-  else
-    hostname = conn->host.name;
-
-  return aprintf("%s:%d", hostname, conn->port);
+  return 0;
 }
 
-/* Look up the bundle with all the connections to the same host this
+void cmCursesMainForm::AddError(const char* message, const char* /*unused*/)
+{
+  this->Errors.push_back(message);
+}

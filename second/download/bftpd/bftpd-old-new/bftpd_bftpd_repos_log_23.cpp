@@ -1,0 +1,1 @@
+control_printf(SL_FAILURE, "530 Anonymous user not allowed.")

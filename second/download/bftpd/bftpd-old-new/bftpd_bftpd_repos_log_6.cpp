@@ -1,0 +1,1 @@
+bftpd_log("Kicked from the server due to control connection timeout.\n")

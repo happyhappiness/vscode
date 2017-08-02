@@ -1,31 +1,26 @@
  */
-YY_BUFFER_STATE cmFortran_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
+    YY_BUFFER_STATE cmFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
 {
         YY_BUFFER_STATE b;
 
-        if ( size < 2 ||
-             base[size-2] != YY_END_OF_BUFFER_CHAR ||
-             base[size-1] != YY_END_OF_BUFFER_CHAR )
-                /* They forgot to leave room for the EOB's. */
-                return 0;
-
         b = (YY_BUFFER_STATE) cmFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
         if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_buffer()" );
+                YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_create_buffer()" );
 
-        b->yy_buf_size = size - 2;      /* "- 2" to take care of EOB's */
-        b->yy_buf_pos = b->yy_ch_buf = base;
-        b->yy_is_our_buffer = 0;
-        b->yy_input_file = 0;
-        b->yy_n_chars = b->yy_buf_size;
-        b->yy_is_interactive = 0;
-        b->yy_at_bol = 1;
-        b->yy_fill_buffer = 0;
-        b->yy_buffer_status = YY_BUFFER_NEW;
+        b->yy_buf_size = size;
 
-        cmFortran_yy_switch_to_buffer(b ,yyscanner );
+        /* yy_ch_buf has to be 2 characters longer than the size given because
+         * we need to put in 2 end-of-buffer characters.
+         */
+        b->yy_ch_buf = (char *) cmFortran_yyalloc(b->yy_buf_size + 2 ,yyscanner );
+        if ( ! b->yy_ch_buf )
+                YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_create_buffer()" );
+
+        b->yy_is_our_buffer = 1;
+
+        cmFortran_yy_init_buffer(b,file ,yyscanner);
 
         return b;
 }
 
-/** Setup the input buffer state to scan a string. The next call to cmFortran_yylex() will
+/** Destroy the buffer.

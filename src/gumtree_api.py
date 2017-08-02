@@ -109,8 +109,9 @@ class Gumtree:
     """
     def get_block_feature(self):
         vector_str = Gumtree.gumtree.getBlockFeature()
-        vector = vector_str[1:-1]
-        return vector.split(",")
+        vector = vector_str[1:-1].split(",")
+        vector = [int(i) for i in vector]
+        return vector
 
     """
     @ param odl and new log file

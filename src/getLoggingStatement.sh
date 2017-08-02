@@ -5,13 +5,15 @@ REPOS="bftpd"
 # REPOS="CMake"
 # parameter
 CODE_DIR="${MYCODE_DIR}/second/download/${REPOS}/${REPOS}"
+# echo $CODE_DIR
 
 # code
 echo "generating compiled_files.def and call_dependence.csv";
 cd ${CODE_DIR}
-# tmp=`${SMARTLOG_DIR}/script/extract_command.pl compile_commands.json`
-# tmp=`./build_ir.sh`
-# tmp=`bash ${SMARTLOG_DIR}/script/call_dependence.sh`
+pwd
+tmp=`${SMARTLOG_DIR}/script/extract_command.pl compile_commands.json`
+tmp=`./build_ir.sh`
+tmp=`bash ${SMARTLOG_DIR}/script/call_dependence.sh`
 
 echo "generating logging_statement.out";
 tmp=`cat compiled_files.def | xargs clang-smartlog -find-logging-behavior > tmp.txt`

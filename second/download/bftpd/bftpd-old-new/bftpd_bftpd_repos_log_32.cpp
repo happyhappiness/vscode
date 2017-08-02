@@ -1,0 +1,1 @@
+bftpd_log("Login as user '%s' failed. Already logged in %d times.", maxusers)

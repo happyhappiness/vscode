@@ -1,0 +1,1 @@
+control_printf(SL_SUCCESS, "%i-%s", number, foo)

@@ -79,8 +79,8 @@ def fetch_hunk():
     for hunk_record in islice(hunk_records, 1, None):
         total_hunk += 1
         total_log = deal_hunk(hunk_record, log_writer, gumtree, total_log)
-        if total_hunk % 10 == 0:
-            print 'have dealed with %d hunk, have dealed with %d log' %(total_hunk, total_log)
+        # if total_hunk % 10 == 0:
+        print 'have dealed with %d hunk, have dealed with %d log' %(total_hunk, total_log)
 
     # close file
     hunk_file.close()

@@ -12,7 +12,7 @@ from gumtree_api import Gumtree
 @ involve decide whether match or not, <- block feature enjoy high similarity and match log
 """
 def is_match(old_new_block_feature, repos_block_feature, old_new_log, repos_log, gumtree):
-    if myUtil.compute_similarity(old_new_block_feature, repos_block_feature) > 0.80:
+    if myUtil.compute_similarity(old_new_block_feature, repos_block_feature) > 0.95:
         return gumtree.is_match(old_new_log, repos_log)
     else:
         return False

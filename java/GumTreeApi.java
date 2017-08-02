@@ -88,15 +88,13 @@ public class GumTreeApi {
 		
 		
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_1.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_110.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_1.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_110.cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(oldFile, newFile);
-		 g.addLogNode(7);
-		 g.setOldLoc(7);
-		 System.out.println(g.getOldLog());
-		 System.out.println(g.getNewLog());
+		 g.setOldLoc(9);
+//		 g.getDeltaBlockfeature();
 		 System.out.println(g.getActionType());
 		
 		
@@ -164,7 +162,9 @@ public class GumTreeApi {
 	}
 
 	public void addLogNode(int line) {
-		this.oldLogs.add(this.getTopNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile));
+		ITree logNode = this.getTopNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
+		if (logNode != null)
+			this.oldLogs.add(logNode);
 	}
 
 	// one line to action type NO, OVER, ..
@@ -172,41 +172,30 @@ public class GumTreeApi {
 		int actionType = LOG_NO_MODIFY;
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
-		String changeType;
 		ITree tempNode;
-		boolean isLogModify = false;
-		while (actionIter.hasNext()) {
+		boolean isLogModify = true;
+		while (isLogModify && actionIter.hasNext()) {
 			action = actionIter.next();
 			// do not deal with comment modification
 			if(this.isActionOfComment(action))
 			{
 				continue;
 			}
-			actionType = LOG_OVER_MODIFY;
-			changeType = action.getName();
-			// judge if leaf edition is edition of logs
-			tempNode = changeType.equals("INS") ? ((Insert)action).getParent() : action.getNode();
-			if (tempNode.isLeaf()) {
-//				printNode(tempNode, this.oldTreeContext, this.oldFile);
-				isLogModify = false;
-				// traverse all log nodes
-				Iterator<ITree> logIter = this.oldLogs.iterator();
-				while (logIter.hasNext()) {
-					if (isChildrenOf(tempNode, logIter.next())) {
-						isLogModify = true;
-						break;
-					}
-				}
-				if (isLogModify == false) {
+// 			judge if leaf edition is edition of logs
+			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
+//			printNode(tempNode, this.oldTreeContext, this.oldFile);
+			isLogModify = false;
+			// traverse all log nodes
+			Iterator<ITree> logIter = this.oldLogs.iterator();
+			while (logIter.hasNext()) {
+				if (isChildrenOf(tempNode, logIter.next())) {
+					isLogModify = true;
 					break;
 				}
 			}
 		}
 		
-		if(isLogModify == true)
-		{
-			actionType = LOG_MODIFY;
-		}
+		actionType = isLogModify ? LOG_MODIFY : LOG_OVER_MODIFY;
 
 		return actionType;
 	}
@@ -340,7 +329,21 @@ public class GumTreeApi {
 			"expr_stmt",
 			"elseif",
 			"argument",
-			"directive");
+			"directive",
+			"incr",
+			"value",
+			"macro",
+			"control",
+			"value");
+	private final List<String> AST_EXCEPT_TYPE = Arrays.asList
+			("endif",
+			"ifdef",
+			"comment",
+			"warning",
+			"file",
+			"include",
+			"ifndef",
+			"define");
 	
 	// syntax feature of block file 
 	public String getBlockFeature()
@@ -365,7 +368,7 @@ public class GumTreeApi {
 			{
 				frequence[index] += 1;
 			}
-			else
+			else if(this.AST_EXCEPT_TYPE.indexOf(tempType) == -1)
 			{
 				System.out.printf("type: %s can not be found\n", tempType);
 			}
@@ -430,16 +433,15 @@ public class GumTreeApi {
 		return largestNode;
 	}
 
-	// is parentNode is one of the parents of node
+	// is parentNode is one of the parents of node[include node itself]
 	private boolean isChildrenOf(ITree node, ITree parentNode) {
-		boolean isChildren = false;
+		boolean isChildren = parentNode.equals(node);
 		Iterator<ITree> parents = node.getParents().iterator();
 		ITree tempNode;
-		while (parents.hasNext()) {
+		while (!isChildren && parents.hasNext()) {
 			tempNode = parents.next();
 			if (tempNode.equals(parentNode)) {
 				isChildren = true;
-				break;
 			}
 		}
 
@@ -463,7 +465,8 @@ public class GumTreeApi {
 		int beginPos = node.getPos();
 		int endPos = node.getEndPos();
 		// System.out.printf("beginPos: %d, endPos: %d\n", beginPos, endPos);
-
+		if(beginPos == -1)
+			return "";
 		// String filename = isOld ? oldFile : newFile;
 		try {
 			FileReader fileReader;
@@ -487,6 +490,8 @@ public class GumTreeApi {
 	private int getLineNumber(ITree node, String filename, boolean isStart) {
 		// String filename = isOld ? oldFile : newFile;
 		int characterPos = isStart ? node.getPos() : node.getEndPos();
+		if(characterPos == -1)
+			return -1;
 		LineNumberReader lineReader;
 		int lineNumber = -1;
 		try {
@@ -542,6 +547,47 @@ public class GumTreeApi {
 //			c/h file do not analyze comment
 			return false;
 		}
+	}
+	
+	public void getDeltaBlockfeature()
+	{
+		List<Integer> oldBlockFeature = getBlockFeature(this.oldTree, this.oldTreeContext);
+		List<Integer> newBlockFeature = getBlockFeature(this.newTree, this.newTreeContext);
+		System.out.println(oldBlockFeature.toString());
+		System.out.println(newBlockFeature.toString());
+ 	}
+	
+	
+	// syntax feature of block file 
+	private List<Integer> getBlockFeature(ITree blockNode, TreeContext treeContext)
+	{
+		int ast_type_num = this.AST_TYPE.size();
+		Integer[] frequence = new Integer[ast_type_num];
+		for(int i = 0; i < ast_type_num; i++)
+		{
+			frequence[i] = 0;
+		}
+		// traverse all nodes to count frequence vector
+		Iterator<ITree> allNodesIter = blockNode.getDescendants().iterator();
+		String tempType;
+		int index;
+		while(allNodesIter.hasNext())
+		{
+			tempType = getType(allNodesIter.next(), treeContext);
+//			System.out.printf("type: %s\n", tempType);
+
+			index = this.AST_TYPE.indexOf(tempType);
+			if(index != -1)
+			{
+				frequence[index] += 1;
+			}
+			else if(this.AST_EXCEPT_TYPE.indexOf(tempType) == -1)
+			{
+				System.out.printf("type: %s can not be found\n", tempType);
+			}
+		}
+		
+		return Arrays.asList(frequence);
 	}
 
 	/*

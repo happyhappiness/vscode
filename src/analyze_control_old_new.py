@@ -31,6 +31,10 @@ def deal_log( log_record, writer, gumtree, total_log):
     log = log_record[my_constant.FETCH_LOG_OLD_LOG]
     old_file_name = log_record[my_constant.FETCH_LOG_OLD_FILE]
     old_loc = log_record[my_constant.FETCH_LOG_OLD_LOC]
+    # do not deal with LOG_NO_MODIFY
+    action_type = log_record[my_constant.FETCH_LOG_ACTION_TYPE]
+    if action_type == my_constant.LOG_NO_MODIFY:
+        return total_log
     # write log file
     log_file_name = my_constant.SAVE_OLD_NEW_LOG + str(total_log) + '.cpp'
     log_file = open(log_file_name, 'wb')
@@ -46,8 +50,8 @@ def deal_log( log_record, writer, gumtree, total_log):
         block_file = open(block_file_name, 'wb')
         block_file.write(block)
         block_file.close()
-        gumtree.set_file(block_file_name)
         # get block feature
+        gumtree.set_file(block_file_name)
         block_feature = gumtree.get_block_feature()
         block_feature = json.dumps(block_feature)
     writer.writerow(log_record + [log_file_name, block, block_file_name, block_feature])

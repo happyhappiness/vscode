@@ -212,10 +212,10 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
     # initiate csvfile which store the commit info
     if isFromStart:
         hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
+        hunk_writer = csv.writer(hunk_file)
+        hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
     else:
         hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'ab')
-    hunk_writer = csv.writer(hunk_file)
-    hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
@@ -244,9 +244,9 @@ if __name__ == "__main__":
     # user = 'torvalds'
     # repos = 'linux'
 
-    sha = ''
+    sha = 'e7b842e18955d13f6d9c021bab4a8935bf282744'
     # with function to retieve all the commits of given path
-    fetch_commit(True, sha)
+    fetch_commit(False, sha, 0, 0, 151, 313)
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
