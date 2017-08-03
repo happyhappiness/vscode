@@ -43,6 +43,9 @@
     "uncompr.c": "cpp",
     "zutil.c": "cpp",
     "archive_util.c": "cpp",
-    "bitset": "cpp"
+    "bitset": "cpp",
+    "cm_c11_thread_local.c": "cpp",
+    "bar.c": "cpp",
+    "archive_random.c": "cpp"
 }
 }
