@@ -86,25 +86,28 @@ public class GumTreeApi {
 	public static void main(String args[]) {
 		// System.out.println("hello I am gumtree api");
 		
+
+//		 String oldFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_110.cpp";
+//		 String newFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_110.cpp";
+//		 GumTreeApi g = new GumTreeApi();
+//		 g.setOldAndNewFile(oldFile, newFile);
+//		 g.setOldLoc(9);
+////		 g.getDeltaBlockfeature();
+//		 System.out.println(g.getActionType());
 		
-		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_110.cpp";
-		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_110.cpp";
-		 GumTreeApi g = new GumTreeApi();
-		 g.setOldAndNewFile(oldFile, newFile);
-		 g.setOldLoc(9);
-//		 g.getDeltaBlockfeature();
-		 System.out.println(g.getActionType());
 		
+		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+		GumTreeApi g = new GumTreeApi();
+		g.setFile(filename);
+		g.setLoc(4);
+		System.out.println(g.getLog());
+		g.printSpliter();
+		System.out.println(g.getBlock());
+		g.printSpliter();
+		System.out.println(g.getControl());
 		
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.c";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setFile(filename);
-//		g.setLoc(7);
-//		System.out.println(g.getLog());
-//		System.out.println(g.getBlock());
-//		
 		
 //		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
 //		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
@@ -238,6 +241,7 @@ public class GumTreeApi {
 		ITree parentNode = this.logNode.getParent();
 		while(parentNode != null)
 		{
+//			printNode(parentNode, this.treeContext, this.filename);
 			if(!this.isBlock(parentNode, this.treeContext, this.filename))
 			{
 				parentNode = parentNode.getParent();
@@ -245,6 +249,26 @@ public class GumTreeApi {
 			else
 			{
 				return getValue(parentNode, this.filename);
+			}
+		}
+		
+		return "";
+	}
+	
+	public String getControl(){
+		// first parent that contains block type
+		ITree parentNode = this.logNode.getParent();
+		ITree conditionNode = null;
+		while(parentNode != null)
+		{
+			conditionNode = this.isControl(parentNode, this.treeContext, this.filename);
+			if(conditionNode == null)
+			{
+				parentNode = parentNode.getParent();
+			}
+			else
+			{
+				return getValue(conditionNode, this.filename);
 			}
 		}
 		
@@ -532,6 +556,32 @@ public class GumTreeApi {
 		return isBlockFlag;
 	}
 	
+	private ITree isControl(ITree node, TreeContext treeContext, String filename)
+	{
+		String condition = "condition";
+		ITree conditionNode = node;
+		ITree currNode;
+//		String control = "control";
+		
+		boolean isControl = getType(conditionNode, treeContext).equals(condition); //|| getType(node, treeContext).equals(condition);
+		if(!isControl)
+		{
+			Iterator<ITree> children = node.breadthFirst().iterator();
+			while(children.hasNext())
+			{
+				currNode = children.next();
+				if(getType(currNode, treeContext).equals(condition))
+				{
+					isControl = true;
+					conditionNode = currNode;
+					break;
+				}
+			}
+		}
+		
+		return isControl ? conditionNode : null;
+	}
+	
 	private boolean isStatement(ITree node, TreeContext treeContext, String filename)
 	{
 		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
@@ -592,6 +642,10 @@ public class GumTreeApi {
 		return Arrays.asList(frequence);
 	}
 
+	public void printSpliter()
+	{
+		System.out.println("----------------------------------------");
+	}
 	/*
 	 * public void getMapping(String oldFile, String newFile) {
 	 * Run.initGenerators(); try {// parse to get tree info TreeContext
