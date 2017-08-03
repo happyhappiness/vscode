@@ -37,9 +37,14 @@ public class GumTreeApi {
 	private int oldLoc;
 	private ITree oldLogNode, newLogNode;
 	private List<ITree> oldLogs;
-	final int LOG_OVER_MODIFY = -1;
+//	have not modify this log
+	final int LOG_FEATURE_MODIFY = 4; // feature
+	final int LOG_OTHER_LOG_FEATURE_MODIFY = 6; // other log and feature
+	final int LOG_OTHER_LOG_MODIFY = 2; // other log
 	final int LOG_NO_MODIFY = 0;
-	final int LOG_MODIFY = 1;
+//	have modify this log
+	final int LOG_LOG_MODIFY = 3; // log and logs
+	final int LOG_LOG_FEATURE_MODIFY = 7; // log, logs and feature
 //	final String COMMENT_TYPE = "comment";
 //	final String BLOCK_TYPE = "block";
 	final String IF_TYPE = "if";
@@ -98,23 +103,25 @@ public class GumTreeApi {
 //		 System.out.println(g.getActionType());
 		
 		
-		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setFile(filename);
-		g.setLoc(4);
-		System.out.println(g.getLog());
-		g.printSpliter();
-		System.out.println(g.getBlock());
-		g.printSpliter();
-		System.out.println(g.getControl());
-		
-		
-//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
-//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
 //		GumTreeApi g = new GumTreeApi();
-//		g.setOldAndNewFile(oldFile, newFile);
-//		System.out.println(g.isMatch());
-//		System.out.println(g.getBlockFeature());
+//		g.setFile(filename);
+//		g.setLoc(4);
+//		System.out.println(g.getLog());
+//		g.printSpliter();
+//		System.out.println(g.getBlock());
+//		g.printSpliter();
+//		System.out.println(g.getControl());
+	
+		
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+		GumTreeApi g = new GumTreeApi();
+		g.setOldAndNewFile(oldFile, newFile);
+		g.addLogNode(9);
+		g.addLogNode(13);
+		g.setOldLoc(9);
+		System.out.println(g.getActionType());
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -172,37 +179,53 @@ public class GumTreeApi {
 
 	// one line to action type NO, OVER, ..
 	public int getActionType() {
-		int actionType = LOG_NO_MODIFY;
+		int isLog = 0;
+		int isLogs = 0;
+		int isFeature = 0;
+		
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
 		ITree tempNode;
-		boolean isLogModify = true;
-		boolean isModify = false;
-		while (isLogModify && actionIter.hasNext()) {
+		boolean isIdentified;
+		while (actionIter.hasNext()) {
 			action = actionIter.next();
 			// do not deal with comment modification
 			if(this.isActionOfComment(action))
 			{
 				continue;
 			}
-			isModify = true;
 // 			judge if leaf edition is edition of logs
 			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
 //			printNode(tempNode, this.oldTreeContext, this.oldFile);
-			isLogModify = false;
-			// traverse all log nodes
-			Iterator<ITree> logIter = this.oldLogs.iterator();
-			while (logIter.hasNext()) {
-				if (isChildrenOf(tempNode, logIter.next())) {
-					isLogModify = true;
-					break;
+			isIdentified = false;
+			if(isFeature == 0 || isLog == 0 || isLogs == 0)
+			{
+//				decide whether is log
+				if(isChildrenOf(tempNode, this.oldLogNode))
+				{
+					isLog = 1;
+					isIdentified = true;
+					isLogs = 2;
+					continue;
+				}
+//				decide whether is logs if not this log
+				Iterator<ITree> logIter = this.oldLogs.iterator();
+				while (logIter.hasNext()) {
+					if (isChildrenOf(tempNode, logIter.next())) {
+						isLogs = 2;
+						isIdentified = true;
+						break;
+					}
+				}
+//				decide whether features if not logs
+				if(!isIdentified && isFeature == 0)
+				{
+					isFeature = 4;
 				}
 			}
 		}
 		
-		actionType = isModify ? (isLogModify ? LOG_MODIFY : LOG_OVER_MODIFY) : LOG_NO_MODIFY;
-
-		return actionType;
+		return (isLog + isLogs + isFeature);
 	}
 
 	public void setFile(String filename) {
