@@ -1,1 +1,2 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName())

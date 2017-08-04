@@ -1,1 +1,1 @@
-len = curl_msnprintf(fptr, left, "%ld", width)
+fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n")

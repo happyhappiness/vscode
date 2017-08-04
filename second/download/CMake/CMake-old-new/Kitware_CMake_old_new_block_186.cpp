@@ -1,1 +1,1 @@
-snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++)
+yy_fatal_error( "cmListFileLexer_yyset_column called with no buffer" , yyscanner)

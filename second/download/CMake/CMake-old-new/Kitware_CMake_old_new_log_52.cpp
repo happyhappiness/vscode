@@ -1,2 +1,3 @@
 archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data")
+					    "Can't allocate memory for "
+					    "SCHILY.acl.access")

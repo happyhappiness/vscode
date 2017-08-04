@@ -1,1 +1,2 @@
-len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL))
+sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count)

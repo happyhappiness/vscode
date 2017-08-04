@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data")
+DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"))

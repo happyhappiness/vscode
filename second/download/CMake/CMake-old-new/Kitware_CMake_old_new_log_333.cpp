@@ -1,1 +1,1 @@
-printf("%s %s\n", includeFlags.c_str(), definitions.c_str())
+fprintf(fout, "add_executable(%s", targetName)

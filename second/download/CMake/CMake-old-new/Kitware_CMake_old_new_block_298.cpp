@@ -1,20 +1,13 @@
 {
-      time_t filetime = (time_t)statbuf.st_mtime;
-      struct tm buffer;
-      const struct tm *tm = &buffer;
-      result = Curl_gmtime(filetime, &buffer);
-      if(result)
-        return result;
-
-      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-      snprintf(buf, BUFSIZE-1,
-               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-               tm->tm_mday,
-               Curl_month[tm->tm_mon],
-               tm->tm_year + 1900,
-               tm->tm_hour,
-               tm->tm_min,
-               tm->tm_sec);
-      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+      }
     }

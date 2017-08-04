@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, ENOMEM, "Out of memory")
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

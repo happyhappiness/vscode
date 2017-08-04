@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
-		return (ARCHIVE_FATAL);
-	}
+					archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);
+				}

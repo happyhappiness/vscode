@@ -1,1 +1,1 @@
-(void) fprintf( stderr, "%s\n", msg )
+fprintf(this->FileOut,"EXPORTS \n")

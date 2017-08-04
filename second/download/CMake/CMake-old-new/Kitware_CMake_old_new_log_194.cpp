@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-                                "fatal error - scanner input buffer overflow" )
+fprintf(stderr, "unknowntag_start:%s\n", name)

@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"))
+f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd)

@@ -1,1 +1,5 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_create_buffer()" )
+{
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }

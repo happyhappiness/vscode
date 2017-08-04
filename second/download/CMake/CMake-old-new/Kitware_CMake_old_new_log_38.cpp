@@ -1,1 +1,2 @@
-*curl_mvaprintf(const char *format, va_list ap_save)
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching))

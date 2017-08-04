@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data")
+snprintf( buf, sizeof(buf), "%d", state->requested_blksize )

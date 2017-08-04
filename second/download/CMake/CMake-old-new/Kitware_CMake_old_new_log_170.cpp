@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, en, "Can't create '%s'",
-		    a->name)
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath)

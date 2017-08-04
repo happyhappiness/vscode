@@ -1,1 +1,2 @@
-snprintf( buf, sizeof(buf), "%d", state->retry_time)
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed device attribute")

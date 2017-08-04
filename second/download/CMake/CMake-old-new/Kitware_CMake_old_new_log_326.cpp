@@ -1,2 +1,3 @@
-fprintf(stderr, "* Multi status: %d handles, %d alive\n",
-          multi->num_easy, multi->num_alive)
+fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName,
+              libsToLink.c_str())

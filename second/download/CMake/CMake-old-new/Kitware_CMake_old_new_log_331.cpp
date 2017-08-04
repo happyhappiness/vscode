@@ -1,1 +1,2 @@
-fprintf(out, "%-*s ", (int)u_width, p);
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName())

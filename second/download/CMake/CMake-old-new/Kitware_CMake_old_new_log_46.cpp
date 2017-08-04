@@ -1,1 +1,3 @@
-*curl_mvaprintf(const char *format, va_list ap_save)
+archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated lzma input")

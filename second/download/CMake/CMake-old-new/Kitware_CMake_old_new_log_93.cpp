@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Tar entry has negative size?")
+archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, ver % 10000)

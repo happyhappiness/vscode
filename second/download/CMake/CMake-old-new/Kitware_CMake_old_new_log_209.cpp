@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" )
+yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner)

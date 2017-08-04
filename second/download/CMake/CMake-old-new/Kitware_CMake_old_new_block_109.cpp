@@ -1,5 +1,1 @@
-{
-					archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name);
-				}
+yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner)

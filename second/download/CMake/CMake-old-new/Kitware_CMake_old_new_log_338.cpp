@@ -1,2 +1,2 @@
-YY_FATAL_ERROR(
-                "fatal flex scanner internal error--end of buffer missed" )
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName())

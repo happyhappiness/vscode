@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path)
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

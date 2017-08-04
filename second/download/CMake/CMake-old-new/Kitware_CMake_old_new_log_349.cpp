@@ -1,1 +1,2 @@
-yy_fatal_error( "cmListFileLexer_yyset_column called with no buffer" , yyscanner)
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName)

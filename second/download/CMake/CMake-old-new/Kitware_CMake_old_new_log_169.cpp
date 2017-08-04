@@ -1,4 +1,1 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "lzmadec decompression failed(%d)",
-			    r)
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce)

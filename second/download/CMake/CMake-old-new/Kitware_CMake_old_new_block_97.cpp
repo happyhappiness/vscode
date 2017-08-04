@@ -1,12 +1,22 @@
 {
-				err = r;
-				if (err == ARCHIVE_FATAL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default");
-					return (err);
-				}
-				archive_set_error(&a->archive,
+		case LZMADEC_STREAM_END: /* Found end of stream. */
+			switch (lzmadec_end(&(xar->lzstream))) {
+			case LZMADEC_OK:
+				break;
+			default:
+				archive_set_error(&(a->archive),
 				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.default");
+				    "Failed to clean up lzmadec decompressor");
+				return (ARCHIVE_FATAL);
 			}
+			xar->lzstream_valid = 0;
+			/* FALLTHROUGH */
+		case LZMADEC_OK: /* Decompressor made some progress. */
+			break;
+		default:
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "lzmadec decompression failed(%d)",
+			    r);
+			return (ARCHIVE_FATAL);
+		}

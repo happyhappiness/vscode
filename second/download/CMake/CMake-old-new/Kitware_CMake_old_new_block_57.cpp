@@ -1,5 +1,7 @@
 {
-			archive_set_error(&a->archive, errno,
-				    "Couldn't change dir");
-				return (ARCHIVE_FAILED);
-		}
+		/* stringify this entry's version */
+		archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, ver % 10000);
+		/* remember the version */
+		w->pver = ver;
+	}

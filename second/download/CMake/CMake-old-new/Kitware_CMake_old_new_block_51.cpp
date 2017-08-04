@@ -1,6 +1,6 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size?");
+		err = ARCHIVE_WARN;
 	}

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute")
+vsnprintf(s, sizeof(s), fmt, ap)

@@ -1,20 +1,28 @@
-{
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			state->eof = 1;
-			/* FALL THROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			__archive_read_filter_consume(self->upstream,
-			    avail_in - state->stream.avail_in);
-			break;
-		case LZMADEC_BUF_ERROR: /* Insufficient input data? */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Insufficient compressed data");
-			return (ARCHIVE_FATAL);
-		default:
-			/* Return an error. */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Lzma decompression failed");
-			return (ARCHIVE_FATAL);
-		}
+struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
+    &conn->data->state.negotiate;
+  char *encoded = NULL;
+  size_t len = 0;
+  char *userp;
+  CURLcode result;
+  OM_uint32 discard_st;
+
+  result = Curl_base64_encode(conn->data,
+                              neg_ctx->output_token.value,
+                              neg_ctx->output_token.length,
+                              &encoded, &len);
+  if(result) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return result;
+  }
+
+  if(!encoded || !len) {
+    gss_release_buffer(&discard_st, &neg_ctx->output_token);
+    neg_ctx->output_token.value = NULL;
+    neg_ctx->output_token.length = 0;
+    return CURLE_REMOTE_ACCESS_DENIED;
+  }
+
+  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded)

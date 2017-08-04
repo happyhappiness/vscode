@@ -1,1 +1,6 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_buffer()" )
+{
+			archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}

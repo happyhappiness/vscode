@@ -1,1 +1,1 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)
+fprintf(fout, " %08X", pSymbolTable->Value)

@@ -1,2 +1,2 @@
-userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded)
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName)

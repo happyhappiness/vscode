@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" )
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName)

@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_buffer()" )
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name)

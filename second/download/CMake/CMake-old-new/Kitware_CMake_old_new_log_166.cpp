@@ -1,5 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header")
+snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i])

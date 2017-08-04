@@ -1,3 +1,1 @@
-*userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization)
+sprintf(cp->ExitExceptionString, "Signal %d", sig)

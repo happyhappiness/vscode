@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"))
+fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize)

@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-        "fatal error - scanner input buffer overflow" )
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner)

@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_bytes()" )
+snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression))

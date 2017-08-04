@@ -1,3 +1,1 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated lzma input")
+xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer)

@@ -1,1 +1,4 @@
-char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename)
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header")

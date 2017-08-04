@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge RE")
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])

@@ -1,4 +1,4 @@
 {
-        (void) fprintf( stderr, "%s\n", msg );
-        exit( YY_EXIT_FAILURE );
-}
+               this->ImportFlag = false;
+               fprintf(this->FileOut,"EXPORTS \n");
+            }

@@ -1,1 +1,1 @@
-tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque)
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName())

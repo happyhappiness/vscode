@@ -1,1 +1,2 @@
-write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap)
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Encrypted file is unsupported")

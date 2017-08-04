@@ -1,1 +1,1 @@
-yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str())

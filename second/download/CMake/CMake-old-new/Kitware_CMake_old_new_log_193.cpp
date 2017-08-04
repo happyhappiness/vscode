@@ -1,2 +1,2 @@
-YY_FATAL_ERROR(
-                "fatal flex scanner internal error--end of buffer missed" )
+archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.")

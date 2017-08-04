@@ -1,1 +1,4 @@
-yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)
+{
+                  // Read only (i.e. constants) must be excluded
+                  fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
+               }

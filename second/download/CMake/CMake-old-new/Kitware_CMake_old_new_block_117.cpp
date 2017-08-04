@@ -1,5 +1,4 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data");
-		return (ARCHIVE_FATAL);
-	}
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }

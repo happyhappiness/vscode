@@ -1,2 +1,1 @@
-archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000)
+snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])

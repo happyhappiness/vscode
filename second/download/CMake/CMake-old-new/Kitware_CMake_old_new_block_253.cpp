@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "cmFortran_yyset_lineno called with no buffer" )
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

@@ -1,1 +1,1 @@
-tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce)
+fprintf(fout, "\t%s DATA \n", symbol.c_str()+1)

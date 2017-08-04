@@ -1,1 +1,1 @@
-len = curl_msnprintf(fptr, left, ".%ld", prec)
+fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef)

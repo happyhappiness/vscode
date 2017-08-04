@@ -1,1 +1,1 @@
-md5this = (unsigned char *)aprintf("%s:%s", request, uripath)
+fprintf(stderr, "Couldn't open file with CreateFile()\n")
