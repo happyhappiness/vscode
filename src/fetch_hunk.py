@@ -245,9 +245,9 @@ if __name__ == "__main__":
     # user = 'torvalds'
     # repos = 'linux'
 
-    sha = 'e7b842e18955d13f6d9c021bab4a8935bf282744'
+    sha = '71c981a213a463d05b4bdc73dfb445c80ce2a476'
     # with function to retieve all the commits of given path
-    fetch_commit(False, sha, 0, 0, 151, 313)
+    fetch_commit(False, sha, 0, 0, 323, 605)
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)
