@@ -92,15 +92,16 @@ public class GumTreeApi {
 		// System.out.println("hello I am gumtree api");
 		
 
-//		 String oldFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_110.cpp";
-//		 String newFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_110.cpp";
-//		 GumTreeApi g = new GumTreeApi();
-//		 g.setOldAndNewFile(oldFile, newFile);
-//		 g.setOldLoc(9);
-////		 g.getDeltaBlockfeature();
-//		 System.out.println(g.getActionType());
+		 String oldFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_515.cpp";
+		 String newFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_515.cpp";
+		 GumTreeApi g = new GumTreeApi();
+		 g.setOldAndNewFile(oldFile, newFile);
+		 g.setOldLoc(5);
+		 g.addLogNode(5);
+//		 g.getDeltaBlockfeature();
+		 System.out.println(g.getActionType());
 		
 		
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
@@ -114,14 +115,14 @@ public class GumTreeApi {
 //		System.out.println(g.getControl());
 	
 		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setOldAndNewFile(oldFile, newFile);
-		g.addLogNode(9);
-		g.addLogNode(13);
-		g.setOldLoc(9);
-		System.out.println(g.getActionType());
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setOldAndNewFile(oldFile, newFile);
+//		g.addLogNode(9);
+//		g.addLogNode(13);
+//		g.setOldLoc(9);
+//		System.out.println(g.getActionType());
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -203,6 +204,8 @@ public class GumTreeApi {
 //				decide whether is log
 				if(isChildrenOf(tempNode, this.oldLogNode))
 				{
+//					System.out.println(action.getName());
+//					printNode(tempNode, this.oldTreeContext, this.oldFile);
 					isLog = 1;
 					isIdentified = true;
 					isLogs = 2;
