@@ -1,6 +1,5 @@
 {
-        fprintf(out, "#\n# Fatal libcurl error\n");
-        if(!use_stdout)
-          fclose(out);
-        return 1;
-      }
+		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed device attribute");
+		return (ARCHIVE_WARN);
+	}

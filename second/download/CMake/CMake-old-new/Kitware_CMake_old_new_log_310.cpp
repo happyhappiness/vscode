@@ -1,1 +1,1 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName())

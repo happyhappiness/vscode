@@ -1,1 +1,3 @@
-vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Unacceptable dictionary dize for lzip: %d",
+			    dict_size)

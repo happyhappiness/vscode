@@ -1,3 +1,1 @@
-*userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy ? "Proxy-" : "",
-                   authorization)
+snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer)

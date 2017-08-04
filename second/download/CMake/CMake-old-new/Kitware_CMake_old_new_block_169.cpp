@@ -1,22 +1,11 @@
 {
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			switch (lzmadec_end(&(xar->lzstream))) {
-			case LZMADEC_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up lzmadec decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "lzmadec decompression failed(%d)",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    free(tmp);
+    sasl_digest_md5_to_ascii(md5buf, ha1);
+  }

@@ -1,1 +1,4 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])
+_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  original, GetLastError())

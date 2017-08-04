@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yyensure_buffer_stack()" )
+snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str)

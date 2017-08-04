@@ -1,1 +1,2 @@
-snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++)
+archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter")

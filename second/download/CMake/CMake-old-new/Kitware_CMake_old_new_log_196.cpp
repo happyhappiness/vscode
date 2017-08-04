@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" )
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header")

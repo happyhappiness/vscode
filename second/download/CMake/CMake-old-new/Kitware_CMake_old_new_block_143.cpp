@@ -1,5 +1,1 @@
-{
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for file name");
-			return (NULL);
-		}
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])

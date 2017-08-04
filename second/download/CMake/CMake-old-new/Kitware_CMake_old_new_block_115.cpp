@@ -1,4 +1,5 @@
 {
-		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
-		return (ARCHIVE_FATAL);
-	}
+    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
+    left -= len;
+    ptr += len;
+  }

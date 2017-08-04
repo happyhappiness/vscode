@@ -1,2 +1,1 @@
-archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter")
+sprintf(win9x, "%s%s", tempDir, fwdName)

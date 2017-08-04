@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_bytes()" )
+f(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str())

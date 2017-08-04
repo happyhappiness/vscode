@@ -1,1 +1,2 @@
-md5this = (unsigned char *)aprintf("%s:%s", request, uripath)
+fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName)

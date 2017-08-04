@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory for "
-					    "SCHILY.acl.default")
+snprintf( buf, sizeof(buf), "%d", state->requested_blksize )

@@ -1,3 +1,4 @@
 {
-      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-    }
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+      }

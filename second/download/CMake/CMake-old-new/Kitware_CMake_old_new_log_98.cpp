@@ -1,1 +1,3 @@
-archive_set_error(&a->archive, ENOMEM, "Out of memory")
+archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name)

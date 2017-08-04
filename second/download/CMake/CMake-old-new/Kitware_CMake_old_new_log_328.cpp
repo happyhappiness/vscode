@@ -1,1 +1,1 @@
-snprintf( buf, sizeof(buf), "%d", state->requested_blksize )
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName())

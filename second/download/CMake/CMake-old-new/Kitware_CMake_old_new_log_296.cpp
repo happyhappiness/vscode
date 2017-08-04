@@ -1,1 +1,1 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)
+fprintf(stderr, "  target [%s]\n", lei->Target->GetName())

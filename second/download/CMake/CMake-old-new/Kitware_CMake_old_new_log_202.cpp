@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "bad buffer in cmCommandArgument_yy_scan_bytes()" )
+fprintf(fout, "add_executable(%s", targetName.c_str())

@@ -1,1 +1,2 @@
-char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename)
+archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching))

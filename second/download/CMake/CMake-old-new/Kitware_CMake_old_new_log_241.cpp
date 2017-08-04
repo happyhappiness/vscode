@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-                "fatal flex scanner internal error--end of buffer missed" )
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

@@ -1,1 +1,4 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i])
+{
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }

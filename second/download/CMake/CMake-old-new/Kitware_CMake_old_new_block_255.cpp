@@ -1,20 +1,10 @@
 {
-    case 1: /* only one byte read */
-      snprintf(output, 5, "%c%c==",
-               table64[obuf[0]],
-               table64[obuf[1]]);
-      break;
-    case 2: /* two bytes read */
-      snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]]);
-      break;
-    default:
-      snprintf(output, 5, "%c%c%c%c",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]],
-               table64[obuf[3]] );
-      break;
-    }
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    Curl_safefree(tmp);
+    md5_to_ascii(md5buf, ha1);
+  }

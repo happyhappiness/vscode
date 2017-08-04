@@ -1,2 +1,2 @@
-YY_FATAL_ERROR(
-                        "fatal flex scanner internal error--no action found" )
+archive_set_error(f->archive, EIO,
+			    "Can't write to filter")

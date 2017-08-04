@@ -1,1 +1,3 @@
-snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])
+{
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+      }

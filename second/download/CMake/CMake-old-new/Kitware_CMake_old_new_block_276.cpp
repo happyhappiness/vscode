@@ -1,28 +1,15 @@
-struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
-    &conn->data->state.negotiate;
-  char *encoded = NULL;
-  size_t len = 0;
-  char *userp;
-  CURLcode result;
-  OM_uint32 discard_st;
-
-  result = Curl_base64_encode(conn->data,
-                              neg_ctx->output_token.value,
-                              neg_ctx->output_token.length,
-                              &encoded, &len);
-  if(result) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return result;
-  }
-
-  if(!encoded || !len) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return CURLE_REMOTE_ACCESS_DENIED;
-  }
-
-  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded)
+{
+            if (pSymbolTable->N.Name.Short != 0) {
+               symbol = "";
+               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
+            } else {
+               symbol = stringTable + pSymbolTable->N.Name.Long;
+            }
+            std::string::size_type posAt = symbol.find('@');
+            if (posAt != std::string::npos) symbol.erase(posAt);
+#ifndef _MSC_VER
+            fprintf(fout, "\t%s\n", symbol.c_str());
+#else
+            fprintf(fout, "\t%s\n", symbol.c_str()+1);
+#endif
+         }

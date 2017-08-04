@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Unexpedted operation in archive_read_open_filename")
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce)

@@ -1,1 +1,4 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i])
+{
+        // print the progress
+        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+        }

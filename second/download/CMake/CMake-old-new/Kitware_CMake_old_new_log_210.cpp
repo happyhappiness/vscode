@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmExpr_yy_create_buffer()" )
+sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count)

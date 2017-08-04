@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate pax data")
+snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp)

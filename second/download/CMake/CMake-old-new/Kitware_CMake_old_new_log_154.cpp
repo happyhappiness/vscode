@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data")
+tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque)

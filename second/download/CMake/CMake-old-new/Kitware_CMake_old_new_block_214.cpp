@@ -1,4 +1,5 @@
 {
-      (void) fprintf( stderr, "%s\n", msg );
-  exit( YY_EXIT_FAILURE );
-}
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}

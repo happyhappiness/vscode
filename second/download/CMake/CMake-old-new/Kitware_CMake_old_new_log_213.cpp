@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "bad buffer in cmExpr_yy_scan_bytes()" )
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "LHa data CRC error")

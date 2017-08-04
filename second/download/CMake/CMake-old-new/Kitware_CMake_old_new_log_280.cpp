@@ -1,1 +1,1 @@
-fprintf(out, "#\n# Fatal libcurl error\n")
+fprintf(progFile,"empty")

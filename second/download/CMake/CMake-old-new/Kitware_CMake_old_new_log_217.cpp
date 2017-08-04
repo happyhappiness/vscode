@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "flex scanner push-back overflow" )
+fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize)

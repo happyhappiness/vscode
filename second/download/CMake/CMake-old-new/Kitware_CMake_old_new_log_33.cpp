@@ -1,2 +1,2 @@
-snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size)
+archive_set_error(&a->archive, errno,
+				    "Couldn't change dir")

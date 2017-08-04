@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute")
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)

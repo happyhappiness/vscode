@@ -1,1 +1,1 @@
-tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque)
+fprintf(stderr, "The %s target dependency graph is:\n", name)

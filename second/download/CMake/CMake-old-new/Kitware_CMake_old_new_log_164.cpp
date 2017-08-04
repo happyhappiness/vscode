@@ -1,3 +1,1 @@
-archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length")
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])

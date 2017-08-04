@@ -1,1 +1,5 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i])
+{
+        snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);
+      len += status_string.length;
+    }

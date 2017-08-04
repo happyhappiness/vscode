@@ -1,4 +1,1 @@
-{
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
+snprintf((char *)&dest[i*2], 3, "%02x", source[i])

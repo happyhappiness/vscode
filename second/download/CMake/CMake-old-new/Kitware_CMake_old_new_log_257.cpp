@@ -1,1 +1,1 @@
-fprintf(out, "#\n# Fatal libcurl error\n")
+snprintf(buf, sizeof(buf), "%s", prefix)

@@ -1,1 +1,5 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_create_buffer()" )
+{
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}

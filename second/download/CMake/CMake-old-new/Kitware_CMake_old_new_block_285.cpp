@@ -1,1 +1,4 @@
-snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i])
+{
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }

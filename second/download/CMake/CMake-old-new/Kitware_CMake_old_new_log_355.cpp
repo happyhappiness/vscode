@@ -1,1 +1,1 @@
-fprintf(stderr, "unknowntag_start:%s\n", name)
+fprintf(stderr, "No current working directory.\n")

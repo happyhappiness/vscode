@@ -1,1 +1,2 @@
-sprintf(temp, "%d", cmVersion::GetMajorVersion())
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name)

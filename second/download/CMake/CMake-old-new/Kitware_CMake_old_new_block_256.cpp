@@ -1,20 +1,22 @@
 {
-    case 1: /* only one byte read */
-      snprintf(output, 5, "%c%c==",
-               table64[obuf[0]],
-               table64[obuf[1]]);
-      break;
-    case 2: /* two bytes read */
-      snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]]);
-      break;
-    default:
-      snprintf(output, 5, "%c%c%c%c",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]],
-               table64[obuf[3]] );
-      break;
-    }
+  OM_uint32 major_status, minor_status;
+  gss_buffer_desc token = GSS_C_EMPTY_BUFFER;
+  char name[2048];
+  const char* service = "HTTP";
+
+  token.length = strlen(service) + 1 + strlen(proxy ? conn->proxy.name :
+                                              conn->host.name) + 1;
+  if(token.length + 1 > sizeof(name))
+    return EMSGSIZE;
+
+  snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
+           conn->host.name);
+
+  token.value = (void *) name;
+  major_status = gss_import_name(&minor_status,
+                                 &token,
+                                 GSS_C_NT_HOSTBASED_SERVICE,
+                                 server);
+
+  return GSS_ERROR(major_status) ? -1 : 0;
+}

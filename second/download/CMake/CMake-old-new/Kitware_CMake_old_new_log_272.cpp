@@ -1,1 +1,1 @@
-tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque)
+fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long)

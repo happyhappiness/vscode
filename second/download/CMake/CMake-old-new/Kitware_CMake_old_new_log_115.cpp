@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data")
+len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL))

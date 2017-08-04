@@ -1,4 +1,2 @@
-snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]])
+fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str())

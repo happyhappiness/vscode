@@ -1,4 +1,4 @@
 {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
+    fprintf(stderr, "No current working directory\n");
+    abort();
+    }

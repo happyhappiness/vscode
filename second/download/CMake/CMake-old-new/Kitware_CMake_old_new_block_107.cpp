@@ -1,6 +1,1 @@
-{
-		/* Everything failed; give up here. */
-		archive_set_error(&a->archive, en, "Can't create '%s'",
-		    a->name);
-		return (ARCHIVE_FAILED);
-	}
+yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)

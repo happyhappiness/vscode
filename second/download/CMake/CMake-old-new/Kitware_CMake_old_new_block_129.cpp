@@ -1,23 +1,11 @@
 {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-		wfilename = mine->filename.w;
-		fd = _wopen(wfilename, O_RDONLY | O_BINARY);
-		if (fd < 0 && errno == ENOENT) {
-			wchar_t *fullpath;
-			fullpath = __la_win_permissive_name_w(wfilename);
-			if (fullpath != NULL) {
-				fd = _wopen(fullpath, O_RDONLY | O_BINARY);
-				free(fullpath);
-			}
-		}
-		if (fd < 0) {
-			archive_set_error(a, errno,
-			    "Failed to open '%S'", wfilename);
-			return (ARCHIVE_FATAL);
-		}
-#else
-		archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Unexpedted operation in archive_read_open_filename");
-		return (ARCHIVE_FATAL);
-#endif
-	}
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *)tmp);
+    free(tmp);
+    sasl_digest_md5_to_ascii(md5buf, ha1);
+  }

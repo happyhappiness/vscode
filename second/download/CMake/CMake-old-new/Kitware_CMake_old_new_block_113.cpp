@@ -1,5 +1,9 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute");
-			return (ARCHIVE_FAILED);
-		}
+  char s[4096];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(s, sizeof(s), fmt, ap);
+  va_end(ap);
+
+  return AddFormData(formp, FORM_DATA, s, 0, size);
+}

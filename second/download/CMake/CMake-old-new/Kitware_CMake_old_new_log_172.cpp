@@ -1,3 +1,4 @@
-archive_set_error(&a->archive, 0,
-					    "Removing symlink %s",
-					    a->name)
+md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2)

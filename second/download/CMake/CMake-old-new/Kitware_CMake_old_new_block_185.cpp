@@ -1,6 +1,1 @@
-{
-          data->set.ssl.certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
-        }
+yy_fatal_error( "cmListFileLexer_yyset_lineno called with no buffer" , yyscanner)

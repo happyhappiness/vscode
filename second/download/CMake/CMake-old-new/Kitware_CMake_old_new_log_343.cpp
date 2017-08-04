@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" )
+sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count)

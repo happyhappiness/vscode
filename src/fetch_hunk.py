@@ -231,7 +231,7 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
         if total_file % 10 == 0:
             print 'now have deal with %d file ; find cpp %d file ;\
 have saved %d log cpp file, %d hunk' %(total_file, total_cpp, total_log_cpp, total_hunk)
-
+    print "end of commit"
     # close the commit file
     hunk_file.close()
 
@@ -245,9 +245,9 @@ if __name__ == "__main__":
     # user = 'torvalds'
     # repos = 'linux'
 
-    sha = '71c981a213a463d05b4bdc73dfb445c80ce2a476'
+    sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
     # with function to retieve all the commits of given path
-    fetch_commit(False, sha, 0, 0, 323, 605)
+    fetch_commit(False, sha, 0, 0, 376, 710)
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)

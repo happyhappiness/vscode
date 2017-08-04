@@ -1,4 +1,2 @@
-snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]])
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data")

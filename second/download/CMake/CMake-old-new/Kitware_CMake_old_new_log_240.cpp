@@ -1,2 +1,2 @@
-YY_FATAL_ERROR(
-                        "fatal flex scanner internal error--no action found" )
+conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range)

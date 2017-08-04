@@ -1,1 +1,2 @@
-xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer)
+fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak")

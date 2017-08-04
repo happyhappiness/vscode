@@ -1,2 +1,1 @@
-snprintf(service.value, service.length+1, "%s@%s",
-             serviceptr, conn->proxy.name)
+fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef)

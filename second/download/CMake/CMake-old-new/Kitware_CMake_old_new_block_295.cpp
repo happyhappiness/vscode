@@ -1,9 +1,17 @@
 {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
+  for(std::vector<LinkEntry>::const_iterator lei =
+        this->FinalLinkEntries.begin();
+      lei != this->FinalLinkEntries.end(); ++lei)
+    {
+    if(lei->Target)
+      {
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+      }
+    else
+      {
+      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
+      }
+    }
+  fprintf(stderr, "\n");
+}

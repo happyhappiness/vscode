@@ -1,1 +1,1 @@
-sprintf(tmp, "%lu ", (unsigned long)archive_entry_uid(entry))
+fprintf(stderr, "The %s target dependency graph is:\n", name)

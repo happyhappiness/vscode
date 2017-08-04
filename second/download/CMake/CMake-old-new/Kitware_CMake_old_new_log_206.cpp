@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-      "fatal flex scanner internal error--no action found" )
+fprintf(this->FileOut,"IMPORTS \n")

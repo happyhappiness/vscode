@@ -1,4 +1,3 @@
-md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2)
+fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n")

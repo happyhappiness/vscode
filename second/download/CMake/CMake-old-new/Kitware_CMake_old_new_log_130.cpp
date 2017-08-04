@@ -1,2 +1,1 @@
-archive_set_error(a, errno, "Can't stat '%s'",
-			    filename)
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath)
