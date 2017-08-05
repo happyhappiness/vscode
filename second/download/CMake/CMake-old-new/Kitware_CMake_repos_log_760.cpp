@@ -1,1 +1,1 @@
-archive_string_sprintf(&state->encoded_buff, "`\nend\n")
+archive_string_sprintf(&state->encoded_buff, "`\nend\n");

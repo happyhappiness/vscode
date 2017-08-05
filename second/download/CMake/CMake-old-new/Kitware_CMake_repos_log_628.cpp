@@ -1,2 +1,2 @@
 archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Child process exited badly")
+		    "Child process exited badly");
