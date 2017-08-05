@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ERANGE,
-			    "Major device number too large")
+			    "Major device number too large");

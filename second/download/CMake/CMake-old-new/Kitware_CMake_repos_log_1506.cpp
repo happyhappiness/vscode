@@ -1,2 +1,2 @@
 archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC, "Program error.")
+		    ARCHIVE_ERRNO_MISC, "Program error.");

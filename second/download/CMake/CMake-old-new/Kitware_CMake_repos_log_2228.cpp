@@ -1,1 +1,1 @@
-fprintf(file, "%s", "x")
+fprintf(file, "%s", "x");

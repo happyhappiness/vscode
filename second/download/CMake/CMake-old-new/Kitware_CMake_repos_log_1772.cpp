@@ -1,1 +1,1 @@
-fprintf(out, "%s: \\\n", tmp.c_str())
+fprintf(out, "%s: \\\n", tmp.c_str());

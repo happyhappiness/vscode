@@ -1,1 +1,1 @@
-fprintf(fp, "extern int wrapped_help();\n")
+fprintf(fp, "extern int wrapped_help();\n");

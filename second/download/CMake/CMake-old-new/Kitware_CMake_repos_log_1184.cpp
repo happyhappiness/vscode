@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "getvfsbyname failed")
+archive_set_error(&a->archive, errno, "getvfsbyname failed");

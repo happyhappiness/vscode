@@ -1,1 +1,1 @@
-sprintf(buffer, "Should be empty (source file full path): [%s]", cstr)
+sprintf(buffer, "Should be empty (source file full path): [%s]", cstr);

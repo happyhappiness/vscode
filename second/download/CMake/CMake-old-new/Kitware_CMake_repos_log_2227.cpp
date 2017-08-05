@@ -1,1 +1,1 @@
-printf("&glGetString = %p\n", &glGetString)
+printf("&glGetString = %p\n", &glGetString);

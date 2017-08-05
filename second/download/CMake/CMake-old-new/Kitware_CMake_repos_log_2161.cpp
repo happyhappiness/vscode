@@ -1,1 +1,1 @@
-fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var)
+fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var);

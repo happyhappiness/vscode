@@ -1,1 +1,1 @@
-fprintf(fp, "int generated() { return 3; }\n")
+fprintf(fp, "int generated() { return 3; }\n");

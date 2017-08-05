@@ -1,2 +1,2 @@
 printf(
-      "RegularExpression::find(): Compiled regular expression corrupted.\n")
+      "RegularExpression::find(): Compiled regular expression corrupted.\n");

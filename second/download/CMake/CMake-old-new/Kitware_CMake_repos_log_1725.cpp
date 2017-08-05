@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "/proc/%lu/path/a.out", (unsigned long) getpid())
+snprintf(buf, sizeof(buf), "/proc/%lu/path/a.out", (unsigned long) getpid());

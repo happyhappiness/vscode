@@ -1,1 +1,1 @@
-fprintf(stderr, "\n ** Unrecognized flag: ")
+fprintf(stderr, "\n ** Unrecognized flag: ");

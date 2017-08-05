@@ -1,1 +1,1 @@
-fprintf(stderr, "OLD_DEF not defined in C\n")
+fprintf(stderr, "OLD_DEF not defined in C\n");

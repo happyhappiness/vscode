@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout before test %d.\n", n)
+fprintf(stdout, "Output on stdout before test %d.\n", n);

@@ -1,1 +1,1 @@
-printf("This is T6\n")
+printf("This is T6\n");

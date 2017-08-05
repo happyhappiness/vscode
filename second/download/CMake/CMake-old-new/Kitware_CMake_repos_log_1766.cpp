@@ -1,1 +1,1 @@
-printf("%3u", (unsigned int)(fastpos[i]))
+printf("%3u", (unsigned int)(fastpos[i]));

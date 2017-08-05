@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF not defined in C\n")
+fprintf(stderr, "DIRECTORY_DEF not defined in C\n");

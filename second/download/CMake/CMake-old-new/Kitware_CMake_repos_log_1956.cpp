@@ -1,1 +1,1 @@
-sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF)
+sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);

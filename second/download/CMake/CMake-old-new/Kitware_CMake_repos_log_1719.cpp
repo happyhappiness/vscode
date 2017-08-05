@@ -1,1 +1,1 @@
-n = _vscprintf(fmt, ap)
+n = _vscprintf(fmt, ap);

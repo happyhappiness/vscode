@@ -1,1 +1,1 @@
-printf("%s\n", regen_string)
+printf("%s\n", regen_string);

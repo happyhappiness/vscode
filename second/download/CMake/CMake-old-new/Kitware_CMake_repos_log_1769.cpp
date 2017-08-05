@@ -1,1 +1,1 @@
-fprintf(stderr, "ninja: FATAL: ")
+fprintf(stderr, "ninja: FATAL: ");

@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Unmatched [].\n")
+printf("RegularExpression::compile(): Unmatched [].\n");

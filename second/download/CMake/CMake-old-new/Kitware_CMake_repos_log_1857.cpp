@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before sleep.\n")
+fprintf(stderr, "Output on stderr before sleep.\n");

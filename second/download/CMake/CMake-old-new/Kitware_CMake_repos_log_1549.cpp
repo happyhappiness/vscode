@@ -1,3 +1,3 @@
 archive_set_error(&a->archive, ENOMEM,
 			    "Couldn't allocate memory "
-			    "for lzh decompression")
+			    "for lzh decompression");

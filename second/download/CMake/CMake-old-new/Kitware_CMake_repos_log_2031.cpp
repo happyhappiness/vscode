@@ -1,1 +1,1 @@
-printf("foo()\n")
+printf("foo()\n");

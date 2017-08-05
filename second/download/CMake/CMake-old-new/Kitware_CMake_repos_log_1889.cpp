@@ -1,2 +1,2 @@
 printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp))
+             kwsysProcess_GetExceptionString(kp));

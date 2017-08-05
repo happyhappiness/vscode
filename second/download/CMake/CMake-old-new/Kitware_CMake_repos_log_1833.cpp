@@ -1,1 +1,1 @@
-printf("%s: This test intentionally fails\n", argv[0])
+printf("%s: This test intentionally fails\n", argv[0]);

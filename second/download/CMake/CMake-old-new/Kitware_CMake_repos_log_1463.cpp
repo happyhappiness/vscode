@@ -1,1 +1,1 @@
-archive_set_error(a, errno, "Seek error")
+archive_set_error(a, errno, "Seek error");

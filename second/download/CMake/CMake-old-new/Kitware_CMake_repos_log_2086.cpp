@@ -1,1 +1,1 @@
-printf("The value of Foo: %s\n", foo)
+printf("The value of Foo: %s\n", foo);

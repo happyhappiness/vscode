@@ -1,1 +1,1 @@
-archive_string_sprintf(tgt, "WARC-Type: %s\r\n", _typ[hdr.type])
+archive_string_sprintf(tgt, "WARC-Type: %s\r\n", _typ[hdr.type]);

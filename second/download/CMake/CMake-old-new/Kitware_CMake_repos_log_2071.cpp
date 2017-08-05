@@ -1,1 +1,1 @@
-printf("expected failure, got 0x%04X\n", uc)
+printf("expected failure, got 0x%04X\n", uc);

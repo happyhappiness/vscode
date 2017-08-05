@@ -1,1 +1,1 @@
-fprintf(stderr, ": %s\n", msg)
+fprintf(stderr, ": %s\n", msg);

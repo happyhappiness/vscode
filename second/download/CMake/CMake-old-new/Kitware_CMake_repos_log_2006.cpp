@@ -1,1 +1,1 @@
-fprintf(stdout, "%s:0:0: warning: message [checker]\n", argv[i])
+fprintf(stdout, "%s:0:0: warning: message [checker]\n", argv[i]);

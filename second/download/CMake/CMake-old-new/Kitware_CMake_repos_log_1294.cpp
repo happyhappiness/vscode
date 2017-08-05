@@ -3,4 +3,4 @@ archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 			    (intmax_t)file->number,
 			    iso9660->pathname.s,
 			    (intmax_t)file->offset,
-			    (intmax_t)iso9660->current_position)
+			    (intmax_t)iso9660->current_position);

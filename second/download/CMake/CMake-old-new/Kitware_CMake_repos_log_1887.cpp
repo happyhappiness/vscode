@@ -1,1 +1,1 @@
-printf("Child exited with value = %d\n", kwsysProcess_GetExitValue(kp))
+printf("Child exited with value = %d\n", kwsysProcess_GetExitValue(kp));

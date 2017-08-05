@@ -1,2 +1,2 @@
 archive_set_error(a, errno,
-		    "Can't allocate memory for acl buffer")
+		    "Can't allocate memory for acl buffer");

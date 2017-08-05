@@ -1,1 +1,1 @@
-printf("bar = %d\n", ret)
+printf("bar = %d\n", ret);

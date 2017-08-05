@@ -1,1 +1,1 @@
-printf("NP_Initialize()\n")
+printf("NP_Initialize()\n");

@@ -1,1 +1,1 @@
-fprintf(stdout, "LoadString worked\n")
+fprintf(stdout, "LoadString worked\n");

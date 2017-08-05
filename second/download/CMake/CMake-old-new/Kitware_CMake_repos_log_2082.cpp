@@ -1,1 +1,1 @@
-printf("B\n")
+printf("B\n");

@@ -1,1 +1,1 @@
-fprintf(stderr, "Must specify output file.\n")
+fprintf(stderr, "Must specify output file.\n");

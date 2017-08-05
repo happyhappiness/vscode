@@ -1,1 +1,1 @@
-fprintf(stdout, "LoadString skipped\n")
+fprintf(stdout, "LoadString skipped\n");

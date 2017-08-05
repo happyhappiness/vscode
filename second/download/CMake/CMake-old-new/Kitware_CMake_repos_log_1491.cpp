@@ -1,1 +1,1 @@
-archive_string_sprintf(tgt, "WARC-Record-ID: %s\r\n", hdr.recid)
+archive_string_sprintf(tgt, "WARC-Record-ID: %s\r\n", hdr.recid);

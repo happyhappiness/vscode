@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name is not \"relwithdebinfo\"\n")
+fprintf(stderr, "build_config_name is not \"relwithdebinfo\"\n");

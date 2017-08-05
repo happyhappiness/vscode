@@ -1,1 +1,1 @@
-printf("No X on this computer\n")
+printf("No X on this computer\n");

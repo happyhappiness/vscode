@@ -1,1 +1,1 @@
-self->AddError(message, title)
+self->AddError(message, title);

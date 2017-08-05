@@ -1,1 +1,1 @@
-vfprintf(stderr, msg, ap)
+vfprintf(stderr, msg, ap);

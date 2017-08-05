@@ -1,1 +1,1 @@
-fprintf(stdout, "FindResource worked\n")
+fprintf(stdout, "FindResource worked\n");

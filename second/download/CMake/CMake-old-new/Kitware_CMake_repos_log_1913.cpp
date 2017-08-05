@@ -1,1 +1,1 @@
-printf("RegularExpression::compile() : *+ operand could be empty.\n")
+printf("RegularExpression::compile() : *+ operand could be empty.\n");

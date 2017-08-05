@@ -1,1 +1,1 @@
-_snprintf(oemcp, sizeof(oemcp)-1, "CP%d", a->current_oemcp)
+_snprintf(oemcp, sizeof(oemcp)-1, "CP%d", a->current_oemcp);

@@ -1,1 +1,1 @@
-fprintf(stderr, "No ldd-like tool is known to this executable.\n")
+fprintf(stderr, "No ldd-like tool is known to this executable.\n");

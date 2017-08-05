@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout before grandchild test.\n")
+fprintf(stdout, "Output on stdout before grandchild test.\n");

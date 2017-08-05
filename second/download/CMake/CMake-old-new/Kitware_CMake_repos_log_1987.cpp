@@ -1,1 +1,1 @@
-printf("%s\n", buf)
+printf("%s\n", buf);

@@ -1,1 +1,1 @@
-fprintf(stdout, "WaitForData timeout reached.\n")
+fprintf(stdout, "WaitForData timeout reached.\n");

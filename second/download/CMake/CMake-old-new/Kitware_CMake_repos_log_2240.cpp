@@ -1,1 +1,1 @@
-fprintf(stderr, "FILE_DEF_DEBUG should be defined in C\n")
+fprintf(stderr, "FILE_DEF_DEBUG should be defined in C\n");

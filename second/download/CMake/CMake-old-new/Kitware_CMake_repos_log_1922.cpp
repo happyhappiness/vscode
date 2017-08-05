@@ -1,2 +1,2 @@
 printf(
-          "RegularExpression::find(): Internal error -- memory corrupted.\n")
+          "RegularExpression::find(): Internal error -- memory corrupted.\n");

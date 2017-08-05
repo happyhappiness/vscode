@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name is not \"release\"\n")
+fprintf(stderr, "build_config_name is not \"release\"\n");
