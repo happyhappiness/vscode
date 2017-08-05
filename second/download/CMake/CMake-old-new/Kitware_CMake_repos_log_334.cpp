@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, -1,
-				    "Can't restore SUID bit")
+				    "Can't restore SUID bit");

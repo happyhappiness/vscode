@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "Can't read")
+archive_set_error(&a->archive, errno, "Can't read");

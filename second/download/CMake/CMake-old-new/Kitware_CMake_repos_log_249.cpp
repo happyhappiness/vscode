@@ -1,2 +1,2 @@
 fprintf(stderr, "    attr:\"%s\"=\"%s\"\n",
-		    attr->name, attr->value)
+		    attr->name, attr->value);

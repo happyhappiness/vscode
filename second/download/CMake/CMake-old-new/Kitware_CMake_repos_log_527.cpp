@@ -1,2 +1,2 @@
 archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Internal error initializing compression library")
+			    "Internal error initializing compression library");
