@@ -114,7 +114,7 @@ class Gumtree:
         return vector
 
     """
-    @ param odl and new log file
+    @ param old and new log file
     @ return flag about match or not
     @ involve just update action
     """
@@ -122,6 +122,15 @@ class Gumtree:
         Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
         return Gumtree.gumtree.isMatch()
 
+    """
+    @ param old and new log file, and repos log file
+    @ return flag about match or not
+    @ involve no action allowed in edited node
+    """
+    def is_match_with_edit(self, old_log_file, new_log_file, repos_log_file):
+        Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
+        Gumtree.gumtree.getEditedNodes()
+        return Gumtree.gumtree.isMatchWithEdit(repos_log_file)
     """
     @ param 
     @ return

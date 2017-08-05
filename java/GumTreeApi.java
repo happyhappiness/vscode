@@ -48,12 +48,14 @@ public class GumTreeApi {
 //	final String COMMENT_TYPE = "comment";
 //	final String BLOCK_TYPE = "block";
 	final String IF_TYPE = "if";
-	// application specific info for analyze file
+	// application specific info for " analyze file "
 	private int loc;
 	private ITree tree;
 	private ITree logNode;
 	private TreeContext treeContext;
 	private String filename;
+	// application specific info for " match old and repos according to old and new"
+	private List<ITree> editedNodes;
 
 	public void setOldAndNewFile(String oldFile, String newFile) {
 		Run.initGenerators();
@@ -65,16 +67,11 @@ public class GumTreeApi {
 			newTreeContext = Generators.getInstance().getTree(this.newFile);
 			oldTree = oldTreeContext.getRoot();
 			newTree = newTreeContext.getRoot();
-			// initialize matcher
-			matcher = Matchers.getInstance().getMatcher(oldTree, newTree);
-			matcher.match();
-			mappings = matcher.getMappings();
-			// initialize action generator
-			actionGenerator = new ActionGenerator(oldTree, newTree, matcher.getMappings());
-			actionGenerator.generate();
-			actions = actionGenerator.getActions();
+			// initialize matcher and actions
+			this.getActions();
 			// initialize application specific info
 			oldLogs = new ArrayList<ITree>();
+			editedNodes = new ArrayList<ITree>(); 
 		} catch (Exception e) {
 			// e.printStackTrace();
 			System.out.println(e.toString());
@@ -92,16 +89,16 @@ public class GumTreeApi {
 		// System.out.println("hello I am gumtree api");
 		
 
-		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_117.cpp";
-		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_117.cpp";
-		 GumTreeApi g = new GumTreeApi();
-		 g.setOldAndNewFile(oldFile, newFile);
-		 g.setOldLoc(2);
-		 g.addLogNode(2);
-//		 g.getDeltaBlockfeature();
-		 System.out.println(g.getActionType());
+//		 String oldFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_117.cpp";
+//		 String newFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_117.cpp";
+//		 GumTreeApi g = new GumTreeApi();
+//		 g.setOldAndNewFile(oldFile, newFile);
+//		 g.setOldLoc(2);
+//		 g.addLogNode(2);
+////		 g.getDeltaBlockfeature();
+//		 System.out.println(g.getActionType());
 		
 		
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
@@ -115,14 +112,13 @@ public class GumTreeApi {
 //		System.out.println(g.getControl());
 	
 		
-//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
-//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setOldAndNewFile(oldFile, newFile);
-//		g.addLogNode(9);
-//		g.addLogNode(13);
-//		g.setOldLoc(9);
-//		System.out.println(g.getActionType());
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
+		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if3.cpp";
+		GumTreeApi g = new GumTreeApi();
+		g.setOldAndNewFile(oldFile, newFile);
+		g.getEditedNodes();
+		System.out.println(g.isMatchWithEdit(reposFile));
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -429,6 +425,33 @@ public class GumTreeApi {
 		return Arrays.asList(frequence).toString();
 	}
 	
+	public void getEditedNodes()
+	{
+		Iterator<Action> actionIter = actions.iterator();
+		Action action;
+		while(actionIter.hasNext())
+		{
+			action = actionIter.next();
+			if(!isActionOfComment(action))
+			{
+				this.editedNodes.add(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode());
+			}
+		}
+	}
+	
+	public boolean isMatchWithEdit(String reposFile)
+	{
+		this.setNewFile(reposFile);
+		Iterator<Action> actionIter = actions.iterator();
+		while (actionIter.hasNext()) {
+			if (!isAcceptableAction(actionIter.next())) {
+				return false;
+			}
+		}
+		return true;
+	}
+	
+//	judge match by allowing update actions
 	public boolean isMatch() {
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
@@ -440,7 +463,60 @@ public class GumTreeApi {
 		}
 		return true;
 	}
+	
+	private boolean isAcceptableAction(Action action)
+	{
+		if(!isActionOfComment(action))
+		{
+			String changeType = action.getName();
+			// non comment, non update
+			if(!changeType.equals("UPD"))
+			{
+				return false;
+			}
+			ITree actionNode = action.getNode();
+			Iterator<ITree> editedIter = editedNodes.iterator();
+			while(editedIter.hasNext())
+			{
+				// non comment, update, edited
+				if(editedIter.next().equals(actionNode))
+				{
+					return false;
+				}
+			}
+		}
+		//comment || non comment, update, non edited
+		return true;
+	}
+	
+	private void setNewFile(String newFile)
+	{
+		try {
+			this.newFile = newFile;
+			this.newTreeContext = Generators.getInstance().getTree(newFile);
+			this.newTree = this.newTreeContext.getRoot();
+			this.getActions();
+		} catch (Exception e) {
+			// e.printStackTrace();
+			System.out.println(e.toString());
+			System.out.printf("update newFile:%s \n", newFile);
+		}
+		
+	}
+	
+	private void getActions()
+	{
+		// initialize matcher
+		matcher = Matchers.getInstance().getMatcher(this.oldTree, this.newTree);
+		matcher.match();
+		mappings = matcher.getMappings();
+		// initialize action generator
+		actionGenerator = new ActionGenerator(oldTree, newTree, matcher.getMappings());
+		actionGenerator.generate();
+		actions =  actionGenerator.getActions();
 
+	}
+	
 	// judge whether an action is about comment
 	private boolean isActionOfComment(Action action)
 	{

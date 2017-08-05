@@ -1,0 +1,1 @@
+yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)

@@ -1,0 +1,1 @@
+strcpy(data->set.errorbuffer, error)
