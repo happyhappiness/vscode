@@ -10,4 +10,4 @@ sprintf(sn, "%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x",
           ((SerialNumber[3] & 0xff000000) >> 24),
           ((SerialNumber[3] & 0x00ff0000) >> 16),
           ((SerialNumber[3] & 0x0000ff00) >> 8),
-          ((SerialNumber[3] & 0x000000ff) >> 0))
+          ((SerialNumber[3] & 0x000000ff) >> 0));

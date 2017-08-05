@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, -1, "Filetype required")
+archive_set_error(&a->archive, -1, "Filetype required");

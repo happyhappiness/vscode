@@ -1,1 +1,1 @@
-printf("\n\t}, {")
+printf("\n\t}, {");

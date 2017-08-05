@@ -3,4 +3,4 @@ archive_set_error(&a->archive,
 			    "Inconsistent compressed size: "
 			    "%jd in central directory, %jd in local header",
 			    (intmax_t)zip_entry_central_dir.compressed_size,
-			    (intmax_t)zip_entry->compressed_size)
+			    (intmax_t)zip_entry->compressed_size);

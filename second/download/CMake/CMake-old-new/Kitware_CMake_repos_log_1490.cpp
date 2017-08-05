@@ -4,4 +4,4 @@ snprintf(
 			u.u[0U],
 			u.u[1U] >> 16U, u.u[1U] & 0xffffU,
 			u.u[2U] >> 16U, u.u[2U] & 0xffffU,
-			u.u[3U])
+			u.u[3U]);

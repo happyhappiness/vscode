@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-			    "lseek(SEEK_HOLE) failed")
+			    "lseek(SEEK_HOLE) failed");

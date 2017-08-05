@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Trailing backslash.\n")
+printf("RegularExpression::compile(): Trailing backslash.\n");

@@ -1,1 +1,1 @@
-fprintf(stderr, "%s: (%d) %s", syscall, errorno, errmsg)
+fprintf(stderr, "%s: (%d) %s", syscall, errorno, errmsg);

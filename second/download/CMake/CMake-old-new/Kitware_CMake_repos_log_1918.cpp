@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): ?+* follows nothing.\n")
+printf("RegularExpression::compile(): ?+* follows nothing.\n");

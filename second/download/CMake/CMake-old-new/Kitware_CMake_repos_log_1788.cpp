@@ -1,1 +1,1 @@
-(void) fprintf( stderr, "%s\n", msg )
+(void) fprintf( stderr, "%s\n", msg );

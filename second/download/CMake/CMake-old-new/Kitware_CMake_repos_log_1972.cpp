@@ -1,1 +1,1 @@
-fprintf(stdout, "CMAKE_RCDEFINE_NO_QUOTED_STRINGS defined\n")
+fprintf(stdout, "CMAKE_RCDEFINE_NO_QUOTED_STRINGS defined\n");

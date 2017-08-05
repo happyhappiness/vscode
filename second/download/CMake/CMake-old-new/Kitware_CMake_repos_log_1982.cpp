@@ -1,1 +1,1 @@
-fprintf(stdout, "buf='%s'\n", buf)
+fprintf(stdout, "buf='%s'\n", buf);

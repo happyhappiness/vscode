@@ -1,1 +1,1 @@
-printf("NP_GetEntryPoints()\n")
+printf("NP_GetEntryPoints()\n");

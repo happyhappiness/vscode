@@ -1,1 +1,1 @@
-printf("DASHBOARD_TEST_FROM_CTEST = %s\n", env)
+printf("DASHBOARD_TEST_FROM_CTEST = %s\n", env);

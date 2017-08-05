@@ -1,1 +1,1 @@
-sprintf(cmd, "/aha/fs/modDir.monFactory")
+sprintf(cmd, "/aha/fs/modDir.monFactory");

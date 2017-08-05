@@ -1,1 +1,1 @@
-fprintf(stderr, "RELEASE and DEBUG definitions inconsistent in C\n")
+fprintf(stderr, "RELEASE and DEBUG definitions inconsistent in C\n");

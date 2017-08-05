@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Invalid range in [].\n")
+printf("RegularExpression::compile(): Invalid range in [].\n");

@@ -1,1 +1,1 @@
-fprintf(stdout, "CMAKE_RCDEFINE defined\n")
+fprintf(stdout, "CMAKE_RCDEFINE defined\n");

@@ -1,1 +1,1 @@
-printf("Child was disowned.\n")
+printf("Child was disowned.\n");

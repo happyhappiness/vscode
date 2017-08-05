@@ -1,1 +1,1 @@
-errmsg(function)
+errmsg(function);

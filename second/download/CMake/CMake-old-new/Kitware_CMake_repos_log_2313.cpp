@@ -1,1 +1,1 @@
-printf("arg1 and arg2 missing!\n")
+printf("arg1 and arg2 missing!\n");

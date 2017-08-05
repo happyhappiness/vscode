@@ -1,1 +1,1 @@
-fprintf(fout, "&amp;")
+fprintf(fout, "&amp;");

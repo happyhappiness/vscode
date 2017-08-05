@@ -1,1 +1,1 @@
-printf("Child was killed by parent.\n")
+printf("Child was killed by parent.\n");

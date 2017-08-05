@@ -1,1 +1,1 @@
-fprintf(stderr, "\n ** Unrecognized sequence number: ")
+fprintf(stderr, "\n ** Unrecognized sequence number: ");

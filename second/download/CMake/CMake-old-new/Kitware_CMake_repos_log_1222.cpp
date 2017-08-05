@@ -3,4 +3,4 @@ archive_set_error(&a->archive,
 				    "Symlink cannot be converted "
 				    "from %s to current locale.",
 				    archive_string_conversion_charset_name(
-					sconv))
+					sconv));

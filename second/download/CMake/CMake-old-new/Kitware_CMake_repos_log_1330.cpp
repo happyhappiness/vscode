@@ -1,1 +1,1 @@
-fprintf(stderr, "\n ** Unexpected extended attribute length: ")
+fprintf(stderr, "\n ** Unexpected extended attribute length: ");

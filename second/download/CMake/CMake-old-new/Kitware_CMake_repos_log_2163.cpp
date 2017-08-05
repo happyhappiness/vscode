@@ -1,1 +1,1 @@
-printf("Hello bar !\n")
+printf("Hello bar !\n");

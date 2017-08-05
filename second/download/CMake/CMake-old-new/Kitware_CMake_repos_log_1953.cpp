@@ -1,1 +1,1 @@
-snprintf(resolved_path, maxlen, "%s", path)
+snprintf(resolved_path, maxlen, "%s", path);

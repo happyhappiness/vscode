@@ -1,1 +1,1 @@
-fprintf(stderr, "Error locating executable \"%s\".\n", argv[0])
+fprintf(stderr, "Error locating executable \"%s\".\n", argv[0]);

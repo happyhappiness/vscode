@@ -1,1 +1,1 @@
-printf("Process executable name: %s\n", exec)
+printf("Process executable name: %s\n", exec);

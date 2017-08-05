@@ -1,1 +1,1 @@
-printf("Child was killed when timeout expired.\n")
+printf("Child was killed when timeout expired.\n");

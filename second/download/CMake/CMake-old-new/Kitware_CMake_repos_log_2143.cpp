@@ -1,1 +1,1 @@
-printf("%f\n", rk)
+printf("%f\n", rk);

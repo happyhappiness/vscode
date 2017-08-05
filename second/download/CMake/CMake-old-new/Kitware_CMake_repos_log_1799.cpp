@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", exe)
+fprintf(stdout, "%s\n", exe);

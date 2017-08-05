@@ -1,1 +1,1 @@
-archive_set_error(_a, EINVAL, "No comparison flag")
+archive_set_error(_a, EINVAL, "No comparison flag");

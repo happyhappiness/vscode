@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to close %s!\n", argv[1])
+fprintf(stderr, "Unable to close %s!\n", argv[1]);

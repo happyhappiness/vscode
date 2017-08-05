@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate data for passphrase")
+				    "Can't allocate data for passphrase");

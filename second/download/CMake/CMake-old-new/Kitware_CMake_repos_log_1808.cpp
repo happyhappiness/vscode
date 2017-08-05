@@ -1,1 +1,1 @@
-vfprintf(stream, format, var_args)
+vfprintf(stream, format, var_args);

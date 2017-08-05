@@ -1,1 +1,1 @@
-fprintf(stderr, "Missing name of file to create.\n")
+fprintf(stderr, "Missing name of file to create.\n");

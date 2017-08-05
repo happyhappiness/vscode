@@ -1,1 +1,1 @@
-printf("RegularExpression::find(): Internal error -- corrupted pointers.\n")
+printf("RegularExpression::find(): Internal error -- corrupted pointers.\n");

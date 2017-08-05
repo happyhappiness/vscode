@@ -1,1 +1,1 @@
-archive_set_error(a, EINVAL, "No such filter '%s'", name)
+archive_set_error(a, EINVAL, "No such filter '%s'", name);

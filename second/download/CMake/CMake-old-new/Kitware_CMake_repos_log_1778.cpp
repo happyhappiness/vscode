@@ -1,2 +1,2 @@
 YY_FATAL_ERROR(
-				"fatal error - scanner input buffer overflow" )
+				"fatal error - scanner input buffer overflow" );

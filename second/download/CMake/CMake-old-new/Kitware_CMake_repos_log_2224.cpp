@@ -1,1 +1,1 @@
-fprintf(fp, "int wrapped() { return wrapped_help(); }\n")
+fprintf(fp, "int wrapped() { return wrapped_help(); }\n");

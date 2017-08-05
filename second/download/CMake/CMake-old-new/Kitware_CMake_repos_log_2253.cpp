@@ -1,1 +1,1 @@
-fprintf(stderr, "TARGET_DEF not defined in C\n")
+fprintf(stderr, "TARGET_DEF not defined in C\n");

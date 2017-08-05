@@ -1,1 +1,1 @@
-printf("Foo: %s %d\n", foo, class)
+printf("Foo: %s %d\n", foo, class);

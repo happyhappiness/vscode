@@ -1,1 +1,1 @@
-sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen))
+sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));

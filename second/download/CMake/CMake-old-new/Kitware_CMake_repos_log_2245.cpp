@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_RELEASE should not be defined in C\n")
+fprintf(stderr, "DIRECTORY_DEF_RELEASE should not be defined in C\n");

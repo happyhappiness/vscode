@@ -1,1 +1,1 @@
-archive_set_error(a, EINVAL, "No such format")
+archive_set_error(a, EINVAL, "No such format");

@@ -1,1 +1,1 @@
-fprintf(fout, "Error opening \"%s\" for reading.\n", name)
+fprintf(fout, "Error opening \"%s\" for reading.\n", name);

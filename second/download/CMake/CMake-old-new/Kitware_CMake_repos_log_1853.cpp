@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before recursive test.\n")
+fprintf(stderr, "Output on stderr before recursive test.\n");

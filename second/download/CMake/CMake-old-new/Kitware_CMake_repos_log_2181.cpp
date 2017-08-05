@@ -1,1 +1,1 @@
-printf("Started with: %d arguments\n", argc)
+printf("Started with: %d arguments\n", argc);

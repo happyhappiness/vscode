@@ -1,1 +1,1 @@
-fprintf(fp, "extern int gen_redirect(void);\n")
+fprintf(fp, "extern int gen_redirect(void);\n");

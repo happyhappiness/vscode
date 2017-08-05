@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before grandchild test.\n")
+fprintf(stderr, "Output on stderr before grandchild test.\n");

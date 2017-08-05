@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Error in compile.\n")
+printf("RegularExpression::compile(): Error in compile.\n");

@@ -1,1 +1,1 @@
-fprintf(stdout, "LockResource worked\n")
+fprintf(stdout, "LockResource worked\n");

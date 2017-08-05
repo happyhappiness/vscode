@@ -1,1 +1,1 @@
-fprintf(stderr, "Something wrong with T2\n")
+fprintf(stderr, "Something wrong with T2\n");

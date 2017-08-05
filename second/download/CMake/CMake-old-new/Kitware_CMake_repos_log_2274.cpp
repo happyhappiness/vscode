@@ -1,1 +1,1 @@
-fprintf(fout, "0};\n")
+fprintf(fout, "0};\n");

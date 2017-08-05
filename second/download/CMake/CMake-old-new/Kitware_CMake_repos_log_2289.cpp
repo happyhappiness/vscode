@@ -1,1 +1,1 @@
-fprintf(fout, "%g,\n", result)
+fprintf(fout, "%g,\n", result);

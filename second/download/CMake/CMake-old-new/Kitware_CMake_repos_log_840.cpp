@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, -1, "Pathname required")
+archive_set_error(&a->archive, -1, "Pathname required");

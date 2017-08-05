@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", argv[i])
+fprintf(stdout, "%s\n", argv[i]);

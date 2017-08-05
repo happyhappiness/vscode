@@ -1,1 +1,1 @@
-printf("%s: decoding bad  ", passed ? "pass" : "FAIL")
+printf("%s: decoding bad  ", passed ? "pass" : "FAIL");

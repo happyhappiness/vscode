@@ -1,1 +1,1 @@
-printf("failed\n")
+printf("failed\n");

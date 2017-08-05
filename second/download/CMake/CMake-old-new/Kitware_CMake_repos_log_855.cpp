@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-				    "Can't stat %s", path)
+				    "Can't stat %s", path);

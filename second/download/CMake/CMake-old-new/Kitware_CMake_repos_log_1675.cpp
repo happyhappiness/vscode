@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Found entry with empty filename")
+		    "Found entry with empty filename");

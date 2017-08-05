@@ -1,1 +1,1 @@
-sprintf(buffer, format, argument)
+sprintf(buffer, format, argument);

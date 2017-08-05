@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name is not \"debug\"\n")
+fprintf(stderr, "build_config_name is not \"debug\"\n");

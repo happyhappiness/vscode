@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-			    "Couldn't read link data")
+			    "Couldn't read link data");

@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before test %d.\n", n)
+fprintf(stderr, "Output on stderr before test %d.\n", n);

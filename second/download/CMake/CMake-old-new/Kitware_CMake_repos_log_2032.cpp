@@ -1,1 +1,1 @@
-printf("bar()\n")
+printf("bar()\n");

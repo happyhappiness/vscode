@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Corrupted ZIP file data")
+	    "Corrupted ZIP file data");

@@ -1,1 +1,1 @@
-fprintf(stderr, "Get definitions from a subdir did not work\n")
+fprintf(stderr, "Get definitions from a subdir did not work\n");

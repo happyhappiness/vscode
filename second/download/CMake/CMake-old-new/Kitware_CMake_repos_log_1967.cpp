@@ -1,1 +1,1 @@
-printf("error: [%s]\n", *fname)
+printf("error: [%s]\n", *fname);

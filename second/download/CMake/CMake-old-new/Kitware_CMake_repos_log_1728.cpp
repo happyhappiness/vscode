@@ -1,1 +1,1 @@
-snprintf(tmp, sizeof(tmp),"%s",dir)
+snprintf(tmp, sizeof(tmp),"%s",dir);

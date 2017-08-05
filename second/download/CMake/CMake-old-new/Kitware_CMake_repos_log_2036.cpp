@@ -1,1 +1,1 @@
-fprintf(fout, "Avoid ctest truncation of output: CTEST_FULL_OUTPUT\n")
+fprintf(fout, "Avoid ctest truncation of output: CTEST_FULL_OUTPUT\n");

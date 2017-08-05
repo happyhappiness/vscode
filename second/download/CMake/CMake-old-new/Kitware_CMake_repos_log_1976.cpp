@@ -1,1 +1,1 @@
-fprintf(stdout, "LoadResource worked\n")
+fprintf(stdout, "LoadResource worked\n");
