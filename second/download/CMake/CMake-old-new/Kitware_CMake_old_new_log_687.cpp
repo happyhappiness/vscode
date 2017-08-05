@@ -1,1 +1,0 @@
-fprintf(stderr, "Output on stderr after grandchild test.\n")

@@ -1,1 +1,1 @@
-spn = aprintf("%s/%s", service, host)
+spn = aprintf("%s/%s", service, host);

@@ -1,1 +1,1 @@
-yy_fatal_error( "cmCommandArgument_yyset_column called with no buffer" , yyscanner)
+yy_fatal_error( "cmCommandArgument_yyset_column called with no buffer" , yyscanner);

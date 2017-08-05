@@ -1,1 +1,1 @@
-fprintf(fout, "\t%s\n", symbol.c_str()+1)
+fprintf(fout, "\t%s\n", symbol.c_str()+1);

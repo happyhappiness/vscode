@@ -1,1 +1,0 @@
-fprintf(stdout, "Output after sleep on stdout from timeout test.\n")

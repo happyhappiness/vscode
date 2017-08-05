@@ -1,1 +1,0 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm)

@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port)
+snprintf(sbuf, sizeof(sbuf), "%d", port);

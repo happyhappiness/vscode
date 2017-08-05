@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"))
+DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));

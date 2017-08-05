@@ -1,1 +1,1 @@
-snprintf(buf, max, "Unknown error %d (%#x)", err, err)
+snprintf(buf, max, "Unknown error %d (%#x)", err, err);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Couldn't open file with CreateFile()\n")
+fprintf(stderr, "Couldn't open file with CreateFile()\n");

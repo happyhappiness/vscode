@@ -1,1 +1,0 @@
-fprintf(fout, "add_executable(%s", targetName)

@@ -1,1 +1,1 @@
-snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer)
+snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);

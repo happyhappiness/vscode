@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"))
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

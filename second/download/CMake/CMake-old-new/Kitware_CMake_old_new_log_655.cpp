@@ -1,1 +1,0 @@
-DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"))

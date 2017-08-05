@@ -7,4 +7,4 @@ response = aprintf("username=\"%s\", "
                        digest->realm,
                        digest->nonce,
                        uripath,
-                       request_digest)
+                       request_digest);

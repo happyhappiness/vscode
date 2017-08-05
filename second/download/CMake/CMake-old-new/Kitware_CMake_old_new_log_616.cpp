@@ -1,1 +1,0 @@
-fprintf(stderr, "**** Header %s\n ", header)

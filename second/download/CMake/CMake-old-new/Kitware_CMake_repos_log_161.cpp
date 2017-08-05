@@ -1,1 +1,1 @@
-addError(message, token)
+addError(message, token);

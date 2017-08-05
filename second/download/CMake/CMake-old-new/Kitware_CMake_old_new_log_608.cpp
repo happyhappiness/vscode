@@ -1,1 +1,0 @@
-fprintf(stderr, "Output on stderr from test returning 0.\n")

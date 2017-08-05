@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "%s", prefix)
+snprintf(buf, sizeof(buf), "%s", prefix);

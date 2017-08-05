@@ -1,1 +1,1 @@
-s->range = aprintf("%" CURL_FORMAT_CURL_OFF_TU "-", s->resume_from)
+s->range = aprintf("%" CURL_FORMAT_CURL_OFF_TU "-", s->resume_from);

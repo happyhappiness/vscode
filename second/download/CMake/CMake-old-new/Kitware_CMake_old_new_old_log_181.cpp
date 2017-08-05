@@ -1,1 +1,1 @@
-snprintf( buf, sizeof(buf), "%d", state->retry_time)
+snprintf( buf, sizeof(buf), "%d", state->retry_time);

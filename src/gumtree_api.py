@@ -43,15 +43,18 @@ class Gumtree:
     @ involve get mapping log of old log
     """
     def get_new_log(self):
-        return Gumtree.gumtree.getNewLog()
-
+        new_log = Gumtree.gumtree.getNewLog()
+        if new_log is not None:
+            return new_log + ';'
+        else:
+            return new_log
     """
     @ param 
     @ return old log
     @ involve get old log
     """
     def get_old_log(self):
-        return Gumtree.gumtree.getOldLog()
+        return Gumtree.gumtree.getOldLog() + ';'
 
     """
     @ param 
@@ -92,7 +95,7 @@ class Gumtree:
     @ involve get log statement
     """
     def get_log(self):
-        return Gumtree.gumtree.getLog()
+        return Gumtree.gumtree.getLog() + ';'
 
     """
     @ param

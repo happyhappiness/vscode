@@ -1,1 +1,1 @@
-snprintf(output, outlen, "%s:", label)
+snprintf(output, outlen, "%s:", label);

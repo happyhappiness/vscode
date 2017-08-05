@@ -1,1 +1,1 @@
-fprintf(fout, " %08X", pSymbolTable->Value)
+fprintf(fout, " %08X", pSymbolTable->Value);

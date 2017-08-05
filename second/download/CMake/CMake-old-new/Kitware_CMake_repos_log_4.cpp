@@ -1,1 +1,1 @@
-(void)vsnprintf(buf, sizeof(buf), format, va)
+(void)vsnprintf(buf, sizeof(buf), format, va);

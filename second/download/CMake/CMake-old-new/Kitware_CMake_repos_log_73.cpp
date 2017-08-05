@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"))
+DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));

@@ -8,4 +8,4 @@ snprintf(str,
            tm->tm_year + 1900,
            tm->tm_hour,
            tm->tm_min,
-           tm->tm_sec)
+           tm->tm_sec);

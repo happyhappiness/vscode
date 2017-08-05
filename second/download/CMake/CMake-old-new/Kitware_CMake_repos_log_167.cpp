@@ -1,1 +1,1 @@
-len = snprintf(buffer, sizeof(buffer), "null")
+len = snprintf(buffer, sizeof(buffer), "null");

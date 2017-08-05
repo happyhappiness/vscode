@@ -1,1 +1,1 @@
-char *certpath = aprintf("sql:%s", cert_dir)
+char *certpath = aprintf("sql:%s", cert_dir);

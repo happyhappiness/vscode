@@ -1,1 +1,1 @@
-s = curl_mvaprintf(fmt, ap)
+s = curl_mvaprintf(fmt, ap);

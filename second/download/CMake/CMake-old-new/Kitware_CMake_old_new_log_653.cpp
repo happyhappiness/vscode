@@ -1,1 +1,0 @@
-DEBUGF(fprintf(stderr, "Error: win32_init failed\n"))

@@ -1,1 +1,1 @@
-snprintf(scope, sizeof(scope), "%%%u", scopeid)
+snprintf(scope, sizeof(scope), "%%%u", scopeid);

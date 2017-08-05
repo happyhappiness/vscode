@@ -1,1 +1,1 @@
-host_port = aprintf("%s:%hu", hostname, remote_port)
+host_port = aprintf("%s:%hu", hostname, remote_port);
