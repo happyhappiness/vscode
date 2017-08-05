@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-			    "Failed to get metadata(xattr)")
+			    "Failed to get metadata(xattr)");

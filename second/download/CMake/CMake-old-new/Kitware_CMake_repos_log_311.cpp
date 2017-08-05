@@ -1,1 +1,1 @@
-archive_string_sprintf(a_estr, errstr, path)
+archive_string_sprintf(a_estr, errstr, path);

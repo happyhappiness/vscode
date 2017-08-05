@@ -1,1 +1,1 @@
-archive_string_vsprintf(as, fmt, ap)
+archive_string_vsprintf(as, fmt, ap);

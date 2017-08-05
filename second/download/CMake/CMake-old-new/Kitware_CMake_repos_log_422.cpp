@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-						"Could not fstat %s", path)
+						"Could not fstat %s", path);

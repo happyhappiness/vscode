@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Using external bzip2 program")
+	    "Using external bzip2 program");

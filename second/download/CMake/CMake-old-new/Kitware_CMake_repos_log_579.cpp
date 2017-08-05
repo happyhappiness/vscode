@@ -1,2 +1,2 @@
 archive_set_error(f->archive, ARCHIVE_ERRNO_PROGRAMMER,
-		    "Failed to clean up compressor")
+		    "Failed to clean up compressor");

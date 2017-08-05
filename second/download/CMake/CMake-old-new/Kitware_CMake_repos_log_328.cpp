@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-		    "Can't test directory '%s'", path)
+		    "Can't test directory '%s'", path);

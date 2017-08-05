@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "XML Parsing failed")
+			    "XML Parsing failed");

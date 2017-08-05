@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Resource Fork")
+			    "Can't allocate memory for Resource Fork");
