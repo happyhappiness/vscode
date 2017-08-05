@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Path is a drive name")
+			    "Path is a drive name");

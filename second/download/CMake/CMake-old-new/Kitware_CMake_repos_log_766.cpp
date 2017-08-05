@@ -1,1 +1,1 @@
-sprintf(zip->format_name, "7-Zip")
+sprintf(zip->format_name, "7-Zip");
