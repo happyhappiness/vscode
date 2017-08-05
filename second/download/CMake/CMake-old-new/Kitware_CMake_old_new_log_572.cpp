@@ -1,1 +1,0 @@
-sprintf(temp, "%d", cmVersion::GetMinorVersion());

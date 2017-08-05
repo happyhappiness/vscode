@@ -4,4 +4,4 @@ md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
                                        digest->nc,
                                        digest->cnonce,
                                        digest->qop,
-                                       ha2)
+                                       ha2);

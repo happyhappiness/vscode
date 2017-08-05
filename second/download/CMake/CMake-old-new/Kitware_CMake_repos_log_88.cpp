@@ -1,1 +1,1 @@
-printf("failed; %s\n", Curl_strerror(conn, SOCKERRNO))
+printf("failed; %s\n", Curl_strerror(conn, SOCKERRNO));

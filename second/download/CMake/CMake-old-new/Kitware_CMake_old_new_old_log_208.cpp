@@ -1,1 +1,1 @@
-yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner)
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);

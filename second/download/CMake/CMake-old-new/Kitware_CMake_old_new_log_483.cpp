@@ -1,1 +1,0 @@
-fprintf(out, "#\n# Fatal libcurl error\n")

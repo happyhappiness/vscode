@@ -1,1 +1,1 @@
-auth = aprintf("%s", data->set.str[STRING_MAIL_AUTH])
+auth = aprintf("%s", data->set.str[STRING_MAIL_AUTH]);

@@ -1,1 +1,1 @@
-fprintf(out, "#\n# Fatal libcurl error\n")
+fprintf(out, "#\n# Fatal libcurl error\n");

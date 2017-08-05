@@ -1,1 +1,1 @@
-fprintf(stderr, "%c%c", s->window[match++], s->window[start++])
+fprintf(stderr, "%c%c", s->window[match++], s->window[start++]);

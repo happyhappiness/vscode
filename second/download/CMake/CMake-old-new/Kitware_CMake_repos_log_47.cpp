@@ -1,1 +1,1 @@
-stringp = aprintf("%s@%s", service, host)
+stringp = aprintf("%s@%s", service, host);

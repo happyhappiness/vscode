@@ -1,1 +1,1 @@
-len = vsprintf(buf, format, va)
+len = vsprintf(buf, format, va);

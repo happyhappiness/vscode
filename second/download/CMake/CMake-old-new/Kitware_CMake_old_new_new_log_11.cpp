@@ -1,1 +1,1 @@
-vsnprintf(error, CURL_ERROR_SIZE, fmt, ap)
+vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);

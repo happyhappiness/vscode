@@ -1,1 +1,1 @@
-ccp = curl_maprintf("%lx", version)
+ccp = curl_maprintf("%lx", version);

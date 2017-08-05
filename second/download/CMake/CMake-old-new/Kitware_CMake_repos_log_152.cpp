@@ -1,1 +1,1 @@
-char *fullpath = aprintf("%s/%s", capath, entry->name)
+char *fullpath = aprintf("%s/%s", capath, entry->name);

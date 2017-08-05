@@ -1,1 +1,1 @@
-strcpy(data->set.errorbuffer, error)
+strcpy(data->set.errorbuffer, error);

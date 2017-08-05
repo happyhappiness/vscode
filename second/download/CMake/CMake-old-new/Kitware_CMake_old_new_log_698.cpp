@@ -1,1 +1,0 @@
-fprintf(stderr, "Output before crash on stderr from crash test.\n")

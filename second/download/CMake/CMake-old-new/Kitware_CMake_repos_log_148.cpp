@@ -1,1 +1,1 @@
-char *slot_name = aprintf("PEM Token #%d", slot_id)
+char *slot_name = aprintf("PEM Token #%d", slot_id);

@@ -1,2 +1,2 @@
 fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName())
+            depender_index, depender->GetName());

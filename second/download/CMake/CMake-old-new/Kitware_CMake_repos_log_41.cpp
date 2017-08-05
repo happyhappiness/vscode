@@ -1,1 +1,1 @@
-sprintf(proxy, "%s", getenv("HTTP_PROXY"))
+sprintf(proxy, "%s", getenv("HTTP_PROXY"));

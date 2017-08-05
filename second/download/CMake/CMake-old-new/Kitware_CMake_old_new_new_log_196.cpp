@@ -1,1 +1,1 @@
-archive_wstrcat(&s, wp)
+archive_wstrcat(&s, wp);

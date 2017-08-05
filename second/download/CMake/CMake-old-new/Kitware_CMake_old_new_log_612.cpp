@@ -1,1 +1,0 @@
-DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd))

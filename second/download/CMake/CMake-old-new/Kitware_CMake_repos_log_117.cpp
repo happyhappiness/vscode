@@ -1,1 +1,1 @@
-s = vaprintf(fmt_crlf, args)
+s = vaprintf(fmt_crlf, args);

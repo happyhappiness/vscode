@@ -1,1 +1,0 @@
-host = aprintf("Host: %s\r\n", hostheader)

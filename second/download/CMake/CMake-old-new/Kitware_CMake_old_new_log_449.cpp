@@ -1,1 +1,0 @@
-sprintf(argument, "%s", sit->c_str())

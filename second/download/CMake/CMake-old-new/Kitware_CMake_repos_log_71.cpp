@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"))
+DEBUGF(fprintf(stderr, "Error: calloc of Curl_easy failed\n"));

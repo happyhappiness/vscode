@@ -1,1 +1,1 @@
-cmd = aprintf("ADAT %s", p)
+cmd = aprintf("ADAT %s", p);

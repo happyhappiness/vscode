@@ -1,1 +1,0 @@
-fprintf(fout, "\t%s \t DATA\n", symbol.c_str())

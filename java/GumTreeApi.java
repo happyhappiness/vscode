@@ -112,9 +112,9 @@ public class GumTreeApi {
 //		System.out.println(g.getControl());
 	
 		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
-		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if3.cpp";
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_new_log_260.cpp";
+		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1838.cpp";
 		GumTreeApi g = new GumTreeApi();
 		g.setOldAndNewFile(oldFile, newFile);
 		g.getEditedNodes();
@@ -427,6 +427,7 @@ public class GumTreeApi {
 	
 	public void getEditedNodes()
 	{
+//		System.out.println(actions.size());
 		Iterator<Action> actionIter = actions.iterator();
 		Action action;
 		while(actionIter.hasNext())
@@ -434,7 +435,9 @@ public class GumTreeApi {
 			action = actionIter.next();
 			if(!isActionOfComment(action))
 			{
+//				System.out.println(action.getName());
 				this.editedNodes.add(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode());
+//				printNode(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode(), this.oldTreeContext, this.oldFile);
 			}
 		}
 	}

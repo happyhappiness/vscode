@@ -1,1 +1,1 @@
-size = snprintf(buffer, size, "WinSSL")
+size = snprintf(buffer, size, "WinSSL");

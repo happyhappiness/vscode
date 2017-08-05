@@ -1,1 +1,1 @@
-retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save)
+retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save);

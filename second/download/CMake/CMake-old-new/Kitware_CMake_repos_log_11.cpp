@@ -1,1 +1,1 @@
-printf("    static const code lenfix[%u] = {", size)
+printf("    static const code lenfix[%u] = {", size);

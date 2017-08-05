@@ -1,1 +1,1 @@
-fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long)
+fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);

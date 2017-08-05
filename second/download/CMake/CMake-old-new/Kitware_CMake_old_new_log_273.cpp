@@ -1,1 +1,0 @@
-fprintf(fout, " %08X", pSymbolTable->Value)

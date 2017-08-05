@@ -13,4 +13,4 @@ response = aprintf("username=\"%s\", "
                        digest->cnonce,
                        digest->nc,
                        digest->qop,
-                       request_digest)
+                       request_digest);

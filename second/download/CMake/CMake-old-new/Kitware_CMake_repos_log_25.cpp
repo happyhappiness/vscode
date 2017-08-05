@@ -1,1 +1,1 @@
-fprintf(stderr,"GetProcAddress failed.\n")
+fprintf(stderr,"GetProcAddress failed.\n");

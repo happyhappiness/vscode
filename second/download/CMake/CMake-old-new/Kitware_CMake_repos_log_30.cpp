@@ -1,1 +1,1 @@
-printf("can't open [%s]\n",fn_r)
+printf("can't open [%s]\n",fn_r);

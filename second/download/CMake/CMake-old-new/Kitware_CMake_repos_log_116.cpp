@@ -1,1 +1,1 @@
-fmt_crlf = aprintf("%s\r\n", fmt)
+fmt_crlf = aprintf("%s\r\n", fmt);

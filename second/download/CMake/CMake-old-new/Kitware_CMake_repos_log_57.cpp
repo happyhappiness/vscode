@@ -1,1 +1,1 @@
-from = aprintf("<%s>", data->set.str[STRING_MAIL_FROM])
+from = aprintf("<%s>", data->set.str[STRING_MAIL_FROM]);

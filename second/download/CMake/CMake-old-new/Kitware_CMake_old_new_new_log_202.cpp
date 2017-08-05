@@ -5,4 +5,4 @@
               this->BinaryDirectory.c_str());
       /* Create the actual executable.  */
       fprintf(fout, "add_executable(%s", targetName.c_str());
-      }
+      };

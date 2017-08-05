@@ -92,7 +92,7 @@ CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 
 analyze clone title
 """
 ANALYZE_CLONE_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type','old_log_file', 'old_block', 'old_block_file', 'old_block_feature',\
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type','old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file',\
  'file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature']
 
 """

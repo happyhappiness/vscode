@@ -1,1 +1,1 @@
-archive_string_sprintf(&mtree->buf, "/unset%s\n", unsetstr.s)
+archive_string_sprintf(&mtree->buf, "/unset%s\n", unsetstr.s);

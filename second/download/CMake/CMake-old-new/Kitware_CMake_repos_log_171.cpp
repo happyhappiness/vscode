@@ -1,1 +1,1 @@
-printf(", PASSED\n")
+printf(", PASSED\n");

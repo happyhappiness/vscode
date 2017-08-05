@@ -1,1 +1,1 @@
-snprintf(buf, buf_size, "%s%s", ip, scope)
+snprintf(buf, buf_size, "%s%s", ip, scope);

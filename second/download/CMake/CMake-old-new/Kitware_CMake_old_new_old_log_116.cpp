@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp)
+snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);

@@ -1,1 +1,0 @@
-fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1)

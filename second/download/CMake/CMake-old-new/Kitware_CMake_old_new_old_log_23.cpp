@@ -1,1 +1,1 @@
-sprintf(cp->ExitExceptionString, "Signal %d", sig)
+sprintf(cp->ExitExceptionString, "Signal %d", sig);

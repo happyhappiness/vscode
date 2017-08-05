@@ -1,1 +1,1 @@
-this->Symbols.insert(symbol)
+this->Symbols.insert(symbol);
