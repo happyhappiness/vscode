@@ -1,0 +1,1 @@
+sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code)

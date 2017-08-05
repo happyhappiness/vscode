@@ -1,0 +1,1 @@
+s = curl_mvaprintf(fmt, ap)

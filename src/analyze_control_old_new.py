@@ -28,7 +28,8 @@ sys.setdefaultencoding('utf8')
 """
 def deal_log( log_record, writer, gumtree, total_log):
 
-    log = log_record[my_constant.FETCH_LOG_OLD_LOG]
+    old_log = log_record[my_constant.FETCH_LOG_OLD_LOG]
+    new_log = log_record[my_constant.FETCH_LOG_NEW_LOG]
     old_file_name = log_record[my_constant.FETCH_LOG_OLD_FILE]
     old_loc = log_record[my_constant.FETCH_LOG_OLD_LOC]
     # do not deal with LOG_NO_MODIFY
@@ -36,10 +37,14 @@ def deal_log( log_record, writer, gumtree, total_log):
     # no modification of this log statement
     if int(action_type) % 2 == 0:
         return total_log
-    # write log file
-    log_file_name = my_constant.SAVE_OLD_NEW_LOG + str(total_log) + '.cpp'
-    log_file = open(log_file_name, 'wb')
-    log_file.write(log)
+    # write old and new log file
+    old_log_file_name = my_constant.SAVE_OLD_NEW_OLD_LOG + str(total_log) + '.cpp'
+    log_file = open(old_log_file_name, 'wb')
+    log_file.write(old_log)
+    log_file.close()
+    new_log_file_name = my_constant.SAVE_OLD_NEW_NEW_LOG + str(total_log) + '.cpp'
+    log_file = open(new_log_file_name, 'wb')
+    log_file.write(new_log)
     log_file.close()
     # write block file
     gumtree.set_file(old_file_name)
@@ -55,7 +60,7 @@ def deal_log( log_record, writer, gumtree, total_log):
         gumtree.set_file(block_file_name)
         block_feature = gumtree.get_block_feature()
         block_feature = json.dumps(block_feature)
-    writer.writerow(log_record + [log_file_name, block, block_file_name, block_feature])
+    writer.writerow(log_record + [old_log_file_name, block, block_file_name, block_feature, new_log_file_name])
     total_log += 1
 
     return total_log

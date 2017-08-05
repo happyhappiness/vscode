@@ -11,9 +11,15 @@ from gumtree_api import Gumtree
 @ return  bool about whether has matched
 @ involve decide whether match or not, <- block feature enjoy high similarity and match log
 """
-def is_match(old_new_block_feature, repos_block_feature, old_new_log, repos_log, gumtree):
+def is_match(old_new_info, repos_info, gumtree):
+    old_new_block_feature = old_new_info[0]
+    old_log_file = old_new_info[1]
+    new_log_file = old_new_info[2]
+    repos_block_feature = repos_info[0]
+    repos_log_file = repos_info[1]
     if myUtil.compute_similarity(old_new_block_feature, repos_block_feature) > 0.999:
-        return gumtree.is_match(old_new_log, repos_log)
+        return gumtree.is_match_with_edit(old_log_file, new_log_file, repos_log_file)
+        # return gumtree.is_match(old_log_file, repos_log_file)
     else:
         return False
 
@@ -32,7 +38,8 @@ def seek_clone():
     for old_new_record in islice(old_new_records, 1, None):
         old_new_block_feature = json.loads(old_new_record[my_constant.ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE])
         old_new_old_log_file = old_new_record[my_constant.ANALYZE_OLD_NEW_OLD_LOG_FILE]
-        old_new_infos.append([old_new_block_feature, old_new_old_log_file])
+        old_new_new_log_file = old_new_record[my_constant.ANALYZE_OLD_NEW_NEW_LOG_FILE]
+        old_new_infos.append([old_new_block_feature, old_new_old_log_file, old_new_new_log_file])
         old_new_record_info.append(old_new_record)
     # initialize log_repos from given repos analysis result
     repos_infos = []
@@ -67,7 +74,7 @@ def seek_clone():
         for repos_info in repos_infos:
             print "now analyze the no.%d old new log; %d repos log"\
                  %(index_old_new, index_repos)
-            if is_match(old_new_info[0], repos_info[0], old_new_info[1], repos_info[1], gumtree):
+            if is_match(old_new_info, repos_info, gumtree):
                 clone_writer.writerow(old_new_record_info[index_old_new] + repos_record_info[index_repos])
                 clone_count += 1
             index_repos += 1

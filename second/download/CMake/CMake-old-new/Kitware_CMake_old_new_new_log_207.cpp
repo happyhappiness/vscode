@@ -1,0 +1,1 @@
+this->DataSymbols.insert(symbol)

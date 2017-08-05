@@ -1,0 +1,1 @@
+sprintf(win9x, "%s%s", tempDir, fwdName)

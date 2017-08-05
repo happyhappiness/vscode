@@ -1,0 +1,1 @@
+fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long)
