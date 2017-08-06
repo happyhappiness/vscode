@@ -78,6 +78,13 @@ ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('old_log_file')
 ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('new_log_file')
 ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_TITLE.index('old_block_file')
 ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_TITLE.index('old_block_feature')
+ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_TITLE.index('file_name')
+ANALYZE_OLD_NEW_OLD_LOC = ANALYZE_OLD_NEW_TITLE.index('old_loc')
+ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_TITLE.index('old_log')
+ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_TITLE.index('new_log')
+
+
+STATISTICS_OLD_NEW_TITLE = ['old_log', 'new_log', 'indexes', 'count']
 
 """
 analyze repos / cluster repos title and index
