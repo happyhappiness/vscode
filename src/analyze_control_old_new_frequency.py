@@ -61,7 +61,6 @@ def compute_frequence():
 
     for key in frequency:
         frequency_writer.writerow([key[0], key[1], json.dumps(frequency[key]), len(frequency[key])])
-      
     frequency_file.close()
 
 
