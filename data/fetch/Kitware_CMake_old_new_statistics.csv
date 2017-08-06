@@ -1,0 +1,431 @@
+old_log,new_log,indexes,count
+"response = aprintf(""username=\""%s\"",realm=\""%s\"",nonce=\""%s\"",""
+                     ""cnonce=\""%s\"",nc=\""%s\"",digest-uri=\""%s\"",response=%s,""
+                     ""qop=%s"",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);",,"[128, 147, 168]",3
+"fprintf(out, ""%s"", archive_entry_pathname(entry));","fprintf(out, ""%s"", cm_archive_entry_pathname(entry).c_str());","[293, 294]",2
+"fprintf(stderr, ""  depends on target %d [%s] (%s)\n"", dependee_index,
+              dependee->GetName(), ni->IsStrong()? ""strong"" : ""weak"");","fprintf(stderr, ""  depends on target %d [%s] (%s)\n"", dependee_index,
+              dependee->GetName().c_str(), ni->IsStrong()? ""strong"" : ""weak"");","[300, 315]",2
+"yy_fatal_error( ""cmFortran_yyset_lineno called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmFortran_yyset_lineno called with no buffer"" );",[209],1
+"fprintf(stderr, ""unknowntag_start:%s\n"", name);",,"[188, 195]",2
+"sprintf(fwdName, KWSYS_NAMESPACE_STRING ""pew9xfwd_%ld_%p.exe"",
+            GetCurrentProcessId(), cp);",,"[358, 361]",2
+"fprintf(fout, ""\t%s DATA \n"", symbol.c_str()+1);","fprintf(this->FileOut, ""\t%s DATA \n"", symbol.c_str()+1);",[267],1
+"fprintf(fout, ""\t%s\n"", symbol.c_str());",,[277],1
+"sprintf(buf, ""%s\\*"", name);","sprintf(buf, ""%s\\*"", name.c_str());","[284, 289]",2
+"snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);","snprintf(clbuf, sizeof(clbuf),
+               ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);","[3, 10, 17]",3
+"snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, ""%s"", data->state.buffer);","strcpy(data->set.errorbuffer, error);","[6, 13, 20]",3
+"archive_string_sprintf(&w->sver,
+			""WARC/%u.%u"", ver / 10000, ver % 10000);","archive_string_sprintf(&w->sver,
+			""WARC/%u.%u"", ver / 10000, (ver % 10000) / 100);","[58, 94]",2
+"archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory for ""
+					    ""SCHILY.acl.default"");",,"[55, 91]",2
+"fprintf(fout, ""%04X "", i);",,[271],1
+"archive_set_error(&a->archive, 0,
+				    ""Cannot extract through symlink %s"",
+				    a->name);","fsobj_error(a_eno, a_estr, 0,
+					    ""Cannot extract through ""
+					    ""symlink %s"", path);","[66, 102]",2
+"md5this = (unsigned char *)aprintf(""%s:%s"", request, uripath);",,"[131, 150, 171]",3
+"snprintf(buf, sizeof(data->state.buffer),
+               ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);","snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", filesize);","[28, 32]",2
+"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""Parse error: SCHILY.acl.default"");",,"[56, 92]",2
+"archive_set_error(&a->archive, 0,
+					    ""Cannot remove intervening symlink %s"",
+					    a->name);","fsobj_error(a_eno, a_estr,
+						    errno,
+						    ""Could not chdir %s"", path);","[65, 101]",2
+"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""Internal error initializing ""
+				    ""compression library: ""
+				    ""invalid header"");",,"[59, 95]",2
+"fprintf(stderr, ""Link dependency analysis for target %s, config %s\n"",
+            this->Target->GetName(), this->Config?this->Config:""noconfig"");","fprintf(stderr, ""Link dependency analysis for target %s, config %s\n"",
+            this->Target->GetName().c_str(),
+            this->HasConfig?this->Config.c_str():""noconfig"");","[295, 310]",2
+"response = aprintf(""username=\""%s\"", ""
+                       ""realm=\""%s\"", ""
+                       ""nonce=\""%s\"", ""
+                       ""uri=\""%s\"", ""
+                       ""cnonce=\""%s\"", ""
+                       ""nc=%08x, ""
+                       ""qop=%s, ""
+                       ""response=\""%s\"""",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);",,"[134, 153, 174]",3
+"tmp = aprintf(""%s:%s:%s"", ha1, digest->nonce, digest->cnonce);",,"[130, 149, 170]",3
+"archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    ""Internal error initializing lzma library"");",,"[44, 80]",2
+"archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory for ""
+					    ""SCHILY.acl.access"");",,"[53, 89]",2
+"fprintf(fout, ""\t%s\n"", symbol.c_str()+1);",,[278],1
+"sprintf(num,""%d"",static_cast<int>(this->LocalGenerators.size()));","sprintf(num,""%d"",static_cast<int>(this->Makefiles.size()));","[235, 260]",2
+"archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			""Unsupported record version"");","archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			""Invalid record version"");","[57, 93]",2
+"md5this = (unsigned char *)aprintf(""%s:%s:%08x:%s:%s:%s"",
+                                       ha1,
+                                       digest->nonce,
+                                       digest->nc,
+                                       digest->cnonce,
+                                       digest->qop,
+                                       ha2);",,"[132, 151, 172]",3
+"fprintf(fout,""IMPORTS \n"");","fprintf(this->FileOut,""IMPORTS \n"");",[266],1
+"fprintf(stderr, ""target %d is [%s]\n"",
+            depender_index, depender->GetName());","fprintf(stderr, ""target %d is [%s]\n"",
+            depender_index, depender->GetName().c_str());","[299, 314]",2
+"snprintf(zip->format_name, sizeof(zip->format_name), ""ZIP %d.%d (%s)"",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));","archive_string_sprintf(&zip->format_name, ""ZIP %d.%d (%s)"",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));","[219, 230]",2
+"fprintf(this->FileOut,""EXPORTS \n"");",,[204],1
+"tmp = aprintf(""%s:%s:%s"", ha1, d->nonce, d->cnonce);",,"[244, 256]",2
+"fprintf(this->FileOut, ""\t%s DATA \n"", symbol.c_str()+1);",this->DataSymbols.insert(symbol);,[208],1
+"archive_set_error(&(a->archive), errno,
+			    ""Faild : %s"", archive_error_string(a->matching));","archive_set_error(&(a->archive), errno,
+			    ""Failed : %s"", archive_error_string(a->matching));","[37, 38, 39, 40, 41, 42, 73, 74, 75, 76, 77, 78]",12
+"conn->allocptr.rangeline = aprintf(""Range: bytes=%s\r\n"",
+                                         data->state.range);","conn->allocptr.rangeline = aprintf(""Range: bytes=%s\r\n"",
+                                         data->state.range);","[241, 253]",2
+"len = snprintf(ptr, left, "" libidn/%s"", stringprep_check_version(NULL));","len = snprintf(ptr, left, "" libidn2/%s"", idn2_check_version(NULL));","[116, 121]",2
+"snprintf(ftpc->newhost, sizeof(ftpc->newhost), ""%s"",
+                     conn->host.name);",,"[236, 248]",2
+"fprintf(fout, ""set(CMAKE_LINK_SEARCH_END_STATIC \""%s\"")\n"", lssDef);",,[185],1
+"fprintf(fout, ""set(CMAKE_LINK_SEARCH_START_STATIC \""%s\"")\n"", lssDef);",,[184],1
+"tmp = aprintf(""%s, opaque=\""%s\"""", response, digest->opaque);",,"[136, 155, 176]",3
+"fprintf(fout, ""add_executable(%s"", targetName.c_str());","(targetType == cmState::EXECUTABLE)
+      {
+      /* Put the executable at a known location (for COPY_FILE).  */
+      fprintf(fout, ""set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \""%s\"")\n"",
+              this->BinaryDirectory.c_str());
+      /* Create the actual executable.  */
+      fprintf(fout, ""add_executable(%s"", targetName.c_str());
+      };",[203],1
+"DEBUGF(fprintf(stderr, ""Error: resolver_global_init failed\n""));","f(Curl_resolver_global_init()) {
+    DEBUGF(fprintf(stderr, ""Error: resolver_global_init failed\n""));
+    return CURLE_FAILED_INIT;;","[113, 118]",2
+"_snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE,
+                ""Exit code 0x%x\n"", code);","_snprintf(cp->ProcessResults[idx].ExitExceptionString,
+                KWSYSPE_PIPE_BUFFER_SIZE, ""Exit code 0x%x\n"", code);","[23, 25]",2
+"write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);",,"[115, 120]",2
+"snprintf(cnonce, sizeof(cnonce), ""%08x%08x%08x%08x"",
+           entropy[0], entropy[1], entropy[2], entropy[3]);",,"[7, 14, 21, 124, 164]",5
+"fprintf(stderr, ""target [%s] links to:\n"", this->Target->GetName());","fprintf(stderr, ""target [%s] links to:\n"", this->Target->GetName().c_str());","[296, 311]",2
+"snprintf(service.value, service.length+1, ""%s@%s"",
+             serviceptr, conn->proxy.name);","snprintf(service.value, service.length+1, ""%s@%s"",
+             serviceptr, conn->socks_proxy.host.name);","[106, 107]",2
+"fprintf(fout,
+              ""target_link_libraries(%s ${LINK_LIBRARIES})\n"",targetName);","fprintf(fout,
+              ""target_link_libraries(%s ${LINK_LIBRARIES})\n"",
+              targetName.c_str());","[302, 317, 342]",3
+"archive_set_error(&a->archive,
+									ARCHIVE_ERRNO_MISC,
+									""mtree specification has different type for %s"",
+									archive_entry_pathname(entry));","archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""mtree specification has different""
+					    "" type for %s"",
+					    archive_entry_pathname(entry));","[216, 227]",2
+"snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 ""%04d%02d%02d %02d:%02d:%02d GMT"",
+                 year, month, day, hour, minute, second);","snprintf(timebuf, sizeof(timebuf),
+                 ""%04d%02d%02d %02d:%02d:%02d GMT"",
+                 year, month, day, hour, minute, second);","[2, 9, 16]",3
+"fprintf(fout, ""%-20s"", stringTable + pSymbolTable->N.Name.Long);",,[273],1
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid empty pathname"");","fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+		    ""Invalid empty "", ""pathname"");","[67, 103]",2
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			                  ""Path is absolute"");","fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+			    ""Path is "", ""absolute"");","[68, 104]",2
+"fprintf(progFile,""empty"");",,[281],1
+"fprintf(stderr, ""No current working directory\n"");",,[357],1
+"archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    ""lzmadec decompression failed(%d)"",
+			    r);",,"[62, 98]",2
+"archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""truncated lzma input"");",,"[47, 83]",2
+"fprintf(fout, ""\t%s \t DATA\n"", symbol.c_str());","fprintf(this->FileOut, ""\t%s \t DATA\n"", symbol.c_str());",[264],1
+"fprintf(fout, ""Symbol Table - %X entries  (* = auxillary symbol)\n"",
+      cSymbols);",,[269],1
+"fprintf(fout, ""\t%s\n"", symbol.c_str());","fprintf(this->FileOut, ""\t%s\n"", symbol.c_str());",[265],1
+"_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  ""Process execution failed with error 0x%X.  ""
+                  ""FormatMessage failed with error 0x%X"",
+                  original, GetLastError());","_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  ""Process execution failed with error 0x%X.  ""
+                  ""FormatMessage failed with error 0x%X"",
+                  error, GetLastError());","[261, 262]",2
+"fprintf(this->FileOut, ""\t%s\n"", symbol.c_str());",this->Symbols.insert(symbol);,[206],1
+"fprintf(stderr, ""The %s target dependency graph is:\n"", name);","fprintf(stderr, ""The %s target dependency graph is:\n"", name.c_str());","[298, 313]",2
+"userp = aprintf(""%sAuthorization: Negotiate %s\r\n"", proxy ? ""Proxy-"" : """",
+                  encoded);","userp = aprintf(""%sAuthorization: Negotiate %s\r\n"", proxy ? ""Proxy-"" : """",
+                  base64);","[140, 159, 180]",3
+"sprintf(cp->ExitExceptionString, ""Signal %d"", sig);","sprintf(cp->ProcessResults[idx].ExitExceptionString, ""Signal %d"", sig);","[22, 24]",2
+"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""Parse error: SCHILY.acl.access"");",,"[54, 90]",2
+"fprintf(fout, ""add_executable(%s"", targetName);","fprintf(fout, ""add_executable(%s"", targetName.c_str());","[301, 316, 341]",3
+"f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           ""%s:%s"", user, pwd);","= aprintf(""%s:%s"", user, pwd);","[4, 11, 18]",3
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    ""Encrypted file is unsupported"");",,"[220, 231]",2
+"fprintf(stderr, ""Header id 0x%x, length %d\n"",
+		    headerid, datasize);","fprintf(stderr, ""Header id 0x%04x, length %d\n"",
+		    headerid, datasize);","[218, 229]",2
+"yy_fatal_error( ""cmExpr_yyset_column called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmExpr_yyset_column called with no buffer"" );",[111],1
+"yy_fatal_error( ""cmFortran_yyset_column called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmFortran_yyset_column called with no buffer"" );",[210],1
+"archive_set_error(&a->archive, 0,
+					    ""Removing symlink %s"",
+					    a->name);","fsobj_error(a_eno, a_estr, 0,
+					    ""Cannot remove intervening ""
+					    ""symlink %s"", path);","[64, 100]",2
+"archive_set_error(&self->archive->archive, ENOMEM,
+		    ""Can't allocate data for lzma decompression"");",,"[43, 79]",2
+"fprintf(fout, ""target_link_libraries(%s %s)\n"",
+              targetName,
+              libsToLink.c_str());","fprintf(fout, ""target_link_libraries(%s %s)\n"",
+              targetName.c_str(),
+              libsToLink.c_str());","[303, 318, 343]",3
+"snprintf(&HA1_hex[2 * i], 3, ""%02x"", digest[i]);",,"[125, 144, 165]",3
+"fprintf(stderr, ""  target [%s]\n"", lei->Target->GetName());","fprintf(stderr, ""  target [%s]\n"", lei->Target->GetName().c_str());","[297, 312]",2
+"yy_fatal_error( ""cmListFileLexer_yyset_column called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmListFileLexer_yyset_column called with no buffer"" );",[187],1
+"archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Lzma decompression failed"");",,"[49, 85]",2
+"fprintf(stderr, ""Link dependency analysis for target %s, config %s\n"",
+            this->Target->GetName(), this->Config?this->Config:""noconfig"");","fprintf(stderr, ""Link dependency analysis for target %s, config %s\n"",
+            this->Target->GetName().c_str(),
+            this->Config?this->Config:""noconfig"");","[337, 345]",2
+"fprintf(stdout,""[%3i%%] "",((fileNum-3)*100)/count);",,[282],1
+"snprintf( buf, sizeof(buf), ""%d"", state->retry_time);","snprintf(buf, sizeof(buf), ""%d"", state->retry_time);","[161, 182]",2
+"snprintf(&resp_hash_hex[2 * i], 3, ""%02x"", digest[i]);",,"[127, 146, 167]",3
+"f(fout, ""set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \""%s\"")\n"",
+            this->BinaryDirectory.c_str());",,[202],1
+"archive_set_error(&a->archive,
+				    ENOMEM,
+				    ""Internal error initializing ""
+				    ""compression library: ""
+				    ""out of memory"");",,"[60, 96]",2
+"archive_set_error(f->archive, EIO,
+			    ""Can't write to filter"");","archive_set_error(f->archive, EIO,
+			    ""Can't write to program: %s"", data->program_name);","[193, 200]",2
+"sprintf(output,""%s/%s_force_%i"", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);","sprintf(output,""%s/%s_force_%i"", this->GetCurrentBinaryDirectory(),
+          target->GetName().c_str(), count);",[211],1
+"snprintf(&HA2_hex[2 * i], 3, ""%02x"", digest[i]);",,"[126, 145, 166]",3
+"response = aprintf(""username=\""%s\"", ""
+                       ""realm=\""%s\"", ""
+                       ""nonce=\""%s\"", ""
+                       ""uri=\""%s\"", ""
+                       ""response=\""%s\"""",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);",,"[135, 154, 175]",3
+"snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+             ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", expected_size);","snprintf(header, sizeof(header),
+             ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", expected_size);","[1, 8, 15]",3
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    ""Truncated ZIP file header"");","archive_wstrcat(&s, wp);","[190, 197]",2
+"snprintf(ftpc->newhost, sizeof(ftpc->newhost), ""%s"",
+                 conn->ip_addr_str);",,"[239, 251]",2
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+		    ""Internal error: ""
+		    ""No format_read_data_block function registered"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+		    ""Internal error: ""
+		    ""No format->read_data function registered"");","[212, 223]",2
+"snprintf(buf, BUFSIZE-1,
+               ""Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n"",
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+               tm->tm_mday,
+               Curl_month[tm->tm_mon],
+               tm->tm_year + 1900,
+               tm->tm_hour,
+               tm->tm_min,
+               tm->tm_sec);","snprintf(buf, BUFSIZE-1,
+             ""Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n"",
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+             tm->tm_mday,
+             Curl_month[tm->tm_mon],
+             tm->tm_year + 1900,
+             tm->tm_hour,
+             tm->tm_min,
+             tm->tm_sec);","[139, 158, 179]",3
+"snprintf(buf, sizeof(buf), ""%s"", prefix);",,"[246, 258]",2
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Tar entry has negative size?"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Tar entry has negative size"");","[52, 88]",2
+"sprintf(output,""%s/%s_force_%i"", this->Makefile->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);","sprintf(output,""%s/%s_force_%i"", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);",[234],1
+"archive_set_error(&a->archive, errno,
+				    ""Couldn't change dir"");","archive_set_error(&a->archive, errno,
+			    ""Can't change dir to read extended attributes"");","[34, 70]",2
+"sprintf(buf, ""%s*"", name);","sprintf(buf, ""%s*"", name.c_str());","[283, 286, 288, 291]",4
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Solaris NFSv4 ACLs not supported"");",acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;,"[51, 87]",2
+"archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    ""Path contains '..'"");","fsobj_error(a_eno, a_estr,
+						    ARCHIVE_ERRNO_MISC,
+						    ""Path contains "", ""'..'"");","[69, 105]",2
+"fprintf(fout, ""set(CMAKE_%s_FLAGS %s)\n"", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"""").c_str());","fprintf(fout, ""set(CMAKE_%s_FLAGS %s)\n"", li->c_str(),
+              cmLocalGenerator::EscapeForCMake(flags?flags:"""").c_str());",[280],1
+"fprintf(fout, ""set(CMAKE_%s_FLAGS %s)\n"", li->c_str(),
+              cmLocalGenerator::EscapeForCMake(flags?flags:"""").c_str());","fprintf(fout, ""set(CMAKE_%s_FLAGS %s)\n"", li->c_str(),
+              cmOutputConverter::EscapeForCMake(flags?flags:"""").c_str());",[279],1
+"archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate zip header data"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Archives > 4GB require Zip64 extensions"");","[305, 308]",2
+"fprintf(stderr, ""No current working directory.\n"");",,[356],1
+"fprintf(stderr, ""Couldn't open file with CreateFile()\n"");","fprintf(stderr, ""Couldn't open file '%s' with CreateFile()\n"", filename);",[268],1
+"fprintf(fout,"" hc: %s \n"",sectionCharacter.c_str());",,[276],1
+"snprintf(ftpc->newhost, NEWHOST_BUFSIZE, ""%s"", conn->ip_addr_str);",,"[237, 249]",2
+"yy_fatal_error( ""cmListFileLexer_yyset_lineno called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmListFileLexer_yyset_lineno called with no buffer"" );",[186],1
+"archive_set_error(&a->archive, errno,
+					    ""Could not remove symlink %s"",
+					    a->name);","fsobj_error(a_eno, a_estr, errno,
+					    ""Could not remove symlink %s"",
+					    path);","[63, 99]",2
+"archive_set_error(&a->archive, errno,
+				    ""Couldn't access %s"", path);","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Couldn't determine file path to read ""
+			    ""extended attributes"");","[35, 36, 71, 72]",4
+"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    ""Unrecognized file type \""%s\""; assuming \""file\"""", val);","archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    ""Unrecognized file type \""%s\""; ""
+				    ""assuming \""file\"""", val);","[217, 228]",2
+"fprintf(this->FileOut,""IMPORTS \n"");",,[207],1
+"archive_set_error(&(a->archive),
+				    ARCHIVE_ERRNO_MISC,
+				    ""Failed to clean up lzmadec decompressor"");",,"[61, 97]",2
+"archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    ""Internal error initializing compression library: ""
+		    ""invalid header"");",,"[45, 81]",2
+"yy_fatal_error( ""cmCommandArgument_yyset_column called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmCommandArgument_yyset_column called with no buffer"" );",[109],1
+"fprintf(fout, ""set(CMAKE_POSITION_INDEPENDENT_CODE \""ON\"")\n"");",,[183],1
+"vsnprintf(data->state.buffer, BUFSIZE, fmt, ap);","vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);","[5, 12, 19]",3
+"fprintf(fout,
+      ""Indx Name                 Value    Section    cAux  Type    Storage  Character\n""
+      ""---- -------------------- -------- ---------- ----- ------- -------- ---------\n"");",,[270],1
+"archive_set_error(&a->archive, 0,
+		    ""Write request too large"");","archive_set_error(&a->archive, 0,
+		    ""Too much data: Truncating file at %ju bytes"", (uintmax_t)a->filesize);","[222, 233]",2
+"xoauth = aprintf(""user=%s\1auth=Bearer %s\1\1"", user, bearer);",,"[138, 157, 178]",3
+"archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    ""Unacceptable dictionary dize for lzip: %d"",
+			    dict_size);","archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    ""Unacceptable dictionary size for lzip: %d"",
+			    dict_size);","[221, 232]",2
+"archive_set_error(f->archive, EINVAL,
+		    ""Can't initialise filter"");","archive_set_error(f->archive, EINVAL,
+		    ""Can't launch external program: %s"", cmd);","[191, 192, 198, 199]",4
+"archive_set_error(&self->archive->archive, ENOMEM,
+		    ""Internal error initializing compression library: ""
+		    ""out of memory"");",,"[46, 82]",2
+"archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Insufficient compressed data"");",,"[48, 84]",2
+"snprintf(ftpc->newhost, sizeof(ftpc->newhost), ""%s"", conn->host.name);",,"[238, 250]",2
+"fprintf(stderr, ""unknowntag_end:%s\n"", name);","fprintf(stderr, ""UNKNOWNTAG_END:%s\n"", name);","[189, 196]",2
+"snprintf(name, sizeof(name), ""%s@%s"", service, proxy ? conn->proxy.name :
+           conn->host.name);",,"[245, 257]",2
+"snprintf( buf, sizeof(buf), ""%d"", state->requested_blksize );","snprintf(buf, sizeof(buf), ""%d"", state->requested_blksize);","[160, 181]",2
+"snprintf(ftpc->newhost, sizeof(ftpc->newhost),
+               ""%d.%d.%d.%d"", ip[0], ip[1], ip[2], ip[3]);","ftpc->newhost = aprintf(""%d.%d.%d.%d"", ip[0], ip[1], ip[2], ip[3]);","[240, 252]",2
+"snprintf((char *)&dest[i*2], 3, ""%02x"", source[i]);",,"[122, 141, 162, 242, 254]",5
+"sprintf(buf, ""%s/*"", name);","sprintf(buf, ""%s/*"", name.c_str());","[285, 287, 290, 292]",4
+"snprintf(buf, sizeof(conn->data->state.buffer),
+                 ""%04d%02d%02d %02d:%02d:%02d GMT"",
+                 year, month, day, hour, minute, second);","snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 ""%04d%02d%02d %02d:%02d:%02d GMT"",
+                 year, month, day, hour, minute, second);","[27, 31]",2
+"sprintf(win9x, ""%s%s"", tempDir, fwdName);",,"[359, 362]",2
+"yy_fatal_error( ""cmExpr_yyset_lineno called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmExpr_yyset_lineno called with no buffer"" );",[110],1
+"archive_set_error(&a->archive, EINVAL,
+			    ""Can't find long filename for entry"");","archive_set_error(&a->archive, EINVAL,
+			    ""Can't find long filename for GNU/SVR4 archive entry"");","[213, 224]",2
+"archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+		    ""Malformed device attribute"");","archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    ""Unknown format `%s'"", val);","[304, 307]",2
+"response = aprintf(
+      ""%s %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x"",
+           userp, digest[0], digest[1], digest[2], digest[3], digest[4],
+           digest[5], digest[6], digest[7], digest[8], digest[9], digest[10],
+           digest[11], digest[12], digest[13], digest[14], digest[15]);",,"[123, 142, 163]",3
+"sprintf(realCommand, ""%s %p %p %p %d %s"", cp->Win9x,
+            si->ErrorPipeWrite, cp->Win9xResumeEvent, cp->Win9xKillEvent,
+            cp->HideWindow, cp->Commands[index]);",,"[360, 363]",2
+"tmp = aprintf(""%s, algorithm=\""%s\"""", response, digest->algorithm);",,"[137, 156, 177]",3
+"md5this = (unsigned char *)aprintf(""%s:%s:%s"",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);",,"[133, 152, 173]",3
+"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""LHa data CRC error"");",,"[214, 225]",2
+"sprintf(output,""%s/%s_force_%i"", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);","sprintf(output,""%s/%s_force_%i"", this->Makefile->GetStartOutputDirectory(),
+          target.GetName().c_str(), count);","[344, 352]",2
+"snprintf(buf, sizeof(data->state.buffer),
+             ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", expected_size);","snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+             ""Content-Length: %"" CURL_FORMAT_CURL_OFF_T ""\r\n"", expected_size);","[26, 30]",2
+"snprintf(buf, sizeof(buf), ""CHARSET=cp%u"", cp);",,"[112, 117]",2
+"yy_fatal_error( ""cmCommandArgument_yyset_lineno called with no buffer"" , yyscanner);","YY_FATAL_ERROR( ""cmCommandArgument_yyset_lineno called with no buffer"" );",[108],1
+"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid ZIP compression type"");","archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid ZIP compression type"");","[306, 309]",2
+"fprintf(fout,""EXPORTS \n"");","fprintf(this->FileOut,""EXPORTS \n"");",[263],1
+"vsnprintf(s, sizeof(s), fmt, ap);","s = curl_mvaprintf(fmt, ap);","[114, 119]",2
+"f(data->state.buffer, sizeof(data->state.buffer), ""%s:%s"", user, pwd);","f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           ""%s:%s"", user, pwd);","[29, 33]",2
+"fprintf(fout, "" sect:%s aux:%X type:%02X st:%s"",
+         sectionName.c_str(),
+         pSymbolTable->NumberOfAuxSymbols,
+         pSymbolTable->Type,
+         GetSZStorageClass(pSymbolTable->StorageClass) );",,[275],1
+"archive_set_error(&(self->archive->archive),
+		    ARCHIVE_ERRNO_MISC,
+		    ""Failed to clean up %s compressor"",
+		    self->archive->archive.compression_name);",,"[50, 86]",2
+"fprintf(fout, "" %08X"", pSymbolTable->Value);",,[274],1
+"archive_set_error(f->archive, errno,
+			    ""Read from filter failed unexpectedly."");","archive_set_error(f->archive, errno,
+			    ""Error reading from program: %s"", data->program_name);","[194, 201]",2
+"snprintf(cnoncebuf, sizeof(cnoncebuf), ""%08x%08x%08x%08x"",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));",,"[129, 148, 169, 243, 255]",5
+"snprintf(buf + len, sizeof(buf) - len,
+                 "": %s"", (char*) status_string.value);",,"[247, 259]",2
+"fprintf(this->FileOut, ""\t%s \t DATA\n"", symbol.c_str());",this->DataSymbols.insert(symbol);,[205],1
+"sprintf(cp->ExitExceptionString, ""Exit code 0x%x\n"", code);","_snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, ""Exit code 0x%x\n"", code);","[353, 354]",2
+"archive_set_error(&a->archive, ENOMEM,
+			    ""No memory for lzh decompression"");",,"[215, 226]",2
+"fprintf(fout, ""%-20.8s"", pSymbolTable->N.ShortName);",,[272],1
