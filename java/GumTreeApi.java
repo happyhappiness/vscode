@@ -430,16 +430,20 @@ public class GumTreeApi {
 	public String getBlockType()
 	{
 		String type = "";
-		Iterator<ITree> allNodesIter = this.tree.preOrder().iterator();
+		Iterator<ITree> allNodesIter = this.tree.postOrder().iterator();
 		ITree currNode;
 		while(allNodesIter.hasNext())
 		{
 			currNode = allNodesIter.next();
 			type += getType(currNode, this.treeContext);
-			if(currNode.isLeaf())
+			if(this.treeContext.getTypeLabel(currNode).equals("argument"))
+			{
 				type += "\n";
+			}
 			else
+			{
 				type += "****";
+			}
 		}
 		
 		return type;
