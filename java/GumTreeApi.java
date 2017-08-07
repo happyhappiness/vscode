@@ -116,6 +116,8 @@ public class GumTreeApi {
 		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_new_log_260.cpp";
 		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1838.cpp";
 		GumTreeApi g = new GumTreeApi();
+		g.setFile(oldFile);
+		System.out.println(g.getBlockType());
 		g.setOldAndNewFile(oldFile, newFile);
 		g.getEditedNodes();
 		System.out.println(g.isMatchWithEdit(reposFile));
@@ -423,6 +425,24 @@ public class GumTreeApi {
 		}
 		
 		return Arrays.asList(frequence).toString();
+	}
+	
+	public String getBlockType()
+	{
+		String type = "";
+		Iterator<ITree> allNodesIter = this.tree.preOrder().iterator();
+		ITree currNode;
+		while(allNodesIter.hasNext())
+		{
+			currNode = allNodesIter.next();
+			type += getType(currNode, this.treeContext);
+			if(currNode.isLeaf())
+				type += "\n";
+			else
+				type += "****";
+		}
+		
+		return type;
 	}
 	
 	public void getEditedNodes()
