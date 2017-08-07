@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, -1, "Filetype required");
+archive_set_error(a, errno, "Error seeking in '%S'",
+		    mine->filename.w);

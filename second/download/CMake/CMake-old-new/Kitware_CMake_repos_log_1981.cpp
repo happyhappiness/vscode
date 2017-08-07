@@ -1,1 +1,1 @@
-return snprintf(buffer, size, "axTLS/%s", ssl_version());
+fprintf(stdout, "LoadString worked\n");

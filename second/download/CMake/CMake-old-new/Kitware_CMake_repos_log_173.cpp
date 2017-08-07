@@ -1,3 +1,1 @@
-archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up decompressor");
+printf(LANG "KWIML_ABI_ENDIAN_ID: unknown, FAILED\n");

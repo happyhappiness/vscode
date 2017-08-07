@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
+archive_set_error(&a->archive, errno,
+				    "Can't CreateFileW");

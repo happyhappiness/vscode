@@ -1,1 +1,1 @@
-md5this = (unsigned char *) aprintf("%s:%s", request, uripath);
+printf("Running command: %s with %d arguments\n", argv[0], argc);

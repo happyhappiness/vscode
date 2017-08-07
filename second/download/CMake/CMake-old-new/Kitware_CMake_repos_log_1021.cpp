@@ -1,2 +1,1 @@
-archive_set_error(a, errno,
-			    "Failed to open '%S'", wfilename);
+archive_set_error(&a->archive, ENOMEM, "Out of memory");

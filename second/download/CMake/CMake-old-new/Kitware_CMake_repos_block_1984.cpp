@@ -1,0 +1,3 @@
+{
+    fprintf(stdout, "%s\n", argv[i]);
+  }

@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
+printf("RegularExpression::find(): Internal error -- corrupted pointers.\n");

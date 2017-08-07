@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "statfs failed");
+fprintf(stderr, "algId=0x%04x, bitLen=%u, "
+				    "flgas=%d\n", algId, bitLen,flags);

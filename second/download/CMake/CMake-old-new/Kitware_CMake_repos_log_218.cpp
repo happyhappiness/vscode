@@ -1,2 +1,4 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Child process exited badly");
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname cannot be converted from %s to current locale.",
+		    archive_string_conversion_charset_name(xar->sconv));

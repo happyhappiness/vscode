@@ -1,1 +1,1 @@
-printf("Blub blub %d ! \n", bb.getValue())
+sprintf(buffer, "Should be empty (source file full path): [%s]", cstr);

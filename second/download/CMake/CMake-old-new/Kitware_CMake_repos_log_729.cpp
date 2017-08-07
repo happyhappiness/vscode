@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(zip->entry->compression));
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: unknown encryption '%s'",
+			    a->format_name, val);

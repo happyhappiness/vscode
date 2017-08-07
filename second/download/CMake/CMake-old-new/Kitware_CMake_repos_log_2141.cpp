@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g using log\n", x, result)
+fprintf(stdout, "%s\n", argv[i]);

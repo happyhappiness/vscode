@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Gname");
+archive_set_error(a, EINVAL,
+				    "Failed to convert a wide-character"
+				    " filename to a multi-byte filename");

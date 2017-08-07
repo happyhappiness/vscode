@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for CAB data");
+snprintf(buf, max, "Unknown error %d (%#x)", err, err);

@@ -1,1 +1,1 @@
-int curl_mvprintf(const char *format, va_list args);
+printf("world");

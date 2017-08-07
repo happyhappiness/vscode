@@ -1,1 +1,1 @@
-fprintf(fp, "int generated() { return gen_redirect(); }\n")
+printf("There is X on this computer\n");

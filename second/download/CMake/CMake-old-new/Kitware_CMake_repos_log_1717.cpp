@@ -1,1 +1,1 @@
-conn->allocptr.host = aprintf("%s\r\n", ptr);
+tp += sprintf(tp, "%x", words[i]);

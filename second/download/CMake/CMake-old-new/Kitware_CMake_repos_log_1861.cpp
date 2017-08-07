@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port);
+fprintf(stderr, "Output on stderr before grandchild test.\n");

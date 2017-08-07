@@ -1,5 +1,1 @@
-conn->allocptr.host = aprintf("Host: %s%s%s:%hu\r\n",
-                                    conn->bits.ipv6_ip?"[":"",
-                                    host,
-                                    conn->bits.ipv6_ip?"]":"",
-                                    conn->remote_port);
+n = _vscprintf(fmt, ap);

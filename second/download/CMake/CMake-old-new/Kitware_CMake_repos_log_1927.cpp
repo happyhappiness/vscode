@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_ANONYMOUS ");
+printf("To run a test, enter the test number: ");

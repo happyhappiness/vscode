@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "BZ2 codec is unsupported");
+_snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column);

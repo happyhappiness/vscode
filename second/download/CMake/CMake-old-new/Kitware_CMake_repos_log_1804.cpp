@@ -1,1 +1,1 @@
-snprintf(txtbuf, sizeof(txtbuf), "%s (0x%08X)", txt, err);
+sprintf(buf,"%.*f",(prec>0?prec:0),val);

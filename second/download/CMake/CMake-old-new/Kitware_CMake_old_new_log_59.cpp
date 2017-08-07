@@ -1,1 +1,0 @@
-return aprintf("%s:%d", hostname, conn->port);

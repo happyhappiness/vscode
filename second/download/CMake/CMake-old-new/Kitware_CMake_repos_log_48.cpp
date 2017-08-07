@@ -1,1 +1,1 @@
-archive_set_error(a, EINVAL, "No such format");
+Curl_failf(data, "Error importing service name %s@%s", service, host);

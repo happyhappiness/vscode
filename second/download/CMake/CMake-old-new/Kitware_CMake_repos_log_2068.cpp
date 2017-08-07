@@ -1,1 +1,1 @@
-bool
+printf("had %d bytes, used %d\n", entry.n, used);

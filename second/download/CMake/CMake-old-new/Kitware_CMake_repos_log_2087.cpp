@@ -1,1 +1,1 @@
-printf(" \"%s\"", argv[ii]);
+printf("Placeholder for a file with strange name\n");

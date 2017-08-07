@@ -1,3 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "lzma compression failed:"
-		    " lzma_code() call returned status %d", r);
+archive_set_error(a, errno,
+		    "Failed to initialize ACL working storage");

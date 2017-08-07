@@ -1,3 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing "
-		    "compression library: invalid library version");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize ZIP decompression.");

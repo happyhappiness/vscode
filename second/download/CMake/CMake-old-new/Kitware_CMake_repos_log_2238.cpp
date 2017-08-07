@@ -1,1 +1,1 @@
-printf("TEST_C_FLAGS failed\n");
+fprintf(stderr, "TARGET_DEF_RELEASE should be defined in C\n");

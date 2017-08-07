@@ -1,1 +1,1 @@
-nickname = aprintf("PEM Token #1:%s", n);
+fprintf(stderr, "stderr from bad command line arg '-bad'\n");

@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, -1, "Size required");
+archive_set_error(&a->archive, EINVAL, "Can't restore time");

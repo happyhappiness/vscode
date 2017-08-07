@@ -1,2 +1,2 @@
-fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
-			    "Path is ", "absolute");
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for bzip2 decompression");

@@ -1,2 +1,2 @@
-fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
-				(t->direct_io)?"Enabled":"Disabled");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Invalid value for option ``%s''", key);

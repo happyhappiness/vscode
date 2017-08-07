@@ -1,1 +1,1 @@
-printf("Problem with lib2\n")
+fprintf(fp, "int generated() { return gen_redirect(); }\n");

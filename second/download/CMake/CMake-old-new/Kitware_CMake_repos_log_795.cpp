@@ -1,1 +1,3 @@
-err = set_conversion_failed_error(a, sconv, "Linkname");
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Decompression internal error");

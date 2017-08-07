@@ -1,1 +1,1 @@
-len = snprintf(buffer, sizeof(buffer), "null")
+printf("%s: decoding bad  ", passed ? "pass" : "FAIL");

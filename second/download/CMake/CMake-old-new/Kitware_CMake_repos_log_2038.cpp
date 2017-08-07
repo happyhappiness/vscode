@@ -1,1 +1,1 @@
-printf(", FAILED\n");
+fprintf(fout, "The file \"%s\" does not exist.\n", name);

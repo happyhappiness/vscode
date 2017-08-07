@@ -1,2 +1,3 @@
-rchive_set_error(&a->archive, -1,
-				    "Can't make file SUID");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "Undefined option: `%s%s%s'",
+			    mod?mod:"", mod?":":"", opt);

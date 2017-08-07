@@ -1,1 +1,1 @@
-auth = aprintf("%s", data->set.str[STRING_MAIL_AUTH]);
+fprintf(stdout, "Output on stdout before grandchild test.\n");

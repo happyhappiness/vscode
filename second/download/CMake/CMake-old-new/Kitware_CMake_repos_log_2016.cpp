@@ -1,1 +1,1 @@
-int curl_mprintf(const char *format, ...);
+printf("Neither does this.\n");

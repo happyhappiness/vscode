@@ -1,1 +1,1 @@
-len = _snprintf(buffer, sizeof(buffer), "%.16g", value)
+printf("%s: decoding good ", passed ? "pass" : "FAIL");

@@ -1,2 +1,2 @@
-archive_set_error(a, errno, "Can't stat '%s'",
-			    filename);
+archive_set_error(f->archive, ARCHIVE_ERRNO_PROGRAMMER,
+				"High compression not included in this build");

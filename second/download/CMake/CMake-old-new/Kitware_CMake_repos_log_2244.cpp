@@ -1,1 +1,1 @@
-printf("#define A_VALUE %d\n", A())
+fprintf(stderr, "TARGET_DEF_RELEASE should not be defined in C\n");

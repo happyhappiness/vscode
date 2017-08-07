@@ -1,2 +1,2 @@
-archive_set_error(_a, ENOMEM,
-	    "Can't allocate memory for filter program");
+archive_set_error(&a->archive, -1,
+		    "Unexpected Property ID = %X", p[0]);

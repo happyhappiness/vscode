@@ -1,2 +1,1 @@
-return addErrorAndRecover(
-      "Missing '}' or object member name", tokenName, tokenObjectEnd);
+printf("%s\n", regen_string);

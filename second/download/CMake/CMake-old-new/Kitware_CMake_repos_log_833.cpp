@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, 0,
-		"End of file trying to read next cpio header");
+archive_set_error(&a->archive, ENOMEM,
+				    "No memory for 7-Zip decompression");

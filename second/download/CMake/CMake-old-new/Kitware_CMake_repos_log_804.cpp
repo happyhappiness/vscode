@@ -1,1 +1,2 @@
-err = set_conversion_failed_error(a, tar->sconv, "Uname");
+archive_set_error(&a->archive, -1,
+			    "Couldn't allocate memory");

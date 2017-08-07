@@ -1,1 +1,1 @@
-fprintf(stderr, "num_prompts=%d\n", num_prompts);
+fprintf(stdout, "Poll count reached limit %d.\n", MAXPOLL);

@@ -1,3 +1,5 @@
-fprintf(out, " seq %d,",
-	    toi(isodirrec + DR_volume_sequence_number_offset,
-		DR_volume_sequence_number_size));
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' compression not supported "
+			    "on this platform",
+			    name);

@@ -1,1 +1,1 @@
-printf("There is X on this computer\n");
+fprintf(stderr, "Error writing to %s\n", argv[1]);

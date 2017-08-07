@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                        "File CRC error");
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "malformed lz4 data");

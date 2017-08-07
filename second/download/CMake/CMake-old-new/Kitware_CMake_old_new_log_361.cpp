@@ -1,1 +1,0 @@
-printf("Child was killed when timeout expired.\n")

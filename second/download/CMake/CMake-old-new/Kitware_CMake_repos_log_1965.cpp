@@ -1,1 +1,1 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+printf("Failed foo is not 21\n");

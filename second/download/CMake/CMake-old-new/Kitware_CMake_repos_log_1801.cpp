@@ -1,1 +1,1 @@
-snprintf(buf, max, "Unknown error %d", err);
+fprintf(stderr, "Error locating executable \"%s\".\n", argv[0]);

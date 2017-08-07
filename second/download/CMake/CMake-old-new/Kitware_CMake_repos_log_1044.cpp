@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			"Invalid ACL type");
+archive_set_error(a, errno, "Couldn't stat '%S'", wcs);

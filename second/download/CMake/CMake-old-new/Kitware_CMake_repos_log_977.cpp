@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate working buffer");
+archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for bzip2 stream");

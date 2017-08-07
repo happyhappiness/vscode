@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "No memory");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate mtree data");

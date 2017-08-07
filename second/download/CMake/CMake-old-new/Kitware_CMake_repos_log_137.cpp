@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't initialize LZX decompression.");
+snprintf(ptr, sizeof(hosturl)-(ptr-hosturl), "://%s:%d",
+    conn->host.name, conn->remote_port);

@@ -1,3 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "It's a bug in liblzma");
+archive_set_error(&a->archive, errno,
+	    "Failed to set file flags");

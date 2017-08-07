@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Internal error initializing "
-		    "compression library");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Illegal zisofs block pointers(cannot seek)");

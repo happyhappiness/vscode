@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
+archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "gzip decompression failed");

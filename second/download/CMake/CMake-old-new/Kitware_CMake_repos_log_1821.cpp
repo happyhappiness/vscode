@@ -1,1 +1,1 @@
-fmt_crlf = aprintf("%s\r\n", fmt);
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_GREEN);

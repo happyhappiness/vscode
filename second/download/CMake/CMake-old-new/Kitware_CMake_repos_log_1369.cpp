@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-			    "Minor device number too large");
+archive_set_error(a, errno, "Error seeking in '%S'",
+		    mine->filename.w);

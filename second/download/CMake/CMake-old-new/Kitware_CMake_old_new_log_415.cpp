@@ -1,1 +1,0 @@
-printf("No process has been executed.\n")

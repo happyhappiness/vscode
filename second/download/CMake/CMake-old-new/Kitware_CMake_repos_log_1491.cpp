@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Error during seek of RAR file");
+archive_string_sprintf(tgt, "WARC-Record-ID: %s\r\n", hdr.recid);

@@ -1,1 +1,1 @@
-archive_set_error(a, ENOMEM, "No memory");
+DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));

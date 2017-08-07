@@ -1,1 +1,1 @@
-printf("This is T4. This one should work.\n");
+fprintf(stdout, "Usage: %s number\n", argv[0]);

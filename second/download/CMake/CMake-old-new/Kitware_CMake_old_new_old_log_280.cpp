@@ -1,0 +1,1 @@
+fprintf(progFile,"empty");

@@ -1,2 +1,2 @@
-archive_set_error(f->archive, errno,
-			    "Error reading from program: %s", data->program_name);
+archive_set_error(&a->archive, ENOMEM,
+				    "No memory for 7-Zip decompression");

@@ -1,1 +1,1 @@
-printf("Neither does this.\n");
+printf("Placeholder for a strange file in subdirectory\n");

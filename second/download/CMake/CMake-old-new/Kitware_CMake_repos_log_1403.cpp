@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM, "%s %s",
-			    "Can't allocate memory for ", attr);
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Lzma library error: Invalid options");

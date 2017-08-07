@@ -1,2 +1,3 @@
 archive_set_error(&a->archive,
-		    ENOMEM, "Out of memory adding file to list");
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");

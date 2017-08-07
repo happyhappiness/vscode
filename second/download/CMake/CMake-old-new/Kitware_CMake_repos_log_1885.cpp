@@ -1,1 +1,1 @@
-sshc->rsa = aprintf("%s/.ssh/id_rsa", home);
+printf("The process is still executing.\n");

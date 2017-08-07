@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, en, "Can't create '%s'",
-			    a->name);
+archive_set_error(a, EINVAL, "No such format '%s'", filename);

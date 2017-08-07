@@ -1,1 +1,1 @@
-conn->response_header = aprintf("NTLM %.*s", len_out - 4, buf + 3);
+snprintf(pp, sizeof(pp), "/proc/%lu/psinfo", (unsigned long) getpid());

@@ -1,1 +1,0 @@
-fprintf(stdout, "Output on stdout from test returning 123.\n")

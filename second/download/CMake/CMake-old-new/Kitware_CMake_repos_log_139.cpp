@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "LZX decompression failed (%d)", r);
+spn = aprintf("%s/%s", service, host);

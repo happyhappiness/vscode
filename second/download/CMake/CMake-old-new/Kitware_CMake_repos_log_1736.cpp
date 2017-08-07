@@ -1,1 +1,1 @@
-s = vaprintf(fmt, ap);
+snprintf(cwd, sizeof(cwd), "/proc/%lu/cwd", (unsigned long) getpid());

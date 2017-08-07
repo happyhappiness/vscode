@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Numeric user ID too large");
+fprintf(stderr, "UNKNOWNTAG_START:%s\n", name);

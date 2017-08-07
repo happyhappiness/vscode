@@ -1,2 +1,3 @@
-printf("{%u,%u,%d}", state.distcode[low].op, state.distcode[low].bits,
-               state.distcode[low].val);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);

@@ -1,2 +1,1 @@
-hexlen = snprintf(hexbuffer, sizeof(hexbuffer),
-                      "%x%s", nread, endofline_native);
+fprintf(out, "\n");

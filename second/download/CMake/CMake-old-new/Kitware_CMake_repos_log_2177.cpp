@@ -1,1 +1,1 @@
-printf("TEST_C_FLAGS failed\n");
+printf("Process executable name: %s\n", exec);

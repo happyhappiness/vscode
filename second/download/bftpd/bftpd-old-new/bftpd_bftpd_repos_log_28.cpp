@@ -1,0 +1,1 @@
+control_printf(SL_FAILURE, "421 There are already %i users logged in.", maxusers)

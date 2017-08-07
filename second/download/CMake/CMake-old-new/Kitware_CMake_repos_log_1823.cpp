@@ -1,1 +1,1 @@
-snprintf(option_arg, sizeof(option_arg), "USER,%s", conn->user);
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLUE);

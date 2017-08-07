@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "%d", state->retry_time);
+fprintf(stderr, "Output on stderr after grandchild test.\n");

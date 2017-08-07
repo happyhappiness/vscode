@@ -1,1 +1,2 @@
-_snprintf(oemcp, sizeof(oemcp)-1, "CP%d", a->current_oemcp);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                                "Invalid symbol");

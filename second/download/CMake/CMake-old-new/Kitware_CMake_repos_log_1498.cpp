@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Invalid filename size");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Empty passphrase is unacceptable");

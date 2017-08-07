@@ -1,2 +1,2 @@
-(int *a_eno, struct archive_string *a_estr,
-    int err, const char *errstr, const char *path)
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "lzma compression not supported on this platform");

@@ -1,2 +1,1 @@
-fprintf(stderr, "LIMIT %s:%d %s reached memlimit\n",
-                source, line, func);
+printf("\n\t}\n};\n");

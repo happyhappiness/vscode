@@ -1,1 +1,2 @@
-char *id = aprintf("%s:%d", name, port);
+sprintf(operatingSystem, "%ls (Build %ld)", osvi.szCSDVersion,
+                osvi.dwBuildNumber & 0xFFFF);

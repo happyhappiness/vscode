@@ -1,1 +1,1 @@
-printf("test1\n")
+printf("ac = [%d]\n", ac);

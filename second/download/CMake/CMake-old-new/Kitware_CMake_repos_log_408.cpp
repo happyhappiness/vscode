@@ -1,1 +1,2 @@
-archive_set_error(a, ENOMEM, "No memory");
+archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for PPMd");

@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Linkname");
+archive_set_error(&(a->archive),
+					ARCHIVE_ERRNO_MISC,
+					"The %s is encrypted, "
+					"but currently not supported", cname);

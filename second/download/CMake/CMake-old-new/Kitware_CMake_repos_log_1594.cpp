@@ -1,1 +1,1 @@
-fprintf(out, "/* crc32.h -- tables for rapid CRC calculation\n");
+err = set_conversion_failed_error(a, tar->sconv, "Gname");

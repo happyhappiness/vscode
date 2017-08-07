@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterWriteAttribute() failed: %d", r);
+archive_set_error(&a->archive, en, "Can't create '%s'",
+			    a->name);

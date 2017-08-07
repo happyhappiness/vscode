@@ -1,1 +1,1 @@
-archive_string_sprintf(a_estr, errstr, path);
+archive_set_error(&a->archive, ENOMEM, "Out of memory");

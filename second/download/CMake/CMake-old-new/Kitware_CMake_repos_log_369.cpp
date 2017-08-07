@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "Could not check size of extended attributes");
+archive_set_error(f->archive, ENOMEM,
+		    "Can't allocate data for b64encode buffer");

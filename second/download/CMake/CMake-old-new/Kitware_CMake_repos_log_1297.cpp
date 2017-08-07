@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "Boot file(%jd) is too small", (intmax_t)size + 64);
+archive_set_error(&a->archive, ENOMEM,
+				    "No memory for zisofs decompression");

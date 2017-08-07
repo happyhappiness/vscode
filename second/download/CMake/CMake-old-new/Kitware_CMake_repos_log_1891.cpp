@@ -1,6 +1,2 @@
-sshc->readdir_currLen += snprintf(sshc->readdir_line +
-                                        sshc->readdir_currLen,
-                                        sshc->readdir_totalLen -
-                                        sshc->readdir_currLen,
-                                        " -> %s",
-                                        sshc->readdir_filename);
+printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp));

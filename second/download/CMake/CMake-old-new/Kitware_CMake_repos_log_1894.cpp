@@ -1,2 +1,3 @@
-snprintf(r, 9, "%2" CURL_FORMAT_CURL_OFF_T ":%02" CURL_FORMAT_CURL_OFF_T
-             ":%02" CURL_FORMAT_CURL_OFF_T, h, m, s);
+fprintf(stderr, "Mismatch in state.  "
+                    "Should have been %d, was %d.\n",
+            state, kwsysProcess_GetState(kp));

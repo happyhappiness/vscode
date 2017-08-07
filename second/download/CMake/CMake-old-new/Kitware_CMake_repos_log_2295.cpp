@@ -1,4 +1,1 @@
-fprintf(stderr, "Did not receive expected configuration argument:\n"
-                    "  expected [" CMAKE_INTDIR "]\n"
-                    "  received [%s]\n",
-            cfg)
+fprintf(stderr, "build_config_name is not \"debug\"\n");

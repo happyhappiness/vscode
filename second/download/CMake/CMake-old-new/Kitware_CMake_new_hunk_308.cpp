@@ -1,64 +1,65 @@
- * @param yyscanner The scanner object.
- * @return the newly allocated buffer state object.
+void cmFortran_yypop_buffer_state (yyscan_t yyscanner)
+{
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+	if (!YY_CURRENT_BUFFER)
+		return;
+
+	cmFortran_yy_delete_buffer(YY_CURRENT_BUFFER ,yyscanner);
+	YY_CURRENT_BUFFER_LVALUE = NULL;
+	if (yyg->yy_buffer_stack_top > 0)
+		--yyg->yy_buffer_stack_top;
+
+	if (YY_CURRENT_BUFFER) {
+		cmFortran_yy_load_buffer_state(yyscanner );
+		yyg->yy_did_buffer_switch_on_eof = 1;
+	}
+}
+
+/* Allocates the stack if it does not exist.
+ *  Guarantees space for at least one push.
  */
-YY_BUFFER_STATE cmFortran_yy_scan_bytes  (yyconst char * yybytes, int  _yybytes_len , yyscan_t yyscanner)
+static void cmFortran_yyensure_buffer_stack (yyscan_t yyscanner)
 {
-	YY_BUFFER_STATE b;
-	char *buf;
-	yy_size_t n;
-	yy_size_t i;
+	int num_to_alloc;
+    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
 
-	/* Get memory for full buffer, including space for trailing EOB's. */
-	n = (yy_size_t) _yybytes_len + 2;
-	buf = (char *) cmFortran_yyalloc(n ,yyscanner );
-	if ( ! buf )
-		YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_bytes()" );
+	if (!yyg->yy_buffer_stack) {
 
-	for ( i = 0; i < (size_t)_yybytes_len; ++i )
-		buf[i] = yybytes[i];
+		/* First allocation is just for 2 elements, since we don't know if this
+		 * scanner will even need a stack. We use 2 instead of 1 to avoid an
+		 * immediate realloc on the next call.
+         */
+      num_to_alloc = 1; /* After all that talk, this was set to 1 anyways... */
+		yyg->yy_buffer_stack = (struct yy_buffer_state**)cmFortran_yyalloc
+								(num_to_alloc * sizeof(struct yy_buffer_state*)
+								, yyscanner);
+		if ( ! yyg->yy_buffer_stack )
+			YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yyensure_buffer_stack()" );
 
-	buf[_yybytes_len] = buf[_yybytes_len+1] = YY_END_OF_BUFFER_CHAR;
+		memset(yyg->yy_buffer_stack, 0, num_to_alloc * sizeof(struct yy_buffer_state*));
 
-	b = cmFortran_yy_scan_buffer(buf,n ,yyscanner);
-	if ( ! b )
-		YY_FATAL_ERROR( "bad buffer in cmFortran_yy_scan_bytes()" );
+		yyg->yy_buffer_stack_max = num_to_alloc;
+		yyg->yy_buffer_stack_top = 0;
+		return;
+	}
 
-	/* It's okay to grow etc. this buffer, and we should throw it
-	 * away when we're done.
-	 */
-	b->yy_is_our_buffer = 1;
+	if (yyg->yy_buffer_stack_top >= (yyg->yy_buffer_stack_max) - 1){
 
-	return b;
+		/* Increase the buffer to prepare for a possible push. */
+		yy_size_t grow_size = 8 /* arbitrary grow size */;
+
+		num_to_alloc = yyg->yy_buffer_stack_max + grow_size;
+		yyg->yy_buffer_stack = (struct yy_buffer_state**)cmFortran_yyrealloc
+								(yyg->yy_buffer_stack,
+								num_to_alloc * sizeof(struct yy_buffer_state*)
+								, yyscanner);
+		if ( ! yyg->yy_buffer_stack )
+			YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yyensure_buffer_stack()" );
+
+		/* zero only the new slots.*/
+		memset(yyg->yy_buffer_stack + yyg->yy_buffer_stack_max, 0, grow_size * sizeof(struct yy_buffer_state*));
+		yyg->yy_buffer_stack_max = num_to_alloc;
+	}
 }
 
-#ifndef YY_EXIT_FAILURE
-#define YY_EXIT_FAILURE 2
-#endif
-
-static void yynoreturn yy_fatal_error (yyconst char* msg , yyscan_t yyscanner)
-{
-	struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-	(void)yyg;
-	(void) fprintf( stderr, "%s\n", msg );
-	exit( YY_EXIT_FAILURE );
-}
-
-/* Redefine yyless() so it works in section 3 code. */
-
-#undef yyless
-#define yyless(n) \
-	do \
-		{ \
-		/* Undo effects of setting up yytext. */ \
-        int yyless_macro_arg = (n); \
-        YY_LESS_LINENO(yyless_macro_arg);\
-		yytext[yyleng] = yyg->yy_hold_char; \
-		yyg->yy_c_buf_p = yytext + yyless_macro_arg; \
-		yyg->yy_hold_char = *yyg->yy_c_buf_p; \
-		*yyg->yy_c_buf_p = '\0'; \
-		yyleng = yyless_macro_arg; \
-		} \
-	while ( 0 )
-
-/* Accessor  methods (get/set functions) to struct members. */
-
+/** Setup the input buffer state to scan directly from a user-specified character buffer.

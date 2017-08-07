@@ -1,2 +1,2 @@
-(struct archive_read *a,
-    struct archive_string_conv *sconv, const char *name)
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated RAR file data");

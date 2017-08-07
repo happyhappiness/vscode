@@ -1,2 +1,1 @@
-aprintf("%s%s%s:%hu", ipv6_ip?"[":"", hostname, ipv6_ip?"]":"",
-                  remote_port)
+fprintf(stderr, "Output on stderr after recursive test.\n");

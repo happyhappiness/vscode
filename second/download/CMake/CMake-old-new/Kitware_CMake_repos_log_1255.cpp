@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Can't write to temporary file");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated ZIP file data");

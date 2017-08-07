@@ -1,5 +1,2 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Pathname cannot be converted "
-		    "from %s to current locale.",
-		    archive_string_conversion_charset_name(zip->sconv));
+oauth = aprintf("user=%s\1host=%s\1port=%ld\1auth=Bearer %s\1\1", user,
+                    host, port, bearer);

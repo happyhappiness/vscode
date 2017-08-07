@@ -1,1 +1,1 @@
-archive_set_error(a, ENOMEM, "No memory");
+archive_string_sprintf(&state->encoded_buff, "`\nend\n");

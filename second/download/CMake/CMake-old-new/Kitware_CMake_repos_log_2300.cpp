@@ -1,1 +1,1 @@
-fprintf(stdout, "Environment:\n")
+printf("No X on this computer\n");

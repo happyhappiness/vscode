@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't initialize zlib stream.");
+archive_string_sprintf(&shar->work,
+			    "mkfifo %s\n", shar->quoted_name.s);

@@ -1,1 +1,1 @@
-aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e")
+fprintf(stdout, "CTEST_FULL_OUTPUT (Avoid ctest truncation of output)\n");

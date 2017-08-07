@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, 0,
-		    "Can't add archive to itself");
+archive_set_error(&a->archive, errno, "statvfs failed");

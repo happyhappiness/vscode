@@ -1,1 +1,2 @@
-printf("can't open [%s]\n",fn_w);
+archive_set_error(&a->archive, ERANGE,
+		    "Numeric group ID too large");

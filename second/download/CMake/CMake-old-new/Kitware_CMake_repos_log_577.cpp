@@ -1,1 +1,3 @@
-fprintf(stderr, "Can't load kernel32.dll?!\n");
+archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");

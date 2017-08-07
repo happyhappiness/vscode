@@ -1,0 +1,3 @@
+{
+    fprintf(stderr, " \"%s\"", *arg);
+  }

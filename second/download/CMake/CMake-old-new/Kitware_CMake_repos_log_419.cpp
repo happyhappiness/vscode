@@ -1,1 +1,1 @@
-archive_set_error(a, errno, "Couldn't stat '%S'", wcs);
+archive_set_error(&a->archive, errno, "Can't allocate memory");

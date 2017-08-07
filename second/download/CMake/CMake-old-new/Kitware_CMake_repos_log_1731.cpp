@@ -1,1 +1,1 @@
-fprintf(stderr, "\n");
+sprintf(mon_file, "/aha/fs/modDir.monFactory");

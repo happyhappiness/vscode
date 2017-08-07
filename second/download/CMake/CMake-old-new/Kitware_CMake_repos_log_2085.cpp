@@ -1,1 +1,1 @@
-fprintf(stderr, "1 warning generated.\n");
+printf("Problem with lib4\n");

@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name is not \"minsizerel\"\n");
+fprintf(stderr, "Must specify output file.\n");

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-			    "Can't remove already-existing dir");
+archive_set_error(_a, ENOMEM, "Can't allocate memory");

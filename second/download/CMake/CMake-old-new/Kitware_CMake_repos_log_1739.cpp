@@ -1,3 +1,1 @@
-*allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
+snprintf(buf, sizeof(buf), "/proc/self/fd/%d", pipefd[0]);

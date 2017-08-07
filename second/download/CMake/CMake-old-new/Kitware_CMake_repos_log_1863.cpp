@@ -1,1 +1,1 @@
-taggedfmt = aprintf("%s %s", imapc->resptag, fmt);
+fprintf(stderr, "Output on stderr after grandchild test.\n");

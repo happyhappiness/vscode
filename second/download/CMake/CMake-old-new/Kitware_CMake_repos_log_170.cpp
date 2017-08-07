@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown codec ID: %lX", zip->codec);
+printf(LANG "KWIML_ABI_ENDIAN_ID: expected [%d], got [%d]",
+         expect, KWIML_ABI_ENDIAN_ID);

@@ -1,3 +1,1 @@
-archive_set_error(&self->archive->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Invalid format data");
+len = snprintf(ptr, left, " libssh2/%s", CURL_LIBSSH2_VERSION);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Usage: %s <file>\n", argv[0])
+fprintf(stderr, "build_config_name is not \"release\"\n");

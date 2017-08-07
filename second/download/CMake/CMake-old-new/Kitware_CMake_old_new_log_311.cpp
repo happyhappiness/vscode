@@ -1,1 +1,0 @@
-vsnprintf(print_buffer, sizeof(print_buffer), message, args);

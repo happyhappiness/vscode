@@ -1,3 +1,2 @@
-archive_set_error(f->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "Cannot allocate memory");
+fprintf(out, " a %d,",
+	    toi(isodirrec + DR_ext_attr_length_offset, DR_ext_attr_length_size));

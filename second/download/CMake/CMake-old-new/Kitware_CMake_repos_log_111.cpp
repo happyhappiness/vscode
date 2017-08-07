@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate CAB data");
+DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));

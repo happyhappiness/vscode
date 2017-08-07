@@ -1,1 +1,2 @@
-path = (unsigned char *) aprintf("%.*s", urilen, uripath);
+sprintf(operatingSystem, "%ls (Build %ld)", osvi.szCSDVersion,
+                osvi.dwBuildNumber & 0xFFFF);

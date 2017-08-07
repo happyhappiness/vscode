@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Couldn't allocate memory for xml parser");
+archive_set_error(&a->archive, errno,
+			    "openat failed");

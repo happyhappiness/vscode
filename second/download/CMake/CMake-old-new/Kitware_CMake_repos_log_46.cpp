@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated LHa file body");
+*allocuserpwd = aprintf("%sAuthorization: Digest %s\r\n",
+                          proxy ? "Proxy-" : "",
+                          response);

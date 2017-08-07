@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate ustar data");
+snprintf(service, sizeof(service), "%d", tsd->port);

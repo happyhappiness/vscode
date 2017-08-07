@@ -1,1 +1,2 @@
-archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Gname");

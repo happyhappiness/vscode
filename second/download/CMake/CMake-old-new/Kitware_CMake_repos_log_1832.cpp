@@ -1,3 +1,1 @@
-*allocuserpwd = aprintf("%sAuthorization: Digest %s\r\n",
-                          proxy ? "Proxy-" : "",
-                          response);
+printf("DASHBOARD_TEST_FROM_CTEST = %s\n", env);

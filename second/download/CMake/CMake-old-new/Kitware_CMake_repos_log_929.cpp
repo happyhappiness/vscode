@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Using external bzip2 program");
+archive_string_sprintf(&linkto, "%d",
+				    file->hardlink_target->id);

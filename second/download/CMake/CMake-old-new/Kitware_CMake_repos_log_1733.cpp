@@ -1,1 +1,1 @@
-vsnprintf(print_buffer, sizeof(print_buffer), fmt, ap);
+sprintf(mon_file_write_string, "CHANGED=YES;WAIT_TYPE=WAIT_IN_SELECT;INFO_LVL=2");

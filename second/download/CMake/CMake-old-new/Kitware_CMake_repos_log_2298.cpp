@@ -1,1 +1,1 @@
-fprintf(fp, "extern int gen_redirect(void);\n")
+fprintf(stderr, "build_config_name is not \"relwithdebinfo\"\n");

@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lz4 program");
+archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate data for compression buffer");

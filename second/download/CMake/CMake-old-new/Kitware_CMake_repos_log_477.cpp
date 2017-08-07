@@ -1,1 +1,2 @@
-archive_set_error(a, EINVAL, "No such filter '%s'", name);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Invalid symbol");

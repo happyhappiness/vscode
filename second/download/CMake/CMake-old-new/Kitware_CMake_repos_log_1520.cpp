@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Truncated RAR file data");
+archive_set_error(a, -1, "Standard lookups not available on Windows");

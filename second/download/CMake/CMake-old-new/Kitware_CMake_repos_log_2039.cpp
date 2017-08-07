@@ -1,1 +1,5 @@
-printf(LANG "KWIML_ABI_ENDIAN_ID: unknown, FAILED\n");
+fprintf(
+      fout,
+      "Contents of \"%s\":\n"
+      "----------------------------------------------------------------\n",
+      name);

@@ -1,1 +1,1 @@
-return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);
+fprintf(stdout, "CMAKE_INTDIR is %s\n", CMAKE_INTDIR);

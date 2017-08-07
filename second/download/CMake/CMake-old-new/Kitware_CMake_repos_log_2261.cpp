@@ -1,1 +1,1 @@
-printf("%s: decoding bad  ", passed ? "pass" : "FAIL")
+fprintf(fout, "double sqrtTable[] = {\n");

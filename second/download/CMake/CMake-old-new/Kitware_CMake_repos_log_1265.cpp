@@ -1,2 +1,2 @@
-archive_string_sprintf(info, "%c%s=%d",
-		    prefix, key, d);
+archive_set_error(&a->archive,
+			    -1, "Invalid central directory signature");

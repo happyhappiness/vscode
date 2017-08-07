@@ -1,1 +1,2 @@
-(struct archive_string *as, const char *fmt, ...)
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "ZIP decompression failed (%d)", r);

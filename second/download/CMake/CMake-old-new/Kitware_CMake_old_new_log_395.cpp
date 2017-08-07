@@ -1,1 +1,0 @@
-fprintf(stderr, "Output before sleep on stderr from timeout test.\n")

@@ -1,4 +1,1 @@
-return addError(
-          "Bad unicode escape sequence in string: hexadecimal digit expected.",
-          token,
-          current);
+printf("-R needs an additional parameter.\n");

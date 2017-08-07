@@ -1,1 +1,1 @@
-snprintf(unknown, sizeof(unknown), "(%x)", ssl_ver);
+printf("Passed: TEST_C_FLAGS passed\n");

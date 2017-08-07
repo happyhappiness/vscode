@@ -1,3 +1,1 @@
-r(const std::string& message,
-                                Token& token,
-                                TokenType skipUntilToken)
+printf("Available tests:\n");

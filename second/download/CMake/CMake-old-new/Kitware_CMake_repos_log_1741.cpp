@@ -1,1 +1,1 @@
-input = aprintf("TT %s\n", conn->challenge_header);
+snprintf(trypath, sizeof(trypath) - 1, "%s/%s", token, args);

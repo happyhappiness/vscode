@@ -1,1 +1,1 @@
-s = vaprintf(fmt_crlf, args);
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_YELLOW);

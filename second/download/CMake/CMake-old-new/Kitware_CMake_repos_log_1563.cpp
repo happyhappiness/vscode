@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Member size error");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Malformed Solaris ACL attribute (body overflow)");

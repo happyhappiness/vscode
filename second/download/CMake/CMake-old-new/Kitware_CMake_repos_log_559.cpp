@@ -1,2 +1,2 @@
-rchive_set_error(&a->archive, errno,
-			    "Failed to get metadata(xattr)");
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC, "Corrupted data");

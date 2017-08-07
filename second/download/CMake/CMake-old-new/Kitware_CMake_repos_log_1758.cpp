@@ -1,1 +1,1 @@
-nchars = vsnprintf(buf, LOGLINE_BUFSIZE, format, ap);
+printf("\n\t}, {");

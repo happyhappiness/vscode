@@ -1,1 +1,1 @@
-len = snprintf(buffer, sizeof(buffer), "%.16g", value)
+printf(" (%s) ", c);

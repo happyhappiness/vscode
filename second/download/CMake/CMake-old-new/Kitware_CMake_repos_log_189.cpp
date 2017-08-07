@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, -1, "Not 7-Zip archive file");
+archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);

@@ -1,1 +1,3 @@
-printf("\n\t");
+archive_set_error(&a->archive, ENOMEM,
+			    "%s %s", "Can't allocate memory for ",
+			    errstr);

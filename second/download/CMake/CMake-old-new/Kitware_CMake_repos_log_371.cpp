@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-		    "Could not read extended attributes into memory");
+archive_string_sprintf(&state->encoded_buff, "====\n");

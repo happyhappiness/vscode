@@ -1,1 +1,1 @@
-printf("Hello from TSD\n")
+printf("Missing file %s\n", av[1]);

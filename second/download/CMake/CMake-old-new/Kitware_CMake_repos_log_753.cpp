@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for bzip2 decompression");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Decryption is unsupported due to lack of crypto library");

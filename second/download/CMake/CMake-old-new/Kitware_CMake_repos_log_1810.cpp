@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL);

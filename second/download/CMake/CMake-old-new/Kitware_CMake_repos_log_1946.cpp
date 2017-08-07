@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
+sprintf(argument, "%s", sit->c_str());

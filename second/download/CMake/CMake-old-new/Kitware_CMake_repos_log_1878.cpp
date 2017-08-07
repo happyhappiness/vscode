@@ -1,1 +1,1 @@
-snprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n");

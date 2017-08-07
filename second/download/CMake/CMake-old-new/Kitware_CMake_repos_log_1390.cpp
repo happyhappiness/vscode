@@ -1,2 +1,3 @@
-archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate data for compression buffer");
+archive_set_error(&a->archive, ERANGE,
+		    "Numeric user ID %jd too large",
+		    (intmax_t)archive_entry_uid(entry));

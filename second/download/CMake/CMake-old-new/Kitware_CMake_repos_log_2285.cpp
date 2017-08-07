@@ -1,1 +1,1 @@
-fprintf(stderr, "Something wrong with T2\n");
+fprintf(stdout, "Usage: %s number\n", argv[0]);

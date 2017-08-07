@@ -1,1 +1,0 @@
-f(int color, FILE* stream, const char* format, ...)

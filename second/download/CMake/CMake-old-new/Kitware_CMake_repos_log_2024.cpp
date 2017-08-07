@@ -1,1 +1,1 @@
-char *curl_maprintf(const char *format, ...);
+printf("\n");

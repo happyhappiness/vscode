@@ -1,0 +1,1 @@
+this->Symbols.insert(symbol);

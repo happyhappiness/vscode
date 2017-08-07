@@ -1,1 +1,1 @@
-printf("Usage: %s\n", argv[0])
+printf("File %s should be in subdirectory\n", av[2]);

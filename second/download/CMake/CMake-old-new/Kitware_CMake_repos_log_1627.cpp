@@ -1,2 +1,2 @@
-fprintf(header, "%1u%s", base_length[i],
-                SEPARATOR(i, LENGTH_CODES-1, 20));
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "CFDATA incorrect(no MSZIP signature)");

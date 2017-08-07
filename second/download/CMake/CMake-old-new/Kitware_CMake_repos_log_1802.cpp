@@ -1,1 +1,1 @@
-snprintf(buf, max, "Unknown error %d", err);
+self->AddError(message, title);

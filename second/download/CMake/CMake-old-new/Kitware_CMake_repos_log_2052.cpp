@@ -1,1 +1,1 @@
-return addError("Bad escape sequence in string", token, current);
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

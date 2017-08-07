@@ -1,3 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "Undefined option: `%s%s%s'",
-			    mod?mod:"", mod?":":"", opt);
+archive_string_sprintf(info, "%c%s=%x",
+		    prefix, key, d);

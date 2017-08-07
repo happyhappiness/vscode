@@ -1,1 +1,1 @@
-fprintf(stderr, "\n ** Unexpected extended attribute length: ");
+archive_set_error(&a->archive, errno, "Out of memory");

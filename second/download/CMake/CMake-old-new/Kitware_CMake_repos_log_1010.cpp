@@ -1,2 +1,2 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for PPMd");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "Unknown ACL tag");

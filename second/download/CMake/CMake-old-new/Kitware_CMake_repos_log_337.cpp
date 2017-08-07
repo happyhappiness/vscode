@@ -1,2 +1,2 @@
-archive_set_error(a, ENOMEM,
-		    "Internal error initializing compression library");
+archive_set_error(&a->archive, errno,
+				    "Can't set permissions to 0%o", (int)mode);

@@ -1,1 +1,1 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue)
+printf("%s: %d math tests failed\n", argv[0], res);

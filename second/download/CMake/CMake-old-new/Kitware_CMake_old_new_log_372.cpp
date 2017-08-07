@@ -1,1 +1,0 @@
-fprintf(stderr, "Invalid test number %d.\n", n)

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "Couldn't query extended attribute");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "%s compression not supported on this platform", name);

@@ -15,7 +15,10 @@ DOWNLOAD_NEW_FILE = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USE
 DOWNLOAD_OLD_HUNK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_hunk_'
 DOWNLOAD_NEW_HUNK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_new_hunk_'
 SAVE_REPOS_LOG = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_repos_log_'
-SAVE_OLD_NEW_LOG = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_new_log_'
+SAVE_OLD_NEW_OLD_LOG = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_new_old_log_'
+SAVE_OLD_NEW_NEW_LOG = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_new_new_log_'
+SAVE_REPOS_BLOCK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_repos_block_'
+SAVE_OLD_NEW_BLOCK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_new_block_'
 
 """
 repos dir
@@ -63,30 +66,43 @@ FETCH_LOG_OLD_LOC = FETCH_LOG_TITLE.index('old_loc')
 FETCH_LOG_NEW_LOC = FETCH_LOG_TITLE.index('new_loc')
 FETCH_LOG_OLD_LOG = FETCH_LOG_TITLE.index('old_log')
 FETCH_LOG_NEW_LOG = FETCH_LOG_TITLE.index('new_log')
+FETCH_LOG_OLD_FILE = FETCH_LOG_TITLE.index('old_file')
 FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 
 """
 analyze old new title and index
 """
 ANALYZE_OLD_NEW_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'log_file']
-ANALYZE_OLD_NEW_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('log_file')
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file']
+ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('old_log_file')
+ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('new_log_file')
+ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_TITLE.index('old_block_file')
+ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_TITLE.index('old_block_feature')
+ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_TITLE.index('file_name')
+ANALYZE_OLD_NEW_OLD_LOC = ANALYZE_OLD_NEW_TITLE.index('old_loc')
+ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_TITLE.index('old_log')
+ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_TITLE.index('new_log')
+
+
+STATISTICS_OLD_NEW_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file', 'old_log_type', 'cluster']
 
 
 """
 analyze repos / cluster repos title and index
 """
-ANALYZE_REPOS_TITLE = ['file', 'loc', 'log', 'log_file']
+ANALYZE_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature']
 ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_TITLE.index('log_file')
-CLUSTER_REPOS_TITLE = ['identity', 'file', 'location', 'condition_feature',\
-                                        'statement_feature', 'vector', 'cluster_index']
+ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_TITLE.index('block_file')
+ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_TITLE.index('block_feature')
+CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'cluster_index']
 
 """
 analyze clone title
 """
 ANALYZE_CLONE_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'log_file'\
- 'file', 'loc', 'log', 'log_file']
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type','old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file',\
+ 'file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature']
 
 """
 flag type && log type
@@ -105,6 +121,13 @@ LOG_MOVE = 2
 LOG_UPDATE = 3
 LOG_COCHANGE = 4
 
+LOG_FEATURE_MODIFY = 4
+LOG_OTHER_LOG_FEATURE_MODIFY = 6
+LOG_OTHER_LOG_MODIFY = 2
+LOG_NO_MODIFY = 0
+LOG_LOG_MODIFY = 3
+LOG_LOG_FEATURE_MODIFY = 7
+
 LOG_OVER_MODIFY = -1
 LOG_NO_MODIFY = 0
 LOG_MODIFY = 1
@@ -120,7 +143,7 @@ pre issue address
 """
 ISSUE_ADDRESS = 'https://gitlab.kitware.com/cmake/cmake/issues/'
 FILE_FORMAT = r'\.(c|cpp|cc|cxx|h)$'
-UNSPORT_FILE_FORMAT = r'\.(cc|cxx)$'
+UNSRCML_FILE_FORMAT = r'\.(h|c|cc|cxx)$'
 
 """
 class path for java

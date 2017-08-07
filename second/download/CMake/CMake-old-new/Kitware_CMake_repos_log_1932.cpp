@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
+printf("Available tests:\n");

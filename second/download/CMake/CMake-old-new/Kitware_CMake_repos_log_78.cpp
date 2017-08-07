@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-			    "Minor device number too large");
+s->range = aprintf("%" CURL_FORMAT_CURL_OFF_TU "-", s->resume_from);

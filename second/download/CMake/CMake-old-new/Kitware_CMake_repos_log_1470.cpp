@@ -1,3 +1,2 @@
-archive_set_error(&self->archive->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "lz4 stream cheksum error");
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate filename buffer");

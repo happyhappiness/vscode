@@ -1,1 +1,0 @@
-snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",

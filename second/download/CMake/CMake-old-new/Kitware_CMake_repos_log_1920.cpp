@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
+printf("RegularExpression::compile(): Internal error.\n");

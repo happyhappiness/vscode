@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                    "Truncated RAR file data");
+archive_string_sprintf(&cp, "CP%d",
+					    (int)archive_le32dec(extdheader));

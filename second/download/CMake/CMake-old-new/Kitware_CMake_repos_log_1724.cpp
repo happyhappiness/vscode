@@ -1,2 +1,4 @@
-aprintf("Content-Range: bytes %s/%" CURL_FORMAT_CURL_OFF_T "\r\n",
-                  data->state.range, data->state.infilesize)
+snprintf(buf,
+           sizeof(buf),
+           "/sys/devices/system/cpu/cpu%u/cpufreq/scaling_cur_freq",
+           cpunum);

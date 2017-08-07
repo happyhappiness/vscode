@@ -1,1 +1,1 @@
-printf("Problem with lib1\n")
+fprintf(fp, "extern int gen_redirect(void);\n");

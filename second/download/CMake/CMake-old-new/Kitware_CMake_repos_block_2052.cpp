@@ -1,0 +1,3 @@
+{
+      printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);
+    }

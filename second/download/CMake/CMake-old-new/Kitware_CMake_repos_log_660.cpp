@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-				    "Can't GetFileInformationByHandle");
+			    "Can't write to temporary file");
