@@ -1,1 +1,2 @@
-sprintf(buff, "PaxHeader.%d", getpid());
+archive_set_error(&a->archive, errno,
+			    "CreateEvent failed");

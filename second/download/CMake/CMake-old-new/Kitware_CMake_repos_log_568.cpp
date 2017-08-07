@@ -1,2 +1,3 @@
-rchive_set_error(&a->archive, errno,
-		    "Failed to open a restoring file");
+archive_set_error(
+			&a->archive, EINVAL,
+			"Bad content length");

@@ -1,0 +1,4 @@
+{
+  printf("");
+  return 10;
+}

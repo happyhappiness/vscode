@@ -1,1 +1,1 @@
-fprintf(stderr, "%d ", (int)s);
+snprintf(tmp, sizeof(tmp),"%s",dir);

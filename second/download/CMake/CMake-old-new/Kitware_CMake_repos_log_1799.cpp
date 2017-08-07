@@ -1,1 +1,1 @@
-snprintf(buf, max, "Unknown error %d", err);
+fprintf(stdout, "%s\n", exe);

@@ -1,1 +1,1 @@
-host_port = aprintf("%s:%hu", hostname, remote_port);
+fprintf(stdout, "Output on stdout after recursive test.\n");

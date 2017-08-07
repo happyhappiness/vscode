@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
+from = aprintf("%s", data->set.str[STRING_MAIL_FROM]);

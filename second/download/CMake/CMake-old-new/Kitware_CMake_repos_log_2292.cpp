@@ -1,1 +1,1 @@
-fprintf(fp, "extern int wrapped_help();\n")
+fprintf(stdout, "Usage: %s number\n", argv[0]);

@@ -1,1 +1,1 @@
-fprintf(stderr, "unexpected argument: '%s'\n", argv[i])
+printf("foo is: %d\n", foo());

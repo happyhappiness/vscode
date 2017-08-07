@@ -1,2 +1,3 @@
-archive_set_error(a, errno,
-			    "Failed to create a new ACL entry");
+archive_set_error(&self->archive->archive,
+			    ENOMEM,
+    			    "Can't allocate data for uudecode");

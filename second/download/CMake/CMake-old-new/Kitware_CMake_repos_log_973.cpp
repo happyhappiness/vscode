@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unrecognized key %s=%s", key, val);
+archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for gzip stream");

@@ -1,1 +1,1 @@
-printf("found: [%s]\n", *fname);
+printf("Failed to open module1\n");

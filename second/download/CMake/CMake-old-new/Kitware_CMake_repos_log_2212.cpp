@@ -1,1 +1,1 @@
-fprintf(stderr, "after sleep\n");
+printf("TEST_C_FLAGS failed\n");

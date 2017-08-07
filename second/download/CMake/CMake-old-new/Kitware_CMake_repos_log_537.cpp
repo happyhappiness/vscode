@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, EEXIST,
-			    "Can't create directory '%s'", path);
+archive_set_error(&(self->archive->archive),
+					  ARCHIVE_ERRNO_MISC,
+					  "Failed to clean up decompressor");

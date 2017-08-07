@@ -1,2 +1,3 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "%s", error);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "A name buffer is too small");

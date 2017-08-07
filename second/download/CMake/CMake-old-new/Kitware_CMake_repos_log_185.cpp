@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, -1,
-			    "Couldn't allocate memory");
+archive_string_sprintf(str, " time=%jd.%jd",
+		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec);

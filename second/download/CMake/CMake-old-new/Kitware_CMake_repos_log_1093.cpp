@@ -1,1 +1,2 @@
-(void)printf("Output: %s\n", ctime(&d));
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");

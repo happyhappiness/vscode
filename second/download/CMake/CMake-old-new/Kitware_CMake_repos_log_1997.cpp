@@ -1,1 +1,1 @@
-ptr
+fprintf(stdout, ">> Creating %s!\n", argv[1]);

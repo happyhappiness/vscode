@@ -1,1 +1,1 @@
-fprintf(stdout, ">> Creating %s!\n", argv[1])
+fprintf(stderr, "FILE_DEF_RELEASE should not be defined in C\n");

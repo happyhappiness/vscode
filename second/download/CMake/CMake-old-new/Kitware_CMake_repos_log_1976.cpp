@@ -1,1 +1,1 @@
-tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+fprintf(stdout, "LoadResource worked\n");

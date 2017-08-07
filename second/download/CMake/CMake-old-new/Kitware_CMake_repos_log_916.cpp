@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, EIO,
-			    "Premature end-of-file.");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteString() failed: %d", r);

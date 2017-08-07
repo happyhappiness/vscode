@@ -1,3 +1,1 @@
-archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
+archive_set_error(&(a->archive), EINVAL, "pattern is empty");

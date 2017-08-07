@@ -1,1 +1,1 @@
-snprintf(buf, max, "Unknown error %d (%#x)", err, err);
+fprintf(stdout, "%s\n", kwsys_shared_forward_ldpath);

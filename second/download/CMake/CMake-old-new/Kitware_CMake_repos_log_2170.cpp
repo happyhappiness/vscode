@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name is not \"release\"\n");
+fprintf(stderr, "Error writing to %s\n", argv[1]);

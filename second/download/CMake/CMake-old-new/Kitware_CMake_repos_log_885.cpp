@@ -1,1 +1,1 @@
-fprintf(stderr, "\n ** Unexpected file unit size: ");
+archive_set_error(&a->archive, errno, "Out of memory");

@@ -1,1 +1,1 @@
-//      printf( "Size: %d => %s\n", sizeof(AllocatedType),
+fprintf(fout, "&lt;");

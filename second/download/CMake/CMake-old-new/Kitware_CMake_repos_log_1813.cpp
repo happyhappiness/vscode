@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
+fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_GREEN);

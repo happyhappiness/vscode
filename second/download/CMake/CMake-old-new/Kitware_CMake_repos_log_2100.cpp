@@ -1,1 +1,1 @@
-printf("This doesn't happen.\n");
+printf("Placeholder for a strange file in subdirectory\n");

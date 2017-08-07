@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterWriteString() failed: %d", r);
+archive_set_error(&a->archive, errno,
+			    "chdir() failure");

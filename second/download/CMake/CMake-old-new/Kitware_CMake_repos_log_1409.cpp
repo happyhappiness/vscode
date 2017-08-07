@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "tar format cannot archive socket");
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Lzip: CRC32 error");

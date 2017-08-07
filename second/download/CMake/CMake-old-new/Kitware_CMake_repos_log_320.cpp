@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Linkname");
+fsobj_error(a_eno, a_estr, errno,
+			    "chdir() failure", "");

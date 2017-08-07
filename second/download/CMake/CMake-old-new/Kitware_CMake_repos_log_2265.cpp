@@ -1,1 +1,1 @@
-printf("got 0x%04X\n", uc)
+fprintf(stdout, "Usage: %s number\n", argv[0]);

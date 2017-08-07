@@ -453,12 +453,20 @@
             "workspacePath": "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "uiState": {
                 "mode": 0,
+<<<<<<< HEAD
                 "x": 73,
                 "y": 27,
                 "width": 1527,
                 "height": 873
             },
             "backupPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/Backups/1b5a67b17cf89df088b7899ae7f18022"
+=======
+                "x": 1280,
+                "y": 26,
+                "width": 1920,
+                "height": 1028
+            }
+>>>>>>> 1148a66bc02800433d2da78c596d9f9b6d26d980
         }
     }
 }

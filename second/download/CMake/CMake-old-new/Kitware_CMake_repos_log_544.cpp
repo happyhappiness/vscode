@@ -1,2 +1,2 @@
-rchive_set_error(&a->archive, -1,
-				    "Can't restore SGID bit");
+archive_set_error(a,
+		    ENOMEM, "Out of memory adding file to list");

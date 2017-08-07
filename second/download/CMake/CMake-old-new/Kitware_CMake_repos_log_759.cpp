@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lrzip program for lrzip decompression");
+archive_string_sprintf(&state->encoded_buff, "begin %o %s\n",
+	    state->mode, state->name.s);

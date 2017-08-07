@@ -1,1 +1,0 @@
-fprintf(stderr, "Output on stderr before sleep.\n")

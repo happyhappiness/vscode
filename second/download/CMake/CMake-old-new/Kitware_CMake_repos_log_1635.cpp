@@ -1,1 +1,1 @@
-if ((low % 6) == 0) printf("\n        ");
+archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");

@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "xmlTextWriterStartElement() failed: %d", r);
+archive_set_error(&a->archive, 0,
+		"End of file trying to read next cpio header");

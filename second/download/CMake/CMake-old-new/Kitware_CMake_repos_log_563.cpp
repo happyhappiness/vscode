@@ -1,2 +1,2 @@
-rchive_set_error(&a->archive, errno,
-		    "Failed to restore metadata");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate warc data");

@@ -43,15 +43,18 @@ class Gumtree:
     @ involve get mapping log of old log
     """
     def get_new_log(self):
-        return Gumtree.gumtree.getNewLog()
-
+        new_log = Gumtree.gumtree.getNewLog()
+        if new_log is not None:
+            return new_log + ';'
+        else:
+            return new_log
     """
     @ param 
     @ return old log
     @ involve get old log
     """
     def get_old_log(self):
-        return Gumtree.gumtree.getOldLog()
+        return Gumtree.gumtree.getOldLog() + ';'
 
     """
     @ param 
@@ -92,11 +95,36 @@ class Gumtree:
     @ involve get log statement
     """
     def get_log(self):
-        return Gumtree.gumtree.getLog()
-
+        return Gumtree.gumtree.getLog() + ';'
 
     """
-    @ param odl and new log file
+    @ param
+    @ return
+    @ involve get block which contains log
+    """
+    def get_block(self):
+        return Gumtree.gumtree.getBlock()
+
+    """
+    @ param
+    @ return
+    @ involve get feature vector for block[type vs frequence]
+    """
+    def get_block_feature(self):
+        vector_str = Gumtree.gumtree.getBlockFeature()
+        vector = vector_str[1:-1].split(",")
+        vector = [int(i) for i in vector]
+        return vector
+
+    """
+    @ param
+    @ return
+    @ involve get type vector of block
+    """
+    def get_block_type(self):
+        return Gumtree.gumtree.getBlockType()
+    """
+    @ param old and new log file
     @ return flag about match or not
     @ involve just update action
     """
@@ -104,6 +132,15 @@ class Gumtree:
         Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
         return Gumtree.gumtree.isMatch()
 
+    """
+    @ param old and new log file, and repos log file
+    @ return flag about match or not
+    @ involve no action allowed in edited node
+    """
+    def is_match_with_edit(self, old_log_file, new_log_file, repos_log_file):
+        Gumtree.gumtree.setOldAndNewFile(old_log_file, new_log_file)
+        Gumtree.gumtree.getEditedNodes()
+        return Gumtree.gumtree.isMatchWithEdit(repos_log_file)
     """
     @ param 
     @ return

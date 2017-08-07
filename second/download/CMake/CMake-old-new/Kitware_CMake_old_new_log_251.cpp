@@ -1,1 +1,0 @@
-len = curl_msnprintf(fptr, left, "%ld", width)

@@ -41,6 +41,11 @@
     "deflate.c": "cpp",
     "inflate.c": "cpp",
     "uncompr.c": "cpp",
-    "zutil.c": "cpp"
+    "zutil.c": "cpp",
+    "archive_util.c": "cpp",
+    "bitset": "cpp",
+    "cm_c11_thread_local.c": "cpp",
+    "bar.c": "cpp",
+    "archive_random.c": "cpp"
 }
 }

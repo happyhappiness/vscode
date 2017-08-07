@@ -1,1 +1,0 @@
-(void) fprintf( stderr, "%s\n", msg )

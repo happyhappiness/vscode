@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unknown encryption algorithm: %u", zip->alg_id);
+archive_set_error(&a->archive, ENOMEM,
+			    "No memory for zisofs decompression");

@@ -1,1 +1,1 @@
-printf("Count: %d/%d\n", class, private);
+fprintf(fout, "0};\n");

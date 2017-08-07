@@ -1,1 +1,1 @@
-printf("framework 2\n")
+fprintf(fout, "int foo() { return 0; }\n");

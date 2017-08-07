@@ -1,3 +1,3 @@
-_snwprintf(filenamew, size, L"%s\\%.*s", handle->dirw,
-                file_info->FileNameLength / (DWORD)sizeof(WCHAR),
-                file_info->FileName);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate linkname '%s' to %s", hardlink,
+		    archive_string_conversion_charset_name(sconv));

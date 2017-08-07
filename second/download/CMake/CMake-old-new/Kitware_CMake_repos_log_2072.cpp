@@ -1,1 +1,1 @@
-printf("%f", d)
+printf("failed as expected\n");

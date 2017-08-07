@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-				"Can't allocate zip data");
+					    "Couldn't allocate memory");

@@ -1,1 +1,1 @@
-printf("Problem with lib4\n")
+fprintf(stderr, "Usage: %s <file1> <file2>\n", argv[0]);

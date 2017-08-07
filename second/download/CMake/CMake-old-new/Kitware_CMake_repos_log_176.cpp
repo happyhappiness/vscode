@@ -1,3 +1,2 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Decompression internal error");
+archive_string_sprintf(&setstr, " mode=%o",
+		    (unsigned int)mtree->set.mode);

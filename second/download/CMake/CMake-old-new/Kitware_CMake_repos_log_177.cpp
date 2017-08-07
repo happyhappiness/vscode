@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to initialize PPMd range decorder");
+archive_string_sprintf(&mtree->buf, "/unset%s\n", unsetstr.s);

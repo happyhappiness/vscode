@@ -1,12 +1,4 @@
-fprintf(stderr, 
-      "\n\nbzip2/libbzip2: internal error number %d.\n"
-      "This is a bug in bzip2/libbzip2, %s.\n"
-      "Please report it to me at: jseward@bzip.org.  If this happened\n"
-      "when you were using some program which uses libbzip2 as a\n"
-      "component, you should also report this bug to the author(s)\n"
-      "of that program.  Please make an effort to report this bug;\n"
-      "timely and accurate bug reports eventually lead to higher\n"
-      "quality software.  Thanks.  Julian Seward, 10 December 2007.\n\n",
-      errcode,
-      BZ2_bzlibVersion()
-   );
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate pathname '%s' to %s",
+		    archive_entry_pathname(entry),
+		    archive_string_conversion_charset_name(sconv));

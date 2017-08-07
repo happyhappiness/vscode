@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s number\n", argv[0])
+printf("example1\n");

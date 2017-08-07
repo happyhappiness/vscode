@@ -1,2 +1,1 @@
-return addErrorAndRecover(
-          "Missing ',' or '}' in object declaration", comma, tokenObjectEnd);
+printf("FAILED: noregen.h was regenerated!\n");

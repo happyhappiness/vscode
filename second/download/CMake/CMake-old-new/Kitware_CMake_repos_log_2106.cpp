@@ -1,1 +1,1 @@
-printf("Hello world!\n");
+printf("%s is not there! Good.", av[2]);

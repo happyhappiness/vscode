@@ -1,4 +1,4 @@
-archive_set_error(
-				    &self->archive->archive,
-		    		    ARCHIVE_ERRNO_MISC,
-				    "Malformed lz4 data");
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "GZip compression failed:"
+			    " deflate() call returned status %d",
+			    ret);

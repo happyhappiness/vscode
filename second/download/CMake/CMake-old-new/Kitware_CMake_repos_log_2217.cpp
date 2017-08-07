@@ -1,1 +1,1 @@
-printf("arg1 and arg2 missing!\n");
+fprintf(stdout, ">> Creating %s!\n", argv[1]);

@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
+printf("RegularExpression::compile(): ?+* follows nothing.\n");

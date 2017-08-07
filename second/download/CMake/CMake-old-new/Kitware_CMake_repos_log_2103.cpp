@@ -1,1 +1,1 @@
-printf
+printf("Usage: %s <file>\n", av[0]);

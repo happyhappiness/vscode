@@ -1,1 +1,1 @@
-return snprintf(buffer, size, "GnuTLS/%s", gnutls_check_version(NULL));
+printf("hello assembler world, %d arguments  given\n", argc);

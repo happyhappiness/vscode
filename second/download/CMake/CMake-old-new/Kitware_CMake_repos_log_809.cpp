@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Line too long");
+archive_set_error(&a->archive, -1, "Header CRC error");

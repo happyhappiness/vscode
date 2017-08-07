@@ -1,1 +1,1 @@
-printf("arg %d is %s\n", ac, av[i])
+printf("arg1 and arg2 missing!\n");

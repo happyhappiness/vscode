@@ -1,1 +1,1 @@
-archive_set_error(a, errno, "Write error");
+DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));

@@ -1,1 +1,0 @@
-return snprintf(buffer, size, "axTLS/%s", ssl_version());

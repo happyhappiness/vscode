@@ -1,0 +1,1 @@
+bftpd_log("Quitting.\n")

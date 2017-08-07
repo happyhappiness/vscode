@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "pax: invalid charset name");
+archive_set_error(a, EINVAL, "No such filter");

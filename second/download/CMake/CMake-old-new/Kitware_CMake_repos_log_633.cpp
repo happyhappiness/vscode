@@ -1,1 +1,3 @@
-archive_set_error(&a->archive, ENOMEM, "Out of memory");
+archive_set_error(&self->archive->archive, EINVAL,
+		    "Can't initialize filter; unable to run program \"%s\"",
+		    cmd);

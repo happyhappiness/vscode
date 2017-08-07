@@ -1,1 +1,1 @@
-snprintf(buf, len, "%ld%s", conn->port, hostname);
+sprintf(mon_file, "/aha/fs/modFile.monFactory");

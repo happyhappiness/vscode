@@ -1,4 +1,2 @@
-snprintf(buf,
-           sizeof(buf),
-           "/sys/devices/system/cpu/cpu%u/cpufreq/scaling_cur_freq",
-           cpunum);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Found entry with empty filename");

@@ -1,1 +1,1 @@
-fprintf(fout, "%g,\n", result)
+printf("Hello from subdirectory\n");

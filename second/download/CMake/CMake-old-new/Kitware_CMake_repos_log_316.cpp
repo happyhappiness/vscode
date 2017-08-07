@@ -1,3 +1,3 @@
-archive_set_error(&(a->archive), errno,
-			    "Can't read temporary file(%jd)",
-			    (intmax_t)rs);
+fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not stat %s", path);

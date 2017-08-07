@@ -1,2 +1,2 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for xz stream");
+archive_set_error(&a->archive, errno,
+	    "Failed to set file flags");

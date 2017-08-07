@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
+fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL);

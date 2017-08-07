@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, -1, "Malformed Header offset");
+archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);

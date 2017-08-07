@@ -1,1 +1,1 @@
-printf("You pressed the %c key!\n", text[0])
+printf("world\n");

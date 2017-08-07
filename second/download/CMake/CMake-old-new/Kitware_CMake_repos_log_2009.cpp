@@ -1,1 +1,1 @@
-return snprintf(buffer, size, "NSS/%s", NSS_VERSION);
+fprintf(stderr, "%s:0:  message  [category/category] [0]\n", argv[i]);

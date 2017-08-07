@@ -1,1 +1,1 @@
-DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
+fprintf(stderr, "Output on stderr from grandchild after sleep.\n");

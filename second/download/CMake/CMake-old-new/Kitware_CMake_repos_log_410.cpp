@@ -1,3 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "Can't convert '%s' to WCS",
-			    (const char *)filename);
+archive_set_error(a, ENOMEM,
+		    "Coludn't allocate memory for PPMd");

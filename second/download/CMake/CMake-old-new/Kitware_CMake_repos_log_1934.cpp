@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
+printf("Failed: %s is an invalid test name.\n", av[1]);

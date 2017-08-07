@@ -1,1 +1,0 @@
-char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename)

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-			    "Major device number too large");
+data->change.url = aprintf("%s://%s%s",
+                                   protobuf, conn->host.name, path);

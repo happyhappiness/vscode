@@ -1,1 +1,2 @@
-ftpc->newhost = aprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+YY_FATAL_ERROR(
+				"fatal error - scanner input buffer overflow" );

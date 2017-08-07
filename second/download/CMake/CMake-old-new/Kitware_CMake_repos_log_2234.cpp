@@ -1,1 +1,1 @@
-printf("Failed foo is not 21\n");
+fprintf(stderr, "FILE_DEF_DEBUG should not be defined in C\n");

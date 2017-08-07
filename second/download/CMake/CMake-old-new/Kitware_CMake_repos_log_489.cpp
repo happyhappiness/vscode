@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "Failed to set UF_COMPRESSED file flag");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");

@@ -1,4 +1,3 @@
-len = _snwprintf(key_name,
-                     ARRAY_SIZE(key_name),
-                     L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\%d",
-                     i);
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT, "%s %s %s",
+		    "Can't translate ", attr, " to UTF-8");

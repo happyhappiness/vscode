@@ -1,1 +1,2 @@
-printf(",%s", (b+1) % 2 == 0 ? "" : " ");
+err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");

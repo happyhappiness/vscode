@@ -1,1 +1,1 @@
-printf("Failed: %s is an invalid test name.\n", av[1])
+fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);

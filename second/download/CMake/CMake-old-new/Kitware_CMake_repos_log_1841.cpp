@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " c-ares/%s", ares_version(NULL));
+fprintf(stderr, "Output on stderr from test returning 0.\n");

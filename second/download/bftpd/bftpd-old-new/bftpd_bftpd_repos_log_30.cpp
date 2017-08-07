@@ -1,0 +1,1 @@
+bftpd_log("error getting max users (SINGLE USER) in bftpd_login.\n", 0)

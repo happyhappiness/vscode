@@ -1,2 +1,4 @@
-fprintf(out, " ilv %d,",
-	    toi(isodirrec + DR_interleave_offset, DR_interleave_size));
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown compression name: `%s'",
+			    value);

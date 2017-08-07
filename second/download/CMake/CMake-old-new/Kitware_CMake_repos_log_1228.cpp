@@ -1,3 +1,3 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing "
-		    "compression library: invalid setup parameter");
+archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_FILE_FORMAT,
+					    "Overflow of 64-bit file sizes");

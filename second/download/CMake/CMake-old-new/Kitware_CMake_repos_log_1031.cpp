@@ -1,2 +1,2 @@
-archive_set_error(a, errno, "Error seeking in '%S'",
-		    mine->filename.w);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+          "Invalid format code specified");

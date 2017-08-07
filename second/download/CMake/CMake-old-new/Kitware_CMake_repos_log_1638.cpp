@@ -1,1 +1,2 @@
-fprintf( stderr, "\nChange to %d bits\n", cdata->n_bits );
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Pathname");

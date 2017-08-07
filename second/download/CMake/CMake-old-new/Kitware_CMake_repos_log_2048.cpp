@@ -1,3 +1,1 @@
-return addError("'" + std::string(token.start_, token.end_) +
-                          "' is not a number.",
-                      token);
+fprintf(fout, "static const char* %s_string = \"%s\";\n", argv[2], foo());

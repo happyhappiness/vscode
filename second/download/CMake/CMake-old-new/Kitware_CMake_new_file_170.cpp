@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 2012 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -18,580 +18,600 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
+ * RFC2195 CRAM-MD5 authentication
+ * RFC2617 Basic and Digest Access Authentication
+ * RFC2831 DIGEST-MD5 authentication
+ * RFC4422 Simple Authentication and Security Layer (SASL)
+ * RFC4616 PLAIN authentication
+ * RFC6749 OAuth 2.0 Authorization Framework
+ * RFC7628 A Set of SASL Mechanisms for OAuth
+ * Draft   LOGIN SASL Mechanism <draft-murchison-sasl-login-00.txt>
+ *
  ***************************************************************************/
 
 #include "curl_setup.h"
 
-#ifndef CURL_DISABLE_FILE
-
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-#ifdef HAVE_NET_IF_H
-#include <net/if.h>
-#endif
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-
-#include "strtoofft.h"
-#include "urldata.h"
 #include <curl/curl.h>
-#include "progress.h"
-#include "sendf.h"
-#include "escape.h"
-#include "file.h"
-#include "speedcheck.h"
-#include "getinfo.h"
-#include "transfer.h"
-#include "url.h"
-#include "parsedate.h" /* for the week day and month names */
+#include "urldata.h"
+
+#include "curl_base64.h"
+#include "curl_md5.h"
+#include "vauth/vauth.h"
+#include "vtls/vtls.h"
+#include "curl_hmac.h"
+#include "curl_sasl.h"
 #include "warnless.h"
+#include "strtok.h"
+#include "strequal.h"
+#include "rawstr.h"
+#include "sendf.h"
+#include "non-ascii.h" /* included for Curl_convert_... prototypes */
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
 #include "curl_memory.h"
 #include "memdebug.h"
 
-#if defined(WIN32) || defined(MSDOS) || defined(__EMX__) || \
-  defined(__SYMBIAN32__)
-#define DOS_FILESYSTEM 1
-#endif
-
-#ifdef OPEN_NEEDS_ARG3
-#  define open_readonly(p,f) open((p),(f),(0))
-#else
-#  define open_readonly(p,f) open((p),(f))
-#endif
-
-/*
- * Forward declarations.
- */
-
-static CURLcode file_do(struct connectdata *, bool *done);
-static CURLcode file_done(struct connectdata *conn,
-                          CURLcode status, bool premature);
-static CURLcode file_connect(struct connectdata *conn, bool *done);
-static CURLcode file_disconnect(struct connectdata *conn,
-                                bool dead_connection);
-static CURLcode file_setup_connection(struct connectdata *conn);
-
-/*
- * FILE scheme handler.
- */
-
-const struct Curl_handler Curl_handler_file = {
-  "FILE",                               /* scheme */
-  file_setup_connection,                /* setup_connection */
-  file_do,                              /* do_it */
-  file_done,                            /* done */
-  ZERO_NULL,                            /* do_more */
-  file_connect,                         /* connect_it */
-  ZERO_NULL,                            /* connecting */
-  ZERO_NULL,                            /* doing */
-  ZERO_NULL,                            /* proto_getsock */
-  ZERO_NULL,                            /* doing_getsock */
-  ZERO_NULL,                            /* domore_getsock */
-  ZERO_NULL,                            /* perform_getsock */
-  file_disconnect,                      /* disconnect */
-  ZERO_NULL,                            /* readwrite */
-  0,                                    /* defport */
-  CURLPROTO_FILE,                       /* protocol */
-  PROTOPT_NONETWORK | PROTOPT_NOURLQUERY /* flags */
+/* Supported mechanisms */
+const struct {
+  const char   *name;  /* Name */
+  size_t        len;   /* Name length */
+  unsigned int  bit;   /* Flag bit */
+} mechtable[] = {
+  { "LOGIN",        5,  SASL_MECH_LOGIN },
+  { "PLAIN",        5,  SASL_MECH_PLAIN },
+  { "CRAM-MD5",     8,  SASL_MECH_CRAM_MD5 },
+  { "DIGEST-MD5",   10, SASL_MECH_DIGEST_MD5 },
+  { "GSSAPI",       6,  SASL_MECH_GSSAPI },
+  { "EXTERNAL",     8,  SASL_MECH_EXTERNAL },
+  { "NTLM",         4,  SASL_MECH_NTLM },
+  { "XOAUTH2",      7,  SASL_MECH_XOAUTH2 },
+  { "OAUTHBEARER",  11, SASL_MECH_OAUTHBEARER },
+  { ZERO_NULL,      0,  0 }
 };
 
-
-static CURLcode file_setup_connection(struct connectdata *conn)
-{
-  /* allocate the FILE specific struct */
-  conn->data->req.protop = calloc(1, sizeof(struct FILEPROTO));
-  if(!conn->data->req.protop)
-    return CURLE_OUT_OF_MEMORY;
-
-  return CURLE_OK;
-}
-
- /*
-  Check if this is a range download, and if so, set the internal variables
-  properly. This code is copied from the FTP implementation and might as
-  well be factored out.
+/*
+ * Curl_sasl_cleanup()
+ *
+ * This is used to cleanup any libraries or curl modules used by the sasl
+ * functions.
+ *
+ * Parameters:
+ *
+ * conn     [in]     - The connection data.
+ * authused [in]     - The authentication mechanism used.
  */
-static CURLcode file_range(struct connectdata *conn)
+void Curl_sasl_cleanup(struct connectdata *conn, unsigned int authused)
 {
-  curl_off_t from, to;
-  curl_off_t totalsize=-1;
-  char *ptr;
-  char *ptr2;
-  struct Curl_easy *data = conn->data;
-
-  if(data->state.use_range && data->state.range) {
-    from=curlx_strtoofft(data->state.range, &ptr, 0);
-    while(*ptr && (ISSPACE(*ptr) || (*ptr=='-')))
-      ptr++;
-    to=curlx_strtoofft(ptr, &ptr2, 0);
-    if(ptr == ptr2) {
-      /* we didn't get any digit */
-      to=-1;
-    }
-    if((-1 == to) && (from>=0)) {
-      /* X - */
-      data->state.resume_from = from;
-      DEBUGF(infof(data, "RANGE %" CURL_FORMAT_CURL_OFF_T " to end of file\n",
-                   from));
-    }
-    else if(from < 0) {
-      /* -Y */
-      data->req.maxdownload = -from;
-      data->state.resume_from = from;
-      DEBUGF(infof(data, "RANGE the last %" CURL_FORMAT_CURL_OFF_T " bytes\n",
-                   -from));
-    }
-    else {
-      /* X-Y */
-      totalsize = to-from;
-      data->req.maxdownload = totalsize+1; /* include last byte */
-      data->state.resume_from = from;
-      DEBUGF(infof(data, "RANGE from %" CURL_FORMAT_CURL_OFF_T
-                   " getting %" CURL_FORMAT_CURL_OFF_T " bytes\n",
-                   from, data->req.maxdownload));
-    }
-    DEBUGF(infof(data, "range-download from %" CURL_FORMAT_CURL_OFF_T
-                 " to %" CURL_FORMAT_CURL_OFF_T ", totally %"
-                 CURL_FORMAT_CURL_OFF_T " bytes\n",
-                 from, to, data->req.maxdownload));
+#if defined(USE_KERBEROS5)
+  /* Cleanup the gssapi structure */
+  if(authused == SASL_MECH_GSSAPI) {
+    Curl_auth_gssapi_cleanup(&conn->krb5);
   }
-  else
-    data->req.maxdownload = -1;
-  return CURLE_OK;
+#endif
+
+#if defined(USE_NTLM)
+  /* Cleanup the NTLM structure */
+  if(authused == SASL_MECH_NTLM) {
+    Curl_auth_ntlm_cleanup(&conn->ntlm);
+  }
+#endif
+
+#if !defined(USE_KERBEROS5) && !defined(USE_NTLM)
+  /* Reserved for future use */
+  (void)conn;
+  (void)authused;
+#endif
 }
 
 /*
- * file_connect() gets called from Curl_protocol_connect() to allow us to
- * do protocol-specific actions at connect-time.  We emulate a
- * connect-then-transfer protocol and "connect" to the file here
+ * Curl_sasl_decode_mech()
+ *
+ * Convert a SASL mechanism name into a token.
+ *
+ * Parameters:
+ *
+ * ptr    [in]     - The mechanism string.
+ * maxlen [in]     - Maximum mechanism string length.
+ * len    [out]    - If not NULL, effective name length.
+ *
+ * Returns the SASL mechanism token or 0 if no match.
  */
-static CURLcode file_connect(struct connectdata *conn, bool *done)
+unsigned int Curl_sasl_decode_mech(const char *ptr, size_t maxlen, size_t *len)
 {
-  struct Curl_easy *data = conn->data;
-  char *real_path;
-  struct FILEPROTO *file = data->req.protop;
-  int fd;
-#ifdef DOS_FILESYSTEM
-  int i;
-  char *actual_path;
-#endif
-  int real_path_len;
+  unsigned int i;
+  char c;
 
-  real_path = curl_easy_unescape(data, data->state.path, 0, &real_path_len);
-  if(!real_path)
-    return CURLE_OUT_OF_MEMORY;
+  for(i = 0; mechtable[i].name; i++) {
+    if(maxlen >= mechtable[i].len &&
+       !memcmp(ptr, mechtable[i].name, mechtable[i].len)) {
+      if(len)
+        *len = mechtable[i].len;
 
-#ifdef DOS_FILESYSTEM
-  /* If the first character is a slash, and there's
-     something that looks like a drive at the beginning of
-     the path, skip the slash.  If we remove the initial
-     slash in all cases, paths without drive letters end up
-     relative to the current directory which isn't how
-     browsers work.
+      if(maxlen == mechtable[i].len)
+        return mechtable[i].bit;
 
-     Some browsers accept | instead of : as the drive letter
-     separator, so we do too.
-
-     On other platforms, we need the slash to indicate an
-     absolute pathname.  On Windows, absolute paths start
-     with a drive letter.
-  */
-  actual_path = real_path;
-  if((actual_path[0] == '/') &&
-      actual_path[1] &&
-     (actual_path[2] == ':' || actual_path[2] == '|')) {
-    actual_path[2] = ':';
-    actual_path++;
-    real_path_len--;
-  }
-
-  /* change path separators from '/' to '\\' for DOS, Windows and OS/2 */
-  for(i=0; i < real_path_len; ++i)
-    if(actual_path[i] == '/')
-      actual_path[i] = '\\';
-    else if(!actual_path[i]) { /* binary zero */
-      Curl_safefree(real_path);
-      return CURLE_URL_MALFORMAT;
+      c = ptr[mechtable[i].len];
+      if(!ISUPPER(c) && !ISDIGIT(c) && c != '-' && c != '_')
+        return mechtable[i].bit;
     }
-
-  fd = open_readonly(actual_path, O_RDONLY|O_BINARY);
-  file->path = actual_path;
-#else
-  if(memchr(real_path, 0, real_path_len)) {
-    /* binary zeroes indicate foul play */
-    Curl_safefree(real_path);
-    return CURLE_URL_MALFORMAT;
   }
 
-  fd = open_readonly(real_path, O_RDONLY);
-  file->path = real_path;
-#endif
-  file->freepath = real_path; /* free this when done */
-
-  file->fd = fd;
-  if(!data->set.upload && (fd == -1)) {
-    failf(data, "Couldn't open file %s", data->state.path);
-    file_done(conn, CURLE_FILE_COULDNT_READ_FILE, FALSE);
-    return CURLE_FILE_COULDNT_READ_FILE;
-  }
-  *done = TRUE;
-
-  return CURLE_OK;
+  return 0;
 }
 
-static CURLcode file_done(struct connectdata *conn,
-                               CURLcode status, bool premature)
+/*
+ * Curl_sasl_parse_url_auth_option()
+ *
+ * Parse the URL login options.
+ */
+CURLcode Curl_sasl_parse_url_auth_option(struct SASL *sasl,
+                                         const char *value, size_t len)
 {
-  struct FILEPROTO *file = conn->data->req.protop;
-  (void)status; /* not used */
-  (void)premature; /* not used */
-
-  if(file) {
-    Curl_safefree(file->freepath);
-    file->path = NULL;
-    if(file->fd != -1)
-      close(file->fd);
-    file->fd = -1;
-  }
-
-  return CURLE_OK;
-}
-
-static CURLcode file_disconnect(struct connectdata *conn,
-                                bool dead_connection)
-{
-  struct FILEPROTO *file = conn->data->req.protop;
-  (void)dead_connection; /* not used */
-
-  if(file) {
-    Curl_safefree(file->freepath);
-    file->path = NULL;
-    if(file->fd != -1)
-      close(file->fd);
-    file->fd = -1;
-  }
-
-  return CURLE_OK;
-}
-
-#ifdef DOS_FILESYSTEM
-#define DIRSEP '\\'
-#else
-#define DIRSEP '/'
-#endif
-
-static CURLcode file_upload(struct connectdata *conn)
-{
-  struct FILEPROTO *file = conn->data->req.protop;
-  const char *dir = strchr(file->path, DIRSEP);
-  int fd;
-  int mode;
   CURLcode result = CURLE_OK;
-  struct Curl_easy *data = conn->data;
-  char *buf = data->state.buffer;
-  size_t nread;
-  size_t nwrite;
-  curl_off_t bytecount = 0;
-  struct timeval now = Curl_tvnow();
-  struct_stat file_stat;
-  const char* buf2;
+  unsigned int mechbit;
+  size_t mechlen;
 
-  /*
-   * Since FILE: doesn't do the full init, we need to provide some extra
-   * assignments here.
-   */
-  conn->data->req.upload_fromhere = buf;
+  if(!len)
+    return CURLE_URL_MALFORMAT;
 
-  if(!dir)
-    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
-
-  if(!dir[1])
-    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
-
-#ifdef O_BINARY
-#define MODE_DEFAULT O_WRONLY|O_CREAT|O_BINARY
-#else
-#define MODE_DEFAULT O_WRONLY|O_CREAT
-#endif
-
-  if(data->state.resume_from)
-    mode = MODE_DEFAULT|O_APPEND;
-  else
-    mode = MODE_DEFAULT|O_TRUNC;
-
-  fd = open(file->path, mode, conn->data->set.new_file_perms);
-  if(fd < 0) {
-    failf(data, "Can't open %s for writing", file->path);
-    return CURLE_WRITE_ERROR;
+  if(sasl->resetprefs) {
+    sasl->resetprefs = FALSE;
+    sasl->prefmech = SASL_AUTH_NONE;
   }
 
-  if(-1 != data->state.infilesize)
-    /* known size of data to "upload" */
-    Curl_pgrsSetUploadSize(data, data->state.infilesize);
-
-  /* treat the negative resume offset value as the case of "-" */
-  if(data->state.resume_from < 0) {
-    if(fstat(fd, &file_stat)) {
-      close(fd);
-      failf(data, "Can't get the size of %s", file->path);
-      return CURLE_WRITE_ERROR;
-    }
+  if(strnequal(value, "*", len))
+    sasl->prefmech = SASL_AUTH_DEFAULT;
+  else {
+    mechbit = Curl_sasl_decode_mech(value, len, &mechlen);
+    if(mechbit && mechlen == len)
+      sasl->prefmech |= mechbit;
     else
-      data->state.resume_from = (curl_off_t)file_stat.st_size;
+      result = CURLE_URL_MALFORMAT;
   }
-
-  while(!result) {
-    int readcount;
-    result = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
-    if(result)
-      break;
-
-    if(readcount <= 0)  /* fix questionable compare error. curlvms */
-      break;
-
-    nread = (size_t)readcount;
-
-    /*skip bytes before resume point*/
-    if(data->state.resume_from) {
-      if((curl_off_t)nread <= data->state.resume_from) {
-        data->state.resume_from -= nread;
-        nread = 0;
-        buf2 = buf;
-      }
-      else {
-        buf2 = buf + data->state.resume_from;
-        nread -= (size_t)data->state.resume_from;
-        data->state.resume_from = 0;
-      }
-    }
-    else
-      buf2 = buf;
-
-    /* write the data to the target */
-    nwrite = write(fd, buf2, nread);
-    if(nwrite != nread) {
-      result = CURLE_SEND_ERROR;
-      break;
-    }
-
-    bytecount += nread;
-
-    Curl_pgrsSetUploadCounter(data, bytecount);
-
-    if(Curl_pgrsUpdate(conn))
-      result = CURLE_ABORTED_BY_CALLBACK;
-    else
-      result = Curl_speedcheck(data, now);
-  }
-  if(!result && Curl_pgrsUpdate(conn))
-    result = CURLE_ABORTED_BY_CALLBACK;
-
-  close(fd);
 
   return result;
 }
 
 /*
- * file_do() is the protocol-specific function for the do-phase, separated
- * from the connect-phase above. Other protocols merely setup the transfer in
- * the do-phase, to have it done in the main transfer loop but since some
- * platforms we support don't allow select()ing etc on file handles (as
- * opposed to sockets) we instead perform the whole do-operation in this
- * function.
+ * Curl_sasl_init()
+ *
+ * Initializes the SASL structure.
  */
-static CURLcode file_do(struct connectdata *conn, bool *done)
+void Curl_sasl_init(struct SASL *sasl, const struct SASLproto *params)
 {
-  /* This implementation ignores the host name in conformance with
-     RFC 1738. Only local files (reachable via the standard file system)
-     are supported. This means that files on remotely mounted directories
-     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
-  */
+  sasl->params = params;           /* Set protocol dependent parameters */
+  sasl->state = SASL_STOP;         /* Not yet running */
+  sasl->authmechs = SASL_AUTH_NONE; /* No known authentication mechanism yet */
+  sasl->prefmech = SASL_AUTH_DEFAULT; /* Prefer all mechanisms */
+  sasl->authused = SASL_AUTH_NONE; /* No the authentication mechanism used */
+  sasl->resetprefs = TRUE;         /* Reset prefmech upon AUTH parsing. */
+  sasl->mutual_auth = FALSE;       /* No mutual authentication (GSSAPI only) */
+  sasl->force_ir = FALSE;          /* Respect external option */
+}
+
+/*
+ * state()
+ *
+ * This is the ONLY way to change SASL state!
+ */
+static void state(struct SASL *sasl, struct connectdata *conn,
+                  saslstate newstate)
+{
+#if defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
+  /* for debug purposes */
+  static const char * const names[]={
+    "STOP",
+    "PLAIN",
+    "LOGIN",
+    "LOGIN_PASSWD",
+    "EXTERNAL",
+    "CRAMMD5",
+    "DIGESTMD5",
+    "DIGESTMD5_RESP",
+    "NTLM",
+    "NTLM_TYPE2MSG",
+    "GSSAPI",
+    "GSSAPI_TOKEN",
+    "GSSAPI_NO_DATA",
+    "OAUTH2",
+    "OAUTH2_RESP",
+    "CANCEL",
+    "FINAL",
+    /* LAST */
+  };
+
+  if(sasl->state != newstate)
+    infof(conn->data, "SASL %p state change from %s to %s\n",
+          (void *)sasl, names[sasl->state], names[newstate]);
+#else
+  (void) conn;
+#endif
+
+  sasl->state = newstate;
+}
+
+/*
+ * Curl_sasl_can_authenticate()
+ *
+ * Check if we have enough auth data and capabilities to authenticate.
+ */
+bool Curl_sasl_can_authenticate(struct SASL *sasl, struct connectdata *conn)
+{
+  /* Have credentials been provided? */
+  if(conn->bits.user_passwd)
+    return TRUE;
+
+  /* EXTERNAL can authenticate without a user name and/or password */
+  if(sasl->authmechs & sasl->prefmech & SASL_MECH_EXTERNAL)
+    return TRUE;
+
+  return FALSE;
+}
+
+/*
+ * Curl_sasl_start()
+ *
+ * Calculate the required login details for SASL authentication.
+ */
+CURLcode Curl_sasl_start(struct SASL *sasl, struct connectdata *conn,
+                         bool force_ir, saslprogress *progress)
+{
   CURLcode result = CURLE_OK;
-  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
-                          Windows version to have a different struct without
-                          having to redefine the simple word 'stat' */
-  curl_off_t expected_size=0;
-  bool size_known;
-  bool fstated=FALSE;
-  ssize_t nread;
   struct Curl_easy *data = conn->data;
-  char *buf = data->state.buffer;
-  curl_off_t bytecount = 0;
-  int fd;
-  struct timeval now = Curl_tvnow();
-  struct FILEPROTO *file;
+  unsigned int enabledmechs;
+  const char *mech = NULL;
+  char *resp = NULL;
+  size_t len = 0;
+  saslstate state1 = SASL_STOP;
+  saslstate state2 = SASL_FINAL;
+#if defined(USE_KERBEROS5)
+  const char* service = data->set.str[STRING_SERVICE_NAME] ?
+                        data->set.str[STRING_SERVICE_NAME] :
+                        sasl->params->service;
+#endif
 
-  *done = TRUE; /* unconditionally */
+  sasl->force_ir = force_ir;    /* Latch for future use */
+  sasl->authused = 0;           /* No mechanism used yet */
+  enabledmechs = sasl->authmechs & sasl->prefmech;
+  *progress = SASL_IDLE;
 
-  Curl_initinfo(data);
-  Curl_pgrsStartNow(data);
+  /* Calculate the supported authentication mechanism, by decreasing order of
+     security, as well as the initial response where appropriate */
+  if((enabledmechs & SASL_MECH_EXTERNAL) && !conn->passwd[0]) {
+    mech = SASL_MECH_STRING_EXTERNAL;
+    state1 = SASL_EXTERNAL;
+    sasl->authused = SASL_MECH_EXTERNAL;
 
-  if(data->set.upload)
-    return file_upload(conn);
-
-  file = conn->data->req.protop;
-
-  /* get the fd from the connection phase */
-  fd = file->fd;
-
-  /* VMS: This only works reliable for STREAMLF files */
-  if(-1 != fstat(fd, &statbuf)) {
-    /* we could stat it, then read out the size */
-    expected_size = statbuf.st_size;
-    /* and store the modification time */
-    data->info.filetime = (long)statbuf.st_mtime;
-    fstated = TRUE;
+    if(force_ir || data->set.sasl_ir)
+      result = Curl_auth_create_external_message(data, conn->user, &resp,
+                                                 &len);
   }
+  else if(conn->bits.user_passwd) {
+#if defined(USE_KERBEROS5)
+    if(enabledmechs & SASL_MECH_GSSAPI) {
+      sasl->mutual_auth = FALSE; /* TODO: Calculate mutual authentication */
+      mech = SASL_MECH_STRING_GSSAPI;
+      state1 = SASL_GSSAPI;
+      state2 = SASL_GSSAPI_TOKEN;
+      sasl->authused = SASL_MECH_GSSAPI;
 
-  if(fstated && !data->state.range && data->set.timecondition) {
-    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
-      *done = TRUE;
-      return CURLE_OK;
+      if(force_ir || data->set.sasl_ir)
+        result = Curl_auth_create_gssapi_user_message(data, conn->user,
+                                                      conn->passwd,
+                                                      service,
+                                                      data->easy_conn->
+                                                            host.name,
+                                                      sasl->mutual_auth,
+                                                      NULL, &conn->krb5,
+                                                      &resp, &len);
+    }
+    else
+#endif
+#ifndef CURL_DISABLE_CRYPTO_AUTH
+    if(enabledmechs & SASL_MECH_DIGEST_MD5) {
+      mech = SASL_MECH_STRING_DIGEST_MD5;
+      state1 = SASL_DIGESTMD5;
+      sasl->authused = SASL_MECH_DIGEST_MD5;
+    }
+    else if(enabledmechs & SASL_MECH_CRAM_MD5) {
+      mech = SASL_MECH_STRING_CRAM_MD5;
+      state1 = SASL_CRAMMD5;
+      sasl->authused = SASL_MECH_CRAM_MD5;
+    }
+    else
+#endif
+#ifdef USE_NTLM
+    if(enabledmechs & SASL_MECH_NTLM) {
+      mech = SASL_MECH_STRING_NTLM;
+      state1 = SASL_NTLM;
+      state2 = SASL_NTLM_TYPE2MSG;
+      sasl->authused = SASL_MECH_NTLM;
+
+      if(force_ir || data->set.sasl_ir)
+        result = Curl_auth_create_ntlm_type1_message(conn->user, conn->passwd,
+                                                     &conn->ntlm, &resp, &len);
+      }
+    else
+#endif
+    if((enabledmechs & SASL_MECH_OAUTHBEARER) && conn->oauth_bearer) {
+      mech = SASL_MECH_STRING_OAUTHBEARER;
+      state1 = SASL_OAUTH2;
+      state2 = SASL_OAUTH2_RESP;
+      sasl->authused = SASL_MECH_OAUTHBEARER;
+
+      if(force_ir || data->set.sasl_ir)
+        result = Curl_auth_create_oauth_bearer_message(data, conn->user,
+                                                       conn->host.name,
+                                                       conn->port,
+                                                       conn->oauth_bearer,
+                                                       &resp, &len);
+    }
+    else if((enabledmechs & SASL_MECH_XOAUTH2) && conn->oauth_bearer) {
+      mech = SASL_MECH_STRING_XOAUTH2;
+      state1 = SASL_OAUTH2;
+      sasl->authused = SASL_MECH_XOAUTH2;
+
+      if(force_ir || data->set.sasl_ir)
+        result = Curl_auth_create_oauth_bearer_message(data, conn->user,
+                                                       NULL, 0,
+                                                       conn->oauth_bearer,
+                                                       &resp, &len);
+    }
+    else if(enabledmechs & SASL_MECH_LOGIN) {
+      mech = SASL_MECH_STRING_LOGIN;
+      state1 = SASL_LOGIN;
+      state2 = SASL_LOGIN_PASSWD;
+      sasl->authused = SASL_MECH_LOGIN;
+
+      if(force_ir || data->set.sasl_ir)
+        result = Curl_auth_create_login_message(data, conn->user, &resp, &len);
+    }
+    else if(enabledmechs & SASL_MECH_PLAIN) {
+      mech = SASL_MECH_STRING_PLAIN;
+      state1 = SASL_PLAIN;
+      sasl->authused = SASL_MECH_PLAIN;
+
+      if(force_ir || data->set.sasl_ir)
+        result = Curl_auth_create_plain_message(data, conn->user, conn->passwd,
+                                                &resp, &len);
     }
   }
 
-  /* If we have selected NOBODY and HEADER, it means that we only want file
-     information. Which for FILE can't be much more than the file size and
-     date. */
-  if(data->set.opt_no_body && data->set.include_header && fstated) {
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(result)
-      return result;
+  if(!result && mech) {
+    if(resp && sasl->params->maxirlen &&
+       strlen(mech) + len > sasl->params->maxirlen) {
+      free(resp);
+      resp = NULL;
+    }
 
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
-                               (char *)"Accept-ranges: bytes\r\n", 0);
-    if(result)
-      return result;
+    result = sasl->params->sendauth(conn, mech, resp);
+    if(!result) {
+      *progress = SASL_INPROGRESS;
+      state(sasl, conn, resp ? state2 : state1);
+    }
+  }
 
-    filetime = (time_t)statbuf.st_mtime;
-    result = Curl_gmtime(filetime, &buffer);
-    if(result)
-      return result;
+  free(resp);
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
-             Curl_month[tm->tm_mon],
-             tm->tm_year + 1900,
-             tm->tm_hour,
-             tm->tm_min,
-             tm->tm_sec);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(!result)
-      /* set the file size to make it available post transfer */
-      Curl_pgrsSetDownloadSize(data, expected_size);
+  return result;
+}
+
+/*
+ * Curl_sasl_continue()
+ *
+ * Continue the authentication.
+ */
+CURLcode Curl_sasl_continue(struct SASL *sasl, struct connectdata *conn,
+                            int code, saslprogress *progress)
+{
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data = conn->data;
+  saslstate newstate = SASL_FINAL;
+  char *resp = NULL;
+#if !defined(CURL_DISABLE_CRYPTO_AUTH)
+  char *serverdata;
+  char *chlg = NULL;
+  size_t chlglen = 0;
+#endif
+#if !defined(CURL_DISABLE_CRYPTO_AUTH) || defined(USE_KERBEROS5)
+  const char *service = data->set.str[STRING_SERVICE_NAME] ?
+                        data->set.str[STRING_SERVICE_NAME] :
+                        sasl->params->service;
+#endif
+  size_t len = 0;
+
+  *progress = SASL_INPROGRESS;
+
+  if(sasl->state == SASL_FINAL) {
+    if(code != sasl->params->finalcode)
+      result = CURLE_LOGIN_DENIED;
+    *progress = SASL_DONE;
+    state(sasl, conn, SASL_STOP);
     return result;
   }
 
-  /* Check whether file range has been specified */
-  file_range(conn);
+  if(sasl->state != SASL_CANCEL && sasl->state != SASL_OAUTH2_RESP &&
+     code != sasl->params->contcode) {
+    *progress = SASL_DONE;
+    state(sasl, conn, SASL_STOP);
+    return CURLE_LOGIN_DENIED;
+  }
 
-  /* Adjust the start offset in case we want to get the N last bytes
-   * of the stream iff the filesize could be determined */
-  if(data->state.resume_from < 0) {
-    if(!fstated) {
-      failf(data, "Can't get the size of file.");
-      return CURLE_READ_ERROR;
+  switch(sasl->state) {
+  case SASL_STOP:
+    *progress = SASL_DONE;
+    return result;
+  case SASL_PLAIN:
+    result = Curl_auth_create_plain_message(data, conn->user, conn->passwd,
+                                            &resp,
+                                            &len);
+    break;
+  case SASL_LOGIN:
+    result = Curl_auth_create_login_message(data, conn->user, &resp, &len);
+    newstate = SASL_LOGIN_PASSWD;
+    break;
+  case SASL_LOGIN_PASSWD:
+    result = Curl_auth_create_login_message(data, conn->passwd, &resp, &len);
+    break;
+  case SASL_EXTERNAL:
+    result = Curl_auth_create_external_message(data, conn->user, &resp, &len);
+    break;
+
+#ifndef CURL_DISABLE_CRYPTO_AUTH
+  case SASL_CRAMMD5:
+    sasl->params->getmessage(data->state.buffer, &serverdata);
+    result = Curl_auth_decode_cram_md5_message(serverdata, &chlg, &chlglen);
+    if(!result)
+      result = Curl_auth_create_cram_md5_message(data, chlg, conn->user,
+                                                 conn->passwd, &resp, &len);
+    free(chlg);
+    break;
+  case SASL_DIGESTMD5:
+    sasl->params->getmessage(data->state.buffer, &serverdata);
+    result = Curl_auth_create_digest_md5_message(data, serverdata,
+                                                 conn->user, conn->passwd,
+                                                 service,
+                                                 &resp, &len);
+    newstate = SASL_DIGESTMD5_RESP;
+    break;
+  case SASL_DIGESTMD5_RESP:
+    resp = strdup("");
+    if(!resp)
+      result = CURLE_OUT_OF_MEMORY;
+    break;
+#endif
+
+#ifdef USE_NTLM
+  case SASL_NTLM:
+    /* Create the type-1 message */
+    result = Curl_auth_create_ntlm_type1_message(conn->user, conn->passwd,
+                                                 &conn->ntlm, &resp, &len);
+    newstate = SASL_NTLM_TYPE2MSG;
+    break;
+  case SASL_NTLM_TYPE2MSG:
+    /* Decode the type-2 message */
+    sasl->params->getmessage(data->state.buffer, &serverdata);
+    result = Curl_auth_decode_ntlm_type2_message(data, serverdata,
+                                                 &conn->ntlm);
+    if(!result)
+      result = Curl_auth_create_ntlm_type3_message(data, conn->user,
+                                                   conn->passwd, &conn->ntlm,
+                                                   &resp, &len);
+    break;
+#endif
+
+#if defined(USE_KERBEROS5)
+  case SASL_GSSAPI:
+    result = Curl_auth_create_gssapi_user_message(data, conn->user,
+                                                  conn->passwd,
+                                                  service,
+                                                  data->easy_conn->host.name,
+                                                  sasl->mutual_auth, NULL,
+                                                  &conn->krb5,
+                                                  &resp, &len);
+    newstate = SASL_GSSAPI_TOKEN;
+    break;
+  case SASL_GSSAPI_TOKEN:
+    sasl->params->getmessage(data->state.buffer, &serverdata);
+    if(sasl->mutual_auth) {
+      /* Decode the user token challenge and create the optional response
+         message */
+      result = Curl_auth_create_gssapi_user_message(data, NULL, NULL,
+                                                    NULL, NULL,
+                                                    sasl->mutual_auth,
+                                                    serverdata, &conn->krb5,
+                                                    &resp, &len);
+      newstate = SASL_GSSAPI_NO_DATA;
     }
     else
-      data->state.resume_from += (curl_off_t)statbuf.st_size;
-  }
+      /* Decode the security challenge and create the response message */
+      result = Curl_auth_create_gssapi_security_message(data, serverdata,
+                                                        &conn->krb5,
+                                                        &resp, &len);
+    break;
+  case SASL_GSSAPI_NO_DATA:
+    sasl->params->getmessage(data->state.buffer, &serverdata);
+    /* Decode the security challenge and create the response message */
+    result = Curl_auth_create_gssapi_security_message(data, serverdata,
+                                                      &conn->krb5,
+                                                      &resp, &len);
+    break;
+#endif
 
-  if(data->state.resume_from <= expected_size)
-    expected_size -= data->state.resume_from;
-  else {
-    failf(data, "failed to resume file:// transfer");
-    return CURLE_BAD_DOWNLOAD_RESUME;
-  }
+  case SASL_OAUTH2:
+    /* Create the authorisation message */
+    if(sasl->authused == SASL_MECH_OAUTHBEARER) {
+      result = Curl_auth_create_oauth_bearer_message(data, conn->user,
+                                                     conn->host.name,
+                                                     conn->port,
+                                                     conn->oauth_bearer,
+                                                     &resp, &len);
 
-  /* A high water mark has been specified so we obey... */
-  if(data->req.maxdownload > 0)
-    expected_size = data->req.maxdownload;
-
-  if(!fstated || (expected_size == 0))
-    size_known = FALSE;
-  else
-    size_known = TRUE;
-
-  /* The following is a shortcut implementation of file reading
-     this is both more efficient than the former call to download() and
-     it avoids problems with select() and recv() on file descriptors
-     in Winsock */
-  if(fstated)
-    Curl_pgrsSetDownloadSize(data, expected_size);
-
-  if(data->state.resume_from) {
-    if(data->state.resume_from !=
-       lseek(fd, data->state.resume_from, SEEK_SET))
-      return CURLE_BAD_DOWNLOAD_RESUME;
-  }
-
-  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
-
-  while(!result) {
-    /* Don't fill a whole buffer if we want less than all data */
-    size_t bytestoread;
-
-    if(size_known) {
-      bytestoread =
-        (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
-        curlx_sotouz(expected_size) : BUFSIZE - 1;
+      /* Failures maybe sent by the server as continuations for OAUTHBEARER */
+      newstate = SASL_OAUTH2_RESP;
     }
     else
-      bytestoread = BUFSIZE-1;
+      result = Curl_auth_create_oauth_bearer_message(data, conn->user,
+                                                     NULL, 0,
+                                                     conn->oauth_bearer,
+                                                     &resp, &len);
+    break;
 
-    nread = read(fd, buf, bytestoread);
-
-    if(nread > 0)
-      buf[nread] = 0;
-
-    if(nread <= 0 || (size_known && (expected_size == 0)))
-      break;
-
-    bytecount += nread;
-    if(size_known)
-      expected_size -= nread;
-
-    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
-    if(result)
+  case SASL_OAUTH2_RESP:
+    /* The continuation is optional so check the response code */
+    if(code == sasl->params->finalcode) {
+      /* Final response was received so we are done */
+      *progress = SASL_DONE;
+      state(sasl, conn, SASL_STOP);
       return result;
+    }
+    else if(code == sasl->params->contcode) {
+      /* Acknowledge the continuation by sending a 0x01 response base64
+         encoded */
+      resp = strdup("AQ==");
+      if(!resp)
+        result = CURLE_OUT_OF_MEMORY;
+      break;
+    }
+    else {
+      *progress = SASL_DONE;
+      state(sasl, conn, SASL_STOP);
+      return CURLE_LOGIN_DENIED;
+    }
 
-    Curl_pgrsSetDownloadCounter(data, bytecount);
+  case SASL_CANCEL:
+    /* Remove the offending mechanism from the supported list */
+    sasl->authmechs ^= sasl->authused;
 
-    if(Curl_pgrsUpdate(conn))
-      result = CURLE_ABORTED_BY_CALLBACK;
-    else
-      result = Curl_speedcheck(data, now);
+    /* Start an alternative SASL authentication */
+    result = Curl_sasl_start(sasl, conn, sasl->force_ir, progress);
+    newstate = sasl->state;   /* Use state from Curl_sasl_start() */
+    break;
+  default:
+    failf(data, "Unsupported SASL authentication mechanism");
+    result = CURLE_UNSUPPORTED_PROTOCOL;  /* Should not happen */
+    break;
   }
-  if(Curl_pgrsUpdate(conn))
-    result = CURLE_ABORTED_BY_CALLBACK;
+
+  switch(result) {
+  case CURLE_BAD_CONTENT_ENCODING:
+    /* Cancel dialog */
+    result = sasl->params->sendcont(conn, "*");
+    newstate = SASL_CANCEL;
+    break;
+  case CURLE_OK:
+    if(resp)
+      result = sasl->params->sendcont(conn, resp);
+    break;
+  default:
+    newstate = SASL_STOP;    /* Stop on error */
+    *progress = SASL_DONE;
+    break;
+  }
+
+  free(resp);
+
+  state(sasl, conn, newstate);
 
   return result;
 }
-
-#endif

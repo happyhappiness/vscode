@@ -1,1 +1,1 @@
-fprintf
+snprintf(resolved_path, maxlen, "%s", path);

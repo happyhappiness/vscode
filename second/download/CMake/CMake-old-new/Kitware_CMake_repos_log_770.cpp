@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Malformed Solaris ACL attribute (invalid digit)");
+archive_set_error(&a->archive, ENOMEM,
+		    "Lzma library error: Out of memory");

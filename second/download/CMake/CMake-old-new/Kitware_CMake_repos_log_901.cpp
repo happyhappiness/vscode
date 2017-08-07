@@ -1,2 +1,2 @@
-fprintf(out, " ext 0x%x,",
-	    toi(isodirrec + DR_extent_offset, DR_extent_size));
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Xar not supported on this platform");

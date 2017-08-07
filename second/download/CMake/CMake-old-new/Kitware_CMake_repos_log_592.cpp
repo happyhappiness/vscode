@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, 0,
-					    "Cannot remove intervening "
-					    "symlink %ls", a->name);
+fprintf(stderr, "Can't load kernel32.dll?!\n");

@@ -1,1 +1,1 @@
-ringp = aprintf("%s@%s", service, host);
+fprintf(stdout, "Output after crash on stdout from crash test.\n");

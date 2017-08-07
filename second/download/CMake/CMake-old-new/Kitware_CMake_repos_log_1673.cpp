@@ -1,1 +1,2 @@
-extern int snprintf(char*, size_t, const char*, ...);
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ar data");

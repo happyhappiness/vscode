@@ -1,1 +1,2 @@
-fprintf(stderr, "\n ** Unrecognized sequence number: ");
+archive_set_error(&a->archive, errno,
+			    "Failed to get next ACL entry");

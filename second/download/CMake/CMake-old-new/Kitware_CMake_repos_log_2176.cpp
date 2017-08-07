@@ -1,1 +1,1 @@
-printf("Unhandled event.\n")
+printf("Cannot find file: %s\n", filename);

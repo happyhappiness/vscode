@@ -1,0 +1,4 @@
+{
+    fprintf(stderr, "FILE_DEF_DEBUG should be defined in C\n");
+    result = 0;
+  }

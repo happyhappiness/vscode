@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-	    "lzma compression not supported on this platform");
+archive_set_error(&a->archive,
+			    ENOMEM, "Out of memory");

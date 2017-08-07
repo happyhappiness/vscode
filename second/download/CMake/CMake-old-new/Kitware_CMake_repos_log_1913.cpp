@@ -1,1 +1,1 @@
-spn = aprintf("%s/%s", service, host);
+printf("RegularExpression::compile() : *+ operand could be empty.\n");

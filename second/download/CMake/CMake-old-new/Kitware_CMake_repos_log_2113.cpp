@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", argv[i])
+sprintf(buffer, "Shold be empty (source file name): [%s]", cstr);

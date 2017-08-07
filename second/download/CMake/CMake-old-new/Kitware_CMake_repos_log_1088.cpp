@@ -1,2 +1,3 @@
-archive_set_error(f->archive, ENOMEM,
-		    "Can't allocate data for b64encode buffer");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);

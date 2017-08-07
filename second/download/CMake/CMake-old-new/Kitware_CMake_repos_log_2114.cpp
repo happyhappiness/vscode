@@ -1,1 +1,1 @@
-fprintf(stdout, "CMAKE_BUILD_TYPE is %s\n", CMAKE_BUILD_TYPE)
+sprintf(buffer, "Should be empty (source file full path): [%s]", cstr);

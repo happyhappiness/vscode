@@ -1,1 +1,0 @@
-vfprintf(stream, format, var_args)

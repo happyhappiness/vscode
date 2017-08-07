@@ -1,1 +1,1 @@
-len = curl_msnprintf(fptr, left, "%ld", width);
+printf("%4" PRIu32, rc_prices[i]);

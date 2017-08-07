@@ -1,1 +1,2 @@
-DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+fprintf(stderr, "ignoring non-SCM_RIGHTS ancillary data: %d\n",
+          cmsg->cmsg_type);

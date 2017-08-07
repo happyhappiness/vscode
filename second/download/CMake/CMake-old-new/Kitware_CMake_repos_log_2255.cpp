@@ -1,1 +1,1 @@
-fprintf(fout, "Error opening \"%s\" for reading.\n", name)
+fprintf(stderr, "OLD_DEF not defined in C\n");

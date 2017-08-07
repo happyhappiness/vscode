@@ -1,1 +1,1 @@
-snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column)
+printf("expected [%s], got [%s]\n", p->out, out.c_str());

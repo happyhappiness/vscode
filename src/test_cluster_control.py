@@ -18,7 +18,7 @@ import my_constant
 @ involve compute similarity between cond_lists, unordered common element
 """
 def computeSimForContext(context_list_a, context_list_b):
-    return block.compute_similarity(context_list_a, context_list_b)
+    return myUtil.compute_similarity(context_list_a, context_list_b)
 """
 @param vec, left, right, similarity, id
 @return new cluster
@@ -130,6 +130,7 @@ def cluster_record(context_lists, cluster_similarity = 0.95):
         del myclusters[mycluster2]
         del myclusters[mycluster1]
         myclusters.append(new_mycluster)
+        print len(myclusters)
 
     # compute cluster_lists based on clusters and cluster number
     cluster_lists = [0 for i in range(len(context_lists))]
@@ -153,9 +154,6 @@ def cluster_record(context_lists, cluster_similarity = 0.95):
 """
 def cluster():
 
-    # initialize func_similarity_dict
-    func_similarity_dic = myUtil.getFunctionSimilarityDic(True)
-
     # initialize read file
     analyze_control = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'rb')
     records = csv.reader(analyze_control)
@@ -168,11 +166,11 @@ def cluster():
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
-        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_VECTOR])
+        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_BLOCK_FEATURE])
         context_lists.append(cdg_list)
 
     # cluster log statement based on cdg_list and ddg_list
-    cluster_lists = cluster_record(context_lists, 0.9999999)
+    cluster_lists = cluster_record(context_lists, 0.95)
     # record cluster index of each log statement
     analyze_control.close()
     analyze_control = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'rb')

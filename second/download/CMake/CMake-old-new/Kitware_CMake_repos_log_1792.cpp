@@ -1,2 +1,2 @@
-aprintf("Transport: %s\r\n",
-                data->set.str[STRING_RTSP_TRANSPORT])
+fprintf(stderr, "Error converting %s \"%s\" to real path: %s\n", desc,
+                temp_path, msgbuf);

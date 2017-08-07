@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
+printf("%3d is an invalid test number.\n", testNum);

@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-				    "No memory for Pathname");
+			    "Can't allocate memory for Linkname");

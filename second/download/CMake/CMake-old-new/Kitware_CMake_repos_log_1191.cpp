@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "Seek error");
+archive_set_error(&a->archive, errno, "statfs failed");

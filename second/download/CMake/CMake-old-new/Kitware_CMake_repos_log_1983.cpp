@@ -1,1 +1,1 @@
-snprintf(output, outlen, "%s:", label);
+fprintf(stdout, "LoadString failed\n");

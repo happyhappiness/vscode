@@ -1,1 +1,0 @@
-*curl_mvaprintf(const char *format, va_list ap_save)

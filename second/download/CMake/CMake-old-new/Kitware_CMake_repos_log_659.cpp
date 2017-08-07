@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-				    "Can't CreateFileW");
+			    "Couldn't create temporary file");

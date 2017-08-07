@@ -1,3 +1,2 @@
-archive_set_error(&(a->archive), errno,
-			    "Can't read temporary file(%jd)",
-			    (intmax_t)rs);
+archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for xz stream");

@@ -1,3 +1,1 @@
-snprintf(ptr, left, " librtmp/%d.%d%s",
-             RTMP_LIB_VERSION >> 16, (RTMP_LIB_VERSION >> 8) & 0xff,
-             suff);
+fprintf(stdout, "Output before crash on stdout from crash test.\n");

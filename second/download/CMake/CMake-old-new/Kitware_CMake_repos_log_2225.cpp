@@ -1,1 +1,1 @@
-printf("Cannot find file: %s\n", filename)
+fprintf(fp, "int wrapped_help() { return 5; }\n");

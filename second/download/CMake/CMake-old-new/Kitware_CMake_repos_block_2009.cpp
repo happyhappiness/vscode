@@ -1,0 +1,3 @@
+{
+        fprintf(stderr, "%s:0:  message  [category/category] [0]\n", argv[i]);
+      }

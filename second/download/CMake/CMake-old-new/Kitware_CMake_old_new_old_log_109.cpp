@@ -1,0 +1,1 @@
+yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner);

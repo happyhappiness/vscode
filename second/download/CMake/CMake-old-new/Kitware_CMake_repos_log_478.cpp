@@ -1,3 +1,2 @@
-archive_set_error(a, ENOMEM,
-			    "Could not allocate memory for "
-			    "a string conversion object");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Invalid symbol");

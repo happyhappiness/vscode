@@ -1,1 +1,1 @@
-s->range = aprintf("%" CURL_FORMAT_CURL_OFF_TU "-", s->resume_from);
+printf("%3u", (unsigned int)(fastpos[i]));

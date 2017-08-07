@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-					    "Can't fstat");
+		    "Failed to read a restoring file");

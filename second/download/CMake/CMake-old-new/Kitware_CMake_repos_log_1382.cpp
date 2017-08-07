@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-		    "File is too large for this format.");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Gname");

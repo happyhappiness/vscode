@@ -1,1 +1,1 @@
-fprintf(stderr, "Unable to open %s for writing!\n", argv[1])
+fprintf(stderr, "TARGET_DEF_DEBUG should be defined in C\n");

@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
+vfprintf(stream, format, var_args);

@@ -1,1 +1,1 @@
-fprintf(fout, "%g,\n", result)
+printf("Problem with libcxx1\n");

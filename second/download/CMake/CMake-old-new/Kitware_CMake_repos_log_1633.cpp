@@ -1,2 +1,3 @@
-printf("{%u,%u,%d}", state.lencode[low].op, state.lencode[low].bits,
-               state.lencode[low].val);
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid CFDATA");

@@ -1,1 +1,2 @@
-archive_set_error(a, EINVAL, "No such format '%s'", filename);
+archive_set_error(&a->archive, -1,
+			    "Damaged 7-Zip archive");

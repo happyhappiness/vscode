@@ -1,1 +1,1 @@
-fprintf(fout, "static const char* %s_string = \"%s\";\n", argv[2], foo())
+printf("This is T4. This one should work.\n");

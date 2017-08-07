@@ -1,1 +1,0 @@
-fprintf(stderr, "Output on stderr after recursive test.\n")

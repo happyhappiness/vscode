@@ -1,2 +1,1 @@
-archive_set_error(f->archive, ENOMEM,
-		    "Can't allocate data for b64encode filter");
+archive_set_error(&(a->archive), EINVAL, "entry is NULL");

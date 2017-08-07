@@ -1,1 +1,1 @@
-char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );

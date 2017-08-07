@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unknown ACL type: %d", type);
+archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
+		    "Decompression internal error");

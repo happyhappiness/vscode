@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "mode option requires octal digits");
+archive_set_error(&a->archive, ENOMEM,
+                        "Can't allocate memory for Pathname");

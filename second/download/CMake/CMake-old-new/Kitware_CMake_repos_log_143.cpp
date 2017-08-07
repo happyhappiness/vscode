@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Couldn't find out 7-Zip header");
+oauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);

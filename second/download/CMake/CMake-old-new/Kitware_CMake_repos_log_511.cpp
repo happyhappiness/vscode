@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Can't remove already-existing dir");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");

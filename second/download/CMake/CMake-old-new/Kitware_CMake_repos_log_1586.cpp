@@ -1,1 +1,1 @@
-printf("\n};\n");
+err = set_conversion_failed_error(a, sconv, "Uname");

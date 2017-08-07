@@ -1,2 +1,1 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for uudecode");
+len = snprintf(ptr, left, " libpsl/%s", psl_get_version());

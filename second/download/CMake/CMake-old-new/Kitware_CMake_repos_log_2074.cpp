@@ -1,1 +1,1 @@
-printf("hello assembler world, %d arguments  given\n", argc);
+printf("Failed to open module3\n%s\n", dlerror());

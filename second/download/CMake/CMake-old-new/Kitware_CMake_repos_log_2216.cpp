@@ -1,1 +1,1 @@
-printf("arg1 and arg2 present and accounted for!\n");
+fprintf(stderr, "Unable to close %s!\n", argv[1]);

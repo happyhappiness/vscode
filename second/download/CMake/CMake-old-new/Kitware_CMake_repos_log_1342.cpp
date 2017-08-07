@@ -1,3 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "It's a bug in liblzma");
+fprintf(out, " ext 0x%x,",
+	    toi(isodirrec + DR_extent_offset, DR_extent_size));

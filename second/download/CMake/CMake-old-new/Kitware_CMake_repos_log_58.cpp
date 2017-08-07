@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENAMETOOLONG,
-			    "Pathname too long");
+auth = aprintf("%s", data->set.str[STRING_MAIL_AUTH]);

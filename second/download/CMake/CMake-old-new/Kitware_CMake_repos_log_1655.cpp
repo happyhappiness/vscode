@@ -1,2 +1,2 @@
-fprintf(stderr, 
-                    "\trestrictions on size of recovered file: 512 MB\n");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");

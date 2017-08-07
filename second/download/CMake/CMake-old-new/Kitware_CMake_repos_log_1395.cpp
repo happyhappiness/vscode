@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "pax: hdrcharset option needs a character-set name");
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external grzip program for grzip decompression");

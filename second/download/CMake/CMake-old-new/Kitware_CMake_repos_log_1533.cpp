@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-                      "Unable to allocate memory for node data.");
+				    "Can't allocate memory for Linkname");

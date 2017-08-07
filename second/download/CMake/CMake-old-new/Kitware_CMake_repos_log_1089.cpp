@@ -1,2 +1,2 @@
-archive_string_sprintf(&state->encoded_buff, "begin-base64 %o %s\n",
-	    state->mode, state->name.s);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't record entry in tar file without pathname");

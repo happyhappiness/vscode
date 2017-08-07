@@ -1,3 +1,2 @@
-fprintf(stderr, 
-                    "\tsizeof(MaybeUInt64) is not 4 or 8 -- "
-                    "configuration error.\n");
+archive_set_error(&a->archive, ENAMETOOLONG,
+		    "Pathname too long");

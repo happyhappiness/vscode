@@ -1,2 +1,4 @@
-fsobj_error(a_eno, a_estr, 0,
-				    "Cannot extract through symlink %s", path);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "lzma compression failed:"
+			    " lzma_code() call returned status %d",
+			    ret);

@@ -1,0 +1,5 @@
+{
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate 7zip data");
+		return (ARCHIVE_FATAL);
+	}

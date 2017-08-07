@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " zlib/%s", zlibVersion());
+fprintf(stdout, "Output on stdout from test returning 0.\n");

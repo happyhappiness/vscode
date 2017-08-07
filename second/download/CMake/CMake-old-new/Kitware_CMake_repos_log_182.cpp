@@ -1,3 +1,3 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to clean up zlib decompressor");
+archive_string_sprintf(&mtree->buf,
+				    "# %s/%s\n",
+				    me->parentdir.s, me->basename.s);

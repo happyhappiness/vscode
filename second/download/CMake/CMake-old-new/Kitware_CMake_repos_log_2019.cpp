@@ -1,2 +1,1 @@
-int curl_msnprintf(char *buffer, size_t maxlength,
-                               const char *format, ...);
+fprintf(stderr, "unexpected argument: '%s'\n", argv[i]);

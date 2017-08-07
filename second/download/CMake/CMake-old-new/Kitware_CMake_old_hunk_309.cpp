@@ -1,51 +1,31 @@
-}
-
-/** Set the current line number.
- * @param line_number The line number to set.
- * @param yyscanner The scanner object.
  */
-void cmFortran_yyset_lineno (int  line_number , yyscan_t yyscanner)
+YY_BUFFER_STATE cmFortran_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
 {
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+        YY_BUFFER_STATE b;
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           YY_FATAL_ERROR( "cmFortran_yyset_lineno called with no buffer" );
+        if ( size < 2 ||
+             base[size-2] != YY_END_OF_BUFFER_CHAR ||
+             base[size-1] != YY_END_OF_BUFFER_CHAR )
+                /* They forgot to leave room for the EOB's. */
+                return 0;
 
-    yylineno = line_number;
+        b = (YY_BUFFER_STATE) cmFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+        if ( ! b )
+                YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_buffer()" );
+
+        b->yy_buf_size = size - 2;      /* "- 2" to take care of EOB's */
+        b->yy_buf_pos = b->yy_ch_buf = base;
+        b->yy_is_our_buffer = 0;
+        b->yy_input_file = 0;
+        b->yy_n_chars = b->yy_buf_size;
+        b->yy_is_interactive = 0;
+        b->yy_at_bol = 1;
+        b->yy_fill_buffer = 0;
+        b->yy_buffer_status = YY_BUFFER_NEW;
+
+        cmFortran_yy_switch_to_buffer(b ,yyscanner );
+
+        return b;
 }
 
-/** Set the current column.
- * @param column_no The column number to set.
- * @param yyscanner The scanner object.
- */
-void cmFortran_yyset_column (int  column_no , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" );
-
-    yycolumn = column_no;
-}
-
-/** Set the input stream. This does not discard the current
- * input buffer.
- * @param in_str A readable stream.
- * @param yyscanner The scanner object.
- * @see cmFortran_yy_switch_to_buffer
- */
-void cmFortran_yyset_in (FILE *  in_str , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-    yyin = in_str ;
-}
-
-void cmFortran_yyset_out (FILE *  out_str , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-    yyout = out_str ;
-}
-
-int cmFortran_yyget_debug  (yyscan_t yyscanner)
+/** Setup the input buffer state to scan a string. The next call to cmFortran_yylex() will

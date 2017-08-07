@@ -1,0 +1,1 @@
+fprintf(fout, "%04X ", i);

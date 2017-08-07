@@ -1,2 +1,2 @@
-archive_string_sprintf(info, "%c%s=%s",
-		    prefix, key, s);
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data");

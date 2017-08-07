@@ -1,1 +1,1 @@
-printf("%3d is an invalid test number.\n", testNum)
+fprintf(fout, "0};\n");

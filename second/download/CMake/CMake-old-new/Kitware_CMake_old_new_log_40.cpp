@@ -1,1 +1,0 @@
-sprintf(buf, "%d", v)

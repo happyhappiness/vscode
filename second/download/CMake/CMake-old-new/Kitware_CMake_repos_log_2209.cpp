@@ -1,2 +1,1 @@
-printf("foo: %d bar: %d foobar: %d barbar: %d baz: %d\n", foo(), bar(),
-         foobar(), barbar(), baz());
+fprintf(stdout, "fakefluid is creating file \"%s\"\n", av[i + 1]);

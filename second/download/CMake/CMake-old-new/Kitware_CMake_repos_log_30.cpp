@@ -1,5 +1,1 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Linkname cannot be converted "
-			    "from %s to current locale.",
-			    archive_string_conversion_charset_name(lha->sconv));
+printf("can't open [%s]\n",fn_r);

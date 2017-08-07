@@ -1,2 +1,4 @@
-fprintf(out, " nl %d:",
-	    toi(isodirrec + DR_name_len_offset, DR_name_len_size));
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Illegal value `%s'",
+			    value);

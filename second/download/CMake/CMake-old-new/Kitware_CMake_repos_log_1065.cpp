@@ -1,3 +1,1 @@
-archive_set_error(
-			&a->archive, EINVAL,
-			"Bad record time");
+archive_set_error(&(a->archive), EINVAL, "entry is NULL");

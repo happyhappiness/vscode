@@ -1,2 +1,2 @@
-snprintf(buffer, sizeof(buffer), "[%s %s %s]", w, t,
-               conn->host.dispname);
+snprintf(absolute_path, sizeof(absolute_path), "%s%s", readlink_cwd,
+             filename + str_offset);

@@ -1,1 +1,1 @@
-snprintf(buf, buf_size, "%s%s", ip, scope);
+printf("RegularExpression::compile(): Unmatched parentheses.\n");

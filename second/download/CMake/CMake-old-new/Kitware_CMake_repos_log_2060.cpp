@@ -1,1 +1,1 @@
-_snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column)
+printf("Failed: %s is an invalid test name.\n", av[1]);

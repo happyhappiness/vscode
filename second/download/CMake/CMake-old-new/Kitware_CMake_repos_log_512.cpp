@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Can't stat existing object");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");

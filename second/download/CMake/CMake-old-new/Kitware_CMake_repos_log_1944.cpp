@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
+printf("Failed: %s is an invalid test name.\n", av[1]);

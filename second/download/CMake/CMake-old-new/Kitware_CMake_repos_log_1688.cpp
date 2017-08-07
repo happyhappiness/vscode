@@ -1,1 +1,2 @@
-snprintf(absolute_path, sizeof(absolute_path), "%s", filename);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "pax: hdrcharset option needs a character-set name");

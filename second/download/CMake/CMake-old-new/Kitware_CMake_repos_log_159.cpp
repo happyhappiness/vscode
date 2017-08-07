@@ -1,3 +1,4 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Unexpected codec ID: %lX", zip->codec2);
+fprintf(stderr, "Entropy: %s --> 0x%0*lx (%lu bytes)\n",
+        label,
+        (int)sizeof(entropy) * 2, entropy,
+        (unsigned long)sizeof(entropy));

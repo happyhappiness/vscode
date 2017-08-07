@@ -1,1 +1,1 @@
-fprintf(stderr, "INTERNAL CONFUSION\n");
+sprintf(cmd, "/aha/fs/modDir.monFactory");

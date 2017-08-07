@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-		    	    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unknown symlink-name");
+fprintf(stderr,"Loading of %s failed.  Giving up.\n", BZ2_LIBNAME);

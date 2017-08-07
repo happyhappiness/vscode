@@ -1,1 +1,1 @@
-printf("create %s\n", av[1])
+printf("failed\n");

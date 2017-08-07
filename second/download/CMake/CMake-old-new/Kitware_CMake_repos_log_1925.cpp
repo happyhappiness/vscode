@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
+printf("Available tests:\n");

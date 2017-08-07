@@ -1,0 +1,1 @@
+spn = aprintf("%s/%s@%s", service, host, realm)

@@ -1,3 +1,1 @@
-*allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy ? "Proxy-" : "",
-                              base64);
+fprintf(stdout, "Output on stdout from grandchild after sleep.\n");

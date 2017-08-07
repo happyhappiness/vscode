@@ -1,1 +1,1 @@
-int curl_mvfprintf(FILE *fd, const char *format, va_list args);
+printf("hello exec:%i", own_auto_export_function(41));

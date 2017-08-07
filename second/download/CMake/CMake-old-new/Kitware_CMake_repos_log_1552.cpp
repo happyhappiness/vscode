@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Lzma library error: Cannot allocate memory");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate tar data");

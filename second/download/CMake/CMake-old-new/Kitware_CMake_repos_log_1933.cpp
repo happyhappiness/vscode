@@ -1,1 +1,1 @@
-fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

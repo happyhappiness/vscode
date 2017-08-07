@@ -1,4 +1,3 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Can't translate linkname '%s' to %s",
-		    p, archive_string_conversion_charset_name(sconv));
+fprintf(stderr, "handle %p, state %s, %d sockets\n",
+              (void *)data,
+              statename[data->mstate], data->numsocks);

@@ -1,1 +1,1 @@
-return curl_maprintf("%s%lx", (val < 0 || val >= 10)? "0x": "", val);
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_scan_buffer()" );

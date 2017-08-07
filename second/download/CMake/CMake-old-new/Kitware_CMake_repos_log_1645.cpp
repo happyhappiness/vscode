@@ -1,1 +1,2 @@
-fprintf(stderr, "nIn/nOut mismatch %d %d\n", nIn, nOut );
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Likname");

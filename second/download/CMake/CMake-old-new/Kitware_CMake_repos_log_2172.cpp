@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name is not \"relwithdebinfo\"\n");
+fprintf(f, "int generated_by_testExe3() { return 0; }\n");

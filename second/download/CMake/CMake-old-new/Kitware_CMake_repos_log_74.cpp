@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Numeric group ID too large");
+DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));

@@ -1,1 +1,1 @@
-char *certpath = aprintf("sql:%s", cert_dir);
+fprintf(stderr, "1 warning generated.\n");

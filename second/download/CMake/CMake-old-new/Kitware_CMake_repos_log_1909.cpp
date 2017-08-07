@@ -1,0 +1,1 @@
+printf("RegularExpression::compile(): Too many parentheses.\n");

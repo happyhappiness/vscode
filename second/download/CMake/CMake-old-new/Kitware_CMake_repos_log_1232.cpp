@@ -1,4 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "GZip compression failed:"
-			    " deflate() call returned status %d",
-			    ret);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file body");

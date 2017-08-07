@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated CAB file data");
+spn = aprintf("%s/%s@%s", service, host, realm);

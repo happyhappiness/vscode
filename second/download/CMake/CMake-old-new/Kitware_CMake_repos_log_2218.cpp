@@ -1,1 +1,1 @@
-printf("hello world\n");
+fprintf(stderr, "Usage: %s <file>\n", argv[0]);
