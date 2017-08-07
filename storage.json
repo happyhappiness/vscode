@@ -15,6 +15,11 @@
             "label": "Ctrl+Shift+T",
             "isNative": true
         },
+        "workbench.action.openRecent": {
+            "id": "workbench.action.openRecent",
+            "label": "Ctrl+R",
+            "isNative": true
+        },
         "workbench.action.files.save": {
             "id": "workbench.action.files.save",
             "label": "Ctrl+S",
@@ -52,7 +57,7 @@
         },
         "workbench.action.closeWindow": {
             "id": "workbench.action.closeWindow",
-            "label": "Ctrl+W",
+            "label": "Ctrl+Shift+W",
             "isNative": true
         },
         "workbench.action.closeFolder": {
@@ -424,30 +429,44 @@
             "id": "editor.debug.action.toggleColumnBreakpoint",
             "label": "Shift+F9",
             "isNative": true
+        },
+        "workbench.action.tasks.build": {
+            "id": "workbench.action.tasks.build",
+            "label": "Ctrl+Shift+B",
+            "isNative": true
         }
     },
-    "telemetry.machineId": "b3b4169f91887f807d0cf696e3e1af58faeeafce8e49c668623e8524a16a8675",
+    "telemetry.machineId": "ba712e8fd4d54d93a78e4d76608bfcd30b8d5e06c4fa3ddf5854d62c53ad3ce8",
     "theme": "vs-dark vscode-theme-defaults-themes-dark_plus-json",
     "themeBackground": "#1e1e1e",
     "pickerWorkingDir": "/usr/info/code/cpp/LogMonitor",
     "openedPathsList": {
         "files": [],
         "folders": [
-            "/usr/info/code/cpp/LogMonitor/LogMonitor",
-            "/usr/info/code/cpp/LogMonitor"
+            "/usr/info/code/cpp/LogMonitor/LogMonitor"
         ]
     },
     "windowsState": {
+        "openedWindows": [],
         "openedFolders": [],
         "lastActiveWindow": {
             "workspacePath": "/usr/info/code/cpp/LogMonitor/LogMonitor",
             "uiState": {
                 "mode": 0,
+<<<<<<< HEAD
+                "x": 73,
+                "y": 27,
+                "width": 1527,
+                "height": 873
+            },
+            "backupPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/Backups/1b5a67b17cf89df088b7899ae7f18022"
+=======
                 "x": 1280,
                 "y": 26,
                 "width": 1920,
                 "height": 1028
             }
+>>>>>>> 1148a66bc02800433d2da78c596d9f9b6d26d980
         }
     }
 }
