@@ -151,6 +151,7 @@ def cluster():
     cluster_control_writer.writerow(my_constant.STATISTICS_OLD_NEW_TITLE)
 
     feature_lists = []
+    old_log_types = []
     gumtree = Gumtree()
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     for record in islice(records, 1, None):  # remove the table title
@@ -158,6 +159,7 @@ def cluster():
         old_log_file = record[my_constant.ANALYZE_OLD_NEW_OLD_LOG_FILE]
         gumtree.set_file(old_log_file)
         old_log_feature = gumtree.get_block_feature()
+        old_log_types.append(gumtree.get_block_type())
         new_log_file = record[my_constant.ANALYZE_OLD_NEW_NEW_LOG_FILE]
         gumtree.set_file(new_log_file)
         new_log_feature = gumtree.get_block_feature()
@@ -172,7 +174,7 @@ def cluster():
     records = csv.reader(analyze_control)
     index = 0
     for record in islice(records, 1, None):
-        record.append(cluster_lists[index])
+        record = record + [old_log_types[index], cluster_lists[index]]
         cluster_control_writer.writerow(record)
         index += 1
 

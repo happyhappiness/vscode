@@ -117,6 +117,13 @@ class Gumtree:
         return vector
 
     """
+    @ param
+    @ return
+    @ involve get type vector of block
+    """
+    def get_block_type(self):
+        return Gumtree.gumtree.getBlockType()
+    """
     @ param old and new log file
     @ return flag about match or not
     @ involve just update action
