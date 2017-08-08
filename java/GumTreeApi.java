@@ -90,16 +90,18 @@ public class GumTreeApi {
 		
 
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_654.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_477.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_654.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_477.cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(oldFile, newFile);
-		 g.setOldLoc(3);
-		 g.addLogNode(0);
-		 g.addLogNode(3);
+		 g.setOldLoc(4);
+		 System.out.println(g.getOldLog());
+		 System.out.println(g.getNewLog());
+//		 g.addLogNode(0);
+//		 g.addLogNode(3);
 //		 g.getDeltaBlockfeature();
-		 System.out.println(g.getActionType());
+//		 System.out.println(g.getActionType());
 		
 		
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
@@ -137,11 +139,6 @@ public class GumTreeApi {
 		// commented line
 		if (oldLogNode == null) {
 			System.out.printf("line: %d in file: %s no node found\n", this.oldLoc, this.oldFile);
-			return false;
-		}
-		else if(this.isComment(this.oldLogNode, this.oldTreeContext, this.oldFile))
-		{
-			System.out.printf("line: %d in file: %s found to be comment\n", this.oldLoc, this.oldFile);
 			return false;
 		}
 		
@@ -201,7 +198,7 @@ public class GumTreeApi {
 			isIdentified = false;
 			if(isFeature == 0 || isLog == 0 || isLogs == 0)
 			{
-//				action outside old file
+//				
 				if(!isChildrenOf(tempNode, this.oldTree))
 				{
 					continue;
@@ -467,7 +464,11 @@ public class GumTreeApi {
 			if(!isActionOfComment(action))
 			{
 //				System.out.println(action.getName());
-				this.editedNodes.add(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode());
+				ITree tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
+				if(isChildrenOf(tempNode, this.oldTree))
+				{
+					this.editedNodes.add(tempNode);
+				}
 //				printNode(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode(), this.oldTreeContext, this.oldFile);
 			}
 		}
@@ -580,7 +581,6 @@ public class GumTreeApi {
 
 		while (allNodesIter.hasNext()) {
 			tempNode = allNodesIter.next();
-//			printNode(tempNode, treeContext , filename);
 			// the node with most children in given line [!block fault!]
 			if (getLineNumber(tempNode, filename, true) == line && 
 //					!this.isBlock(tempNode, treeContext, filename)){
@@ -721,7 +721,11 @@ public class GumTreeApi {
 	private boolean isStatement(ITree node, TreeContext treeContext, String filename)
 	{
 		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
-		return getType(node, treeContext).endsWith(statement);
+		String type = getType(node, treeContext);
+		if(type.endsWith(statement) || type.equals("expr"))
+			return true;
+		else
+			return false;
 	}
 	
 	private boolean isComment(ITree node, TreeContext treeContext, String filename)
