@@ -1,6 +1,6 @@
 {
-		/* An invalid code is a fatal error. */
-		archive_set_error(&(self->archive->archive), -1,
-		    "Invalid compressed data");
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size");
 		return (ARCHIVE_FATAL);
 	}

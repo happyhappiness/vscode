@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed device attribute");
+fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);

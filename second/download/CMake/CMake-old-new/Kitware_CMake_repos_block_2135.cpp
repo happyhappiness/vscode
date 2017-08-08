@@ -1,4 +1,3 @@
 {
-    printf("Problem with libc1\n");
-    return 1;
-  }
+  printf("Hello again\n");
+}

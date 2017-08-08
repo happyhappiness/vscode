@@ -1,5 +1,4 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Read error skipping symlink target name");
-			return ARCHIVE_FATAL;
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
 		}

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Empty passphrase is unacceptable");
+archive_set_error(&a->archive, ENOMEM, "Can't allocate ar data");

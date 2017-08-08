@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from test returning 0.\n");
+vfprintf(stream, format, var_args);

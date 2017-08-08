@@ -1,2 +1,1 @@
-fprintf(stderr, "Failed to find string '%s' in '%s'\n", substring_success,
-          str);
+fprintf(stdout, "CTEST_FULL_OUTPUT (Avoid ctest truncation of output)\n");

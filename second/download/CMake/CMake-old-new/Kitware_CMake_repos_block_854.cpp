@@ -1,5 +1,5 @@
 {
-					archive_set_error(&a->archive, errno,
-					    "Can't lstat %s", path);
-					return (ARCHIVE_FAILED);
-				}
+		archive_set_error(&(a->archive),
+		    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+		return (ARCHIVE_FATAL);
+	}

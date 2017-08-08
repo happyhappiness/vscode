@@ -1,1 +1,1 @@
-tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+("%s:%s:%s";

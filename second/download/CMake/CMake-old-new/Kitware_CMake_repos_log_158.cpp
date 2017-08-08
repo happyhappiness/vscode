@@ -1,2 +1,1 @@
-DEBUGF(fprintf(stderr,
-                     "Error: polarsslthreadlock_unlock_function failed\n"));
+char *slot_name = aprintf("PEM Token #%d", slot_id);

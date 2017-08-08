@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " libpsl/%s", psl_get_version());
+len = snprintf(ptr, left, " c-ares/%s", ares_version(NULL));

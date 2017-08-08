@@ -1,2 +1,3 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Current client reader does not support seeking a device");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);

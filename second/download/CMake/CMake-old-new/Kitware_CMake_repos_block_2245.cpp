@@ -1,4 +1,9 @@
 {
-    fprintf(stderr, "DIRECTORY_DEF_RELEASE should not be defined in C\n");
-    result = 0;
-  }
+#ifndef TEST_C_FLAGS
+  printf("TEST_C_FLAGS failed\n");
+  return 0;
+#else
+  printf("Passed: TEST_C_FLAGS passed\n");
+#endif
+  return 1;
+}

@@ -1,5 +1,8 @@
 {
-#endif
-  printf("hello assembler world, %d arguments  given\n", argc);
-  return 0;
-}
+        res += " ";
+        res += osvi.szCSDVersion;
+        res += " (Build ";
+        sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+        res += buffer;
+        res += ")";
+      }

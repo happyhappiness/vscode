@@ -1,7 +1,4 @@
 {
-			free(strm);
-			lastrm->real_stream = NULL;
-			archive_set_error(a, ENOMEM,
-			    "Cannot allocate memory");
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(_a, ENOMEM, "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}

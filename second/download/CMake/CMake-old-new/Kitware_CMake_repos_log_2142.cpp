@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", argv[i]);
+printf("example1\n");

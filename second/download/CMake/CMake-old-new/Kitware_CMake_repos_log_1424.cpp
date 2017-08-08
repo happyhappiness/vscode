@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Reading file truncated");
+archive_set_error(&a->archive, ERANGE,
+			    "Minor device number too large");

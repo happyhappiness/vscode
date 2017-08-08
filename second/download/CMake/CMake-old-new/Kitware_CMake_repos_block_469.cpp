@@ -1,23 +1,43 @@
 {
-  case OS_MSDOS:
-  case OS_OS2:
-  case OS_WIN32:
-    rar->mode = archive_le32dec(file_header.file_attr);
-    if (rar->mode & FILE_ATTRIBUTE_DIRECTORY)
-      rar->mode = AE_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
-    else
-      rar->mode = AE_IFREG;
-    rar->mode |= S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    break;
+  const void *h;
+  const char *p, *q;
+  size_t skip, total;
+  ssize_t bytes, window;
 
-  case OS_UNIX:
-  case OS_MAC_OS:
-  case OS_BEOS:
-    rar->mode = archive_le32dec(file_header.file_attr);
-    break;
+  total = 0;
+  window = 4096;
+  while (total + window <= (1024 * 128)) {
+    h = __archive_read_ahead(a, window, &bytes);
+    if (h == NULL) {
+      /* Remaining bytes are less than window. */
+      window >>= 1;
+      if (window < 0x40)
+      	goto fatal;
+      continue;
+    }
+    if (bytes < 0x40)
+      goto fatal;
+    p = h;
+    q = p + bytes;
 
-  default:
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Unknown file attributes from RAR file's host OS");
-    return (ARCHIVE_FATAL);
+    /*
+     * Scan ahead until we find something that looks
+     * like the RAR header.
+     */
+    while (p + 7 < q) {
+      if (memcmp(p, RAR_SIGNATURE, 7) == 0) {
+      	skip = p - (const char *)h;
+      	__archive_read_consume(a, skip);
+      	return (ARCHIVE_OK);
+      }
+      p += 0x10;
+    }
+    skip = p - (const char *)h;
+    __archive_read_consume(a, skip);
+	total += skip;
   }
+fatal:
+  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+      "Couldn't find out RAR header");
+  return (ARCHIVE_FATAL);
+}

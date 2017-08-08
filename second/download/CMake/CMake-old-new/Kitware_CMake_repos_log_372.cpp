@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, ENOMEM, "Can't extract");
+archive_set_error(&a->archive, errno,
+		    "Failed to read metadata(xattr)");

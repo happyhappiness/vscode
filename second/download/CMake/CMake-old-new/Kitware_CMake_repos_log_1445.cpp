@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-				    "Can't GetFileInformationByHandle");
+archive_set_error(a, errno, "Error reading fd %d",
+			    mine->fd);

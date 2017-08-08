@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, EINVAL, "Damaged tar archive");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate lha data");

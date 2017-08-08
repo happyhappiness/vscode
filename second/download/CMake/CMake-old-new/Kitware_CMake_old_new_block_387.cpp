@@ -1,4 +1,4 @@
 {
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
-            }
+    fprintf(stderr, "No current working directory\n");
+    abort();
+    }

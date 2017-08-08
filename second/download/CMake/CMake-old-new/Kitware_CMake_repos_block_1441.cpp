@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, EINVAL,
-		    "Can't get a wide character version of the path");
+		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Lzip: Member size error");
 		return (ARCHIVE_FAILED);
 	}

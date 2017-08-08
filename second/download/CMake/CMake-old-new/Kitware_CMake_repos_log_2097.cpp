@@ -1,1 +1,1 @@
-printf("Hello from subdirectory\n");
+printf(" (%s) ", c);

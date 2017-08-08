@@ -1,4 +1,3 @@
 {
-    fprintf(stderr, "Usage: %s <file>\n", argv[0]);
-    return 1;
+    fprintf(stderr, "Could not save png to '%s'\n", filename);
   }

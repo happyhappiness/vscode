@@ -1,1 +1,3 @@
-yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner)
+{
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
+    }

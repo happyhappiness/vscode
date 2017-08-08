@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Write error");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate directory traversal data");

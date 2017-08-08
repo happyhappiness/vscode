@@ -1,5 +1,6 @@
 {
-		archive_set_error(&a->archive, ERANGE,
-		    "Numeric group ID too large");
-		ret = ARCHIVE_FAILED;
-	}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid CFDATA");
+			return (ARCHIVE_FATAL);
+		}

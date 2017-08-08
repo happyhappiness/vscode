@@ -1,1 +1,1 @@
-printf("%s\n", regen_string);
+printf("Neither does this.\n");

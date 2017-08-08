@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Lzma library error: Out of memory");
+archive_set_error(a, errno, "Error seeking in '%s'",
+		    mine->filename.m);

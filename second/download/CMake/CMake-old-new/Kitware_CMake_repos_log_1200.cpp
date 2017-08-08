@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Too-small extra data: Need at least 4 bytes, but only found %d bytes", (int)extra_length);
+archive_set_error(&a->archive, t->tree_errno,
+			    "%s: Unable to continue traversing directory tree",
+			    tree_current_path(t));

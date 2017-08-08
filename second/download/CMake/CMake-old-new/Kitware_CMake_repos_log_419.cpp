@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "Can't allocate memory");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library");

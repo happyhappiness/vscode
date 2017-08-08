@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENAMETOOLONG,
-			    "Link contents too long");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize LZX decompression.");

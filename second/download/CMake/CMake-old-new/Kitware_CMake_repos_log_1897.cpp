@@ -1,1 +1,1 @@
-fprintf(stderr, "Invalid test number %d.\n", n);
+fprintf(stderr, "Output on stderr from grandchild before sleep.\n");

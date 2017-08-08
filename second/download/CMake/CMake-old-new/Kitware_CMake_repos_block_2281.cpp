@@ -1,6 +1,5 @@
 {
-    fprintf(stdout, "%s Version %d.%d\n", argv[0], Tutorial_VERSION_MAJOR,
-            Tutorial_VERSION_MINOR);
-    fprintf(stdout, "Usage: %s number\n", argv[0]);
-    return 1;
+    fprintf(stderr,
+            "FILE_DEF_RELEASE and TARGET_DEF_RELEASE inconsistent in C\n");
+    result = 0;
   }

@@ -1,1 +1,1 @@
-fprintf(stderr, "Must specify output file.\n");
+fprintf(stderr, "Get definitions from a subdir did not work\n");

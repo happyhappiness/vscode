@@ -1,7 +1,6 @@
 {
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Invalid value(over 0xffff) for "
-					    "option ``%s''", key);
-					return (ARCHIVE_FATAL);
-				}
+		warning_done = 1;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Cannot restore extended attributes on this system");
+		return (ARCHIVE_WARN);
+	}

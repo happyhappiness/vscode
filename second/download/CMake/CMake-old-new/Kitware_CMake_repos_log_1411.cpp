@@ -1,2 +1,5 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Member size error");
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate uname '%s' to %s",
+		    archive_entry_uname(entry),
+		    archive_string_conversion_charset_name(sconv));

@@ -1,33 +1,110 @@
 {
-  char *utf8_spn = NULL;
-  TCHAR *tchar_spn = NULL;
+      /* BEGIN CONNECT PHASE */
+      char *host_port;
+      Curl_send_buffer *req_buffer;
 
-  (void) realm;
+      infof(data, "Establish HTTP proxy tunnel to %s:%hu\n",
+            hostname, remote_port);
 
-  /* Note: We could use DsMakeSPN() or DsClientMakeSpnForTargetServer() rather
-     than doing this ourselves but the first is only available in Windows XP
-     and Windows Server 2003 and the latter is only available in Windows 2000
-     but not Windows95/98/ME or Windows NT4.0 unless the Active Directory
-     Client Extensions are installed. As such it is far simpler for us to
-     formulate the SPN instead. */
+        /* This only happens if we've looped here due to authentication
+           reasons, and we don't really use the newly cloned URL here
+           then. Just free() it. */
+      free(data->req.newurl);
+      data->req.newurl = NULL;
 
-  /* Generate our UTF8 based SPN */
-  utf8_spn = aprintf("%s/%s", service, host);
-  if(!utf8_spn) {
-    return NULL;
-  }
+      /* initialize a dynamic send-buffer */
+      req_buffer = Curl_add_buffer_init();
 
-  /* Allocate our TCHAR based SPN */
-  tchar_spn = Curl_convert_UTF8_to_tchar(utf8_spn);
-  if(!tchar_spn) {
-    free(utf8_spn);
+      if(!req_buffer)
+        return CURLE_OUT_OF_MEMORY;
 
-    return NULL;
-  }
+      host_port = aprintf("%s:%hu", hostname, remote_port);
+      if(!host_port) {
+        Curl_add_buffer_free(req_buffer);
+        return CURLE_OUT_OF_MEMORY;
+      }
 
-  /* Release the UTF8 variant when operating with Unicode */
-  Curl_unicodefree(utf8_spn);
+      /* Setup the proxy-authorization header, if any */
+      result = Curl_http_output_auth(conn, "CONNECT", host_port, TRUE);
 
-  /* Return our newly allocated SPN */
-  return tchar_spn;
-}
+      free(host_port);
+
+      if(!result) {
+        char *host = NULL;
+        const char *proxyconn="";
+        const char *useragent="";
+        const char *http = (conn->http_proxy.proxytype == CURLPROXY_HTTP_1_0) ?
+          "1.0" : "1.1";
+        bool ipv6_ip = conn->bits.ipv6_ip;
+        char *hostheader;
+
+        /* the hostname may be different */
+        if(hostname != conn->host.name)
+          ipv6_ip = (strchr(hostname, ':') != NULL);
+        hostheader= /* host:port with IPv6 support */
+          aprintf("%s%s%s:%hu", ipv6_ip?"[":"", hostname, ipv6_ip?"]":"",
+                  remote_port);
+        if(!hostheader) {
+          Curl_add_buffer_free(req_buffer);
+          return CURLE_OUT_OF_MEMORY;
+        }
+
+        if(!Curl_checkProxyheaders(conn, "Host:")) {
+          host = aprintf("Host: %s\r\n", hostheader);
+          if(!host) {
+            free(hostheader);
+            Curl_add_buffer_free(req_buffer);
+            return CURLE_OUT_OF_MEMORY;
+          }
+        }
+        if(!Curl_checkProxyheaders(conn, "Proxy-Connection:"))
+          proxyconn = "Proxy-Connection: Keep-Alive\r\n";
+
+        if(!Curl_checkProxyheaders(conn, "User-Agent:") &&
+           data->set.str[STRING_USERAGENT])
+          useragent = conn->allocptr.uagent;
+
+        result =
+          Curl_add_bufferf(req_buffer,
+                           "CONNECT %s HTTP/%s\r\n"
+                           "%s"  /* Host: */
+                           "%s"  /* Proxy-Authorization */
+                           "%s"  /* User-Agent */
+                           "%s", /* Proxy-Connection */
+                           hostheader,
+                           http,
+                           host?host:"",
+                           conn->allocptr.proxyuserpwd?
+                           conn->allocptr.proxyuserpwd:"",
+                           useragent,
+                           proxyconn);
+
+        if(host)
+          free(host);
+        free(hostheader);
+
+        if(!result)
+          result = Curl_add_custom_headers(conn, TRUE, req_buffer);
+
+        if(!result)
+          /* CRLF terminate the request */
+          result = Curl_add_bufferf(req_buffer, "\r\n");
+
+        if(!result) {
+          /* Send the connect request to the proxy */
+          /* BLOCKING */
+          result =
+            Curl_add_buffer_send(req_buffer, conn,
+                                 &data->info.request_size, 0, sockindex);
+        }
+        req_buffer = NULL;
+        if(result)
+          failf(data, "Failed sending CONNECT to proxy");
+      }
+
+      Curl_add_buffer_free(req_buffer);
+      if(result)
+        return result;
+
+      conn->tunnel_state[sockindex] = TUNNEL_CONNECT;
+    }

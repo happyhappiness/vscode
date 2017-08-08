@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " iconv");
+len = snprintf(ptr, left, " WinIDN");

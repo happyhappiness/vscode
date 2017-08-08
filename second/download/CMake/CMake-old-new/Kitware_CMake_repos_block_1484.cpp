@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
+		free(data);
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
 		return (ARCHIVE_FATAL);
 	}

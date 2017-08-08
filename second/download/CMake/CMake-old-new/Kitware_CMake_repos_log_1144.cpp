@@ -1,2 +1,2 @@
-archive_string_sprintf(&shar->work, " %s\n",
-		    shar->quoted_name.s);
+archive_set_error(&a->archive, ERANGE,
+			    "Major device number too large");

@@ -1,1 +1,1 @@
-archive_set_error(a, ENOMEM, "No memory");
+fprintf(stderr, "\n ** Unrecognized sequence number: ");

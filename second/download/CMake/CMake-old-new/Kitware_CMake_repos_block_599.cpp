@@ -1,5 +1,4 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Can't remove already-existing dir");
-			return (ARCHIVE_FAILED);
-		}
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}

@@ -1,1 +1,3 @@
-fprintf(fout, "add_executable(%s", targetName);
+fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");

@@ -1,1 +1,1 @@
-printf("hello assembler world, %d arguments  given\n", argc);
+sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);

@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s\n", symbol.c_str());
+snprintf( buf, sizeof(buf), "%d", state->requested_blksize );

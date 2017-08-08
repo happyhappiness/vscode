@@ -1,1 +1,2 @@
-fprintf(stderr, "Output on stderr after grandchild test.\n");
+sprintf(operatingSystem, "%ls (Build %ld)", osvi.szCSDVersion,
+                osvi.dwBuildNumber & 0xFFFF);

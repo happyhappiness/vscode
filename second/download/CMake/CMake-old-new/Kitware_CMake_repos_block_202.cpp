@@ -1,6 +1,5 @@
 {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "A name buffer is too small");
-			return (ARCHIVE_FATAL);
-		}
+		mtree->set.uid = acs->uid_list->m_entry->uid;
+		archive_string_sprintf(&setstr, " uid=%jd",
+		    (intmax_t)mtree->set.uid);
+	}

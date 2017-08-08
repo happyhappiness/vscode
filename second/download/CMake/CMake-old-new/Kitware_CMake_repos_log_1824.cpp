@@ -1,1 +1,2 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_MAGENTA);
+fprintf(stderr, "Error converting %s \"%s\" to real path: %s\n", desc,
+                temp_path, msgbuf);

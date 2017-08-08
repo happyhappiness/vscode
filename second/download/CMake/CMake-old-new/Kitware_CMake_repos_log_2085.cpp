@@ -1,1 +1,1 @@
-printf("Problem with lib4\n");
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

@@ -1,2 +1,6 @@
-archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
-		    "Sumcheck error")
+{
+		*m_entry = NULL;
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}

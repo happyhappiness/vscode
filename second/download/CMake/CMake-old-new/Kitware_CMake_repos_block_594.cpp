@@ -1,5 +1,6 @@
 {
-		archive_set_error(&a->archive, 0,
-		    "Attempt to write to an empty file");
-		return (ARCHIVE_WARN);
+		archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			"Invalid record version");
+		return (ARCHIVE_FATAL);
 	}

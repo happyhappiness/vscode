@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate xar data");
+archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");

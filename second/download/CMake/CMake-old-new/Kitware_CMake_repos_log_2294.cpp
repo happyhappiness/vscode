@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name=\"%s\"\n", build_config_name);
+fprintf(fout, "double sqrtTable[] = {\n");

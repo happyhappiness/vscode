@@ -1,4 +1,4 @@
 {
-      fprintf(stderr, "Error writing to %s\n", argv[1]);
-      return 1;
-    }
+    printf("%s: %d math tests failed\n", argv[0], res);
+    return 1;
+  }

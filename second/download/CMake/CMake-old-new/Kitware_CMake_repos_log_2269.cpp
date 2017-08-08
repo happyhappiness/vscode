@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s number\n", argv[0]);
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in C\n");

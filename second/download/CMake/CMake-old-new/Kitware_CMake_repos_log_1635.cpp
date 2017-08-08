@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+archive_set_error(&(self->archive->archive), -1,
+		    "Invalid compressed data");

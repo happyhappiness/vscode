@@ -1,3 +1,3 @@
-archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "tar format cannot archive character device");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);

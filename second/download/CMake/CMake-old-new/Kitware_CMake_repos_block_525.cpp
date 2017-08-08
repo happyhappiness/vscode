@@ -1,12 +1,5 @@
 {
-	case LZMA_MEM_ERROR:
-		archive_set_error(f->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "Cannot allocate memory");
-		break;
-	default:
-		archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "It's a bug in liblzma");
-		break;
-	}
+    archive_set_error(&a->archive, ENOMEM,
+                      "Unable to allocate memory for node data.");
+    return (ARCHIVE_FATAL);
+  }

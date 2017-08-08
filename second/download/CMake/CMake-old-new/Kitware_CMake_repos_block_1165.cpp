@@ -1,17 +1,20 @@
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_restore_atime");
-#ifdef HAVE_UTIMES
-	a->flags |= ARCHIVE_READDISK_RESTORE_ATIME;
-	if (a->tree != NULL)
-		a->tree->flags |= needsRestoreTimes;
-	return (ARCHIVE_OK);
-#else
-	/* Display warning and unset flag */
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Cannot restore access time on this system");
-	a->flags &= ~ARCHIVE_READDISK_RESTORE_ATIME;
-	return (ARCHIVE_WARN);
-#endif
+	int64_t skipped;
+
+	if (request < 0)
+		return ARCHIVE_FATAL;
+	if (request == 0)
+		return 0;
+
+	skipped = advance_file_pointer(filter, request);
+	if (skipped == request)
+		return (skipped);
+	/* We hit EOF before we satisfied the skip request. */
+	if (skipped < 0)  /* Map error code to 0 for error message below. */
+		skipped = 0;
+	archive_set_error(&filter->archive->archive,
+	    ARCHIVE_ERRNO_MISC,
+	    "Truncated input file (needed %jd bytes, only %jd available)",
+	    (intmax_t)request, (intmax_t)skipped);
+	return (ARCHIVE_FATAL);
 }

@@ -1,1 +1,1 @@
-printf("TEST_C_FLAGS failed\n");
+fprintf(stderr, "%s", message);

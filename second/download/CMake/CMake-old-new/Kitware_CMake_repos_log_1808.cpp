@@ -1,1 +1,2 @@
-vfprintf(stream, format, var_args);
+YY_FATAL_ERROR(
+			"fatal flex scanner internal error--no action found" );

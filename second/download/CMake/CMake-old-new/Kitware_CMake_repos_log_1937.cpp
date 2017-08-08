@@ -1,1 +1,1 @@
-printf("To run a test, enter the test number: ");
+printf("RegularExpression::compile(): No expression supplied.\n");

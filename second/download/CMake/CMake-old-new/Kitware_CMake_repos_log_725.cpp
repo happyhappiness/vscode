@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "deflate compression not supported");
+		    "Too many directories(%d) over 65535.", dir_number);

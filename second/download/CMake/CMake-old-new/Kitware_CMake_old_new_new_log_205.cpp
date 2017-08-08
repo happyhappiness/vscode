@@ -1,1 +1,1 @@
-this->Symbols.insert(symbol);
+snprintf(buf, sizeof(buf), "%d", state->requested_blksize);

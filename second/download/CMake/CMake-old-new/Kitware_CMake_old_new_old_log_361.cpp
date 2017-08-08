@@ -1,1 +1,1 @@
-sprintf(win9x, "%s%s", tempDir, fwdName);
+fprintf(stderr, "The %s target dependency graph is:\n", name);

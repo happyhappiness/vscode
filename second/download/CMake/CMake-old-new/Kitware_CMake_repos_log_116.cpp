@@ -1,1 +1,1 @@
-fmt_crlf = aprintf("%s\r\n", fmt);
+DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));

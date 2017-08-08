@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "openat failed");
+archive_string_sprintf(&shar->work,
+			    "mkfifo %s\n", shar->quoted_name.s);

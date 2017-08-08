@@ -1,2 +1,1 @@
-archive_set_error(a, ENOMEM,
-		    "Internal error initializing compression library");
+archive_string_sprintf(&state->encoded_buff, "====\n");

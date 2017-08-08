@@ -1,5 +1,6 @@
 {
-				archive_set_error(&a->archive, errno, "Failed "
-				    "to get ACL type from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
-			}
+		archive_set_error(&a->archive, ERANGE,
+		    "File is too large for cpio format.");
+		ret_final = ARCHIVE_FAILED;
+		goto exit_write_header;
+	}

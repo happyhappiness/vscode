@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Too many parentheses.\n");
+fprintf(stderr, "Output on stderr after grandchild test.\n");

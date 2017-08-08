@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Failed to decode PPMd");
+archive_set_error(&a->archive, ENOMEM,
+		    "Lzma library error: Cannot allocate memory");

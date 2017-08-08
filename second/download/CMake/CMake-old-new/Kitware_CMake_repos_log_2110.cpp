@@ -1,1 +1,1 @@
-printf("foo is: %d\n", foo());
+printf("Failed to open module2\n");

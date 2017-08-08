@@ -1,1 +1,1 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i]);
+DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));

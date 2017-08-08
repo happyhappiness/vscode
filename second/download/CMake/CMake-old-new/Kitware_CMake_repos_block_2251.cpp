@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "TARGET_PATH_DEF not defined in C\n");
-    result = 0;
+    fprintf(stderr, "Usage: %s <file>\n", argv[0]);
+    return 1;
   }

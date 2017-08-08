@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated zisofs file body");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive,
+			    -1, "Invalid central directory signature");
+			return ARCHIVE_FATAL;
+		}

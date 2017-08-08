@@ -1,7 +1,6 @@
 {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "CreateEvent failed");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(&a->archive, ERANGE,
+		    "Numeric user ID %jd too large",
+		    (intmax_t)archive_entry_uid(entry));
+		ret = ARCHIVE_FAILED;
+	}

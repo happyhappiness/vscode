@@ -1,6 +1,6 @@
 {
-				archive_set_error(f->archive, ENOMEM,
-				    "Can't allocate data for compression"
-				    " buffer");
-				return (ARCHIVE_FATAL);
-			}
+			archive_set_error(f->archive, errno,
+			    "Error reading from program: %s", data->program_name);
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}

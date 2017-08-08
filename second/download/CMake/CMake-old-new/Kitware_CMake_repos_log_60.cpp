@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port);
+size = aprintf("%" CURL_FORMAT_CURL_OFF_T, data->state.infilesize);

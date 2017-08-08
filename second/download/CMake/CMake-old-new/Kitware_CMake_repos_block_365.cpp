@@ -1,6 +1,5 @@
 {
-		warning_done = 1;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Cannot restore extended attributes on this system");
-		return (ARCHIVE_WARN);
-	}
+				archive_set_error(&a->archive, errno,
+				    "Can't set permissions to 0%o", (int)mode);
+				r = ARCHIVE_WARN;
+			}

@@ -1,13 +1,1 @@
-sprintf(sn, "%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x-%.2x%.2x",
-          ((SerialNumber[1] & 0xff000000) >> 24),
-          ((SerialNumber[1] & 0x00ff0000) >> 16),
-          ((SerialNumber[1] & 0x0000ff00) >> 8),
-          ((SerialNumber[1] & 0x000000ff) >> 0),
-          ((SerialNumber[2] & 0xff000000) >> 24),
-          ((SerialNumber[2] & 0x00ff0000) >> 16),
-          ((SerialNumber[2] & 0x0000ff00) >> 8),
-          ((SerialNumber[2] & 0x000000ff) >> 0),
-          ((SerialNumber[3] & 0xff000000) >> 24),
-          ((SerialNumber[3] & 0x00ff0000) >> 16),
-          ((SerialNumber[3] & 0x0000ff00) >> 8),
-          ((SerialNumber[3] & 0x000000ff) >> 0));
+fprintf(stderr, ": %s\n", msg);

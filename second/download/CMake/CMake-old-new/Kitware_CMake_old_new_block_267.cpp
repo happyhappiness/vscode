@@ -1,4 +1,2 @@
-{
-      fprintf(stderr, "Couldn't open file with CreateFile()\n");
-      return;
-   }
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                 conn->ip_addr_str)

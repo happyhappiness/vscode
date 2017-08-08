@@ -1,7 +1,5 @@
 {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "xmlTextWriterEndElement() "
-				    "failed: %d", r);
-				goto exit_toc;
-			}
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}

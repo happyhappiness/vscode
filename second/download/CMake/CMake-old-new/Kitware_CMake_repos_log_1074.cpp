@@ -1,1 +1,1 @@
-archive_set_error(&(a->archive), EINVAL, "invalid date string");
+archive_set_error(a, errno, "Couldn't stat '%S'", wcs);

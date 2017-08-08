@@ -1,1 +1,6 @@
-sprintf(mon_file_write_string, "CHANGED=YES;WAIT_TYPE=WAIT_IN_SELECT;INFO_LVL=2")
+{
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate pax data");
+					archive_string_free(&as);
+					return(ARCHIVE_FATAL);
+				}

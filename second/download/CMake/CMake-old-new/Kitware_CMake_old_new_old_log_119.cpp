@@ -1,1 +1,1 @@
-write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
+len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));

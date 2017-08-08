@@ -1,4 +1,6 @@
 {
-		archive_set_error(&a->archive, errno, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
+				archive_set_error(&a->archive, errno,
+				    "Couldn't read link data");
+				free(linkbuffer);
+				return (ARCHIVE_FAILED);
+			}

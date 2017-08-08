@@ -1,4 +1,1 @@
-archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
+len = _snprintf(buffer, sizeof(buffer), "%.16g", value);

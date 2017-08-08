@@ -1,1 +1,2 @@
-fprintf(stderr, "\n");
+archive_set_error(&a->archive, ENOMEM,
+				    "No memory for zisofs decompression");

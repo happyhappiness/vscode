@@ -1,1 +1,4 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);
+fprintf(stderr, "Did not receive expected configuration argument:\n"
+                    "  expected [" CMAKE_INTDIR "]\n"
+                    "  received [%s]\n",
+            cfg);

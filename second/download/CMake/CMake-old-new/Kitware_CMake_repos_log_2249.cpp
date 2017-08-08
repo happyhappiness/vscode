@@ -1,1 +1,1 @@
-fprintf(stderr, "RELEASE and DEBUG definitions inconsistent in C\n");
+fprintf(stderr, "Unable to close %s!\n", argv[1]);

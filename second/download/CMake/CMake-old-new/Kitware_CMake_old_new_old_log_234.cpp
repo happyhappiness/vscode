@@ -1,1 +1,1 @@
-sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);

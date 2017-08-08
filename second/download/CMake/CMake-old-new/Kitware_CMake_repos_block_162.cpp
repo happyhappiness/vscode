@@ -1,15 +1,14 @@
 {
-  int line, column;
-  getLocationLineAndColumn(location, line, column);
-  char buffer[18 + 16 + 16 + 1];
-#if defined(_MSC_VER) && defined(__STDC_SECURE_LIB__)
-#if defined(WINCE)
-  _snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column);
-#else
-  sprintf_s(buffer, sizeof(buffer), "Line %d, Column %d", line, column);
-#endif
-#else
-  snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column);
-#endif
-  return buffer;
-}
+        char *fullpath = aprintf("%s/%s", capath, entry->name);
+        if(!fullpath) {
+          PR_CloseDir(dir);
+          return CURLE_OUT_OF_MEMORY;
+        }
+
+        if(CURLE_OK != nss_load_cert(&conn->ssl[sockindex], fullpath, PR_TRUE))
+          /* This is purposefully tolerant of errors so non-PEM files can
+           * be in the same directory */
+          infof(data, "failed to load '%s' from CURLOPT_CAPATH\n", fullpath);
+
+        free(fullpath);
+      }

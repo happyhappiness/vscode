@@ -1,1 +1,1 @@
-printf("This is T2\n");
+fprintf(stderr, "Must specify output file.\n");

@@ -1,6 +1,5 @@
 {
-		archive_set_error(&a->archive, errno,
-		    "Could not open extended attribute file");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
-	}
+				archive_set_error(&a->archive, ENOMEM,
+				    "No memory for 7-Zip decompression");
+				return (ARCHIVE_FATAL);
+			}

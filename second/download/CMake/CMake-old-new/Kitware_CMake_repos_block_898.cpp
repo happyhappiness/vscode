@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Can't open `%s'", path);
-			return (ARCHIVE_FAILED);
-		}
+				archive_set_error(&a->archive, errno,
+				    "Couldn't translate default ACLs");
+				return (r);
+			}

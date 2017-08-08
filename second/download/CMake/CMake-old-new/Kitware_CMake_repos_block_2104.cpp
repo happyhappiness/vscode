@@ -1,4 +1,5 @@
 {
-    printf("Missing file %s\n", av[1]);
-    return 1;
+    report_bad(false, s);
+    printf("expected failure, got 0x%04X\n", uc);
+    return false;
   }

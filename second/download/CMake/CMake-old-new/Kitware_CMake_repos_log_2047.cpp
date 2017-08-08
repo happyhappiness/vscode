@@ -1,1 +1,1 @@
-fprintf(stderr, "Must specify output file and symbol prefix!");
+printf("This does happen.\n");

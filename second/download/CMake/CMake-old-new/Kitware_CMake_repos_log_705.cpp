@@ -1,3 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-		    "Internal error initializing "
-		    "compression library");
+			    "Can't allocate memory for UTF-16BE");

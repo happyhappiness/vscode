@@ -1,3 +1,4 @@
 {
-  printf("Placeholder for a file with strange name\n");
-}
+    printf("Problem with lib2\n");
+    return 1;
+  }

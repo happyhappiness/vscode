@@ -1,1 +1,1 @@
-md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
+tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);

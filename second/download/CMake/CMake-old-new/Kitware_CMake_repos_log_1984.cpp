@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", argv[i]);
+sprintf(buf, "%s/*", name.c_str());

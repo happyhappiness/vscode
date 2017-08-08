@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-				  "Failed to restore metadata");
+		    "Can't test directory '%s'", path);

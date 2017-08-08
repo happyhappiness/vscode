@@ -1,1 +1,1 @@
-fprintf(fp, "int wrapped() { return wrapped_help(); }\n");
+printf("This is T9. This one should work.\n");

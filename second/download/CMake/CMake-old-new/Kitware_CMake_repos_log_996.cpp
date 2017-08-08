@@ -1,2 +1,3 @@
-archive_set_error(f->archive, EIO,
-			    "Can't write to program: %s", data->program_name);
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "A name buffer is too small");

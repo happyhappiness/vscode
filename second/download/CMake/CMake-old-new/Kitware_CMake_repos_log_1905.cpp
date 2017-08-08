@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): No expression supplied.\n");
+fprintf(stderr, "Output on stderr from grandchild after sleep.\n");

@@ -1,1 +1,2 @@
-snprintf(trypath, sizeof(trypath) - 1, "%s/%s", token, args);
+archive_string_sprintf(&(pax->sparse_map), "%d\n",
+			    sparse_count);

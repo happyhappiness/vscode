@@ -1,4 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "GZip compression failed:"
-			    " deflate() call returned status %d",
-			    ret);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate data");

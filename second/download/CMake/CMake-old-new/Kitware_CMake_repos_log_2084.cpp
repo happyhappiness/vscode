@@ -1,1 +1,1 @@
-printf("Problem with lib2\n");
+printf("Available tests:\n");

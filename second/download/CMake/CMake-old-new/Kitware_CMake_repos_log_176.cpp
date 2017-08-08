@@ -1,2 +1,2 @@
-archive_string_sprintf(&setstr, " mode=%o",
-		    (unsigned int)mtree->set.mode);
+addErrorAndRecover(
+          "Missing ',' or '}' in object declaration", comma, tokenObjectEnd);

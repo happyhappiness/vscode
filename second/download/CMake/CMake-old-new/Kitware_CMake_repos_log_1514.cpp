@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-				    ARCHIVE_ERRNO_MISC, "truncated lz4 input");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Entry remaining bytes larger than 0");

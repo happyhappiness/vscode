@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ustar data");
+fprintf(out, " seq %d,",
+	    toi(isodirrec + DR_volume_sequence_number_offset,
+		DR_volume_sequence_number_size));

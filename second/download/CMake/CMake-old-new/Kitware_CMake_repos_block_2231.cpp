@@ -1,5 +1,4 @@
 {
-    fprintf(stderr, "TARGET_STRING has wrong value in C [%s]\n",
-            TARGET_STRING);
-    result = 0;
-  }
+  printf("This is T2\n");
+  return 2;
+}

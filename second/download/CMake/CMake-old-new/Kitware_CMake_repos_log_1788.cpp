@@ -1,1 +1,1 @@
-(void) fprintf( stderr, "%s\n", msg );
+printf(",%s", (b+1) % 4 == 0 ? "" : " ");

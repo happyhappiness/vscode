@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+vsnprintf(s, sizeof(s), fmt, ap);

@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);
+fprintf(stderr, "DIRECTORY_DEF not defined in C\n");

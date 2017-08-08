@@ -1,2 +1,2 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate uname/gname lookup cache");
+archive_string_sprintf(tgt,
+			"WARC-Target-URI: %s%s\r\n", u, hdr.tgturi);

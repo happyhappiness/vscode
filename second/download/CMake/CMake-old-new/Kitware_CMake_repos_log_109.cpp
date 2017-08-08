@@ -1,1 +1,2 @@
-DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+snprintf((char *)&temp[len], sizeof(temp) - len,
+               "%c%c", CURL_IAC, CURL_SE);

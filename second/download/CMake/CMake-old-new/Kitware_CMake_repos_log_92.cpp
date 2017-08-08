@@ -1,1 +1,1 @@
-len = snprintf(ptr, left, " zlib/%s", zlibVersion());
+vfprintf(stderr, fmt, args);

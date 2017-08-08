@@ -1,5 +1,6 @@
 {
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Remaining data is less bytes");
-		return (ARCHIVE_FAILED);
-	}
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathame");
+			ret = ARCHIVE_FATAL;
+			goto exit_write_header;
+		}

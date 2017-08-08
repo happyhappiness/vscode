@@ -1,1 +1,2 @@
-err = set_conversion_failed_error(a, tar->sconv, "Pathname");
+archive_string_sprintf(&cp, "CP%d",
+					    (int)archive_le32dec(extdheader));

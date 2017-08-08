@@ -1,11 +1,9 @@
 {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
+		case Z_OK: /* Decompressor made some progress.*/
+		case Z_STREAM_END: /* Found end of stream. */
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "File decompression failed (%d)", r);
 			return (ARCHIVE_FATAL);
 		}
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Pathname can't be converted from %s to current locale.",
-		    archive_string_conversion_charset_name(sconv));
-		r = ARCHIVE_WARN;
-	}

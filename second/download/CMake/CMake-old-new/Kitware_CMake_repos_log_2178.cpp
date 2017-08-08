@@ -1,1 +1,1 @@
-printf("Process executable path: %s\n", nexec);
+printf("Problem with lib2\n");

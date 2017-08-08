@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Write to restore size failed");
-				return (ARCHIVE_FATAL);
-			}
+	    archive_set_error(&a->archive, 0,
+		"End of file trying to read next cpio header");
+	    return (ARCHIVE_FATAL);
+	}

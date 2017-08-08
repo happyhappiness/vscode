@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Unexpected codec ID: %lX", zip->codec);
+archive_string_sprintf(&state->encoded_buff, "begin %o %s\n",
+	    state->mode, state->name.s);

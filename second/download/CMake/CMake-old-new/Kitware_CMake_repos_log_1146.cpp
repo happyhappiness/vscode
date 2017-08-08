@@ -1,3 +1,3 @@
-archive_string_sprintf(&shar->work,
-				    "test -e \"%s\" || :> \"%s\"\n",
-				    shar->quoted_name.s, shar->quoted_name.s);
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "tar format cannot archive socket");

@@ -1,2 +1,1 @@
-archive_set_error(a,
-		    ENOMEM, "Out of memory adding file to list");
+archive_set_error(a, EINVAL, "No such format '%s'", filename);

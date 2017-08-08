@@ -1,15 +1,10 @@
 {
-  if (argc < 2) {
-    fprintf(stderr, "Usage: %s <file>\n", argv[0]);
-    return 1;
+  FILE* fout = fopen(av[1], "w");
+  printf("create %s\n", av[1]);
+  if (!fout) {
+    return -1;
   }
-  FILE* fp = fopen(argv[1], "w");
-#ifdef GENERATOR_EXTERN
-  fprintf(fp, "int generated() { return 3; }\n");
-#else
-  fprintf(fp, "extern int gen_redirect(void);\n");
-  fprintf(fp, "int generated() { return gen_redirect(); }\n");
-#endif
-  fclose(fp);
+  fprintf(fout, "#include <bar.h>\nBAR_EXPORT int bar(){ return 10;}\n");
+  fclose(fout);
   return 0;
 }

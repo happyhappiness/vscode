@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Multivolume cabinet file is unsupported");
-		return (ARCHIVE_WARN);
+		err = set_conversion_failed_error(a, tar->sconv, "Gname");
+		if (err == ARCHIVE_FATAL)
+			return (err);
 	}

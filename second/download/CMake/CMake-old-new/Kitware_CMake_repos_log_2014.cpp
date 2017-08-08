@@ -1,1 +1,1 @@
-printf("This does happen.\n");
+fprintf(stdout, "LoadString worked\n");

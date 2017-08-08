@@ -1,1 +1,1 @@
-fprintf(stdout, "LockResource worked\n");
+sprintf(argument, "%s", sit->c_str());

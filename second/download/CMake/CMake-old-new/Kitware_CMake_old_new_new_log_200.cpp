@@ -1,2 +1,1 @@
-archive_set_error(f->archive, errno,
-			    "Error reading from program: %s", data->program_name);
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

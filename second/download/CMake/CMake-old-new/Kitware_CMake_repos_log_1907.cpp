@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Expression too big.\n");
+fprintf(stderr, "Output on stderr before grandchild test.\n");

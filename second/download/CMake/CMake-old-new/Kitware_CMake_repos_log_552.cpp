@@ -1,2 +1,3 @@
-archive_set_error(&self->archive->archive,
-	    ARCHIVE_ERRNO_FILE_FORMAT, "Truncated lzop data");
+archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");

@@ -1,6 +1,8 @@
 {
-      archive_set_error(&a->archive,
-          ARCHIVE_ERRNO_FILE_FORMAT,
-          "Truncated RAR file data");
-      return (ARCHIVE_FATAL);
-    }
+		free(strm->buff);
+		free(strm);
+		free(props);
+		archive_set_error(a, ENOMEM,
+		    "Coludn't allocate memory for PPMd");
+		return (ARCHIVE_FATAL);
+	}

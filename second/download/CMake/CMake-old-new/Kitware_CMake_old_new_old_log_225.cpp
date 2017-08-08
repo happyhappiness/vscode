@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "No memory for lzh decompression");
+archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");

@@ -1,1 +1,1 @@
-printf("This is T7\n");
+fprintf(stdout, "Environment:\n");

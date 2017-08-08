@@ -1,4 +1,3 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unknown checksum name: `%s'",
-			    value);
+archive_set_error(&a->archive, errno,
+					    "Failed to check flag in a NFSv4 "
+					    "ACL flagset");

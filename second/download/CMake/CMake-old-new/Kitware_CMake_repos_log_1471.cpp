@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, EINVAL,
-				    "Invalid string table");
+		    "Can't get a wide character version of the path");

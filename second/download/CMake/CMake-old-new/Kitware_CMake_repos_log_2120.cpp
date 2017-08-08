@@ -1,1 +1,1 @@
-printf("Missing file %s\n", av[1]);
+printf("Placeholder for a file with strange name\n");

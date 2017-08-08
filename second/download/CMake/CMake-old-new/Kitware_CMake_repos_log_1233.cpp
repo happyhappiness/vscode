@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Out of memory for ZIP decompression");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+					    "Malformed 64-bit uncompressed size");

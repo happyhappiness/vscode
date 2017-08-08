@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EINVAL,
-		    "Special header too large");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "LHa header sum error");

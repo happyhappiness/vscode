@@ -1,5 +1,7 @@
 {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Not enough arguments");
-			return ARCHIVE_WARN;
-		}
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "lzma_properties_size failed");
+		return (ARCHIVE_FATAL);
+	}

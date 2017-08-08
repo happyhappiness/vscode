@@ -89,22 +89,26 @@ public class GumTreeApi {
 		// System.out.println("hello I am gumtree api");
 		
 
-//		 String oldFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_117.cpp";
-//		 String newFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_117.cpp";
-//		 GumTreeApi g = new GumTreeApi();
-//		 g.setOldAndNewFile(oldFile, newFile);
-//		 g.setOldLoc(2);
-//		 g.addLogNode(2);
-////		 g.getDeltaBlockfeature();
-//		 System.out.println(g.getActionType());
+		 String oldFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_336.cpp";
+		 String newFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_336.cpp";
+		 GumTreeApi g = new GumTreeApi();
+		 g.setOldAndNewFile(oldFile, newFile);
+		 g.setOldLoc(5);
+		 System.out.println(g.getOldLog());
+		 System.out.println(g.getNewLog());
+		 g.addLogNode(5);
+//		 g.addLogNode(3);
+//		 g.getDeltaBlockfeature();
+		 System.out.println(g.getActionType());
 		
 		
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_file_250.cpp";
 //		GumTreeApi g = new GumTreeApi();
 //		g.setFile(filename);
-//		g.setLoc(4);
+//		g.setLoc(254);
 //		System.out.println(g.getLog());
 //		g.printSpliter();
 //		System.out.println(g.getBlock());
@@ -112,15 +116,15 @@ public class GumTreeApi {
 //		System.out.println(g.getControl());
 	
 		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_new_log_260.cpp";
-		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1838.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setFile(oldFile);
-		System.out.println(g.getBlockType());
-		g.setOldAndNewFile(oldFile, newFile);
-		g.getEditedNodes();
-		System.out.println(g.isMatchWithEdit(reposFile));
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_new_log_260.cpp";
+//		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1838.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setFile(oldFile);
+//		System.out.println(g.getBlockType());
+//		g.setOldAndNewFile(oldFile, newFile);
+//		g.getEditedNodes();
+//		System.out.println(g.isMatchWithEdit(reposFile));
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -135,11 +139,6 @@ public class GumTreeApi {
 		// commented line
 		if (oldLogNode == null) {
 			System.out.printf("line: %d in file: %s no node found\n", this.oldLoc, this.oldFile);
-			return false;
-		}
-		else if(this.isComment(this.oldLogNode, this.oldTreeContext, this.oldFile))
-		{
-			System.out.printf("line: %d in file: %s found to be comment\n", this.oldLoc, this.oldFile);
 			return false;
 		}
 		
@@ -186,6 +185,7 @@ public class GumTreeApi {
 		Action action;
 		ITree tempNode;
 		boolean isIdentified;
+//		printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
 		while (actionIter.hasNext()) {
 			action = actionIter.next();
 			// do not deal with comment modification
@@ -195,10 +195,15 @@ public class GumTreeApi {
 			}
 // 			judge if leaf edition is edition of logs
 			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
-//			printNode(tempNode, this.oldTreeContext, this.oldFile);
 			isIdentified = false;
+//			System.out.println(action.toString());
 			if(isFeature == 0 || isLog == 0 || isLogs == 0)
 			{
+//				edition of old tree
+				if(!isChildrenOf(tempNode, this.oldTree))
+				{
+					continue;
+				}
 //				decide whether is log
 				if(isChildrenOf(tempNode, this.oldLogNode))
 				{
@@ -223,6 +228,10 @@ public class GumTreeApi {
 				{
 					isFeature = 4;
 				}
+			}
+			else
+			{
+				break;
 			}
 		}
 		
@@ -388,6 +397,7 @@ public class GumTreeApi {
 	private final List<String> AST_EXCEPT_TYPE = Arrays.asList
 			("endif",
 			"ifdef",
+			"elif",
 			"comment",
 			"warning",
 			"file",
@@ -430,16 +440,20 @@ public class GumTreeApi {
 	public String getBlockType()
 	{
 		String type = "";
-		Iterator<ITree> allNodesIter = this.tree.preOrder().iterator();
+		Iterator<ITree> allNodesIter = this.tree.postOrder().iterator();
 		ITree currNode;
 		while(allNodesIter.hasNext())
 		{
 			currNode = allNodesIter.next();
 			type += getType(currNode, this.treeContext);
-			if(currNode.isLeaf())
+			if(this.treeContext.getTypeLabel(currNode).equals("argument"))
+			{
 				type += "\n";
+			}
 			else
+			{
 				type += "****";
+			}
 		}
 		
 		return type;
@@ -456,7 +470,11 @@ public class GumTreeApi {
 			if(!isActionOfComment(action))
 			{
 //				System.out.println(action.getName());
-				this.editedNodes.add(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode());
+				ITree tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
+				if(isChildrenOf(tempNode, this.oldTree))
+				{
+					this.editedNodes.add(tempNode);
+				}
 //				printNode(action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode(), this.oldTreeContext, this.oldFile);
 			}
 		}
@@ -569,7 +587,6 @@ public class GumTreeApi {
 
 		while (allNodesIter.hasNext()) {
 			tempNode = allNodesIter.next();
-//			printNode(tempNode, treeContext , filename);
 			// the node with most children in given line [!block fault!]
 			if (getLineNumber(tempNode, filename, true) == line && 
 //					!this.isBlock(tempNode, treeContext, filename)){
@@ -624,7 +641,7 @@ public class GumTreeApi {
 			fileReader = new FileReader(filename);
 			fileReader.skip(beginPos);
 
-			char[] value = new char[1000];
+			char[] value = new char[endPos - beginPos];
 			fileReader.read(value, 0, endPos - beginPos);
 			fileReader.close();
 
@@ -710,7 +727,11 @@ public class GumTreeApi {
 	private boolean isStatement(ITree node, TreeContext treeContext, String filename)
 	{
 		String statement = filename.endsWith(".cpp") ? "stmt" : "Statement";
-		return getType(node, treeContext).endsWith(statement);
+		String type = getType(node, treeContext);
+		if(type.endsWith(statement) || type.equals("expr"))
+			return true;
+		else
+			return false;
 	}
 	
 	private boolean isComment(ITree node, TreeContext treeContext, String filename)

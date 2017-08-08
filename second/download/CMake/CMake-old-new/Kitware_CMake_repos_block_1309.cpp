@@ -1,5 +1,8 @@
 {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid length of file identifier");
-		return (NULL);
+		    "Ignoring out-of-order directory (%s) %jd > %jd",
+		    parent->name.s,
+		    (intmax_t)iso9660->current_position,
+		    (intmax_t)parent->offset);
+		return (ARCHIVE_WARN);
 	}

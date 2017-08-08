@@ -1,1 +1,1 @@
-fprintf(stdout, "LoadString skipped\n");
+sprintf(buf, "%s*", name.c_str());

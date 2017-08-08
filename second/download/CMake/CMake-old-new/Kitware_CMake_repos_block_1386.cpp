@@ -1,6 +1,2 @@
-{
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Linkname");
-				ret = ARCHIVE_FATAL;
-				goto exit_write_header;
-			}
+archive_set_error(a, errno,
+				    "Can't allocate memory")

@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Error seeking");
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");

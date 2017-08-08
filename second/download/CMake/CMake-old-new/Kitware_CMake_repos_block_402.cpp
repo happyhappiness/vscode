@@ -1,7 +1,5 @@
 {
-			free(strm);
-			lastrm->real_stream = NULL;
-			archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "lzma_properties_encode failed");
-			return (ARCHIVE_FATAL);
-		}
+		free(data);
+		archive_set_error(_a, ENOMEM, "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}

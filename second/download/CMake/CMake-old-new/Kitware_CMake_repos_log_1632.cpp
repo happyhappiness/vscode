@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "LZX decompression failed (%d)", r);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate working buffer");

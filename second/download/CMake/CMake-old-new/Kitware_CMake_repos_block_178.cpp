@@ -1,1 +1,4 @@
-archive_string_sprintf(&mtree->buf, "/set%s\n", setstr.s)
+{
+      return addErrorAndRecover(
+          "Missing ',' or ']' in array declaration", token, tokenArrayEnd);
+    }

@@ -1,1 +1,1 @@
-fprintf(file, "%s", "x");
+printf("This is T6\n");

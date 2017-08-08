@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file body");
+fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);

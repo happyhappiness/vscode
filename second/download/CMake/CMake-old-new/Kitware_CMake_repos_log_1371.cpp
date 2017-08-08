@@ -1,2 +1,2 @@
-archive_set_error(a, errno, "Error seeking in '%s'",
-		    mine->filename.m);
+fprintf(out, " a %d,",
+	    toi(isodirrec + DR_ext_attr_length_offset, DR_ext_attr_length_size));

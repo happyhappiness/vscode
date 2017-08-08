@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC, "Program error.");
+archive_set_error(&a->archive, ERANGE,
+		    "File modification time too large");

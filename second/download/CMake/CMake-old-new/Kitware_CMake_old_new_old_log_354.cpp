@@ -1,1 +1,2 @@
-sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);
+fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");

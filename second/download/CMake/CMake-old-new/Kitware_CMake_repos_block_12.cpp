@@ -1,1 +1,1 @@
-printf("\n        ")
+((low % 7) == 0) printf("\n        ")

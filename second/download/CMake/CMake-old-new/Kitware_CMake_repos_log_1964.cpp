@@ -1,1 +1,1 @@
-printf("passed foo is 21\n");
+printf("Available tests:\n");

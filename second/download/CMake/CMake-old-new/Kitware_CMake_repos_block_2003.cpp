@@ -1,18 +1,64 @@
 {
-  const char* substring_failure = "generated_exe_emulator_unexpected";
-  // Require a slash to make sure it is a path and not a target name.
-  const char* substring_success = "/generated_exe_emulator_expected";
-  const char* str = argv[1];
-  if (argc < 2) {
-    return EXIT_FAILURE;
+  int ret = 1;
+
+  fprintf(stdout, "CTEST_FULL_OUTPUT (Avoid ctest truncation of output)\n");
+
+#ifdef CMAKE_RCDEFINE
+  fprintf(stdout, "CMAKE_RCDEFINE defined\n");
+#endif
+
+#ifdef CMAKE_RCDEFINE_NO_QUOTED_STRINGS
+  // Expect CMAKE_RCDEFINE to preprocess to exactly test.txt
+  x test;
+  test.txt = "*exactly* test.txt";
+  fprintf(stdout, "CMAKE_RCDEFINE_NO_QUOTED_STRINGS defined\n");
+  fprintf(stdout, "CMAKE_RCDEFINE is %s, and is *not* a string constant\n",
+          CMAKE_RCDEFINE);
+#else
+  // Expect CMAKE_RCDEFINE to be a string:
+  fprintf(stdout, "CMAKE_RCDEFINE='%s', and is a string constant\n",
+          CMAKE_RCDEFINE);
+#endif
+
+  HRSRC hello = ::FindResource(NULL, MAKEINTRESOURCE(1025), "TEXTFILE");
+  if (hello) {
+    fprintf(stdout, "FindResource worked\n");
+    HGLOBAL hgbl = ::LoadResource(NULL, hello);
+    int datasize = (int)::SizeofResource(NULL, hello);
+    if (hgbl && datasize > 0) {
+      fprintf(stdout, "LoadResource worked\n");
+      fprintf(stdout, "SizeofResource returned datasize='%d'\n", datasize);
+      void* data = ::LockResource(hgbl);
+      if (data) {
+        fprintf(stdout, "LockResource worked\n");
+        char* str = (char*)malloc(datasize + 4);
+        if (str) {
+          memcpy(str, data, datasize);
+          str[datasize] = 'E';
+          str[datasize + 1] = 'O';
+          str[datasize + 2] = 'R';
+          str[datasize + 3] = 0;
+          fprintf(stdout, "str='%s'\n", str);
+          free(str);
+
+          ret = 0;
+
+#ifdef CMAKE_RCDEFINE_NO_QUOTED_STRINGS
+          fprintf(stdout, "LoadString skipped\n");
+#else
+          char buf[256];
+          if (::LoadString(NULL, 1026, buf, sizeof(buf)) > 0) {
+            fprintf(stdout, "LoadString worked\n");
+            fprintf(stdout, "buf='%s'\n", buf);
+          } else {
+            fprintf(stdout, "LoadString failed\n");
+            ret = 1;
+          }
+#endif
+        }
+      }
+    }
   }
-  if (strstr(str, substring_success) != 0) {
-    return EXIT_SUCCESS;
-  }
-  if (strstr(str, substring_failure) != 0) {
-    return EXIT_FAILURE;
-  }
-  fprintf(stderr, "Failed to find string '%s' in '%s'\n", substring_success,
-          str);
-  return EXIT_FAILURE;
+
+  return ret + lib();
 }

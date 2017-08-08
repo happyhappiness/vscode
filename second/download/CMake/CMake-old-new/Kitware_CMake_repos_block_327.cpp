@@ -1,7 +1,6 @@
 {
+			/* We tried, but couldn't get rid of it. */
 			archive_set_error(&a->archive, errno,
-			    "Can't create directory '%s': "
-			    "Conflicting file cannot be removed",
-			    path);
-			return (ARCHIVE_FAILED);
+			    "Could not unlink");
+			return(ARCHIVE_FAILED);
 		}

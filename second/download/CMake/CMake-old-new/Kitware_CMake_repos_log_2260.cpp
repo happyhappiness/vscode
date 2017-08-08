@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);
+printf("&glGetString = %p\n", &glGetString);

@@ -1,1 +1,1 @@
-printf("%s: This test intentionally fails\n", argv[0]);
+fprintf(stderr, "Error locating executable \"%s\".\n", argv[0]);

@@ -1,5 +1,5 @@
 {
-		fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
-		    "Invalid empty ", "pathname");
-		return (ARCHIVE_FAILED);
-	}
+					archive_set_error(&a->archive, errno,
+					    "Write failed");
+					return (ARCHIVE_WARN);
+				}

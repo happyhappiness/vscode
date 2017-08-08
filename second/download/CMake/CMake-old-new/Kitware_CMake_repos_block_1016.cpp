@@ -1,6 +1,7 @@
 {
-				archive_set_error(a, errno,
-				    "Failed to get flagset from an NFSv4 ACL entry");
-				ret = ARCHIVE_FAILED;
-				goto exit_free;
-			}
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}

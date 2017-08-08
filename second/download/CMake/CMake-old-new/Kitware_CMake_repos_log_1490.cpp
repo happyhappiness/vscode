@@ -1,7 +1,3 @@
-snprintf(
-			std_uuid, sizeof(std_uuid),
-			"<urn:uuid:%08x-%04x-%04x-%04x-%04x%08x>",
-			u.u[0U],
-			u.u[1U] >> 16U, u.u[1U] & 0xffffU,
-			u.u[2U] >> 16U, u.u[2U] & 0xffffU,
-			u.u[3U]);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing "
+		    "compression library: invalid library version");

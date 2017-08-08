@@ -1,1 +1,1 @@
-fprintf(stderr, "really ok!\n" );
+(i == nOut;

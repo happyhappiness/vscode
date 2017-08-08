@@ -1,2 +1,2 @@
-archive_string_sprintf(&linkto, "%d",
-				    file->hardlink_target->id);
+archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed");

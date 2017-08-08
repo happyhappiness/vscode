@@ -1,2 +1,3 @@
-fprintf(stderr, "\n---TOC-- %d bytes --\n%s\n",
-	    strlen((const char *)bp->content), bp->content);
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);

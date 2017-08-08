@@ -1,1 +1,1 @@
-printf("hello world\n");
+fprintf(stdout, "Usage: %s number\n", argv[0]);

@@ -1,1 +1,1 @@
-fprintf(stderr, "INTERNAL CONFUSION\n");
+fprintf(stderr, "%d ", (int)s);

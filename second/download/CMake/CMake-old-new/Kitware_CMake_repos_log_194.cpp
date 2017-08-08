@@ -1,2 +1,1 @@
-archive_string_sprintf(&mtree->buf, "# %s/%s\n",
-			n->parentdir.s, n->basename.s);
+len = snprintf(buffer, sizeof(buffer), "null");

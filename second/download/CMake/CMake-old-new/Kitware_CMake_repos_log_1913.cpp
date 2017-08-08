@@ -1,1 +1,1 @@
-printf("RegularExpression::compile() : *+ operand could be empty.\n");
+fprintf(stderr, "Output on stderr from grandchild after sleep.\n");

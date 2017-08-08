@@ -1,1 +1,1 @@
-printf("%s is not there! Good.", av[2]);
+printf("Usage: %s <file>\n", av[0]);

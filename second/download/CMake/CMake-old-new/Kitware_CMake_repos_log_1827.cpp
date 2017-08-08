@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BOLD);
+fprintf(stderr, " \"%s\"", *arg);

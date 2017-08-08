@@ -1,5 +1,5 @@
 {
-	archive_set_error(a, ARCHIVE_ERRNO_MISC,
-	    "xz compression not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
+      archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");
+      return (ARCHIVE_FATAL);
+    }

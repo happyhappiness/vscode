@@ -1,5 +1,8 @@
 {
-      report_good(false, entry.str);
-      printf("expected 0x%04X, got 0x%04X\n", entry.chr, uc);
-      return false;
-    }
+  FiveFunction();
+  EightFunction();
+
+  printf("Dependency test executable ran successfully.\n");
+
+  return 0;
+}

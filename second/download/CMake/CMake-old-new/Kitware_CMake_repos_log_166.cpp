@@ -1,1 +1,1 @@
-len = snprintf(buffer, sizeof(buffer), "%.16g", value);
+snprintf(buffer, size, "GnuTLS/%s", gnutls_check_version(NULL));

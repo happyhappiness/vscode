@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "DEBUG and RELEASE definitions inconsistent in C\n");
-    result = 0;
+    fprintf(stderr, "Missing name of file to create.\n");
+    return EXIT_FAILURE;
   }

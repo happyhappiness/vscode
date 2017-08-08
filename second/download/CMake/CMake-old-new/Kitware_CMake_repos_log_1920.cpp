@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Internal error.\n");
+printf("Child was killed by parent.\n");

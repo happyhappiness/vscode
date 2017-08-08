@@ -1,1 +1,1 @@
-printf("-R needs an additional parameter.\n");
+printf("RegularExpression::compile(): Out of memory.\n");

@@ -1,1 +1,1 @@
-printf("The process is still executing.\n");
+fprintf(stderr, "Output on stderr before recursive test.\n");

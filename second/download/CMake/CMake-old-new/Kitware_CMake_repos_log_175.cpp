@@ -1,2 +1,2 @@
-archive_string_sprintf(&setstr, " gid=%jd",
-		    (intmax_t)mtree->set.gid);
+addErrorAndRecover(
+          "Missing ':' after object member name", colon, tokenObjectEnd);

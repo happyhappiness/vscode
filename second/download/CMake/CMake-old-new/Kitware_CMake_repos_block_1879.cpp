@@ -1,16 +1,12 @@
 {
-  /* The grandchild just sleeps for a few seconds and handles signals.  */
   (void)argc;
   (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
+  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
   fflush(stdout);
   fflush(stderr);
-  /* Sleep for 6 seconds.  */
-  testProcess_sleep(6);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
+  testProcess_sleep(15);
+  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
+  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
   return 0;
 }

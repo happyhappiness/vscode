@@ -1,2 +1,3 @@
-archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate data for compression buffer");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "Undefined option: `%s%s%s'",
+			    mod?mod:"", mod?":":"", opt);

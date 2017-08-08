@@ -1,1 +1,1 @@
-sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);
+sprintf(buf,"%.*ld",(prec>0?prec:0),val);

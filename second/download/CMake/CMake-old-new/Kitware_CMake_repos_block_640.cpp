@@ -1,9 +1,6 @@
 {
-	case Z_OK:
-		break;
-	default:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Failed to clean up gzip decompressor");
-		return (ARCHIVE_FATAL);
-	}
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains '..'");
+						return (ARCHIVE_FAILED);
+					}

@@ -1,6 +1,5 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Decryption is unsupported due to lack of "
-			    "crypto library");
-			return (ARCHIVE_FAILED);
-		}
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}

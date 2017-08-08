@@ -1,7 +1,7 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s: Directories too deep.",
-		    archive_entry_pathname(
-			iso9660->directories_too_deep->file->entry));
-		return (ARCHIVE_WARN);
+		free(out_block);
+		free(state);
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for gzip decompression");
+		return (ARCHIVE_FATAL);
 	}

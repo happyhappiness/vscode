@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout before sleep.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_MAGENTA);

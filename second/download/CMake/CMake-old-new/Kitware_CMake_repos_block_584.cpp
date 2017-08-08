@@ -1,5 +1,5 @@
 {
-		free(data);
-		archive_set_error(_a, ENOMEM, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&self->archive->archive, ENOMEM,
+			    "Can't allocate data for lzop decompression");
+			return (ARCHIVE_FATAL);
+		}

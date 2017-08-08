@@ -1,4 +1,3 @@
 {
-    printf("Problem with lib1\n");
-    return 1;
-  }
+  printf("HEADER_STRING: %s\n", HEADER_STRING);
+}

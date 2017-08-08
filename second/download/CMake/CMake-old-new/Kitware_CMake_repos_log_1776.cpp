@@ -1,2 +1,1 @@
-YY_FATAL_ERROR(
-			"fatal flex scanner internal error--no action found" );
+printf("%4" PRIu32, rc_prices[i]);

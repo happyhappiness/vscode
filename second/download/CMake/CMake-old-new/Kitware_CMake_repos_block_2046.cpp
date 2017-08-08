@@ -1,12 +1,4 @@
 {
-  /* Make sure the noregen header was not regenerated.  */
-  if (strcmp("foo", noregen_string) != 0) {
-    printf("FAILED: noregen.h was regenerated!\n");
-    return 1;
+    printf("This doesn't happen.\n");
+    printf("Neither does this.\n");
   }
-
-  /* Print out the string that should have been regenerated.  */
-  printf("%s\n", regen_string);
-  fflush(stdout);
-  return 0;
-}

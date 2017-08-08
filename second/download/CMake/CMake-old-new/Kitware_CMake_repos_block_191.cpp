@@ -1,6 +1,7 @@
 {
-			archive_string_sprintf(str,
-			    " device=native,%ju,%ju",
-			    (uintmax_t)me->rdevmajor,
-			    (uintmax_t)me->rdevminor);
-		}
+    fprintf(stderr,
+            "Error from reader: %s",
+            reader.getFormattedErrorMessages().c_str());
+
+    JSON_FAIL_MESSAGE("reader error");
+  }

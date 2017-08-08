@@ -1,1 +1,1 @@
-printf("\n};\n");
+sprintf(buff, "GNUSparseFile.%d", getpid());

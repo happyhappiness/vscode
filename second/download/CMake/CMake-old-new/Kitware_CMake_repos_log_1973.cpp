@@ -1,2 +1,3 @@
-fprintf(stdout, "CMAKE_RCDEFINE is %s, and is *not* a string constant\n",
-          CMAKE_RCDEFINE);
+printf("testToRun was modified by TestDriver code to an invalid value: "
+             "%3d.\n",
+             testNum);

@@ -1,5 +1,3 @@
-{
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "TOC uncompressed size error");
-		return (ARCHIVE_FATAL);
-	}
+archive_string_sprintf(&mtree->buf,
+				    "# %s\n",
+				    me->basename.s)

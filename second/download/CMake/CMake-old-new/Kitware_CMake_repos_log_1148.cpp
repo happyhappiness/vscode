@@ -1,2 +1,2 @@
-archive_string_sprintf(&shar->work,
-					    "begin %o ", mode);
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Current client reader does not support seeking a device");

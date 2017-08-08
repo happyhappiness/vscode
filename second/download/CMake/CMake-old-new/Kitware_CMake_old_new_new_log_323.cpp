@@ -1,2 +1,1 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());

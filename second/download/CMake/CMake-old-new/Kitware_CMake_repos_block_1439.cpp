@@ -1,8 +1,5 @@
 {
-			if (e[0] == '0')
-				t->direct_io = 0;
-			else
-				t->direct_io = 1;
-			fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
-				(t->direct_io)?"Enabled":"Disabled");
-		}
+		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Lzip: CRC32 error");
+		return (ARCHIVE_FAILED);
+	}

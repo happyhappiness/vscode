@@ -1,10 +1,5 @@
 {
-		if (WEXITSTATUS(state->exit_status) == 0)
-			return (ARCHIVE_OK);
-
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Child process exited with status %d",
-		    WEXITSTATUS(state->exit_status));
-		return (ARCHIVE_WARN);
-	}
+				archive_set_error(&a->archive, errno,
+				    "Can't unlink already-existing object");
+				return (ARCHIVE_FAILED);
+			}

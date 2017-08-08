@@ -1,1 +1,1 @@
-printf("Process executable name: %s\n", exec);
+printf("Problem with lib1\n");

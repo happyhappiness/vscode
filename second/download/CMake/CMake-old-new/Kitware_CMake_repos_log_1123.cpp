@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EINVAL,
-		    "No reader function provided to archive_read_open");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");

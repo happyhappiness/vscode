@@ -1,11 +1,7 @@
 {
-  char* var = getenv("CMAKE_ENVIRONMENT_TEST_VAR");
-  if (!var) {
-    var = "(null)";
-  }
-
-  fprintf(stdout, "Environment:\n");
-  fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var);
-
+  printf("Hello from subdirectory\n");
+  secondone();
+  pair_stuff();
+  vcl_stuff();
   return 0;
 }

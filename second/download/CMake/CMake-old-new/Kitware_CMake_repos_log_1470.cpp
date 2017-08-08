@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate filename buffer");
+fprintf(stderr, "LIBARCHIVE_ASYNC_IO=%s\n",
+			    (t->async_io)?"Enabled":"Disabled");

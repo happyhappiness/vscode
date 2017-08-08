@@ -1,5 +1,1 @@
-fprintf(
-      fout,
-      "Contents of \"%s\":\n"
-      "----------------------------------------------------------------\n",
-      name);
+fprintf(stdout, "%s:0:0: warning: message [checker]\n", argv[i]);

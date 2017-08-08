@@ -1,5 +1,6 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Path is a physical drive name");
-			return (ARCHIVE_FAILED);
-		}
+		free(data);
+		archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+		    "lzo_init(type check) failed");
+		return (ARCHIVE_FATAL);
+	}

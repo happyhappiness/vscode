@@ -1,7 +1,4 @@
-md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
+the project that
+ * took on from here is named 'Trio' and you find more details on the trio web
+ * page at http://daniel.haxx.se/trio/
+ */;

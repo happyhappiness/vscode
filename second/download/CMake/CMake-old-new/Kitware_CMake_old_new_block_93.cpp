@@ -1,7 +1,6 @@
 {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory for "
+					    "SCHILY.acl.default");
+					return (err);
+				}

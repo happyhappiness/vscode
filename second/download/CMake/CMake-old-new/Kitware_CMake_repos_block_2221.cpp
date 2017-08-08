@@ -1,15 +1,10 @@
 {
-  if (argc < 2) {
-    fprintf(stderr, "Usage: %s <file>\n", argv[0]);
-    return 1;
-  }
-  FILE* fp = fopen(argv[1], "w");
-#ifdef GENERATOR_EXTERN
-  fprintf(fp, "int generated() { return 3; }\n");
-#else
-  fprintf(fp, "extern int gen_redirect(void);\n");
-  fprintf(fp, "int generated() { return gen_redirect(); }\n");
-#endif
-  fclose(fp);
+  printf("foo: %d bar: %d foobar: %d barbar: %d baz: %d\n", foo(), bar(),
+         foobar(), barbar(), baz());
+
+  printf("tree_prefix_foo: %d tree_prefix_bar: %d tree_bar: %d tree_foobar: "
+         "%d tree_baz: %d\n",
+         tree_prefix_foo(), tree_prefix_bar(), tree_bar(), tree_foobar(),
+         tree_baz());
   return 0;
 }

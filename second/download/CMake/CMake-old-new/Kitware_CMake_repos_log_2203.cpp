@@ -1,1 +1,1 @@
-sprintf(buffer, "Should be empty (source file full path): [%s]", cstr);
+fprintf(stderr, "Error writing to %s\n", argv[1]);

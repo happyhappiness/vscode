@@ -1,1 +1,1 @@
-sprintf(fname, "/proc/%d/stat", pid);
+sprintf(buf,"%.*f",(prec>0?prec:0),val);

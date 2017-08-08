@@ -1,6 +1,6 @@
 {
-		archive_set_error(&a->archive, ERANGE,
-		    "Too many files for this cpio format");
-		ret_final = ARCHIVE_FATAL;
-		goto exit_write_header;
-	}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file data");
+			return (ARCHIVE_FATAL);
+		}

@@ -1,1 +1,1 @@
-printf("  clsid starts with '0x%08lx'\n", (long)clsid.Data1);
+fprintf(fout, "double sqrtTable[] = {\n");

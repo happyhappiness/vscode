@@ -1,10 +1,37 @@
 {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    Curl_safefree(tmp);
-    md5_to_ascii(md5buf, ha1);
-  }
+			case 'b':
+				if (strcmp(val, "block") == 0) {
+					archive_entry_set_filetype(entry, AE_IFBLK);
+					break;
+				}
+			case 'c':
+				if (strcmp(val, "char") == 0) {
+					archive_entry_set_filetype(entry, AE_IFCHR);
+					break;
+				}
+			case 'd':
+				if (strcmp(val, "dir") == 0) {
+					archive_entry_set_filetype(entry, AE_IFDIR);
+					break;
+				}
+			case 'f':
+				if (strcmp(val, "fifo") == 0) {
+					archive_entry_set_filetype(entry, AE_IFIFO);
+					break;
+				}
+				if (strcmp(val, "file") == 0) {
+					archive_entry_set_filetype(entry, AE_IFREG);
+					break;
+				}
+			case 'l':
+				if (strcmp(val, "link") == 0) {
+					archive_entry_set_filetype(entry, AE_IFLNK);
+					break;
+				}
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; assuming \"file\"", val);
+				archive_entry_set_filetype(entry, AE_IFREG);
+				return (ARCHIVE_WARN);
+			}

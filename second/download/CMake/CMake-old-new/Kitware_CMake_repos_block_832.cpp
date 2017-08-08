@@ -1,7 +1,2 @@
-{
-			/* We got an unexpected form. */
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Unsupported form of BCJ2 streams");
-			return (ARCHIVE_FATAL);
-		}
+archive_set_error(&a->archive, -1,
+			    "Couldn't allocate memory")

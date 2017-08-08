@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Too many files for this cpio format");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file data");

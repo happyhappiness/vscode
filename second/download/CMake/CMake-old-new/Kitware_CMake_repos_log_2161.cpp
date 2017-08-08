@@ -1,1 +1,1 @@
-fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var);
+printf("Hello from subdirectory\n");

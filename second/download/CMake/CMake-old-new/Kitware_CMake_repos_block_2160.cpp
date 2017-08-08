@@ -1,11 +1,3 @@
 {
-  char* var = getenv("CMAKE_ENVIRONMENT_TEST_VAR");
-  if (!var) {
-    var = "(null)";
-  }
-
-  fprintf(stdout, "Environment:\n");
-  fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var);
-
-  return 0;
+  printf("Placeholder for a strange file in subdirectory\n");
 }

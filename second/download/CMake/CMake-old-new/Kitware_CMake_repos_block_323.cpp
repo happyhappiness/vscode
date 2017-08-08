@@ -1,5 +1,6 @@
 {
-			fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
-			    "Path is ", "absolute");
-			return (ARCHIVE_FAILED);
-		}
+		archive_set_error(&a->archive, 0,
+		    "Too much data: Truncating file at %ju bytes",
+		    (uintmax_t)a->filesize);
+		return (ARCHIVE_WARN);
+	}

@@ -1,5 +1,7 @@
 {
-		free(data);
-		archive_set_error(_a, ENOMEM, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive, ENOMEM,
+			    "Failed to get metadata(xattr)");
+			ret = ARCHIVE_WARN;
+			free(xattr_val_saved);
+			goto exit_xattr;
+		}

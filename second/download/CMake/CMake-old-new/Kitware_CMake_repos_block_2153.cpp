@@ -1,5 +1,4 @@
 {
-    printf("number of threads is %s\n", argv[2]);
-    *av += 2;
-    *ac -= 2;
+    printf("Missing file %s\n", av[1]);
+    return 1;
   }

@@ -1,1 +1,2 @@
-l = snprintf(tmp, sizeof(tmp), fmt, src[0], src[1], src[2], src[3]);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated ar archive");

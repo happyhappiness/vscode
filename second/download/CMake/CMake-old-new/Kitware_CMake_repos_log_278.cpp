@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "Write failed");
+fprintf(stderr, "xml_end:[%s]\n", name);

@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, EEXIST,
-			    "Can't create directory '%s'", path);
-			return (ARCHIVE_FAILED);
-		}
+				archive_set_error(&a->archive, errno,
+				    "Write to restore size failed");
+				return (ARCHIVE_FATAL);
+			}

@@ -1,6 +1,5 @@
 {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }

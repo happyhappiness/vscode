@@ -1,6 +1,5 @@
 {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterStartElement() failed: %d", r);
+			archive_set_error(&a->archive, errno,
+			    "Couldn't create temporary file");
 			return (ARCHIVE_FATAL);
 		}

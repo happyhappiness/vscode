@@ -1,16 +1,13 @@
 {
-  int i = 0;
-  for (; i < argc; ++i) {
-    fprintf(stdout, "%s\n", argv[i]);
+  const size_t maxlen = KWSYS_SYSTEMTOOLS_MAXPATH;
+  snprintf(resolved_path, maxlen, "%s", path);
+  BPath normalized(resolved_path, NULL, true);
+  const char* resolved = normalized.Path();
+  if (resolved != NULL) // NULL == No such file.
+  {
+    if (snprintf(resolved_path, maxlen, "%s", resolved) < maxlen) {
+      return resolved_path;
+    }
   }
-
-#ifdef CMAKE_BUILD_TYPE
-  fprintf(stdout, "CMAKE_BUILD_TYPE is %s\n", CMAKE_BUILD_TYPE);
-#endif
-
-#ifdef CMAKE_INTDIR
-  fprintf(stdout, "CMAKE_INTDIR is %s\n", CMAKE_INTDIR);
-#endif
-
-  return 0;
+  return NULL; // something went wrong.
 }

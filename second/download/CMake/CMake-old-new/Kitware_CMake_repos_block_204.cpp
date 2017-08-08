@@ -1,7 +1,5 @@
 {
-				archive_string_free(&as);
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "A name buffer is too small");
-				return (ARCHIVE_FATAL);
-			}
+		mtree->set.mode = acs->mode_list->m_entry->mode;
+		archive_string_sprintf(&setstr, " mode=%o",
+		    (unsigned int)mtree->set.mode);
+	}

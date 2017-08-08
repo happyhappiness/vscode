@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, errno,
-		    "Couldn't query extended attribute");
-		return (ARCHIVE_WARN);
-	}
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't read link data");
+			return (ARCHIVE_FAILED);
+		}

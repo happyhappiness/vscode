@@ -1,1 +1,2 @@
-snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
+archive_set_error(&a->archive, 0,
+		    "Write request too large");

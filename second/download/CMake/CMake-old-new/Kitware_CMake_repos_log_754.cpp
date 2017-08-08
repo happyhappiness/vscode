@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Failed to initialize HMAC-SHA1");
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "encryption not supported");

@@ -1,2 +1,4 @@
-archive_set_error(a, errno,
-				    "Error reading '%s'", mine->filename.m);
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Failed to read full block when scanning "
+			    "ISO9660 directory list");

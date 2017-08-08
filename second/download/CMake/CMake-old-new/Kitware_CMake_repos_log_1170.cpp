@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, t->tree_errno,
-			    "%s: Unable to continue traversing directory tree",
-			    tree_current_path(t));
+_snprintf(oemcp, sizeof(oemcp)-1, "CP%d", a->current_oemcp);

@@ -1,2 +1,5 @@
-archive_set_error(f->archive, errno,
-			    "Error reading from program: %s", data->program_name);
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' is not directory, we cannot insert `%s' ",
+			    archive_entry_pathname(np->entry),
+			    archive_entry_pathname(file->entry));

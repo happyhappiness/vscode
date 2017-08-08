@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EINVAL,
-		    "Incorrect file header signature");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");

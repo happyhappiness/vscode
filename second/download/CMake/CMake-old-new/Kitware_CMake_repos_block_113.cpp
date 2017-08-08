@@ -1,4 +1,3 @@
 {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
-    return CURLE_FAILED_INIT;
+    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
   }

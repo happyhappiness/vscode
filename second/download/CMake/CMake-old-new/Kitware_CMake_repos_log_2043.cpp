@@ -1,1 +1,2 @@
-fprintf(fout, "Error opening \"%s\" for reading.\n", name);
+fprintf(stdout, "Done processing %s\nTotal errors found: %i\n", argv[i],
+              error);

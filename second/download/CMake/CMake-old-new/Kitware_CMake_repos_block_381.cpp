@@ -1,5 +1,6 @@
 {
-			archive_set_error(&(a->archive), errno,
-			    "fwrite function failed");
-			return (ARCHIVE_FATAL);
+			archive_set_error(&a->archive, errno,
+			    "Failed to open the data fork for metadata");
+			close(tmpfd);
+			return (ARCHIVE_WARN);
 		}

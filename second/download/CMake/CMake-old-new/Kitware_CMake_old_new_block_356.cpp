@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "No current working directory\n");
-    abort();
-    }
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+      }

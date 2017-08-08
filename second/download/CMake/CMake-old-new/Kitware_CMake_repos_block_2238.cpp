@@ -1,4 +1,3 @@
 {
-    fprintf(stderr, "TARGET_DEF_RELEASE should be defined in C\n");
-    result = 0;
+    fprintf(stderr, "*** Failed LOADED COMMAND Final Pass\n");
   }

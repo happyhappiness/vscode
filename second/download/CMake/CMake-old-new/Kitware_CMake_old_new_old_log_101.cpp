@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, 0,
-				    "Cannot extract through symlink %s",
-				    a->name);
+fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");

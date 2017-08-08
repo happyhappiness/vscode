@@ -1,1 +1,1 @@
-fprintf(stderr, "before sleep\n");
+sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);

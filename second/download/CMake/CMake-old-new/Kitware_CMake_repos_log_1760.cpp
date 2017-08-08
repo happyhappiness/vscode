@@ -1,1 +1,1 @@
-printf("\n\t");
+snprintf(tmp, sizeof(tmp),"%s",dir);

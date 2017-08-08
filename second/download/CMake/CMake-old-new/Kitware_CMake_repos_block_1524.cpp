@@ -1,5 +1,3 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate lha data");
-		return (ARCHIVE_FATAL);
+		archive_string_sprintf(tgt, "Content-Type: %s\r\n", hdr.cnttyp);
 	}

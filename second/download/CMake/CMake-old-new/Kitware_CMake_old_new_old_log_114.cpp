@@ -1,1 +1,1 @@
-write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
+yy_fatal_error( "cmExpr_yyset_column called with no buffer" , yyscanner);

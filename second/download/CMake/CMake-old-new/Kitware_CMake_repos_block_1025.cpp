@@ -1,5 +1,9 @@
 {
-		archive_set_error(f->archive, ENOMEM,
-		    "Can't allocate data for compression buffer");
+		close(data->child_stdin);
+		data->child_stdin = -1;
+		close(data->child_stdout);
+		data->child_stdout = -1;
+		archive_set_error(f->archive, EINVAL,
+		    "Can't launch external program: %s", cmd);
 		return (ARCHIVE_FATAL);
 	}

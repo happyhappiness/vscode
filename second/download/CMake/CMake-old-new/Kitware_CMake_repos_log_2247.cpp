@@ -1,1 +1,1 @@
-fprintf(stderr, "DEBUG and RELEASE definitions inconsistent in C\n");
+fprintf(stderr, "Missing name of file to create.\n");

@@ -1,4 +1,5 @@
 {
-		archive_set_error(&(a->archive), EINVAL, "entry is NULL");
-		return (ARCHIVE_FAILED);
-	}
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+        "Internal error: Unable to set format");
+    r1 = (ARCHIVE_FATAL);
+  }

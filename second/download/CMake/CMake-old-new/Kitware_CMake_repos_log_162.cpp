@@ -1,1 +1,1 @@
-_snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column);
+char *fullpath = aprintf("%s/%s", capath, entry->name);

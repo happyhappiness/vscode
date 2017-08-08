@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "DISCONNECT without easy handle, ignoring\n"));
+DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));

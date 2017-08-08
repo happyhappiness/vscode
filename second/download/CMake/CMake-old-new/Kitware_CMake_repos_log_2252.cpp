@@ -1,1 +1,1 @@
-fprintf(stderr, "FILE_DEF not defined in C\n");
+fprintf(fp, "int generated() { return 3; }\n");

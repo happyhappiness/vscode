@@ -1,5 +1,8 @@
 {
-      report_good(false, entry.str);
-      printf("had %d bytes, used %d\n", entry.n, used);
-      return false;
-    }
+  FiveFunction();
+  EightFunction();
+
+  printf("Dependency test executable ran successfully.\n");
+
+  return 0;
+}

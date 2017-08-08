@@ -1,3 +1,4 @@
 {
-    fprintf(stdout, "%s\n", argv[i]);
-  }
+  printf("example2\n");
+  return 0;
+}

@@ -1,4 +1,4 @@
 {
-      printf("Couldn't parse that input as a number\n");
-      return -1;
-    }
+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+    return 1;
+  }

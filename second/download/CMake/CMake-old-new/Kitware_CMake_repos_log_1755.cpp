@@ -1,1 +1,3 @@
-printf("0x%08" PRIX32, crc32_table[s][b]);
+_snwprintf(filenamew, size, L"%s\\%.*s", handle->dirw,
+                file_info->FileNameLength / (DWORD)sizeof(WCHAR),
+                file_info->FileName);

@@ -1,1 +1,1 @@
-fprintf(stdout, "CTEST_FULL_OUTPUT (Avoid ctest truncation of output)\n");
+printf("Couldn't parse that input as a number\n");

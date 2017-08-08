@@ -1,1 +1,1 @@
-printf("Child was disowned.\n");
+fprintf(stdout, "Output on stdout after sleep.\n");

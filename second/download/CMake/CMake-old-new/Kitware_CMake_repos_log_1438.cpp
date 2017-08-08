@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetDiskFreeSpace failed: %d", (int)GetLastError());
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Lzip: Remaining data is less bytes");

@@ -1,1 +1,1 @@
-sprintf(buffer, format, value);
+fprintf(stdout, "%s\n", line.c_str());

@@ -1,1 +1,1 @@
-archive_set_error(a, -1, "Standard lookups not available on Windows");
+archive_string_sprintf(tgt, "WARC-Type: %s\r\n", _typ[hdr.type]);

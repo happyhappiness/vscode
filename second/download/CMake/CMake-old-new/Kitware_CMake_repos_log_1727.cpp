@@ -1,1 +1,2 @@
-snprintf(trypath, sizeof(trypath) - 1, "%s/%s", token, args);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Linkname");

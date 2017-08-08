@@ -1,9 +1,16 @@
 {
-			case LZMADEC_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
+			case LZMADEC_HEADER_ERROR:
+				archive_set_error(&a->archive,
 				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up lzmadec decompressor");
-				return (ARCHIVE_FATAL);
+				    "Internal error initializing "
+				    "compression library: "
+				    "invalid header");
+				break;
+			case LZMADEC_MEM_ERROR:
+				archive_set_error(&a->archive,
+				    ENOMEM,
+				    "Internal error initializing "
+				    "compression library: "
+				    "out of memory");
+				break;
 			}

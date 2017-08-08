@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-		    "File size out of range");
+archive_set_error(a, errno, "Can't stat '%s'",
+			    filename);
