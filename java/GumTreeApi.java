@@ -97,30 +97,31 @@ public class GumTreeApi {
 //		 g.setOldAndNewFile(oldFile, newFile);
 //		 g.setOldLoc(2);
 //		 g.addLogNode(2);
-////		 g.getDeltaBlockfeature();
+//		 g.getDeltaBlockfeature();
 //		 System.out.println(g.getActionType());
 		
 		
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setFile(filename);
-//		g.setLoc(4);
-//		System.out.println(g.getLog());
-//		g.printSpliter();
-//		System.out.println(g.getBlock());
-//		g.printSpliter();
-//		System.out.println(g.getControl());
+		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_file_250.cpp";
+		GumTreeApi g = new GumTreeApi();
+		g.setFile(filename);
+		g.setLoc(254);
+		System.out.println(g.getLog());
+		g.printSpliter();
+		System.out.println(g.getBlock());
+		g.printSpliter();
+		System.out.println(g.getControl());
 	
 		
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_new_log_260.cpp";
-		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1838.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setFile(oldFile);
-		System.out.println(g.getBlockType());
-		g.setOldAndNewFile(oldFile, newFile);
-		g.getEditedNodes();
-		System.out.println(g.isMatchWithEdit(reposFile));
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_new_log_260.cpp";
+//		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1838.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setFile(oldFile);
+//		System.out.println(g.getBlockType());
+//		g.setOldAndNewFile(oldFile, newFile);
+//		g.getEditedNodes();
+//		System.out.println(g.isMatchWithEdit(reposFile));
 		
 		
 //		GumTreeApi g = new GumTreeApi();
@@ -628,7 +629,7 @@ public class GumTreeApi {
 			fileReader = new FileReader(filename);
 			fileReader.skip(beginPos);
 
-			char[] value = new char[1000];
+			char[] value = new char[endPos - beginPos];
 			fileReader.read(value, 0, endPos - beginPos);
 			fileReader.close();
 
