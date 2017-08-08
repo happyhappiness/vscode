@@ -90,15 +90,15 @@ public class GumTreeApi {
 		
 
 		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_336.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_236.cpp";
 		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_336.cpp";
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_236.cpp";
 		 GumTreeApi g = new GumTreeApi();
 		 g.setOldAndNewFile(oldFile, newFile);
-		 g.setOldLoc(5);
+		 g.setOldLoc(8);
 		 System.out.println(g.getOldLog());
 		 System.out.println(g.getNewLog());
-		 g.addLogNode(5);
+		 g.addLogNode(8);
 //		 g.addLogNode(3);
 //		 g.getDeltaBlockfeature();
 		 System.out.println(g.getActionType());
@@ -196,7 +196,7 @@ public class GumTreeApi {
 // 			judge if leaf edition is edition of logs
 			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
 			isIdentified = false;
-//			System.out.println(action.toString());
+			System.out.println(action.toString());
 			if(isFeature == 0 || isLog == 0 || isLogs == 0)
 			{
 //				edition of old tree
