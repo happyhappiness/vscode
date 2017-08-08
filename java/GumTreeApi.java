@@ -89,28 +89,29 @@ public class GumTreeApi {
 		// System.out.println("hello I am gumtree api");
 		
 
-//		 String oldFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_117.cpp";
-//		 String newFile =
-//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_117.cpp";
-//		 GumTreeApi g = new GumTreeApi();
-//		 g.setOldAndNewFile(oldFile, newFile);
-//		 g.setOldLoc(2);
-//		 g.addLogNode(2);
+		 String oldFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_654.cpp";
+		 String newFile =
+		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_654.cpp";
+		 GumTreeApi g = new GumTreeApi();
+		 g.setOldAndNewFile(oldFile, newFile);
+		 g.setOldLoc(3);
+		 g.addLogNode(0);
+		 g.addLogNode(3);
 //		 g.getDeltaBlockfeature();
-//		 System.out.println(g.getActionType());
+		 System.out.println(g.getActionType());
 		
 		
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_file_250.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setFile(filename);
-		g.setLoc(254);
-		System.out.println(g.getLog());
-		g.printSpliter();
-		System.out.println(g.getBlock());
-		g.printSpliter();
-		System.out.println(g.getControl());
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_file_250.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setFile(filename);
+//		g.setLoc(254);
+//		System.out.println(g.getLog());
+//		g.printSpliter();
+//		System.out.println(g.getBlock());
+//		g.printSpliter();
+//		System.out.println(g.getControl());
 	
 		
 //		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
@@ -187,6 +188,7 @@ public class GumTreeApi {
 		Action action;
 		ITree tempNode;
 		boolean isIdentified;
+//		printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
 		while (actionIter.hasNext()) {
 			action = actionIter.next();
 			// do not deal with comment modification
@@ -196,10 +198,14 @@ public class GumTreeApi {
 			}
 // 			judge if leaf edition is edition of logs
 			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
-//			printNode(tempNode, this.oldTreeContext, this.oldFile);
 			isIdentified = false;
 			if(isFeature == 0 || isLog == 0 || isLogs == 0)
 			{
+//				action outside old file
+				if(!isChildrenOf(tempNode, this.oldTree))
+				{
+					continue;
+				}
 //				decide whether is log
 				if(isChildrenOf(tempNode, this.oldLogNode))
 				{

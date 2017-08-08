@@ -46,6 +46,12 @@
     "bitset": "cpp",
     "cm_c11_thread_local.c": "cpp",
     "bar.c": "cpp",
-    "archive_random.c": "cpp"
+    "archive_random.c": "cpp",
+    "hash_map": "cpp",
+    "hash_set": "cpp",
+    "rope": "cpp",
+    "valarray": "cpp",
+    "*.in": "cpp",
+    "iterator": "cpp"
 }
 }
