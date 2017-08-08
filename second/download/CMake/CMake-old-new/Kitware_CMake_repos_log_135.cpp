@@ -1,1 +1,1 @@
-host_port = aprintf("%s:%hu", hostname, remote_port);
+snprintf(buf, max, "Unknown error %d", err);

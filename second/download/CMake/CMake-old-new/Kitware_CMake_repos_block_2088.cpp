@@ -1,3 +1,4 @@
 {
-  printf("Placeholder for a file with strange name\n");
-}
+      printf("%3d is an invalid test number.\n", testNum);
+      return -1;
+    }

@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);
+fprintf(stderr, "TARGET_DEF_RELEASE should be defined in C\n");

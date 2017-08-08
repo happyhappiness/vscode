@@ -1,1 +1,1 @@
-sprintf(buffer, format, argument);
+printf("RegularExpression::compile(): Invalid range in [].\n");

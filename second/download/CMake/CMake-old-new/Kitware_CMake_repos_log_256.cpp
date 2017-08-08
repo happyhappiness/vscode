@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "XML Parsing error: %s", msg);
+archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
+		    "Sumcheck error");

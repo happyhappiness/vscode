@@ -1,1 +1,1 @@
-printf("Check for file: %s\n", fpath);
+printf("The value of Foo: %s\n", foo);

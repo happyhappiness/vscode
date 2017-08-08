@@ -1,9 +1,16 @@
 {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
+  CURLcode result = CURLE_OK;
+  char *xoauth = NULL;
+
+  /* Generate the message */
+  xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+  if(!xoauth)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the reply */
+  result = Curl_base64_encode(data, xoauth, strlen(xoauth), outptr, outlen);
+
+  free(xoauth);
+
+  return result;
+}

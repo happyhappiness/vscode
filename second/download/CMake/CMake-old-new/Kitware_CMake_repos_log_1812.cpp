@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_RED);
+YY_FATAL_ERROR( "flex scanner push-back overflow" );

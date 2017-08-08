@@ -1,5 +1,7 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't initialize zlib stream.");
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal programing error "
+		    "in generating canonical name for %s",
+		    file->pathname.s);
+		return (ARCHIVE_FAILED);
+	}

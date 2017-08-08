@@ -1,5 +1,5 @@
 {
-		archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, "truncated lz4 input");
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, EINVAL,
+		    "Invalid filename");
+		return (ARCHIVE_WARN);
 	}

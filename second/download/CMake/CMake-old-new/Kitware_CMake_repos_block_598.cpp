@@ -1,6 +1,7 @@
 {
-			/* We tried, but couldn't get rid of it. */
-			archive_set_error(&a->archive, errno,
-			    "Could not unlink");
-			return(ARCHIVE_FAILED);
-		}
+		/* stringify this entry's version */
+		archive_string_sprintf(&w->sver,
+			"WARC/%u.%u", ver / 10000, (ver % 10000) / 100);
+		/* remember the version */
+		w->pver = ver;
+	}

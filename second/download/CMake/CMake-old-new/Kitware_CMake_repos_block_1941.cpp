@@ -1,6 +1,5 @@
 {
-      printf("testToRun was modified by TestDriver code to an invalid value: "
-             "%3d.\n",
-             testNum);
-      return -1;
+      // RAISE Error, SYM(RegularExpression), SYM(Too_Many_Parens),
+      printf("RegularExpression::compile(): Too many parentheses.\n");
+      return 0;
     }

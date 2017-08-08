@@ -1,1 +1,1 @@
-snprintf(ssh_buffer, sizeof(ssh_buffer), "libssh2/%s", LIBSSH2_VERSION);
+len = snprintf(ptr, left, " libssh2/%s", CURL_LIBSSH2_VERSION);

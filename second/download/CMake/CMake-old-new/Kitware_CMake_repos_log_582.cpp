@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-		    "lzo_init(type check) failed");
+archive_set_error(&self->archive->archive,
+	    ARCHIVE_ERRNO_FILE_FORMAT, "Truncated lzop data");

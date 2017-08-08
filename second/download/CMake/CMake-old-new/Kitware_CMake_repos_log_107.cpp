@@ -1,2 +1,3 @@
-snprintf((char *)&temp[len], sizeof(temp) - len,
-               "%c%c", CURL_IAC, CURL_SE);
+snprintf((char *)temp, sizeof(temp),
+               "%c%c%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_NEW_ENVIRON,
+               CURL_TELQUAL_IS);

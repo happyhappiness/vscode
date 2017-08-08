@@ -1,1 +1,1 @@
-printf("Foo: %s %d\n", foo, class);
+printf("Missing file %s\n", av[1]);

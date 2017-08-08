@@ -1,3 +1,3 @@
 {
-      printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);
-    }
+    fprintf(stderr, "unexpected argument: '%s'\n", argv[i]);
+  }

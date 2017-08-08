@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_GREEN);
+YY_FATAL_ERROR( "cmListFileLexer_yyset_lineno called with no buffer" );

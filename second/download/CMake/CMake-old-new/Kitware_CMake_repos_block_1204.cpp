@@ -1,5 +1,5 @@
 {
-					archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-					    "Malformed 64-bit compressed size");
-					return ARCHIVE_FAILED;
-				}
+			archive_set_error(&(a->archive), errno,
+			    "Failed : %s", archive_error_string(a->matching));
+			return (r);
+		}

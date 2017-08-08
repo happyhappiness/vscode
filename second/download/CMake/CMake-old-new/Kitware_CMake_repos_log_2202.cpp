@@ -1,1 +1,1 @@
-sprintf(buffer, "Shold be empty (source file name): [%s]", cstr);
+fprintf(f, "int generated_by_testExe4() { return 0; }\n");

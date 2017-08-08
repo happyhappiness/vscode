@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Write error");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't convert a path to a wchar_t string");

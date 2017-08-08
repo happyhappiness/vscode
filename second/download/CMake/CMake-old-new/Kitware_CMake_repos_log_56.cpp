@@ -1,1 +1,1 @@
-from = aprintf("%s", data->set.str[STRING_MAIL_FROM]);
+snprintf(sbuf, sizeof(sbuf), "%d", port);

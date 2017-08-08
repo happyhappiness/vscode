@@ -1,10 +1,11 @@
 {
-  SixAFunction();
-  SixBFunction();
-  NoDepBFunction();
-  NoDepCFunction();
+  int ii;
 
-  printf("Dependency test executable ran successfully.\n");
+  printf("Command:");
+  for (ii = 1; ii < argc; ++ii) {
+    printf(" \"%s\"", argv[ii]);
+  }
+  printf("\n");
 
-  return 0;
+  return 42;
 }

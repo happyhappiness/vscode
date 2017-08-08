@@ -1,4 +1,6 @@
 {
-				archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-					"Truncated ar archive- failed consuming padding");
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate v7tar data");
+				archive_string_free(&as);
+				return(ARCHIVE_FATAL);
 			}

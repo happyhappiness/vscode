@@ -1,1 +1,1 @@
-printf("%s is there! Good.", av[1]);
+printf("Failed to open module3\n%s\n", dlerror());

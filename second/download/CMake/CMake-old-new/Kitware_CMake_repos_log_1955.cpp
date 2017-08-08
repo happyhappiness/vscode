@@ -1,1 +1,1 @@
-sprintf(buffer, "%ld", osvi.dwMinorVersion);
+printf("RegularExpression::find(): Internal error -- corrupted pointers.\n");

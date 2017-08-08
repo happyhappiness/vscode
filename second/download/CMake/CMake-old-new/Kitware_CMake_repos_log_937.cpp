@@ -1,3 +1,4 @@
-archive_set_error(&a->archive,
+archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			    "Illegal value `%s'",
+			    value);

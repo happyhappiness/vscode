@@ -1,11 +1,7 @@
 {
-	int i;
-
-	for (i = 0; codes[i].code != 0; i++) {
-		if (code == codes[i].code)
-			return ((codes[i].setter)(a));
-	}
-
-	archive_set_error(a, EINVAL, "No such format");
-	return (ARCHIVE_FATAL);
-}
+			archive_set_error(&a->archive, errno,
+			    "Couldn't open %s", tree_current_path(t));
+			r = ARCHIVE_FAILED;
+			tree_enter_initial_dir(t);
+			goto abort_read_data;
+		}

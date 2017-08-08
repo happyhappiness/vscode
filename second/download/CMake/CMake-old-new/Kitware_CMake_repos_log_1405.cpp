@@ -1,3 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma library error:  No progress is possible");
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate ustar data");

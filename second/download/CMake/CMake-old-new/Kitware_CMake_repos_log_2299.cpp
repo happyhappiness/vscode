@@ -1,1 +1,1 @@
-printf("There is X on this computer\n");
+fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);

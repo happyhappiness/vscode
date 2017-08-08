@@ -1,1 +1,1 @@
-fprintf(stderr, "FILE_DEF_DEBUG should be defined in C\n");
+printf("Wrap creating \"%s\"\n", argv[argc - 1]);

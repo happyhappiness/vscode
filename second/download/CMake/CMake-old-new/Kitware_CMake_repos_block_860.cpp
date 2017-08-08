@@ -1,5 +1,7 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Can't open file to read extended attributes: No name");
-		return (ARCHIVE_WARN);
-	}
+			/* We got an unexpected form. */
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unsupported form of BCJ2 streams");
+			return (ARCHIVE_FATAL);
+		}

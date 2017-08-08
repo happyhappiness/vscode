@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "Can't set UID=%jd", (intmax_t)a->uid);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Lzop compression failed: returned status %d", r);

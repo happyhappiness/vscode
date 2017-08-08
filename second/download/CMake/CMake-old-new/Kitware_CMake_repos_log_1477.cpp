@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Numeric mode too large");
+archive_set_error(&a->archive, errno,
+			    "Can't GetFileInformationByHandle");

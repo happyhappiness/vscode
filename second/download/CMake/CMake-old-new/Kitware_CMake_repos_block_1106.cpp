@@ -1,5 +1,6 @@
 {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Gname");
-			return (ARCHIVE_FATAL);
-		}
+		la_dosmaperr(GetLastError());
+		archive_set_error(&(a->archive), errno,
+		    "Failed to FindFirstFileA");
+		return (ARCHIVE_FAILED);
+	}

@@ -1,1 +1,4 @@
-archive_string_sprintf(str, " mode=%o", (unsigned int)me->mode)
+return addError(
+        "Bad unicode escape sequence in string: four digits expected.",
+        token,
+        current);

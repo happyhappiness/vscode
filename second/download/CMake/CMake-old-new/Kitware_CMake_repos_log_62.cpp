@@ -1,3 +1,2 @@
-fprintf(stderr, "handle %p, state %s, %d sockets\n",
-              (void *)data,
-              statename[data->mstate], data->numsocks);
+fprintf(stderr, "* Multi status: %d handles, %d alive\n",
+          multi->num_easy, multi->num_alive);

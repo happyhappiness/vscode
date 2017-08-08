@@ -1,4 +1,5 @@
 {
-    fprintf(stderr, "FILE_STRING has wrong value in C [%s]\n", FILE_STRING);
-    result = 0;
-  }
+  Should not be build unless target directory A, B, or C are build;
+  printf("This is T1\n");
+  return 5;
+}

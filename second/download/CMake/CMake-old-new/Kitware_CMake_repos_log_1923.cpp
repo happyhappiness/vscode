@@ -1,1 +1,2 @@
-printf("RegularExpression::find(): Internal error -- corrupted pointers.\n");
+printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp));

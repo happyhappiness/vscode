@@ -1,1 +1,1 @@
-char *slot_name = aprintf("PEM Token #%d", slot_id);
+utf8_spn = aprintf("%s/%s", service, host);

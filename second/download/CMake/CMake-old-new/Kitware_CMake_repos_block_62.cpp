@@ -1,4 +1,10 @@
 {
+  struct Curl_easy *data;
+  int i;
+  fprintf(stderr, "* Multi status: %d handles, %d alive\n",
+          multi->num_easy, multi->num_alive);
+  for(data=multi->easyp; data; data = data->next) {
+    if(data->mstate < CURLM_STATE_COMPLETED) {
       /* only display handles that are not completed */
       fprintf(stderr, "handle %p, state %s, %d sockets\n",
               (void *)data,
@@ -19,3 +25,5 @@
       if(data->numsocks)
         fprintf(stderr, "\n");
     }
+  }
+}

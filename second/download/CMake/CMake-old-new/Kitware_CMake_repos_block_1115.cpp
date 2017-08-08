@@ -1,5 +1,4 @@
 {
-			archive_set_error(&a->archive, ERANGE,
-			    "Minor device number too large");
-			ret = ARCHIVE_FAILED;
-		}
+		archive_set_error(&(a->archive), EINVAL, "entry is NULL");
+		return (ARCHIVE_FAILED);
+	}

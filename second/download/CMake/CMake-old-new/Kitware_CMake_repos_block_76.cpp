@@ -1,4 +1,4 @@
 {
-    DEBUGF(fprintf(stderr, "DISCONNECT without easy handle, ignoring\n"));
-    return CURLE_OK;
-  }
+        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+        result = CURLE_OUT_OF_MEMORY;
+      }

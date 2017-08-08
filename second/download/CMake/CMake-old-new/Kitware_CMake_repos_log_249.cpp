@@ -1,2 +1,2 @@
-fprintf(stderr, "    attr:\"%s\"=\"%s\"\n",
-		    attr->name, attr->value);
+archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
+			    "Decompressed size error");

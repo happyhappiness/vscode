@@ -1,5 +1,5 @@
 {
-		archive_set_error(&self->archive->archive, -1,
-		    "Invalid compressed data");
+		archive_set_error(&a->archive, ENOMEM,
+		    "No memory");
 		return (ARCHIVE_FATAL);
 	}

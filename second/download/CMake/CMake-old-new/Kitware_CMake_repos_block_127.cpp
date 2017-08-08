@@ -1,1 +1,6 @@
-snprintf(buf, max, "Unknown error %d", err)
+{
+      fprintf(out, "#\n# Fatal libcurl error\n");
+      if(!use_stdout)
+        fclose(out);
+      return 1;
+    }

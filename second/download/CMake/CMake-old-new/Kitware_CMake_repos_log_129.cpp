@@ -1,1 +1,1 @@
-snprintf(buf, max, "Unknown error %d", err);
+len = curl_msnprintf(fptr, left, "%ld", width);

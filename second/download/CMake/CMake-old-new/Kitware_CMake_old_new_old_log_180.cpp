@@ -1,1 +1,1 @@
-snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

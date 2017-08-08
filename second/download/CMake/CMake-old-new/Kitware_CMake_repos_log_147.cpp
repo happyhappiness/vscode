@@ -1,1 +1,1 @@
-snprintf(output, outlen, "%s:", label);
+spn = aprintf("%s@%s", service, realm);

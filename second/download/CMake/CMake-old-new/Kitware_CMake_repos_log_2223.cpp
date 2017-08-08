@@ -1,1 +1,1 @@
-fprintf(fp, "extern int wrapped_help();\n");
+printf("This is T8\n");

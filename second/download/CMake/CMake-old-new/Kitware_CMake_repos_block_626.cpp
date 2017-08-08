@@ -1,6 +1,6 @@
 {
-			if (errno == EINTR)
-				continue;
-			archive_set_error(a, errno, "Write error");
-			return (-1);
+			/* We tried, but couldn't get rid of it. */
+			archive_set_error(&a->archive, errno,
+			    "Could not unlink");
+			return(ARCHIVE_FAILED);
 		}

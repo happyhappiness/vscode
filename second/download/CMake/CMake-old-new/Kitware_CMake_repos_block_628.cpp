@@ -1,6 +1,5 @@
 {
-		/* waitpid() failed?  This is ugly. */
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Child process exited badly");
-		return (ARCHIVE_WARN);
-	}
+			archive_set_error(&a->archive, errno,
+			    "Can't stat existing object");
+			return (ARCHIVE_FAILED);
+		}

@@ -1,1 +1,1 @@
-printf("Placeholder for another strange file in subdirectory\n");
+printf("arg1 and arg2 present and accounted for!\n");

@@ -1,1 +1,2 @@
-fprintf(stdout, "Output on stdout before grandchild test.\n");
+printf("The version of ctest is not able to handle intentionally failing "
+           "tests, so pass.\n");

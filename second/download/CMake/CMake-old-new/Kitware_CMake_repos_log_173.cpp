@@ -1,1 +1,1 @@
-printf(LANG "KWIML_ABI_ENDIAN_ID: unknown, FAILED\n");
+addError("Syntax error: value, object or array expected.", token);

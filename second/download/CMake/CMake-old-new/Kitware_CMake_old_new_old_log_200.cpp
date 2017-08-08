@@ -1,2 +1,1 @@
-archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
+DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

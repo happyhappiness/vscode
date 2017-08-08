@@ -1,1 +1,1 @@
-printf("Running command: %s with %d arguments\n", argv[0], argc);
+printf("This is T4. This one should work.\n");

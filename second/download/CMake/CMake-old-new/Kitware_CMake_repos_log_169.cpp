@@ -1,1 +1,2 @@
-len = snprintf(buffer, sizeof(buffer), "1e+9999");
+DEBUGF(fprintf(stderr,
+                     "Error: polarsslthreadlock_unlock_function failed\n"));

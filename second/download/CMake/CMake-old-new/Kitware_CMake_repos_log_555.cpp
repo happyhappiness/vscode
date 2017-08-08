@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-	    ARCHIVE_ERRNO_FILE_FORMAT, "Corrupted lzop header");
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Internal error initializing compression library");

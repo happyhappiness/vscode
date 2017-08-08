@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Failed to get metadata(xattr)");
+fsobj_error(a_eno, a_estr, 0,
+				    "Cannot extract through symlink %s", path);

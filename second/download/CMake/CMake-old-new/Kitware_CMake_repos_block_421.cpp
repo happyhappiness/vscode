@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-						"Can't open %s", path);
-				r = ARCHIVE_WARN;
-			}
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		return (ARCHIVE_FATAL);
+	}

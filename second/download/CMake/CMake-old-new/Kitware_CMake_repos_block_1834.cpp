@@ -1,5 +1,4 @@
 {
-    printf("The version of ctest is not able to handle intentionally failing "
-           "tests, so pass.\n");
-    return 0;
-  }
+  cmCursesForm* self = static_cast<cmCursesForm*>(clientData);
+  self->AddError(message, title);
+}

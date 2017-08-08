@@ -1,2 +1,1 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_MISC, "%s %s", "Parse error: ", errstr);
+archive_set_error(&a->archive, EINVAL, "Too many special headers");

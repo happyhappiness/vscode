@@ -1,4 +1,15 @@
 {
-    fprintf(stderr, "TARGET_DEF not defined in C\n");
-    result = 0;
+  if (argc < 2) {
+    fprintf(stderr, "Usage: %s <file>\n", argv[0]);
+    return 1;
   }
+  FILE* fp = fopen(argv[1], "w");
+#ifdef GENERATOR_EXTERN
+  fprintf(fp, "int generated() { return 3; }\n");
+#else
+  fprintf(fp, "extern int gen_redirect(void);\n");
+  fprintf(fp, "int generated() { return gen_redirect(); }\n");
+#endif
+  fclose(fp);
+  return 0;
+}

@@ -1,1 +1,2 @@
-snprintf(resolved_path, maxlen, "%s", path);
+printf(
+      "RegularExpression::find(): Compiled regular expression corrupted.\n");

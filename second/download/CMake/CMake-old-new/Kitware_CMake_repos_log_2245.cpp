@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_RELEASE should not be defined in C\n");
+printf("TEST_C_FLAGS failed\n");

@@ -1,1 +1,1 @@
-printf("Problem with lib1\n");
+printf("HEADER_STRING: %s\n", HEADER_STRING);

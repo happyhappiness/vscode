@@ -1,2 +1,1 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName().c_str());
+fprintf(stderr, "Couldn't open file '%s' with CreateFile()\n", filename);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Must specify output file.\n");
+printf("Placeholder for a strange file in subdirectory\n");

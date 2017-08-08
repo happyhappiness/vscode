@@ -1,1 +1,1 @@
-fprintf(stderr, "build_config_name is not \"relwithdebinfo\"\n");
+fprintf(stdout, "Usage: %s number\n", argv[0]);

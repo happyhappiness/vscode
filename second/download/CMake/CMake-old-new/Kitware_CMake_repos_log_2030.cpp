@@ -1,1 +1,1 @@
-printf("Dependency test executable ran successfully.\n");
+fprintf(stdout, ">> Creating %s!\n", argv[1]);

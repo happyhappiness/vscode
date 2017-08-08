@@ -1,1 +1,1 @@
-printf("Problem with lib4\n");
+sprintf(buffer, "Shold be empty (source file name): [%s]", cstr);

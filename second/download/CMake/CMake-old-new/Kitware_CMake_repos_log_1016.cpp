@@ -1,2 +1,2 @@
-archive_set_error(a, errno,
-				    "Failed to get flagset from an NFSv4 ACL entry");
+archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library");

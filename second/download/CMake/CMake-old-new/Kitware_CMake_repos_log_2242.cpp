@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");
+fprintf(stdout, "fakefluid is creating file \"%s\"\n", av[i + 1]);

@@ -1,19 +1,12 @@
 {
-  // test static data (needs declspec to work)
-  Hello::Data = 120;
-  Hello h;
-  h.real();
-  hello();
-  printf(" ");
-  world();
-  printf("\n");
-  foo();
-  printf("\n");
-  bar();
-  objlib();
-  printf("\n");
-#ifdef HAS_JUSTNOP
-  justnop();
+  fprintf(stderr, "before sleep\n");
+  fflush(stderr); /* should not be needed, but just in case */
+#if defined(_WIN32)
+  Sleep((TIMEOUT + 4) * 1000);
+#else
+  sleep((TIMEOUT + 4));
 #endif
+  fprintf(stderr, "after sleep\n");
+  fflush(stderr); /* should not be needed, but just in case */
   return 0;
 }

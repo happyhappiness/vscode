@@ -1,4 +1,3 @@
 {
-    printf("Problem with libcxx2\n");
-    return 1;
+    fprintf(stderr, "*** Failed LOADED COMMAND Final Pass\n");
   }

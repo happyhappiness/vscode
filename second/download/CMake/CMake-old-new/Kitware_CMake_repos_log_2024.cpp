@@ -1,1 +1,1 @@
-printf("\n");
+printf("hello assembler world, %d arguments  given\n", argc);

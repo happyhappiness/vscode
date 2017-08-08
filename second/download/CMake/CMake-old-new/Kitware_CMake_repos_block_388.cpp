@@ -1,6 +1,2 @@
-{
-		free(file);
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for Name");
-		return (ARCHIVE_FATAL);
-	}
+archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute")

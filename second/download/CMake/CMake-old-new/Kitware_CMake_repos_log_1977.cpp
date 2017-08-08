@@ -1,1 +1,1 @@
-fprintf(stdout, "SizeofResource returned datasize='%d'\n", datasize);
+sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));

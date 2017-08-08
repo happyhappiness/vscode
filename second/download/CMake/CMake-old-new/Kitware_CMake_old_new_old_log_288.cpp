@@ -1,1 +1,1 @@
-sprintf(buf, "%s\\*", name);
+snprintf(buf, sizeof(buf), "%s", prefix);

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Out of memory for deflate decompression");
+err = set_conversion_failed_error(a, tar->sconv, "Uname");

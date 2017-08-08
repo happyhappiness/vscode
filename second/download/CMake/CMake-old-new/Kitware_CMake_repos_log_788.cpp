@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Crypto codec not supported yet (ID: 0x%lX)", zip->codec);
+archive_string_sprintf(&state->encoded_buff, "`\nend\n");

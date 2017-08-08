@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate mtree data");
+len = snprintf(buffer, sizeof(buffer), "1e+9999");

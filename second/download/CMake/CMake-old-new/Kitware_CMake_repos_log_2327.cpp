@@ -1,2 +1,1 @@
-printf(#m ": expected %d, got %d (line %d)\n", (int)sizeof(t), (int)m,  \
-             __LINE__);
+fprintf(stderr, "build_config_name=\"%s\"\n", build_config_name);

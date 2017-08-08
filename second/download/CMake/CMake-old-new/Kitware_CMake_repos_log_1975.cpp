@@ -1,1 +1,1 @@
-fprintf(stdout, "FindResource worked\n");
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

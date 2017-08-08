@@ -1,3 +1,3 @@
-snprintf((char *)&temp[len], sizeof(temp) - len,
-                     "%c%s%c%s", CURL_NEW_ENV_VAR, varname,
-                     CURL_NEW_ENV_VALUE, varval);
+snprintf((char *)temp, sizeof(temp),
+               "%c%c%c%c%s%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_XDISPLOC,
+               CURL_TELQUAL_IS, tn->subopt_xdisploc, CURL_IAC, CURL_SE);

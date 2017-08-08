@@ -1,1 +1,1 @@
-fprintf(fout, "add_executable(%s", targetName);
+fprintf(out, "%s", archive_entry_pathname(entry));

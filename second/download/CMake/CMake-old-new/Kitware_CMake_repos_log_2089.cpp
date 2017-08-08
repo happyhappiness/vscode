@@ -1,1 +1,1 @@
-printf("Usage: %s <file>\n", av[0]);
+printf("-R needs an additional parameter.\n");

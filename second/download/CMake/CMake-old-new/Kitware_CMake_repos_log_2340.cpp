@@ -1,1 +1,1 @@
-printf("Placeholder for a strange file in subdirectory\n");
+printf("Problem with libc1\n");

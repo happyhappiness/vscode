@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lz4 program");
+archive_set_error(&a->archive, EINVAL,
+				    "Can't find string table");

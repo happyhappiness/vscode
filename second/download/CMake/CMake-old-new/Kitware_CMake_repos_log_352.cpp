@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, errno,
-		    "Failed to restore metadata");
+fsobj_error(a_eno, a_estr,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains ", "'..'");

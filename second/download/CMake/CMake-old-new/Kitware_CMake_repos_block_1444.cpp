@@ -1,6 +1,6 @@
 {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
+		archive_set_error(a, ENOMEM, "No memory");
+		free(mine);
+		free(b);
+		return (ARCHIVE_FATAL);
+	}

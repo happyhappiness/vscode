@@ -1,1 +1,1 @@
-printf("TEST_C_FLAGS failed\n");
+sprintf(fpath, "%s/%s", nexec, file);

@@ -1,4 +1,5 @@
 {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-  }
+        // RAISE Error, SYM(RegularExpression), SYM(Trailing_Backslash),
+        printf("RegularExpression::compile(): Trailing backslash.\n");
+        return 0;
+      }

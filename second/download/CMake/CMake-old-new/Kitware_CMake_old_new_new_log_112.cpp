@@ -1,3 +1,1 @@
-f(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;;
+YY_FATAL_ERROR( "cmCommandArgument_yyset_column called with no buffer" );

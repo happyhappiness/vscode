@@ -1,1 +1,4 @@
-archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Internal error initializing "
+				    "lzma library");

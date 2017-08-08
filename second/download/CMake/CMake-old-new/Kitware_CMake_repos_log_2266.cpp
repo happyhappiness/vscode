@@ -1,1 +1,2 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);
+fprintf(stderr, "TARGET_EXPR did not work in C [%s]\n",
+              TO_STRING(FILE_EXPR));

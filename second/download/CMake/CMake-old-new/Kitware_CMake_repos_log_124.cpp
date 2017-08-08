@@ -1,1 +1,1 @@
-len = curl_msnprintf(fptr, left, ".%ld", prec);
+q = curl_maprintf("%lu", len);

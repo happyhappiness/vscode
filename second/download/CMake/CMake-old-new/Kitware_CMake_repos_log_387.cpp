@@ -1,3 +1,5 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "A filename cannot be converted to UTF-16LE;"
-		    "You should disable making Joliet extension");
+archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");

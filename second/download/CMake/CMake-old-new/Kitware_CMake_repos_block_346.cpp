@@ -1,7 +1,8 @@
 {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Failed to get metadata(xattr)");
-			ret = ARCHIVE_WARN;
-			free(xattr_val_saved);
-			goto exit_xattr;
-		}
+					tail[0] = c;
+					fsobj_error(a_eno, a_estr, 0,
+					    "Cannot extract through "
+					    "symlink %s", path);
+					res = ARCHIVE_FAILED;
+					break;
+				}

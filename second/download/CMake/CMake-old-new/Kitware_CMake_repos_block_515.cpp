@@ -1,6 +1,5 @@
 {
-			if (errno == EINTR)
-				continue;
-			archive_set_error(a, errno, "Write error");
-			return (-1);
-		}
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "Unable to initialize PPMd range decoder");
+        return (ARCHIVE_FATAL);
+      }

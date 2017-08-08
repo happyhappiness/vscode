@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Can't change dir to read extended attributes");
+snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

@@ -1,2 +1,1 @@
-fprintf(stderr,
-            "FILE_DEF_RELEASE and TARGET_DEF_RELEASE inconsistent in C\n");
+fprintf(stderr, "Unable to open %s for writing!\n", argv[1]);

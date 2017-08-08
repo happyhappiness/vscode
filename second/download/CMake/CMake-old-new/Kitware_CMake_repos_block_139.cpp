@@ -1,1 +1,1 @@
-spn = aprintf("%s/%s", service, host)
+snprintf(outbuf, outmax, "%s - %s", str, msg)

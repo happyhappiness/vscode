@@ -1,2 +1,2 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external grzip program for grzip decompression");
+archive_set_error(a, errno,
+				    "Error reading '%s'", mine->filename.m);

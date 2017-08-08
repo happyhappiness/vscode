@@ -1,1 +1,1 @@
-printf("Failed to open module1\n");
+fprintf(fout, "&amp;");

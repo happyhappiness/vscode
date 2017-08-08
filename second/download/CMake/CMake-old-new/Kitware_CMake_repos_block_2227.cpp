@@ -1,5 +1,4 @@
 {
-  /* Reference a GL symbol without requiring a context at runtime.  */
-  printf("&glGetString = %p\n", &glGetString);
-  return 0;
-}
+    fprintf(stderr, "Something wrong with T2\n");
+    return 1;
+  }

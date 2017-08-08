@@ -1,4 +1,3 @@
 {
-      printf("expected [%s], got [%s]\n", p->out, out.c_str());
-      result = 1;
-    }
+  printf("Hello world!\n");
+}

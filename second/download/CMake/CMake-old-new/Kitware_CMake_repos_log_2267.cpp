@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);
+fprintf(stderr, "FILE_DEF_DEBUG should not be defined in C\n");

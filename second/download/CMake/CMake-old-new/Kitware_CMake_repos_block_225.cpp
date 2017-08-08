@@ -1,5 +1,4 @@
 {
-			archive_set_error(&a->archive,
-			    ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
+		archive_string_sprintf(str, " cksum=%ju",
+		    (uintmax_t)reg->crc);
+	}

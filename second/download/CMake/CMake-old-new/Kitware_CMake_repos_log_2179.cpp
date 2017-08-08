@@ -1,1 +1,1 @@
-sprintf(fpath, "%s/%s", nexec, file);
+printf("Problem with lib4\n");

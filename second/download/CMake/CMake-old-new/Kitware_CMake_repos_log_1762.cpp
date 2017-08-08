@@ -1,1 +1,1 @@
-printf(",%s", (b+1) % 4 == 0 ? "" : " ");
+sprintf(cmd, "/aha/fs/modFile.monFactory");

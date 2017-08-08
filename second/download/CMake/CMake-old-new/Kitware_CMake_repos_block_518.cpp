@@ -1,12 +1,7 @@
 {
-	int i;
-
-	for (i = 0; names[i].name != NULL; i++) {
-		if (strcmp(name, names[i].name) == 0)
-			return ((names[i].setter)(a));
-	}
-
-	archive_set_error(a, EINVAL, "No such format '%s'", name);
-	a->state = ARCHIVE_STATE_FATAL;
-	return (ARCHIVE_FATAL);
-}
+          free(precode.tree);
+          free(precode.table);
+          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Internal error extracting RAR file.");
+          return (ARCHIVE_FATAL);
+        }

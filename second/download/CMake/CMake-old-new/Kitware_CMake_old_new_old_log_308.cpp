@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid ZIP compression type");
+fprintf(fout, "\t%s\n", symbol.c_str()+1);

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip header data");
+fprintf(fout, " %08X", pSymbolTable->Value);

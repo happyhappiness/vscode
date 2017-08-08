@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from test returning 123.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL);

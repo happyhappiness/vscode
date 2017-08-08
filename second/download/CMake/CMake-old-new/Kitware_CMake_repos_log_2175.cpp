@@ -1,1 +1,1 @@
-printf("world\n");
+fprintf(stdout, "%s\n", argv[i]);

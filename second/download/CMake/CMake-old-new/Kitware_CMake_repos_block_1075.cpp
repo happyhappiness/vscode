@@ -1,4 +1,6 @@
 {
-		archive_set_error(&(a->archive), EINVAL, "pathname is empty");
-		return (ARCHIVE_FAILED);
-	}
+			if (errno == EINTR)
+				continue;
+			archive_set_error(a, errno, "Write error");
+			return (-1);
+		}

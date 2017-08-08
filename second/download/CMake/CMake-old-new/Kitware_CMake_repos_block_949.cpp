@@ -1,6 +1,6 @@
 {
 			archive_set_error(&a->archive,
 			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterStartElement() failed: %d", r);
-			goto exit_toc;
+			    "xmlTextWriterWriteString() failed: %d", r);
+			return (ARCHIVE_FATAL);
 		}

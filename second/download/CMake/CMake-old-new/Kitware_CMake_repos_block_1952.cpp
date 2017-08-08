@@ -1,4 +1,5 @@
 {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name.c_str());
-  }
+        // RAISE Error, SYM(RegularExpression), SYM(Internal_Error),
+        printf("RegularExpression::compile(): Internal error.\n");
+        return 0;
+      }

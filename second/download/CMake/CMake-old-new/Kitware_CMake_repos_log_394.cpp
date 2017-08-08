@@ -1,2 +1,2 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for bzip2 stream");
+archive_set_error(f->archive, ENOMEM,
+		    "Can't allocate data for b64encode filter");

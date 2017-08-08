@@ -1,1 +1,1 @@
-archive_set_error(&(a->archive), EINVAL, "pathname is empty");
+archive_set_error(a, errno, "Write error");

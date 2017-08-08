@@ -1,1 +1,1 @@
-printf(#m ": not defined (line %d)\n", __LINE__);
+fprintf(stderr, "build_config_name is not \"debug\"\n");

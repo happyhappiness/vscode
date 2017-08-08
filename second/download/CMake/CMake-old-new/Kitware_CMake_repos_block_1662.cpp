@@ -1,6 +1,6 @@
 {
-			archive_set_error(&a->archive, ENAMETOOLONG,
-			    "Link contents too long");
-			ret = ARCHIVE_FAILED;
-			copy_length = V7TAR_linkname_size;
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize LZX decompression.");
+			*avail = ARCHIVE_FATAL;
+			return (NULL);
 		}

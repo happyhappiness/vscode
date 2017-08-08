@@ -1,1 +1,1 @@
-fprintf(stderr, "Missing name of file to create.\n");
+printf("Started with: %d arguments\n", argc);

@@ -1,5 +1,4 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
-		return (ARCHIVE_FATAL);
-	}
+	archive_set_error(a, -1, "Standard lookups not available on Windows");
+	return (ARCHIVE_FATAL);
+}

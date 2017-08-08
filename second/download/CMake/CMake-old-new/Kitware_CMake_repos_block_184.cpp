@@ -1,1 +1,4 @@
-archive_string_sprintf(str, " nlink=%u", me->nlink)
+return addError(
+          "additional six characters expected to parse unicode surrogate pair.",
+          token,
+          current);

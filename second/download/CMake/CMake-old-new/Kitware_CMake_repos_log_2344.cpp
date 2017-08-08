@@ -1,1 +1,1 @@
-printf("Hello again\n");
+printf("arg[%d] = %s\n", i, av[i]);

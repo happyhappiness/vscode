@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-		    "Could not open extended attribute file");
+archive_set_error(&a->archive, ENOMEM,
+				    "No memory for 7-Zip decompression");

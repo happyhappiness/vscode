@@ -1,1 +1,5 @@
-snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])
+{
+    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
+    left -= len;
+    ptr += len;
+  }

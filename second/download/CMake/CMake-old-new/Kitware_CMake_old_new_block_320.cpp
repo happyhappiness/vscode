@@ -1,3 +1,3 @@
 {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
+      sprintf(buf, "%s/*", name);
       }

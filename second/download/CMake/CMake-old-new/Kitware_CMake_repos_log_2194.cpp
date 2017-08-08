@@ -1,1 +1,1 @@
-fprintf(stderr, "Something wrong with T2\n");
+fprintf(stdout, "  CMAKE_ENVIRONMENT_TEST_VAR='%s'\n", var);

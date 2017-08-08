@@ -1,1 +1,1 @@
-printf("&glGetString = %p\n", &glGetString);
+fprintf(stderr, "Something wrong with T2\n");

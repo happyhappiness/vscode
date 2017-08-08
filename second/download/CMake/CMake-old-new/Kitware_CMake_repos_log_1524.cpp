@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate lha data");
+archive_string_sprintf(tgt, "Content-Type: %s\r\n", hdr.cnttyp);

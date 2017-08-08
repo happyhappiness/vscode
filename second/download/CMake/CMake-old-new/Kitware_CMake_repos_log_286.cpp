@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-		    "Failed to remove resource fork");
+archive_set_error(&a->archive, ENOMEM, "Out of memory");

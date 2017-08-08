@@ -1,1 +1,1 @@
-printf("Child was killed by parent.\n");
+fprintf(stdout, "Output on stdout before sleep.\n");

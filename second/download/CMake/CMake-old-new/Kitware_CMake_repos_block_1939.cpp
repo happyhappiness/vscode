@@ -1,4 +1,5 @@
-{
-      printf("%3d is an invalid test number.\n", testNum);
-      return -1;
-    }
+{ // Probably could be 65535L.
+    // RAISE Error, SYM(RegularExpression), SYM(Expr_Too_Big),
+    printf("RegularExpression::compile(): Expression too big.\n");
+    return false;
+  }

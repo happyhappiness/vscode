@@ -1,3 +1,2 @@
-fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);

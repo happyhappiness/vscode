@@ -1,1 +1,3 @@
-tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; assuming \"file\"", val);

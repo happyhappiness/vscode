@@ -1,1 +1,2 @@
-yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner);
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name);

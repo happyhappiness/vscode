@@ -1,1 +1,3 @@
-archive_set_error(&(a->archive), EINVAL, "pathname is empty");
+archive_set_error(&self->archive->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Missing format data");

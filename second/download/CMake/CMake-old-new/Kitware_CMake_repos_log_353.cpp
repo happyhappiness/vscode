@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Failed to open the data fork for metadata");
+archive_set_error(&a->archive, error_number, "%s",
+		    error_string.s);

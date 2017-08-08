@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, errno, "Couldn't stat file");
+fprintf(stderr, "UNKNOWNTAG_START:%s\n", name);

@@ -1,2 +1,6 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "cab: hdrcharset option needs a character-set name")
+{
+			err = set_conversion_failed_error(a, tar->sconv,
+			    "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+		}

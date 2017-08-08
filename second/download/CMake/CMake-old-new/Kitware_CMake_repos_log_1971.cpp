@@ -1,1 +1,1 @@
-fprintf(stdout, "CMAKE_RCDEFINE defined\n");
+printf("%3d is an invalid test number.\n", testNum);

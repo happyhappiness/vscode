@@ -1,6 +1,5 @@
 {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unknown encryption flag: %u", zip->flags);
-		return (ARCHIVE_FAILED);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
 	}

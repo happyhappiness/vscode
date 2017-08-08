@@ -1,5 +1,1 @@
-{
-  size = snprintf(buffer, size, "WinSSL");
-
-  return size;
-}
+spn = aprintf("%s/%s", service, host)

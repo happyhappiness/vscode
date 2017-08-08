@@ -1,2 +1,2 @@
-archive_string_sprintf(&shar->work, "chmod %o ",
-		    (unsigned int)(archive_entry_mode(shar->entry) & 07777));
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unrecognized archive format");

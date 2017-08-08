@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "No memory");
-				return (ARCHIVE_FATAL);
-			}
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate content data");
+			return (ARCHIVE_FATAL);
+		}

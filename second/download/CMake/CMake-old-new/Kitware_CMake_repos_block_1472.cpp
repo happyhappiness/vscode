@@ -1,5 +1,6 @@
 {
-				archive_set_error(&a->archive, ERANGE,
-				    "string table offset too large");
-				return (ARCHIVE_WARN);
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't GetFileInformationByHandle");
+				return (ARCHIVE_FAILED);
 			}

@@ -1,1 +1,1 @@
-fprintf(stdout, "str='%s'\n", str);
+sprintf(buffer, format, argument);

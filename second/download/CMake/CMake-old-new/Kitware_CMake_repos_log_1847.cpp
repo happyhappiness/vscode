@@ -1,1 +1,1 @@
-fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_BLUE);

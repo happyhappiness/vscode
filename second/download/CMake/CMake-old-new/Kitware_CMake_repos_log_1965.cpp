@@ -1,1 +1,1 @@
-printf("Failed foo is not 21\n");
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

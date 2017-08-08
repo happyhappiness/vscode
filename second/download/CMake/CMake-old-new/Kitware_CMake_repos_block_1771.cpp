@@ -1,13 +1,13 @@
 {
-  va_list ap;
-  fprintf(stderr, "ninja: FATAL: ");
-  va_start(ap, msg);
-  vfprintf(stderr, msg, ap);
-  va_end(ap);
-  fprintf(stderr, "\n");
-  // On Windows, some tools may inject extra threads.
-  // exit() may block on locks held by those threads, so forcibly exit.
-  fflush(stderr);
-  fflush(stdout);
-  ExitProcess(1);
-}
+      char buf[32];
+      int fd;
+
+      snprintf(buf, sizeof(buf), "/proc/self/fd/%d", pipefd[0]);
+      fd = uv__open_cloexec(buf, O_RDWR);
+      if (fd >= 0) {
+        uv__close(pipefd[0]);
+        uv__close(pipefd[1]);
+        pipefd[0] = fd;
+        pipefd[1] = fd;
+      }
+    }

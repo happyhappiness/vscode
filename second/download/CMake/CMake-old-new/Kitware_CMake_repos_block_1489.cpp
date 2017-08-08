@@ -1,17 +1,16 @@
 {
-		/* check if there's a xyz:// */
-		static const char _uri[] = "";
-		static const char _fil[] = "file://";
-		const char *u;
-		char *chk = strchr(hdr.tgturi, ':');
-
-		if (chk != NULL && chk[1U] == '/' && chk[2U] == '/') {
-			/* yep, it's definitely a URI */
-			u = _uri;
-		} else {
-			/* hm, best to prepend file:// then */
-			u = _fil;
-		}
-		archive_string_sprintf(tgt,
-			"WARC-Target-URI: %s%s\r\n", u, hdr.tgturi);
+	case Z_STREAM_ERROR:
+		archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing "
+		    "compression library: invalid setup parameter");
+		break;
+	case Z_MEM_ERROR:
+		archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library");
+		break;
+	case Z_VERSION_ERROR:
+		archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing "
+		    "compression library: invalid library version");
+		break;
 	}

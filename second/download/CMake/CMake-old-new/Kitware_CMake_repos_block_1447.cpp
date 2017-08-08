@@ -1,8 +1,5 @@
 {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "Can't GetFileInformationByHandle");
-			if (h != INVALID_HANDLE_VALUE && fd < 0)
-				CloseHandle(h);
-			return (ARCHIVE_FAILED);
-		}
+		archive_set_error(a, errno,
+		    "A file descriptor(%d) is not seekable(PIPE)", mine->fd);
+		return (ARCHIVE_FAILED);
+	}

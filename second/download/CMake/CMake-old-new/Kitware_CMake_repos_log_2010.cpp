@@ -1,2 +1,1 @@
-fprintf(stdout, "Done processing %s\nTotal errors found: %i\n", argv[i],
-              error);
+fprintf(stdout, "SizeofResource returned datasize='%d'\n", datasize);

@@ -1,1 +1,1 @@
-printf("Couldn't parse that input as a number\n");
+printf("hello exec:%i", own_auto_export_function(41));

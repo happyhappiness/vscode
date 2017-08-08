@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzop compression failed: returned status %d", r);
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "lzop decompression failed: %d", r);

@@ -1,1 +1,1 @@
-fprintf(fout, "double sqrtTable[] = {\n");
+fprintf(file, "%s", "x");

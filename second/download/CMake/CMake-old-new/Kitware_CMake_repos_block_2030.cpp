@@ -1,8 +1,21 @@
 {
-  FiveFunction();
-  TwoFunction();
+  if (argc < 2) {
+    fprintf(stderr, "Missing name of file to create.\n");
+    return EXIT_FAILURE;
+  }
 
-  printf("Dependency test executable ran successfully.\n");
+  FILE* stream = fopen(argv[1], "w");
+  if (stream == NULL) {
+    fprintf(stderr, "Unable to open %s for writing!\n", argv[1]);
+    return EXIT_FAILURE;
+  }
 
-  return 0;
+  if (fclose(stream)) {
+    fprintf(stderr, "Unable to close %s!\n", argv[1]);
+    return EXIT_FAILURE;
+  }
+
+  fprintf(stdout, ">> Creating %s!\n", argv[1]);
+
+  return EXIT_SUCCESS;
 }

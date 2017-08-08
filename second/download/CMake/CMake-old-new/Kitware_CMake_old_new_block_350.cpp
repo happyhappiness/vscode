@@ -1,5 +1,17 @@
 {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
+  for(std::vector<LinkEntry>::const_iterator lei =
+        this->FinalLinkEntries.begin();
+      lei != this->FinalLinkEntries.end(); ++lei)
+    {
+    if(lei->Target)
+      {
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
       }
+    else
+      {
+      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
+      }
+    }
+  fprintf(stderr, "\n");
+}

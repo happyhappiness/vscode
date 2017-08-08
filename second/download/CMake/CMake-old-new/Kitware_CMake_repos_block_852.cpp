@@ -1,12 +1,5 @@
 {
-	int i;
-
-	for (i = 0; names[i].name != NULL; i++) {
-		if (strcmp(name, names[i].name) == 0)
-			return ((names[i].setter)(a));
-	}
-
-	archive_set_error(a, EINVAL, "No such filter '%s'", name);
-	a->state = ARCHIVE_STATE_FATAL;
-	return (ARCHIVE_FATAL);
-}
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC, "Damaged 7-Zip archive");
+			return (ARCHIVE_FATAL);
+		}

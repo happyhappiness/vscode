@@ -1,2 +1,3 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for bzip2 stream");
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartElement() failed: %d", r);

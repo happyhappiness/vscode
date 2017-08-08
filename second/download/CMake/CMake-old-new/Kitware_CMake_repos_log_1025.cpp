@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ENOMEM,
-		    "Can't allocate data for compression buffer");
+archive_set_error(f->archive, EINVAL,
+		    "Can't launch external program: %s", cmd);

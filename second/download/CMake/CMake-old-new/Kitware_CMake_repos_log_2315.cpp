@@ -1,1 +1,1 @@
-sprintf(buffer, "Shold be empty (source file name): [%s]", cstr);
+fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);

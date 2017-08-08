@@ -1,1 +1,0 @@
-YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" );

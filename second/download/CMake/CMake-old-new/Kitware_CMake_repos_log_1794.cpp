@@ -1,1 +1,1 @@
-fprintf(stderr, "Error running");
+printf(",%s", (b+1) % 4 == 0 ? "" : " ");

@@ -1,8 +1,4 @@
 {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
     }

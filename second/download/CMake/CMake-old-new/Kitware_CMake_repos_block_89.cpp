@@ -1,4 +1,1 @@
-{
-    snprintf(sbuf, sizeof(sbuf), "%d", port);
-    sbufptr=sbuf;
-  }
+printf("%s\n", buf)

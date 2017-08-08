@@ -1,7 +1,5 @@
 {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for xz decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ustar data");
+		return(ARCHIVE_FATAL);
 	}

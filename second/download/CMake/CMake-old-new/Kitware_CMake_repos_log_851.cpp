@@ -1,2 +1,3 @@
-archive_set_error(ar, archive_errno(aw),
-			    "%s", archive_error_string(aw));
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated 7-Zip file body");

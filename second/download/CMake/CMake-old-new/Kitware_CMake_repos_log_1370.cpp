@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Error seeking in stdin");
+fprintf(out, " l %d,",
+	    toi(isodirrec + DR_length_offset, DR_length_size));

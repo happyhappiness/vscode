@@ -1,1 +1,1 @@
-snprintf(sbuf, sizeof(sbuf), "%d", port);
+snprintf(service, sizeof(service), "%d", tsd->port);

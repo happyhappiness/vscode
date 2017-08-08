@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, errno,
-				  "Can't restore time");
-		return (ARCHIVE_WARN);
-	}
+				archive_set_error(&a->archive, errno,
+				    "Can't unlink already-existing object");
+				return (ARCHIVE_FAILED);
+			}

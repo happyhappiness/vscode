@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unknown format `%s'", val);
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");

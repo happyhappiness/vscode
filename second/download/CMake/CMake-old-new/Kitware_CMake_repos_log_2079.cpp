@@ -1,1 +1,1 @@
-printf("NP_GetEntryPoints()\n");
+printf("%s\n", regen_string);

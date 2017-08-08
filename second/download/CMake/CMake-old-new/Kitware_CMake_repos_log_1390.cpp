@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Numeric user ID %jd too large",
-		    (intmax_t)archive_entry_uid(entry));
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Unexpedted operation in archive_read_open_filename");

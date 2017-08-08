@@ -1,1 +1,1 @@
-printf("example1\n")
+printf("Running '%s'\n", argv[0]);

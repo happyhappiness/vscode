@@ -1,2 +1,3 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library");
+archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartDocument() failed: %d", r);

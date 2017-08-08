@@ -1,4 +1,1 @@
-{
-    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
-    putenv(buf);
-  }
+yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner)

@@ -1,2 +1,2 @@
-archive_set_error(a, errno,
-			    "Can't convert '%S' to MBS", wcs);
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "Unknown ACL tag");

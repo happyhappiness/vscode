@@ -1,6 +1,4 @@
 {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate ustar data");
-				archive_wstring_free(&ws);
-				return(ARCHIVE_FATAL);
-			}
+		archive_set_error(&(a->archive), EINVAL, "pattern is empty");
+		return (ARCHIVE_FAILED);
+	}

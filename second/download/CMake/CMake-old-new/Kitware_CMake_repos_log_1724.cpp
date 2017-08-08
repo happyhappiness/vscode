@@ -1,4 +1,2 @@
-snprintf(buf,
-           sizeof(buf),
-           "/sys/devices/system/cpu/cpu%u/cpufreq/scaling_cur_freq",
-           cpunum);
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");

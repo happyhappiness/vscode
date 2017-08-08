@@ -1,4 +1,3 @@
 {
-    fprintf(stderr, "Must specify output file.\n");
-    return 1;
-  }
+  printf("Placeholder for a strange file in subdirectory\n");
+}

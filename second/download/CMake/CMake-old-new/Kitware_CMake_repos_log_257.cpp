@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Couldn't allocate memory for xml parser");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't initialize zlib stream.");

@@ -1,4 +1,5 @@
 {
-		archive_set_error(a, ENOMEM, "No memory");
-		return (ARCHIVE_FATAL);
+		fprintf(stderr, "\n ** Unrecognized sequence number: ");
+		dump_isodirrec(stderr, isodirrec);
+		fprintf(stderr, "\n");
 	}

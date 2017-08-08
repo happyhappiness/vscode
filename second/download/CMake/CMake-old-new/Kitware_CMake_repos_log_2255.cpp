@@ -1,1 +1,1 @@
-fprintf(stderr, "OLD_DEF not defined in C\n");
+fprintf(stderr, "Usage: %s <file1> <file2>\n", argv[0]);

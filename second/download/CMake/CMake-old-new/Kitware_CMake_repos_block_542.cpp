@@ -1,5 +1,4 @@
 {
-		archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Unknown module name: `%s'", mp);
-		return (ARCHIVE_FAILED);
+		archive_set_error(a, ENOMEM, "No memory");
+		return (ARCHIVE_FATAL);
 	}

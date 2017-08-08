@@ -1,1 +1,2 @@
-fprintf(fout, "add_executable(%s", targetName.c_str());
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded);

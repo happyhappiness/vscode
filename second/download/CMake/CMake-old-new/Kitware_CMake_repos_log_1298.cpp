@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Illegal zisofs file body");
+archive_set_error(&a->archive, -1, "Damaged Zip archive");

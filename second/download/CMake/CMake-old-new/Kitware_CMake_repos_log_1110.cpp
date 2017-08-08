@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Numeric user ID too large");
+archive_set_error(&(a->archive), errno, "Failed to stat()");

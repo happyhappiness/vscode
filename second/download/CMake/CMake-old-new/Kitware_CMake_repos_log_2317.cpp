@@ -1,1 +1,2 @@
-sprintf(buffer, "Should be 0 (source file abstract property): [%p]", cstr);
+fprintf(stdout, "%s Version %d.%d\n", argv[0], Tutorial_VERSION_MAJOR,
+            Tutorial_VERSION_MINOR);

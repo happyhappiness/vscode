@@ -1,1 +1,1 @@
-fprintf(stderr, "Could not save png to '%s'\n", filename);
+fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);

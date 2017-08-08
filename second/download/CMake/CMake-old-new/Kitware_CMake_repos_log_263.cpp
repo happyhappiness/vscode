@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
+				    "Couldn't allocate memory for out buffer");

@@ -1,1 +1,1 @@
-fprintf(stderr, "FILE_DEF_RELEASE should be defined in C\n");
+sprintf(buffer, "Should be 0 (source file abstract property): [%p]", cstr);

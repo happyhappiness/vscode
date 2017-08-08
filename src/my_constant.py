@@ -74,6 +74,7 @@ analyze old new title and index
 """
 ANALYZE_OLD_NEW_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
  'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file']
+ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_TITLE.index('sha')
 ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('old_log_file')
 ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('new_log_file')
 ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_TITLE.index('old_block_file')
@@ -85,7 +86,7 @@ ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_TITLE.index('new_log')
 
 
 STATISTICS_OLD_NEW_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file', 'old_log_type', 'cluster']
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file', 'old_log_type', 'old_log_time', 'old_log_author', 'cluster']
 
 
 """

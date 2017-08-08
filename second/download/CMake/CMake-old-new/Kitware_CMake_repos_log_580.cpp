@@ -1,5 +1,2 @@
-archive_set_error(f->archive,
-			    ARCHIVE_ERRNO_PROGRAMMER,
-			    "Bzip2 compression failed;"
-			    " BZ2_bzCompress() returned %d",
-			    ret);
+archive_set_error(&self->archive->archive,
+	    ARCHIVE_ERRNO_FILE_FORMAT, "Truncated lzop data");

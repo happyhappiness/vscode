@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, ENOMEM, "Can't allocate ar data");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate tar data");

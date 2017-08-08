@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Couldn't allocate memory "
-			    "for lzh decompression");
+archive_set_error(&(self->archive->archive),
+		    ARCHIVE_ERRNO_MISC, "truncated lz4 input");

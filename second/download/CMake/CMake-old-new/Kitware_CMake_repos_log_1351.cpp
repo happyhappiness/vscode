@@ -1,2 +1,3 @@
-archive_set_error(&(a->archive),
-					    -1, "write overrun");
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL");

@@ -1,2 +1,3 @@
-archive_string_sprintf(info, "%c%s%s",
-		    prefix, (d == 0)?"!":"", key);
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up gzip decompressor");

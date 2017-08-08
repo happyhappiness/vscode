@@ -1,5 +1,6 @@
 {
-		archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "Failed to clean up compressor");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			goto exit_toc;
+		}

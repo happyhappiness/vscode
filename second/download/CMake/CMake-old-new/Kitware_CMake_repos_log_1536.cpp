@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Invalid LHa header");
+archive_set_error(&self->archive->archive, ENOMEM,
+			    "Can't allocate data for lz4 decompression");

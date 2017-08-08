@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Out of memory.\n");
+fprintf(stdout, "Output on stdout after grandchild test.\n");

@@ -1,1 +1,2 @@
-sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);
+fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());

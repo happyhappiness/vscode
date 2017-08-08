@@ -1,27 +1,39 @@
 {
-	case 0:
-		ci->folders =
-			calloc((size_t)ci->numFolders, sizeof(*ci->folders));
-		if (ci->folders == NULL)
-			return (-1);
-		for (i = 0; i < ci->numFolders; i++) {
-			if (read_Folder(a, &(ci->folders[i])) < 0)
-				goto failed;
-		}
+	case LZMA_STREAM_END: /* Found end of stream. */
+	case LZMA_OK: /* Decompressor made some progress. */
 		break;
-	case 1:
-		if (parse_7zip_uint64(a, &(ci->dataStreamIndex)) < 0)
-			return (-1);
-		if (UMAX_ENTRY < ci->dataStreamIndex)
-			return (-1);
-		if (ci->numFolders > 0) {
-			archive_set_error(&a->archive, -1,
-			    "Malformed 7-Zip archive");
-			goto failed;
-		}
+	case LZMA_MEM_ERROR:
+		archive_set_error(&a->archive, ENOMEM,
+		    "Lzma library error: Cannot allocate memory");
+		break;
+	case LZMA_MEMLIMIT_ERROR:
+		archive_set_error(&a->archive, ENOMEM,
+		    "Lzma library error: Out of memory");
+		break;
+	case LZMA_FORMAT_ERROR:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Lzma library error: format not recognized");
+		break;
+	case LZMA_OPTIONS_ERROR:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Lzma library error: Invalid options");
+		break;
+	case LZMA_DATA_ERROR:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Lzma library error: Corrupted input data");
+		break;
+	case LZMA_BUF_ERROR:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Lzma library error:  No progress is possible");
 		break;
 	default:
-		archive_set_error(&a->archive, -1,
-		    "Malformed 7-Zip archive");
-		goto failed;
+		/* Return an error. */
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Lzma decompression failed:  Unknown error");
+		break;
 	}

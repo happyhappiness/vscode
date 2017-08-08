@@ -1,4 +1,4 @@
 {
-  printf("NP_Initialize()\n");
-  return 0;
-}
+    fprintf(stderr, "Must specify output file and symbol prefix!");
+    return 1;
+  }

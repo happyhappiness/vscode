@@ -1,1 +1,1 @@
-printf("arg %d is %s\n", ac, av[i]);
+printf("Usage: %s <file>\n", av[0]);

@@ -1,1 +1,1 @@
-printf("Hello bar !\n");
+printf("Placeholder for another strange file in subdirectory\n");

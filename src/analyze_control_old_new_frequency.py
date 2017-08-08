@@ -6,6 +6,7 @@ import commands
 import json
 import analyze_control_clone
 from itertools import islice
+from pygithub3 import Github
 from gumtree_api import Gumtree
 import block
 import myUtil
@@ -58,8 +59,6 @@ def compute_sim_cluster(cluster_a, cluster_b, similarity_dic):
 """
 @param: cdg_lists(entiry vectors), cluster_similarity = 0.90
 @return cluster index for each entity
-@caller cluster
-@callee computeSimForCluster
 @involve: cluster entities based on similarity
 """
 def cluster_record(feature_lists, cluster_similarity = 0.95):
@@ -134,10 +133,18 @@ def cluster_record(feature_lists, cluster_similarity = 0.95):
     return cluster_lists
 
 """
+@ param  sha
+@ return time info
+@ involve access github and fetch time info
+"""
+def get_time_for_sha(sha, gh):
+    commit = gh.repos.commits.get(sha=sha).commit
+    time = commit.committer.date
+    author = commit.committer.name
+    return [time.isoformat(), author]
+"""
 @ param  user and repos
 @ return nothing
-@ caller main
-@ callee cluster_record
 @ involve read from and write back to files
 """
 def cluster():
@@ -152,20 +159,26 @@ def cluster():
 
     feature_lists = []
     old_log_types = []
+    old_log_times = []
     gumtree = Gumtree()
+    gh = Github(login='993273596@qq.com', password='nx153156', user=my_constant.USER, repo=my_constant.REPOS)
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
+    index = 0
     for record in islice(records, 1, None):  # remove the table title
         # get old and new log feature
         old_log_file = record[my_constant.ANALYZE_OLD_NEW_OLD_LOG_FILE]
         gumtree.set_file(old_log_file)
         old_log_feature = gumtree.get_block_feature()
         old_log_types.append(gumtree.get_block_type())
+        old_log_times.append(get_time_for_sha(record[my_constant.ANALYZE_OLD_NEW_SHA], gh))
         new_log_file = record[my_constant.ANALYZE_OLD_NEW_NEW_LOG_FILE]
         gumtree.set_file(new_log_file)
         new_log_feature = gumtree.get_block_feature()
 
         feature_lists.append(old_log_feature + new_log_feature)
-
+        print 'now processing %d file' %(index)
+        index += 1
+    
     # cluster log statement based on cdg_list and ddg_list
     cluster_lists = cluster_record(feature_lists)
     # record cluster index of each log statement
@@ -174,7 +187,7 @@ def cluster():
     records = csv.reader(analyze_control)
     index = 0
     for record in islice(records, 1, None):
-        record = record + [old_log_types[index], cluster_lists[index]]
+        record = record + [old_log_types[index]] + old_log_times[index] + [cluster_lists[index]]
         cluster_control_writer.writerow(record)
         index += 1
 

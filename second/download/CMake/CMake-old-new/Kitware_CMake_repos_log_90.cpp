@@ -1,1 +1,1 @@
-vfprintf(stderr, fmt, args);
+printf("failed; %s\n", Curl_strerror(conn, SOCKERRNO));

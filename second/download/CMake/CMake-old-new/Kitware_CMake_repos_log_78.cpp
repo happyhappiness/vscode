@@ -1,1 +1,2 @@
-s->range = aprintf("%" CURL_FORMAT_CURL_OFF_TU "-", s->resume_from);
+data->change.url = aprintf("%s://%s%s",
+                                   protobuf, conn->host.name, path);

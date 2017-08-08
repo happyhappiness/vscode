@@ -1,1 +1,1 @@
-fprintf(stderr, "TARGET_DEF_DEBUG should not be defined in C\n");
+sprintf(buffer, "Shold be empty (source file name): [%s]", cstr);

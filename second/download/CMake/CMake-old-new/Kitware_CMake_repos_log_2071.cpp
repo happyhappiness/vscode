@@ -1,1 +1,1 @@
-printf("expected failure, got 0x%04X\n", uc);
+fprintf(fout, "The file \"%s\" does not exist.\n", name);

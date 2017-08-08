@@ -1,5 +1,2 @@
-{
-		tar_flush_unconsumed(a, unconsumed);
-		archive_set_error(&a->archive, EINVAL, "Too many special headers");
-		return (ARCHIVE_WARN);
-	}
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "lha: hdrcharset option needs a character-set name")

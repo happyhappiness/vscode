@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g using log\n", x, result);
+fprintf(stderr, "DIRECTORY_DEF_RELEASE should not be defined in C\n");

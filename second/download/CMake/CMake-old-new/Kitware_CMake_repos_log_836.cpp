@@ -1,1 +1,1 @@
-archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+archive_set_error(&a->archive, -1, "Not 7-Zip archive file");

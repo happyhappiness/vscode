@@ -1,6 +1,6 @@
 {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Line too long");
-			return (ARCHIVE_FATAL);
-		}
+		free(strm);
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for PPMd");
+		return (ARCHIVE_FATAL);
+	}

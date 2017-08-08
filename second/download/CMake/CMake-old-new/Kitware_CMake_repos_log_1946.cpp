@@ -1,1 +1,1 @@
-sprintf(argument, "%s", sit->c_str());
+printf("RegularExpression::compile(): Nested *?+.\n");

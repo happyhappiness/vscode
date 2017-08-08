@@ -1,1 +1,1 @@
-printf("Hello from subdirectory\n");
+printf("arg1 and arg2 missing!\n");

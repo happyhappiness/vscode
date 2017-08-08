@@ -1,2 +1,3 @@
-archive_string_sprintf(info, "%c%s=%d",
-		    prefix, key, d);
+archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "gzip decompression failed");

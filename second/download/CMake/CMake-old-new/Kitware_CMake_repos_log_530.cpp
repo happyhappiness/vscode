@@ -1,4 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "lzma compression failed:"
-			    " lzma_code() call returned status %d",
-			    ret);
+archive_set_error(&a->archive, ENOMEM,
+                          "Unable to allocate memory for node data.");

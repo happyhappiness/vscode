@@ -1,4 +1,4 @@
 {
-    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
-    return NULL;
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+    return CURLE_FAILED_INIT;
   }

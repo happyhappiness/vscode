@@ -1,2 +1,4 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for gzip stream");
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Can't restore extended attribute ``%s''",
+				    name);

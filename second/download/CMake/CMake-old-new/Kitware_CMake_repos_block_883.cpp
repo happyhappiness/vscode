@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get next ACL entry");
-			return (ARCHIVE_WARN);
-		}
+				archive_set_error(&a->archive, errno,
+				    "Can't stat %s", path);
+				return (ARCHIVE_FAILED);
+			}

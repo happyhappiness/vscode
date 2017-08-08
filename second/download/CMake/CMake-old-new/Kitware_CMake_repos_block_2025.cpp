@@ -1,19 +1,9 @@
 {
-  // test static data (needs declspec to work)
-  Hello::Data = 120;
-  Hello h;
-  h.real();
-  hello();
-  printf(" ");
-  world();
-  printf("\n");
-  foo();
-  printf("\n");
-  bar();
-  objlib();
-  printf("\n");
-#ifdef HAS_JUSTNOP
-  justnop();
-#endif
+#ifndef TEST_C_FLAGS
+  printf("TEST_C_FLAGS failed\n");
   return 0;
+#else
+  printf("Passed: TEST_C_FLAGS passed\n");
+#endif
+  return 1;
 }

@@ -1,6 +1,11 @@
 {
-			archive_set_error(&a->archive, errno, "Seek error");
-			r = ARCHIVE_FATAL;
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			goto abort_read_data;
+#if HAVE_ICONV
+			archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "iconv_open failed : Cannot handle ``%s''",
+			    (flag & SCONV_TO_CHARSET)?tc:fc);
+#else
+			archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "A character-set conversion not fully supported "
+			    "on this platform");
+#endif
 		}

@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate input data");
+archive_set_error(&a->archive, errno,
+				    "Can't remove already-existing dir");

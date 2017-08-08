@@ -1,1 +1,4 @@
-archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);
+addError(
+          "Bad unicode escape sequence in string: hexadecimal digit expected.",
+          token,
+          current);

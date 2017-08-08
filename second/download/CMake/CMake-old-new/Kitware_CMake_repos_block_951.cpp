@@ -1,6 +1,11 @@
 {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterEndElement() failed: %d", r);
-			goto exit_toc;
-		}
+	struct xar *xar;
+	va_list ap;
+
+	xar = (struct xar *)a->format_data;
+	va_start(ap, fmt);
+	archive_string_empty(&xar->vstr);
+	archive_string_vsprintf(&xar->vstr, fmt, ap);
+	va_end(ap);
+	return (xmlwrite_string(a, writer, key, xar->vstr.s));
+}

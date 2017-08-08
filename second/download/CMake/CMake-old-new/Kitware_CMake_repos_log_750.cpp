@@ -1,2 +1,3 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Can't generate random number for encryption");
+		    "We cannot extract the zisofs imaged boot file;"
+		    " this may not boot in being zisofs imaged");

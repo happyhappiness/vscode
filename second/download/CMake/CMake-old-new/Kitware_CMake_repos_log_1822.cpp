@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_YELLOW);
+YY_FATAL_ERROR( "cmListFileLexer_yyset_column called with no buffer" );

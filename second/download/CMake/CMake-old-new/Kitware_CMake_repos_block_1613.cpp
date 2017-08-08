@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
-			return (ARCHIVE_FATAL);
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Ignoring malformed pax extended attribute");
+			return (ARCHIVE_WARN);
 		}

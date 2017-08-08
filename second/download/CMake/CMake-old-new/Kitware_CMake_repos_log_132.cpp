@@ -1,1 +1,1 @@
-snprintf(txtbuf, sizeof(txtbuf), "%s (0x%08X)", txt, err);
+snprintf(buf, max, "Unknown error %d (%#x)", err, err);

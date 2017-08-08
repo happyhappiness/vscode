@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Uname");
+archive_set_error(&(a->archive), -1,
+		    "Failed to convert WCS to MBS");

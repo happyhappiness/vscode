@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "Can't read");
+archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for PPMd");

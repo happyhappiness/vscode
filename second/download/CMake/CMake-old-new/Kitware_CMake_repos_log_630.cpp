@@ -1,4 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Child process exited with status %d",
-		    WEXITSTATUS(state->exit_status));
+archive_set_error(&a->archive, errno,
+				    "Can't unlink already-existing object");

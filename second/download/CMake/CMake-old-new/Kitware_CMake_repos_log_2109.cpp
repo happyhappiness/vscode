@@ -1,1 +1,1 @@
-printf("example1\n");
+printf("Failed to open module1\n%s\n", dlerror());

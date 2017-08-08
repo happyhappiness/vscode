@@ -1,5 +1,5 @@
 {
-			archive_set_error(&self->archive->archive, ENOMEM,
-			    "Can't allocate data for lz4 decompression");
-			return (ARCHIVE_FATAL);
-		}
+				archive_set_error(&a->archive, ERANGE,
+				    "string table offset too large");
+				return (ARCHIVE_WARN);
+			}

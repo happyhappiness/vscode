@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EINVAL,
-				    "Can't find string table");
+fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
+				(t->direct_io)?"Enabled":"Disabled");

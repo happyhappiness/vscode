@@ -1,1 +1,1 @@
-printf("%s is not there! Good.", av[2]);
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

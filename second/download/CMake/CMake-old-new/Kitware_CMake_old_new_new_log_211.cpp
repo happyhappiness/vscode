@@ -1,3 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
-		    "Internal error: "
-		    "No format->read_data function registered");
+YY_FATAL_ERROR( "cmListFileLexer_yyset_column called with no buffer" );

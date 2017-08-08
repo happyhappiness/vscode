@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external xz program for xz decompression");

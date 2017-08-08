@@ -1,1 +1,1 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);

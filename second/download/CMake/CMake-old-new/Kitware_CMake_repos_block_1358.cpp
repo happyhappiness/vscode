@@ -1,5 +1,5 @@
 {
-			archive_set_error(a, errno,
-			    "Failed to open '%s'", filename);
-			return (ARCHIVE_FATAL);
-		}
+		fprintf(stderr, "\n ** Unexpected interleave: ");
+		dump_isodirrec(stderr, isodirrec);
+		fprintf(stderr, "\n");
+	}

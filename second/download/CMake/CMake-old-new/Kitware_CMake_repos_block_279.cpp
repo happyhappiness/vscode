@@ -1,5 +1,8 @@
 {
-		archive_set_error(&a->archive, errno,
-		    "Failed to set UF_COMPRESSED file flag");
-		return (ARCHIVE_WARN);
+		char buff[1024];
+		if (len > (int)(sizeof(buff)-1))
+			len = (int)(sizeof(buff)-1);
+		strncpy(buff, s, len);
+		buff[len] = 0;
+		fprintf(stderr, "\tlen=%d:\"%s\"\n", len, buff);
 	}

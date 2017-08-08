@@ -1,1 +1,1 @@
-fprintf(fout, "&lt;");
+fprintf(stderr, "1 warning generated.\n");

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-				    "Write to restore size failed");
+archive_set_error(&a->archive, 0,
+		"End of file trying to read next cpio header");

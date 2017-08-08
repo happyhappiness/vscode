@@ -1,4 +1,3 @@
 {
-    fprintf(stderr, "Unable to open %s for writing!\n", argv[1]);
-    return EXIT_FAILURE;
+    printf("Count: %d/%d\n", class, private);
   }

@@ -1,2 +1,2 @@
-archive_string_sprintf(&cp, "CP%d",
-					    (int)archive_le32dec(extdheader));
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "malformed lz4 data");

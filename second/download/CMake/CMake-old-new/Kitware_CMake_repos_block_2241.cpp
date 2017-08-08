@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "TARGET_DEF_DEBUG should be defined in C\n");
-    result = 0;
+    fprintf(fout, "int foo() { return 0; }\n");
+    fclose(fout);
   }

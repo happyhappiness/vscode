@@ -1,2 +1,1 @@
-archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
+tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);

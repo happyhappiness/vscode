@@ -1,8 +1,8 @@
 {
-			if (errno == ENXIO)
-				break;/* no more hole */
-			archive_set_error(&a->archive, errno,
-			    "lseek(SEEK_HOLE) failed");
-			exit_sts = ARCHIVE_FAILED;
-			goto exit_setup_sparse;
-		}
+    fprintf(stderr,
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
+    }

@@ -1,1 +1,1 @@
-sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));
+printf("RegularExpression::compile() : *+ operand could be empty.\n");

@@ -1,2 +1,5 @@
-archive_set_error(a, errno, "Can't stat '%S'",
-			    wfilename)
+{
+		fprintf(stderr, "\n ** Unexpected extended attribute length: ");
+		dump_isodirrec(stderr, isodirrec);
+		fprintf(stderr, "\n");
+	}

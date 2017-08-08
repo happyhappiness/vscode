@@ -1,1 +1,1 @@
-fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);
+fprintf(stderr, "FILE_PATH_DEF not defined in C\n");

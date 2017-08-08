@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before sleep.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_CYAN);

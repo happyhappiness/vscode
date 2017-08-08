@@ -1,1 +1,3 @@
-printf("cm RegularExpression::find(): Internal error.\n");
+fprintf(stderr, "Mismatch in exit exception.  "
+                      "Should have been %d, was %d.\n",
+              exception, kwsysProcess_GetExitException(kp));

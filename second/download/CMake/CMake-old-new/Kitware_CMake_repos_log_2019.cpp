@@ -1,1 +1,1 @@
-fprintf(stderr, "unexpected argument: '%s'\n", argv[i]);
+fprintf(stdout, "CMAKE_INTDIR is %s\n", CMAKE_INTDIR);

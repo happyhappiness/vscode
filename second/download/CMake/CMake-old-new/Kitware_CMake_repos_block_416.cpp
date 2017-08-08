@@ -1,5 +1,6 @@
 {
-		free(opt);
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+		free(file);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Name");
 		return (ARCHIVE_FATAL);
 	}

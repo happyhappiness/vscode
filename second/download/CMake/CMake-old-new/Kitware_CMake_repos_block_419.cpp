@@ -1,4 +1,7 @@
 {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library");
 		return (ARCHIVE_FATAL);
 	}
