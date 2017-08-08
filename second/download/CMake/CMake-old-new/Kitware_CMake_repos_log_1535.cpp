@@ -1,2 +1,2 @@
-sprintf(lha->format_name, "lha -%c%c%c-",
-	    lha->method[0], lha->method[1], lha->method[2]);
+archive_set_error(&self->archive->archive, ENOMEM,
+			    "Can't allocate data for lz4 decompression");

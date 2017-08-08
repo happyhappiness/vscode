@@ -1,3 +1,5 @@
-archive_set_error(a, EINVAL,
-				    "Failed to convert a wide-character"
-				    " filename to a multi-byte filename")
+{
+		fprintf(stderr, "\n ** Unexpected file unit size: ");
+		dump_isodirrec(stderr, isodirrec);
+		fprintf(stderr, "\n");
+	}

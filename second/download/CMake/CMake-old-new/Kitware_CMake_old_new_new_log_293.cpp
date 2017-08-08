@@ -1,1 +1,1 @@
-fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
+fprintf(this->FileOut,"EXPORTS \n");

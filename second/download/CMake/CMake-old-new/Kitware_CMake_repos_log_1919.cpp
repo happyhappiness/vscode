@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Trailing backslash.\n");
+printf("Child exited with value = %d\n", kwsysProcess_GetExitValue(kp));

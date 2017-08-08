@@ -1,2 +1,2 @@
-snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
-           conn->host.name);
+fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize);

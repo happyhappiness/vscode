@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_YELLOW);
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yy_create_buffer()" );

@@ -1,6 +1,5 @@
 {
-		free(iso9660);
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory");
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, errno,
+		    "Can't set UID=%jd", (intmax_t)a->uid);
+		return (ARCHIVE_WARN);
 	}

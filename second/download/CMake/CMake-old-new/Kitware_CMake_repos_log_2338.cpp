@@ -1,1 +1,1 @@
-printf("Hello from subdirectory\n");
+printf("  clsid starts with '0x%08lx'\n", (long)clsid.Data1);

@@ -1,3 +1,2 @@
-archive_set_error(&a->archive,
-          ARCHIVE_ERRNO_FILE_FORMAT,
-          "Truncated RAR file data");
+archive_set_error(a, ENOMEM,
+		    "Coludn't allocate memory for PPMd");

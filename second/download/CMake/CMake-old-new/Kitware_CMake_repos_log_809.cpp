@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, -1, "Header CRC error");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "BZ2 codec is unsupported");

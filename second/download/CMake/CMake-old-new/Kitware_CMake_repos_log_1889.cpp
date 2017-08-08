@@ -1,2 +1,1 @@
-printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
+fprintf(stderr, "Output on stderr before sleep.\n");

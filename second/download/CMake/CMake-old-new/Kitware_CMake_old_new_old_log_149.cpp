@@ -1,1 +1,3 @@
-md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
+aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);

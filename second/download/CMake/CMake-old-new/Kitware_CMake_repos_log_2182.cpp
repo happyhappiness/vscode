@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory.\n");
+printf("Problem with libcxx2\n");

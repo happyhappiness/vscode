@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EINVAL,
-		    "Regular file required for non-pseudo member");
+archive_set_error(&a->archive, ENOMEM,
+			"Couldn't allocate memory");

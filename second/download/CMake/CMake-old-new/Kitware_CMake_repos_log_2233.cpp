@@ -1,2 +1,1 @@
-fprintf(stderr, "TARGET_EXPR did not work in C [%s]\n",
-              TO_STRING(FILE_EXPR));
+printf("Problem with libcxx2.h include dir probably!\n");

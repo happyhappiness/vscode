@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Nested *?+.\n");
+fprintf(stdout, "WaitForData timeout reached.\n");

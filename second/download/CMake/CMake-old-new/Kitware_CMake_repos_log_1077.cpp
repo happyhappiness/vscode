@@ -1,1 +1,3 @@
-archive_set_error(&(a->archive), EINVAL, "pathname is empty");
+archive_set_error(&self->archive->archive,
+			    ENOMEM,
+    			    "Can't allocate data for uudecode");

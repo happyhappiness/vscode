@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
+f(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);

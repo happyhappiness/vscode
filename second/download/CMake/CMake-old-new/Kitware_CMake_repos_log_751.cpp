@@ -1,2 +1,3 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Encryption needs passphrase");
+			    "%s: compression option needs a compression name",
+			    a->format_name);

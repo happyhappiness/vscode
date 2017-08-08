@@ -1,4 +1,2 @@
-{
-		archive_set_error(&a->archive, -1, "Size required");
-		return (ARCHIVE_FAILED);
-	}
+archive_set_error(&a->archive, -1,
+				    "Couldn't allocate memory")

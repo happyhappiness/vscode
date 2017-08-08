@@ -1,5 +1,6 @@
 {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for rpm");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive, errno, "Seek error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}

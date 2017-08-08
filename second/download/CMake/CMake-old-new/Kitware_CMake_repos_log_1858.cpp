@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout after sleep.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE);

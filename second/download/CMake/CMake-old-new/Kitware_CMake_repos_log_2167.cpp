@@ -1,1 +1,1 @@
-fprintf(stderr, "Error writing to %s\n", argv[1]);
+printf("Placeholder for a strange file in subdirectory\n");

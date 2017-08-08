@@ -1,1 +1,1 @@
-sprintf(buf,"%.*f",(prec>0?prec:0),val);
+fprintf(out, "%s: \\\n", tmp.c_str());

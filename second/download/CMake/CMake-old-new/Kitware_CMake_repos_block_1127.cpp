@@ -1,5 +1,6 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unrecognized archive format");
-		return (ARCHIVE_FATAL);
-	}
+			/* Prefix is too long. */
+			archive_set_error(&a->archive, ENAMETOOLONG,
+			    "Pathname too long");
+			ret = ARCHIVE_FAILED;
+		}

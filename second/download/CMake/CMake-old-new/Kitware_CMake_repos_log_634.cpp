@@ -1,2 +1,3 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external gzip program");
+archive_set_error(&a->archive, 0,
+					    "Removing symlink %ls",
+					    a->name);

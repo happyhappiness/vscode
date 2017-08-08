@@ -1,1 +1,1 @@
-printf("This is T4. This one should work.\n");
+printf("Hello bar !\n");

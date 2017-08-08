@@ -1,5 +1,4 @@
 {
-    fprintf(stderr,
-            "FILE_DEF_RELEASE and TARGET_DEF_RELEASE inconsistent in C\n");
-    result = 0;
+    fprintf(stderr, "Unable to open %s for writing!\n", argv[1]);
+    return EXIT_FAILURE;
   }

@@ -1,4 +1,4 @@
 {
-      fprintf(f, "int generated_by_testExe3() { return 0; }\n");
-      fclose(f);
-    }
+    printf("Usage: %s\n", argv[0]);
+    return 1;
+  }

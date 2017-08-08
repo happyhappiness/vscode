@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			  "Can't record entry in tar file without pathname");
-		return (ARCHIVE_FAILED);
+		archive_set_error(&a->archive, ERANGE,
+		    "File size out of range");
+		ret = ARCHIVE_FAILED;
 	}

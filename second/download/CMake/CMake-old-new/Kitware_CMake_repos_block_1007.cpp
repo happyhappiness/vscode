@@ -1,6 +1,5 @@
 {
-		archive_set_error(a, errno,
-		    "Can't allocate memory for acl buffer");
-		acl_free(acl);
-		return (ARCHIVE_FAILED);
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for bzip2 stream");
+		return (ARCHIVE_FATAL);
 	}

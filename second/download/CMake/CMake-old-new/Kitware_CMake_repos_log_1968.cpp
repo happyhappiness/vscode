@@ -1,1 +1,1 @@
-printf("Running command: %s with %d arguments\n", argv[0], argc);
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

@@ -1,1 +1,1 @@
-fprintf(stderr, "Usage: %s OUTPUT_FILENAME\n", argv[0]);
+printf("test2\n");

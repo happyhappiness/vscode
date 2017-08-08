@@ -1,2 +1,2 @@
-printf(LANG "KWIML_ABI_ENDIAN_ID: expected [%d], got [%d]",
-         expect, KWIML_ABI_ENDIAN_ID);
+DEBUGF(fprintf(stderr,
+                     "Error: polarsslthreadlock_unlock_function failed\n"));

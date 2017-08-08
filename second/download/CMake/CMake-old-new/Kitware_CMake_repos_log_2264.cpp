@@ -1,2 +1,2 @@
-fprintf(stdout, "%s Version %d.%d\n", argv[0], Tutorial_VERSION_MAJOR,
-            Tutorial_VERSION_MINOR);
+fprintf(stderr, "TARGET_STRING has wrong value in C [%s]\n",
+            TARGET_STRING);

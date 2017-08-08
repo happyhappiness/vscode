@@ -1,4 +1,4 @@
 {
-		archive_set_error(&a->archive, -1, "Filetype required");
-		return (ARCHIVE_FAILED);
+		archive_set_error(&a->archive, -1, "Malformed 7-Zip archive");
+		return (ARCHIVE_FATAL);
 	}

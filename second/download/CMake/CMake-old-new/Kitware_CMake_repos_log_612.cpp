@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains '..'");
+archive_set_error(_a, ENOMEM, "Can't allocate memory");

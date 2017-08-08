@@ -1,9 +1,1 @@
-{
-		if (i % 16 == 0)
-			printf("\n\t");
-
-		printf("%3u", (unsigned int)(fastpos[i]));
-
-		if (i != (1 << FASTPOS_BITS) - 1)
-			printf(",");
-	}
+sprintf(mon_file_write_string, "CHANGED=YES;WAIT_TYPE=WAIT_IN_SELECT;INFO_LVL=1")

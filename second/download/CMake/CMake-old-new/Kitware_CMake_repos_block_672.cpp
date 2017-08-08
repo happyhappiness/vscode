@@ -1,5 +1,5 @@
 {
 		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory");
+		    "Can't allocate iso9660 data");
 		return (ARCHIVE_FATAL);
 	}

@@ -1,5 +1,5 @@
 {
-    report_bad(false, s);
-    printf("expected failure, got 0x%04X\n", uc);
-    return false;
+    fprintf(fout, "The file \"%s\" does not exist.\n", name);
+    fflush(fout);
+    return;
   }

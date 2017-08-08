@@ -1,1 +1,3 @@
-archive_string_sprintf(tgt, "WARC-Type: %s\r\n", _typ[hdr.type]);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing "
+		    "compression library: invalid setup parameter");

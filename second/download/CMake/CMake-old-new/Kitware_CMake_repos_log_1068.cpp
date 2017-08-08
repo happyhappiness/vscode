@@ -1,1 +1,2 @@
-archive_set_error(_a, EINVAL, "Invalid comparison flag");
+archive_set_error(a, errno,
+			    "Can't convert '%s' to WCS", mbs);

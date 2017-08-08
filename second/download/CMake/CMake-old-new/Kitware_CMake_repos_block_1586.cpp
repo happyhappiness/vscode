@@ -1,7 +1,5 @@
 {
-			err = set_conversion_failed_error(a, sconv, "Uname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-			/* Use a converted an original name. */
-			archive_entry_copy_uname(entry, tar->entry_uname.s);
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated tar archive");
+			return (ARCHIVE_FATAL);
 		}

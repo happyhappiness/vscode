@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-				    "Ignoring malformed pax extended attributes");
-				return (ARCHIVE_WARN);
-			}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated LHa file data");
+		return (ARCHIVE_FATAL);
+	}

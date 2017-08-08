@@ -1,4 +1,4 @@
 {
-		archive_set_error(_a, ENOMEM, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(a, errno, "Seek error");
+			return (ARCHIVE_FATAL);
+		}

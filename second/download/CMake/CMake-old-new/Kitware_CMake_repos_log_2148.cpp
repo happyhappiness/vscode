@@ -1,1 +1,1 @@
-printf("Problem with libcxx1\n");
+sprintf(buffer, "Should be 0 (source file abstract property): [%p]", cstr);

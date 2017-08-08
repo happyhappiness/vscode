@@ -1,23 +1,46 @@
 {
-#if defined(KWIML_ABI_ENDIAN_ID)
-  int expect;
-  union { short s; unsigned char c[sizeof(short)]; } x;
-  x.s = 1;
-  expect = (x.c[0] == 1 ?
-            KWIML_ABI_ENDIAN_ID_LITTLE : KWIML_ABI_ENDIAN_ID_BIG);
-  printf(LANG "KWIML_ABI_ENDIAN_ID: expected [%d], got [%d]",
-         expect, KWIML_ABI_ENDIAN_ID);
-  if(KWIML_ABI_ENDIAN_ID == expect)
-    {
-    printf(", PASSED\n");
+  case tokenObjectBegin:
+    successful = readObject(token);
+    currentValue().setOffsetLimit(current_ - begin_);
+    break;
+  case tokenArrayBegin:
+    successful = readArray(token);
+    currentValue().setOffsetLimit(current_ - begin_);
+    break;
+  case tokenNumber:
+    successful = decodeNumber(token);
+    break;
+  case tokenString:
+    successful = decodeString(token);
+    break;
+  case tokenTrue:
+    currentValue() = true;
+    currentValue().setOffsetStart(token.start_ - begin_);
+    currentValue().setOffsetLimit(token.end_ - begin_);
+    break;
+  case tokenFalse:
+    currentValue() = false;
+    currentValue().setOffsetStart(token.start_ - begin_);
+    currentValue().setOffsetLimit(token.end_ - begin_);
+    break;
+  case tokenNull:
+    currentValue() = Value();
+    currentValue().setOffsetStart(token.start_ - begin_);
+    currentValue().setOffsetLimit(token.end_ - begin_);
+    break;
+  case tokenArraySeparator:
+    if (features_.allowDroppedNullPlaceholders_) {
+      // "Un-read" the current token and mark the current value as a null
+      // token.
+      current_--;
+      currentValue() = Value();
+      currentValue().setOffsetStart(current_ - begin_ - 1);
+      currentValue().setOffsetLimit(current_ - begin_);
+      break;
     }
-  else
-    {
-    printf(", FAILED\n");
-    result = 0;
-    }
-#else
-  printf(LANG "KWIML_ABI_ENDIAN_ID: unknown, FAILED\n");
-  result = 0;
-#endif
+  // Else, fall through...
+  default:
+    currentValue().setOffsetStart(token.start_ - begin_);
+    currentValue().setOffsetLimit(token.end_ - begin_);
+    return addError("Syntax error: value, object or array expected.", token);
   }

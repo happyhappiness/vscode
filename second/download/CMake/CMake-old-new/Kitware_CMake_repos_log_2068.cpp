@@ -1,1 +1,1 @@
-printf("had %d bytes, used %d\n", entry.n, used);
+printf("Dependency test executable ran successfully.\n");

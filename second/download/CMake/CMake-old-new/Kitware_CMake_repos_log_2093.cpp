@@ -1,1 +1,1 @@
-printf("%s is there! Good.", av[1]);
+printf("Failed: %s is an invalid test name.\n", av[1]);

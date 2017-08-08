@@ -1,1 +1,1 @@
-printf("0x%08" PRIX32, crc32_table[0][b]);
+sprintf(cmd, "/aha/fs/modDir.monFactory");

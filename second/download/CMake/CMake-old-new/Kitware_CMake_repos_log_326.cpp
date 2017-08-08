@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EEXIST,
-			    "Can't create directory '%s'", path);
+archive_set_error(&a->archive, errno,
+				    "Write to restore size failed");

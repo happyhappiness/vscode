@@ -1,1 +1,1 @@
-printf("hello, world\n");
+printf("Failed foo is not 21\n");

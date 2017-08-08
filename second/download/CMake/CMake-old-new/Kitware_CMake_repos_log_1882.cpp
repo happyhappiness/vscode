@@ -1,1 +1,1 @@
-fprintf(stdout, "WaitForData timeout reached.\n");
+fprintf(stdout, "Output after crash on stdout from crash test.\n");

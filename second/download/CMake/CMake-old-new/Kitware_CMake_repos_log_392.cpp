@@ -1,3 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "GZip compression failed:"
-		    " deflate() call returned status %d", r);
+archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");

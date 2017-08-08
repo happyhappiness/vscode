@@ -1,1 +1,1 @@
-printf("-R needs an additional parameter.\n");
+fprintf(stdout, "Output on stdout before test %d.\n", n);

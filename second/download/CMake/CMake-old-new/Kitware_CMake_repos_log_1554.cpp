@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated tar archive");
+archive_set_error(cache->archive, errno,
+		    "Can't lookup user for id %d", (int)id);

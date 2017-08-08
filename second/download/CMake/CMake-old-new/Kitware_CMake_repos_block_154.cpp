@@ -1,21 +1,22 @@
 {
-  struct tm buffer;
-  const struct tm *tm = &buffer;
-  char str[96];
-  CURLcode result = Curl_gmtime(stamp, &buffer);
-  if(result)
-    return;
+      CURLcode result;
+      ssl_sessionid =
+        aprintf("%s:%d:%d:%s:%hu", ssl_cafile,
+                verifypeer, SSL_CONN_CONFIG(verifyhost), hostname, port);
+      ssl_sessionid_len = strlen(ssl_sessionid);
 
-  snprintf(str,
-           sizeof(str),
-           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT",
-           text,
-           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-           tm->tm_mday,
-           Curl_month[tm->tm_mon],
-           tm->tm_year + 1900,
-           tm->tm_hour,
-           tm->tm_min,
-           tm->tm_sec);
-  infof(data, "%s\n", str);
-}
+      err = SSLSetPeerID(connssl->ssl_ctx, ssl_sessionid, ssl_sessionid_len);
+      if(err != noErr) {
+        Curl_ssl_sessionid_unlock(conn);
+        failf(data, "SSL: SSLSetPeerID() failed: OSStatus %d", err);
+        return CURLE_SSL_CONNECT_ERROR;
+      }
+
+      result = Curl_ssl_addsessionid(conn, ssl_sessionid, ssl_sessionid_len,
+                                     sockindex);
+      Curl_ssl_sessionid_unlock(conn);
+      if(result) {
+        failf(data, "failed to store ssl session");
+        return result;
+      }
+    }

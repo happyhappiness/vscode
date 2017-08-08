@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't initialize zisofs decompression.");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");

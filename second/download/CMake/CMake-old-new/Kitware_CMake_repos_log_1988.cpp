@@ -1,1 +1,1 @@
-printf("%s\n", argv[1]);
+sprintf(buffer, "%ld", osvi.dwMinorVersion);

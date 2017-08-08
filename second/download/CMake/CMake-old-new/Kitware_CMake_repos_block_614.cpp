@@ -1,7 +1,5 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Can't create directory '%ls': "
-			    "Conflicting file cannot be removed",
-			    path);
-			return (ARCHIVE_FAILED);
+			archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate data for compression buffer");
+			return (ARCHIVE_FATAL);
 		}

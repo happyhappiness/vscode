@@ -1,10 +1,13 @@
 {
-	  val = atol(s);
-	  if (low<high)
-	    {
-	      if (val<low || val>high) return FALSE;
-	    }
-	  sprintf(buf,"%.*ld",(prec>0?prec:0),val);
-	  set_field_buffer(field,0,buf);
-	  return TRUE;
-	}
+  va_list ap;
+  fprintf(stderr, "ninja: FATAL: ");
+  va_start(ap, msg);
+  vfprintf(stderr, msg, ap);
+  va_end(ap);
+  fprintf(stderr, "\n");
+  // On Windows, some tools may inject extra threads.
+  // exit() may block on locks held by those threads, so forcibly exit.
+  fflush(stderr);
+  fflush(stdout);
+  ExitProcess(1);
+}

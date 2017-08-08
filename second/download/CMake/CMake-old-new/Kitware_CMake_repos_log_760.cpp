@@ -1,1 +1,2 @@
-archive_string_sprintf(&state->encoded_buff, "`\nend\n");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"deflate compression not supported");

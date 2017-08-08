@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Failed to initialize compressor");
+archive_set_error(&a->archive, ENOMEM, "Out of memory");

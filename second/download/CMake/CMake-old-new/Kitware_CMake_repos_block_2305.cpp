@@ -1,12 +1,27 @@
 {
-  IID libid = LIBID_CMakeMidlTestLib;
-  CLSID clsid = CLSID_CMakeMidlTest;
-  IID iid = IID_ICMakeMidlTest;
+  int i;
+  double result;
 
-  printf("Running '%s'\n", argv[0]);
-  printf("  libid starts with '0x%08lx'\n", (long)libid.Data1);
-  printf("  clsid starts with '0x%08lx'\n", (long)clsid.Data1);
-  printf("    iid starts with '0x%08lx'\n", (long)iid.Data1);
+  // make sure we have enough arguments
+  if (argc < 2) {
+    return 1;
+  }
 
+  // open the output file
+  FILE* fout = fopen(argv[1], "w");
+  if (!fout) {
+    return 1;
+  }
+
+  // create a source file with a table of square roots
+  fprintf(fout, "double sqrtTable[] = {\n");
+  for (i = 0; i < 10; ++i) {
+    result = sqrt(static_cast<double>(i));
+    fprintf(fout, "%g,\n", result);
+  }
+
+  // close the table with a zero
+  fprintf(fout, "0};\n");
+  fclose(fout);
   return 0;
 }

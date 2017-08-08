@@ -1,1 +1,1 @@
-printf("Child exited with value = %d\n", kwsysProcess_GetExitValue(kp));
+fprintf(stderr, "Output on stderr after recursive test.\n");

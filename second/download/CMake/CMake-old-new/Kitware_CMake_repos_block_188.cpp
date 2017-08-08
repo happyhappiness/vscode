@@ -1,1 +1,4 @@
-archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid)
+{
+  addError(message, token);
+  return recoverFromError(skipUntilToken);
+}

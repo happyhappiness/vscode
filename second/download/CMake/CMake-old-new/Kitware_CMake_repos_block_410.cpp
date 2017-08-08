@@ -1,8 +1,4 @@
 {
-		free(strm->buff);
-		free(strm);
-		free(props);
-		archive_set_error(a, ENOMEM,
-		    "Coludn't allocate memory for PPMd");
+		archive_set_error(&(a->archive), errno, "lseek failed");
 		return (ARCHIVE_FATAL);
 	}

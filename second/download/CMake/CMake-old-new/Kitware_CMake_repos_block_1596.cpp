@@ -1,4 +1,4 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC, "Malformed sparse map data");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for ACL");
+		}

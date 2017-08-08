@@ -1,1 +1,1 @@
-fprintf(fout, "%04X ", i);
+snprintf((char *)&dest[i*2], 3, "%02x", source[i]);

@@ -1,1 +1,1 @@
-fprintf(stdout, "stdout from bad command line arg '-bad'\n");
+fprintf(stdout, "CMAKE_RCDEFINE defined\n");

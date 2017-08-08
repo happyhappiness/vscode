@@ -1,7 +1,9 @@
 {
-			/* There isn't a pair of offsets. */
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Illegal zisofs block pointers");
-			return (ARCHIVE_FATAL);
-		}
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "A name buffer is too small");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}

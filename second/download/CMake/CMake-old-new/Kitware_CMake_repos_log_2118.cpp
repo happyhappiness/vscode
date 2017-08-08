@@ -1,1 +1,1 @@
-printf("Placeholder for a file with strange name\n");
+printf("Problem with lib4\n");

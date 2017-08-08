@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
+DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));

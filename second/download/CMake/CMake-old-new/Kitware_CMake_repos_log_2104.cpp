@@ -1,1 +1,1 @@
-printf("Missing file %s\n", av[1]);
+printf("expected failure, got 0x%04X\n", uc);

@@ -1,2 +1,2 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data");

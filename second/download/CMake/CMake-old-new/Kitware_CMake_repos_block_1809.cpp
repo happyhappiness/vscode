@@ -1,4 +1,2 @@
-{
-    fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL);
-    return;
-  }
+YY_FATAL_ERROR(
+		"fatal flex scanner internal error--end of buffer missed" )

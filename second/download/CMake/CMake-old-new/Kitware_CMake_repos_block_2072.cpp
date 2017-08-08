@@ -1,12 +1,30 @@
 {
-  unsigned int uc = 0xFFFFu;
-  const char* e = cm_utf8_decode_character(s, s + 4, &uc);
-  if (e) {
-    report_bad(false, s);
-    printf("expected failure, got 0x%04X\n", uc);
-    return false;
+    fprintf(
+      fout,
+      "Contents of \"%s\":\n"
+      "----------------------------------------------------------------\n",
+      name);
+    const int bufferSize = 4096;
+    char buffer[bufferSize];
+    int n;
+    while ((n = fread(buffer, 1, bufferSize, fin)) > 0) {
+      for (char* c = buffer; c < buffer + n; ++c) {
+        switch (*c) {
+          case '<':
+            fprintf(fout, "&lt;");
+            break;
+          case '>':
+            fprintf(fout, "&gt;");
+            break;
+          case '&':
+            fprintf(fout, "&amp;");
+            break;
+          default:
+            putc(*c, fout);
+            break;
+        }
+      }
+      fflush(fout);
+    }
+    fclose(fin);
   }
-  report_bad(true, s);
-  printf("failed as expected\n");
-  return true;
-}

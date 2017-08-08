@@ -1,1 +1,1 @@
-printf("Cannot find file: %s\n", filename);
+printf("%f\n", rk);

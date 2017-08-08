@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Resource Fork");
+		    "Couldn't allocate memory for xml parser");

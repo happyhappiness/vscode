@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "name option requires a string");
+archive_set_error(&a->archive, errno,
+	    "Failed to set file flags");

@@ -1,1 +1,1 @@
-sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+printf("cm RegularExpression::find(): Internal error.\n");

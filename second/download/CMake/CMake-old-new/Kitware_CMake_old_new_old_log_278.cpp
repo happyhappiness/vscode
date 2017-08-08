@@ -1,2 +1,1 @@
-fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              cmLocalGenerator::EscapeForCMake(flags?flags:"").c_str());
+snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);

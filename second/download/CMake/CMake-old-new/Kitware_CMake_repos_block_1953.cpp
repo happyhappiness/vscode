@@ -1,13 +1,6 @@
 {
-  const size_t maxlen = KWSYS_SYSTEMTOOLS_MAXPATH;
-  snprintf(resolved_path, maxlen, "%s", path);
-  BPath normalized(resolved_path, NULL, true);
-  const char* resolved = normalized.Path();
-  if (resolved != NULL) // NULL == No such file.
-  {
-    if (snprintf(resolved_path, maxlen, "%s", resolved) < maxlen) {
-      return resolved_path;
-    }
+    // RAISE Error, SYM(RegularExpression), SYM(Internal_Error),
+    printf(
+      "RegularExpression::find(): Compiled regular expression corrupted.\n");
+    return 0;
   }
-  return NULL; // something went wrong.
-}

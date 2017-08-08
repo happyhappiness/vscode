@@ -1,1 +1,3 @@
-archive_set_error(&a->archive, errno, "Couldn't stat file");
+archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			"Bad record header");

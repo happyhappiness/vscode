@@ -1,4 +1,1 @@
-archive_string_sprintf(str,
-		    " resdevice=native,%ju,%ju",
-		    (uintmax_t)me->devmajor,
-		    (uintmax_t)me->devminor);
+snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column);

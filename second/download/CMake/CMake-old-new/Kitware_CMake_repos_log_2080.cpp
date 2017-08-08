@@ -1,1 +1,1 @@
-printf("NP_Initialize()\n");
+fprintf(stderr, "Must specify output file and symbol prefix!");

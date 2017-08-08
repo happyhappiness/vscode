@@ -1,1 +1,1 @@
-fprintf(stdout, "CMAKE_INTDIR is %s\n", CMAKE_INTDIR);
+(snprintf(resolved_path, maxlen, "%s", resolved) < maxlen;

@@ -1,1 +1,1 @@
-printf("test1\n");
+printf("%s is not there! Good.", av[2]);

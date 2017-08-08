@@ -1,4 +1,2 @@
-archive_string_sprintf(&shar->work,
-			    "mknod %s b %ju %ju\n", shar->quoted_name.s,
-			    (uintmax_t)archive_entry_rdevmajor(entry),
-			    (uintmax_t)archive_entry_rdevminor(entry));
+archive_set_error(&a->archive, EINVAL,
+		    "No reader function provided to archive_read_open");

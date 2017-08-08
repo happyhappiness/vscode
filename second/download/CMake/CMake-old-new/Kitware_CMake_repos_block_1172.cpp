@@ -1,7 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "%s: Cannot stat",
-				    tree_current_path(t));
-				tree_enter_initial_dir(t);
-				return (ARCHIVE_FAILED);
-			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "shar format cannot archive this");
+			return (ARCHIVE_WARN);
+		}

@@ -1,11 +1,20 @@
 {
-    tmp = *it;
-    // The paths need to match the ones used to identify build artifacts in the
-    // build.ninja file.  Therefore we need to canonicalize the path to use
-    // backward slashes and relativize the path to the build directory.
-    replaceAll(tmp, "/", "\\");
-    if (startsWith(tmp, cwd))
-      tmp = tmp.substr(cwd.size());
-    escapePath(tmp);
-    fprintf(out, "%s \\\n", tmp.c_str());
-  }
+      snprintf(trypath, sizeof(trypath) - 1, "%s/%s", token, args);
+      if (realpath(trypath, abspath) == abspath) {
+        /* Check the match is executable */
+        if (access(abspath, X_OK) == 0) {
+          abspath_size = strlen(abspath);
+
+          *size -= 1;
+          if (*size > abspath_size)
+            *size = abspath_size;
+
+          memcpy(buffer, abspath, *size);
+          buffer[*size] = '\0';
+
+          uv__free(clonedpath);
+          return 0;
+        }
+      }
+      token = strtok(NULL, ":");
+    }

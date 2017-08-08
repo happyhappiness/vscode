@@ -1,1 +1,1 @@
-fprintf(stdout, "LoadString failed\n");
+sprintf(buf, "%s*", name.c_str());

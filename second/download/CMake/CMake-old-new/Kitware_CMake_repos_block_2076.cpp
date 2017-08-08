@@ -1,3 +1,4 @@
 {
-    printf("Failed to open module1\n%s\n", dlerror());
+    fprintf(fout, "Error opening \"%s\" for reading.\n", name);
+    fflush(fout);
   }

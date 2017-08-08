@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-			    "fwrite function failed");
+archive_set_error(&a->archive, errno,
+			    "Failed to open the data fork for metadata");

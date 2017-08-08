@@ -1,1 +1,1 @@
-printf("world");
+printf("%s\n", buf);

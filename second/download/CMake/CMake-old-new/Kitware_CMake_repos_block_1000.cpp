@@ -1,6 +1,9 @@
 {
-		errmsg("PROGRAMMER ERROR: Function ");
-		errmsg(function);
-		errmsg(" invoked with invalid archive handle.\n");
-		diediedie();
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Found duplicate entries `%s' and its file type is "
+		    "different",
+		    archive_entry_pathname(np->entry));
+		file_free(file);
+		*filepp = NULL;
+		return (ARCHIVE_FAILED);
 	}

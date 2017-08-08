@@ -1,3 +1,1 @@
-addError(
-          "A valid JSON document must be either an array or an object value.",
-          token);
+config_string = aprintf("library=%s name=%s", library, name);

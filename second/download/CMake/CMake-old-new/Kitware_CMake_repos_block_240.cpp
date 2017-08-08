@@ -1,6 +1,6 @@
 {
 			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to clean up zlib decompressor");
-			r = ARCHIVE_FATAL;
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated archive file");
+			return (ARCHIVE_FATAL);
 		}

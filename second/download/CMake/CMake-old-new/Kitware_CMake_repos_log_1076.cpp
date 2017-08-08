@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), errno,
-		    "Failed to FindFirstFileA");
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for uudecode");

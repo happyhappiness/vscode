@@ -1,1 +1,1 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name);
+fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);

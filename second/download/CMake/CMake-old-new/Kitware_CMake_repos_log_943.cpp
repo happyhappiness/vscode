@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "xmlBufferCreate() "
-		    "couldn't create xml buffer");
+archive_set_error(&(a->archive), errno,
+			    "fwrite function failed");

@@ -1,7 +1,11 @@
 {
-			err = set_conversion_failed_error(a, sconv, "Gname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-			/* Use a converted an original name. */
-			archive_entry_copy_gname(entry, tar->entry_gname.s);
-		}
+	case ARCHIVE_OK:
+		break;
+	case ARCHIVE_EOF:
+		lha->end_of_entry = 1;
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Bad lzh data");
+		return (ARCHIVE_FAILED);
+	}

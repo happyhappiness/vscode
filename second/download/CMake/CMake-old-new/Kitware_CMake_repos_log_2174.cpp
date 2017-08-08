@@ -1,1 +1,1 @@
-fprintf(file, "%s", "x");
+fprintf(stdout, "%s\n", argv[i]);

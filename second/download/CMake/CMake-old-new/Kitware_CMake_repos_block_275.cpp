@@ -1,5 +1,6 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "chdir() failure");
-			ret = ARCHIVE_FATAL;
+#if DEBUG
+			fprintf(stderr, "UNKNOWNTAG_END:%s\n", name);
+#endif
+			xar->xmlsts = xar->xmlsts_unknown;
 		}

@@ -1,1 +1,1 @@
-fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
+snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name);

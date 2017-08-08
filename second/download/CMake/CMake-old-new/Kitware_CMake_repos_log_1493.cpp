@@ -1,1 +1,1 @@
-archive_string_sprintf(tgt, "Content-Length: %ju\r\n", (uintmax_t)hdr.cntlen);
+archive *;

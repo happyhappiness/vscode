@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "lzma_properties_encode failed");
+archive_set_error(_a, ENOMEM, "Can't allocate memory");

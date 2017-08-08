@@ -1,4 +1,4 @@
 {
-		archive_set_error(&(a->archive), ENOMEM, "No memory");
+		archive_set_error(a, ENOMEM, "No memory");
 		return (ARCHIVE_FATAL);
 	}

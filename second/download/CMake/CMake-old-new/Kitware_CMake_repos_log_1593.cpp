@@ -1,1 +1,2 @@
-err = set_conversion_failed_error(a, tar->sconv, "Uname");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed Solaris ACL attribute (count too large)");

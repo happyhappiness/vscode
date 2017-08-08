@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate data");
-		return (ARCHIVE_FATAL);
-	}
+				archive_set_error(&a->archive, errno,
+				    "Failed to check permission in an ACL permission set");
+				return (ARCHIVE_WARN);
+			}

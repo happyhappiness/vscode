@@ -1,1 +1,2 @@
-fprintf(fout, "Avoid ctest truncation of output: CTEST_FULL_OUTPUT\n");
+fprintf(stderr, "Failed to find string '%s' in '%s'\n", substring_success,
+          str);

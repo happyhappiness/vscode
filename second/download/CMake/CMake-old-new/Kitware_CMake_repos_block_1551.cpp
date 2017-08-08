@@ -1,11 +1,6 @@
 {
-	case ARCHIVE_OK:
-		break;
-	case ARCHIVE_EOF:
-		lha->end_of_entry = 1;
-		break;
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Bad lzh data");
-		return (ARCHIVE_FAILED);
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "archive_write_data_block not supported");
+		a->state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
 	}

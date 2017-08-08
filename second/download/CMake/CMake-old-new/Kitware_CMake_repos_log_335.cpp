@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, -1,
-				    "Can't make file SUID");
+archive_set_error(&a->archive, error_number, "%s",
+			    error_string.s);

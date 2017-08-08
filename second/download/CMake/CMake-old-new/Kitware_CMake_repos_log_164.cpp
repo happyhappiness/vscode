@@ -1,3 +1,1 @@
-fprintf(stderr,
-            "Error from reader: %s",
-            reader.getFormattedErrorMessages().c_str());
+fprintf(stderr, "|<%d>| %s", level, str);

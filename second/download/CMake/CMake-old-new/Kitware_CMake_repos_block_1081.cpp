@@ -1,4 +1,6 @@
 {
-		archive_set_error(&(a->archive), EINVAL, "pathname is empty");
-		return (ARCHIVE_FAILED);
-	}
+				archive_set_error(&self->archive->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Insufficient compressed data");
+				return (ARCHIVE_FATAL);
+			}

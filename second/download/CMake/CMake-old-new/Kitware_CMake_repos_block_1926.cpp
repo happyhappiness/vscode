@@ -1,3 +1,6 @@
 {
-      printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);
-    }
+    fprintf(stderr, "Mismatch in state.  "
+                    "Should have been %d, was %d.\n",
+            state, kwsysProcess_GetState(kp));
+    result = 1;
+  }

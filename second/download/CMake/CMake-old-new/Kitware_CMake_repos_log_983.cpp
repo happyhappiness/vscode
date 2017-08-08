@@ -1,3 +1,4 @@
-archive_set_error(a, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "Cannot allocate memory");
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "xmlTextWriterWriteAttribute() "
+				    "failed: %d", r);

@@ -1,1 +1,1 @@
-fprintf(stderr, "TARGET_PATH_DEF not defined in C\n");
+fprintf(stderr, "Usage: %s <file>\n", argv[0]);

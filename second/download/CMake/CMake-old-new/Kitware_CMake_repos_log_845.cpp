@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "No memory for ino translation table");
+archive_set_error(&a->archive, -1,
+		    "Unexpected Property ID = %X", p[0]);

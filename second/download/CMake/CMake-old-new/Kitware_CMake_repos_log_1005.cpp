@@ -1,2 +1,3 @@
 archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			"Invalid ACL type");
+		    "GZip compression failed:"
+		    " deflate() call returned status %d", r);

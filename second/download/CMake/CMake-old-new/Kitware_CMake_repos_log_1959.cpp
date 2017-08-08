@@ -1,1 +1,1 @@
-fprintf(stderr, "%s", message);
+printf("To run a test, enter the test number: ");

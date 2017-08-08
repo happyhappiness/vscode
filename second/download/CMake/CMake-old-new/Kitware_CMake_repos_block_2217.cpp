@@ -1,21 +1,4 @@
 {
-  if (argc < 2) {
-    fprintf(stderr, "Missing name of file to create.\n");
-    return EXIT_FAILURE;
+    fprintf(stderr, "Usage: %s OUTPUT_FILENAME\n", argv[0]);
+    return 1;
   }
-
-  FILE* stream = fopen(argv[1], "w");
-  if (stream == NULL) {
-    fprintf(stderr, "Unable to open %s for writing!\n", argv[1]);
-    return EXIT_FAILURE;
-  }
-
-  if (fclose(stream)) {
-    fprintf(stderr, "Unable to close %s!\n", argv[1]);
-    return EXIT_FAILURE;
-  }
-
-  fprintf(stdout, ">> Creating %s!\n", argv[1]);
-
-  return EXIT_SUCCESS;
-}

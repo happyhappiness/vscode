@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Coludn't allocate memory for PPMd");
+archive_set_error(f->archive, ENOMEM,
+		    "Can't allocate data for uuencode buffer");

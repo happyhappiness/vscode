@@ -1,1 +1,1 @@
-host = aprintf("Host: %s\r\n", hostheader);
+snprintf(buf, max, "Unknown error %d", err);

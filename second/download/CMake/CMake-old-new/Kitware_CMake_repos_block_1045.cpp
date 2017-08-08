@@ -1,6 +1,6 @@
 {
-			if (errno == EINTR)
-				continue;
-			archive_set_error(a, errno, "Write error");
-			return (-1);
-		}
+					archive_set_error(a, errno,
+					    "Failed to add ACL permission");
+					ret = ARCHIVE_FAILED;
+					goto exit_free;
+				}

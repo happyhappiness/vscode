@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout after grandchild test.\n");
+sprintf(fname, "/proc/%d/stat", pid);

@@ -1,1 +1,1 @@
-fprintf(stdout, ">> Creating %s!\n", argv[1]);
+fprintf(stderr, "Usage: %s OUTPUT_FILENAME\n", argv[0]);

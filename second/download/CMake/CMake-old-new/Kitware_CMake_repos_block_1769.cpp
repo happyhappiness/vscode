@@ -1,13 +1,15 @@
 {
-  va_list ap;
-  fprintf(stderr, "ninja: FATAL: ");
-  va_start(ap, msg);
-  vfprintf(stderr, msg, ap);
-  va_end(ap);
-  fprintf(stderr, "\n");
-  // On Windows, some tools may inject extra threads.
-  // exit() may block on locks held by those threads, so forcibly exit.
-  fflush(stderr);
-  fflush(stdout);
-  ExitProcess(1);
-}
+    /* We have a relative pathname, compose the absolute pathname */
+    snprintf(cwd, sizeof(cwd), "/proc/%lu/cwd", (unsigned long) getpid());
+    rc = readlink(cwd, readlink_cwd, sizeof(readlink_cwd) - 1);
+    if (rc < 0)
+      return rc;
+    /* readlink does not null terminate our string */
+    readlink_cwd[rc] = '\0';
+
+    if (filename[0] == '.' && filename[1] == '/')
+      str_offset = 2;
+
+    snprintf(absolute_path, sizeof(absolute_path), "%s%s", readlink_cwd,
+             filename + str_offset);
+  }

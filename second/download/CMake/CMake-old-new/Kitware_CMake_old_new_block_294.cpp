@@ -1,8 +1,4 @@
 {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
+                  // Read only (i.e. constants) must be excluded
+                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
+               }

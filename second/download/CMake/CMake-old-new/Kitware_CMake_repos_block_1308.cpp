@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid length of directory record");
-		return (NULL);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate iso9660 data");
+		return (ARCHIVE_FATAL);
 	}

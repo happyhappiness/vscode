@@ -1,1 +1,4 @@
-archive_string_sprintf(tgt, "Content-Type: %s\r\n", hdr.cnttyp);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "GZip compression failed:"
+			    " deflate() call returned status %d",
+			    ret);

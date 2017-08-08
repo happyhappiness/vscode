@@ -1,3 +1,3 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic mode \"%s\" unsupported", val);
+archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");

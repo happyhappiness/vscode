@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-				    "File name too long");
+archive_set_error(&a->archive, errno,
+				    "Can't FindFirstFileW");

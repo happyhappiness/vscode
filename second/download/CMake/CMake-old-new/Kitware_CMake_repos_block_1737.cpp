@@ -1,15 +1,11 @@
 {
-    /* We have a relative pathname, compose the absolute pathname */
-    snprintf(cwd, sizeof(cwd), "/proc/%lu/cwd", (unsigned long) getpid());
-    rc = readlink(cwd, readlink_cwd, sizeof(readlink_cwd) - 1);
-    if (rc < 0)
-      return rc;
-    /* readlink does not null terminate our string */
-    readlink_cwd[rc] = '\0';
-
-    if (filename[0] == '.' && filename[1] == '/')
-      str_offset = 2;
-
-    snprintf(absolute_path, sizeof(absolute_path), "%s%s", readlink_cwd,
-             filename + str_offset);
-  }
+		r = get_entry_pathname(a, entry_main, &path,
+		    &path_length, NULL);
+		if (r == ARCHIVE_FATAL)
+			return (r);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate pathname '%s' to %s", path,
+		    archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+		sconv = NULL;/* The header charset switches to binary mode. */
+	}

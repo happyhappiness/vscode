@@ -1,5 +1,7 @@
 {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate working buffer");
-			return (ARCHIVE_FATAL);
-		}
+		free(strm->buff);
+		free(strm);
+		archive_set_error(a, ENOMEM,
+		    "Coludn't allocate memory for PPMd");
+		return (ARCHIVE_FATAL);
+	}

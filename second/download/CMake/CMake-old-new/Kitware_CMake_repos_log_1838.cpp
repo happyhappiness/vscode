@@ -1,4 +1,3 @@
-_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "WideCharToMultiByte failed with error 0x%X",
-                  error, GetLastError());
+printf("md5sum 2: expected [%s]\n"
+         "               got [%s]\n",
+         testMD5output2, md5out);

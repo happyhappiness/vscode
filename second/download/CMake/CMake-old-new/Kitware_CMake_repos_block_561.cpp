@@ -1,16 +1,24 @@
 {
-	case LZO_E_OK:
-		if (out_size == state->uncompressed_size)
-			break;
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC, "Corrupted data");
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *reader;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_bzip2");
+
+	if (__archive_read_get_bidder(a, &reader) != ARCHIVE_OK)
 		return (ARCHIVE_FATAL);
-	case LZO_E_OUT_OF_MEMORY:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "lzop decompression failed: out of memory");
-		return (ARCHIVE_FATAL);
-	default:
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "lzop decompression failed: %d", r);
-		return (ARCHIVE_FATAL);
-	}
+
+	reader->data = NULL;
+	reader->name = "bzip2";
+	reader->bid = bzip2_reader_bid;
+	reader->init = bzip2_reader_init;
+	reader->options = NULL;
+	reader->free = bzip2_reader_free;
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external bzip2 program");
+	return (ARCHIVE_WARN);
+#endif
+}

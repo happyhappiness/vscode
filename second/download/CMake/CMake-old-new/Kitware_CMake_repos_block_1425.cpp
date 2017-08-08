@@ -1,27 +1,20 @@
 {
-		case TREE_ERROR_FATAL:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
-			    tree_current_path(t));
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
-			return (ARCHIVE_FAILED);
-		case 0:
-			return (ARCHIVE_EOF);
-		case TREE_POSTDESCENT:
-		case TREE_POSTASCENT:
-			break;
-		case TREE_REGULAR:
-			lst = tree_current_lstat(t);
-			if (lst == NULL) {
-				archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
-				return (ARCHIVE_FAILED);
-			}
-			break;
-		}
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *reader;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_grzip");
+
+	if (__archive_read_get_bidder(a, &reader) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	reader->data = NULL;
+	reader->bid = grzip_bidder_bid;
+	reader->init = grzip_bidder_init;
+	reader->options = NULL;
+	reader->free = grzip_reader_free;
+	/* This filter always uses an external program. */
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external grzip program for grzip decompression");
+	return (ARCHIVE_WARN);
+}

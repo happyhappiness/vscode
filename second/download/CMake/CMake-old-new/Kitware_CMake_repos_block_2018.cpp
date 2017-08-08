@@ -1,11 +1,16 @@
 {
-  printf(This function has an error!\n");
-  n = 5;
-  return 0;
-}
+  int i = 0;
+  for (; i < argc; ++i) {
+    fprintf(stdout, "%s\n", argv[i]);
+  }
 
-int notcalled()
-{
-  printf(This function doesn't get called.\n");
+#ifdef CMAKE_BUILD_TYPE
+  fprintf(stdout, "CMAKE_BUILD_TYPE is %s\n", CMAKE_BUILD_TYPE);
+#endif
+
+#ifdef CMAKE_INTDIR
+  fprintf(stdout, "CMAKE_INTDIR is %s\n", CMAKE_INTDIR);
+#endif
+
   return 0;
 }

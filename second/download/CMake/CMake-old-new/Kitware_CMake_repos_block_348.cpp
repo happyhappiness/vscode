@@ -1,6 +1,4 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get metadata(xattr)");
-			ret = ARCHIVE_WARN;
-			goto exit_xattr;
+			fsobj_error(a_eno, a_estr, errno,
+			    "chdir() failure", "");
 		}

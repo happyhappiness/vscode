@@ -1,1 +1,1 @@
-printf("%s\n", buf);
+printf("dump_addrinfo:\n");

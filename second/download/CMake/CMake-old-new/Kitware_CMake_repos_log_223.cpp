@@ -1,3 +1,2 @@
-archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Cannot seek.");
+archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory");

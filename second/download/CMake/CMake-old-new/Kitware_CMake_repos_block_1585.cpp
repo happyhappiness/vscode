@@ -1,7 +1,2 @@
-{
-			err = set_conversion_failed_error(a, sconv, "Pathname");
-			if (err == ARCHIVE_FATAL)
-				return (err);
-			/* Use a converted an original name. */
-			archive_entry_copy_pathname(entry, as->s);
-		}
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "tar: hdrcharset option needs a character-set name")

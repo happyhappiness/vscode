@@ -1,1 +1,1 @@
-printf("The value of Foo: %s\n", foo);
+sprintf(buffer, "Should be empty (source file full path): [%s]", cstr);

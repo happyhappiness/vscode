@@ -1,11 +1,24 @@
 {
-      // Set error location to start of doc, ideally should be first token found
-      // in doc
-      token.type_ = tokenError;
-      token.start_ = beginDoc;
-      token.end_ = endDoc;
-      addError(
-          "A valid JSON document must be either an array or an object value.",
-          token);
-      return false;
-    }
+  char *config_string;
+  SECMODModule *module = *pmod;
+  if(module)
+    /* already loaded */
+    return CURLE_OK;
+
+  config_string = aprintf("library=%s name=%s", library, name);
+  if(!config_string)
+    return CURLE_OUT_OF_MEMORY;
+
+  module = SECMOD_LoadUserModule(config_string, NULL, PR_FALSE);
+  free(config_string);
+
+  if(module && module->loaded) {
+    /* loaded successfully */
+    *pmod = module;
+    return CURLE_OK;
+  }
+
+  if(module)
+    SECMOD_DestroyModule(module);
+  return CURLE_FAILED_INIT;
+}

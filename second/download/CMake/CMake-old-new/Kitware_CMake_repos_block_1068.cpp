@@ -1,4 +1,5 @@
 {
-		archive_set_error(_a, EINVAL, "Invalid comparison flag");
-		return (ARCHIVE_FAILED);
-	}
+			archive_mstring_get_mbs(a, &mine->filename, &mbs);
+			archive_set_error(a, errno,
+			    "Can't convert '%s' to WCS", mbs);
+		}

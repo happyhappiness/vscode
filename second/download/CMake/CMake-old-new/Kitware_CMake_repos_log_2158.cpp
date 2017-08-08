@@ -1,1 +1,1 @@
-printf("arg %d is %s\n", ac, av[i]);
+printf("example1\n");

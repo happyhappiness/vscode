@@ -1,4 +1,6 @@
 {
-      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+            snprintf((char *)&temp[len], sizeof(temp) - len,
+                     "%c%s%c%s", CURL_NEW_ENV_VAR, varname,
+                     CURL_NEW_ENV_VALUE, varval);
+            len += tmplen;
+          }

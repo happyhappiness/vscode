@@ -1,7 +1,6 @@
 {
-			t->sparse_list_size = 0;
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate data");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
+				/* More portable than "touch." */
+				archive_string_sprintf(&shar->work,
+				    "test -e \"%s\" || :> \"%s\"\n",
+				    shar->quoted_name.s, shar->quoted_name.s);
+			}

@@ -1,6 +1,8 @@
 {
-			archive_set_error(&a->archive,
+			xar->opt_threads = 1;
+			archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterStartElement() failed: %d", r);
-			return (ARCHIVE_FATAL);
+			    "Illegal value `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
 		}

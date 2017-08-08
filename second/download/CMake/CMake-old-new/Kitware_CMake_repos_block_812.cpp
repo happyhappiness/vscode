@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, -1,
-			    "Damaged 7-Zip archive");
-			r = -1;
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed PPMd parameter");
+			return (ARCHIVE_FAILED);
 		}

@@ -1,10 +1,16 @@
 {
-  printf("foo: %d bar: %d foobar: %d barbar: %d baz: %d\n", foo(), bar(),
-         foobar(), barbar(), baz());
+  if (!testExtraStuff2()) {
+    return -1;
+  }
+  if (!testExtraStuff()) {
+    return -1;
+  }
+  if (!testExtraStuff3()) {
+    return -1;
+  }
 
-  printf("tree_prefix_foo: %d tree_prefix_bar: %d tree_bar: %d tree_foobar: "
-         "%d tree_baz: %d\n",
-         tree_prefix_foo(), tree_prefix_bar(), tree_bar(), tree_foobar(),
-         tree_baz());
+  printf("test1\n");
+  for (int i = 0; i < ac; i++)
+    printf("arg %d is %s\n", ac, av[i]);
   return 0;
 }

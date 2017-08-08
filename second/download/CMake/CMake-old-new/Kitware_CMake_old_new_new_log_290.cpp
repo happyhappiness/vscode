@@ -1,1 +1,1 @@
-sprintf(buf, "%s*", name.c_str());
+sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));

@@ -1,4 +1,17 @@
 {
-      archive_set_error(&a->archive, ENOMEM, "Out of memory");
-      return (ARCHIVE_FATAL);
-    }
+	int i, number_slots;
+
+	number_slots = sizeof(a->bidders) / sizeof(a->bidders[0]);
+
+	for (i = 0; i < number_slots; i++) {
+		if (a->bidders[i].bid == NULL) {
+			memset(a->bidders + i, 0, sizeof(a->bidders[0]));
+			*bidder = (a->bidders + i);
+			return (ARCHIVE_OK);
+		}
+	}
+
+	archive_set_error(&a->archive, ENOMEM,
+	    "Not enough slots for filter registration");
+	return (ARCHIVE_FATAL);
+}

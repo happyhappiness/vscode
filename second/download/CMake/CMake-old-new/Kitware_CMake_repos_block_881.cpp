@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Failed to get ACL permission set");
-			return (ARCHIVE_WARN);
-		}
+					archive_set_error(&a->archive, errno,
+					    "Can't fstat");
+					return (ARCHIVE_FAILED);
+				}

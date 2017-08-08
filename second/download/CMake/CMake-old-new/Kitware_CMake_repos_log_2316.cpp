@@ -1,1 +1,1 @@
-sprintf(buffer, "Should be empty (source file full path): [%s]", cstr);
+fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);

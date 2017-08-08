@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno, "Failed to create dir '%ls'",
-	    path);
+archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate data for compression buffer");

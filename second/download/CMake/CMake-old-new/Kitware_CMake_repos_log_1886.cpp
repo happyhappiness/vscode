@@ -1,1 +1,1 @@
-printf("Child was killed when timeout expired.\n");
+fprintf(stdout, "Output on stdout after recursive test.\n");

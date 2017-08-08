@@ -1,1 +1,1 @@
-printf("Wrap creating \"%s\"\n", argv[argc - 1]);
+fprintf(file, "%s", "x");

@@ -1,1 +1,2 @@
-fprintf(stdout, "Usage: %s number\n", argv[0]);
+fprintf(stderr, "FILE_EXPR did not work in C [%s]\n",
+              TO_STRING(FILE_EXPR));

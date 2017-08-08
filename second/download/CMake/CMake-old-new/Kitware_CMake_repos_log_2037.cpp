@@ -1,3 +1,1 @@
-fprintf(
-    fout,
-    "================================================================\n");
+fprintf(stdout, "stdout from bad command line arg '-bad'\n");

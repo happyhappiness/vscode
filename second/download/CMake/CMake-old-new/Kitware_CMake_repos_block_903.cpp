@@ -1,6 +1,5 @@
 {
-		free(xar);
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate xar data");
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");
+		return (ARCHIVE_WARN);
 	}

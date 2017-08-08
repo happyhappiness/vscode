@@ -1,1 +1,1 @@
-printf(" ");
+printf("Dependency test executable ran successfully.\n");

@@ -1,1 +1,1 @@
-snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++);
+fmt_crlf = aprintf("%s\r\n", fmt);

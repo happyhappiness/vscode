@@ -1,9 +1,1 @@
-{
-  char s[4096];
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, sizeof(s), fmt, ap);
-  va_end(ap);
-
-  return AddFormData(formp, FORM_DATA, s, 0, size);
-}
+yy_fatal_error( "cmExpr_yyset_lineno called with no buffer" , yyscanner)

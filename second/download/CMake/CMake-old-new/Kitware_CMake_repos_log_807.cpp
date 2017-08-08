@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, -1, "Malformed Header offset");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "LZMA codec is unsupported");

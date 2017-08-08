@@ -1,1 +1,2 @@
-fprintf(fout, "\t%s\n", symbol.c_str());
+snprintf(buf + len, sizeof(buf) - len,
+                 ": %s", (char*) status_string.value);

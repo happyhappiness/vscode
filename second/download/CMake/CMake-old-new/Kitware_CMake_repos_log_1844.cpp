@@ -1,1 +1,1 @@
-fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_RED);

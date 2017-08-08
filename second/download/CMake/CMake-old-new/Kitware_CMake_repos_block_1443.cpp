@@ -1,6 +1,4 @@
 {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't FindFirstFileW");
-				return (ARCHIVE_FAILED);
-			}
+		archive_set_error(a, errno, "Can't stat fd %d", fd);
+		return (ARCHIVE_FATAL);
+	}

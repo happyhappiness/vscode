@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr after sleep.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_BOLD);

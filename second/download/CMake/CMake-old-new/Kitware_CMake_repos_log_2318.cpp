@@ -1,1 +1,1 @@
-fprintf(stderr, "*** Failed LOADED COMMAND Final Pass\n");
+fprintf(stdout, "Usage: %s number\n", argv[0]);

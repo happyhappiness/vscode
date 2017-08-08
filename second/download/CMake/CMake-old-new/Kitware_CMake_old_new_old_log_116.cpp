@@ -1,1 +1,1 @@
-snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));

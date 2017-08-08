@@ -1,5 +1,4 @@
 {
-		archive_set_error(&a->archive, ERANGE,
-		    "File modification time too large");
-		ret = ARCHIVE_FAILED;
+		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+		return (ARCHIVE_FATAL);
 	}

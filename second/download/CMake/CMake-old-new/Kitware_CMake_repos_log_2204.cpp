@@ -1,1 +1,1 @@
-sprintf(buffer, "Should be 0 (source file abstract property): [%p]", cstr);
+fprintf(stderr, "Must specify output file.\n");

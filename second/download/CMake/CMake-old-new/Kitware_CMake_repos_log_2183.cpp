@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory\n");
+printf("bar = %d\n", ret);

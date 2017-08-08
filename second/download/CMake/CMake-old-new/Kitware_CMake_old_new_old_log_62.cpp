@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, errno,
-					    "Could not remove symlink %s",
-					    a->name);
+archive_set_error(&(a->archive),
+				    ARCHIVE_ERRNO_MISC,
+				    "Failed to clean up lzmadec decompressor");

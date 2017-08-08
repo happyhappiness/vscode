@@ -1,1 +1,1 @@
-fprintf(stderr, "Could not open output file \"%s\"", argv[1]);
+printf("Neither does this.\n");

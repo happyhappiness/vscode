@@ -1,8 +1,6 @@
 {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for uudecode");
-		free(uudecode);
-		free(out_buff);
-		free(in_buff);
-		return (ARCHIVE_FATAL);
-	}
+				archive_set_error(a, errno,
+				    "Failed to get flagset from an NFSv4 ACL entry");
+				ret = ARCHIVE_FAILED;
+				goto exit_free;
+			}

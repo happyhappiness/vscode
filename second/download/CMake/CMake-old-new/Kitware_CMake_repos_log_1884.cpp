@@ -1,1 +1,1 @@
-printf("No process has been executed.\n");
+fprintf(stdout, "Output on stdout before recursive test.\n");

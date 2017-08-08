@@ -1,1 +1,1 @@
-YY_FATAL_ERROR( "cmListFileLexer_yyset_lineno called with no buffer" );
+printf("\n\t}\n};\n");

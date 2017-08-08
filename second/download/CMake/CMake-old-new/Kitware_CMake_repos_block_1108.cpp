@@ -1,6 +1,6 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Group name too long");
-			ret = ARCHIVE_FAILED;
-			copy_length = USTAR_gname_size;
-		}
+		la_dosmaperr(GetLastError());
+		archive_set_error(&(a->archive), errno,
+		    "Failed to FindFirstFile");
+		return (ARCHIVE_FAILED);
+	}

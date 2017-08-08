@@ -1,1 +1,1 @@
-printf("Running command: %s with %d arguments\n", argv[0], argc);
+printf("To run a test, enter the test number: ");

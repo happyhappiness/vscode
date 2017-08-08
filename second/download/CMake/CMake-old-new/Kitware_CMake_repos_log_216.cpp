@@ -1,4 +1,1 @@
-archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Uname cannot be converted from %s to current locale.",
-		    archive_string_conversion_charset_name(xar->sconv));
+archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);

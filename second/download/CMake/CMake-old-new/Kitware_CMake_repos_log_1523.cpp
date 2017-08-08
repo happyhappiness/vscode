@@ -1,2 +1,1 @@
-archive_set_error(cache->archive, errno,
-		    "Can't lookup group for id %d", (int)id);
+archive_string_sprintf(tgt, "WARC-Record-ID: %s\r\n", hdr.recid);

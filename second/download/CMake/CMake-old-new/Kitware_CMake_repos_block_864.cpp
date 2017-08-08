@@ -1,6 +1,4 @@
 {
-		archive_set_error(&a->archive, errno,
-		    "Could not check size of extended attributes");
-		ret = ARCHIVE_WARN;
-		goto cleanup;
+		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+		return (ARCHIVE_FATAL);
 	}

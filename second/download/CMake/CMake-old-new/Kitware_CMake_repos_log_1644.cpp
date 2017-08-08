@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-		    "large inode number truncated");
+archive_set_error(&a->archive, ENOMEM,
+	    "Can't allocate memory for CAB data");

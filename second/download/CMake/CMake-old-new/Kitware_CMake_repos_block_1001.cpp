@@ -1,6 +1,5 @@
 {
-		errmsg("PROGRAMMER ERROR: Function ");
-		errmsg(function);
-		errmsg(" invoked with invalid archive handle.\n");
-		diediedie();
-	}
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}

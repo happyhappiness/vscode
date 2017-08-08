@@ -1,26 +1,16 @@
 {
-  int res;
-  char* nexec = strdup(exec);
-  char* fpath = (char*)malloc(strlen(exec) + 100);
-  int cc;
-  int cnt = 0;
-  printf("Process executable name: %s\n", exec);
-
-  // Remove the executable name and directory name
-  for (cc = strlen(nexec) - 1; cc > 0; cc--) {
-    if (nexec[cc] == '/') {
-      nexec[cc] = 0;
-      if (cnt == 1) {
-        break;
-      }
-      cnt++;
-    }
+  if (Lib1Func() != 2.0) {
+    printf("Problem with lib1\n");
+    return 1;
   }
-  printf("Process executable path: %s\n", nexec);
-  sprintf(fpath, "%s/%s", nexec, file);
-  printf("Check for file: %s\n", fpath);
-  res = fileExists(fpath);
-  free(nexec);
-  free(fpath);
-  return res;
+  if (Lib2Func() != 1.0) {
+    printf("Problem with lib2\n");
+    return 1;
+  }
+  if (Lib4Func() != 4.0) {
+    printf("Problem with lib4\n");
+    return 1;
+  }
+  printf("The value of Foo: %s\n", foo);
+  return SomeFunctionInFoo() - 5;
 }

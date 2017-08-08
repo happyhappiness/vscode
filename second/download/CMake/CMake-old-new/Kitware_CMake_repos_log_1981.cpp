@@ -1,1 +1,1 @@
-fprintf(stdout, "LoadString worked\n");
+sprintf(buf, "%s\\*", name.c_str());

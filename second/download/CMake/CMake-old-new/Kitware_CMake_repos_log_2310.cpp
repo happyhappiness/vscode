@@ -1,1 +1,1 @@
-printf("ac = [%d]\n", ac);
+fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);

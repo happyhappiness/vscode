@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, 0,
-		    "Write request too large");
+fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);

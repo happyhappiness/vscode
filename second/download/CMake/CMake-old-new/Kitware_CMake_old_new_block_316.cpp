@@ -1,4 +1,4 @@
 {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
-      }
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }

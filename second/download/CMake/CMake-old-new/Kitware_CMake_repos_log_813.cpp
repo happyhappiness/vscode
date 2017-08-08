@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, -1,
-				    "Couldn't allocate memory");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Malformed PPMd parameter");

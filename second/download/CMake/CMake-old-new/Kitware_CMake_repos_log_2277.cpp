@@ -1,1 +1,1 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);
+fprintf(stderr, "TARGET_DEF_RELEASE should not be defined in C\n");

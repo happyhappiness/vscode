@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr before grandchild test.\n");
+sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate ustar data");
+archive_set_error(&(a->archive), EINVAL, "pattern is empty");

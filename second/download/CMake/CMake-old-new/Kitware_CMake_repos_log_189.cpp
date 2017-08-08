@@ -1,1 +1,1 @@
-archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
+_snprintf(buffer, sizeof(buffer), "Line %d, Column %d", line, column);

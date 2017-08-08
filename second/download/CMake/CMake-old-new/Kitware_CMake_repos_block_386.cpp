@@ -1,6 +1,7 @@
 {
-			free(file);
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for UTF-16LE");
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(&a->archive, errno,
+		    "Failed to read a restoring file");
+		close(fd);
+		ret = ARCHIVE_WARN;
+		goto skip_appledouble;
+	}

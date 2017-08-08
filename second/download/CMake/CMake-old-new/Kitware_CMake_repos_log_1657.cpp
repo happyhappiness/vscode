@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENAMETOOLONG,
-		    "Pathname too long");
+archive_set_error(&a->archive, ENOMEM,
+		    "Out of memory for deflate decompression");

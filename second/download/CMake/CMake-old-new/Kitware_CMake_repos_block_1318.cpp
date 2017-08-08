@@ -1,6 +1,5 @@
 {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge CL");
-				goto fail;
+				archive_set_error(&a->archive, ENOMEM,
+				    "No memory for Pathname");
+				return (ARCHIVE_FATAL);
 			}

@@ -1,5 +1,7 @@
 {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "%s", error);
-			return ARCHIVE_WARN;
+			free(strm);
+			lastrm->real_stream = NULL;
+			archive_set_error(a, ENOMEM,
+			    "Cannot allocate memory");
+			return (ARCHIVE_FATAL);
 		}

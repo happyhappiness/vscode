@@ -1,2 +1,1 @@
-fprintf(stderr, "Error converting self path \"%s\" to real path: %s\n",
-            self_path, msgbuf);
+printf("0x%08" PRIX32, crc32_table[0][b]);

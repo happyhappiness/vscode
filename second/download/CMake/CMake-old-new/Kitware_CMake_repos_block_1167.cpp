@@ -1,7 +1,11 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %s", tree_current_path(t));
-			r = ARCHIVE_FAILED;
-			tree_enter_initial_dir(t);
-			goto abort_read_data;
+#if HAVE_ICONV
+			archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "iconv_open failed : Cannot handle ``%s''",
+			    (flag & SCONV_TO_CHARSET)?tc:fc);
+#else
+			archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "A character-set conversion not fully supported "
+			    "on this platform");
+#endif
 		}

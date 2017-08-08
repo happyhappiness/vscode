@@ -1,1 +1,1 @@
-printf("Placeholder for another strange file in subdirectory\n");
+printf("expected [%s], got [%s]\n", p->out, out.c_str());

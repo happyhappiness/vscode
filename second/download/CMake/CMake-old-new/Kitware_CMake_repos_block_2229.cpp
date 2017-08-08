@@ -1,4 +1,8 @@
 {
-  printf("Running command: %s with %d arguments\n", argv[0], argc);
+#endif
+  if (ac > 1000) {
+    return *av[0];
+  }
+  printf("This is T4. This one should work.\n");
   return 0;
 }

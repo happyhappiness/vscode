@@ -1,2 +1,2 @@
 archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			"Invalid ACL type");
+		    "Failed to clean up compressor");

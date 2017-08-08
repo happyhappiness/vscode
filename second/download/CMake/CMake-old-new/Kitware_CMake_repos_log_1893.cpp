@@ -1,3 +1,1 @@
-fprintf(stderr, "Mismatch in exit value.  "
-                      "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
+fprintf(stderr, "Output on stderr before grandchild test.\n");

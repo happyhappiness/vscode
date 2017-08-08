@@ -1,1 +1,1 @@
-printf("Problem with libc2\n");
+printf("Usage: %s <file>\n", av[0]);

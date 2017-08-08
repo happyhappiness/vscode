@@ -1,2 +1,2 @@
-archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
-		    "Decompression internal error");
+archive_set_error(&a->archive, ENOMEM,
+		    "Lzma library error: Out of memory");

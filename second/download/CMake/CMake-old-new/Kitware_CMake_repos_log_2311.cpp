@@ -1,1 +1,1 @@
-printf("arg[%d] = %s\n", i, av[i]);
+fprintf(stdout, "Computing sqrt of %g to be %g using log\n", x, result);

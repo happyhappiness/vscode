@@ -1,1 +1,1 @@
-fprintf(stderr, "Must specify output file.\n");
+printf("Problem with libc1\n");

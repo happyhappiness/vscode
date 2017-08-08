@@ -1,1 +1,1 @@
-utf8_spn = aprintf("%s/%s", service, host);
+host_port = aprintf("%s:%hu", hostname, remote_port);

@@ -1,1 +1,1 @@
-printf("Placeholder for a file with strange name\n");
+fprintf(stderr, "build_config_name is not \"release\"\n");

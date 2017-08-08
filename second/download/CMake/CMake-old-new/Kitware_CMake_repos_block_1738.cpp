@@ -1,22 +1,10 @@
 {
-  char pp[64];
-  psinfo_t psinfo;
-  int err;
-  int fd;
-
-  snprintf(pp, sizeof(pp), "/proc/%lu/psinfo", (unsigned long) getpid());
-
-  fd = open(pp, O_RDONLY);
-  if (fd == -1)
-    return -errno;
-
-  /* FIXME(bnoordhuis) Handle EINTR. */
-  err = -EINVAL;
-  if (read(fd, &psinfo, sizeof(psinfo)) == sizeof(psinfo)) {
-    *rss = (size_t)psinfo.pr_rssize * 1024;
-    err = 0;
-  }
-  uv__close(fd);
-
-  return err;
-}
+		r = get_entry_uname(a, entry_main, &uname, &uname_length, NULL);
+		if (r == ARCHIVE_FATAL)
+			return (r);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate uname '%s' to %s", uname,
+		    archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+		sconv = NULL;/* The header charset switches to binary mode. */
+	}

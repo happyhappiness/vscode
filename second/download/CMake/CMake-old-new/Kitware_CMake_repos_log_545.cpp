@@ -1,2 +1,1 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "Unknown module name: `%s'", mod);
+archive_set_error(a, EINVAL, "No such format '%s'", filename);

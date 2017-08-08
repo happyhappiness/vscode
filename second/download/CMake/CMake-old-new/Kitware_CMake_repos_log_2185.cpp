@@ -1,1 +1,1 @@
-fprintf(stderr, "Could not save png to '%s'\n", filename);
+printf("arg %d is %s\n", ac, av[i]);

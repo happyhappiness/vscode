@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing compression library");
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external lzop program for lzop decompression");

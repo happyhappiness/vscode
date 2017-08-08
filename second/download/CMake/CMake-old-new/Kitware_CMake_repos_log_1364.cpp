@@ -1,2 +1,1 @@
-archive_set_error(a, errno,
-				    "Error reading stdin");
+archive_set_error(&a->archive, ENOMEM, "Out of memory");

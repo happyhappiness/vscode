@@ -1,1 +1,2 @@
-len = snprintf(ptr, left, " libssh2/%s", CURL_LIBSSH2_VERSION);
+len = snprintf(ptr, left, " iconv/%d.%d",
+                 _LIBICONV_VERSION >> 8, _LIBICONV_VERSION & 255);

@@ -1,1 +1,1 @@
-printf("error: [%s]\n", *fname);
+printf("Available tests:\n");

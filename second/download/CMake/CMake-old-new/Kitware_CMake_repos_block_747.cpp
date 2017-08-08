@@ -1,6 +1,6 @@
 {
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Failed to encrypt file");
-					return (ARCHIVE_FAILED);
-				}
+			archive_set_error(&a->archive, errno,
+			    "Can't read temporary file(%jd)", (intmax_t)rs);
+			ret = ARCHIVE_FATAL;
+			break;
+		}

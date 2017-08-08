@@ -1,5 +1,2 @@
-archive_set_error(&a->archive,
-						    errno,
-						    "Cannot restore extended "
-						    "attributes on this file "
-						    "system");
+archive_set_error(&a->archive, -1,
+				    "Can't make file SUID");

@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "File modification time too large");
+archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");

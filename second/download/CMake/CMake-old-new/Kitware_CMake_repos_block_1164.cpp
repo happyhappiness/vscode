@@ -1,4 +1,10 @@
 {
-    archive_set_error(&a->archive, ENOMEM, "Out of memory");
-    return (ARCHIVE_FATAL);
-  }
+					archive_set_error(
+						&filter->archive->archive,
+						ENOMEM,
+					    "Unable to allocate copy buffer");
+					filter->fatal = 1;
+					if (avail != NULL)
+						*avail = ARCHIVE_FATAL;
+					return (NULL);
+				}

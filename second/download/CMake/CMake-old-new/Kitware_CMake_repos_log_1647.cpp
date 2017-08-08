@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ERANGE,
-		    "File is too large for this format.");
+sprintf(cab->format_name, "CAB %d.%d (%s)",
+	    hd->major, hd->minor, cab->entry_cffolder->compname);

@@ -1,1 +1,1 @@
-printf("Available tests:\n");
+printf("\n");

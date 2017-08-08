@@ -1,4 +1,3 @@
 {
-  printf("example1\n");
-  return 0;
-}
+    printf("Failed to open module1\n%s\n", dlerror());
+  }

@@ -1,1 +1,1 @@
-printf("%s is there! Good.", av[1]);
+printf("Missing file %s\n", av[1]);

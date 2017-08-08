@@ -1,2 +1,1 @@
-data->change.url = aprintf("%s://%s%s",
-                                   protobuf, conn->host.name, path);
+DEBUGF(fprintf(stderr, "DISCONNECT without easy handle, ignoring\n"));

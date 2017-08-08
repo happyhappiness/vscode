@@ -1,7 +1,5 @@
 {
-  printf("Hello from subdirectory\n");
-  secondone();
-  pair_stuff();
-  vcl_stuff();
-  return 0;
-}
+      report_good(false, entry.str);
+      printf("had %d bytes, used %d\n", entry.n, used);
+      return false;
+    }

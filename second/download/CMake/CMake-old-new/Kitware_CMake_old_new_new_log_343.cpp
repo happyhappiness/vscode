@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
-          target.GetName().c_str(), count);
+fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());

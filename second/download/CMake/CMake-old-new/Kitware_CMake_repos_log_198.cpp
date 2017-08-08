@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory");
+printf(LANG "KWIML_ABI_ENDIAN_ID: expected [%d], got [%d]",
+         expect, KWIML_ABI_ENDIAN_ID);

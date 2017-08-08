@@ -1,5 +1,6 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Failed to initialize compressor");
-		return (ARCHIVE_FATAL);
-	}
+			free(attr->name);
+			free(attr);
+			archive_set_error(&a->archive, ENOMEM, "Out of memory");
+			return (ARCHIVE_FATAL);
+		}

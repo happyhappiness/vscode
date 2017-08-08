@@ -1,2 +1,4 @@
-archive_string_sprintf(str, " time=%jd.%jd",
-		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec)
+return addError("expecting another \\u token to begin the second half of "
+                      "a unicode surrogate pair",
+                      token,
+                      current);

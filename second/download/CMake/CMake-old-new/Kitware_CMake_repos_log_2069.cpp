@@ -1,1 +1,1 @@
-printf("got 0x%04X\n", uc);
+fprintf(fout, "Avoid ctest truncation of output: CTEST_FULL_OUTPUT\n");

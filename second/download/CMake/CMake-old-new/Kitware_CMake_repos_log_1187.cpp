@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, errno, "statvfs failed");
+archive_string_sprintf(&shar->work, "chmod %o ",
+		    (unsigned int)(archive_entry_mode(shar->entry) & 07777));

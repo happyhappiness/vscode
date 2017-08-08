@@ -1,7 +1,5 @@
 {
-	va_list ap;
-
-	va_start(ap, fmt);
-	archive_string_vsprintf(as, fmt, ap);
-	va_end(ap);
-}
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Bad RAR file data");
+      return (ARCHIVE_FATAL);
+  }

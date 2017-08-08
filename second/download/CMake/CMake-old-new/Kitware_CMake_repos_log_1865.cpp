@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+printf("%s: This test intentionally fails\n", argv[0]);

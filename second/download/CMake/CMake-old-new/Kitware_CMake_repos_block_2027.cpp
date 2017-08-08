@@ -1,4 +1,4 @@
 {
-  printf("Hello world!\n");
-  return 0;
-}
+    fprintf(stderr, "Missing name of file to create.\n");
+    return EXIT_FAILURE;
+  }

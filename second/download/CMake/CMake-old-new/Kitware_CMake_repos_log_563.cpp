@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
+archive_set_error(&self->archive->archive, err,
+				    "Internal error initializing decompressor%s%s",
+				    detail == NULL ? "" : ": ",
+				    detail);

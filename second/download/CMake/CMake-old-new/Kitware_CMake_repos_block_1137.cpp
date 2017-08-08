@@ -1,11 +1,12 @@
 {
-#if HAVE_ICONV
-			archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "iconv_open failed : Cannot handle ``%s''",
-			    (flag & SCONV_TO_CHARSET)?tc:fc);
-#else
-			archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "A character-set conversion not fully supported "
-			    "on this platform");
-#endif
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Gname");
+			return (ARCHIVE_FATAL);
 		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate gname '%s' to %s",
+		    p, archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+	}

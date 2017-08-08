@@ -1,5 +1,5 @@
 {
-		archive_set_error(&a->archive, 0,
-		    "Can't add archive to itself");
-		return (ARCHIVE_FAILED);
+		fprintf(stderr, "\n ** Unrecognized flag: ");
+		dump_isodirrec(stderr, isodirrec);
+		fprintf(stderr, "\n");
 	}

@@ -1,22 +1,21 @@
 {
-	case KEY_FLG:
-		d = va_arg(ap, int);
-		archive_string_sprintf(info, "%c%s%s",
-		    prefix, (d == 0)?"!":"", key);
-		break;
-	case KEY_STR:
-		s = va_arg(ap, const char *);
-		archive_string_sprintf(info, "%c%s=%s",
-		    prefix, key, s);
-		break;
-	case KEY_INT:
-		d = va_arg(ap, int);
-		archive_string_sprintf(info, "%c%s=%d",
-		    prefix, key, d);
-		break;
-	case KEY_HEX:
-		d = va_arg(ap, int);
-		archive_string_sprintf(info, "%c%s=%x",
-		    prefix, key, d);
-		break;
-	}
+		case Z_OK: /* Decompressor made some progress. */
+			__archive_read_filter_consume(self->upstream,
+			    avail_in - state->stream.avail_in);
+			break;
+		case Z_STREAM_END: /* Found end of stream. */
+			__archive_read_filter_consume(self->upstream,
+			    avail_in - state->stream.avail_in);
+			/* Consume the stream trailer; release the
+			 * decompression library. */
+			ret = consume_trailer(self);
+			if (ret < ARCHIVE_OK)
+				return (ret);
+			break;
+		default:
+			/* Return an error. */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "gzip decompression failed");
+			return (ARCHIVE_FATAL);
+		}

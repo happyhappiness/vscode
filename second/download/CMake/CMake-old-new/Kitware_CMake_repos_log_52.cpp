@@ -1,1 +1,1 @@
-snprintf(scope, sizeof(scope), "%%%u", scopeid);
+h = aprintf("%s:%s", name, value);

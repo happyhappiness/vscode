@@ -1,1 +1,1 @@
-fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");

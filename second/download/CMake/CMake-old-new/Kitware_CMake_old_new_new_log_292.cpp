@@ -1,1 +1,4 @@
-fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
+_snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  error, GetLastError());

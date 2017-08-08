@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from test returning 123.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_BLACK);

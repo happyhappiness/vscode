@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC, "bzip decompression failed");
+archive_set_error(&a->archive, ENOMEM,
+                        "Unable to allocate memory for uncompressed data.");

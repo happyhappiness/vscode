@@ -1,4 +1,4 @@
 {
-    printf("Usage: %s <file>\n", av[0]);
-    return 1;
+    printf("-R needs an additional parameter.\n");
+    return -1;
   }

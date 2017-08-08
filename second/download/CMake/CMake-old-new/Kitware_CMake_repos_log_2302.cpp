@@ -1,1 +1,1 @@
-printf("Unhandled event.\n");
+fprintf(stdout, "Usage: %s number\n", argv[0]);

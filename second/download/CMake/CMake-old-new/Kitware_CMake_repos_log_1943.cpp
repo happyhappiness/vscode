@@ -1,1 +1,1 @@
-printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);
+printf("RegularExpression::compile(): Unmatched parentheses.\n");
