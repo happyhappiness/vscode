@@ -1,6 +1,5 @@
 {
-					archive_set_error(a, errno,
-					    "Failed to add ACL permission");
-					ret = ARCHIVE_FAILED;
-					goto exit_free;
-				}
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for xz stream");
+		return (ARCHIVE_FATAL);
+	}

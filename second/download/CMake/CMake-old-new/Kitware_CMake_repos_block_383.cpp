@@ -1,6 +1,6 @@
 {
-			archive_set_error(&(a->archive), errno,
-			    "Can't read temporary file(%jd)",
-			    (intmax_t)rs);
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(&a->archive, errno,
+				  "Failed to restore metadata");
+		archive_string_free(&tmp);
+		return (ARCHIVE_WARN);
+	}

@@ -1,1 +1,1 @@
-printf("%f\n", rk);
+printf("foo is: %d\n", foo());

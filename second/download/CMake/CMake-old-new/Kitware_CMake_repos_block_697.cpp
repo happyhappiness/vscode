@@ -1,11 +1,22 @@
 {
-		/*
-		 * Maximum number of directories is 65535(0xffff)
-		 * doe to size(16bit) of Parent Directory Number of
-		 * the Path Table.
-		 * See also ISO9660 Standard 9.4.
-		 */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Too many directories(%d) over 65535.", dir_number);
-		return (ARCHIVE_FATAL);
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, "%c%s%s",
+		    prefix, (d == 0)?"!":"", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, "%c%s=%s",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, "%c%s=%d",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, "%c%s=%x",
+		    prefix, key, d);
+		break;
 	}

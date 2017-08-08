@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n");

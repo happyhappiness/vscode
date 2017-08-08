@@ -1,6 +1,5 @@
 {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "xmlTextWriterStartElement() failed: %d", r);
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, errno,
+		    "Couldn't read extended attribute");
+		return (ARCHIVE_WARN);
 	}

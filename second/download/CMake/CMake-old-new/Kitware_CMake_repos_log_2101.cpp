@@ -1,1 +1,1 @@
-printf("Hello from subdirectory\n");
+printf("had %d bytes, used %d\n", entry.n, used);

@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): ?+* follows nothing.\n");
+printf("Child was killed when timeout expired.\n");

@@ -1,1 +1,1 @@
-fprintf(stderr, "\n");
+snprintf(buf, sizeof(buf), "/proc/self/fd/%d", pipefd[0]);

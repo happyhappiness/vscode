@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Couldn't create temporary file");
+archive_set_error(&self->archive->archive, EINVAL,
+		    "Can't initialize filter; unable to run program \"%s\"",
+		    cmd);

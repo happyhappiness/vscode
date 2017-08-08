@@ -1,1 +1,1 @@
-fprintf(stderr, " \"%s\"", *arg);
+printf("\n};\n");

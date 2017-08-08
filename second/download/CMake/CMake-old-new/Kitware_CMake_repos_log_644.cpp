@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate iso9660 data");
+archive_set_error(&a->archive, errno, "Failed to create dir '%ls'",
+	    path);

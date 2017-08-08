@@ -1,5 +1,6 @@
 {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
-        "Internal error: Unable to set format");
-    r1 = (ARCHIVE_FATAL);
-  }
+		errmsg("PROGRAMMER ERROR: Function ");
+		errmsg(function);
+		errmsg(" invoked with invalid archive handle.\n");
+		diediedie();
+	}

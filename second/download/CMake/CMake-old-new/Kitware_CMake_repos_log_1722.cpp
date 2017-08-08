@@ -1,4 +1,2 @@
-len = _snwprintf(key_name,
-                     ARRAY_SIZE(key_name),
-                     L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\%d",
-                     i);
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");

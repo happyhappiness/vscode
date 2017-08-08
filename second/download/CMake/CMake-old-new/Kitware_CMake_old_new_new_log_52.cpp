@@ -1,0 +1,1 @@
+acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;

@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Unmatched [].\n");
+printf("No process has been executed.\n");

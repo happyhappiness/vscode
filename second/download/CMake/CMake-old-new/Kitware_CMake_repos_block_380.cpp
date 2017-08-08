@@ -1,5 +1,6 @@
 {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't create temporary file");
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(&a->archive, errno,
+		    "Failed to restore metadata");
+		close(tmpfd);
+		tmpfd = -1;
+	}

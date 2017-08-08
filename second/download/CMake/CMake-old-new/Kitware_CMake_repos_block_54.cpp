@@ -1,33 +1,46 @@
 {
-  struct thread_sync_data *tsd = (struct thread_sync_data*)arg;
-  struct thread_data *td = tsd->td;
-  char service[12];
-  int rc;
+            void *addr;
+            char *ip;
+            char scope[12] = "";
+            char ipstr[64];
+#ifdef ENABLE_IPV6
+            if(af == AF_INET6) {
+              unsigned int scopeid = 0;
+              unsigned int ifscope = Curl_ipv6_scope(iface->ifa_addr);
 
-  snprintf(service, sizeof(service), "%d", tsd->port);
+              if(ifscope != remote_scope) {
+                /* We are interested only in interface addresses whose
+                   scope matches the remote address we want to
+                   connect to: global for global, link-local for
+                   link-local, etc... */
+                if(res == IF2IP_NOT_FOUND) res = IF2IP_AF_NOT_SUPPORTED;
+                continue;
+              }
 
-  rc = Curl_getaddrinfo_ex(tsd->hostname, service, &tsd->hints, &tsd->res);
+              addr =
+                &((struct sockaddr_in6 *)(void *)iface->ifa_addr)->sin6_addr;
+#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
+              /* Include the scope of this interface as part of the address */
+              scopeid = ((struct sockaddr_in6 *)(void *)iface->ifa_addr)
+                            ->sin6_scope_id;
 
-  if(rc != 0) {
-    tsd->sock_error = SOCKERRNO?SOCKERRNO:rc;
-    if(tsd->sock_error == 0)
-      tsd->sock_error = RESOLVER_ENOMEM;
-  }
-  else {
-    Curl_addrinfo_set_port(tsd->res, tsd->port);
-  }
+              /* If given, scope id should match. */
+              if(remote_scope_id && scopeid != remote_scope_id) {
+                if(res == IF2IP_NOT_FOUND)
+                  res = IF2IP_AF_NOT_SUPPORTED;
 
-  Curl_mutex_acquire(tsd->mtx);
-  if(tsd->done) {
-    /* too late, gotta clean up the mess */
-    Curl_mutex_release(tsd->mtx);
-    destroy_thread_sync_data(tsd);
-    free(td);
-  }
-  else {
-    tsd->done = 1;
-    Curl_mutex_release(tsd->mtx);
-  }
-
-  return 0;
-}
+                continue;
+              }
+#endif
+              if(scopeid)
+                snprintf(scope, sizeof(scope), "%%%u", scopeid);
+            }
+            else
+#endif
+              addr =
+                  &((struct sockaddr_in *)(void *)iface->ifa_addr)->sin_addr;
+            res = IF2IP_FOUND;
+            ip = (char *) Curl_inet_ntop(af, addr, ipstr, sizeof(ipstr));
+            snprintf(buf, buf_size, "%s%s", ip, scope);
+            break;
+          }

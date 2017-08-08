@@ -1,6 +1,6 @@
 {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't GetFileInformationByHandle");
-				return (ARCHIVE_FAILED);
-			}
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated input");
+			return (ARCHIVE_FATAL);
+		}

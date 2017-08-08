@@ -1,1 +1,1 @@
-fprintf(stderr, "Output after crash on stderr from crash test.\n");
+fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);

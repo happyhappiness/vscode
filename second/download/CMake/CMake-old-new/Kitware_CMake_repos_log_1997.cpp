@@ -1,1 +1,1 @@
-fprintf(stdout, ">> Creating %s!\n", argv[1]);
+printf("passed foo is 21\n");

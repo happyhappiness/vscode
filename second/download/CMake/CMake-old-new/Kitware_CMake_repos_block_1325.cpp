@@ -1,5 +1,5 @@
 {
-		fprintf(stderr, "\n ** Unrecognized sequence number: ");
-		dump_isodirrec(stderr, isodirrec);
-		fprintf(stderr, "\n");
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated zisofs file body");
+		return (ARCHIVE_FATAL);
 	}

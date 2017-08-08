@@ -1,1 +1,1 @@
-fprintf(fout," hc: %s \n",sectionCharacter.c_str());
+snprintf(buf, sizeof(buf), "%s", prefix);

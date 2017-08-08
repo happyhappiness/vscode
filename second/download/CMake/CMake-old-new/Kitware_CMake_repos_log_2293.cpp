@@ -1,1 +1,1 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);
+fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);

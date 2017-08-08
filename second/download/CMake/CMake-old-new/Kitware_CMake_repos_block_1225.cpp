@@ -1,6 +1,6 @@
 {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Truncated ZIP file data");
-				return (ARCHIVE_FATAL);
-			}
+		t->current_filesystem->synthetic = -1;
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statvfs failed");
+		return (ARCHIVE_FAILED);
+	}

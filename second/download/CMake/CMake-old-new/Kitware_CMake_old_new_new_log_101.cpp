@@ -1,3 +1,3 @@
-fsobj_error(a_eno, a_estr, 0,
-					    "Cannot extract through "
-					    "symlink %s", path);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Malformed extra data: Consumed %d bytes of %d bytes",
+		    (int)offset, (int)extra_length);

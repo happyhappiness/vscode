@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory");
+archive_string_sprintf(info, "%c%s=%x",
+		    prefix, key, d);

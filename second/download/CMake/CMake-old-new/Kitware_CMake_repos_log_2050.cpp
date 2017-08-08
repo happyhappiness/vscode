@@ -1,1 +1,1 @@
-printf("HEADER_STRING: %s\n", HEADER_STRING);
+printf("This does happen.\n");

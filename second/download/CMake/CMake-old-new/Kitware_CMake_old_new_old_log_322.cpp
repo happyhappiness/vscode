@@ -1,2 +1,1 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+sprintf(buf, "%s/*", name);

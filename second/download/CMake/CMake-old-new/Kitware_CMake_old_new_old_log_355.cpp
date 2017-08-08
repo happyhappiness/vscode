@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory.\n");
+fprintf(fout, "add_executable(%s", targetName);

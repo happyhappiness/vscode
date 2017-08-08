@@ -1,9 +1,6 @@
 {
-		case Z_OK:
-			break;
-		default:
-			archive_set_error(&(self->archive->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to clean up gzip compressor");
-			ret = ARCHIVE_FATAL;
-		}
+		/* Stat failed? */
+		archive_set_error(&a->archive, errno,
+		    "Can't test directory '%ls'", path);
+		return (ARCHIVE_FAILED);
+	}

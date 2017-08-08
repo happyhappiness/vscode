@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM, "%s %s",
-			    "Can't allocate memory for ", attr);
+archive_set_error(&a->archive, ERANGE,
+		    "Numeric user ID too large");

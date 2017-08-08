@@ -1,5 +1,5 @@
 {
-			archive_set_error(&self->archive->archive, ENOMEM,
-			    "Can't allocate data for lz4 decompression");
-			return (ARCHIVE_FATAL);
-		}
+				archive_set_error(&a->archive, EINVAL,
+				    "Invalid string table");
+				return (ARCHIVE_WARN);
+			}

@@ -1,1 +1,1 @@
-fprintf(out, "%s \\\n", tmp.c_str());
+snprintf(trypath, sizeof(trypath) - 1, "%s/%s", token, args);

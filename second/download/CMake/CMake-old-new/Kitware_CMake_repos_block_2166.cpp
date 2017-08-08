@@ -1,4 +1,8 @@
 {
-      fprintf(f, "int generated_by_testExe1() { return 0; }\n");
-      fclose(f);
-    }
+  printf("Hello from subdirectory\n");
+  secondone();
+  pair_stuff();
+  pair_p_stuff();
+  vcl_stuff();
+  return 0;
+}

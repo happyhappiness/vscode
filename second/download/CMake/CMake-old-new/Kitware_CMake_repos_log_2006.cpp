@@ -1,1 +1,2 @@
-fprintf(stdout, "%s:0:0: warning: message [checker]\n", argv[i]);
+fprintf(stdout, "CMAKE_RCDEFINE is %s, and is *not* a string constant\n",
+          CMAKE_RCDEFINE);

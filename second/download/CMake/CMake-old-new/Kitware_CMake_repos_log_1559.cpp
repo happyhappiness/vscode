@@ -1,1 +1,2 @@
-archive_set_error(&a->archive, EINVAL, "Damaged tar archive");
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated LHa header");

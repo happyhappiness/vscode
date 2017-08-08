@@ -1,1 +1,1 @@
-fprintf(fout, "add_executable(%s", targetName.c_str());
+sprintf(buf, "%s/*", name.c_str());

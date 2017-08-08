@@ -1,1 +1,1 @@
-sprintf(buffer, "%ld", osvi.dwBuildNumber & 0xFFFF);
+printf("%3d. %s\n", i, cmakeGeneratedFunctionMapEntries[i].name);

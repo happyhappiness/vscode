@@ -1,1 +1,1 @@
-snprintf(service, sizeof(service), "%d", tsd->port);
+snprintf(buf, buf_size, "%s%s", ip, scope);

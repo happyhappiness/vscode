@@ -1,7 +1,4 @@
 {
-		free(strm);
-		lastrm->real_stream = NULL;
-		archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "lzma_properties_size failed");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive, ENOMEM, "Can't extract");
+			return (ARCHIVE_FATAL);
+		}

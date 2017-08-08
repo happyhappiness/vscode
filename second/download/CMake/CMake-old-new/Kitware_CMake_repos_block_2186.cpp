@@ -1,10 +1,5 @@
 {
-  FILE* fout = fopen(av[1], "w");
-  printf("create %s\n", av[1]);
-  if (!fout) {
-    return -1;
+    printf("number of threads is %s\n", argv[2]);
+    *av += 2;
+    *ac -= 2;
   }
-  fprintf(fout, "#include <bar.h>\nBAR_EXPORT int bar(){ return 10;}\n");
-  fclose(fout);
-  return 0;
-}

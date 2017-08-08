@@ -1,3 +1,4 @@
 {
-    fprintf(stderr, "*** Failed LOADED COMMAND Final Pass\n");
-  }
+      fprintf(f, "int generated_by_testExe3() { return 0; }\n");
+      fclose(f);
+    }

@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			                  "Path is absolute");
+archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);

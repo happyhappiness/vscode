@@ -1,3 +1,1 @@
-snprintf(type, sizeof(type), ";type=%c",
-                 data->set.prefer_ascii?'A':
-                 (data->set.ftp_list_only?'D':'I'));
+s->range = aprintf("%" CURL_FORMAT_CURL_OFF_TU "-", s->resume_from);

@@ -1,1 +1,2 @@
-archive_set_error(a, errno, "Write error");
+archive_set_error(a, errno,
+					    "Failed to add ACL permission");

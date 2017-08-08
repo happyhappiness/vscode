@@ -1,1 +1,1 @@
-auth = aprintf("%s", data->set.str[STRING_MAIL_AUTH])
+from = aprintf("<%s>", data->set.str[STRING_MAIL_FROM])

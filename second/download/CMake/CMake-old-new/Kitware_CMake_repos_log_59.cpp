@@ -1,1 +1,1 @@
-size = aprintf("%" CURL_FORMAT_CURL_OFF_T, data->state.infilesize);
+auth = aprintf("%s", data->set.str[STRING_MAIL_AUTH]);

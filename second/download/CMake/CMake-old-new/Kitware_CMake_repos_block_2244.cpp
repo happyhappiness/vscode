@@ -1,4 +1,7 @@
 {
-    fprintf(stderr, "TARGET_DEF_RELEASE should not be defined in C\n");
-    result = 0;
+  float d = 10.0;
+  for (int i = 0; i < atoi(av[1]); i++) {
+    d *= .2;
   }
+  printf("%f", d);
+}

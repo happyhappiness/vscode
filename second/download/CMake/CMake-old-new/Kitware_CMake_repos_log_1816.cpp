@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_MAGENTA);
+YY_FATAL_ERROR( "out of dynamic memory in cmListFileLexer_yyensure_buffer_stack()" );

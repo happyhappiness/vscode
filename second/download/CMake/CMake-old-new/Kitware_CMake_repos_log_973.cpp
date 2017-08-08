@@ -1,2 +1,3 @@
-archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for gzip stream");
+archive_set_error(&a->archive, ENOMEM,
+		    "xmlBufferCreate() "
+		    "couldn't create xml buffer");

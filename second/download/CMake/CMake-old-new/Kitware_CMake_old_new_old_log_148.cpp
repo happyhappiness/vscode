@@ -1,1 +1,2 @@
-tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
+                  encoded);

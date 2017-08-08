@@ -1,4 +1,4 @@
 {
-    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
-    putenv(buf);
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
   }

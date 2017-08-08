@@ -1,3 +1,3 @@
 archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing "
-		    "compression library: invalid setup parameter");
+			    "A filename cannot be converted to UTF-16BE;"
+			    "You should disable making Joliet extension");

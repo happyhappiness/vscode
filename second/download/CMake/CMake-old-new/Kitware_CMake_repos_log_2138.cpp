@@ -1,1 +1,1 @@
-fprintf(stderr, "Get definitions from a subdir did not work\n");
+printf("File %s should be in subdirectory\n", av[2]);

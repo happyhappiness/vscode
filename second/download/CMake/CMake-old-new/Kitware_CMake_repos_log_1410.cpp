@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Uncompressed size error");
+archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Uname");

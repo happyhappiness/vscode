@@ -1,4 +1,6 @@
 {
-    archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data");
-    return (ARCHIVE_FATAL);
-  }
+		free(p);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (NULL);
+	}

@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);
+YY_FATAL_ERROR( "bad buffer in cmListFileLexer_yy_scan_bytes()" );

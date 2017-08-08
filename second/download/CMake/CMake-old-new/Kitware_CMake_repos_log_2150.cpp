@@ -1,1 +1,1 @@
-printf("bar = %d\n", ret);
+printf("Placeholder for a file with strange name\n");

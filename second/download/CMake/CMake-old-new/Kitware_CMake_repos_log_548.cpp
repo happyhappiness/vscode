@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzop decompression");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "lzma compression not supported on this platform");

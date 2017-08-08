@@ -1,2 +1,2 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC, "Invalid sequence.");
+archive_set_error(&a->archive, ERANGE,
+				    "File name too long");

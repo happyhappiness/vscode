@@ -1,5 +1,5 @@
 {
 		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ar data");
-		return (ARCHIVE_FATAL);
+		    "Can't allocate ustar data");
+		return(ARCHIVE_FATAL);
 	}

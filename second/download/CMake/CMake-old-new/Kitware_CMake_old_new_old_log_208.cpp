@@ -1,1 +1,1 @@
-yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);
+fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);

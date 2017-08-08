@@ -1,4 +1,3 @@
 {
-  printf("foo is: %d\n", foo());
-  return 0;
-}
+    printf("Failed to open module2\n");
+  }

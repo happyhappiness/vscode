@@ -1,4 +1,5 @@
 {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-  }
+        // RAISE Error, SYM(RegularExpression), SYM(Unmatched_Bracket),
+        printf("RegularExpression::compile(): Unmatched [].\n");
+        return 0;
+      }

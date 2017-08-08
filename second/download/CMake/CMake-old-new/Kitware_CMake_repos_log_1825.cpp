@@ -1,1 +1,2 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_CYAN);
+fprintf(stderr, "Error converting self path \"%s\" to real path: %s\n",
+            self_path, msgbuf);

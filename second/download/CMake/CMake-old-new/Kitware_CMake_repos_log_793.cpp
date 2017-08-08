@@ -1,3 +1,2 @@
-archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "bzip decompression failed");
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symname");

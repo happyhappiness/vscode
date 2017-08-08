@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate data");
+archive_string_sprintf(&shar->work,
+				    "test -e \"%s\" || :> \"%s\"\n",
+				    shar->quoted_name.s, shar->quoted_name.s);

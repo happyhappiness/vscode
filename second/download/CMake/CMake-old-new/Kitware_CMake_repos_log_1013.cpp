@@ -1,2 +1,3 @@
-archive_set_error(a, errno,
-			    "Failed to get ACL permission set");
+archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");

@@ -1,1 +1,1 @@
-fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+fprintf(stdout, "Output on stdout from grandchild before sleep.\n");

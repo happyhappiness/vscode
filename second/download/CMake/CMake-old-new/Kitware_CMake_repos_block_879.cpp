@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Failed to get flagset from a NFSv4 ACL entry");
-				return (ARCHIVE_WARN);
-			}
+			archive_set_error(ar, archive_errno(aw),
+			    "%s", archive_error_string(aw));
+			return (r);
+		}

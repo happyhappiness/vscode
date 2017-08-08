@@ -1,1 +1,2 @@
-archive_set_error(_a, ENOMEM, "Can't allocate memory");
+archive_set_error(&self->archive->archive, ENOMEM,
+			    "Can't allocate data for lzop decompression");

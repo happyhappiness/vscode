@@ -1,5 +1,6 @@
 {
-				archive_set_error(&a->archive, ERANGE,
-				    "File name too long");
-				return (ARCHIVE_WARN);
+				la_dosmaperr(GetLastError());
+				archive_set_error(&a->archive, errno,
+				    "Can't FindFirstFileW");
+				return (ARCHIVE_FAILED);
 			}

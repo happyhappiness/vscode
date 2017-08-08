@@ -1,14 +1,16 @@
 {
-          case '<':
-            fprintf(fout, "&lt;");
-            break;
-          case '>':
-            fprintf(fout, "&gt;");
-            break;
-          case '&':
-            fprintf(fout, "&amp;");
-            break;
-          default:
-            putc(*c, fout);
-            break;
-        }
+  int i;
+  for (i = 1; i < argc; ++i) {
+    if (strcmp(argv[i], "-bad") == 0) {
+      fprintf(stdout, "stdout from bad command line arg '-bad'\n");
+      fprintf(stderr, "stderr from bad command line arg '-bad'\n");
+      return 1;
+    }
+    if (argv[i][0] != '-') {
+      fprintf(stdout, "%s:0:0: warning: message [checker]\n", argv[i]);
+      break;
+    }
+  }
+  fprintf(stderr, "1 warning generated.\n");
+  return 0;
+}

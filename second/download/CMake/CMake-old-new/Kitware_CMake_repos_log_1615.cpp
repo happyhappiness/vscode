@@ -1,2 +1,1 @@
-sprintf(cab->format_name, "CAB %d.%d (%s)",
-	    hd->major, hd->minor, cab->entry_cffolder->compname);
+err = set_conversion_failed_error(a, sconv, "Gname");

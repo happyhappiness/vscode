@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Can't set permissions to 0%o", (int)mode);
-				r = ARCHIVE_WARN;
-			}
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for a fixup");
+		return (NULL);
+	}

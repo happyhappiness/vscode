@@ -1,6 +1,5 @@
 {
-		free(strm);
-		archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for PPMd");
-		return (ARCHIVE_FATAL);
-	}
+			archive_set_error(&a->archive, errno,
+			    "Couldn't create temporary file");
+			return (ARCHIVE_FATAL);
+		}

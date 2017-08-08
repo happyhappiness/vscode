@@ -1,2 +1,2 @@
-archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");

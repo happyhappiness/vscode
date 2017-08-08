@@ -1,1 +1,1 @@
-archive_set_error(_a, EINVAL, "No time flag");
+archive_set_error(a, errno, "No memory");

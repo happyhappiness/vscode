@@ -1,1 +1,1 @@
-printf("%3d is an invalid test number.\n", testNum);
+printf("RegularExpression::compile(): Expression too big.\n");

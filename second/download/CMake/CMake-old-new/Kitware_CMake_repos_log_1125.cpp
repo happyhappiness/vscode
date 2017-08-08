@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EIO,
-			    "Premature end-of-file.");
+archive_set_error(&a->archive, ENAMETOOLONG,
+			    "Pathname too long");

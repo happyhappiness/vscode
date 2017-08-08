@@ -1,1 +1,1 @@
-fprintf(fout, "double sqrtTable[] = {\n");
+fprintf(stderr, "OLD_DEF not defined in C\n");

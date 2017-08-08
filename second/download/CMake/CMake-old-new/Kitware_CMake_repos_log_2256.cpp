@@ -1,1 +1,1 @@
-fprintf(stderr, "OLD_EXPR id not work in C [%s]\n", TO_STRING(OLD_EXPR));
+fprintf(fp, "extern int wrapped_help();\n");

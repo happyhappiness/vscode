@@ -1,1 +1,2 @@
-fprintf(out, "%s: \\\n", tmp.c_str());
+fprintf(stderr, "ignoring non-SCM_RIGHTS ancillary data: %d\n",
+          cmsg->cmsg_type);

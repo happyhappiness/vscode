@@ -1,1 +1,1 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+sprintf(buf, "%s\\*", name.c_str());

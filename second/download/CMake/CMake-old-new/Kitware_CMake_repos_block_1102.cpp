@@ -1,6 +1,4 @@
 {
-			archive_set_error(&a->archive, ENAMETOOLONG,
-			    "Link contents too long");
-			ret = ARCHIVE_FAILED;
-			copy_length = USTAR_linkname_size;
-		}
+		archive_set_error(&(a->archive), EINVAL, "date is empty");
+		return (ARCHIVE_FAILED);
+	}

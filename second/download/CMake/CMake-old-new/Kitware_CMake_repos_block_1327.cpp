@@ -1,5 +1,5 @@
 {
-		fprintf(stderr, "\n ** Unexpected file unit size: ");
-		dump_isodirrec(stderr, isodirrec);
-		fprintf(stderr, "\n");
-	}
+				archive_set_error(&a->archive, ENOMEM,
+				    "No memory for zisofs decompression");
+				return (ARCHIVE_FATAL);
+			}

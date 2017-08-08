@@ -1,1 +1,1 @@
-printf("File %s should be in subdirectory\n", av[2]);
+printf("Placeholder for a file with strange name\n");

@@ -1,7 +1,5 @@
 {
-				archive_set_error(
-				    &self->archive->archive,
-		    		    ARCHIVE_ERRNO_MISC,
-				    "Malformed lz4 data");
-				return (ARCHIVE_FATAL);
-			}
+		archive_set_error(&a->archive, ERANGE,
+		    "Numeric user ID too large");
+		return (ARCHIVE_WARN);
+	}

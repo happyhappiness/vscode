@@ -1,1 +1,1 @@
-spn = aprintf("%s/%s@%s", service, host, realm);
+snprintf(txtbuf, sizeof(txtbuf), "%s (0x%08X)", txt, err);

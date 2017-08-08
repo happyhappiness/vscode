@@ -1,5 +1,2 @@
-{
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for ResourceFork");
-				return (ARCHIVE_FATAL);
-			}
+archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "cpio: hdrcharset option needs a character-set name")

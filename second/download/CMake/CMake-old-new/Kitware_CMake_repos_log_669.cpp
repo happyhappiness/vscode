@@ -1,2 +1,3 @@
-archive_string_sprintf(info, "%c%s=%s",
-		    prefix, key, s);
+archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated gzip input");

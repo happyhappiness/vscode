@@ -1,10 +1,21 @@
 {
-    char  buf[INET6_ADDRSTRLEN];
+  int ftp_code;
+  ssize_t nread=0;
+  va_list args;
+  char print_buffer[50];
 
-    printf("    fam %2d, CNAME %s, ",
-           ai->ai_family, ai->ai_canonname ? ai->ai_canonname : "<none>");
-    if(Curl_printable_address(ai, buf, sizeof(buf)))
-      printf("%s\n", buf);
-    else
-      printf("failed; %s\n", Curl_strerror(conn, SOCKERRNO));
+  va_start(args, message);
+  vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+  va_end(args);
+
+  if(Curl_ftpsend(conn, print_buffer)) {
+    ftp_code = -1;
   }
+  else {
+    if(Curl_GetFTPResponse(&nread, conn, &ftp_code))
+      ftp_code = -1;
+  }
+
+  (void)nread; /* Unused */
+  return ftp_code;
+}

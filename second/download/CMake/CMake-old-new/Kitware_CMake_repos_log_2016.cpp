@@ -1,1 +1,1 @@
-printf("Neither does this.\n");
+fprintf(stdout, "LoadString failed\n");

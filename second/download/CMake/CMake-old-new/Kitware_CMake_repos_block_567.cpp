@@ -1,7 +1,9 @@
 {
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version: %u.%u",
-			ver / 10000, (ver % 10000) / 100);
-		return (ARCHIVE_FATAL);
-	}
+		case BZ_OK:
+			break;
+		default:
+			archive_set_error(&self->archive->archive,
+					  ARCHIVE_ERRNO_MISC,
+					  "Failed to clean up decompressor");
+			ret = ARCHIVE_FATAL;
+		}

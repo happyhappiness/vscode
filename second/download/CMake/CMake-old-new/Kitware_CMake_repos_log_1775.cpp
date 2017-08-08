@@ -1,1 +1,1 @@
-fprintf(stdout, "%s\n", line.c_str());
+printf("\n\t");

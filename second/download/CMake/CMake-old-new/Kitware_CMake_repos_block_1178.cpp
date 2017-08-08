@@ -1,2 +1,10 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't convert a path to a char string")
+{
+					unsigned int mode = archive_entry_mode(entry) & 0777;
+					archive_string_sprintf(&shar->work,
+					    "uudecode -p > %s << 'SHAR_END'\n",
+					    shar->quoted_name.s);
+					archive_string_sprintf(&shar->work,
+					    "begin %o ", mode);
+					shar_quote(&shar->work, name, 0);
+					archive_strcat(&shar->work, "\n");
+				}

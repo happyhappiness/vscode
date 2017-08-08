@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-		    "Failed to read a restoring file");
+		    "Can't set UID=%jd", (intmax_t)a->uid);

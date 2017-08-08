@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-			    "Couldn't translate access ACLs");
+archive_set_error(&a->archive, -1, "Size required");

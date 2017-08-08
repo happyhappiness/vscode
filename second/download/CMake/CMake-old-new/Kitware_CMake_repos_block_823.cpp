@@ -1,6 +1,6 @@
 {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated 7-Zip file body");
-			return (ARCHIVE_FATAL);
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Decompression internal error");
+			return (ARCHIVE_FAILED);
 		}

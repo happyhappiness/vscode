@@ -1,1 +1,1 @@
-printf("  libid starts with '0x%08lx'\n", (long)libid.Data1)
+fprintf(stdout, "Computing sqrt of %g to be %g\n", x, result);

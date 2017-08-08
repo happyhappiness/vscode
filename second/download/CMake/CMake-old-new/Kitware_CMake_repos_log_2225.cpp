@@ -1,1 +1,1 @@
-fprintf(fp, "int wrapped_help() { return 5; }\n");
+fprintf(stderr, "Something wrong with T7\n");

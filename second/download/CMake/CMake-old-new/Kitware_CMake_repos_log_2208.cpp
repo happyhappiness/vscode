@@ -1,1 +1,1 @@
-fprintf(fout, "int foo() { return 0; }\n");
+printf("world\n");

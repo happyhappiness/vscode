@@ -1,2 +1,1 @@
-fprintf(stderr, "TARGET_STRING has wrong value in C [%s]\n",
-            TARGET_STRING);
+printf("This is T2\n");

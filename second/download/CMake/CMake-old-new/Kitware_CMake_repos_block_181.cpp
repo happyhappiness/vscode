@@ -1,7 +1,3 @@
-{
-			mtree_entry_free(me);
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for a mtree entry");
-			*m_entry = NULL;
-			return (ARCHIVE_FATAL);
-		}
+return addError("'" + std::string(token.start_, token.end_) +
+                        "' is not a number.",
+                    token);

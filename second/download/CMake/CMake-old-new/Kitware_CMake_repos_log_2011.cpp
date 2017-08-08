@@ -1,1 +1,1 @@
-printf("Hello World\n");
+fprintf(stdout, "LockResource worked\n");

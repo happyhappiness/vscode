@@ -1,5 +1,5 @@
 {
-		archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, "lz4 decompression failed");
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, ERANGE,
+		    "File size out of range");
+		return (ARCHIVE_WARN);
 	}

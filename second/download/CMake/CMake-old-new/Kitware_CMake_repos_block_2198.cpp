@@ -1,4 +1,4 @@
 {
-  printf("This is T2\n");
-  return 2;
-}
+    fprintf(stderr, "Must specify output file.\n");
+    return 1;
+  }

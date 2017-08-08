@@ -1,2 +1,2 @@
-printf(
-      "RegularExpression::find(): Compiled regular expression corrupted.\n");
+printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp));

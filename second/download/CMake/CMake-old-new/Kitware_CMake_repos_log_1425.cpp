@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
-			    tree_current_path(t));
+archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external grzip program for grzip decompression");

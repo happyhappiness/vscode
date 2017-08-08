@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for metadata(xattr)");
+fsobj_error(a_eno, a_estr, 0,
+					    "Cannot remove intervening "
+					    "symlink %s", path);

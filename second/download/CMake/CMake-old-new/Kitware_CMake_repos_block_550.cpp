@@ -1,5 +1,4 @@
 {
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Unsupported method");
-		return (ARCHIVE_FAILED);
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
 	}

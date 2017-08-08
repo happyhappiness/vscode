@@ -1,6 +1,5 @@
 {
-		archive_strcat(&shar->work, "ln -fs ");
-		shar_quote(&shar->work, linkname, 1);
-		archive_string_sprintf(&shar->work, " %s\n",
-		    shar->quoted_name.s);
-	}
+			archive_set_error(&a->archive, ERANGE,
+			    "Minor device number too large");
+			ret = ARCHIVE_FAILED;
+		}

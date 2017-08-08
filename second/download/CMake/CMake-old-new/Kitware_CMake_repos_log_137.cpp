@@ -1,2 +1,5 @@
-snprintf(ptr, sizeof(hosturl)-(ptr-hosturl), "://%s:%d",
-    conn->host.name, conn->remote_port);
+snprintf(outbuf, outmax,
+             "SEC_E_ILLEGAL_MESSAGE (0x%08X) - This error usually occurs "
+             "when a fatal SSL/TLS alert is received (e.g. handshake failed). "
+             "More detail may be available in the Windows System event log.",
+             err);

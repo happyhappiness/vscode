@@ -1,1 +1,1 @@
-printf("To run a test, enter the test number: ");
+printf("world");

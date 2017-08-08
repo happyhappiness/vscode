@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF_DEBUG should not be defined in C\n");
+sprintf(buffer, "Should be empty (source file full path): [%s]", cstr);

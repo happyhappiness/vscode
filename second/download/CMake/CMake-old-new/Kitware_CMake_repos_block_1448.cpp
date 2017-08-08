@@ -1,6 +1,6 @@
 {
-		archive_set_error(&a->archive, ENOMEM,
-			"Couldn't allocate memory");
-		exit_sts = ARCHIVE_FATAL;
-		goto exit_setup_sparse;
+		/* If the input is corrupted or truncated, fail. */
+		archive_set_error(a, errno,
+		    "Error seeking in a file descriptor(%d)", mine->fd);
+		return (ARCHIVE_FATAL);
 	}

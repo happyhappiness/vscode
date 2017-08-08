@@ -1,2 +1,2 @@
-archive_set_error(f->archive, ENOMEM,
-		    "Internal error initializing compression library");
+archive_set_error(&(a->archive), errno,
+			    "Failed : %s", archive_error_string(a->matching));

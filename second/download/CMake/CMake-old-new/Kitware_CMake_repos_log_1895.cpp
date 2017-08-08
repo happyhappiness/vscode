@@ -1,2 +1,1 @@
-fprintf(stderr, "Poll count is %d, which is less than %d.\n", poll,
-            MINPOLL);
+fprintf(stderr, "Output on stderr after grandchild test.\n");

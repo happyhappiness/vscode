@@ -1,1 +1,1 @@
-fprintf(stdout, "Poll count reached limit %d.\n", MAXPOLL);
+fprintf(stderr, "Output after crash on stderr from crash test.\n");

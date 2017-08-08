@@ -1,2 +1,2 @@
-archive_string_sprintf(tgt,
-			"WARC-Target-URI: %s%s\r\n", u, hdr.tgturi);
+archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library");

@@ -1,1 +1,1 @@
-sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);
+fprintf(stderr, "The %s target dependency graph is:\n", name);

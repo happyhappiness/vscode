@@ -1,2 +1,1 @@
-fprintf(stdout, "%s Version %d.%d\n", argv[0], Tutorial_VERSION_MAJOR,
-            Tutorial_VERSION_MINOR);
+fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");

@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Couldn't create temporary file");
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate input data");

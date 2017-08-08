@@ -1,1 +1,1 @@
-printf("\n\t}\n};\n");
+n = _vscprintf(fmt, ap);

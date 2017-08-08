@@ -1,4 +1,8 @@
 {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
+		la_dosmaperr(GetLastError());
+		archive_set_error(&a->archive, errno,
+		    "GetOverlappedResult failed");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		r = ARCHIVE_FATAL;
+		goto abort_read_data;
 	}

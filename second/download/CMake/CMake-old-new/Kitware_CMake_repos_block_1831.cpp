@@ -1,6 +1,5 @@
 {
-        // Windows 2000 and everything else.
-        sprintf(operatingSystem, "%ls (Build %ld)", osvi.szCSDVersion,
-                osvi.dwBuildNumber & 0xFFFF);
-        this->OSVersion = operatingSystem;
+        fprintf(stdout, "%s\n", kwsys_shared_forward_ldpath);
+        fprintf(stdout, "%s\n", exe);
+        return 0;
       }

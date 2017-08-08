@@ -1,1 +1,1 @@
-fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_RED);
+(void) fprintf( stderr, "%s\n", msg );

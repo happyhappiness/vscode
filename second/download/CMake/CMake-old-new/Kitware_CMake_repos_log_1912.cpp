@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Internal error.\n");
+fprintf(stdout, "Output on stdout from grandchild after sleep.\n");

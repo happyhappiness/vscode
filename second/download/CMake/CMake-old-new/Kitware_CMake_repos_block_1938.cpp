@@ -1,4 +1,4 @@
 {
-      printf("Couldn't parse that input as a number\n");
-      return -1;
-    }
+    printf("RegularExpression::compile(): Error in compile.\n");
+    return false;
+  }

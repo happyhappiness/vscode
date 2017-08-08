@@ -1,1 +1,2 @@
-archive_string_sprintf(tgt, "WARC-Record-ID: %s\r\n", hdr.recid);
+archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");

@@ -1,4 +1,3 @@
-{
-		archive_set_error(_a, EINVAL, "Invalid time flag");
-		return (ARCHIVE_FAILED);
-	}
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+			    "Can't convert '%S' to MBS",
+			    (const wchar_t *)filename)

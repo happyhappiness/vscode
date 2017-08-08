@@ -1,2 +1,1 @@
-sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
+yy_fatal_error( "cmFortran_yyset_lineno called with no buffer" , yyscanner);

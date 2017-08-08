@@ -1,6 +1,8 @@
 {
-		la_dosmaperr(GetLastError());
-		archive_set_error(&(a->archive), errno,
-		    "Failed to FindFirstFileA");
-		return (ARCHIVE_FAILED);
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for uudecode");
+		free(uudecode);
+		free(out_buff);
+		free(in_buff);
+		return (ARCHIVE_FATAL);
 	}

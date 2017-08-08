@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+fprintf(stdout, "Output after sleep on stdout from timeout test.\n");

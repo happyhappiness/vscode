@@ -1,1 +1,1 @@
-printf("number of threads is %s\n", argv[2]);
+printf("Missing file %s\n", av[1]);

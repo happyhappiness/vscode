@@ -1,1 +1,1 @@
-printf("Usage: %s <file>\n", av[0]);
+printf("The value of Foo: %s\n", foo);

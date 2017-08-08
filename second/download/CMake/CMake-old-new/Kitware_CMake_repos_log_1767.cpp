@@ -1,1 +1,1 @@
-printf(",");
+snprintf(absolute_path, sizeof(absolute_path), "%s", filename);

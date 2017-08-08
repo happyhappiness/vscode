@@ -1,3 +1,3 @@
 snprintf((char *)temp, sizeof(temp),
-               "%c%c%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_NEW_ENVIRON,
-               CURL_TELQUAL_IS);
+               "%c%c%c%c%s%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_TTYPE,
+               CURL_TELQUAL_IS, tn->subopt_ttype, CURL_IAC, CURL_SE);

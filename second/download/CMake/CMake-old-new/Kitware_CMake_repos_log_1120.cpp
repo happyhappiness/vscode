@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, EINVAL,
-			"Invalid index specified.");
+archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate ustar data");

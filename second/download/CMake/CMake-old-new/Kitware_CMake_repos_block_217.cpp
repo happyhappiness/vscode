@@ -1,5 +1,1 @@
-{
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
-			return (ARCHIVE_FATAL);
-		}
+archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino)

@@ -1,4 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "``zisofs'' "
-				    "is not supported on this platform.");
+archive_set_error(a, errno, "Couldn't stat fd %d", mine->fd);

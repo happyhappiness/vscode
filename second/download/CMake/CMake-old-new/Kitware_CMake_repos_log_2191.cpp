@@ -1,1 +1,1 @@
-printf("This is T9. This one should work.\n");
+printf("arg %d is %s\n", ac, av[i]);

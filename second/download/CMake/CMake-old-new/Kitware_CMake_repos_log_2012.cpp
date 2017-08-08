@@ -1,1 +1,1 @@
-printf("This doesn't happen.\n");
+fprintf(stdout, "str='%s'\n", str);

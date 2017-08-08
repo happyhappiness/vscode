@@ -1,2 +1,3 @@
-archive_string_sprintf(str, " size=%jd",
-			    (intmax_t)me->size)
+{
+    len = snprintf(buffer, sizeof(buffer), "%.16g", value);
+  }

@@ -1,3 +1,2 @@
-archive_set_error(&(self->archive->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to clean up gzip compressor");
+archive_set_error(&a->archive, errno,
+		    "Can't test directory '%ls'", path);

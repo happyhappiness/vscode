@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+yy_fatal_error( "cmCommandArgument_yyset_column called with no buffer" , yyscanner);

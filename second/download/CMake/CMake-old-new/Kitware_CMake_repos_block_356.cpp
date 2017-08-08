@@ -1,5 +1,6 @@
 {
+		/* Stat failed? */
 		archive_set_error(&a->archive, errno,
-				  "Failed to restore metadata");
-		ret = ARCHIVE_WARN;
+		    "Can't test directory '%s'", path);
+		return (ARCHIVE_FAILED);
 	}

@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s number\n", argv[0]);
+fprintf(stderr, "FILE_DEF not defined in C\n");

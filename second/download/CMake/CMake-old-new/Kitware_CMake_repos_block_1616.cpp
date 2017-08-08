@@ -1,14 +1,7 @@
 {
-	case iFoldCONTINUED_FROM_PREV:
-	case iFoldCONTINUED_TO_NEXT:
-	case iFoldCONTINUED_PREV_AND_NEXT:
-		*buff = NULL;
-		*size = 0;
-		*offset = 0;
-		archive_clear_error(&a->archive);
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Cannot restore this file split in multivolume.");
-		return (ARCHIVE_FAILED);
-	default:
-		break;
-	}
+			err = set_conversion_failed_error(a, sconv, "Linkname");
+			if (err == ARCHIVE_FATAL)
+				return (err);
+			/* Use a converted an original name. */
+			archive_entry_copy_link(entry, tar->entry_linkpath.s);
+		}

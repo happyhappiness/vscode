@@ -1,1 +1,1 @@
-printf(" (%s) ", c);
+printf("foo()\n");

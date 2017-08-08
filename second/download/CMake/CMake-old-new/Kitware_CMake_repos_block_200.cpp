@@ -1,6 +1,4 @@
 {
-		*m_entry = NULL;
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
+    printf(", FAILED\n");
+    result = 0;
+    }

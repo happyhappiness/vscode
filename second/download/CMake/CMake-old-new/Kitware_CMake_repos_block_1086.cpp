@@ -1,6 +1,5 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Internal: template_header wrong size: %zu should be 512",
-		    sizeof(template_header));
-		return (ARCHIVE_FATAL);
-	}
+	archive_set_error(&(a->archive), ENOMEM, "No memory");
+	a->archive.state = ARCHIVE_STATE_FATAL;
+	return (ARCHIVE_FATAL);
+}

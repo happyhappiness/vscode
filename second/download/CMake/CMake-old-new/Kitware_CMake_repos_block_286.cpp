@@ -1,5 +1,7 @@
 {
-		archive_set_error(&a->archive, errno,
-		    "Failed to remove resource fork");
-		return (ARCHIVE_WARN);
-	}
+			archive_set_error(&a->archive, ENOMEM, "Out of memory");
+			free(attr);
+			free(name);
+			free(value);
+			return (ARCHIVE_FATAL);
+		}

@@ -1,2 +1,1 @@
-archive_set_error(a, errno,
-				    "Can't allocate memory");
+fprintf(stderr, "\n ** Unexpected file unit size: ");

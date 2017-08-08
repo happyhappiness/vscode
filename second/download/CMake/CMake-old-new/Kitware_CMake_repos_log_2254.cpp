@@ -1,1 +1,1 @@
-fprintf(stderr, "DIRECTORY_DEF not defined in C\n");
+fprintf(fp, "int generated() { return gen_redirect(); }\n");

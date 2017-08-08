@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Not enough arguments");
+archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "lzma_properties_size failed");

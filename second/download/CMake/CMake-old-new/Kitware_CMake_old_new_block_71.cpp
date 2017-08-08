@@ -1,5 +1,6 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
-			}
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains '..'");
+						return (ARCHIVE_FAILED);
+					}

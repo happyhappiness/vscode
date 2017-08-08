@@ -1,4 +1,3 @@
 {
-    fprintf(file, "%s", "x");
-    fflush(file);
+    fprintf(stdout, "%s\n", argv[i]);
   }

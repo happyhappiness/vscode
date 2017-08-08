@@ -1,9 +1,6 @@
 {
-		if (i % 8 == 0)
-			printf("\n\t");
-
-		printf("%4" PRIu32, rc_prices[i]);
-
-		if (i != array_size - 1)
-			printf(",");
-	}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "archive_write_pax_header: "
+			    "'x' header failed?!  This can't happen.\n");
+			return (ARCHIVE_FATAL);
+		}

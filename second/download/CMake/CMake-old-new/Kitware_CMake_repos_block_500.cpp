@@ -1,5 +1,5 @@
 {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Invalid repeating code");
-        return (ARCHIVE_FATAL);
-      }
+      archive_set_error(&a->archive, ENOMEM,
+                        "Can't allocate memory for link");
+      return (ARCHIVE_FATAL);
+    }

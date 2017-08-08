@@ -1,12 +1,4 @@
 {
-  if (LibCxx1Class::Method() != 2.0) {
-    printf("Problem with libcxx1\n");
-    return 1;
-  }
-#ifdef TEST_FLAG_3
-  return 0;
-#else
-  printf("Problem with libcxx2.h include dir probably!\n");
-  return 1;
-#endif
-}
+      fprintf(stderr, "Error writing to %s\n", argv[1]);
+      return 1;
+    }

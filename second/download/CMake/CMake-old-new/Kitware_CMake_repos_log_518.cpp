@@ -1,1 +1,2 @@
-archive_set_error(a, EINVAL, "No such format '%s'", name);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                            "Internal error extracting RAR file.");

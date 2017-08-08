@@ -1,2 +1,3 @@
-archive_set_error(a, errno,
-		    "Error seeking in a file descriptor(%d)", mine->fd);
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "tar format cannot archive socket");

@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Internal error.\n");
+printf("The process is still executing.\n");

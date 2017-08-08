@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-		    "Could not check size of extended attributes");
+archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");

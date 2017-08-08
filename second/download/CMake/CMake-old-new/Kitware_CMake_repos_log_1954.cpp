@@ -1,1 +1,2 @@
-sprintf(buffer, "%ld", osvi.dwMajorVersion);
+printf(
+          "RegularExpression::find(): Internal error -- memory corrupted.\n");

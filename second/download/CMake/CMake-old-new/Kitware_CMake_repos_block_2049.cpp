@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "Could not open output file \"%s\"", argv[1]);
-    return 1;
+    printf("This doesn't happen.\n");
+    printf("Neither does this.\n");
   }

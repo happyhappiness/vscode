@@ -1,4 +1,3 @@
 {
-            fprintf(stdout, "LoadString worked\n");
-            fprintf(stdout, "buf='%s'\n", buf);
-          }
+      sprintf(buf, "%s\\*", name.c_str());
+    }

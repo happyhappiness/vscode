@@ -1,6 +1,7 @@
 {
-		archive_set_error(&a->archive, errno,
-		    "Failed to read metadata(xattr)");
-		ret = ARCHIVE_WARN;
-		goto exit_xattr;
-	}
+						fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not stat %s", path);
+						res = (ARCHIVE_FAILED);
+						break;
+					}

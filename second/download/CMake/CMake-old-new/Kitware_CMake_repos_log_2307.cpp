@@ -1,1 +1,1 @@
-printf("Problem with libc1\n");
+fprintf(fout, "0};\n");

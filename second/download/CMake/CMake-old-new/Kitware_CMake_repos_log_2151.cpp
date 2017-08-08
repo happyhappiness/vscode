@@ -1,1 +1,1 @@
-printf("test2\n");
+printf("Placeholder for a file with strange name\n");

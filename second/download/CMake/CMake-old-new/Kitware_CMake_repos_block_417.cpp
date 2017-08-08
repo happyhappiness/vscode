@@ -1,5 +1,8 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "/unset shall not contain `='");
-		return ARCHIVE_FATAL;
-	}
+
+	archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "%s compression not supported on this platform", name);
+	lastrm->valid = 0;
+	lastrm->real_stream = NULL;
+	return (ARCHIVE_FAILED);
+}

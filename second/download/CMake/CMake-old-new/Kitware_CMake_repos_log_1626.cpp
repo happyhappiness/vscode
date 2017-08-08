@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Deflate decompression failed (%d)", r);
+err = set_conversion_failed_error(a, tar->sconv, "Gname");

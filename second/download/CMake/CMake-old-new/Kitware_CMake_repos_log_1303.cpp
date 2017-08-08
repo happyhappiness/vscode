@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "zisofs decompression failed (%d)", r);
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");

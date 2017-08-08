@@ -1,6 +1,6 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed extra data: Consumed %d bytes of %d bytes",
-		    (int)offset, (int)extra_length);
-		return ARCHIVE_FAILED;
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate tar data");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
 	}

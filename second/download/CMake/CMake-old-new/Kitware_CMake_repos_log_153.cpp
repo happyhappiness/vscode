@@ -1,1 +1,1 @@
-fprintf(stderr, "|<%d>| %s", level, str);
+size = snprintf(buffer, size, "WinSSL");

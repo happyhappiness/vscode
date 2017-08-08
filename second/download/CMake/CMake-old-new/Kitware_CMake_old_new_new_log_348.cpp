@@ -1,1 +1,3 @@
-fprintf(fout, "add_executable(%s", targetName.c_str());
+fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName.c_str(),
+              libsToLink.c_str());

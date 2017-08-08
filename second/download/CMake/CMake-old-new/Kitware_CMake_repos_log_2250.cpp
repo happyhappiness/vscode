@@ -1,1 +1,1 @@
-fprintf(stderr, "FILE_PATH_DEF not defined in C\n");
+fprintf(stdout, ">> Creating %s!\n", argv[1]);

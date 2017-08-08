@@ -1,1 +1,1 @@
-fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
+fprintf(stderr, "Output on stderr from test returning 0.\n");

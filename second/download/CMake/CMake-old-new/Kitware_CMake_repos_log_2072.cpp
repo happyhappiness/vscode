@@ -1,1 +1,5 @@
-printf("failed as expected\n");
+fprintf(
+      fout,
+      "Contents of \"%s\":\n"
+      "----------------------------------------------------------------\n",
+      name);

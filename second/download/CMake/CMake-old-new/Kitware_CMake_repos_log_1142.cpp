@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "shar format cannot archive this");
+archive_set_error(&a->archive, ERANGE,
+		    "File size out of range");

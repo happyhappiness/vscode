@@ -1,3 +1,4 @@
 {
-    printf("Count: %d/%d\n", class, private);
+    printf("-R needs an additional parameter.\n");
+    return -1;
   }

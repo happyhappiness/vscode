@@ -1,5 +1,11 @@
-{
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
-        "Internal error: Unable to append program filter");
-    return (ARCHIVE_FATAL);
-  }
+{ /* Integer overflow! */
+						archive_set_error(
+						    &filter->archive->archive,
+						    ENOMEM,
+						    "Unable to allocate copy"
+						    " buffer");
+						filter->fatal = 1;
+						if (avail != NULL)
+							*avail = ARCHIVE_FATAL;
+						return (NULL);
+					}

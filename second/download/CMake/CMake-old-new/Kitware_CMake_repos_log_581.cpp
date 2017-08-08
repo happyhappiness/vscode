@@ -1,1 +1,2 @@
-archive_set_error(_a, ENOMEM, "Can't allocate memory");
+archive_set_error(&self->archive->archive,
+	    ARCHIVE_ERRNO_FILE_FORMAT, "Corrupted lzop header");

@@ -1,1 +1,1 @@
-printf("File %s should be in subdirectory\n", av[2])
+printf("No X on this computer\n");

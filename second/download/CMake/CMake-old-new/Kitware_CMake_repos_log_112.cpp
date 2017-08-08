@@ -1,1 +1,1 @@
-DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));

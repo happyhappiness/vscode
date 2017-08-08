@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Too many directories(%d) over 65535.", dir_number);
+archive_string_sprintf(info, "%c%s=%s",
+		    prefix, key, s);

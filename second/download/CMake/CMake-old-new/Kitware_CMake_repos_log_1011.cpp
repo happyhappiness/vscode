@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "Unknown ACL entry type");
+archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library");

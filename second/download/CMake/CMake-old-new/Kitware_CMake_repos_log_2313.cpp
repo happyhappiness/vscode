@@ -1,1 +1,2 @@
-printf("arg1 and arg2 missing!\n");
+fprintf(stdout, "%s Version %d.%d\n", argv[0], Tutorial_VERSION_MAJOR,
+            Tutorial_VERSION_MINOR);

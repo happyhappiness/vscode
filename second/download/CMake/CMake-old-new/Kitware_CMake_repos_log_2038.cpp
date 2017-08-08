@@ -1,1 +1,1 @@
-fprintf(fout, "The file \"%s\" does not exist.\n", name);
+fprintf(stderr, "stderr from bad command line arg '-bad'\n");

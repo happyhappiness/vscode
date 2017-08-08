@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-				    "Seek failed");
+fprintf(stderr, "    attr:\"%s\"=\"%s\"\n",
+		    attr->name, attr->value);

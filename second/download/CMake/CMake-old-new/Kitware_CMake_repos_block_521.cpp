@@ -1,5 +1,6 @@
 {
-	archive_set_error(a, ARCHIVE_ERRNO_MISC,
-	    "lzma compression not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "Truncated RAR file data");
+    rar->valid = 0;
+    return -1;
+  }

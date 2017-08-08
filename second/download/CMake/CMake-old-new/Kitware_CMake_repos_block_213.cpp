@@ -1,5 +1,2 @@
-{
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Gname");
-			return (ARCHIVE_FATAL);
-		}
+archive_string_sprintf(str, " time=%jd.%jd",
+		    (intmax_t)me->mtime, (intmax_t)me->mtime_nsec)

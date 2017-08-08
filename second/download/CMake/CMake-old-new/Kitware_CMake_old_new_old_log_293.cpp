@@ -1,1 +1,1 @@
-fprintf(out, "%s", archive_entry_pathname(entry));
+fprintf(fout,"EXPORTS \n");

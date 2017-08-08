@@ -1,8 +1,12 @@
 {
-			/* The option name is wrong. No-one used this. */
-			archive_set_error(a, ARCHIVE_ERRNO_MISC,
-			    "Undefined option: `%s%s%s'",
-			    mod?mod:"", mod?":":"", opt);
-			free(data);
-			return (ARCHIVE_FAILED);
-		}
+	int i;
+
+	for (i = 0; names[i].name != NULL; i++) {
+		if (strcmp(name, names[i].name) == 0)
+			return ((names[i].setter)(a));
+	}
+
+	archive_set_error(a, EINVAL, "No such format '%s'", name);
+	a->state = ARCHIVE_STATE_FATAL;
+	return (ARCHIVE_FATAL);
+}

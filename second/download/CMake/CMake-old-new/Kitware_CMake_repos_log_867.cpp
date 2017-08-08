@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't determine file path to read ACLs");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Pathname");

@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "RELEASE and DEBUG definitions inconsistent in C\n");
-    result = 0;
+    fprintf(stderr, "Unable to close %s!\n", argv[1]);
+    return EXIT_FAILURE;
   }

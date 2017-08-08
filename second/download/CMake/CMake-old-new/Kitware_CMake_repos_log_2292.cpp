@@ -1,1 +1,1 @@
-fprintf(stdout, "Usage: %s number\n", argv[0]);
+fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);

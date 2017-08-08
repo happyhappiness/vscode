@@ -1,1 +1,1 @@
-fprintf(stdout, "The square root of %g is %g\n", inputValue, outputValue);
+fprintf(stderr, "FILE_DEF_RELEASE should be defined in C\n");

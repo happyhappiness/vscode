@@ -1,15 +1,26 @@
 {
-  (void)argc;
-  (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
+    case kwsysTerminal_Color_BackgroundBlack:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);
+      break;
+    case kwsysTerminal_Color_BackgroundRed:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_RED);
+      break;
+    case kwsysTerminal_Color_BackgroundGreen:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_GREEN);
+      break;
+    case kwsysTerminal_Color_BackgroundYellow:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_YELLOW);
+      break;
+    case kwsysTerminal_Color_BackgroundBlue:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLUE);
+      break;
+    case kwsysTerminal_Color_BackgroundMagenta:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_MAGENTA);
+      break;
+    case kwsysTerminal_Color_BackgroundCyan:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_CYAN);
+      break;
+    case kwsysTerminal_Color_BackgroundWhite:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE);
+      break;
+  }

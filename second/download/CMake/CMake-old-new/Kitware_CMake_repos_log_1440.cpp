@@ -1,2 +1,2 @@
-fprintf(stderr, "LIBARCHIVE_ASYNC_IO=%s\n",
-			    (t->async_io)?"Enabled":"Disabled");
+archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+		    "Lzip: Uncompressed size error");

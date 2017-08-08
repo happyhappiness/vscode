@@ -1,6 +1,7 @@
 {
-			archive_set_error(&a->archive,
+			archive_set_error(&(a->archive),
 			    ARCHIVE_ERRNO_MISC,
-			    "xmlTextWriterEndElement() failed: %d", r);
-			return (ARCHIVE_FATAL);
+			    "Unknown checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
 		}

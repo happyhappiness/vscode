@@ -1,1 +1,2 @@
-YY_FATAL_ERROR( "cmExpr_yyset_column called with no buffer" );
+snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->socks_proxy.host.name);

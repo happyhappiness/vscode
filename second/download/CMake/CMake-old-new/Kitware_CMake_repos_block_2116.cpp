@@ -1,3 +1,4 @@
 {
-    fprintf(stderr, "*** Failed LOADED COMMAND Final Pass\n");
+    printf("Problem with lib1\n");
+    return 1;
   }

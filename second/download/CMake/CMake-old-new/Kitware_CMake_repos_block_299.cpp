@@ -1,6 +1,5 @@
 {
-			/* We tried, but couldn't get rid of it. */
-			archive_set_error(&a->archive, errno,
-			    "Could not unlink");
-			return(ARCHIVE_FAILED);
-		}
+	    archive_set_error(&a->archive, 0,
+		"End of file trying to read next cpio header");
+	    return (ARCHIVE_FATAL);
+	}

@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Gname");
+archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown checksum name: `%s'",
+			    value);

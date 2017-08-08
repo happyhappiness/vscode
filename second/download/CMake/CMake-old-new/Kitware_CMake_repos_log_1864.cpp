@@ -1,1 +1,1 @@
-fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+printf("DASHBOARD_TEST_FROM_CTEST = %s\n", env);

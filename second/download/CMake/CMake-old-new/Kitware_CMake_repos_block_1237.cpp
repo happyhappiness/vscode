@@ -1,7 +1,12 @@
 {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported encryption format version: %u",
-		    archive_le16dec(p+4));
-		return (ARCHIVE_FAILED);
-	}
+#ifdef DEBUG
+				fprintf(stderr, "mtime: %lld -> %d\n",
+				    (long long)zip_entry->mtime,
+				    archive_le32dec(p + offset));
+#endif
+				if (datasize < 4)
+					break;
+				zip_entry->mtime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}

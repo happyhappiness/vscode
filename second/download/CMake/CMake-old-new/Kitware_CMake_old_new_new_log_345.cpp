@@ -1,1 +1,2 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");

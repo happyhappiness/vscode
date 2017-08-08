@@ -1,5 +1,6 @@
 {
-		archive_set_error(a, ENOMEM,
-		    "Can't allocate memory for gzip stream");
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, ENOMEM,
+		    "xmlBufferCreate() "
+		    "couldn't create xml buffer");
+		goto exit_toc;
 	}

@@ -1,5 +1,9 @@
 {
-				archive_set_error(&a->archive, errno,
-				    "Can't set permissions to 0%o", (int)mode);
-				r = ARCHIVE_WARN;
-			}
+		case Z_OK:
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Failed to clean up compressor");
+			ret = ARCHIVE_FATAL;
+			break;
+		}

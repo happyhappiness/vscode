@@ -1,9 +1,6 @@
 {
-		free(state->out_buf);
-		archive_string_free(&state->description);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
-		    cmd);
-		return (ARCHIVE_FATAL);
+		/* Everything failed; give up here. */
+		archive_set_error(&a->archive, en, "Can't create '%ls'",
+		    a->name);
+		return (ARCHIVE_FAILED);
 	}

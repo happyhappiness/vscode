@@ -1,7 +1,10 @@
 {
-    fprintf(stderr, "Did not receive expected configuration argument:\n"
-                    "  expected [" CMAKE_INTDIR "]\n"
-                    "  received [%s]\n",
-            cfg);
+  printf("This is T7\n");
+
+  if (tlib2func() != 2) {
+    fprintf(stderr, "Something wrong with T2\n");
     return 1;
   }
+
+  return 7;
+}

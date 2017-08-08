@@ -1,6 +1,5 @@
 {
-				archive_set_error(&self->archive->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Insufficient compressed data");
-				return (ARCHIVE_FATAL);
-			}
+		archive_set_error(f->archive, ENOMEM,
+		    "Can't allocate data for compression buffer");
+		return (ARCHIVE_FATAL);
+	}

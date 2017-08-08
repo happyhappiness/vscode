@@ -1,1 +1,4 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);

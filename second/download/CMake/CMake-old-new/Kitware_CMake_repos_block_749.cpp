@@ -1,5 +1,6 @@
 {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Encryption needs passphrase");
-		return ARCHIVE_FAILED;
-	}
+	(void)buff; /* UNUSED */
+	(void)s; /* UNUSED */
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC, "Programing error");
+	return (ARCHIVE_FATAL);
+}

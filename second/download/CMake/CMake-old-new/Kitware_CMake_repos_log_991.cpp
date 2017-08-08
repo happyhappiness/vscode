@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for xattr");
+archive_set_error(&(a->archive), 0,
+			    "Truncated xar archive");

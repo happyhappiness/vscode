@@ -1,2 +1,2 @@
-fprintf(stderr, "Header id 0x%04x, length %d\n",
-		    headerid, datasize);
+archive_set_error(f->archive, EIO,
+			    "Can't write to program: %s", data->program_name);

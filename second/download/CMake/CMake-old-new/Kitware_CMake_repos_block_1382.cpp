@@ -1,6 +1,6 @@
 {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Gname");
-			ret = ARCHIVE_FATAL;
-			goto exit_write_header;
-		}
+		archive_set_error(&(a->archive), -1,
+		    "Format must be set before you can write to an archive.");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}

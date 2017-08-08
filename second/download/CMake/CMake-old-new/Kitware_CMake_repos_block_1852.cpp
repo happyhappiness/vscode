@@ -1,20 +1,26 @@
 {
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "4";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before recursive test.\n");
-  fprintf(stderr, "Output on stderr before recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception, kwsysProcess_Exception_Fault,
-               1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
+    case kwsysTerminal_Color_BackgroundBlack:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);
+      break;
+    case kwsysTerminal_Color_BackgroundRed:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_RED);
+      break;
+    case kwsysTerminal_Color_BackgroundGreen:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_GREEN);
+      break;
+    case kwsysTerminal_Color_BackgroundYellow:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_YELLOW);
+      break;
+    case kwsysTerminal_Color_BackgroundBlue:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLUE);
+      break;
+    case kwsysTerminal_Color_BackgroundMagenta:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_MAGENTA);
+      break;
+    case kwsysTerminal_Color_BackgroundCyan:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_CYAN);
+      break;
+    case kwsysTerminal_Color_BackgroundWhite:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE);
+      break;
+  }

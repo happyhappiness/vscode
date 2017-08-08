@@ -1,1 +1,1 @@
-fprintf(out, "#\n# Fatal libcurl error\n");
+curl_maprintf("%s%lx", (val < 0 || val >= 10)? "0x": "", val);

@@ -1,1 +1,1 @@
-fprintf(fp, "extern int gen_redirect(void);\n");
+fprintf(fout, "#include <bar.h>\nBAR_EXPORT int bar(){ return 10;}\n");

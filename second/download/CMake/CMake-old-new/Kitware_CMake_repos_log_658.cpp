@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate data");
+archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Child process exited with status %d",
+		    WEXITSTATUS(state->exit_status));

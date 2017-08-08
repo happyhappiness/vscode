@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, errno,
-					    "Could not remove symlink %ls",
-					    a->name);
+archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");

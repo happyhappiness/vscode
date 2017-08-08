@@ -1,2 +1,1 @@
-printf(
-          "RegularExpression::find(): Internal error -- memory corrupted.\n");
+printf("Child was disowned.\n");

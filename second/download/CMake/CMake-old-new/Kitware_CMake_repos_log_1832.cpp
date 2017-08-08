@@ -1,1 +1,1 @@
-printf("DASHBOARD_TEST_FROM_CTEST = %s\n", env);
+fprintf(stderr, "No ldd-like tool is known to this executable.\n");

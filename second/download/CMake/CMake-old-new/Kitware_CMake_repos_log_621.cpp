@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-				    "Can't set permissions to 0%o", (int)mode);
+archive_set_error(&a->archive, errno, "Couldn't stat file");

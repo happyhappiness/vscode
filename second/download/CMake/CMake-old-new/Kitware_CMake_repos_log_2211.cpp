@@ -1,1 +1,1 @@
-printf("%f", d);
+printf("Process executable path: %s\n", nexec);

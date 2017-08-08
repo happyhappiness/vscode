@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, errno,
-			    "chdir() failure");
+fprintf(stderr, "UNKNOWNTAG_END:%s\n", name);

@@ -1,3 +1,1 @@
-printf("testToRun was modified by TestDriver code to an invalid value: "
-             "%3d.\n",
-             testNum);
+fprintf(stderr, "Output on stderr before test %d.\n", n);

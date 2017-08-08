@@ -1,2 +1,2 @@
 archive_set_error(&a->archive, errno,
-			"Couldn't retrieve extended attributes");
+		    "Could not open extended attribute file");

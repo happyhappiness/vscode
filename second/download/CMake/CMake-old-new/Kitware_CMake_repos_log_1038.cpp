@@ -1,2 +1,2 @@
 archive_set_error(a, errno,
-			    "Can't convert '%s' to WCS", mbs);
+		    "Failed to initialize ACL working storage");

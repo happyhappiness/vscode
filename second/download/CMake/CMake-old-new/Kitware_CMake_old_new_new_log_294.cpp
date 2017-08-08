@@ -1,3 +1,1 @@
-fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName().c_str(),
-            this->HasConfig?this->Config.c_str():"noconfig");
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());

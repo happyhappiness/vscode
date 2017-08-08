@@ -1,2 +1,1 @@
-archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external xz program for xz decompression");
+archive_set_error(a, errno, "Error seeking in stdin");

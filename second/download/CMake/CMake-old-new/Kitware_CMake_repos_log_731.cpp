@@ -1,3 +1,3 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		"Can only use archive_write_zip_set_compression_deflate"
-		" with zip format");
+archive_set_error(&a->archive, errno,
+			    "Can't read temporary file(%jd)",
+			    (intmax_t)rs);

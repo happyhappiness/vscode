@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ERANGE,
-		    "Raw format only supports filetype AE_IFREG");
+archive_set_error(a, ENOMEM, "No memory");

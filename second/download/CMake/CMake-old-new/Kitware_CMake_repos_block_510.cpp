@@ -1,5 +1,5 @@
 {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Unable to allocate memory for uncompressed data.");
-      return (ARCHIVE_FATAL);
-    }
+              archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                                "Invalid symbol");
+              return (ARCHIVE_FATAL);
+            }

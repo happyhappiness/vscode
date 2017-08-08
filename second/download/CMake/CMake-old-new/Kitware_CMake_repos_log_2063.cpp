@@ -1,1 +1,1 @@
-printf("%s: decoding good ", passed ? "pass" : "FAIL");
+printf("Dependency test executable ran successfully.\n");

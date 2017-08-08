@@ -1,5 +1,3 @@
 {
-  int result = example_exe_function() + n;
-  printf("world\n");
-  return result;
-}
+    fprintf(stdout, "%s\n", argv[i]);
+  }

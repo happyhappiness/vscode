@@ -1,6 +1,4 @@
 {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Username too long");
-			ret = ARCHIVE_FAILED;
-			copy_length = USTAR_uname_size;
-		}
+		archive_set_error(&(a->archive), EINVAL, "pathname is empty");
+		return (ARCHIVE_FAILED);
+	}

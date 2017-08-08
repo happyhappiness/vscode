@@ -1,2 +1,3 @@
 archive_set_error(&a->archive,
-			    -1, "Invalid central directory signature");
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP end-of-file record");

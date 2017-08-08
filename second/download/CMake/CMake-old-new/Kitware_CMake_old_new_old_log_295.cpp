@@ -1,1 +1,1 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
+fprintf(fout, "\t%s\n", symbol.c_str());

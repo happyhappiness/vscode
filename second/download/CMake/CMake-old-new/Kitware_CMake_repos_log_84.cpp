@@ -1,1 +1,1 @@
-vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+("User-Agent: %s\r\n";

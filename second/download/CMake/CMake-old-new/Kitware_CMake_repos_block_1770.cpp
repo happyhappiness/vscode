@@ -1,13 +1,22 @@
 {
-  va_list ap;
-  fprintf(stderr, "ninja: FATAL: ");
-  va_start(ap, msg);
-  vfprintf(stderr, msg, ap);
-  va_end(ap);
-  fprintf(stderr, "\n");
-  // On Windows, some tools may inject extra threads.
-  // exit() may block on locks held by those threads, so forcibly exit.
-  fflush(stderr);
-  fflush(stdout);
-  ExitProcess(1);
+  char pp[64];
+  psinfo_t psinfo;
+  int err;
+  int fd;
+
+  snprintf(pp, sizeof(pp), "/proc/%lu/psinfo", (unsigned long) getpid());
+
+  fd = open(pp, O_RDONLY);
+  if (fd == -1)
+    return -errno;
+
+  /* FIXME(bnoordhuis) Handle EINTR. */
+  err = -EINVAL;
+  if (read(fd, &psinfo, sizeof(psinfo)) == sizeof(psinfo)) {
+    *rss = (size_t)psinfo.pr_rssize * 1024;
+    err = 0;
+  }
+  uv__close(fd);
+
+  return err;
 }

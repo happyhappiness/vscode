@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "Must specify output file.\n");
-    return 1;
+    fprintf(stderr, "Get definitions from a subdir did not work\n");
+    return -2;
   }

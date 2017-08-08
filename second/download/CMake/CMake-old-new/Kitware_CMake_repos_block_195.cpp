@@ -1,5 +1,3 @@
 {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Can't allocate memory");
-					return (ARCHIVE_FATAL);
-				}
+      len = snprintf(buffer, sizeof(buffer), "-1e+9999");
+    }

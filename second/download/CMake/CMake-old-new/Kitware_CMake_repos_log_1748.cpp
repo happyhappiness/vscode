@@ -1,1 +1,1 @@
-printf("\n\t\t");
+l = snprintf(tmp, sizeof(tmp), fmt, src[0], src[1], src[2], src[3]);

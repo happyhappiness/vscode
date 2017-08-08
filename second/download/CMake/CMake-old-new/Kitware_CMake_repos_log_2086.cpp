@@ -1,1 +1,1 @@
-printf("The value of Foo: %s\n", foo);
+printf("To run a test, enter the test number: ");

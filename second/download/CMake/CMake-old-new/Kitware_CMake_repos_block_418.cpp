@@ -1,4 +1,5 @@
 {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for gzip stream");
 		return (ARCHIVE_FATAL);
 	}

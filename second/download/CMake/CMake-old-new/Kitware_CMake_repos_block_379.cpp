@@ -1,7 +1,6 @@
 {
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "Illegal value `%s'",
-			    value);
-			return (ARCHIVE_FAILED);
-		}
+		archive_set_error(&a->archive, errno,
+		    "Failed to mkstemp");
+		archive_string_free(&tmpdatafork);
+		return (-1);
+	}

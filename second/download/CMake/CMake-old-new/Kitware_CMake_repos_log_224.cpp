@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Truncated archive file");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate mtree data");

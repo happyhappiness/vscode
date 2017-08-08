@@ -1,1 +1,1 @@
-printf("%s is not there! Good.", av[2])
+printf("You pressed the %c key!\n", text[0]);

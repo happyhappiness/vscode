@@ -1,5 +1,5 @@
 {
-			archive_set_error(&a->archive, ENOMEM,
-				"Can't allocate zip data");
-			return (ARCHIVE_FATAL);
-		}
+        	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		ret = ARCHIVE_FATAL;
+	}

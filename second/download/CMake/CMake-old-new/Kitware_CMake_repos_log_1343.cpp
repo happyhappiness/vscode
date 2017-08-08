@@ -1,2 +1,2 @@
-fprintf(out, " s %d,",
-	    toi(isodirrec + DR_size_offset, DR_extent_size));
+archive_set_error(&a->archive, ENOMEM,
+		    "No memory for file entry");

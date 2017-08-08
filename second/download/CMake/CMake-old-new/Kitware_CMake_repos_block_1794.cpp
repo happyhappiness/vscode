@@ -1,10 +1,1 @@
-{
-  char msg[KWSYS_SHARED_FORWARD_MAXPATH];
-  char const* const* arg = argv;
-  kwsys_shared_forward_strerror(msg);
-  fprintf(stderr, "Error running");
-  for (; *arg; ++arg) {
-    fprintf(stderr, " \"%s\"", *arg);
-  }
-  fprintf(stderr, ": %s\n", msg);
-}
+printf(",%s", (b+1) % 4 == 0 ? "" : " ")

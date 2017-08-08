@@ -1,1 +1,1 @@
-printf("Placeholder for a strange file in subdirectory\n");
+printf("%s: decoding bad  ", passed ? "pass" : "FAIL");

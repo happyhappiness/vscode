@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Uname");
+archive_string_sprintf(str, " gid=%jd", (intmax_t)me->gid);

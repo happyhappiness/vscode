@@ -1,2 +1,3 @@
-archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
+archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Illegal zisofs block pointers");

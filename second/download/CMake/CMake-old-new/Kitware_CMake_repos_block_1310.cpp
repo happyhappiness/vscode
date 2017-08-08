@@ -1,5 +1,6 @@
 {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Invalid location of extent of file");
-		return (NULL);
+		    "Directory is beyond end-of-media: %s",
+		    parent->name.s);
+		return (ARCHIVE_WARN);
 	}

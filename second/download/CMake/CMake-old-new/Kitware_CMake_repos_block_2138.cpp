@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "Get definitions from a subdir did not work\n");
-    return -2;
+    printf("File %s should be in subdirectory\n", av[2]);
+    return 1;
   }

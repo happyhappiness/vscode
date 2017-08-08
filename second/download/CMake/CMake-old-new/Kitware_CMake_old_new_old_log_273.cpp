@@ -1,1 +1,1 @@
-fprintf(fout, " %08X", pSymbolTable->Value);
+tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);

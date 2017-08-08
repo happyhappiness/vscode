@@ -1,2 +1,1 @@
-archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC, "Corrupted data");
+archive_set_error(a, ENOMEM, "No memory");

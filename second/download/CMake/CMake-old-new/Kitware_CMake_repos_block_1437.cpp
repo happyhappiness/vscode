@@ -1,8 +1,7 @@
 {
-		free(path);
-		t->current_filesystem->remote = -1;
-		t->current_filesystem->bytesPerSector = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetVolumePathName failed: %d", (int)GetLastError());
-		return (ARCHIVE_FAILED);
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for xz decompression");
+		free(out_block);
+		free(state);
+		return (ARCHIVE_FATAL);
 	}

@@ -1,1 +1,1 @@
-q = curl_maprintf("%lu", len);
+s = vaprintf(fmt_crlf, args);

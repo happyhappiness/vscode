@@ -1,2 +1,1 @@
-archive_set_error(&self->archive->archive, ENOMEM,
-		    "Lzma library error: Cannot allocate memory");
+archive_set_error(a, errno, "Error seeking in stdin");

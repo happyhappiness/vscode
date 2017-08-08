@@ -1,4 +1,5 @@
 {
-		archive_set_error(&a->archive, -1, "Damaged Zip archive");
-		return ARCHIVE_FATAL;
-	}
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
+		}

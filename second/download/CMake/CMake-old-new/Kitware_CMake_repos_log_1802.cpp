@@ -1,1 +1,1 @@
-self->AddError(message, title);
+vfprintf(stderr, msg, ap);

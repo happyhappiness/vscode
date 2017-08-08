@@ -1,1 +1,3 @@
-fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
+snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));

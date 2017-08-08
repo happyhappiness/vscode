@@ -1,5 +1,4 @@
 {
-			archive_set_error(&(a->archive), errno,
-			    "fwrite function failed");
-			return (ARCHIVE_FATAL);
-		}
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}

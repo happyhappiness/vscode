@@ -1,1 +1,1 @@
-fprintf(fout, "&gt;");
+fprintf(stderr, "should add these lines:\n#include <...>\n");

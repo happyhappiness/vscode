@@ -1,2 +1,2 @@
-archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Missing number");
+archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for lzma stream");

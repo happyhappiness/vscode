@@ -1,6 +1,5 @@
 {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "LHa data CRC error");
-				return (ARCHIVE_WARN);
-			}
+			archive_set_error(f->archive, EIO,
+			    "Can't write to filter");
+			return (ARCHIVE_FATAL);
+		}

@@ -1,8 +1,26 @@
 {
-      fprintf(stdout, "fakefluid is creating file \"%s\"\n", av[i + 1]);
-      FILE* file = fopen(av[i + 1], "w");
-      fprintf(file, "// Solaris needs non-empty content so ensure\n"
-                    "// we have at least one symbol\n"
-                    "int Solaris_requires_a_symbol_here = 0;\n");
-      fclose(file);
+  int res;
+  char* nexec = strdup(exec);
+  char* fpath = (char*)malloc(strlen(exec) + 100);
+  int cc;
+  int cnt = 0;
+  printf("Process executable name: %s\n", exec);
+
+  // Remove the executable name and directory name
+  for (cc = strlen(nexec) - 1; cc > 0; cc--) {
+    if (nexec[cc] == '/') {
+      nexec[cc] = 0;
+      if (cnt == 1) {
+        break;
+      }
+      cnt++;
     }
+  }
+  printf("Process executable path: %s\n", nexec);
+  sprintf(fpath, "%s/%s", nexec, file);
+  printf("Check for file: %s\n", fpath);
+  res = fileExists(fpath);
+  free(nexec);
+  free(fpath);
+  return res;
+}

@@ -1,1 +1,1 @@
-sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));
+YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" );

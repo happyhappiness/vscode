@@ -1,1 +1,1 @@
-sprintf(buf, "%s*", name.c_str());
+printf("RegularExpression::compile(): Trailing backslash.\n");

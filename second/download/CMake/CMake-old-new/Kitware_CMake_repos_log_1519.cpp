@@ -1,2 +1,4 @@
-archive_set_error(a, ARCHIVE_ERRNO_MISC,
-		    "archive_write_data_block not supported");
+archive_set_error(
+		&a->archive,
+		ARCHIVE_ERRNO_FILE_FORMAT,
+		"WARC can only process regular files");

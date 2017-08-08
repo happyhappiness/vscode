@@ -1,1 +1,1 @@
-printf("Hello world!\n");
+fprintf(stderr, "Missing name of file to create.\n");

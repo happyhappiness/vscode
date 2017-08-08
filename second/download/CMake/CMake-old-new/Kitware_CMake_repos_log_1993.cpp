@@ -1,1 +1,1 @@
-printf("Passed: TEST_C_FLAGS passed\n");
+printf("%p CC: %d\n", args, cc);

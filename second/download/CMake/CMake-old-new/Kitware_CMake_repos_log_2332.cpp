@@ -1,1 +1,1 @@
-printf("Missing file %s\n", av[1])
+printf("There is X on this computer\n");

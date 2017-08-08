@@ -1,4 +1,4 @@
 {
-    fprintf(stderr, "Unable to close %s!\n", argv[1]);
-    return EXIT_FAILURE;
+    fprintf(stderr, "No current working directory\n");
+    abort();
   }

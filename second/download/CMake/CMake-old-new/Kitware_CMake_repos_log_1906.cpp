@@ -1,1 +1,1 @@
-printf("RegularExpression::compile(): Error in compile.\n");
+fprintf(stdout, "Output on stdout before grandchild test.\n");

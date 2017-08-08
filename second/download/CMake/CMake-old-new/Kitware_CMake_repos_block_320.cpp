@@ -1,4 +1,5 @@
 {
-			fsobj_error(a_eno, a_estr, errno,
-			    "chdir() failure", "");
-		}
+		archive_set_error(&a->archive, 0,
+		    "Attempt to write to an empty file");
+		return (ARCHIVE_WARN);
+	}

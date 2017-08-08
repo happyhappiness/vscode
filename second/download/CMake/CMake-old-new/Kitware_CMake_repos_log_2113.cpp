@@ -1,1 +1,1 @@
-sprintf(buffer, "Shold be empty (source file name): [%s]", cstr);
+printf("NP_Initialize()\n");
