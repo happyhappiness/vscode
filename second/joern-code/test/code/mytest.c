@@ -16,8 +16,9 @@ int main(int a, int b)
 			if(variable.funcWithVariable())
 				if(singleVariable)
 					if(singleFunc())
-					cout << "ni hao" << endl;
-			cout << "hello world" << endl;
+						cout << "ni hao" 
+							<< endl;
+			printf("helo world%d, %d, %d", a, b, c);
 		}
 	}
 	return 0;

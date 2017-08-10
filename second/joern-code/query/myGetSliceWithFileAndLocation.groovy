@@ -81,9 +81,45 @@ Gremlin.defineStep('getStatementByFileNameAndLoc', [Vertex,Pipe], { filename, lo
 Gremlin.defineStep('getLogByFileAndLoc', [Vertex,Pipe], { file, loc ->
  	_().transform{
 		g.V("type","File").filter{ it.filepath.contains(file) } 
-		.out('IS_FILE_OF').functionToStatements().has("location").filter{ it.location.startsWith(loc) }.as("log")
-		.select(['log']){ [it.id, it.type] }
+		.out("IS_FILE_OF").functionToStatements().has("location").filter{ it.location.startsWith(loc) }.as("log")
+		.select(["log"]){ [it.id, it.code, it.type, it.location] }
 	 }.scatter()
+});
+
+// input: start v and end v
+// output: flow to edge (control) of in node id 
+Gremlin.defineStep('getControlLabel', [Vertex,Pipe], { startV, endV ->
+ 	_().transform{
+		g.V[startV]
+		.out("FLOWS_TO").as("label") // from destation to get flow label (just condition)
+		.has("id", endV)
+		.back("label").as("result")
+		.select(["result"]){ it.flowLabel }
+	}.scatter()
+});
+ 
+
+// input: log id and loop order
+// output: id, code and type of control node
+Gremlin.defineStep('getControlDependence', [Vertex,Pipe], { log, order -> // int, int 
+ 	_().transform{
+		g.V[log].as("start") // get log
+		.in("CONTROLS").as("control")
+		.loop("start"){ it.loops < order }{ true }
+		.select(["control"]){ [it.id, it.code, it.type, it.location] } // select type, id, code, type
+	}
+});
+
+// input: log id
+// output: id, code and type of control node
+Gremlin.defineStep('getDefDependence', [Vertex,Pipe], { startV -> // int, int 
+ 	_().transform{
+		g.V[startV]
+		.inE("REACHES").as("var")
+		.outV.as("def")
+		.select(["var","def"])
+		{ it.var }{ [it.id, it.code, it.type, it.location] } // select type, id, code, type
+	}
 });
 
 // input: 
@@ -96,7 +132,7 @@ Gremlin.defineStep('getFlowlabel', [Vertex,Pipe], {
 		{ it.object.flowLabel != "" } // emit node with right out id	
 	 }	
 });
- 
+
 // input: log id and loop order
 // output: type of flow, id, code and type of control node
 Gremlin.defineStep('getCFGControlByLog', [Vertex,Pipe], { log, order -> // int, int 
@@ -106,17 +142,6 @@ Gremlin.defineStep('getCFGControlByLog', [Vertex,Pipe], { log, order -> // int, 
 		.back("start").in("CONTROLS")
 		.has("type", "Condition").as("node")// get control edge
 		.loop("start"){ it.loops < order }{ true } // loop to get type and node [FLOWS_TO]
-		.select(["type","node"]){ it.flowLabel }{ [it.id, it.isCFGNode, it.code, it.type] } // select type, id, code, type
-	}
-});
-
-// input: log id and loop order
-// output: type of flow, id, code and type of control node
-Gremlin.defineStep('getCFGStatementByLog', [Vertex,Pipe], { log, order -> // int, int 
- 	_().transform{
-		g.V[log].as("start") // get log
-		.inE("FLOWS_TO").as("type").outV().as("node")
-		.loop("start"){ it.loops < order }{ it.object.type != "Condition" } // loop to get type and node [FLOWS_TO] // has entry
 		.select(["type","node"]){ it.flowLabel }{ [it.id, it.isCFGNode, it.code, it.type] } // select type, id, code, type
 	}
 });
