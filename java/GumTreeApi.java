@@ -196,7 +196,7 @@ public class GumTreeApi {
 // 			judge if leaf edition is edition of logs
 			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
 			isIdentified = false;
-			System.out.println(action.toString());
+//			System.out.println(action.toString());
 			if(isFeature == 0 || isLog == 0 || isLogs == 0)
 			{
 //				edition of old tree
@@ -590,8 +590,7 @@ public class GumTreeApi {
 			// the node with most children in given line [!block fault!]
 			if (getLineNumber(tempNode, filename, true) == line && 
 //					!this.isBlock(tempNode, treeContext, filename)){
-					this.isStatement(tempNode, treeContext, filename)){
-//					&& (largestNode == null || tempNode.getSize() > largestNode.getSize())) {
+					this.isStatement(tempNode, treeContext, filename)) {
 				largestNode = tempNode;
 				break;
 			}

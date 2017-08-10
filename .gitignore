@@ -14,7 +14,7 @@ second/ide_work/
 second/lost+found/
 second/joern-code/.joernIndex/
 second/download/CMake/CMake/CMake/
-
+*.joernIndex/
 
 
 *.pyc
