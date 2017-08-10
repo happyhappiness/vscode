@@ -53,5 +53,6 @@
     "valarray": "cpp",
     "*.in": "cpp",
     "iterator": "cpp"
-}
+},
+"git.ignoreLimitWarning": true
 }

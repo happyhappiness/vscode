@@ -1,98 +1,79 @@
 from joern.all import JoernSteps
 
-"""
-@ param  result list
-@ return list of analyzed node info
-@ callee ...
-@ caller getDependendedAstOfLog ..
-@ analyze query node. include : id, isCFGNode, type, code
-"""
-def nodeAnalysis(result):
+class Joern_api:
+    joern_instance = None
 
-    cfg_list = []
-    for record in result:
-        value_list = []
-        value_list.append(str(record._id))
-        value_list.append(record.properties['isCFGNode'])
-        value_list.append(record.properties['type'])
-        value_list.append(record.properties['code'])
-        cfg_list.append(value_list)
+    def __init__(self):
+        # initialization
+        if Joern_api.joern_instance is None:
+            # initialization joern
+            Joern_api.joern_instance = JoernSteps()
+            Joern_api.joern_instance.addStepsDir("/usr/info/code/cpp/LogMonitor/LogMonitor/second/joern-code/query/")
+            Joern_api.joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
+            # connect to database
+            Joern_api.joern_instance.connectToDatabase()
+        self.log = None
+        self.order = '5'
+        self.control_dependence = None
+        self.data_dependence = None
+    
+    def set_order(self, order):
+        self.order = str(order)
+    
+    def set_log(self, file_name, log_loc):
+        log_loc = str(log_loc + 1) + ':'
+        base_query = '_().getLogByFileAndLoc("' + file_name + '","' + log_loc + '")'
+        log_result = Joern_api.joern_instance.runGremlinQuery(base_query)
+        if log_result is not None:
+            log_result = log_result[0][0]
+            print log_result
+            self.log_id = str(log_result[0])
+            self.log =  log_result[1]
+        return self.log
 
-    return cfg_list
+    def get_control_dependence(self):
+        cdg_query = '_().getControlDependence(' + self.log_id + ',' + self.order +')'
+        cdg_list = Joern_api.joern_instance.runGremlinQuery(cdg_query)
+        self.control_dependence = []
+        if cdg_list is not None:
+            cdg_list = cdg_list[0]
+            # node_id, statement, label
+            for condition in cdg_list:
+                condition = condition[0]
+                print condition
+                node_id = str(condition[0])
+                statement = condition[1]
+                label_query = '_().getControlLabel(' + self.log_id + ',' + node_id +')'
+                label = Joern_api.joern_instance.runGremlinQuery(label_query)
+                if label is not None:
+                    if len(label) == 0:
+                        label = ''
+                    else:
+                        label = label[0]
+                self.control_dependence.append([node_id, statement, label])
+        print self.control_dependence
+        return self.control_dependence
 
-"""
-@ param  filename and location in file, joern instance of the python-joern api
-@ return node list (type and code)
-@ callee cdgNodeAnalysis
-@ caller main ..
-@ involve retrieve ast of dependency node, include data dependence and control dependence
-"""
-def getDependendedAstOfLog(filename, location, joern_instance):
+    def get_data_dependence(self):
+        ddg_query = '_().getDefDependence(' + self.log_id + ')'
+        ddg_list = Joern_api.joern_instance.runGremlinQuery(ddg_query)
+        self.data_dependence = []
+        if ddg_list is not None:
+            # node_id, statement, var
+            ddg_list = ddg_list[0]
+            for data in ddg_list:
+                var = data[0]
+                node_id = data[1][0]
+                statement = data[1][1]
+                self.data_dependence.append([node_id, statement, var])
+        print self.data_dependence
+        return self.data_dependence
 
-    # initialize log, cfg_list, ddg_list
-    log = []
-    cdg_list = []
-    ddg_list = []
+if __name__ is '__main__':
+    loc = 20
+    filename = 'mytest.c'
+    joern_api = Joern_api()
+    joern_api.set_log(filename, loc)
+    joern_api.get_control_dependence()
+    joern_api.get_data_dependence()
 
-    location = location + ":"
-    # query for log statement
-    base_query = '_().getLogByFileAndLoc("' + filename + '","' + location + '")'
-    log_result = joern_instance.runGremlinQuery(base_query)[0]
-    # if no log node found return null
-    cond_lists = []
-    if log_result:
-
-        # analysis query result (id, isCFGNode, type, code)
-        log = nodeAnalysis(log_result)[0]
-
-        order = '5'
-        # condition node list (control type, id, isCFGNode, type, code)
-        label_query = 'g.V[36].getCondition()'
-        label_list = joern_instance.runGremlinQuery(label_query)[0]
-        cdg_query = '_().getCFGControlByLog(' + log[0] + ',' + order +')'
-        cdg_list = joern_instance.runGremlinQuery(cdg_query)[0]
-
-        # deal with each condition
-        for condition in cdg_list:
-            # get type
-            is_true = condition[0]
-
-            # get condition node
-            cond_node = condition[1]
-            cond_id = str(cond_node[0])
-
-            # get condition variable map(variable name, variable type)
-            var_query = '_().getVarMap(' + cond_id +')'
-            cond_var_map = joern_instance.runGremlinQuery(var_query)[0]
-            # make dictionary based on query result
-            var_dict = {}
-            for var_map in cond_var_map:
-                var_dict[var_map[0]] = var_map[1]
-
-            # get condition list of this condition
-            # cond_list = joern_instance.runGremlinQuery('g.V[30].getCondition()')[0]
-            cond_query = '_().getConditionListByid(' + cond_id + ')'
-            cond_list = joern_instance.runGremlinQuery(cond_query)[0]
-            for cond in cond_list:
-                for var in cond:
-                    # update var to type if find in dictionary
-                    if var_dict.has_key(var):
-                        cond[cond.index(var)] = var_dict[var]
-                # add type condition into conditin lists of log statement
-                cond_lists.append([cond, is_true])
-
-    return cond_lists
-
-
-# initialization
-joern_instance = JoernSteps()
-joern_instance.addStepsDir("/opt/joern-code/query/")
-joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
-
-# connect to database
-joern_instance.connectToDatabase()
-
-loc = '17'
-filename = 'mytest.c'
-
-getDependendedAstOfLog(filename, loc, joern_instance);
