@@ -1,0 +1,338 @@
+import re
+from joern.all import JoernSteps
+import my_constant
+
+class Joern_api:
+    joern_instance = None
+
+    def __init__(self):
+        # initialization
+        if Joern_api.joern_instance is None:
+            # initialization joern
+            Joern_api.joern_instance = JoernSteps()
+            Joern_api.joern_instance.addStepsDir("/usr/info/code/cpp/LogMonitor/LogMonitor/second/joern-code/query/")
+            Joern_api.joern_instance.setGraphDbURL("http://localhost:7474/db/data/")
+            # connect to database
+            Joern_api.joern_instance.connectToDatabase()
+
+        self.log = None
+        self.log_id = None
+        self.order = '5'
+
+        self.control_dependence = None
+        self.log_depended_var = None
+        self.argument = None
+        self.var_type_dict = {}
+
+    """
+    @ param depth int
+    @ return
+    @ involve update control dependece query order(depth)
+    """
+    def set_order(self, order):
+        self.order = str(order)
+
+    """
+    @ param file name and log location(from 0, int)
+    @ return log statement
+    @ involve query log node of given file in given location
+    """
+    def set_log(self, file_name, log_loc):
+        log_loc = str(log_loc + 1) + ':'
+        base_query = '_().getLogByFileAndLoc("' + file_name + '","' + log_loc + '")'
+        log_result = Joern_api.joern_instance.runGremlinQuery(base_query)
+        if log_result is not None:
+            log_result = log_result[my_constant.JOERN_DEFALUT]
+            if len(log_result) != 0:
+                log_result = log_result[my_constant.JOERN_DEFALUT]
+                self.log_id = str(log_result[my_constant.JOERN_ID])
+                self.log = log_result[my_constant.JOERN_CODE]
+        return self.log
+
+    """
+    @ param
+    @ return data dependence of given log node
+    @ involve get control statement and identified variable type
+    """
+    def get_control_dependence(self):
+        cdg_query = '_().getControlDependence(' + self.log_id + ',' + self.order +')'
+        cdg_list = Joern_api.joern_instance.runGremlinQuery(cdg_query)
+        self.control_dependence = []
+        if cdg_list is not None:
+            cdg_list = cdg_list[my_constant.JOERN_DEFALUT]
+            # node_id, statement, label
+            for condition in cdg_list:
+                condition = condition[my_constant.JOERN_DEFALUT]
+                node_id = str(condition[my_constant.JOERN_ID])
+                node_code = condition[my_constant.JOERN_CODE]
+                label = self.__get_label_for_control(node_id)
+                self.control_dependence.append([node_id, node_code, label])
+        print self.control_dependence
+        return self.control_dependence
+
+    """
+    @ param
+    @ return argument types of log
+    @ involve identify argument type log statement
+             S1: function; S2: constant; S3:data dependence;
+    """
+    def get_argument_type(self):
+        # get arg type from dependence relation
+        self.argument = []
+        self.log_depended_var = self.__get_depended_var_for_statement(self.log_id)
+        arguments = self.__get_argument()
+        for arg in arguments:
+            arg_id = str(arg[my_constant.JOERN_ID])
+            arg_code = arg[my_constant.JOERN_CODE]
+            arg_type = arg[my_constant.JOERN_TYPE]
+            var_type = None
+            # function type
+            if arg_type == 'CallExpression':
+                var_type = self.__get_var_type_with_callee(arg_id)
+            elif arg_type == 'PrimaryExpression':
+                var_type = self.__get_var_type_for_constant(arg_code)
+            elif arg_type == 'Identifier':
+                var_type = self.__get_var_type_for_variable(arg_code)
+            # children to find constanr or variable
+            else:
+                var_type = self.__get_var_type_for_children(arg_id)
+            self.argument.append(var_type)
+        print self.argument
+        return self.argument
+
+    """
+    @ param node id
+    @ return node type
+    @ involve get children of argument and deal with constant or variable
+    """
+    def __get_var_type_for_children(self, node_id):
+        var_type = self.__get_var_type_with_constants(node_id)
+        if var_type is None:
+            var_type = self.__get_var_type_with_variables(node_id)
+        return var_type
+    """
+    @ param
+    @ return data dependence of given log node
+    @ involve identify variable type for log statement by data dependence
+    """
+    def __get_depended_var_for_statement(self, node_id):
+        # get argument type is can be found
+        depended_var = {}
+        data_dependence = \
+            self.__get_data_dependence_for_node(node_id)
+        for data in data_dependence:
+            node_id = data[0]
+            node_type = data[2]
+            var = data[3]
+            var_type = self.__get_var_type_for_statment(node_id, node_type, var)
+            depended_var[var] = var_type
+        return depended_var
+
+    """
+    @ param
+    @ return arguments of log node
+    @ involve query argument of log function
+    """
+    def __get_argument(self):
+        argument_query = '_().getArguments(' + self.log_id + ')'
+        arguments = Joern_api.joern_instance.runGremlinQuery(argument_query)
+        if arguments is not None:
+            for i in range(len(arguments)):
+                arguments[i] = arguments[i][my_constant.JOERN_DEFALUT]
+            return arguments
+
+    """
+    @ param id, type and var of node
+    @ return queried var type
+    @ involve S1: dict; S2: function; S3:constant; S4:depended node
+    """
+    def __get_var_type_for_statment(self, node_id, node_type, var):
+        var_type = self.__get_var_type_with_dict(node_id)
+        # no node info in var_type_dict
+        if var_type is None:
+            # get type if right value is call exprssion
+            var_type = self.__get_var_type_with_right_value(node_id)
+            if var_type is None:
+                # get type if type is parameter or declaration
+                var_type = self.__get_var_type_with_node_type(node_id, node_type)
+                if var_type is None:
+                    # get type if contains primary expression
+                    var_type = self.__get_var_type_with_constants(node_id)
+                    if var_type is None:
+                        # get type from depended node
+                        depended_nodes = self.__get_data_dependence_for_node(node_id)
+                        for node in depended_nodes:
+                            var_type = self.__get_var_type_for_statment(node[0], node[2], node[3])
+                            if var_type is not None:
+                                break
+            # update var type dict if found(may be None)
+            self.var_type_dict[node_id] = [var_type, var]
+
+        return var_type
+
+    """
+    @ param id of node
+    @ return queried var type
+    @ involve query dict with node_id
+    """
+    def __get_var_type_with_dict(self, node_id):
+        var_type = None
+        # get type
+        if self.var_type_dict.has_key(node_id):
+            var_type = self.var_type_dict[node_id][0]
+
+        return var_type
+
+    """
+    @ param id and type of node
+    @ return var type
+    @ involve deal with Parameter and IdentifierDeclStatement
+    """
+    def __get_var_type_with_node_type(self, node_id, node_type):
+        var_type = None
+        # get type
+        if node_type == 'Parameter' or node_type == 'IdentifierDeclStatement':
+            type_query = '_().getVarTypeForParaOrDecl(' + node_id + ')'
+            var_type_result = Joern_api.joern_instance.runGremlinQuery(type_query)
+            if var_type_result is not None and len(var_type_result) != 0:
+                var_type = var_type_result[my_constant.JOERN_DEFALUT]
+
+        return var_type
+
+    """
+    @ param id of node
+    @ return var type
+    @ involve deal with call expression
+    """
+    def __get_var_type_with_right_value(self, node_id):
+        var_type = None
+        # get right value
+        right_value_query = '_().getRightValueType(' + node_id + ')'
+        right_value_type = Joern_api.joern_instance.runGremlinQuery(right_value_query)
+        if right_value_type is not None and len(right_value_type) != 0:
+            right_value_type = right_value_type[my_constant.JOERN_DEFALUT]
+            if right_value_type == 'CallExpression':
+                var_type = self.__get_var_type_with_callee(node_id)
+
+        return var_type
+
+    """
+    @ param id of node
+    @ return var type
+    @ involve get callee
+    """
+    def __get_var_type_with_callee(self, node_id):
+        var_type = None
+        # get right value
+        callee_query = '_().getCallee(' + node_id + ')'
+        callee = Joern_api.joern_instance.runGremlinQuery(callee_query)
+        if callee is not None and len(callee) != 0:
+            var_type = callee[my_constant.JOERN_DEFALUT]
+
+        return var_type
+
+    """
+    @ param id of node
+    @ return var type
+    @ involve deal with primary expression
+    """
+    def __get_var_type_with_constants(self, node_id):
+        var_type = None
+        # get right children
+        constant_query = '_().getPrimaryExpression(' + node_id + ')'
+        constants = Joern_api.joern_instance.runGremlinQuery(constant_query)
+        if constants is not None:
+            for constant in constants:
+                var_type = self.__get_var_type_for_constant(constant)
+                if var_type is not None:
+                    break
+        return var_type
+
+    """
+    @ param id of node
+    @ return var type
+    @ involve deal with primary expression
+    """
+    def __get_var_type_with_variables(self, node_id):
+        var_type = None
+        # get right children
+        variable_query = '_().getIdentifier(' + node_id + ')'
+        variables = Joern_api.joern_instance.runGremlinQuery(variable_query)
+        if variables is not None:
+            for variable in variables:
+                var_type = self.__get_var_type_for_variable(variable)
+                if var_type is not None:
+                    break
+        return var_type
+
+    """
+    @ param constant
+    @ return var type
+    @ involve regrex match to decide variable type
+    """
+    def __get_var_type_for_constant(self, constant):
+        var_type = None
+        if re.match(r'"(.|\n)*"', constant, re.I | re.M):
+            var_type = 'string'
+        elif re.match(r'\'\w\'', constant, re.I):
+            var_type = 'char'
+        elif re.match(r'[0-9]+', constant, re.I):
+            var_type = 'int'
+
+        return var_type
+
+    """
+    @ param variable
+    @ return variable type
+    @ involve query data dependence dict
+    """
+    def __get_var_type_for_variable(self, variable):
+        var_type = None
+        if self.log_depended_var.has_key(variable):
+            var_type = self.log_depended_var[variable]
+        return var_type
+
+    """
+    @ param id of node
+    @ return depended nodes
+    @ involve get depended nodes of given node [id, code, type, var]
+    """
+    def __get_data_dependence_for_node(self, node_id):
+        ddg_query = '_().getDefDependence(' + node_id + ')'
+        ddg_list = Joern_api.joern_instance.runGremlinQuery(ddg_query)
+        depended_nodes = []
+        if ddg_list is not None:
+            # node_id, statement, var
+            ddg_list = ddg_list[my_constant.JOERN_DEFALUT]
+            for data in ddg_list:
+                var = data[0]
+                node_id = str(data[1][my_constant.JOERN_ID])
+                node_code = data[1][my_constant.JOERN_CODE]
+                node_type = data[1][my_constant.JOERN_TYPE]
+                depended_nodes.append([node_id, node_code, node_type, var])
+        return depended_nodes
+
+    """
+    @ param id of control node
+    @ return flow label between log node and control node
+    @ involve get flowlabel between control and controled node
+    """
+    def __get_label_for_control(self, control_node_id):
+        label_query = '_().getControlLabel(' + self.log_id + ',' + control_node_id +')'
+        label = Joern_api.joern_instance.runGremlinQuery(label_query)
+        if label is not None:
+            label = label[my_constant.JOERN_DEFALUT]
+            if len(label) == 0:
+                label = ''
+            else:
+                label = label[my_constant.JOERN_DEFALUT]
+        return label
+
+if __name__ == "__main__":
+    loc = 22
+    filename = 'mytest.c'
+    joern_api = Joern_api()
+    joern_api.set_log(filename, loc)
+    joern_api.get_control_dependence()
+    joern_api.get_argument_type()
+

@@ -90,11 +90,11 @@ Gremlin.defineStep('getLogByFileAndLoc', [Vertex,Pipe], { file, loc ->
 // output: flow to edge (control) of in node id 
 Gremlin.defineStep('getControlLabel', [Vertex,Pipe], { startV, endV ->
  	_().transform{
-		g.V[startV]
-		.out("FLOWS_TO").as("label") // from destation to get flow label (just condition)
-		.has("id", endV)
-		.back("label").as("result")
-		.select(["result"]){ it.flowLabel }
+		g.V[startV].as("start")
+		.inE("FLOWS_TO").as("label") // from destation to get flow label (just condition)
+		.outV()
+		.loop("start"){ it.object.id != endV }{ it.object.id == endV }
+		.select(["label"]){ it.flowLabel }.toSet()
 	}.scatter()
 });
  
@@ -105,10 +105,19 @@ Gremlin.defineStep('getControlDependence', [Vertex,Pipe], { log, order -> // int
  	_().transform{
 		g.V[log].as("start") // get log
 		.in("CONTROLS").as("control")
-		.loop("start"){ it.loops < order }{ true }
+		.loop("start"){ it.loops < order }{ it.object.type == "Condition" }
 		.select(["control"]){ [it.id, it.code, it.type, it.location] } // select type, id, code, type
 	}
 });
+
+/*
+----------"IdentifierDeclStatement", "Parameter", "ExpressionStatement"
+=--- "IdentifierDeclType"
+=--- "ParameterType" 
+----------children() + "childNum"
+=--- "PrimaryExpression", "CallExpression", "Identifier"
+=--- "Callee"
+*/
 
 // input: log id
 // output: id, code and type of control node
@@ -120,6 +129,75 @@ Gremlin.defineStep('getDefDependence', [Vertex,Pipe], { startV -> // int, int
 		.select(["var","def"])
 		{ it.var }{ [it.id, it.code, it.type, it.location] } // select type, id, code, type
 	}
+});
+
+// input node id [parameter or identifier decl]
+// output var type
+Gremlin.defineStep('getVarTypeForParaOrDecl', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id].ifThenElse{ it.type == "Parameter" }
+		{ it.out().has("type","ParameterType") } // for parameter
+		{ it.has("type","IdentifierDeclStatement").astNodes().has("type","IdentifierDeclType") }// for decl statement
+		.code
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output right value type
+Gremlin.defineStep('getRightValueType', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children() // asssignment Expr
+		.children().has("childNum", "1")
+		.type
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output Callee
+Gremlin.defineStep('getCallee', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.astNodes()
+		.has("type", "Callee")
+		.code
+	}.scatter()
+});
+
+// input node id
+// output Argument
+Gremlin.defineStep('getArguments', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.astNodes()
+		.has("type", "Argument")
+		.children().as("result")
+		.select(["result"]){ [it.id, it.code, it.type]}
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output right children with primary Expression
+Gremlin.defineStep('getIdentifier', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children()
+		.loop(1){ it.object.type != "CallExpression" }
+		{ it.object.type == 'Identifier' }
+		.code
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output right children with primary Expression
+Gremlin.defineStep('getPrimaryExpression', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children()
+		.loop(1){ it.object.type != "CallExpression" }
+		{ it.object.type == "PrimaryExpression" }
+		.code
+	}.scatter()
 });
 
 // input: 
