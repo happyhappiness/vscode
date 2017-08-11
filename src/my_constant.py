@@ -133,10 +133,21 @@ LOG_OVER_MODIFY = -1
 LOG_NO_MODIFY = 0
 LOG_MODIFY = 1
 
+
+"""
+joern result format
+"""
+JOERN_DEFALUT = 0
+JOERN_ID = 0
+JOERN_CODE = 1
+JOERN_TYPE = 2
+JOERN_LOCATION = 3
+
 """
 split string for statement to get tokens
 """
 SPLIT_STR = r'[\W\s_]'
+SPLIT_ALGORITHM = r'[+-\*/%=]'
 
 
 """
