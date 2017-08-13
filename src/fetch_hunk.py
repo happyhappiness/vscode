@@ -57,15 +57,11 @@ def deal_patch(patch_info, patch, total_hunk, writer):
                 total_hunk += 1
                 # write old hunk file to temp file
                 old_hunk_name = my_constant.DOWNLOAD_OLD_HUNK + str(total_hunk) + '.cpp'
-                temp_file = open(old_hunk_name, 'wb')
-                temp_file.write(old_hunk)
-                temp_file.close()
+                myUtil.save_file(old_hunk, old_hunk_name)
 
                 # write new hunk file to temp file
                 new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
-                temp_file = open(new_hunk_name, 'wb')
-                temp_file.write(new_hunk)
-                temp_file.close()
+                myUtil.save_file(new_hunk, new_hunk_name)
 
                 writer.writerow(patch_info + [ old_hunk_name, new_hunk_name, old_hunk, new_hunk, \
                 old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
@@ -180,15 +176,11 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, write
                     source = base64.b64decode(source)
 
                     # write new file to temp file
-                    temp_file = open(new_store_name, 'wb')
-                    temp_file.write(source)
-                    temp_file.close()
+                    myUtil.save_file(source, new_store_name)
 
                     # write patch file to temp file
                     patch_store_name = 'second/download/temp.cpp'
-                    temp_file = open(patch_store_name, 'wb')
-                    temp_file.write(changed_file.patch)
-                    temp_file.close()
+                    myUtil.save_file(changed_file.patch, patch_store_name)
 
                     # get old file with patch cmd and write back
                     output = commands.getoutput('patch -R ' + new_store_name \

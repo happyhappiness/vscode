@@ -64,11 +64,34 @@ class Joern_api:
             for condition in cdg_list:
                 condition = condition[my_constant.JOERN_DEFALUT]
                 node_id = str(condition[my_constant.JOERN_ID])
-                node_code = condition[my_constant.JOERN_CODE]
+                # node_code = condition[my_constant.JOERN_CODE]
                 label = self.__get_label_for_control(node_id)
-                self.control_dependence.append([node_id, node_code, label])
-        print self.control_dependence
+                node_std_code = self.__get_std_condition(node_id, label)
+                # self.control_dependence.append([node_id, node_std_code, label])
+                if len(self.control_dependence) == 0:
+                    self.control_dependence = node_std_code
+                else:
+                    self.control_dependence = self.control_dependence + node_std_code + ['&&']
+        # print self.control_dependence
         return self.control_dependence
+
+    """
+    @ param condition node id and condition label(true or false)
+    @ return normalized condition(type and post prefix expression)
+    @ involve identify var type and remove ()
+    """
+    def __get_std_condition(self, condition_id, condition_label):
+        std_condition = []
+        # sub expression type normalization
+        depended_var = self.__get_depended_var_for_statement(condition_id)
+        sub_expressions = self.__get_sub_expression(condition_id)
+        for expression in sub_expressions:
+            var_type = self.__get_var_type_for_node(expression, depended_var)
+            std_condition.append(var_type)
+        # condition structure normalization
+        if condition_label == 'False':
+            std_condition.append('!')
+        return std_condition
 
     """
     @ param
@@ -79,36 +102,51 @@ class Joern_api:
     def get_argument_type(self):
         # get arg type from dependence relation
         self.argument = []
-        self.log_depended_var = self.__get_depended_var_for_statement(self.log_id)
+        depended_var = self.__get_depended_var_for_statement(self.log_id)
         arguments = self.__get_argument()
         for arg in arguments:
-            arg_id = str(arg[my_constant.JOERN_ID])
-            arg_code = arg[my_constant.JOERN_CODE]
-            arg_type = arg[my_constant.JOERN_TYPE]
-            var_type = None
-            # function type
-            if arg_type == 'CallExpression':
-                var_type = self.__get_var_type_with_callee(arg_id)
-            elif arg_type == 'PrimaryExpression':
-                var_type = self.__get_var_type_for_constant(arg_code)
-            elif arg_type == 'Identifier':
-                var_type = self.__get_var_type_for_variable(arg_code)
-            # children to find constanr or variable
-            else:
-                var_type = self.__get_var_type_for_children(arg_id)
+            var_type = self.__get_var_type_for_node(arg, depended_var)
             self.argument.append(var_type)
-        print self.argument
+        # print self.argument
         return self.argument
+
+    """
+    @ param node info[id, code, type]
+    @ return var type
+    @ involve identify var type based on func, constants and variable
+    """
+    def __get_var_type_for_node(self, node, depended_var_dict):
+        node_id = str(node[my_constant.JOERN_ID])
+        node_code = node[my_constant.JOERN_CODE]
+        node_type = node[my_constant.JOERN_TYPE]
+        var_type = None
+        # bool operator
+        if node_type in my_constant.JOERN_BOOL_OPERATOR != -1:
+            var_type = node[my_constant.JOERN_OPERATOR]
+        elif node_type == my_constant.JOERN_UNARY_OPERATOR:
+            var_type = node_code
+        # function type
+        elif node_type == 'CallExpression':
+            var_type = self.__get_var_type_with_callee(node_id)
+        elif node_type == 'PrimaryExpression':
+            var_type = self.__get_var_type_for_constant(node_code)
+        elif node_type == 'Identifier':
+            var_type = self.__get_var_type_for_variable(node_code, depended_var_dict)
+        # children to find constant or variable
+        else:
+            var_type = self.__get_var_type_for_children(node_id, depended_var_dict)
+
+        return var_type
 
     """
     @ param node id
     @ return node type
     @ involve get children of argument and deal with constant or variable
     """
-    def __get_var_type_for_children(self, node_id):
+    def __get_var_type_for_children(self, node_id, depended_var):
         var_type = self.__get_var_type_with_constants(node_id)
         if var_type is None:
-            var_type = self.__get_var_type_with_variables(node_id)
+            var_type = self.__get_var_type_with_variables(node_id, depended_var)
         return var_type
     """
     @ param
@@ -128,6 +166,18 @@ class Joern_api:
             depended_var[var] = var_type
         return depended_var
 
+    """
+    @ param condition node id
+    @ return sub expressions
+    @ involve nodes 1 level deeper than RelationalExpression and UnaryOp(no)
+    """
+    def __get_sub_expression(self, condition_id):
+        sub_expressions_query = '_().getSubExpressions(' + condition_id + ')'
+        sub_expressions = Joern_api.joern_instance.runGremlinQuery(sub_expressions_query)
+        if sub_expressions is not None:
+            for i in range(len(sub_expressions)):
+                sub_expressions[i] = sub_expressions[i][my_constant.JOERN_DEFALUT]
+            return sub_expressions
     """
     @ param
     @ return arguments of log node
@@ -227,7 +277,7 @@ class Joern_api:
         callee_query = '_().getCallee(' + node_id + ')'
         callee = Joern_api.joern_instance.runGremlinQuery(callee_query)
         if callee is not None and len(callee) != 0:
-            var_type = callee[my_constant.JOERN_DEFALUT]
+            var_type = callee[my_constant.JOERN_DEFALUT] + my_constant.JOERN_CALLEE_FLAG
 
         return var_type
 
@@ -253,15 +303,15 @@ class Joern_api:
     @ return var type
     @ involve deal with primary expression
     """
-    def __get_var_type_with_variables(self, node_id):
+    def __get_var_type_with_variables(self, node_id, depended_var_dict):
         var_type = None
         # get right children
         variable_query = '_().getIdentifier(' + node_id + ')'
         variables = Joern_api.joern_instance.runGremlinQuery(variable_query)
         if variables is not None:
             for variable in variables:
-                var_type = self.__get_var_type_for_variable(variable)
-                if var_type is not None:
+                var_type = self.__get_var_type_for_variable(variable, depended_var_dict)
+                if var_type is not None and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
                     break
         return var_type
 
@@ -286,10 +336,10 @@ class Joern_api:
     @ return variable type
     @ involve query data dependence dict
     """
-    def __get_var_type_for_variable(self, variable):
+    def __get_var_type_for_variable(self, variable, depended_var_dict):
         var_type = None
-        if self.log_depended_var.has_key(variable):
-            var_type = self.log_depended_var[variable]
+        if depended_var_dict.has_key(variable):
+            var_type = depended_var_dict[variable]
         return var_type
 
     """

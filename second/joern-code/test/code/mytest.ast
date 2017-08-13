@@ -5,133 +5,134 @@ strict graph {
 code:
 type:CompoundStatement
 functionId:4
-location:6:0:99:468"];
-	165	 [label="code:a = foo ( )
+location:6:0:99:487"];
+	173	 [label="code:a = foo ( )
 isCFGNode:True
 childNum:0
 location:8:1:103:112
 type:ExpressionStatement
 functionId:4"];
-	14 -- 165;
-	154	 [label="code:e = myfunc ( 2 , 4 )
+	14 -- 173;
+	162	 [label="code:e = myfunc ( 2 , 4 )
 isCFGNode:True
 childNum:1
 location:9:1:116:132
 type:ExpressionStatement
 functionId:4"];
-	14 -- 154;
-	134	 [label="code:f = func1 ( 3 ) + func2 ( 4 ) + 5 + 6
+	14 -- 162;
+	142	 [label="code:f = func1 ( 3 ) + func2 ( 4 ) + 5 + 6
 isCFGNode:True
 childNum:2
 location:10:1:135:166
 type:ExpressionStatement
 functionId:4"];
-	14 -- 134;
-	127	 [label="code:char g = 'c' ;
+	14 -- 142;
+	135	 [label="code:char g = 'c' ;
 isCFGNode:True
 childNum:3
 location:11:1:169:181
 type:IdentifierDeclStatement
 functionId:4"];
-	14 -- 127;
-	123	 [label="code:h = 'd'
+	14 -- 135;
+	131	 [label="code:h = 'd'
 isCFGNode:True
 childNum:4
 location:12:1:184:191
 type:ExpressionStatement
 functionId:4"];
-	14 -- 123;
-	117	 [label="code:m = \"hello\" + \"\n %d world\"
+	14 -- 131;
+	125	 [label="code:m = \"hello\" + \"\n %d world\"
 isCFGNode:True
 childNum:5
 location:13:1:194:221
 type:ExpressionStatement
 functionId:4"];
-	14 -- 117;
-	113	 [label="code:n = MAX_INT
+	14 -- 125;
+	121	 [label="code:n = MAX_INT
 isCFGNode:True
 childNum:6
 location:14:1:224:235
 type:ExpressionStatement
 functionId:4"];
-	14 -- 113;
-	106	 [label="code:int c = 4 ;
+	14 -- 121;
+	114	 [label="code:int c = 4 ;
 isCFGNode:True
 childNum:7
 location:15:1:238:247
 type:IdentifierDeclStatement
 functionId:4"];
-	14 -- 106;
+	14 -- 114;
 	17	 [label="childNum:8
-code:if ( a + b > 3 && a + b < 5 || c < abs ( a ) && ! a )
+code:if ( a + b > 3 && a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a )
 type:IfStatement
 functionId:4"];
 	14 -- 17;
 	15	 [label="code:return 0 ;
 isCFGNode:True
 childNum:9
-location:27:1:458:466
+location:27:1:477:485
 type:ReturnStatement
 functionId:4"];
 	14 -- 15;
-	166	 [label="operator:=
+	174	 [label="operator:=
 childNum:0
 code:a = foo ( )
 type:AssignmentExpr
 functionId:4"];
-	165 -- 166;
-	155	 [label="operator:=
+	173 -- 174;
+	163	 [label="operator:=
 childNum:0
 code:e = myfunc ( 2 , 4 )
 type:AssignmentExpr
 functionId:4"];
-	154 -- 155;
-	135	 [label="operator:=
+	162 -- 163;
+	143	 [label="operator:=
 childNum:0
 code:f = func1 ( 3 ) + func2 ( 4 ) + 5 + 6
 type:AssignmentExpr
 functionId:4"];
-	134 -- 135;
-	128	 [label="childNum:0
+	142 -- 143;
+	136	 [label="childNum:0
 code:g = 'c'
 type:IdentifierDecl
 functionId:4"];
-	127 -- 128;
-	124	 [label="operator:=
+	135 -- 136;
+	132	 [label="operator:=
 childNum:0
 code:h = 'd'
 type:AssignmentExpr
 functionId:4"];
-	123 -- 124;
-	118	 [label="operator:=
+	131 -- 132;
+	126	 [label="operator:=
 childNum:0
 code:m = \"hello\" + \"\n %d world\"
 type:AssignmentExpr
 functionId:4"];
-	117 -- 118;
-	114	 [label="operator:=
+	125 -- 126;
+	122	 [label="operator:=
 childNum:0
 code:n = MAX_INT
 type:AssignmentExpr
 functionId:4"];
-	113 -- 114;
-	107	 [label="childNum:0
+	121 -- 122;
+	115	 [label="childNum:0
 code:c = 4
 type:IdentifierDecl
 functionId:4"];
-	106 -- 107;
-	81	 [label="code:a + b > 3 && a + b < 5 || c < abs ( a ) && ! a
+	114 -- 115;
+	81	 [label="code:a + b > 3 && a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
 isCFGNode:True
 childNum:0
-location:16:4:253:295
+location:16:4:253:314
 type:Condition
+\
 functionId:4"];
 	17 -- 81;
 	18	 [label="childNum:1
 code:
 type:CompoundStatement
 functionId:4
-location:12:1:199:199"];
+location:12:1:218:218"];
 	17 -- 18;
 	16	 [label="childNum:0
 code:0
@@ -180,110 +181,110 @@ code:b
 type:Identifier
 functionId:4"];
 	7 -- 8;
-	171	 [label="childNum:0
+	179	 [label="childNum:0
 code:a
 type:Identifier
 functionId:4"];
-	166 -- 171;
-	167	 [label="childNum:1
+	174 -- 179;
+	175	 [label="childNum:1
 code:foo ( )
 type:CallExpression
 functionId:4"];
-	166 -- 167;
-	164	 [label="childNum:0
+	174 -- 175;
+	172	 [label="childNum:0
 code:e
 type:Identifier
 functionId:4"];
-	155 -- 164;
-	156	 [label="childNum:1
+	163 -- 172;
+	164	 [label="childNum:1
 code:myfunc ( 2 , 4 )
 type:CallExpression
 functionId:4"];
-	155 -- 156;
-	153	 [label="childNum:0
+	163 -- 164;
+	161	 [label="childNum:0
 code:f
 type:Identifier
 functionId:4"];
-	135 -- 153;
-	136	 [label="operator:+
+	143 -- 161;
+	144	 [label="operator:+
 childNum:1
 code:func1 ( 3 ) + func2 ( 4 ) + 5 + 6
 type:AdditiveExpression
 functionId:4"];
-	135 -- 136;
-	133	 [label="childNum:0
+	143 -- 144;
+	141	 [label="childNum:0
 code:char
 type:IdentifierDeclType
 functionId:4"];
-	128 -- 133;
-	132	 [label="childNum:0
+	136 -- 141;
+	140	 [label="childNum:0
 code:g
 type:Identifier
 functionId:4"];
-	128 -- 132;
-	129	 [label="operator:=
+	136 -- 140;
+	137	 [label="operator:=
 childNum:2
 code:g = 'c'
 type:AssignmentExpr
 functionId:4"];
-	128 -- 129;
-	126	 [label="childNum:0
+	136 -- 137;
+	134	 [label="childNum:0
 code:h
 type:Identifier
 functionId:4"];
-	124 -- 126;
-	125	 [label="childNum:1
+	132 -- 134;
+	133	 [label="childNum:1
 code:'d'
 type:PrimaryExpression
 functionId:4"];
-	124 -- 125;
-	122	 [label="childNum:0
+	132 -- 133;
+	130	 [label="childNum:0
 code:m
 type:Identifier
 functionId:4"];
-	118 -- 122;
-	119	 [label="operator:+
+	126 -- 130;
+	127	 [label="operator:+
 childNum:1
 code:\"hello\" + \"\n %d world\"
 type:AdditiveExpression
 functionId:4"];
-	118 -- 119;
-	116	 [label="childNum:0
+	126 -- 127;
+	124	 [label="childNum:0
 code:n
 type:Identifier
 functionId:4"];
-	114 -- 116;
-	115	 [label="childNum:1
+	122 -- 124;
+	123	 [label="childNum:1
 code:MAX_INT
 type:Identifier
 functionId:4"];
-	114 -- 115;
-	112	 [label="childNum:0
+	122 -- 123;
+	120	 [label="childNum:0
 code:int
 type:IdentifierDeclType
 functionId:4"];
-	107 -- 112;
-	111	 [label="childNum:0
+	115 -- 120;
+	119	 [label="childNum:0
 code:c
 type:Identifier
 functionId:4"];
-	107 -- 111;
-	108	 [label="operator:=
+	115 -- 119;
+	116	 [label="operator:=
 childNum:2
 code:c = 4
 type:AssignmentExpr
 functionId:4"];
-	107 -- 108;
-	82	 [label="operator:||
+	115 -- 116;
+	82	 [label="operator:&&
 childNum:0
-code:a + b > 3 && a + b < 5 || c < abs ( a ) && ! a
-type:OrExpression
+code:a + b > 3 && a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
+type:AndExpression
 functionId:4"];
 	81 -- 82;
 	75	 [label="code:a = a + 1
 isCFGNode:True
 childNum:0
-location:18:2:303:312
+location:18:2:322:331
 type:ExpressionStatement
 functionId:4"];
 	18 -- 75;
@@ -292,76 +293,76 @@ code:if ( a - b < 0 && c <= 5 )
 type:IfStatement
 functionId:4"];
 	18 -- 19;
-	169	 [label="childNum:0
+	177	 [label="childNum:0
 code:foo
 type:Callee
 functionId:4"];
-	167 -- 169;
-	168	 [label="childNum:1
+	175 -- 177;
+	176	 [label="childNum:1
 code:
 type:ArgumentList
 functionId:4"];
-	167 -- 168;
-	162	 [label="childNum:0
+	175 -- 176;
+	170	 [label="childNum:0
 code:myfunc
 type:Callee
 functionId:4"];
-	156 -- 162;
-	157	 [label="childNum:1
+	164 -- 170;
+	165	 [label="childNum:1
 code:2
 type:ArgumentList
 functionId:4"];
-	156 -- 157;
-	147	 [label="childNum:0
+	164 -- 165;
+	155	 [label="childNum:0
 code:func1 ( 3 )
 type:CallExpression
 functionId:4"];
-	136 -- 147;
-	137	 [label="operator:+
+	144 -- 155;
+	145	 [label="operator:+
 childNum:1
 code:func2 ( 4 ) + 5 + 6
 type:AdditiveExpression
 functionId:4"];
-	136 -- 137;
-	131	 [label="childNum:0
+	144 -- 145;
+	139	 [label="childNum:0
 code:g
 type:Identifier
 functionId:4"];
-	129 -- 131;
-	130	 [label="childNum:1
+	137 -- 139;
+	138	 [label="childNum:1
 code:'c'
 type:PrimaryExpression
 functionId:4"];
-	129 -- 130;
-	121	 [label="childNum:0
+	137 -- 138;
+	129	 [label="childNum:0
 code:\"hello\"
 type:PrimaryExpression
 functionId:4"];
-	119 -- 121;
-	120	 [label="childNum:1
+	127 -- 129;
+	128	 [label="childNum:1
 code:\"\n %d world\"
 type:PrimaryExpression
 functionId:4"];
-	119 -- 120;
-	110	 [label="childNum:0
+	127 -- 128;
+	118	 [label="childNum:0
 code:c
 type:Identifier
 functionId:4"];
-	108 -- 110;
-	109	 [label="childNum:1
+	116 -- 118;
+	117	 [label="childNum:1
 code:4
 type:PrimaryExpression
 functionId:4"];
-	108 -- 109;
-	95	 [label="operator:&&
+	116 -- 117;
+	109	 [label="operator:>
 childNum:0
-code:a + b > 3 && a + b < 5
-type:AndExpression
+code:a + b > 3
+type:RelationalExpression
 functionId:4"];
-	82 -- 95;
+	82 -- 109;
 	83	 [label="operator:&&
 childNum:1
-code:c < abs ( a ) && ! a
+code:a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
 type:AndExpression
 functionId:4"];
 	82 -- 83;
@@ -374,7 +375,7 @@ functionId:4"];
 	65	 [label="code:a - b < 0 && c <= 5
 isCFGNode:True
 childNum:0
-location:19:5:319:336
+location:19:5:338:355
 type:Condition
 functionId:4"];
 	19 -- 65;
@@ -382,70 +383,70 @@ functionId:4"];
 code:
 type:CompoundStatement
 functionId:4
-location:15:2:241:241"];
+location:15:2:260:260"];
 	19 -- 20;
-	170	 [label="childNum:0
+	178	 [label="childNum:0
 code:foo
 type:Identifier
 functionId:4"];
-	169 -- 170;
-	163	 [label="childNum:0
+	177 -- 178;
+	171	 [label="childNum:0
 code:myfunc
 type:Identifier
 functionId:4"];
-	162 -- 163;
-	160	 [label="childNum:0
+	170 -- 171;
+	168	 [label="childNum:0
 code:2
 type:Argument
 functionId:4"];
-	157 -- 160;
-	158	 [label="childNum:1
+	165 -- 168;
+	166	 [label="childNum:1
 code:4
 type:Argument
 functionId:4"];
-	157 -- 158;
-	151	 [label="childNum:0
+	165 -- 166;
+	159	 [label="childNum:0
 code:func1
 type:Callee
 functionId:4"];
-	147 -- 151;
-	148	 [label="childNum:1
+	155 -- 159;
+	156	 [label="childNum:1
 code:3
 type:ArgumentList
 functionId:4"];
-	147 -- 148;
-	141	 [label="childNum:0
+	155 -- 156;
+	149	 [label="childNum:0
 code:func2 ( 4 )
 type:CallExpression
 functionId:4"];
-	137 -- 141;
-	138	 [label="operator:+
+	145 -- 149;
+	146	 [label="operator:+
 childNum:1
 code:5 + 6
 type:AdditiveExpression
 functionId:4"];
-	137 -- 138;
-	101	 [label="operator:>
+	145 -- 146;
+	111	 [label="operator:+
 childNum:0
-code:a + b > 3
+code:a + b
+type:AdditiveExpression
+functionId:4"];
+	109 -- 111;
+	110	 [label="childNum:1
+code:3
+type:PrimaryExpression
+functionId:4"];
+	109 -- 110;
+	100	 [label="operator:<
+childNum:0
+code:a + b * c / d < 5
 type:RelationalExpression
 functionId:4"];
-	95 -- 101;
-	96	 [label="operator:<
+	83 -- 100;
+	84	 [label="operator:&&
 childNum:1
-code:a + b < 5
-type:RelationalExpression
-functionId:4"];
-	95 -- 96;
-	87	 [label="operator:<
-childNum:0
-code:c < abs ( a )
-type:RelationalExpression
-functionId:4"];
-	83 -- 87;
-	84	 [label="childNum:1
-code:! a
-type:UnaryOp
+code:( c < e || c < abs ( a ) ) && ! a
+type:AndExpression
 functionId:4"];
 	83 -- 84;
 	80	 [label="childNum:0
@@ -468,14 +469,14 @@ functionId:4"];
 	59	 [label="code:a = a + 1
 isCFGNode:True
 childNum:0
-location:21:3:346:355
+location:21:3:365:374
 type:ExpressionStatement
 functionId:4"];
 	20 -- 59;
 	53	 [label="code:c = a + b
 isCFGNode:True
 childNum:1
-location:22:3:360:369
+location:22:3:379:388
 type:ExpressionStatement
 functionId:4"];
 	20 -- 53;
@@ -483,90 +484,80 @@ functionId:4"];
 isCFGNode:True
 childNum:2
 location:23:\
-3:374:448
+3:393:467
 type:ExpressionStatement
 functionId:4"];
 	20 -- 21;
-	161	 [label="childNum:0
+	169	 [label="childNum:0
 code:2
 type:PrimaryExpression
 functionId:4"];
-	160 -- 161;
-	159	 [label="childNum:0
+	168 -- 169;
+	167	 [label="childNum:0
 code:4
 type:PrimaryExpression
 functionId:4"];
-	158 -- 159;
-	152	 [label="childNum:0
+	166 -- 167;
+	160	 [label="childNum:0
 code:func1
 type:Identifier
 functionId:4"];
-	151 -- 152;
-	149	 [label="childNum:0
+	159 -- 160;
+	157	 [label="childNum:0
 code:3
 type:Argument
 functionId:4"];
-	148 -- 149;
-	145	 [label="childNum:0
+	156 -- 157;
+	153	 [label="childNum:0
 code:func2
 type:Callee
 functionId:4"];
-	141 -- 145;
-	142	 [label="childNum:1
+	149 -- 153;
+	150	 [label="childNum:1
 code:4
 type:ArgumentList
 functionId:4"];
-	141 -- 142;
-	140	 [label="childNum:0
+	149 -- 150;
+	148	 [label="childNum:0
 code:5
 type:PrimaryExpression
 functionId:4"];
-	138 -- 140;
-	139	 [label="childNum:1
+	146 -- 148;
+	147	 [label="childNum:1
 code:6
 type:PrimaryExpression
 functionId:4"];
-	138 -- 139;
-	103	 [label="operator:+
+	146 -- 147;
+	113	 [label="childNum:0
+code:a
+type:Identifier
+functionId:4"];
+	111 -- 113;
+	112	 [label="childNum:1
+code:b
+type:Identifier
+functionId:4"];
+	111 -- 112;
+	102	 [label="operator:+
 childNum:0
-code:a + b
+code:a + b * c / d
 type:AdditiveExpression
 functionId:4"];
-	101 -- 103;
-	102	 [label="childNum:1
-code:3
-type:PrimaryExpression
-functionId:4"];
-	101 -- 102;
-	98	 [label="operator:+
-childNum:0
-code:a + b
-type:AdditiveExpression
-functionId:4"];
-	96 -- 98;
-	97	 [label="childNum:1
+	100 -- 102;
+	101	 [label="childNum:1
 code:5
 type:PrimaryExpression
 functionId:4"];
-	96 -- 97;
-	94	 [label="childNum:0
-code:c
-type:Identifier
+	100 -- 101;
+	88	 [label="operator:||
+childNum:0
+code:c < e || c < abs ( a )
+type:OrExpression
 functionId:4"];
-	87 -- 94;
-	88	 [label="childNum:1
-code:abs ( a )
-type:CallExpression
-functionId:4"];
-	87 -- 88;
-	86	 [label="childNum:0
-code:!
-type:UnaryOperator
-functionId:4"];
-	84 -- 86;
+	84 -- 88;
 	85	 [label="childNum:1
-code:a
-type:Identifier
+code:! a
+type:UnaryOp
 functionId:4"];
 	84 -- 85;
 	79	 [label="childNum:0
@@ -609,51 +600,54 @@ type:CallExpression
 functionId:\
 4"];
 	21 -- 22;
-	150	 [label="childNum:0
+	158	 [label="childNum:0
 code:3
 type:PrimaryExpression
 functionId:4"];
-	149 -- 150;
-	146	 [label="childNum:0
+	157 -- 158;
+	154	 [label="childNum:0
 code:func2
 type:Identifier
 functionId:4"];
-	145 -- 146;
-	143	 [label="childNum:0
+	153 -- 154;
+	151	 [label="childNum:0
 code:4
 type:Argument
 functionId:4"];
-	142 -- 143;
-	105	 [label="childNum:0
+	150 -- 151;
+	108	 [label="childNum:0
 code:a
 type:Identifier
 functionId:4"];
-	103 -- 105;
-	104	 [label="childNum:1
-code:b
-type:Identifier
+	102 -- 108;
+	103	 [label="operator:*
+childNum:1
+code:b * c / d
+type:MultiplicativeExpression
 functionId:4"];
-	103 -- 104;
-	100	 [label="childNum:0
-code:a
-type:Identifier
+	102 -- 103;
+	97	 [label="operator:<
+childNum:0
+code:c < e
+type:RelationalExpression
 functionId:4"];
-	98 -- 100;
-	99	 [label="childNum:1
-code:b
-type:Identifier
-functionId:4"];
-	98 -- 99;
-	92	 [label="childNum:0
-code:abs
-type:Callee
-functionId:4"];
-	88 -- 92;
-	89	 [label="childNum:1
-code:a
-type:ArgumentList
+	88 -- 97;
+	89	 [label="operator:<
+childNum:1
+code:c < abs ( a )
+type:RelationalExpression
 functionId:4"];
 	88 -- 89;
+	87	 [label="childNum:0
+code:!
+type:UnaryOperator
+functionId:4"];
+	85 -- 87;
+	86	 [label="childNum:1
+code:a
+type:Identifier
+functionId:4"];
+	85 -- 86;
 	72	 [label="operator:-
 childNum:0
 code:a - b
@@ -707,19 +701,40 @@ code:\"helo world%d, %d, %d\"
 type:ArgumentList
 functionId:4"];
 	22 -- 23;
-	144	 [label="childNum:0
+	152	 [label="childNum:0
 code:4
 type:PrimaryExpression
 functionId:4"];
-	143 -- 144;
-	93	 [label="childNum:0
-code:abs
+	151 -- 152;
+	107	 [label="childNum:0
+code:b
 type:Identifier
 functionId:4"];
-	92 -- 93;
-	90	 [label="childNum:0
-code:a
-type:Argument
+	103 -- 107;
+	104	 [label="operator:/
+childNum:1
+code:c / d
+type:MultiplicativeExpression
+functionId:4"];
+	103 -- 104;
+	99	 [label="childNum:0
+code:c
+type:Identifier
+functionId:4"];
+	97 -- 99;
+	98	 [label="childNum:1
+code:e
+type:Identifier
+functionId:4"];
+	97 -- 98;
+	96	 [label="childNum:0
+code:c
+type:Identifier
+functionId:4"];
+	89 -- 96;
+	90	 [label="childNum:1
+code:abs ( a )
+type:CallExpression
 functionId:4"];
 	89 -- 90;
 	74	 [label="childNum:0
@@ -812,9 +827,24 @@ code:foo3 ( )
 type:Argument
 functionId:4"];
 	23 -- 24;
-	91	 [label="childNum:0
-code:a
+	106	 [label="childNum:0
+code:c
 type:Identifier
+functionId:4"];
+	104 -- 106;
+	105	 [label="childNum:1
+code:d
+type:Identifier
+functionId:4"];
+	104 -- 105;
+	94	 [label="childNum:0
+code:abs
+type:Callee
+functionId:4"];
+	90 -- 94;
+	91	 [label="childNum:1
+code:a
+type:ArgumentList
 functionId:4"];
 	90 -- 91;
 	50	 [label="childNum:0
@@ -873,6 +903,16 @@ code:foo3 ( )
 type:CallExpression
 functionId:4"];
 	24 -- 25;
+	95	 [label="childNum:0
+code:abs
+type:Identifier
+functionId:4"];
+	94 -- 95;
+	92	 [label="childNum:0
+code:a
+type:Argument
+functionId:4"];
+	91 -- 92;
 	36	 [label="childNum:0
 code:g
 type:Identifier
@@ -893,6 +933,11 @@ code:
 type:ArgumentList
 functionId:4"];
 	25 -- 26;
+	93	 [label="childNum:0
+code:a
+type:Identifier
+functionId:4"];
+	92 -- 93;
 	28	 [label="childNum:0
 code:foo3
 type:Identifier

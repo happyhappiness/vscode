@@ -164,7 +164,22 @@ Gremlin.defineStep('getCallee', [Vertex,Pipe], { node_id ->
 	}.scatter()
 });
 
-// input node id
+// input node id AndExpression, OrExpression, UnaryOp, // RelationalExpression 
+// output sub expression
+Gremlin.defineStep('getSubExpressions', [Vertex,Pipe], { node_id ->
+	_().transform{
+		BOOL_OPERATOR_LIST = ['AndExpression', 'OrExpression', 'UnaryOp', 'RelationalExpression']
+		g.V[node_id] // condition statement
+		.children()
+		.loop(1){ it.object.has("type", T.in, BOOL_OPERATOR_LIST).count() != 0 }
+		{ it.object.type != 'UnaryOp' }
+		.order{ it.b.id <=> it.a.id }.as("result")
+		.select(["result"]){ [it.id, it.code, it.type, it.operator]}
+	}.scatter()
+});
+
+
+// input node id 
 // output Argument
 Gremlin.defineStep('getArguments', [Vertex,Pipe], { node_id ->
 	_().transform{
