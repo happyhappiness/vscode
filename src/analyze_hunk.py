@@ -42,14 +42,14 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
         # set old loc
         if gumtree.set_old_loc(old_loc):
             # get old loc and old log
-            old_loc = old_hunk_loc + old_loc
+            old_loc = old_hunk_loc + old_loc - 1
             old_log = gumtree.get_old_log()
 
             # get new loc and new log
             new_loc = gumtree.get_new_loc()
             # -1 if no map
             if new_loc != -1:
-                new_loc = new_hunk_loc + new_loc
+                new_loc = new_hunk_loc + new_loc - 1
             new_log = gumtree.get_new_log() # none if no map
 
             # from line in hunk to get action type

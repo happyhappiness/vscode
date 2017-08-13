@@ -10,15 +10,24 @@ REPOS = 'CMake'
 """
 stroed file name prefix
 """
-DOWNLOAD_OLD_FILE = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_file_'
-DOWNLOAD_NEW_FILE = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_new_file_'
-DOWNLOAD_OLD_HUNK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_hunk_'
-DOWNLOAD_NEW_HUNK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_new_hunk_'
-SAVE_REPOS_LOG = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_repos_log_'
-SAVE_OLD_NEW_OLD_LOG = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_new_old_log_'
-SAVE_OLD_NEW_NEW_LOG = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_new_new_log_'
-SAVE_REPOS_BLOCK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_repos_block_'
-SAVE_OLD_NEW_BLOCK = 'second/download/' + REPOS + '/' + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_new_block_'
+BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor'
+OLD_NEW_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '-old-new/'
+REPOS_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '/'
+OLD_NEW_JOERN_DIR = OLD_NEW_PARENT_DIR + REPOS + '-old-new-joern/'
+REPOS_JOERN_DIR = 'second/download/' + REPOS + '/' + REPOS + '/' + REPOS + '-joern/'
+GUMTREE_DIR = 'second/download/' + REPOS + '/' + REPOS + '-gumtree/'
+
+DOWNLOAD_OLD_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_file_'
+DOWNLOAD_NEW_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_new_file_'
+DOWNLOAD_OLD_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_old_hunk_'
+DOWNLOAD_NEW_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_new_hunk_'
+SAVE_REPOS_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_'
+SAVE_OLD_NEW_OLD_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_old_log_'
+SAVE_OLD_NEW_NEW_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_new_log_'
+SAVE_REPOS_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_block_'
+SAVE_OLD_NEW_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_block_'
+SAVE_REPOS_FUNCTION = REPOS_JOERN_DIR + USER + '_' + REPOS + '_repos_function_'
+SAVE_OLD_NEW_FUNCTION = OLD_NEW_JOERN_DIR + USER + '_' + REPOS + '_old_new_function_'
 
 """
 repos dir
@@ -32,8 +41,10 @@ LOG_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_logging_statement.csv'
 FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_func_similarity.csv'
 FETCH_HUNK_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_hunk_fetch.csv'
 FETCH_LOG_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_log_fetch.csv'
-ANALYZE_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_analyze.csv'
-ANALYZE_REPOS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_analyze.csv'
+ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_gumtree_analyze.csv'
+ANALYZE_REPOS_GUMTREE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_gumtree_analyze.csv'
+ANALYZE_OLD_NEW_JOERN_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_joern_analyze.csv'
+ANALYZE_REPOS_JOERN_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_joern_analyze.csv'
 ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_clone_statistics.csv'
 STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics.csv'
@@ -72,38 +83,70 @@ FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 """
 analyze old new title and index
 """
-ANALYZE_OLD_NEW_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file']
-ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_TITLE.index('sha')
-ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('old_log_file')
-ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_TITLE.index('new_log_file')
-ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_TITLE.index('old_block_file')
-ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_TITLE.index('old_block_feature')
-ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_TITLE.index('file_name')
-ANALYZE_OLD_NEW_OLD_LOC = ANALYZE_OLD_NEW_TITLE.index('old_loc')
-ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_TITLE.index('old_log')
-ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_TITLE.index('new_log')
+ANALYZE_OLD_NEW_GUMTREE_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'new_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_function_file']
+ANALYZE_OLD_NEW_OLD_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_function_file')
+ANALYZE_OLD_NEW_OLD_FILE_NAME = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_file')
+ANALYZE_OLD_NEW_OLD_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_loc')
+# ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('sha')
+# ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_log_file')
+# ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_log_file')
+# ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_block_file')
+# ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_block_feature')
+# ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('file_name')
+# ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_log')
+# ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('new_log')
+
+"""
+analyze old new title and index
+"""
+ANALYZE_OLD_NEW_JOERN_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'new_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_function_file', 'old_ddg_feature', 'old_cdg_feature']
+ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_JOERN_TITLE.index('sha')
+ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log_file')
+ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log_file')
+ANALYZE_OLD_NEW_OLD_BLOCK_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_file')
+ANALYZE_OLD_NEW_OLD_BLOCK_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_block_feature')
+ANALYZE_OLD_NEW_OLD_DDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_ddg_feature')
+ANALYZE_OLD_NEW_OLD_CDG_FEATURE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_cdg_feature')
+ANALYZE_OLD_NEW_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('file_name')
+ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log')
+ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log')
 
 
 STATISTICS_OLD_NEW_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file', 'old_log_type', 'old_log_time', 'old_log_author', 'cluster']
+ 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_cdg_feature', 'old_ddg_feature', 'new_log_file', 'old_log_type', 'old_log_time', 'old_log_author', 'cluster']
 
 
 """
 analyze repos / cluster repos title and index
 """
-ANALYZE_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature']
-ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_TITLE.index('log_file')
-ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_TITLE.index('block_file')
-ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_TITLE.index('block_feature')
-CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'cluster_index']
+ANALYZE_REPOS_GUMTREE_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'function_file']
+ANALYZE_REPOS_FUNCTION_FILE = ANALYZE_REPOS_GUMTREE_TITLE.index('function_file')
+ANALYZE_REPOS_FILE_NAME = ANALYZE_REPOS_GUMTREE_TITLE.index('file')
+ANALYZE_REPOS_LOC = ANALYZE_REPOS_GUMTREE_TITLE.index('loc')
+# ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_TITLE.index('log_file')
+# ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_TITLE.index('block_file')
+# ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_TITLE.index('block_feature')
+# CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'cluster_index']
+
+
+"""
+analyze repos / cluster repos title and index
+"""
+ANALYZE_REPOS_JOERN_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'function_file', 'ddg_feature', 'cdg_feature']
+ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_JOERN_TITLE.index('log_file')
+ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_JOERN_TITLE.index('block_file')
+ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('block_feature')
+ANALYZE_REPOS_DDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('ddg_feature')
+ANALYZE_REPOS_CDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('cdg_feature')
+CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'function_file', 'ddg_feature', 'cdg_feature', 'cluster_index']
+
 
 """
 analyze clone title
 """
-ANALYZE_CLONE_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type','old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'new_log_file',\
- 'file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature']
+ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ANALYZE_REPOS_JOERN_TITLE
 
 """
 flag type && log type
@@ -142,6 +185,10 @@ JOERN_ID = 0
 JOERN_CODE = 1
 JOERN_TYPE = 2
 JOERN_LOCATION = 3
+JOERN_OPERATOR = 3
+JOERN_BOOL_OPERATOR = ['AndExpression', 'OrExpression', 'RelationalExpression']
+JOERN_UNARY_OPERATOR = 'UnaryOperator'
+JOERN_CALLEE_FLAG = '_ret'
 
 """
 split string for statement to get tokens

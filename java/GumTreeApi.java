@@ -89,31 +89,33 @@ public class GumTreeApi {
 		// System.out.println("hello I am gumtree api");
 		
 
-		 String oldFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_236.cpp";
-		 String newFile =
-		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_236.cpp";
-		 GumTreeApi g = new GumTreeApi();
-		 g.setOldAndNewFile(oldFile, newFile);
-		 g.setOldLoc(8);
-		 System.out.println(g.getOldLog());
-		 System.out.println(g.getNewLog());
-		 g.addLogNode(8);
-//		 g.addLogNode(3);
-//		 g.getDeltaBlockfeature();
-		 System.out.println(g.getActionType());
+//		 String oldFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_hunk_236.cpp";
+//		 String newFile =
+//		 "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_new_hunk_236.cpp";
+//		 GumTreeApi g = new GumTreeApi();
+//		 g.setOldAndNewFile(oldFile, newFile);
+//		 g.setOldLoc(8);
+//		 System.out.println(g.getOldLog());
+//		 System.out.println(g.getNewLog());
+//		 g.addLogNode(8);
+////		 g.addLogNode(3);
+////		 g.getDeltaBlockfeature();
+//		 System.out.println(g.getActionType());
 		
 		
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_file_250.cpp";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setFile(filename);
-//		g.setLoc(254);
-//		System.out.println(g.getLog());
-//		g.printSpliter();
-//		System.out.println(g.getBlock());
-//		g.printSpliter();
-//		System.out.println(g.getControl());
+		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp";
+		GumTreeApi g = new GumTreeApi();
+		g.setFile(filename);
+		g.setLoc(9);
+		System.out.println(g.getLog());
+		g.printSpliter();
+		System.out.println(g.getBlock());
+		g.printSpliter();
+		System.out.println(g.getControl());
+		g.printSpliter();
+		System.out.println(g.getFunction());
 	
 		
 //		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
@@ -302,6 +304,24 @@ public class GumTreeApi {
 			else
 			{
 				return getValue(conditionNode, this.filename);
+			}
+		}
+		
+		return "";
+	}
+	
+	public String getFunction(){
+		// parent that has function type
+		ITree parentNode = this.logNode.getParent();
+		while(parentNode != null)
+		{
+			if(!this.isFunction(parentNode, this.treeContext, this.filename))
+			{
+				parentNode = parentNode.getParent();
+			}
+			else
+			{
+				return getValue(parentNode, this.filename);
 			}
 		}
 		
@@ -721,6 +741,13 @@ public class GumTreeApi {
 		}
 		
 		return isControl ? conditionNode : null;
+	}
+	
+	private boolean isFunction(ITree node, TreeContext treeContext, String filename)
+	{
+		String function = "function";
+		String type = getType(node, treeContext);
+		return type.equals(function);
 	}
 	
 	private boolean isStatement(ITree node, TreeContext treeContext, String filename)

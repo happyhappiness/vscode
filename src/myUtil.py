@@ -1,5 +1,6 @@
 #-*-coding: utf-8 -*-
 import csv
+import commands
 from itertools import islice
 import numpy as np
 from scipy.spatial.distance import pdist
@@ -203,6 +204,28 @@ def compute_similarity(in_vector1, in_vector2, method='braycurtis'):
     similairty = 1 - distance
     return similairty
 
+"""
+@ param filename and file content
+@ return
+@ involve save file content into given file
+"""
+def save_file(content, file_name):
+    write_file = open(file_name, 'wb')
+    write_file.write(content)
+    write_file.close()
+
+
+"""
+@ param joernIndex parent dir
+@ return
+@ involve rm old joernIndex file, and build new one. restart neo4j server
+"""
+def rebuild_joern_index(parent_dir, code_dir):
+    output = commands.getoutput('cd ' + parent_dir)
+    output = commands.getoutput('rm -r .joernIndex')
+    output = commands.getoutput('joern ' + code_dir)
+    output = commands.getoutput('neo4j restart')
+    output = commands.getoutput('cd ' + my_constant.BASE_DIR)
 
 """
 @ param  cond_list of a and b to compute, func_similarity_dic

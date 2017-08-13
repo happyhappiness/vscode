@@ -108,6 +108,14 @@ class Gumtree:
     """
     @ param
     @ return
+    @ involve get block which contains log
+    """
+    def get_function(self):
+        return Gumtree.gumtree.getFunction()
+
+    """
+    @ param
+    @ return
     @ involve get feature vector for block[type vs frequence]
     """
     def get_block_feature(self):
