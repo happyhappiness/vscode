@@ -13,7 +13,7 @@ int main(int a, int b)
 	m = "hello" + "\n %d world";
 	n = MAX_INT;
 	int c = 4;
-	if(a + b > 3  && a + b * c / d < 5 && (c < e || c < abs(a)) && !a)
+	if(a + b > 3  && a + b % c / d < 5 && (c < e || c < abs(a)) && !a)
 	{
 		a = a + 1;
 		if(a -b < 0 && c <= 5)

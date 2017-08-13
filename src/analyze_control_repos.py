@@ -15,6 +15,7 @@ import json
 from pygithub3 import Github
 from itertools import islice
 from gumtree_api import Gumtree
+from joern_api import Joern_api
 import my_constant
 import myUtil
 
@@ -45,16 +46,18 @@ def deal_file( filename, log_function, writer, gumtree, total_log):
                 log_file.close()
                 # get and save block
                 block = gumtree.get_block()
-                # save block
                 block_file_name = my_constant.SAVE_REPOS_BLOCK + str(total_log) + '.cpp'
-                block_file = open(block_file_name, 'wb')
-                block_file.write(block)
-                block_file.close()
+                myUtil.save_file(block, block_file_name)
+                # get and save function
+                function = gumtree.get_function()
+                function_loc = gumtree.get_function_loc()
+                function_file_name = my_constant.SAVE_REPOS_FUNCTION + str(total_log) + '.cpp'
+                myUtil.save_file(function, function_file_name)
                 # get block feature
                 gumtree.set_file(block_file_name)
                 block_feature = gumtree.get_block_feature()
                 block_feature = json.dumps(block_feature)
-                writer.writerow([filename, loc, log, log_file_name, block, block_file_name, block_feature])
+                writer.writerow([filename, loc, log, log_file_name, block, block_file_name, block_feature, function, function_loc])
                 total_log += 1
                 gumtree.set_file(filename)
         loc += 1
@@ -66,7 +69,7 @@ def deal_file( filename, log_function, writer, gumtree, total_log):
 @ return nothing 
 @ involve fetch and analyze each hunk
 """
-def fetch_file(isFromBegin, start_file, start_log):
+def fetch_file(isFromBegin=True, start_file=0, start_log=0):
 
     # read file from directory
     filenames = []
@@ -88,14 +91,14 @@ def fetch_file(isFromBegin, start_file, start_log):
 
     # support continue from given location
     if isFromBegin:
-        repos_file = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'wb')
-        repos_writer = csv.writer(repos_file)
-        repos_writer.writerow(my_constant.ANALYZE_REPOS_TITLE)
+        repos_gumtree_file = file(my_constant.ANALYZE_REPOS_GUMTREE_FILE_NAME, 'wb')
+        repos_gumtree_writer = csv.writer(repos_gumtree_file)
+        repos_gumtree_writer.writerow(my_constant.ANALYZE_REPOS_GUMTREE_TITLE)
         total_file = 0
         total_log = 0
     else:
-        repos_file = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'ab')
-        repos_writer = csv.writer(repos_file)
+        repos_gumtree_file = file(my_constant.ANALYZE_REPOS_GUMTREE_FILE_NAME, 'ab')
+        repos_gumtree_writer = csv.writer(repos_gumtree_file)
         total_file = start_file
         total_log = start_log
     # analyze each file to record repos log info
@@ -104,33 +107,51 @@ def fetch_file(isFromBegin, start_file, start_log):
     gumtree = Gumtree()
     for filename in filenames[total_file:]:
         total_file += 1
-        total_log = deal_file(filename, log_function, repos_writer, gumtree, total_log)
+        total_log = deal_file(filename, log_function, repos_gumtree_writer, gumtree, total_log)
         # if total_file % 10 == 0:
         print 'have dealed with %d file, have dealed with %d log' %(total_file, total_log)
 
     # close file
-    repos_file.close()
+    repos_gumtree_file.close()
     gumtree.close()
+
+"""
+@ param
+@ return nothing 
+@ involve fetch and analyze each log[ddg and cdg]
+"""
+def analyze_repos_joern(is_rebuild = False):
+    # build joern index and restart database
+    if is_rebuild:
+        fetch_file()
+        myUtil.rebuild_joern_index(my_constant.REPOS_PARENT_DIR + '.joernIndex/', my_constant.REPOS_JOERN_DIR)
+    joern = Joern_api()
+    repos_gumtree_file = file(my_constant.ANALYZE_REPOS_GUMTREE_FILE_NAME, 'rb')
+    repos_gumtree_records = csv.reader(repos_gumtree_file)
+    repos_joern_file = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'wb')
+    repos_joern_writer = csv.writer(repos_joern_file)
+    repos_joern_writer.writerow(my_constant.ANALYZE_REPOS_JOERN_TITLE)
+
+    total_record = 0
+    log = 0
+    # get ddg and cdg with joern
+    for record in islice(repos_gumtree_records, 1, None):
+        if joern.set_log(record[my_constant.ANALYZE_REPOS_FUNCTION_FILE], int(record[my_constant.ANALYZE_REPOS_FUNCTION_LOC])):
+            ddg = json.dumps(joern.get_argument_type())
+            cdg = json.dumps(joern.get_control_dependence())
+            repos_joern_writer.writerow(record + [ddg, cdg])
+        print 'have dealed with %d record' %(total_record)
+        total_record += 1
+
+    repos_gumtree_file.close()
+    repos_joern_file.close()
+
 
 """
 main function
 """
 if __name__ == "__main__":
-    fetch_file(True,742, 2040)
-
-    # filenames = []
-    # for item in os.walk('User'):
-    #     for filename in item[2]:
-    #         # deal with cpp file
-    #         is_cpp = re.search(my_constant.FILE_FORMAT, filename, re.I)
-    #         if is_cpp:
-    #             is_unsupport = re.search(my_constant.UNSPORT_FILE_FORMAT, filename, re.I)
-    #             if is_unsupport:
-    #                 filename = os.path.join(item[0], filename)
-    #                 new_filename = filename.replace(is_unsupport.group(), '.cpp')
-    #                 os.rename(filename, new_filename)
-    #                 print new_filename
-    #                 filenames.append(new_filename)
+   analyze_repos_joern(True)
 
 
 

@@ -1,6 +1,7 @@
 #-*-coding: utf-8 -*-
 import csv
 import commands
+import os
 from itertools import islice
 import numpy as np
 from scipy.spatial.distance import pdist
@@ -220,12 +221,11 @@ def save_file(content, file_name):
 @ return
 @ involve rm old joernIndex file, and build new one. restart neo4j server
 """
-def rebuild_joern_index(parent_dir, code_dir):
-    output = commands.getoutput('cd ' + parent_dir)
-    output = commands.getoutput('rm -r .joernIndex')
-    output = commands.getoutput('joern ' + code_dir)
+def rebuild_joern_index(index_dir, code_dir):
+    output = commands.getoutput('rm -r ' + index_dir)
+    output = commands.getoutput('java -Xmx4g -jar $JOERN/bin/joern.jar ' + code_dir + ' -outdir ' + index_dir)
     output = commands.getoutput('neo4j restart')
-    output = commands.getoutput('cd ' + my_constant.BASE_DIR)
+    print output
 
 """
 @ param  cond_list of a and b to compute, func_similarity_dic

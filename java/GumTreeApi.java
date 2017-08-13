@@ -50,6 +50,7 @@ public class GumTreeApi {
 	final String IF_TYPE = "if";
 	// application specific info for " analyze file "
 	private int loc;
+	private int functionLoc;
 	private ITree tree;
 	private ITree logNode;
 	private TreeContext treeContext;
@@ -116,6 +117,8 @@ public class GumTreeApi {
 		System.out.println(g.getControl());
 		g.printSpliter();
 		System.out.println(g.getFunction());
+		g.printSpliter();
+		System.out.println(g.getFunctionLoc());
 	
 		
 //		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
@@ -321,11 +324,20 @@ public class GumTreeApi {
 			}
 			else
 			{
+				this.functionLoc = getLineNumber(parentNode.getChild(1), this.filename, true) - 1;
+//				System.out.println(this.getValue(parentNode.getChild(1), this.filename));
 				return getValue(parentNode, this.filename);
 			}
 		}
 		
+		this.functionLoc = -1;
 		return "";
+	}
+	
+	public int getFunctionLoc(){
+		// log loc - function loc = log loc in function [index from 0]
+//		System.out.println(this.functionLoc);
+		return this.loc - this.functionLoc;
 	}
 	
 	private final List<String> AST_TYPE = Arrays.asList(
@@ -676,7 +688,7 @@ public class GumTreeApi {
 	// get start line number of given node
 	private int getLineNumber(ITree node, String filename, boolean isStart) {
 		// String filename = isOld ? oldFile : newFile;
-		int characterPos = isStart ? node.getPos() : node.getEndPos();
+		int characterPos = isStart ? node.getPos() : node.getEndPos() + 1;
 		if(characterPos == -1)
 			return -1;
 		LineNumberReader lineReader;
