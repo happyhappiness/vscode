@@ -80195,4 +80195,6240 @@ gzip_filter_close(struct archive_read_filter *self)
 	if (state->in_stream) {
 		switch (inflateEnd(&(state->stream))) {
 		case Z_OK:
-			bre
+			break;
+		default:
+			archive_set_error(&(self->archive->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    ""Failed to clean up gzip compressor"");
+			ret = ARCHIVE_FATAL;
+		}
+	}
+
+	free(state->out_block);
+	free(state);
+	return (ret);
+}",14
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1064,"archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate iso9660 data"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_672.cpp,"{
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate iso9660 data"");
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_672.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","int
+archive_write_set_format_iso9660(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	struct iso9660 *iso9660;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, ""archive_write_set_format_iso9660"");
+
+	/* If another format was already registered, unregister it. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
+
+	iso9660 = calloc(1, sizeof(*iso9660));
+	if (iso9660 == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate iso9660 data"");
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->birth_time = 0;
+	iso9660->temp_fd = -1;
+	iso9660->cur_file = NULL;
+	iso9660->primary.max_depth = 0;
+	iso9660->primary.vdd_type = VDD_PRIMARY;
+	iso9660->primary.pathtbl = NULL;
+	iso9660->joliet.rootent = NULL;
+	iso9660->joliet.max_depth = 0;
+	iso9660->joliet.vdd_type = VDD_JOLIET;
+	iso9660->joliet.pathtbl = NULL;
+	isofile_init_entry_list(iso9660);
+	isofile_init_entry_data_file_list(iso9660);
+	isofile_init_hardlinks(iso9660);
+	iso9660->directories_too_deep = NULL;
+	iso9660->dircnt_max = 1;
+	iso9660->wbuff_remaining = wb_buffmax();
+	iso9660->wbuff_type = WB_TO_TEMP;
+	iso9660->wbuff_offset = 0;
+	iso9660->wbuff_written = 0;
+	iso9660->wbuff_tail = 0;
+	archive_string_init(&(iso9660->utf16be));
+	archive_string_init(&(iso9660->mbs));
+
+	/*
+	 * Init Identifiers used for PVD and SVD.
+	 */
+	archive_string_init(&(iso9660->volume_identifier));
+	archive_strcpy(&(iso9660->volume_identifier), ""CDROM"");
+	archive_string_init(&(iso9660->publisher_identifier));
+	archive_string_init(&(iso9660->data_preparer_identifier));
+	archive_string_init(&(iso9660->application_identifier));
+	archive_strcpy(&(iso9660->application_identifier),
+	    archive_version_string());
+	archive_string_init(&(iso9660->copyright_file_identifier));
+	archive_string_init(&(iso9660->abstract_file_identifier));
+	archive_string_init(&(iso9660->bibliographic_file_identifier));
+
+	/*
+	 * Init El Torito bootable CD variables.
+	 */
+	archive_string_init(&(iso9660->el_torito.catalog_filename));
+	iso9660->el_torito.catalog = NULL;
+	/* Set default file name of boot catalog  */
+	archive_strcpy(&(iso9660->el_torito.catalog_filename),
+	    ""boot.catalog"");
+	archive_string_init(&(iso9660->el_torito.boot_filename));
+	iso9660->el_torito.boot = NULL;
+	iso9660->el_torito.platform_id = BOOT_PLATFORM_X86;
+	archive_string_init(&(iso9660->el_torito.id));
+	iso9660->el_torito.boot_load_seg = 0;
+	iso9660->el_torito.boot_load_size = BOOT_LOAD_SIZE;
+
+	/*
+	 * Init zisofs variables.
+	 */
+#ifdef HAVE_ZLIB_H
+	iso9660->zisofs.block_pointers = NULL;
+	iso9660->zisofs.block_pointers_allocated = 0;
+	iso9660->zisofs.stream_valid = 0;
+	iso9660->zisofs.compression_level = 9;
+	memset(&(iso9660->zisofs.stream), 0,
+	    sizeof(iso9660->zisofs.stream));
+#endif
+
+	/*
+	 * Set default value of iso9660 options.
+	 */
+	iso9660->opt.abstract_file = OPT_ABSTRACT_FILE_DEFAULT;
+	iso9660->opt.application_id = OPT_APPLICATION_ID_DEFAULT;
+	iso9660->opt.allow_vernum = OPT_ALLOW_VERNUM_DEFAULT;
+	iso9660->opt.biblio_file = OPT_BIBLIO_FILE_DEFAULT;
+	iso9660->opt.boot = OPT_BOOT_DEFAULT;
+	iso9660->opt.boot_catalog = OPT_BOOT_CATALOG_DEFAULT;
+	iso9660->opt.boot_info_table = OPT_BOOT_INFO_TABLE_DEFAULT;
+	iso9660->opt.boot_load_seg = OPT_BOOT_LOAD_SEG_DEFAULT;
+	iso9660->opt.boot_load_size = OPT_BOOT_LOAD_SIZE_DEFAULT;
+	iso9660->opt.boot_type = OPT_BOOT_TYPE_DEFAULT;
+	iso9660->opt.compression_level = OPT_COMPRESSION_LEVEL_DEFAULT;
+	iso9660->opt.copyright_file = OPT_COPYRIGHT_FILE_DEFAULT;
+	iso9660->opt.iso_level = OPT_ISO_LEVEL_DEFAULT;
+	iso9660->opt.joliet = OPT_JOLIET_DEFAULT;
+	iso9660->opt.limit_depth = OPT_LIMIT_DEPTH_DEFAULT;
+	iso9660->opt.limit_dirs = OPT_LIMIT_DIRS_DEFAULT;
+	iso9660->opt.pad = OPT_PAD_DEFAULT;
+	iso9660->opt.publisher = OPT_PUBLISHER_DEFAULT;
+	iso9660->opt.rr = OPT_RR_DEFAULT;
+	iso9660->opt.volume_id = OPT_VOLUME_ID_DEFAULT;
+	iso9660->opt.zisofs = OPT_ZISOFS_DEFAULT;
+
+	/* Create the root directory. */
+	iso9660->primary.rootent =
+	    isoent_create_virtual_dir(a, iso9660, """");
+	if (iso9660->primary.rootent == NULL) {
+		free(iso9660);
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->primary.rootent->parent = iso9660->primary.rootent;
+	iso9660->cur_dirent = iso9660->primary.rootent;
+	archive_string_init(&(iso9660->cur_dirstr));
+	archive_string_ensure(&(iso9660->cur_dirstr), 1);
+	iso9660->cur_dirstr.s[0] = 0;
+	iso9660->sconv_to_utf16be = NULL;
+	iso9660->sconv_from_utf16be = NULL;
+
+	a->format_data = iso9660;
+	a->format_name = ""iso9660"";
+	a->format_options = iso9660_options;
+	a->format_write_header = iso9660_write_header;
+	a->format_write_data = iso9660_write_data;
+	a->format_finish_entry = iso9660_finish_entry;
+	a->format_close = iso9660_close;
+	a->format_free = iso9660_free;
+	a->archive.archive_format = ARCHIVE_FORMAT_ISO9660;
+	a->archive.archive_format_name = ""ISO9660"";
+
+	return (ARCHIVE_OK);
+}",15
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1162,"archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_673.cpp,"{
+		free(iso9660);
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_673.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0]","int
+archive_write_set_format_iso9660(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	struct iso9660 *iso9660;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, ""archive_write_set_format_iso9660"");
+
+	/* If another format was already registered, unregister it. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
+
+	iso9660 = calloc(1, sizeof(*iso9660));
+	if (iso9660 == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate iso9660 data"");
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->birth_time = 0;
+	iso9660->temp_fd = -1;
+	iso9660->cur_file = NULL;
+	iso9660->primary.max_depth = 0;
+	iso9660->primary.vdd_type = VDD_PRIMARY;
+	iso9660->primary.pathtbl = NULL;
+	iso9660->joliet.rootent = NULL;
+	iso9660->joliet.max_depth = 0;
+	iso9660->joliet.vdd_type = VDD_JOLIET;
+	iso9660->joliet.pathtbl = NULL;
+	isofile_init_entry_list(iso9660);
+	isofile_init_entry_data_file_list(iso9660);
+	isofile_init_hardlinks(iso9660);
+	iso9660->directories_too_deep = NULL;
+	iso9660->dircnt_max = 1;
+	iso9660->wbuff_remaining = wb_buffmax();
+	iso9660->wbuff_type = WB_TO_TEMP;
+	iso9660->wbuff_offset = 0;
+	iso9660->wbuff_written = 0;
+	iso9660->wbuff_tail = 0;
+	archive_string_init(&(iso9660->utf16be));
+	archive_string_init(&(iso9660->mbs));
+
+	/*
+	 * Init Identifiers used for PVD and SVD.
+	 */
+	archive_string_init(&(iso9660->volume_identifier));
+	archive_strcpy(&(iso9660->volume_identifier), ""CDROM"");
+	archive_string_init(&(iso9660->publisher_identifier));
+	archive_string_init(&(iso9660->data_preparer_identifier));
+	archive_string_init(&(iso9660->application_identifier));
+	archive_strcpy(&(iso9660->application_identifier),
+	    archive_version_string());
+	archive_string_init(&(iso9660->copyright_file_identifier));
+	archive_string_init(&(iso9660->abstract_file_identifier));
+	archive_string_init(&(iso9660->bibliographic_file_identifier));
+
+	/*
+	 * Init El Torito bootable CD variables.
+	 */
+	archive_string_init(&(iso9660->el_torito.catalog_filename));
+	iso9660->el_torito.catalog = NULL;
+	/* Set default file name of boot catalog  */
+	archive_strcpy(&(iso9660->el_torito.catalog_filename),
+	    ""boot.catalog"");
+	archive_string_init(&(iso9660->el_torito.boot_filename));
+	iso9660->el_torito.boot = NULL;
+	iso9660->el_torito.platform_id = BOOT_PLATFORM_X86;
+	archive_string_init(&(iso9660->el_torito.id));
+	iso9660->el_torito.boot_load_seg = 0;
+	iso9660->el_torito.boot_load_size = BOOT_LOAD_SIZE;
+
+	/*
+	 * Init zisofs variables.
+	 */
+#ifdef HAVE_ZLIB_H
+	iso9660->zisofs.block_pointers = NULL;
+	iso9660->zisofs.block_pointers_allocated = 0;
+	iso9660->zisofs.stream_valid = 0;
+	iso9660->zisofs.compression_level = 9;
+	memset(&(iso9660->zisofs.stream), 0,
+	    sizeof(iso9660->zisofs.stream));
+#endif
+
+	/*
+	 * Set default value of iso9660 options.
+	 */
+	iso9660->opt.abstract_file = OPT_ABSTRACT_FILE_DEFAULT;
+	iso9660->opt.application_id = OPT_APPLICATION_ID_DEFAULT;
+	iso9660->opt.allow_vernum = OPT_ALLOW_VERNUM_DEFAULT;
+	iso9660->opt.biblio_file = OPT_BIBLIO_FILE_DEFAULT;
+	iso9660->opt.boot = OPT_BOOT_DEFAULT;
+	iso9660->opt.boot_catalog = OPT_BOOT_CATALOG_DEFAULT;
+	iso9660->opt.boot_info_table = OPT_BOOT_INFO_TABLE_DEFAULT;
+	iso9660->opt.boot_load_seg = OPT_BOOT_LOAD_SEG_DEFAULT;
+	iso9660->opt.boot_load_size = OPT_BOOT_LOAD_SIZE_DEFAULT;
+	iso9660->opt.boot_type = OPT_BOOT_TYPE_DEFAULT;
+	iso9660->opt.compression_level = OPT_COMPRESSION_LEVEL_DEFAULT;
+	iso9660->opt.copyright_file = OPT_COPYRIGHT_FILE_DEFAULT;
+	iso9660->opt.iso_level = OPT_ISO_LEVEL_DEFAULT;
+	iso9660->opt.joliet = OPT_JOLIET_DEFAULT;
+	iso9660->opt.limit_depth = OPT_LIMIT_DEPTH_DEFAULT;
+	iso9660->opt.limit_dirs = OPT_LIMIT_DIRS_DEFAULT;
+	iso9660->opt.pad = OPT_PAD_DEFAULT;
+	iso9660->opt.publisher = OPT_PUBLISHER_DEFAULT;
+	iso9660->opt.rr = OPT_RR_DEFAULT;
+	iso9660->opt.volume_id = OPT_VOLUME_ID_DEFAULT;
+	iso9660->opt.zisofs = OPT_ZISOFS_DEFAULT;
+
+	/* Create the root directory. */
+	iso9660->primary.rootent =
+	    isoent_create_virtual_dir(a, iso9660, """");
+	if (iso9660->primary.rootent == NULL) {
+		free(iso9660);
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->primary.rootent->parent = iso9660->primary.rootent;
+	iso9660->cur_dirent = iso9660->primary.rootent;
+	archive_string_init(&(iso9660->cur_dirstr));
+	archive_string_ensure(&(iso9660->cur_dirstr), 1);
+	iso9660->cur_dirstr.s[0] = 0;
+	iso9660->sconv_to_utf16be = NULL;
+	iso9660->sconv_from_utf16be = NULL;
+
+	a->format_data = iso9660;
+	a->format_name = ""iso9660"";
+	a->format_options = iso9660_options;
+	a->format_write_header = iso9660_write_header;
+	a->format_write_data = iso9660_write_data;
+	a->format_finish_entry = iso9660_finish_entry;
+	a->format_close = iso9660_close;
+	a->format_free = iso9660_free;
+	a->archive.archive_format = ARCHIVE_FORMAT_ISO9660;
+	a->archive.archive_format_name = ""ISO9660"";
+
+	return (ARCHIVE_OK);
+}",113
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1194,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Value is longer than %zu characters ""
+		    ""for option ``%s''"", maxsize, key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_674.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Value is longer than %zu characters ""
+		    ""for option ``%s''"", maxsize, key);
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_674.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+get_str_opt(struct archive_write *a, struct archive_string *s,
+    size_t maxsize, const char *key, const char *value)
+{
+
+	if (strlen(value) > maxsize) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Value is longer than %zu characters ""
+		    ""for option ``%s''"", maxsize, key);
+		return (ARCHIVE_FATAL);
+	}
+	archive_strcpy(s, value);
+	return (ARCHIVE_OK);
+}",6
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1212,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid value(empty) for option ``%s''"", key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_675.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid value(empty) for option ``%s''"", key);
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_675.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]","static int
+get_num_opt(struct archive_write *a, int *num, int high, int low,
+    const char *key, const char *value)
+{
+	const char *p = value;
+	int data = 0;
+	int neg = 0;
+
+	if (p == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid value(empty) for option ``%s''"", key);
+		return (ARCHIVE_FATAL);
+	}
+	if (*p == '-') {
+		neg = 1;
+		p++;
+	}
+	while (*p) {
+		if (*p >= '0' && *p <= '9')
+			data = data * 10 + *p - '0';
+		else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value for option ``%s''"", key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data > high) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(over %d) for ""
+			    ""option ``%s''"", high, key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data < low) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(under %d) for ""
+			    ""option ``%s''"", low, key);
+			return (ARCHIVE_FATAL);
+		}
+		p++;
+	}
+	if (neg)
+		data *= -1;
+	*num = data;
+
+	return (ARCHIVE_OK);
+}",9
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1224,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value for option ``%s''"", key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_676.cpp,"{
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value for option ``%s''"", key);
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_676.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]","static int
+get_num_opt(struct archive_write *a, int *num, int high, int low,
+    const char *key, const char *value)
+{
+	const char *p = value;
+	int data = 0;
+	int neg = 0;
+
+	if (p == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid value(empty) for option ``%s''"", key);
+		return (ARCHIVE_FATAL);
+	}
+	if (*p == '-') {
+		neg = 1;
+		p++;
+	}
+	while (*p) {
+		if (*p >= '0' && *p <= '9')
+			data = data * 10 + *p - '0';
+		else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value for option ``%s''"", key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data > high) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(over %d) for ""
+			    ""option ``%s''"", high, key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data < low) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(under %d) for ""
+			    ""option ``%s''"", low, key);
+			return (ARCHIVE_FATAL);
+		}
+		p++;
+	}
+	if (neg)
+		data *= -1;
+	*num = data;
+
+	return (ARCHIVE_OK);
+}",21
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1229,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(over %d) for ""
+			    ""option ``%s''"", high, key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_677.cpp,"{
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(over %d) for ""
+			    ""option ``%s''"", high, key);
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_677.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+get_num_opt(struct archive_write *a, int *num, int high, int low,
+    const char *key, const char *value)
+{
+	const char *p = value;
+	int data = 0;
+	int neg = 0;
+
+	if (p == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid value(empty) for option ``%s''"", key);
+		return (ARCHIVE_FATAL);
+	}
+	if (*p == '-') {
+		neg = 1;
+		p++;
+	}
+	while (*p) {
+		if (*p >= '0' && *p <= '9')
+			data = data * 10 + *p - '0';
+		else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value for option ``%s''"", key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data > high) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(over %d) for ""
+			    ""option ``%s''"", high, key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data < low) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(under %d) for ""
+			    ""option ``%s''"", low, key);
+			return (ARCHIVE_FATAL);
+		}
+		p++;
+	}
+	if (neg)
+		data *= -1;
+	*num = data;
+
+	return (ARCHIVE_OK);
+}",26
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1235,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(under %d) for ""
+			    ""option ``%s''"", low, key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_678.cpp,"{
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(under %d) for ""
+			    ""option ``%s''"", low, key);
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_678.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+get_num_opt(struct archive_write *a, int *num, int high, int low,
+    const char *key, const char *value)
+{
+	const char *p = value;
+	int data = 0;
+	int neg = 0;
+
+	if (p == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Invalid value(empty) for option ``%s''"", key);
+		return (ARCHIVE_FATAL);
+	}
+	if (*p == '-') {
+		neg = 1;
+		p++;
+	}
+	while (*p) {
+		if (*p >= '0' && *p <= '9')
+			data = data * 10 + *p - '0';
+		else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value for option ``%s''"", key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data > high) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(over %d) for ""
+			    ""option ``%s''"", high, key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data < low) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Invalid value(under %d) for ""
+			    ""option ``%s''"", low, key);
+			return (ARCHIVE_FATAL);
+		}
+		p++;
+	}
+	if (neg)
+		data *= -1;
+	*num = data;
+
+	return (ARCHIVE_OK);
+}",32
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1329,"archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""Invalid value(over 0xffff) for ""
+					    ""option ``%s''"", key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_679.cpp,"{
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""Invalid value(over 0xffff) for ""
+					    ""option ``%s''"", key);
+					return (ARCHIVE_FATAL);
+				}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_679.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]","static int
+iso9660_options(struct archive_write *a, const char *key, const char *value)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	const char *p;
+	int r;
+
+	switch (key[0]) {
+	case 'a':
+		if (strcmp(key, ""abstract-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->abstract_file_identifier),
+			    ABSTRACT_FILE_SIZE, key, value);
+			iso9660->opt.abstract_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""application-id"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->application_identifier),
+			    APPLICATION_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.application_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""allow-vernum"") == 0) {
+			iso9660->opt.allow_vernum = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'b':
+		if (strcmp(key, ""biblio-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->bibliographic_file_identifier),
+			    BIBLIO_FILE_SIZE, key, value);
+			iso9660->opt.biblio_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot"") == 0) {
+			if (value == NULL)
+				iso9660->opt.boot = 0;
+			else {
+				iso9660->opt.boot = 1;
+				archive_strcpy(
+				    &(iso9660->el_torito.boot_filename),
+				    value);
+			}
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-catalog"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->el_torito.catalog_filename),
+			    1024, key, value);
+			iso9660->opt.boot_catalog = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot-info-table"") == 0) {
+			iso9660->opt.boot_info_table = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-seg"") == 0) {
+			uint32_t seg;
+
+			iso9660->opt.boot_load_seg = 0;
+			if (value == NULL)
+				goto invalid_value;
+			seg = 0;
+			p = value;
+			if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X'))
+				p += 2;
+			while (*p) {
+				if (seg)
+					seg <<= 4;
+				if (*p >= 'A' && *p <= 'F')
+					seg += *p - 'A' + 0x0a;
+				else if (*p >= 'a' && *p <= 'f')
+					seg += *p - 'a' + 0x0a;
+				else if (*p >= '0' && *p <= '9')
+					seg += *p - '0';
+				else
+					goto invalid_value;
+				if (seg > 0xffff) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""Invalid value(over 0xffff) for ""
+					    ""option ``%s''"", key);
+					return (ARCHIVE_FATAL);
+				}
+				p++;
+			}
+			iso9660->el_torito.boot_load_seg = (uint16_t)seg;
+			iso9660->opt.boot_load_seg = 1;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-size"") == 0) {
+			int num = 0;
+			r = get_num_opt(a, &num, 0xffff, 1, key, value);
+			iso9660->opt.boot_load_size = r == ARCHIVE_OK;
+			if (r != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->el_torito.boot_load_size = (uint16_t)num;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-type"") == 0) {
+			if (value == NULL)
+				goto invalid_value;
+			if (strcmp(value, ""no-emulation"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_NO_EMU;
+			else if (strcmp(value, ""fd"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_FD;
+			else if (strcmp(value, ""hard-disk"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_HARD_DISK;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, ""compression-level"") == 0) {
+#ifdef HAVE_ZLIB_H
+			if (value == NULL ||
+			    !(value[0] >= '0' && value[0] <= '9') ||
+			    value[1] != '\0')
+				goto invalid_value;
+                	iso9660->zisofs.compression_level = value[0] - '0';
+			iso9660->opt.compression_level = 1;
+                	return (ARCHIVE_OK);
+#else
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Option ``%s'' ""
+			    ""is not supported on this platform."", key);
+			return (ARCHIVE_FATAL);
+#endif
+		}
+		if (strcmp(key, ""copyright-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->copyright_file_identifier),
+			    COPYRIGHT_FILE_SIZE, key, value);
+			iso9660->opt.copyright_file = r == ARCHIVE_OK;
+			return (r);
+		}
+#ifdef DEBUG
+		/* Specifies Volume creation date and time;
+		 * year(4),month(2),day(2),hour(2),minute(2),second(2).
+		 * e.g. ""20090929033757""
+		 */
+		if (strcmp(key, ""creation"") == 0) {
+			struct tm tm;
+			char buf[5];
+
+			p = value;
+			if (p == NULL || strlen(p) < 14)
+				goto invalid_value;
+			memset(&tm, 0, sizeof(tm));
+			memcpy(buf, p, 4); buf[4] = '\0'; p += 4;
+			tm.tm_year = strtol(buf, NULL, 10) - 1900;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mon = strtol(buf, NULL, 10) - 1;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mday = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_hour = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_min = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0';
+			tm.tm_sec = strtol(buf, NULL, 10);
+			iso9660->birth_time = mktime(&tm);
+			return (ARCHIVE_OK);
+		}
+#endif
+		break;
+	case 'i':
+		if (strcmp(key, ""iso-level"") == 0) {
+			if (value != NULL && value[1] == '\0' &&
+			    (value[0] >= '1' && value[0] <= '4')) {
+				iso9660->opt.iso_level = value[0]-'0';
+				return (ARCHIVE_OK);
+			}
+			goto invalid_value;
+		}
+		break;
+	case 'j':
+		if (strcmp(key, ""joliet"") == 0) {
+			if (value == NULL)
+				iso9660->opt.joliet = OPT_JOLIET_DISABLE;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_ENABLE;
+			else if (strcmp(value, ""long"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_LONGNAME;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'l':
+		if (strcmp(key, ""limit-depth"") == 0) {
+			iso9660->opt.limit_depth = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""limit-dirs"") == 0) {
+			iso9660->opt.limit_dirs = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, ""pad"") == 0) {
+			iso9660->opt.pad = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""publisher"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->publisher_identifier),
+			    PUBLISHER_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.publisher = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'r':
+		if (strcmp(key, ""rockridge"") == 0 ||
+		    strcmp(key, ""Rockridge"") == 0) {
+			if (value == NULL)
+				iso9660->opt.rr = OPT_RR_DISABLED;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else if (strcmp(value, ""strict"") == 0)
+				iso9660->opt.rr = OPT_RR_STRICT;
+			else if (strcmp(value, ""useful"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'v':
+		if (strcmp(key, ""volume-id"") == 0) {
+			r = get_str_opt(a, &(iso9660->volume_identifier),
+			    VOLUME_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.volume_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'z':
+		if (strcmp(key, ""zisofs"") == 0) {
+			if (value == NULL)
+				iso9660->opt.zisofs = OPT_ZISOFS_DISABLED;
+			else {
+#ifdef HAVE_ZLIB_H
+				iso9660->opt.zisofs = OPT_ZISOFS_DIRECT;
+#else
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""``zisofs'' ""
+				    ""is not supported on this platform."");
+				return (ARCHIVE_FATAL);
+#endif
+			}
+			return (ARCHIVE_OK);
+		}
+		break;
+	}
+
+	/* Note: The ""warn"" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+
+invalid_value:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    ""Invalid value for option ``%s''"", key);
+	return (ARCHIVE_FAILED);
+}",80
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1375,"archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Option ``%s'' ""
+			    ""is not supported on this platform."", key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_680.cpp,"{
+#ifdef HAVE_ZLIB_H
+			if (value == NULL ||
+			    !(value[0] >= '0' && value[0] <= '9') ||
+			    value[1] != '\0')
+				goto invalid_value;
+                	iso9660->zisofs.compression_level = value[0] - '0';
+			iso9660->opt.compression_level = 1;
+                	return (ARCHIVE_OK);
+#else
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Option ``%s'' ""
+			    ""is not supported on this platform."", key);
+			return (ARCHIVE_FATAL);
+#endif
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_680.cpp,"[1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 1, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 1, 1, 1, 0, 1, 0, 0, 3, 0, 4, 3, 0, 0, 0, 0, 0]","static int
+iso9660_options(struct archive_write *a, const char *key, const char *value)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	const char *p;
+	int r;
+
+	switch (key[0]) {
+	case 'a':
+		if (strcmp(key, ""abstract-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->abstract_file_identifier),
+			    ABSTRACT_FILE_SIZE, key, value);
+			iso9660->opt.abstract_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""application-id"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->application_identifier),
+			    APPLICATION_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.application_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""allow-vernum"") == 0) {
+			iso9660->opt.allow_vernum = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'b':
+		if (strcmp(key, ""biblio-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->bibliographic_file_identifier),
+			    BIBLIO_FILE_SIZE, key, value);
+			iso9660->opt.biblio_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot"") == 0) {
+			if (value == NULL)
+				iso9660->opt.boot = 0;
+			else {
+				iso9660->opt.boot = 1;
+				archive_strcpy(
+				    &(iso9660->el_torito.boot_filename),
+				    value);
+			}
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-catalog"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->el_torito.catalog_filename),
+			    1024, key, value);
+			iso9660->opt.boot_catalog = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot-info-table"") == 0) {
+			iso9660->opt.boot_info_table = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-seg"") == 0) {
+			uint32_t seg;
+
+			iso9660->opt.boot_load_seg = 0;
+			if (value == NULL)
+				goto invalid_value;
+			seg = 0;
+			p = value;
+			if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X'))
+				p += 2;
+			while (*p) {
+				if (seg)
+					seg <<= 4;
+				if (*p >= 'A' && *p <= 'F')
+					seg += *p - 'A' + 0x0a;
+				else if (*p >= 'a' && *p <= 'f')
+					seg += *p - 'a' + 0x0a;
+				else if (*p >= '0' && *p <= '9')
+					seg += *p - '0';
+				else
+					goto invalid_value;
+				if (seg > 0xffff) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""Invalid value(over 0xffff) for ""
+					    ""option ``%s''"", key);
+					return (ARCHIVE_FATAL);
+				}
+				p++;
+			}
+			iso9660->el_torito.boot_load_seg = (uint16_t)seg;
+			iso9660->opt.boot_load_seg = 1;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-size"") == 0) {
+			int num = 0;
+			r = get_num_opt(a, &num, 0xffff, 1, key, value);
+			iso9660->opt.boot_load_size = r == ARCHIVE_OK;
+			if (r != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->el_torito.boot_load_size = (uint16_t)num;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-type"") == 0) {
+			if (value == NULL)
+				goto invalid_value;
+			if (strcmp(value, ""no-emulation"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_NO_EMU;
+			else if (strcmp(value, ""fd"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_FD;
+			else if (strcmp(value, ""hard-disk"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_HARD_DISK;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, ""compression-level"") == 0) {
+#ifdef HAVE_ZLIB_H
+			if (value == NULL ||
+			    !(value[0] >= '0' && value[0] <= '9') ||
+			    value[1] != '\0')
+				goto invalid_value;
+                	iso9660->zisofs.compression_level = value[0] - '0';
+			iso9660->opt.compression_level = 1;
+                	return (ARCHIVE_OK);
+#else
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Option ``%s'' ""
+			    ""is not supported on this platform."", key);
+			return (ARCHIVE_FATAL);
+#endif
+		}
+		if (strcmp(key, ""copyright-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->copyright_file_identifier),
+			    COPYRIGHT_FILE_SIZE, key, value);
+			iso9660->opt.copyright_file = r == ARCHIVE_OK;
+			return (r);
+		}
+#ifdef DEBUG
+		/* Specifies Volume creation date and time;
+		 * year(4),month(2),day(2),hour(2),minute(2),second(2).
+		 * e.g. ""20090929033757""
+		 */
+		if (strcmp(key, ""creation"") == 0) {
+			struct tm tm;
+			char buf[5];
+
+			p = value;
+			if (p == NULL || strlen(p) < 14)
+				goto invalid_value;
+			memset(&tm, 0, sizeof(tm));
+			memcpy(buf, p, 4); buf[4] = '\0'; p += 4;
+			tm.tm_year = strtol(buf, NULL, 10) - 1900;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mon = strtol(buf, NULL, 10) - 1;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mday = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_hour = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_min = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0';
+			tm.tm_sec = strtol(buf, NULL, 10);
+			iso9660->birth_time = mktime(&tm);
+			return (ARCHIVE_OK);
+		}
+#endif
+		break;
+	case 'i':
+		if (strcmp(key, ""iso-level"") == 0) {
+			if (value != NULL && value[1] == '\0' &&
+			    (value[0] >= '1' && value[0] <= '4')) {
+				iso9660->opt.iso_level = value[0]-'0';
+				return (ARCHIVE_OK);
+			}
+			goto invalid_value;
+		}
+		break;
+	case 'j':
+		if (strcmp(key, ""joliet"") == 0) {
+			if (value == NULL)
+				iso9660->opt.joliet = OPT_JOLIET_DISABLE;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_ENABLE;
+			else if (strcmp(value, ""long"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_LONGNAME;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'l':
+		if (strcmp(key, ""limit-depth"") == 0) {
+			iso9660->opt.limit_depth = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""limit-dirs"") == 0) {
+			iso9660->opt.limit_dirs = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, ""pad"") == 0) {
+			iso9660->opt.pad = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""publisher"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->publisher_identifier),
+			    PUBLISHER_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.publisher = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'r':
+		if (strcmp(key, ""rockridge"") == 0 ||
+		    strcmp(key, ""Rockridge"") == 0) {
+			if (value == NULL)
+				iso9660->opt.rr = OPT_RR_DISABLED;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else if (strcmp(value, ""strict"") == 0)
+				iso9660->opt.rr = OPT_RR_STRICT;
+			else if (strcmp(value, ""useful"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'v':
+		if (strcmp(key, ""volume-id"") == 0) {
+			r = get_str_opt(a, &(iso9660->volume_identifier),
+			    VOLUME_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.volume_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'z':
+		if (strcmp(key, ""zisofs"") == 0) {
+			if (value == NULL)
+				iso9660->opt.zisofs = OPT_ZISOFS_DISABLED;
+			else {
+#ifdef HAVE_ZLIB_H
+				iso9660->opt.zisofs = OPT_ZISOFS_DIRECT;
+#else
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""``zisofs'' ""
+				    ""is not supported on this platform."");
+				return (ARCHIVE_FATAL);
+#endif
+			}
+			return (ARCHIVE_OK);
+		}
+		break;
+	}
+
+	/* Note: The ""warn"" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+
+invalid_value:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    ""Invalid value for option ``%s''"", key);
+	return (ARCHIVE_FAILED);
+}",126
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1497,"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""``zisofs'' ""
+				    ""is not supported on this platform."");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_681.cpp,"{
+#ifdef HAVE_ZLIB_H
+				iso9660->opt.zisofs = OPT_ZISOFS_DIRECT;
+#else
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""``zisofs'' ""
+				    ""is not supported on this platform."");
+				return (ARCHIVE_FATAL);
+#endif
+			}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_681.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 0, 3, 3, 0, 0, 0, 0, 0]","static int
+iso9660_options(struct archive_write *a, const char *key, const char *value)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	const char *p;
+	int r;
+
+	switch (key[0]) {
+	case 'a':
+		if (strcmp(key, ""abstract-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->abstract_file_identifier),
+			    ABSTRACT_FILE_SIZE, key, value);
+			iso9660->opt.abstract_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""application-id"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->application_identifier),
+			    APPLICATION_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.application_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""allow-vernum"") == 0) {
+			iso9660->opt.allow_vernum = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'b':
+		if (strcmp(key, ""biblio-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->bibliographic_file_identifier),
+			    BIBLIO_FILE_SIZE, key, value);
+			iso9660->opt.biblio_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot"") == 0) {
+			if (value == NULL)
+				iso9660->opt.boot = 0;
+			else {
+				iso9660->opt.boot = 1;
+				archive_strcpy(
+				    &(iso9660->el_torito.boot_filename),
+				    value);
+			}
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-catalog"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->el_torito.catalog_filename),
+			    1024, key, value);
+			iso9660->opt.boot_catalog = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot-info-table"") == 0) {
+			iso9660->opt.boot_info_table = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-seg"") == 0) {
+			uint32_t seg;
+
+			iso9660->opt.boot_load_seg = 0;
+			if (value == NULL)
+				goto invalid_value;
+			seg = 0;
+			p = value;
+			if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X'))
+				p += 2;
+			while (*p) {
+				if (seg)
+					seg <<= 4;
+				if (*p >= 'A' && *p <= 'F')
+					seg += *p - 'A' + 0x0a;
+				else if (*p >= 'a' && *p <= 'f')
+					seg += *p - 'a' + 0x0a;
+				else if (*p >= '0' && *p <= '9')
+					seg += *p - '0';
+				else
+					goto invalid_value;
+				if (seg > 0xffff) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""Invalid value(over 0xffff) for ""
+					    ""option ``%s''"", key);
+					return (ARCHIVE_FATAL);
+				}
+				p++;
+			}
+			iso9660->el_torito.boot_load_seg = (uint16_t)seg;
+			iso9660->opt.boot_load_seg = 1;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-size"") == 0) {
+			int num = 0;
+			r = get_num_opt(a, &num, 0xffff, 1, key, value);
+			iso9660->opt.boot_load_size = r == ARCHIVE_OK;
+			if (r != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->el_torito.boot_load_size = (uint16_t)num;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-type"") == 0) {
+			if (value == NULL)
+				goto invalid_value;
+			if (strcmp(value, ""no-emulation"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_NO_EMU;
+			else if (strcmp(value, ""fd"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_FD;
+			else if (strcmp(value, ""hard-disk"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_HARD_DISK;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, ""compression-level"") == 0) {
+#ifdef HAVE_ZLIB_H
+			if (value == NULL ||
+			    !(value[0] >= '0' && value[0] <= '9') ||
+			    value[1] != '\0')
+				goto invalid_value;
+                	iso9660->zisofs.compression_level = value[0] - '0';
+			iso9660->opt.compression_level = 1;
+                	return (ARCHIVE_OK);
+#else
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Option ``%s'' ""
+			    ""is not supported on this platform."", key);
+			return (ARCHIVE_FATAL);
+#endif
+		}
+		if (strcmp(key, ""copyright-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->copyright_file_identifier),
+			    COPYRIGHT_FILE_SIZE, key, value);
+			iso9660->opt.copyright_file = r == ARCHIVE_OK;
+			return (r);
+		}
+#ifdef DEBUG
+		/* Specifies Volume creation date and time;
+		 * year(4),month(2),day(2),hour(2),minute(2),second(2).
+		 * e.g. ""20090929033757""
+		 */
+		if (strcmp(key, ""creation"") == 0) {
+			struct tm tm;
+			char buf[5];
+
+			p = value;
+			if (p == NULL || strlen(p) < 14)
+				goto invalid_value;
+			memset(&tm, 0, sizeof(tm));
+			memcpy(buf, p, 4); buf[4] = '\0'; p += 4;
+			tm.tm_year = strtol(buf, NULL, 10) - 1900;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mon = strtol(buf, NULL, 10) - 1;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mday = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_hour = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_min = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0';
+			tm.tm_sec = strtol(buf, NULL, 10);
+			iso9660->birth_time = mktime(&tm);
+			return (ARCHIVE_OK);
+		}
+#endif
+		break;
+	case 'i':
+		if (strcmp(key, ""iso-level"") == 0) {
+			if (value != NULL && value[1] == '\0' &&
+			    (value[0] >= '1' && value[0] <= '4')) {
+				iso9660->opt.iso_level = value[0]-'0';
+				return (ARCHIVE_OK);
+			}
+			goto invalid_value;
+		}
+		break;
+	case 'j':
+		if (strcmp(key, ""joliet"") == 0) {
+			if (value == NULL)
+				iso9660->opt.joliet = OPT_JOLIET_DISABLE;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_ENABLE;
+			else if (strcmp(value, ""long"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_LONGNAME;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'l':
+		if (strcmp(key, ""limit-depth"") == 0) {
+			iso9660->opt.limit_depth = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""limit-dirs"") == 0) {
+			iso9660->opt.limit_dirs = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, ""pad"") == 0) {
+			iso9660->opt.pad = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""publisher"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->publisher_identifier),
+			    PUBLISHER_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.publisher = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'r':
+		if (strcmp(key, ""rockridge"") == 0 ||
+		    strcmp(key, ""Rockridge"") == 0) {
+			if (value == NULL)
+				iso9660->opt.rr = OPT_RR_DISABLED;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else if (strcmp(value, ""strict"") == 0)
+				iso9660->opt.rr = OPT_RR_STRICT;
+			else if (strcmp(value, ""useful"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'v':
+		if (strcmp(key, ""volume-id"") == 0) {
+			r = get_str_opt(a, &(iso9660->volume_identifier),
+			    VOLUME_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.volume_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'z':
+		if (strcmp(key, ""zisofs"") == 0) {
+			if (value == NULL)
+				iso9660->opt.zisofs = OPT_ZISOFS_DISABLED;
+			else {
+#ifdef HAVE_ZLIB_H
+				iso9660->opt.zisofs = OPT_ZISOFS_DIRECT;
+#else
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""``zisofs'' ""
+				    ""is not supported on this platform."");
+				return (ARCHIVE_FATAL);
+#endif
+			}
+			return (ARCHIVE_OK);
+		}
+		break;
+	}
+
+	/* Note: The ""warn"" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+
+invalid_value:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    ""Invalid value for option ``%s''"", key);
+	return (ARCHIVE_FAILED);
+}",248
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1515,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    ""Invalid value for option ``%s''"", key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_682.cpp,"{
+	struct iso9660 *iso9660 = a->format_data;
+	const char *p;
+	int r;
+
+	switch (key[0]) {
+	case 'a':
+		if (strcmp(key, ""abstract-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->abstract_file_identifier),
+			    ABSTRACT_FILE_SIZE, key, value);
+			iso9660->opt.abstract_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""application-id"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->application_identifier),
+			    APPLICATION_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.application_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""allow-vernum"") == 0) {
+			iso9660->opt.allow_vernum = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'b':
+		if (strcmp(key, ""biblio-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->bibliographic_file_identifier),
+			    BIBLIO_FILE_SIZE, key, value);
+			iso9660->opt.biblio_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot"") == 0) {
+			if (value == NULL)
+				iso9660->opt.boot = 0;
+			else {
+				iso9660->opt.boot = 1;
+				archive_strcpy(
+				    &(iso9660->el_torito.boot_filename),
+				    value);
+			}
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-catalog"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->el_torito.catalog_filename),
+			    1024, key, value);
+			iso9660->opt.boot_catalog = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot-info-table"") == 0) {
+			iso9660->opt.boot_info_table = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-seg"") == 0) {
+			uint32_t seg;
+
+			iso9660->opt.boot_load_seg = 0;
+			if (value == NULL)
+				goto invalid_value;
+			seg = 0;
+			p = value;
+			if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X'))
+				p += 2;
+			while (*p) {
+				if (seg)
+					seg <<= 4;
+				if (*p >= 'A' && *p <= 'F')
+					seg += *p - 'A' + 0x0a;
+				else if (*p >= 'a' && *p <= 'f')
+					seg += *p - 'a' + 0x0a;
+				else if (*p >= '0' && *p <= '9')
+					seg += *p - '0';
+				else
+					goto invalid_value;
+				if (seg > 0xffff) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""Invalid value(over 0xffff) for ""
+					    ""option ``%s''"", key);
+					return (ARCHIVE_FATAL);
+				}
+				p++;
+			}
+			iso9660->el_torito.boot_load_seg = (uint16_t)seg;
+			iso9660->opt.boot_load_seg = 1;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-size"") == 0) {
+			int num = 0;
+			r = get_num_opt(a, &num, 0xffff, 1, key, value);
+			iso9660->opt.boot_load_size = r == ARCHIVE_OK;
+			if (r != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->el_torito.boot_load_size = (uint16_t)num;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-type"") == 0) {
+			if (value == NULL)
+				goto invalid_value;
+			if (strcmp(value, ""no-emulation"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_NO_EMU;
+			else if (strcmp(value, ""fd"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_FD;
+			else if (strcmp(value, ""hard-disk"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_HARD_DISK;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, ""compression-level"") == 0) {
+#ifdef HAVE_ZLIB_H
+			if (value == NULL ||
+			    !(value[0] >= '0' && value[0] <= '9') ||
+			    value[1] != '\0')
+				goto invalid_value;
+                	iso9660->zisofs.compression_level = value[0] - '0';
+			iso9660->opt.compression_level = 1;
+                	return (ARCHIVE_OK);
+#else
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Option ``%s'' ""
+			    ""is not supported on this platform."", key);
+			return (ARCHIVE_FATAL);
+#endif
+		}
+		if (strcmp(key, ""copyright-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->copyright_file_identifier),
+			    COPYRIGHT_FILE_SIZE, key, value);
+			iso9660->opt.copyright_file = r == ARCHIVE_OK;
+			return (r);
+		}
+#ifdef DEBUG
+		/* Specifies Volume creation date and time;
+		 * year(4),month(2),day(2),hour(2),minute(2),second(2).
+		 * e.g. ""20090929033757""
+		 */
+		if (strcmp(key, ""creation"") == 0) {
+			struct tm tm;
+			char buf[5];
+
+			p = value;
+			if (p == NULL || strlen(p) < 14)
+				goto invalid_value;
+			memset(&tm, 0, sizeof(tm));
+			memcpy(buf, p, 4); buf[4] = '\0'; p += 4;
+			tm.tm_year = strtol(buf, NULL, 10) - 1900;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mon = strtol(buf, NULL, 10) - 1;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mday = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_hour = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_min = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0';
+			tm.tm_sec = strtol(buf, NULL, 10);
+			iso9660->birth_time = mktime(&tm);
+			return (ARCHIVE_OK);
+		}
+#endif
+		break;
+	case 'i':
+		if (strcmp(key, ""iso-level"") == 0) {
+			if (value != NULL && value[1] == '\0' &&
+			    (value[0] >= '1' && value[0] <= '4')) {
+				iso9660->opt.iso_level = value[0]-'0';
+				return (ARCHIVE_OK);
+			}
+			goto invalid_value;
+		}
+		break;
+	case 'j':
+		if (strcmp(key, ""joliet"") == 0) {
+			if (value == NULL)
+				iso9660->opt.joliet = OPT_JOLIET_DISABLE;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_ENABLE;
+			else if (strcmp(value, ""long"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_LONGNAME;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'l':
+		if (strcmp(key, ""limit-depth"") == 0) {
+			iso9660->opt.limit_depth = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""limit-dirs"") == 0) {
+			iso9660->opt.limit_dirs = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, ""pad"") == 0) {
+			iso9660->opt.pad = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""publisher"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->publisher_identifier),
+			    PUBLISHER_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.publisher = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'r':
+		if (strcmp(key, ""rockridge"") == 0 ||
+		    strcmp(key, ""Rockridge"") == 0) {
+			if (value == NULL)
+				iso9660->opt.rr = OPT_RR_DISABLED;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else if (strcmp(value, ""strict"") == 0)
+				iso9660->opt.rr = OPT_RR_STRICT;
+			else if (strcmp(value, ""useful"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'v':
+		if (strcmp(key, ""volume-id"") == 0) {
+			r = get_str_opt(a, &(iso9660->volume_identifier),
+			    VOLUME_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.volume_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'z':
+		if (strcmp(key, ""zisofs"") == 0) {
+			if (value == NULL)
+				iso9660->opt.zisofs = OPT_ZISOFS_DISABLED;
+			else {
+#ifdef HAVE_ZLIB_H
+				iso9660->opt.zisofs = OPT_ZISOFS_DIRECT;
+#else
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""``zisofs'' ""
+				    ""is not supported on this platform."");
+				return (ARCHIVE_FATAL);
+#endif
+			}
+			return (ARCHIVE_OK);
+		}
+		break;
+	}
+
+	/* Note: The ""warn"" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+
+invalid_value:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    ""Invalid value for option ``%s''"", key);
+	return (ARCHIVE_FAILED);
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_682.cpp,"[46, 1, 0, 0, 10, 0, 28, 1, 10, 0, 55, 1, 9, 0, 1, 549, 0, 0, 7, 7, 0, 0, 2, 160, 0, 0, 0, 0, 2, 0, 59, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 360, 0, 350, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 19, 0, 48, 46, 8, 0, 60, 0, 0, 81, 9, 162, 8, 0, 0, 0, 0, 0]","static int
+iso9660_options(struct archive_write *a, const char *key, const char *value)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	const char *p;
+	int r;
+
+	switch (key[0]) {
+	case 'a':
+		if (strcmp(key, ""abstract-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->abstract_file_identifier),
+			    ABSTRACT_FILE_SIZE, key, value);
+			iso9660->opt.abstract_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""application-id"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->application_identifier),
+			    APPLICATION_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.application_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""allow-vernum"") == 0) {
+			iso9660->opt.allow_vernum = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'b':
+		if (strcmp(key, ""biblio-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->bibliographic_file_identifier),
+			    BIBLIO_FILE_SIZE, key, value);
+			iso9660->opt.biblio_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot"") == 0) {
+			if (value == NULL)
+				iso9660->opt.boot = 0;
+			else {
+				iso9660->opt.boot = 1;
+				archive_strcpy(
+				    &(iso9660->el_torito.boot_filename),
+				    value);
+			}
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-catalog"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->el_torito.catalog_filename),
+			    1024, key, value);
+			iso9660->opt.boot_catalog = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, ""boot-info-table"") == 0) {
+			iso9660->opt.boot_info_table = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-seg"") == 0) {
+			uint32_t seg;
+
+			iso9660->opt.boot_load_seg = 0;
+			if (value == NULL)
+				goto invalid_value;
+			seg = 0;
+			p = value;
+			if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X'))
+				p += 2;
+			while (*p) {
+				if (seg)
+					seg <<= 4;
+				if (*p >= 'A' && *p <= 'F')
+					seg += *p - 'A' + 0x0a;
+				else if (*p >= 'a' && *p <= 'f')
+					seg += *p - 'a' + 0x0a;
+				else if (*p >= '0' && *p <= '9')
+					seg += *p - '0';
+				else
+					goto invalid_value;
+				if (seg > 0xffff) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    ""Invalid value(over 0xffff) for ""
+					    ""option ``%s''"", key);
+					return (ARCHIVE_FATAL);
+				}
+				p++;
+			}
+			iso9660->el_torito.boot_load_seg = (uint16_t)seg;
+			iso9660->opt.boot_load_seg = 1;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-load-size"") == 0) {
+			int num = 0;
+			r = get_num_opt(a, &num, 0xffff, 1, key, value);
+			iso9660->opt.boot_load_size = r == ARCHIVE_OK;
+			if (r != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->el_torito.boot_load_size = (uint16_t)num;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""boot-type"") == 0) {
+			if (value == NULL)
+				goto invalid_value;
+			if (strcmp(value, ""no-emulation"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_NO_EMU;
+			else if (strcmp(value, ""fd"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_FD;
+			else if (strcmp(value, ""hard-disk"") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_HARD_DISK;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, ""compression-level"") == 0) {
+#ifdef HAVE_ZLIB_H
+			if (value == NULL ||
+			    !(value[0] >= '0' && value[0] <= '9') ||
+			    value[1] != '\0')
+				goto invalid_value;
+                	iso9660->zisofs.compression_level = value[0] - '0';
+			iso9660->opt.compression_level = 1;
+                	return (ARCHIVE_OK);
+#else
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Option ``%s'' ""
+			    ""is not supported on this platform."", key);
+			return (ARCHIVE_FATAL);
+#endif
+		}
+		if (strcmp(key, ""copyright-file"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->copyright_file_identifier),
+			    COPYRIGHT_FILE_SIZE, key, value);
+			iso9660->opt.copyright_file = r == ARCHIVE_OK;
+			return (r);
+		}
+#ifdef DEBUG
+		/* Specifies Volume creation date and time;
+		 * year(4),month(2),day(2),hour(2),minute(2),second(2).
+		 * e.g. ""20090929033757""
+		 */
+		if (strcmp(key, ""creation"") == 0) {
+			struct tm tm;
+			char buf[5];
+
+			p = value;
+			if (p == NULL || strlen(p) < 14)
+				goto invalid_value;
+			memset(&tm, 0, sizeof(tm));
+			memcpy(buf, p, 4); buf[4] = '\0'; p += 4;
+			tm.tm_year = strtol(buf, NULL, 10) - 1900;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mon = strtol(buf, NULL, 10) - 1;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mday = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_hour = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_min = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0';
+			tm.tm_sec = strtol(buf, NULL, 10);
+			iso9660->birth_time = mktime(&tm);
+			return (ARCHIVE_OK);
+		}
+#endif
+		break;
+	case 'i':
+		if (strcmp(key, ""iso-level"") == 0) {
+			if (value != NULL && value[1] == '\0' &&
+			    (value[0] >= '1' && value[0] <= '4')) {
+				iso9660->opt.iso_level = value[0]-'0';
+				return (ARCHIVE_OK);
+			}
+			goto invalid_value;
+		}
+		break;
+	case 'j':
+		if (strcmp(key, ""joliet"") == 0) {
+			if (value == NULL)
+				iso9660->opt.joliet = OPT_JOLIET_DISABLE;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_ENABLE;
+			else if (strcmp(value, ""long"") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_LONGNAME;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'l':
+		if (strcmp(key, ""limit-depth"") == 0) {
+			iso9660->opt.limit_depth = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""limit-dirs"") == 0) {
+			iso9660->opt.limit_dirs = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, ""pad"") == 0) {
+			iso9660->opt.pad = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, ""publisher"") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->publisher_identifier),
+			    PUBLISHER_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.publisher = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'r':
+		if (strcmp(key, ""rockridge"") == 0 ||
+		    strcmp(key, ""Rockridge"") == 0) {
+			if (value == NULL)
+				iso9660->opt.rr = OPT_RR_DISABLED;
+			else if (strcmp(value, ""1"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else if (strcmp(value, ""strict"") == 0)
+				iso9660->opt.rr = OPT_RR_STRICT;
+			else if (strcmp(value, ""useful"") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'v':
+		if (strcmp(key, ""volume-id"") == 0) {
+			r = get_str_opt(a, &(iso9660->volume_identifier),
+			    VOLUME_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.volume_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'z':
+		if (strcmp(key, ""zisofs"") == 0) {
+			if (value == NULL)
+				iso9660->opt.zisofs = OPT_ZISOFS_DISABLED;
+			else {
+#ifdef HAVE_ZLIB_H
+				iso9660->opt.zisofs = OPT_ZISOFS_DIRECT;
+#else
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""``zisofs'' ""
+				    ""is not supported on this platform."");
+				return (ARCHIVE_FATAL);
+#endif
+			}
+			return (ARCHIVE_OK);
+		}
+		break;
+	}
+
+	/* Note: The ""warn"" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+
+invalid_value:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    ""Invalid value for option ``%s''"", key);
+	return (ARCHIVE_FAILED);
+}",266
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1535,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Ignore symlink file."");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_683.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Ignore symlink file."");
+		iso9660->cur_file = NULL;
+		return (ARCHIVE_WARN);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_683.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+iso9660_write_header(struct archive_write *a, struct archive_entry *entry)
+{
+	struct iso9660 *iso9660;
+	struct isofile *file;
+	struct isoent *isoent;
+	int r, ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	iso9660->cur_file = NULL;
+	iso9660->bytes_remaining = 0;
+	iso9660->need_multi_extent = 0;
+	if (archive_entry_filetype(entry) == AE_IFLNK
+	    && iso9660->opt.rr == OPT_RR_DISABLED) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Ignore symlink file."");
+		iso9660->cur_file = NULL;
+		return (ARCHIVE_WARN);
+	}
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) >= MULTI_EXTENT_SIZE) {
+		if (iso9660->opt.iso_level < 3) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Ignore over %lld bytes file. ""
+			    ""This file too large."",
+			    MULTI_EXTENT_SIZE);
+				iso9660->cur_file = NULL;
+			return (ARCHIVE_WARN);
+		}
+		iso9660->need_multi_extent = 1;
+	}
+
+	file = isofile_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	r = isofile_gen_utility_names(a, file);
+	if (r < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (r);
+	}
+	else if (r < ret)
+		ret = r;
+
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an ISO image.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		isofile_free(file);
+		return (r);
+	}
+
+	isofile_add_entry(iso9660, file);
+	isoent = isoent_new(file);
+	if (isoent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	if (isoent->file->dircnt > iso9660->dircnt_max)
+		iso9660->dircnt_max = isoent->file->dircnt;
+
+	/* Add the current file into tree */
+	r = isoent_tree(a, &isoent);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/* If there is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (isoent->file != file)
+		return (ARCHIVE_OK);
+
+	/* Non regular files contents are unneeded to be saved to
+	 * temporary files. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (ret);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	iso9660->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = isofile_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (iso9660->temp_fd < 0) {
+		iso9660->temp_fd = __archive_mktemp(NULL);
+		if (iso9660->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    ""Couldn't create temporary file"");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/* Save an offset of current file in temporary file. */
+	file->content.offset_of_temp = wb_offset(a);
+	file->cur_content = &(file->content);
+	r = zisofs_init(a, file);
+	if (r < ret)
+		ret = r;
+	iso9660->bytes_remaining =  archive_entry_size(file->entry);
+
+	return (ret);
+}",15
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1543,"archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Ignore over %lld bytes file. ""
+			    ""This file too large."",
+			    MULTI_EXTENT_SIZE);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_684.cpp,"{
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Ignore over %lld bytes file. ""
+			    ""This file too large."",
+			    MULTI_EXTENT_SIZE);
+				iso9660->cur_file = NULL;
+			return (ARCHIVE_WARN);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_684.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0]","static int
+iso9660_write_header(struct archive_write *a, struct archive_entry *entry)
+{
+	struct iso9660 *iso9660;
+	struct isofile *file;
+	struct isoent *isoent;
+	int r, ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	iso9660->cur_file = NULL;
+	iso9660->bytes_remaining = 0;
+	iso9660->need_multi_extent = 0;
+	if (archive_entry_filetype(entry) == AE_IFLNK
+	    && iso9660->opt.rr == OPT_RR_DISABLED) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Ignore symlink file."");
+		iso9660->cur_file = NULL;
+		return (ARCHIVE_WARN);
+	}
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) >= MULTI_EXTENT_SIZE) {
+		if (iso9660->opt.iso_level < 3) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Ignore over %lld bytes file. ""
+			    ""This file too large."",
+			    MULTI_EXTENT_SIZE);
+				iso9660->cur_file = NULL;
+			return (ARCHIVE_WARN);
+		}
+		iso9660->need_multi_extent = 1;
+	}
+
+	file = isofile_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	r = isofile_gen_utility_names(a, file);
+	if (r < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (r);
+	}
+	else if (r < ret)
+		ret = r;
+
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an ISO image.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		isofile_free(file);
+		return (r);
+	}
+
+	isofile_add_entry(iso9660, file);
+	isoent = isoent_new(file);
+	if (isoent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	if (isoent->file->dircnt > iso9660->dircnt_max)
+		iso9660->dircnt_max = isoent->file->dircnt;
+
+	/* Add the current file into tree */
+	r = isoent_tree(a, &isoent);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/* If there is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (isoent->file != file)
+		return (ARCHIVE_OK);
+
+	/* Non regular files contents are unneeded to be saved to
+	 * temporary files. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (ret);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	iso9660->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = isofile_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (iso9660->temp_fd < 0) {
+		iso9660->temp_fd = __archive_mktemp(NULL);
+		if (iso9660->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    ""Couldn't create temporary file"");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/* Save an offset of current file in temporary file. */
+	file->content.offset_of_temp = wb_offset(a);
+	file->cur_content = &(file->content);
+	r = zisofs_init(a, file);
+	if (r < ret)
+		ret = r;
+	iso9660->bytes_remaining =  archive_entry_size(file->entry);
+
+	return (ret);
+}",23
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1556,"archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_685.cpp,"{
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_685.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+iso9660_write_header(struct archive_write *a, struct archive_entry *entry)
+{
+	struct iso9660 *iso9660;
+	struct isofile *file;
+	struct isoent *isoent;
+	int r, ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	iso9660->cur_file = NULL;
+	iso9660->bytes_remaining = 0;
+	iso9660->need_multi_extent = 0;
+	if (archive_entry_filetype(entry) == AE_IFLNK
+	    && iso9660->opt.rr == OPT_RR_DISABLED) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Ignore symlink file."");
+		iso9660->cur_file = NULL;
+		return (ARCHIVE_WARN);
+	}
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) >= MULTI_EXTENT_SIZE) {
+		if (iso9660->opt.iso_level < 3) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Ignore over %lld bytes file. ""
+			    ""This file too large."",
+			    MULTI_EXTENT_SIZE);
+				iso9660->cur_file = NULL;
+			return (ARCHIVE_WARN);
+		}
+		iso9660->need_multi_extent = 1;
+	}
+
+	file = isofile_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	r = isofile_gen_utility_names(a, file);
+	if (r < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (r);
+	}
+	else if (r < ret)
+		ret = r;
+
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an ISO image.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		isofile_free(file);
+		return (r);
+	}
+
+	isofile_add_entry(iso9660, file);
+	isoent = isoent_new(file);
+	if (isoent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	if (isoent->file->dircnt > iso9660->dircnt_max)
+		iso9660->dircnt_max = isoent->file->dircnt;
+
+	/* Add the current file into tree */
+	r = isoent_tree(a, &isoent);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/* If there is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (isoent->file != file)
+		return (ARCHIVE_OK);
+
+	/* Non regular files contents are unneeded to be saved to
+	 * temporary files. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (ret);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	iso9660->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = isofile_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (iso9660->temp_fd < 0) {
+		iso9660->temp_fd = __archive_mktemp(NULL);
+		if (iso9660->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    ""Couldn't create temporary file"");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/* Save an offset of current file in temporary file. */
+	file->content.offset_of_temp = wb_offset(a);
+	file->cur_content = &(file->content);
+	r = zisofs_init(a, file);
+	if (r < ret)
+		ret = r;
+	iso9660->bytes_remaining =  archive_entry_size(file->entry);
+
+	return (ret);
+}",36
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1581,"archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_686.cpp,"{
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_686.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+iso9660_write_header(struct archive_write *a, struct archive_entry *entry)
+{
+	struct iso9660 *iso9660;
+	struct isofile *file;
+	struct isoent *isoent;
+	int r, ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	iso9660->cur_file = NULL;
+	iso9660->bytes_remaining = 0;
+	iso9660->need_multi_extent = 0;
+	if (archive_entry_filetype(entry) == AE_IFLNK
+	    && iso9660->opt.rr == OPT_RR_DISABLED) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Ignore symlink file."");
+		iso9660->cur_file = NULL;
+		return (ARCHIVE_WARN);
+	}
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) >= MULTI_EXTENT_SIZE) {
+		if (iso9660->opt.iso_level < 3) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Ignore over %lld bytes file. ""
+			    ""This file too large."",
+			    MULTI_EXTENT_SIZE);
+				iso9660->cur_file = NULL;
+			return (ARCHIVE_WARN);
+		}
+		iso9660->need_multi_extent = 1;
+	}
+
+	file = isofile_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	r = isofile_gen_utility_names(a, file);
+	if (r < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (r);
+	}
+	else if (r < ret)
+		ret = r;
+
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an ISO image.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		isofile_free(file);
+		return (r);
+	}
+
+	isofile_add_entry(iso9660, file);
+	isoent = isoent_new(file);
+	if (isoent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	if (isoent->file->dircnt > iso9660->dircnt_max)
+		iso9660->dircnt_max = isoent->file->dircnt;
+
+	/* Add the current file into tree */
+	r = isoent_tree(a, &isoent);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/* If there is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (isoent->file != file)
+		return (ARCHIVE_OK);
+
+	/* Non regular files contents are unneeded to be saved to
+	 * temporary files. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (ret);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	iso9660->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = isofile_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (iso9660->temp_fd < 0) {
+		iso9660->temp_fd = __archive_mktemp(NULL);
+		if (iso9660->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    ""Couldn't create temporary file"");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/* Save an offset of current file in temporary file. */
+	file->content.offset_of_temp = wb_offset(a);
+	file->cur_content = &(file->content);
+	r = zisofs_init(a, file);
+	if (r < ret)
+		ret = r;
+	iso9660->bytes_remaining =  archive_entry_size(file->entry);
+
+	return (ret);
+}",61
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1621,"archive_set_error(&a->archive, errno,
+			    ""Couldn't create temporary file"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_687.cpp,"{
+			archive_set_error(&a->archive, errno,
+			    ""Couldn't create temporary file"");
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_687.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+iso9660_write_header(struct archive_write *a, struct archive_entry *entry)
+{
+	struct iso9660 *iso9660;
+	struct isofile *file;
+	struct isoent *isoent;
+	int r, ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	iso9660->cur_file = NULL;
+	iso9660->bytes_remaining = 0;
+	iso9660->need_multi_extent = 0;
+	if (archive_entry_filetype(entry) == AE_IFLNK
+	    && iso9660->opt.rr == OPT_RR_DISABLED) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Ignore symlink file."");
+		iso9660->cur_file = NULL;
+		return (ARCHIVE_WARN);
+	}
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) >= MULTI_EXTENT_SIZE) {
+		if (iso9660->opt.iso_level < 3) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""Ignore over %lld bytes file. ""
+			    ""This file too large."",
+			    MULTI_EXTENT_SIZE);
+				iso9660->cur_file = NULL;
+			return (ARCHIVE_WARN);
+		}
+		iso9660->need_multi_extent = 1;
+	}
+
+	file = isofile_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	r = isofile_gen_utility_names(a, file);
+	if (r < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (r);
+	}
+	else if (r < ret)
+		ret = r;
+
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an ISO image.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		isofile_free(file);
+		return (r);
+	}
+
+	isofile_add_entry(iso9660, file);
+	isoent = isoent_new(file);
+	if (isoent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate data"");
+		return (ARCHIVE_FATAL);
+	}
+	if (isoent->file->dircnt > iso9660->dircnt_max)
+		iso9660->dircnt_max = isoent->file->dircnt;
+
+	/* Add the current file into tree */
+	r = isoent_tree(a, &isoent);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/* If there is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (isoent->file != file)
+		return (ARCHIVE_OK);
+
+	/* Non regular files contents are unneeded to be saved to
+	 * temporary files. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (ret);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	iso9660->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = isofile_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (iso9660->temp_fd < 0) {
+		iso9660->temp_fd = __archive_mktemp(NULL);
+		if (iso9660->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    ""Couldn't create temporary file"");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/* Save an offset of current file in temporary file. */
+	file->content.offset_of_temp = wb_offset(a);
+	file->cur_content = &(file->content);
+	r = zisofs_init(a, file);
+	if (r < ret)
+		ret = r;
+	iso9660->bytes_remaining =  archive_entry_size(file->entry);
+
+	return (ret);
+}",101
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1649,"archive_set_error(&a->archive, errno,
+			    ""Can't write to temporary file"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_688.cpp,"{
+			archive_set_error(&a->archive, errno,
+			    ""Can't write to temporary file"");
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_688.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+write_to_temp(struct archive_write *a, const void *buff, size_t s)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	ssize_t written;
+	const unsigned char *b;
+
+	b = (const unsigned char *)buff;
+	while (s) {
+		written = write(iso9660->temp_fd, b, s);
+		if (written < 0) {
+			archive_set_error(&a->archive, errno,
+			    ""Can't write to temporary file"");
+			return (ARCHIVE_FATAL);
+		}
+		s -= written;
+		b += written;
+	}
+	return (ARCHIVE_OK);
+}",11
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1715,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Couldn't create temporary file"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_689.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Couldn't create temporary file"");
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_689.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static ssize_t
+write_iso9660_data(struct archive_write *a, const void *buff, size_t s)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	size_t ws;
+
+	if (iso9660->temp_fd < 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Couldn't create temporary file"");
+		return (ARCHIVE_FATAL);
+	}
+
+	ws = s;
+	if (iso9660->need_multi_extent &&
+	    (iso9660->cur_file->cur_content->size + ws) >=
+	      (MULTI_EXTENT_SIZE - LOGICAL_BLOCK_SIZE)) {
+		struct content *con;
+		size_t ts;
+
+		ts = (size_t)(MULTI_EXTENT_SIZE - LOGICAL_BLOCK_SIZE -
+		    iso9660->cur_file->cur_content->size);
+
+		if (iso9660->zisofs.detect_magic)
+			zisofs_detect_magic(a, buff, ts);
+
+		if (iso9660->zisofs.making) {
+			if (zisofs_write_to_temp(a, buff, ts) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		} else {
+			if (wb_write_to_temp(a, buff, ts) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->cur_file->cur_content->size += ts;
+		}
+
+		/* Write padding. */
+		if (wb_write_padding_to_temp(a,
+		    iso9660->cur_file->cur_content->size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+
+		/* Compute the logical block number. */
+		iso9660->cur_file->cur_content->blocks = (int)
+		    ((iso9660->cur_file->cur_content->size
+		     + LOGICAL_BLOCK_SIZE -1) >> LOGICAL_BLOCK_BITS);
+
+		/*
+		 * Make next extent.
+		 */
+		ws -= ts;
+		buff = (const void *)(((const unsigned char *)buff) + ts);
+		/* Make a content for next extent. */
+		con = calloc(1, sizeof(*con));
+		if (con == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate content data"");
+			return (ARCHIVE_FATAL);
+		}
+		con->offset_of_temp = wb_offset(a);
+		iso9660->cur_file->cur_content->next = con;
+		iso9660->cur_file->cur_content = con;
+#ifdef HAVE_ZLIB_H
+		iso9660->zisofs.block_offset = 0;
+#endif
+	}
+
+	if (iso9660->zisofs.detect_magic)
+		zisofs_detect_magic(a, buff, ws);
+
+	if (iso9660->zisofs.making) {
+		if (zisofs_write_to_temp(a, buff, ws) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	} else {
+		if (wb_write_to_temp(a, buff, ws) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		iso9660->cur_file->cur_content->size += ws;
+	}
+
+	return (s);
+}",7
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,1760,"archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate content data"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_690.cpp,"{
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate content data"");
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_690.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static ssize_t
+write_iso9660_data(struct archive_write *a, const void *buff, size_t s)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	size_t ws;
+
+	if (iso9660->temp_fd < 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Couldn't create temporary file"");
+		return (ARCHIVE_FATAL);
+	}
+
+	ws = s;
+	if (iso9660->need_multi_extent &&
+	    (iso9660->cur_file->cur_content->size + ws) >=
+	      (MULTI_EXTENT_SIZE - LOGICAL_BLOCK_SIZE)) {
+		struct content *con;
+		size_t ts;
+
+		ts = (size_t)(MULTI_EXTENT_SIZE - LOGICAL_BLOCK_SIZE -
+		    iso9660->cur_file->cur_content->size);
+
+		if (iso9660->zisofs.detect_magic)
+			zisofs_detect_magic(a, buff, ts);
+
+		if (iso9660->zisofs.making) {
+			if (zisofs_write_to_temp(a, buff, ts) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		} else {
+			if (wb_write_to_temp(a, buff, ts) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->cur_file->cur_content->size += ts;
+		}
+
+		/* Write padding. */
+		if (wb_write_padding_to_temp(a,
+		    iso9660->cur_file->cur_content->size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+
+		/* Compute the logical block number. */
+		iso9660->cur_file->cur_content->blocks = (int)
+		    ((iso9660->cur_file->cur_content->size
+		     + LOGICAL_BLOCK_SIZE -1) >> LOGICAL_BLOCK_BITS);
+
+		/*
+		 * Make next extent.
+		 */
+		ws -= ts;
+		buff = (const void *)(((const unsigned char *)buff) + ts);
+		/* Make a content for next extent. */
+		con = calloc(1, sizeof(*con));
+		if (con == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate content data"");
+			return (ARCHIVE_FATAL);
+		}
+		con->offset_of_temp = wb_offset(a);
+		iso9660->cur_file->cur_content->next = con;
+		iso9660->cur_file->cur_content = con;
+#ifdef HAVE_ZLIB_H
+		iso9660->zisofs.block_offset = 0;
+#endif
+	}
+
+	if (iso9660->zisofs.detect_magic)
+		zisofs_detect_magic(a, buff, ws);
+
+	if (iso9660->zisofs.making) {
+		if (zisofs_write_to_temp(a, buff, ws) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	} else {
+		if (wb_write_to_temp(a, buff, ws) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		iso9660->cur_file->cur_content->size += ws;
+	}
+
+	return (s);
+}",52
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,2099,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""%s: Directories too deep."",
+		    archive_entry_pathname(
+			iso9660->directories_too_deep->file->entry));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_691.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""%s: Directories too deep."",
+		    archive_entry_pathname(
+			iso9660->directories_too_deep->file->entry));
+		return (ARCHIVE_WARN);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_691.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+iso9660_close(struct archive_write *a)
+{
+	struct iso9660 *iso9660;
+	int ret, blocks;
+
+	iso9660 = a->format_data;
+
+	/*
+	 * Write remaining data out to the temporary file.
+	 */
+	if (wb_remaining(a) > 0) {
+		ret = wb_write_out(a);
+		if (ret < 0)
+			return (ret);
+	}
+
+	/*
+	 * Preparations...
+	 */
+#ifdef DEBUG
+	if (iso9660->birth_time == 0)
+#endif
+		time(&(iso9660->birth_time));
+
+	/*
+	 * Prepare a bootable ISO image.
+	 */
+	if (iso9660->opt.boot) {
+		/* Find out the boot file entry. */
+		ret = isoent_find_out_boot_file(a, iso9660->primary.rootent);
+		if (ret < 0)
+			return (ret);
+		/* Reconvert the boot file from zisofs'ed form to
+		 * plain form. */
+		ret = zisofs_rewind_boot_file(a);
+		if (ret < 0)
+			return (ret);
+		/* Write remaining data out to the temporary file. */
+		if (wb_remaining(a) > 0) {
+			ret = wb_write_out(a);
+			if (ret < 0)
+				return (ret);
+		}
+		/* Create the boot catalog. */
+		ret = isoent_create_boot_catalog(a, iso9660->primary.rootent);
+		if (ret < 0)
+			return (ret);
+	}
+
+	/*
+	 * Prepare joliet extensions.
+	 */
+	if (iso9660->opt.joliet) {
+		/* Make a new tree for joliet. */
+		ret = isoent_clone_tree(a, &(iso9660->joliet.rootent),
+		    iso9660->primary.rootent);
+		if (ret < 0)
+			return (ret);
+		/* Make sure we have UTF-16BE converters.
+		 * if there is no file entry, converters are still
+		 * uninitialized. */
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+	}
+
+	/*
+	 * Make Path Tables.
+	 */
+	ret = isoent_make_path_table(a);
+	if (ret < 0)
+		return (ret);
+
+	/*
+	 * Calculate a total volume size and setup all locations of
+	 * contents of an iso9660 image.
+	 */
+	blocks = SYSTEM_AREA_BLOCK
+		+ PRIMARY_VOLUME_DESCRIPTOR_BLOCK
+		+ VOLUME_DESCRIPTOR_SET_TERMINATOR_BLOCK
+		+ NON_ISO_FILE_SYSTEM_INFORMATION_BLOCK;
+	if (iso9660->opt.boot)
+		blocks += BOOT_RECORD_DESCRIPTOR_BLOCK;
+	if (iso9660->opt.joliet)
+		blocks += SUPPLEMENTARY_VOLUME_DESCRIPTOR_BLOCK;
+	if (iso9660->opt.iso_level == 4)
+		blocks += SUPPLEMENTARY_VOLUME_DESCRIPTOR_BLOCK;
+
+	/* Setup the locations of Path Table. */
+	iso9660->primary.location_type_L_path_table = blocks;
+	blocks += iso9660->primary.path_table_block;
+	iso9660->primary.location_type_M_path_table = blocks;
+	blocks += iso9660->primary.path_table_block;
+	if (iso9660->opt.joliet) {
+		iso9660->joliet.location_type_L_path_table = blocks;
+		blocks += iso9660->joliet.path_table_block;
+		iso9660->joliet.location_type_M_path_table = blocks;
+		blocks += iso9660->joliet.path_table_block;
+	}
+
+	/* Setup the locations of directories. */
+	isoent_setup_directory_location(iso9660, blocks,
+	    &(iso9660->primary));
+	blocks += iso9660->primary.total_dir_block;
+	if (iso9660->opt.joliet) {
+		isoent_setup_directory_location(iso9660, blocks,
+		    &(iso9660->joliet));
+		blocks += iso9660->joliet.total_dir_block;
+	}
+
+	if (iso9660->opt.rr) {
+		iso9660->location_rrip_er = blocks;
+		blocks += RRIP_ER_BLOCK;
+	}
+
+	/* Setup the locations of all file contents. */
+ 	isoent_setup_file_location(iso9660, blocks);
+	blocks += iso9660->total_file_block;
+	if (iso9660->opt.boot && iso9660->opt.boot_info_table) {
+		ret = setup_boot_information(a);
+		if (ret < 0)
+			return (ret);
+	}
+
+	/* Now we have a total volume size. */
+	iso9660->volume_space_size = blocks;
+	if (iso9660->opt.pad)
+		iso9660->volume_space_size += PADDING_BLOCK;
+	iso9660->volume_sequence_number = 1;
+
+
+	/*
+	 * Write an ISO 9660 image.
+	 */
+
+	/* Switch to start using wbuff as file buffer. */
+	iso9660->wbuff_remaining = wb_buffmax();
+	iso9660->wbuff_type = WB_TO_STREAM;
+	iso9660->wbuff_offset = 0;
+	iso9660->wbuff_written = 0;
+	iso9660->wbuff_tail = 0;
+
+	/* Write The System Area */
+	ret = write_null(a, SYSTEM_AREA_BLOCK * LOGICAL_BLOCK_SIZE);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Primary Volume Descriptor */
+	ret = write_VD(a, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	if (iso9660->opt.boot) {
+		/* Write Boot Record Volume Descriptor */
+		ret = write_VD_boot_record(a);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->opt.iso_level == 4) {
+		/* Write Enhanced Volume Descriptor */
+		iso9660->primary.vdd_type = VDD_ENHANCED;
+		ret = write_VD(a, &(iso9660->primary));
+		iso9660->primary.vdd_type = VDD_PRIMARY;
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->opt.joliet) {
+		ret = write_VD(a, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Write Volume Descriptor Set Terminator */
+	ret = write_VD_terminator(a);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Non-ISO File System Information */
+	ret = write_information_block(a);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Type L Path Table */
+	ret = write_path_table(a, 0, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Type M Path Table */
+	ret = write_path_table(a, 1, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	if (iso9660->opt.joliet) {
+		/* Write Type L Path Table */
+		ret = write_path_table(a, 0, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+
+		/* Write Type M Path Table */
+		ret = write_path_table(a, 1, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Write Directory Descriptors */
+	ret = write_directory_descriptors(a, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	if (iso9660->opt.joliet) {
+		ret = write_directory_descriptors(a, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->opt.rr) {
+		/* Write Rockridge ER(Extensions Reference) */
+		ret = write_rr_ER(a);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Write File Descriptors */
+	ret = write_file_descriptors(a);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Padding  */
+	if (iso9660->opt.pad) {
+		ret = write_null(a, PADDING_BLOCK * LOGICAL_BLOCK_SIZE);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->directories_too_deep != NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""%s: Directories too deep."",
+		    archive_entry_pathname(
+			iso9660->directories_too_deep->file->entry));
+		return (ARCHIVE_WARN);
+	}
+
+	/* Write remaining data out. */
+	ret = wb_write_out(a);
+
+	return (ret);
+}",249
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,2248,"archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_692.cpp,"{
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_692.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+set_str_utf16be(struct archive_write *a, unsigned char *p, const char *s,
+    size_t l, uint16_t uf, enum vdc vdc)
+{
+	size_t size, i;
+	int onepad;
+
+	if (s == NULL)
+		s = """";
+	if (l & 0x01) {
+		onepad = 1;
+		l &= ~1;
+	} else
+		onepad = 0;
+	if (vdc == VDC_UCS2) {
+		struct iso9660 *iso9660 = a->format_data;
+		if (archive_strncpy_l(&iso9660->utf16be, s, strlen(s),
+		    iso9660->sconv_to_utf16be) != 0 && errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}
+		size = iso9660->utf16be.length;
+		if (size > l)
+			size = l;
+		memcpy(p, iso9660->utf16be.s, size);
+	} else {
+		const uint16_t *u16 = (const uint16_t *)s;
+
+		size = 0;
+		while (*u16++)
+			size += 2;
+		if (size > l)
+			size = l;
+		memcpy(p, s, size);
+	}
+	for (i = 0; i < size; i += 2, p += 2) {
+		if (!joliet_allowed_char(p[0], p[1]))
+			archive_be16enc(p, 0x005F);/* '_' */
+	}
+	l -= size;
+	while (l > 0) {
+		archive_be16enc(p, uf);
+		p += 2;
+		l -= 2;
+	}
+	if (onepad)
+		*p = 0;
+	return (ARCHIVE_OK);
+}",18
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,3651,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Internal Programing error: iso9660:wb_consume()""
+		    "" size=%jd, wbuff_remaining=%jd"",
+		    (intmax_t)size, (intmax_t)iso9660->wbuff_remaining);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_693.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Internal Programing error: iso9660:wb_consume()""
+		    "" size=%jd, wbuff_remaining=%jd"",
+		    (intmax_t)size, (intmax_t)iso9660->wbuff_remaining);
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_693.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+wb_consume(struct archive_write *a, size_t size)
+{
+	struct iso9660 *iso9660 = (struct iso9660 *)a->format_data;
+
+	if (size > iso9660->wbuff_remaining ||
+	    iso9660->wbuff_remaining == 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Internal Programing error: iso9660:wb_consume()""
+		    "" size=%jd, wbuff_remaining=%jd"",
+		    (intmax_t)size, (intmax_t)iso9660->wbuff_remaining);
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->wbuff_remaining -= size;
+	if (iso9660->wbuff_remaining < LOGICAL_BLOCK_SIZE)
+		return (wb_write_out(a));
+	return (ARCHIVE_OK);
+}",7
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,3672,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Internal Programing error: iso9660:wb_set_offset()"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_694.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Internal Programing error: iso9660:wb_set_offset()"");
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_694.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+wb_set_offset(struct archive_write *a, int64_t off)
+{
+	struct iso9660 *iso9660 = (struct iso9660 *)a->format_data;
+	int64_t used, ext_bytes;
+
+	if (iso9660->wbuff_type != WB_TO_TEMP) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Internal Programing error: iso9660:wb_set_offset()"");
+		return (ARCHIVE_FATAL);
+	}
+
+	used = sizeof(iso9660->wbuff) - iso9660->wbuff_remaining;
+	if (iso9660->wbuff_offset + used > iso9660->wbuff_tail)
+		iso9660->wbuff_tail = iso9660->wbuff_offset + used;
+	if (iso9660->wbuff_offset < iso9660->wbuff_written) {
+		if (used > 0 &&
+		    write_to_temp(a, iso9660->wbuff, (size_t)used) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		iso9660->wbuff_offset = iso9660->wbuff_written;
+		lseek(iso9660->temp_fd, iso9660->wbuff_offset, SEEK_SET);
+		iso9660->wbuff_remaining = sizeof(iso9660->wbuff);
+		used = 0;
+	}
+	if (off < iso9660->wbuff_offset) {
+		/*
+		 * Write out waiting data.
+		 */
+		if (used > 0) {
+			if (wb_write_out(a) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		}
+		lseek(iso9660->temp_fd, off, SEEK_SET);
+		iso9660->wbuff_offset = off;
+		iso9660->wbuff_remaining = sizeof(iso9660->wbuff);
+	} else if (off <= iso9660->wbuff_tail) {
+		iso9660->wbuff_remaining = (size_t)
+		    (sizeof(iso9660->wbuff) - (off - iso9660->wbuff_offset));
+	} else {
+		ext_bytes = off - iso9660->wbuff_tail;
+		iso9660->wbuff_remaining = (size_t)(sizeof(iso9660->wbuff)
+		   - (iso9660->wbuff_tail - iso9660->wbuff_offset));
+		while (ext_bytes >= (int64_t)iso9660->wbuff_remaining) {
+			if (write_null(a, (size_t)iso9660->wbuff_remaining)
+			    != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			ext_bytes -= iso9660->wbuff_remaining;
+		}
+		if (ext_bytes > 0) {
+			if (write_null(a, (size_t)ext_bytes) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		}
+	}
+	return (ARCHIVE_OK);
+}",7
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,3795,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Not Found %s `%s'."",
+			    label, ids);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_695.cpp,"{
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Not Found %s `%s'."",
+			    label, ids);
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_695.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+set_file_identifier(unsigned char *bp, int from, int to, enum vdc vdc,
+    struct archive_write *a, struct vdd *vdd, struct archive_string *id,
+    const char *label, int leading_under, enum char_type char_type)
+{
+	char identifier[256];
+	struct isoent *isoent;
+	const char *ids;
+	size_t len;
+	int r;
+
+	if (id->length > 0 && leading_under && id->s[0] != '_') {
+		if (char_type == A_CHAR)
+			r = set_str_a_characters_bp(a, bp, from, to, id->s, vdc);
+		else
+			r = set_str_d_characters_bp(a, bp, from, to, id->s, vdc);
+	} else if (id->length > 0) {
+		ids = id->s;
+		if (leading_under)
+			ids++;
+		isoent = isoent_find_entry(vdd->rootent, ids);
+		if (isoent == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""Not Found %s `%s'."",
+			    label, ids);
+			return (ARCHIVE_FATAL);
+		}
+		len = isoent->ext_off + isoent->ext_len;
+		if (vdd->vdd_type == VDD_JOLIET) {
+			if (len > sizeof(identifier)-2)
+				len = sizeof(identifier)-2;
+		} else {
+			if (len > sizeof(identifier)-1)
+				len = sizeof(identifier)-1;
+		}
+		memcpy(identifier, isoent->identifier, len);
+		identifier[len] = '\0';
+		if (vdd->vdd_type == VDD_JOLIET) {
+			identifier[len+1] = 0;
+			vdc = VDC_UCS2_DIRECT;
+		}
+		if (char_type == A_CHAR)
+			r = set_str_a_characters_bp(a, bp, from, to,
+			    identifier, vdc);
+		else
+			r = set_str_d_characters_bp(a, bp, from, to,
+			    identifier, vdc);
+	} else {
+		if (char_type == A_CHAR)
+			r = set_str_a_characters_bp(a, bp, from, to, NULL, vdc);
+		else
+			r = set_str_d_characters_bp(a, bp, from, to, NULL, vdc);
+	}
+	return (r);
+}",22
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4023,"archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_696.cpp,"{
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_696.cpp,"[0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 1, 0, 0, 0, 1, 40, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 1, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 8, 0, 0, 8, 0, 28, 0, 0, 0, 0, 0, 0]","static void
+set_option_info(struct archive_string *info, int *opt, const char *key,
+    enum keytype type,  ...)
+{
+	va_list ap;
+	char prefix;
+	const char *s;
+	int d;
+
+	prefix = (*opt==0)? ' ':',';
+	va_start(ap, type);
+	switch (type) {
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}
+	va_end(ap);
+
+	*opt = 1;
+}",14
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4028,"archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_697.cpp,"{
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_697.cpp,"[0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 1, 0, 0, 0, 1, 40, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 1, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 8, 0, 0, 8, 0, 28, 0, 0, 0, 0, 0, 0]","static void
+set_option_info(struct archive_string *info, int *opt, const char *key,
+    enum keytype type,  ...)
+{
+	va_list ap;
+	char prefix;
+	const char *s;
+	int d;
+
+	prefix = (*opt==0)? ' ':',';
+	va_start(ap, type);
+	switch (type) {
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}
+	va_end(ap);
+
+	*opt = 1;
+}",19
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4033,"archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_698.cpp,"{
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_698.cpp,"[0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 1, 0, 0, 0, 1, 40, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 1, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 8, 0, 0, 8, 0, 28, 0, 0, 0, 0, 0, 0]","static void
+set_option_info(struct archive_string *info, int *opt, const char *key,
+    enum keytype type,  ...)
+{
+	va_list ap;
+	char prefix;
+	const char *s;
+	int d;
+
+	prefix = (*opt==0)? ' ':',';
+	va_start(ap, type);
+	switch (type) {
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}
+	va_end(ap);
+
+	*opt = 1;
+}",24
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4038,"archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_699.cpp,"{
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_699.cpp,"[0, 0, 0, 0, 4, 0, 0, 0, 4, 0, 1, 0, 0, 0, 1, 40, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 1, 43, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 8, 0, 0, 8, 0, 28, 0, 0, 0, 0, 0, 0]","static void
+set_option_info(struct archive_string *info, int *opt, const char *key,
+    enum keytype type,  ...)
+{
+	va_list ap;
+	char prefix;
+	const char *s;
+	int d;
+
+	prefix = (*opt==0)? ' ':',';
+	va_start(ap, type);
+	switch (type) {
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s%s"",
+		    prefix, (d == 0)?""!"":"""", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, ""%c%s=%s"",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%d"",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, ""%c%s=%x"",
+		    prefix, key, d);
+		break;
+	}
+	va_end(ap);
+
+	*opt = 1;
+}",29
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4069,"archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_700.cpp,"{
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");
+		return (ARCHIVE_FATAL);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_700.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+write_information_block(struct archive_write *a)
+{
+	struct iso9660 *iso9660;
+	char buf[128];
+	const char *v;
+	int opt, r;
+	struct archive_string info;
+	size_t info_size = LOGICAL_BLOCK_SIZE *
+			       NON_ISO_FILE_SYSTEM_INFORMATION_BLOCK;
+
+	iso9660 = (struct iso9660 *)a->format_data;
+	if (info_size > wb_remaining(a)) {
+		r = wb_write_out(a);
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
+	archive_string_init(&info);
+	if (archive_string_ensure(&info, info_size) == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");
+		return (ARCHIVE_FATAL);
+	}
+	memset(info.s, 0, info_size);
+	opt = 0;
+#if defined(HAVE__CTIME64_S)
+	{
+		__time64_t iso9660_birth_time_tmp = (__time64_t) iso9660->birth_time; //time_t may be shorter than 64 bits
+		_ctime64_s(buf, sizeof(buf), &(iso9660_birth_time_tmp));
+	}
+#elif defined(HAVE_CTIME_R)
+	ctime_r(&(iso9660->birth_time), buf);
+#else
+	strncpy(buf, ctime(&(iso9660->birth_time)), sizeof(buf)-1);
+	buf[sizeof(buf)-1] = '\0';
+#endif
+	archive_string_sprintf(&info,
+	    ""INFO %s%s"", buf, archive_version_string());
+	if (iso9660->opt.abstract_file != OPT_ABSTRACT_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""abstract-file"",
+		    KEY_STR, iso9660->abstract_file_identifier.s);
+	if (iso9660->opt.application_id != OPT_APPLICATION_ID_DEFAULT)
+		set_option_info(&info, &opt, ""application-id"",
+		    KEY_STR, iso9660->application_identifier.s);
+	if (iso9660->opt.allow_vernum != OPT_ALLOW_VERNUM_DEFAULT)
+		set_option_info(&info, &opt, ""allow-vernum"",
+		    KEY_FLG, iso9660->opt.allow_vernum);
+	if (iso9660->opt.biblio_file != OPT_BIBLIO_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""biblio-file"",
+		    KEY_STR, iso9660->bibliographic_file_identifier.s);
+	if (iso9660->opt.boot != OPT_BOOT_DEFAULT)
+		set_option_info(&info, &opt, ""boot"",
+		    KEY_STR, iso9660->el_torito.boot_filename.s);
+	if (iso9660->opt.boot_catalog != OPT_BOOT_CATALOG_DEFAULT)
+		set_option_info(&info, &opt, ""boot-catalog"",
+		    KEY_STR, iso9660->el_torito.catalog_filename.s);
+	if (iso9660->opt.boot_info_table != OPT_BOOT_INFO_TABLE_DEFAULT)
+		set_option_info(&info, &opt, ""boot-info-table"",
+		    KEY_FLG, iso9660->opt.boot_info_table);
+	if (iso9660->opt.boot_load_seg != OPT_BOOT_LOAD_SEG_DEFAULT)
+		set_option_info(&info, &opt, ""boot-load-seg"",
+		    KEY_HEX, iso9660->el_torito.boot_load_seg);
+	if (iso9660->opt.boot_load_size != OPT_BOOT_LOAD_SIZE_DEFAULT)
+		set_option_info(&info, &opt, ""boot-load-size"",
+		    KEY_INT, iso9660->el_torito.boot_load_size);
+	if (iso9660->opt.boot_type != OPT_BOOT_TYPE_DEFAULT) {
+		v = ""no-emulation"";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_FD)
+			v = ""fd"";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_HARD_DISK)
+			v = ""hard-disk"";
+		set_option_info(&info, &opt, ""boot-type"",
+		    KEY_STR, v);
+	}
+#ifdef HAVE_ZLIB_H
+	if (iso9660->opt.compression_level != OPT_COMPRESSION_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, ""compression-level"",
+		    KEY_INT, iso9660->zisofs.compression_level);
+#endif
+	if (iso9660->opt.copyright_file != OPT_COPYRIGHT_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""copyright-file"",
+		    KEY_STR, iso9660->copyright_file_identifier.s);
+	if (iso9660->opt.iso_level != OPT_ISO_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, ""iso-level"",
+		    KEY_INT, iso9660->opt.iso_level);
+	if (iso9660->opt.joliet != OPT_JOLIET_DEFAULT) {
+		if (iso9660->opt.joliet == OPT_JOLIET_LONGNAME)
+			set_option_info(&info, &opt, ""joliet"",
+			    KEY_STR, ""long"");
+		else
+			set_option_info(&info, &opt, ""joliet"",
+			    KEY_FLG, iso9660->opt.joliet);
+	}
+	if (iso9660->opt.limit_depth != OPT_LIMIT_DEPTH_DEFAULT)
+		set_option_info(&info, &opt, ""limit-depth"",
+		    KEY_FLG, iso9660->opt.limit_depth);
+	if (iso9660->opt.limit_dirs != OPT_LIMIT_DIRS_DEFAULT)
+		set_option_info(&info, &opt, ""limit-dirs"",
+		    KEY_FLG, iso9660->opt.limit_dirs);
+	if (iso9660->opt.pad != OPT_PAD_DEFAULT)
+		set_option_info(&info, &opt, ""pad"",
+		    KEY_FLG, iso9660->opt.pad);
+	if (iso9660->opt.publisher != OPT_PUBLISHER_DEFAULT)
+		set_option_info(&info, &opt, ""publisher"",
+		    KEY_STR, iso9660->publisher_identifier.s);
+	if (iso9660->opt.rr != OPT_RR_DEFAULT) {
+		if (iso9660->opt.rr == OPT_RR_DISABLED)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_FLG, iso9660->opt.rr);
+		else if (iso9660->opt.rr == OPT_RR_STRICT)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_STR, ""strict"");
+		else if (iso9660->opt.rr == OPT_RR_USEFUL)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_STR, ""useful"");
+	}
+	if (iso9660->opt.volume_id != OPT_VOLUME_ID_DEFAULT)
+		set_option_info(&info, &opt, ""volume-id"",
+		    KEY_STR, iso9660->volume_identifier.s);
+	if (iso9660->opt.zisofs != OPT_ZISOFS_DEFAULT)
+		set_option_info(&info, &opt, ""zisofs"",
+		    KEY_FLG, iso9660->opt.zisofs);
+
+	memcpy(wb_buffptr(a), info.s, info_size);
+	archive_string_free(&info);
+	return (wb_consume(a, info_size));
+}",19
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4086,"archive_string_sprintf(&info,
+	    ""INFO %s%s"", buf, archive_version_string());",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_701.cpp,"{
+	struct iso9660 *iso9660;
+	char buf[128];
+	const char *v;
+	int opt, r;
+	struct archive_string info;
+	size_t info_size = LOGICAL_BLOCK_SIZE *
+			       NON_ISO_FILE_SYSTEM_INFORMATION_BLOCK;
+
+	iso9660 = (struct iso9660 *)a->format_data;
+	if (info_size > wb_remaining(a)) {
+		r = wb_write_out(a);
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
+	archive_string_init(&info);
+	if (archive_string_ensure(&info, info_size) == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");
+		return (ARCHIVE_FATAL);
+	}
+	memset(info.s, 0, info_size);
+	opt = 0;
+#if defined(HAVE__CTIME64_S)
+	{
+		__time64_t iso9660_birth_time_tmp = (__time64_t) iso9660->birth_time; //time_t may be shorter than 64 bits
+		_ctime64_s(buf, sizeof(buf), &(iso9660_birth_time_tmp));
+	}
+#elif defined(HAVE_CTIME_R)
+	ctime_r(&(iso9660->birth_time), buf);
+#else
+	strncpy(buf, ctime(&(iso9660->birth_time)), sizeof(buf)-1);
+	buf[sizeof(buf)-1] = '\0';
+#endif
+	archive_string_sprintf(&info,
+	    ""INFO %s%s"", buf, archive_version_string());
+	if (iso9660->opt.abstract_file != OPT_ABSTRACT_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""abstract-file"",
+		    KEY_STR, iso9660->abstract_file_identifier.s);
+	if (iso9660->opt.application_id != OPT_APPLICATION_ID_DEFAULT)
+		set_option_info(&info, &opt, ""application-id"",
+		    KEY_STR, iso9660->application_identifier.s);
+	if (iso9660->opt.allow_vernum != OPT_ALLOW_VERNUM_DEFAULT)
+		set_option_info(&info, &opt, ""allow-vernum"",
+		    KEY_FLG, iso9660->opt.allow_vernum);
+	if (iso9660->opt.biblio_file != OPT_BIBLIO_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""biblio-file"",
+		    KEY_STR, iso9660->bibliographic_file_identifier.s);
+	if (iso9660->opt.boot != OPT_BOOT_DEFAULT)
+		set_option_info(&info, &opt, ""boot"",
+		    KEY_STR, iso9660->el_torito.boot_filename.s);
+	if (iso9660->opt.boot_catalog != OPT_BOOT_CATALOG_DEFAULT)
+		set_option_info(&info, &opt, ""boot-catalog"",
+		    KEY_STR, iso9660->el_torito.catalog_filename.s);
+	if (iso9660->opt.boot_info_table != OPT_BOOT_INFO_TABLE_DEFAULT)
+		set_option_info(&info, &opt, ""boot-info-table"",
+		    KEY_FLG, iso9660->opt.boot_info_table);
+	if (iso9660->opt.boot_load_seg != OPT_BOOT_LOAD_SEG_DEFAULT)
+		set_option_info(&info, &opt, ""boot-load-seg"",
+		    KEY_HEX, iso9660->el_torito.boot_load_seg);
+	if (iso9660->opt.boot_load_size != OPT_BOOT_LOAD_SIZE_DEFAULT)
+		set_option_info(&info, &opt, ""boot-load-size"",
+		    KEY_INT, iso9660->el_torito.boot_load_size);
+	if (iso9660->opt.boot_type != OPT_BOOT_TYPE_DEFAULT) {
+		v = ""no-emulation"";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_FD)
+			v = ""fd"";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_HARD_DISK)
+			v = ""hard-disk"";
+		set_option_info(&info, &opt, ""boot-type"",
+		    KEY_STR, v);
+	}
+#ifdef HAVE_ZLIB_H
+	if (iso9660->opt.compression_level != OPT_COMPRESSION_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, ""compression-level"",
+		    KEY_INT, iso9660->zisofs.compression_level);
+#endif
+	if (iso9660->opt.copyright_file != OPT_COPYRIGHT_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""copyright-file"",
+		    KEY_STR, iso9660->copyright_file_identifier.s);
+	if (iso9660->opt.iso_level != OPT_ISO_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, ""iso-level"",
+		    KEY_INT, iso9660->opt.iso_level);
+	if (iso9660->opt.joliet != OPT_JOLIET_DEFAULT) {
+		if (iso9660->opt.joliet == OPT_JOLIET_LONGNAME)
+			set_option_info(&info, &opt, ""joliet"",
+			    KEY_STR, ""long"");
+		else
+			set_option_info(&info, &opt, ""joliet"",
+			    KEY_FLG, iso9660->opt.joliet);
+	}
+	if (iso9660->opt.limit_depth != OPT_LIMIT_DEPTH_DEFAULT)
+		set_option_info(&info, &opt, ""limit-depth"",
+		    KEY_FLG, iso9660->opt.limit_depth);
+	if (iso9660->opt.limit_dirs != OPT_LIMIT_DIRS_DEFAULT)
+		set_option_info(&info, &opt, ""limit-dirs"",
+		    KEY_FLG, iso9660->opt.limit_dirs);
+	if (iso9660->opt.pad != OPT_PAD_DEFAULT)
+		set_option_info(&info, &opt, ""pad"",
+		    KEY_FLG, iso9660->opt.pad);
+	if (iso9660->opt.publisher != OPT_PUBLISHER_DEFAULT)
+		set_option_info(&info, &opt, ""publisher"",
+		    KEY_STR, iso9660->publisher_identifier.s);
+	if (iso9660->opt.rr != OPT_RR_DEFAULT) {
+		if (iso9660->opt.rr == OPT_RR_DISABLED)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_FLG, iso9660->opt.rr);
+		else if (iso9660->opt.rr == OPT_RR_STRICT)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_STR, ""strict"");
+		else if (iso9660->opt.rr == OPT_RR_USEFUL)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_STR, ""useful"");
+	}
+	if (iso9660->opt.volume_id != OPT_VOLUME_ID_DEFAULT)
+		set_option_info(&info, &opt, ""volume-id"",
+		    KEY_STR, iso9660->volume_identifier.s);
+	if (iso9660->opt.zisofs != OPT_ZISOFS_DEFAULT)
+		set_option_info(&info, &opt, ""zisofs"",
+		    KEY_FLG, iso9660->opt.zisofs);
+
+	memcpy(wb_buffptr(a), info.s, info_size);
+	archive_string_free(&info);
+	return (wb_consume(a, info_size));
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_701.cpp,"[31, 0, 0, 0, 0, 0, 3, 0, 0, 0, 33, 0, 0, 0, 1, 415, 0, 0, 7, 8, 0, 0, 2, 38, 0, 0, 0, 0, 2, 0, 42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 216, 0, 235, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 2, 0, 30, 30, 2, 0, 45, 0, 0, 40, 2, 156, 6, 0, 0, 0, 0, 0]","static int
+write_information_block(struct archive_write *a)
+{
+	struct iso9660 *iso9660;
+	char buf[128];
+	const char *v;
+	int opt, r;
+	struct archive_string info;
+	size_t info_size = LOGICAL_BLOCK_SIZE *
+			       NON_ISO_FILE_SYSTEM_INFORMATION_BLOCK;
+
+	iso9660 = (struct iso9660 *)a->format_data;
+	if (info_size > wb_remaining(a)) {
+		r = wb_write_out(a);
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
+	archive_string_init(&info);
+	if (archive_string_ensure(&info, info_size) == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    ""Can't allocate memory"");
+		return (ARCHIVE_FATAL);
+	}
+	memset(info.s, 0, info_size);
+	opt = 0;
+#if defined(HAVE__CTIME64_S)
+	{
+		__time64_t iso9660_birth_time_tmp = (__time64_t) iso9660->birth_time; //time_t may be shorter than 64 bits
+		_ctime64_s(buf, sizeof(buf), &(iso9660_birth_time_tmp));
+	}
+#elif defined(HAVE_CTIME_R)
+	ctime_r(&(iso9660->birth_time), buf);
+#else
+	strncpy(buf, ctime(&(iso9660->birth_time)), sizeof(buf)-1);
+	buf[sizeof(buf)-1] = '\0';
+#endif
+	archive_string_sprintf(&info,
+	    ""INFO %s%s"", buf, archive_version_string());
+	if (iso9660->opt.abstract_file != OPT_ABSTRACT_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""abstract-file"",
+		    KEY_STR, iso9660->abstract_file_identifier.s);
+	if (iso9660->opt.application_id != OPT_APPLICATION_ID_DEFAULT)
+		set_option_info(&info, &opt, ""application-id"",
+		    KEY_STR, iso9660->application_identifier.s);
+	if (iso9660->opt.allow_vernum != OPT_ALLOW_VERNUM_DEFAULT)
+		set_option_info(&info, &opt, ""allow-vernum"",
+		    KEY_FLG, iso9660->opt.allow_vernum);
+	if (iso9660->opt.biblio_file != OPT_BIBLIO_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""biblio-file"",
+		    KEY_STR, iso9660->bibliographic_file_identifier.s);
+	if (iso9660->opt.boot != OPT_BOOT_DEFAULT)
+		set_option_info(&info, &opt, ""boot"",
+		    KEY_STR, iso9660->el_torito.boot_filename.s);
+	if (iso9660->opt.boot_catalog != OPT_BOOT_CATALOG_DEFAULT)
+		set_option_info(&info, &opt, ""boot-catalog"",
+		    KEY_STR, iso9660->el_torito.catalog_filename.s);
+	if (iso9660->opt.boot_info_table != OPT_BOOT_INFO_TABLE_DEFAULT)
+		set_option_info(&info, &opt, ""boot-info-table"",
+		    KEY_FLG, iso9660->opt.boot_info_table);
+	if (iso9660->opt.boot_load_seg != OPT_BOOT_LOAD_SEG_DEFAULT)
+		set_option_info(&info, &opt, ""boot-load-seg"",
+		    KEY_HEX, iso9660->el_torito.boot_load_seg);
+	if (iso9660->opt.boot_load_size != OPT_BOOT_LOAD_SIZE_DEFAULT)
+		set_option_info(&info, &opt, ""boot-load-size"",
+		    KEY_INT, iso9660->el_torito.boot_load_size);
+	if (iso9660->opt.boot_type != OPT_BOOT_TYPE_DEFAULT) {
+		v = ""no-emulation"";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_FD)
+			v = ""fd"";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_HARD_DISK)
+			v = ""hard-disk"";
+		set_option_info(&info, &opt, ""boot-type"",
+		    KEY_STR, v);
+	}
+#ifdef HAVE_ZLIB_H
+	if (iso9660->opt.compression_level != OPT_COMPRESSION_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, ""compression-level"",
+		    KEY_INT, iso9660->zisofs.compression_level);
+#endif
+	if (iso9660->opt.copyright_file != OPT_COPYRIGHT_FILE_DEFAULT)
+		set_option_info(&info, &opt, ""copyright-file"",
+		    KEY_STR, iso9660->copyright_file_identifier.s);
+	if (iso9660->opt.iso_level != OPT_ISO_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, ""iso-level"",
+		    KEY_INT, iso9660->opt.iso_level);
+	if (iso9660->opt.joliet != OPT_JOLIET_DEFAULT) {
+		if (iso9660->opt.joliet == OPT_JOLIET_LONGNAME)
+			set_option_info(&info, &opt, ""joliet"",
+			    KEY_STR, ""long"");
+		else
+			set_option_info(&info, &opt, ""joliet"",
+			    KEY_FLG, iso9660->opt.joliet);
+	}
+	if (iso9660->opt.limit_depth != OPT_LIMIT_DEPTH_DEFAULT)
+		set_option_info(&info, &opt, ""limit-depth"",
+		    KEY_FLG, iso9660->opt.limit_depth);
+	if (iso9660->opt.limit_dirs != OPT_LIMIT_DIRS_DEFAULT)
+		set_option_info(&info, &opt, ""limit-dirs"",
+		    KEY_FLG, iso9660->opt.limit_dirs);
+	if (iso9660->opt.pad != OPT_PAD_DEFAULT)
+		set_option_info(&info, &opt, ""pad"",
+		    KEY_FLG, iso9660->opt.pad);
+	if (iso9660->opt.publisher != OPT_PUBLISHER_DEFAULT)
+		set_option_info(&info, &opt, ""publisher"",
+		    KEY_STR, iso9660->publisher_identifier.s);
+	if (iso9660->opt.rr != OPT_RR_DEFAULT) {
+		if (iso9660->opt.rr == OPT_RR_DISABLED)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_FLG, iso9660->opt.rr);
+		else if (iso9660->opt.rr == OPT_RR_STRICT)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_STR, ""strict"");
+		else if (iso9660->opt.rr == OPT_RR_USEFUL)
+			set_option_info(&info, &opt, ""rockridge"",
+			    KEY_STR, ""useful"");
+	}
+	if (iso9660->opt.volume_id != OPT_VOLUME_ID_DEFAULT)
+		set_option_info(&info, &opt, ""volume-id"",
+		    KEY_STR, iso9660->volume_identifier.s);
+	if (iso9660->opt.zisofs != OPT_ZISOFS_DEFAULT)
+		set_option_info(&info, &opt, ""zisofs"",
+		    KEY_FLG, iso9660->opt.zisofs);
+
+	memcpy(wb_buffptr(a), info.s, info_size);
+	archive_string_free(&info);
+	return (wb_consume(a, info_size));
+}",36
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4497,"archive_set_error(&a->archive, errno,
+			    ""Can't read temporary file(%jd)"", (intmax_t)rs);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_702.cpp,"{
+			archive_set_error(&a->archive, errno,
+			    ""Can't read temporary file(%jd)"", (intmax_t)rs);
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_702.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]","static int
+write_file_contents(struct archive_write *a, int64_t offset, int64_t size)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	int r;
+
+	lseek(iso9660->temp_fd, offset, SEEK_SET);
+
+	while (size) {
+		size_t rsize;
+		ssize_t rs;
+		unsigned char *wb;
+
+		wb = wb_buffptr(a);
+		rsize = wb_remaining(a);
+		if (rsize > (size_t)size)
+			rsize = (size_t)size;
+		rs = read(iso9660->temp_fd, wb, rsize);
+		if (rs <= 0) {
+			archive_set_error(&a->archive, errno,
+			    ""Can't read temporary file(%jd)"", (intmax_t)rs);
+			return (ARCHIVE_FATAL);
+		}
+		size -= rs;
+		r = wb_consume(a, rs);
+		if (r < 0)
+			return (r);
+	}
+	return (ARCHIVE_OK);
+}",19
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4759,"archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_703.cpp,"{
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");
+				return (ARCHIVE_FATAL);
+			}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_703.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+isofile_gen_utility_names(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660;
+	const char *pathname;
+	char *p, *dirname, *slash;
+	size_t len;
+	int ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->basename_utf16));
+	archive_string_empty(&(file->symlink));
+
+	pathname =  archive_entry_pathname(file->entry);
+	if (pathname == NULL || pathname[0] == '\0') {/* virtual root */
+		file->dircnt = 0;
+		return (ret);
+	}
+
+	/*
+	 * Make a UTF-16BE basename if Joliet extension enabled.
+	 */
+	if (iso9660->opt.joliet) {
+		const char *u16, *ulast;
+		size_t u16len, ulen_last;
+
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Convert a filename to UTF-16BE.
+		 */
+		if (0 > archive_entry_pathname_l(file->entry, &u16, &u16len,
+		    iso9660->sconv_to_utf16be)) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""A filename cannot be converted to UTF-16BE;""
+			    ""You should disable making Joliet extension"");
+			ret = ARCHIVE_WARN;
+		}
+
+		/*
+		 * Make sure a path separator is not in the last;
+		 * Remove trailing '/'.
+		 */
+		while (u16len >= 2) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[u16len-2] == 0 &&
+			    (u16[u16len-1] == '/' || u16[u16len-1] == '\\'))
+#else
+			if (u16[u16len-2] == 0 && u16[u16len-1] == '/')
+#endif
+			{
+				u16len -= 2;
+			} else
+				break;
+		}
+
+		/*
+		 * Find a basename in UTF-16BE.
+		 */
+		ulast = u16;
+		u16len >>= 1;
+		ulen_last = u16len;
+		while (u16len > 0) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[0] == 0 && (u16[1] == '/' || u16[1] == '\\'))
+#else
+			if (u16[0] == 0 && u16[1] == '/')
+#endif
+			{
+				ulast = u16 + 2;
+				ulen_last = u16len -1;
+			}
+			u16 += 2;
+			u16len --;
+		}
+		ulen_last <<= 1;
+		if (archive_string_ensure(&(file->basename_utf16),
+		    ulen_last) == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Set UTF-16BE basename.
+		 */
+		memcpy(file->basename_utf16.s, ulast, ulen_last);
+		file->basename_utf16.length = ulen_last;
+	}
+
+	archive_strcpy(&(file->parentdir), pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	if (cleanup_backslash_1(file->parentdir.s) != 0) {
+		const wchar_t *wp = archive_entry_pathname_w(file->entry);
+		struct archive_wstring ws;
+
+		if (wp != NULL) {
+			int r;
+			archive_string_init(&ws);
+			archive_wstrcpy(&ws, wp);
+			cleanup_backslash_2(ws.s);
+			archive_string_empty(&(file->parentdir));
+			r = archive_string_append_from_wcs(&(file->parentdir),
+			    ws.s, ws.length);
+			archive_wstring_free(&ws);
+			if (r < 0 && errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				return (ARCHIVE_FATAL);
+			}
+		}
+	}
+#endif
+
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove ""/"",""/."" and ""/.."" elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		/* Convert symlink name too. */
+		pathname = archive_entry_symlink(file->entry);
+		archive_strcpy(&(file->symlink),  pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+		/*
+		 * Convert a path-separator from '\' to  '/'
+		 */
+		if (archive_strlen(&(file->symlink)) > 0 &&
+		    cleanup_backslash_1(file->symlink.s) != 0) {
+			const wchar_t *wp =
+			    archive_entry_symlink_w(file->entry);
+			struct archive_wstring ws;
+
+			if (wp != NULL) {
+				int r;
+				archive_string_init(&ws);
+				archive_wstrcpy(&ws, wp);
+				cleanup_backslash_2(ws.s);
+				archive_string_empty(&(file->symlink));
+				r = archive_string_append_from_wcs(
+				    &(file->symlink),
+				    ws.s, ws.length);
+				archive_wstring_free(&ws);
+				if (r < 0 && errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory"");
+					return (ARCHIVE_FATAL);
+				}
+			}
+		}
+#endif
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	file->dircnt = 0;
+	for (; *p != '\0'; p++)
+		if (*p == '/') {
+			slash = p;
+			file->dircnt++;
+		}
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		*file->parentdir.s = '\0';
+		return (ret);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	if (archive_entry_filetype(file->entry) == AE_IFDIR)
+		file->dircnt ++;
+	return (ret);
+}",50
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4763,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""A filename cannot be converted to UTF-16BE;""
+			    ""You should disable making Joliet extension"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_704.cpp,"{
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""A filename cannot be converted to UTF-16BE;""
+			    ""You should disable making Joliet extension"");
+			ret = ARCHIVE_WARN;
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_704.cpp,"[1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 15, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 2, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]","static int
+isofile_gen_utility_names(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660;
+	const char *pathname;
+	char *p, *dirname, *slash;
+	size_t len;
+	int ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->basename_utf16));
+	archive_string_empty(&(file->symlink));
+
+	pathname =  archive_entry_pathname(file->entry);
+	if (pathname == NULL || pathname[0] == '\0') {/* virtual root */
+		file->dircnt = 0;
+		return (ret);
+	}
+
+	/*
+	 * Make a UTF-16BE basename if Joliet extension enabled.
+	 */
+	if (iso9660->opt.joliet) {
+		const char *u16, *ulast;
+		size_t u16len, ulen_last;
+
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Convert a filename to UTF-16BE.
+		 */
+		if (0 > archive_entry_pathname_l(file->entry, &u16, &u16len,
+		    iso9660->sconv_to_utf16be)) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""A filename cannot be converted to UTF-16BE;""
+			    ""You should disable making Joliet extension"");
+			ret = ARCHIVE_WARN;
+		}
+
+		/*
+		 * Make sure a path separator is not in the last;
+		 * Remove trailing '/'.
+		 */
+		while (u16len >= 2) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[u16len-2] == 0 &&
+			    (u16[u16len-1] == '/' || u16[u16len-1] == '\\'))
+#else
+			if (u16[u16len-2] == 0 && u16[u16len-1] == '/')
+#endif
+			{
+				u16len -= 2;
+			} else
+				break;
+		}
+
+		/*
+		 * Find a basename in UTF-16BE.
+		 */
+		ulast = u16;
+		u16len >>= 1;
+		ulen_last = u16len;
+		while (u16len > 0) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[0] == 0 && (u16[1] == '/' || u16[1] == '\\'))
+#else
+			if (u16[0] == 0 && u16[1] == '/')
+#endif
+			{
+				ulast = u16 + 2;
+				ulen_last = u16len -1;
+			}
+			u16 += 2;
+			u16len --;
+		}
+		ulen_last <<= 1;
+		if (archive_string_ensure(&(file->basename_utf16),
+		    ulen_last) == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Set UTF-16BE basename.
+		 */
+		memcpy(file->basename_utf16.s, ulast, ulen_last);
+		file->basename_utf16.length = ulen_last;
+	}
+
+	archive_strcpy(&(file->parentdir), pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	if (cleanup_backslash_1(file->parentdir.s) != 0) {
+		const wchar_t *wp = archive_entry_pathname_w(file->entry);
+		struct archive_wstring ws;
+
+		if (wp != NULL) {
+			int r;
+			archive_string_init(&ws);
+			archive_wstrcpy(&ws, wp);
+			cleanup_backslash_2(ws.s);
+			archive_string_empty(&(file->parentdir));
+			r = archive_string_append_from_wcs(&(file->parentdir),
+			    ws.s, ws.length);
+			archive_wstring_free(&ws);
+			if (r < 0 && errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				return (ARCHIVE_FATAL);
+			}
+		}
+	}
+#endif
+
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove ""/"",""/."" and ""/.."" elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		/* Convert symlink name too. */
+		pathname = archive_entry_symlink(file->entry);
+		archive_strcpy(&(file->symlink),  pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+		/*
+		 * Convert a path-separator from '\' to  '/'
+		 */
+		if (archive_strlen(&(file->symlink)) > 0 &&
+		    cleanup_backslash_1(file->symlink.s) != 0) {
+			const wchar_t *wp =
+			    archive_entry_symlink_w(file->entry);
+			struct archive_wstring ws;
+
+			if (wp != NULL) {
+				int r;
+				archive_string_init(&ws);
+				archive_wstrcpy(&ws, wp);
+				cleanup_backslash_2(ws.s);
+				archive_string_empty(&(file->symlink));
+				r = archive_string_append_from_wcs(
+				    &(file->symlink),
+				    ws.s, ws.length);
+				archive_wstring_free(&ws);
+				if (r < 0 && errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory"");
+					return (ARCHIVE_FATAL);
+				}
+			}
+		}
+#endif
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	file->dircnt = 0;
+	for (; *p != '\0'; p++)
+		if (*p == '/') {
+			slash = p;
+			file->dircnt++;
+		}
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		*file->parentdir.s = '\0';
+		return (ret);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	if (archive_entry_filetype(file->entry) == AE_IFDIR)
+		file->dircnt ++;
+	return (ret);
+}",54
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4808,"archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_705.cpp,"{
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_705.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+isofile_gen_utility_names(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660;
+	const char *pathname;
+	char *p, *dirname, *slash;
+	size_t len;
+	int ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->basename_utf16));
+	archive_string_empty(&(file->symlink));
+
+	pathname =  archive_entry_pathname(file->entry);
+	if (pathname == NULL || pathname[0] == '\0') {/* virtual root */
+		file->dircnt = 0;
+		return (ret);
+	}
+
+	/*
+	 * Make a UTF-16BE basename if Joliet extension enabled.
+	 */
+	if (iso9660->opt.joliet) {
+		const char *u16, *ulast;
+		size_t u16len, ulen_last;
+
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Convert a filename to UTF-16BE.
+		 */
+		if (0 > archive_entry_pathname_l(file->entry, &u16, &u16len,
+		    iso9660->sconv_to_utf16be)) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""A filename cannot be converted to UTF-16BE;""
+			    ""You should disable making Joliet extension"");
+			ret = ARCHIVE_WARN;
+		}
+
+		/*
+		 * Make sure a path separator is not in the last;
+		 * Remove trailing '/'.
+		 */
+		while (u16len >= 2) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[u16len-2] == 0 &&
+			    (u16[u16len-1] == '/' || u16[u16len-1] == '\\'))
+#else
+			if (u16[u16len-2] == 0 && u16[u16len-1] == '/')
+#endif
+			{
+				u16len -= 2;
+			} else
+				break;
+		}
+
+		/*
+		 * Find a basename in UTF-16BE.
+		 */
+		ulast = u16;
+		u16len >>= 1;
+		ulen_last = u16len;
+		while (u16len > 0) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[0] == 0 && (u16[1] == '/' || u16[1] == '\\'))
+#else
+			if (u16[0] == 0 && u16[1] == '/')
+#endif
+			{
+				ulast = u16 + 2;
+				ulen_last = u16len -1;
+			}
+			u16 += 2;
+			u16len --;
+		}
+		ulen_last <<= 1;
+		if (archive_string_ensure(&(file->basename_utf16),
+		    ulen_last) == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Set UTF-16BE basename.
+		 */
+		memcpy(file->basename_utf16.s, ulast, ulen_last);
+		file->basename_utf16.length = ulen_last;
+	}
+
+	archive_strcpy(&(file->parentdir), pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	if (cleanup_backslash_1(file->parentdir.s) != 0) {
+		const wchar_t *wp = archive_entry_pathname_w(file->entry);
+		struct archive_wstring ws;
+
+		if (wp != NULL) {
+			int r;
+			archive_string_init(&ws);
+			archive_wstrcpy(&ws, wp);
+			cleanup_backslash_2(ws.s);
+			archive_string_empty(&(file->parentdir));
+			r = archive_string_append_from_wcs(&(file->parentdir),
+			    ws.s, ws.length);
+			archive_wstring_free(&ws);
+			if (r < 0 && errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				return (ARCHIVE_FATAL);
+			}
+		}
+	}
+#endif
+
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove ""/"",""/."" and ""/.."" elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		/* Convert symlink name too. */
+		pathname = archive_entry_symlink(file->entry);
+		archive_strcpy(&(file->symlink),  pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+		/*
+		 * Convert a path-separator from '\' to  '/'
+		 */
+		if (archive_strlen(&(file->symlink)) > 0 &&
+		    cleanup_backslash_1(file->symlink.s) != 0) {
+			const wchar_t *wp =
+			    archive_entry_symlink_w(file->entry);
+			struct archive_wstring ws;
+
+			if (wp != NULL) {
+				int r;
+				archive_string_init(&ws);
+				archive_wstrcpy(&ws, wp);
+				cleanup_backslash_2(ws.s);
+				archive_string_empty(&(file->symlink));
+				r = archive_string_append_from_wcs(
+				    &(file->symlink),
+				    ws.s, ws.length);
+				archive_wstring_free(&ws);
+				if (r < 0 && errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory"");
+					return (ARCHIVE_FATAL);
+				}
+			}
+		}
+#endif
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	file->dircnt = 0;
+	for (; *p != '\0'; p++)
+		if (*p == '/') {
+			slash = p;
+			file->dircnt++;
+		}
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		*file->parentdir.s = '\0';
+		return (ret);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	if (archive_entry_filetype(file->entry) == AE_IFDIR)
+		file->dircnt ++;
+	return (ret);
+}",99
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4839,"archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_706.cpp,"{
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				return (ARCHIVE_FATAL);
+			}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_706.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+isofile_gen_utility_names(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660;
+	const char *pathname;
+	char *p, *dirname, *slash;
+	size_t len;
+	int ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->basename_utf16));
+	archive_string_empty(&(file->symlink));
+
+	pathname =  archive_entry_pathname(file->entry);
+	if (pathname == NULL || pathname[0] == '\0') {/* virtual root */
+		file->dircnt = 0;
+		return (ret);
+	}
+
+	/*
+	 * Make a UTF-16BE basename if Joliet extension enabled.
+	 */
+	if (iso9660->opt.joliet) {
+		const char *u16, *ulast;
+		size_t u16len, ulen_last;
+
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Convert a filename to UTF-16BE.
+		 */
+		if (0 > archive_entry_pathname_l(file->entry, &u16, &u16len,
+		    iso9660->sconv_to_utf16be)) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""A filename cannot be converted to UTF-16BE;""
+			    ""You should disable making Joliet extension"");
+			ret = ARCHIVE_WARN;
+		}
+
+		/*
+		 * Make sure a path separator is not in the last;
+		 * Remove trailing '/'.
+		 */
+		while (u16len >= 2) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[u16len-2] == 0 &&
+			    (u16[u16len-1] == '/' || u16[u16len-1] == '\\'))
+#else
+			if (u16[u16len-2] == 0 && u16[u16len-1] == '/')
+#endif
+			{
+				u16len -= 2;
+			} else
+				break;
+		}
+
+		/*
+		 * Find a basename in UTF-16BE.
+		 */
+		ulast = u16;
+		u16len >>= 1;
+		ulen_last = u16len;
+		while (u16len > 0) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[0] == 0 && (u16[1] == '/' || u16[1] == '\\'))
+#else
+			if (u16[0] == 0 && u16[1] == '/')
+#endif
+			{
+				ulast = u16 + 2;
+				ulen_last = u16len -1;
+			}
+			u16 += 2;
+			u16len --;
+		}
+		ulen_last <<= 1;
+		if (archive_string_ensure(&(file->basename_utf16),
+		    ulen_last) == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Set UTF-16BE basename.
+		 */
+		memcpy(file->basename_utf16.s, ulast, ulen_last);
+		file->basename_utf16.length = ulen_last;
+	}
+
+	archive_strcpy(&(file->parentdir), pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	if (cleanup_backslash_1(file->parentdir.s) != 0) {
+		const wchar_t *wp = archive_entry_pathname_w(file->entry);
+		struct archive_wstring ws;
+
+		if (wp != NULL) {
+			int r;
+			archive_string_init(&ws);
+			archive_wstrcpy(&ws, wp);
+			cleanup_backslash_2(ws.s);
+			archive_string_empty(&(file->parentdir));
+			r = archive_string_append_from_wcs(&(file->parentdir),
+			    ws.s, ws.length);
+			archive_wstring_free(&ws);
+			if (r < 0 && errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				return (ARCHIVE_FATAL);
+			}
+		}
+	}
+#endif
+
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove ""/"",""/."" and ""/.."" elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		/* Convert symlink name too. */
+		pathname = archive_entry_symlink(file->entry);
+		archive_strcpy(&(file->symlink),  pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+		/*
+		 * Convert a path-separator from '\' to  '/'
+		 */
+		if (archive_strlen(&(file->symlink)) > 0 &&
+		    cleanup_backslash_1(file->symlink.s) != 0) {
+			const wchar_t *wp =
+			    archive_entry_symlink_w(file->entry);
+			struct archive_wstring ws;
+
+			if (wp != NULL) {
+				int r;
+				archive_string_init(&ws);
+				archive_wstrcpy(&ws, wp);
+				cleanup_backslash_2(ws.s);
+				archive_string_empty(&(file->symlink));
+				r = archive_string_append_from_wcs(
+				    &(file->symlink),
+				    ws.s, ws.length);
+				archive_wstring_free(&ws);
+				if (r < 0 && errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory"");
+					return (ARCHIVE_FATAL);
+				}
+			}
+		}
+#endif
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	file->dircnt = 0;
+	for (; *p != '\0'; p++)
+		if (*p == '/') {
+			slash = p;
+			file->dircnt++;
+		}
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		*file->parentdir.s = '\0';
+		return (ret);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	if (archive_entry_filetype(file->entry) == AE_IFDIR)
+		file->dircnt ++;
+	return (ret);
+}",130
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,4955,"archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_707.cpp,"{
+					archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory"");
+					return (ARCHIVE_FATAL);
+				}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_707.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+isofile_gen_utility_names(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660;
+	const char *pathname;
+	char *p, *dirname, *slash;
+	size_t len;
+	int ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->basename_utf16));
+	archive_string_empty(&(file->symlink));
+
+	pathname =  archive_entry_pathname(file->entry);
+	if (pathname == NULL || pathname[0] == '\0') {/* virtual root */
+		file->dircnt = 0;
+		return (ret);
+	}
+
+	/*
+	 * Make a UTF-16BE basename if Joliet extension enabled.
+	 */
+	if (iso9660->opt.joliet) {
+		const char *u16, *ulast;
+		size_t u16len, ulen_last;
+
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), ""UTF-16BE"", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Convert a filename to UTF-16BE.
+		 */
+		if (0 > archive_entry_pathname_l(file->entry, &u16, &u16len,
+		    iso9660->sconv_to_utf16be)) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory for UTF-16BE"");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    ""A filename cannot be converted to UTF-16BE;""
+			    ""You should disable making Joliet extension"");
+			ret = ARCHIVE_WARN;
+		}
+
+		/*
+		 * Make sure a path separator is not in the last;
+		 * Remove trailing '/'.
+		 */
+		while (u16len >= 2) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[u16len-2] == 0 &&
+			    (u16[u16len-1] == '/' || u16[u16len-1] == '\\'))
+#else
+			if (u16[u16len-2] == 0 && u16[u16len-1] == '/')
+#endif
+			{
+				u16len -= 2;
+			} else
+				break;
+		}
+
+		/*
+		 * Find a basename in UTF-16BE.
+		 */
+		ulast = u16;
+		u16len >>= 1;
+		ulen_last = u16len;
+		while (u16len > 0) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[0] == 0 && (u16[1] == '/' || u16[1] == '\\'))
+#else
+			if (u16[0] == 0 && u16[1] == '/')
+#endif
+			{
+				ulast = u16 + 2;
+				ulen_last = u16len -1;
+			}
+			u16 += 2;
+			u16len --;
+		}
+		ulen_last <<= 1;
+		if (archive_string_ensure(&(file->basename_utf16),
+		    ulen_last) == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory for UTF-16BE"");
+			return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Set UTF-16BE basename.
+		 */
+		memcpy(file->basename_utf16.s, ulast, ulen_last);
+		file->basename_utf16.length = ulen_last;
+	}
+
+	archive_strcpy(&(file->parentdir), pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	if (cleanup_backslash_1(file->parentdir.s) != 0) {
+		const wchar_t *wp = archive_entry_pathname_w(file->entry);
+		struct archive_wstring ws;
+
+		if (wp != NULL) {
+			int r;
+			archive_string_init(&ws);
+			archive_wstrcpy(&ws, wp);
+			cleanup_backslash_2(ws.s);
+			archive_string_empty(&(file->parentdir));
+			r = archive_string_append_from_wcs(&(file->parentdir),
+			    ws.s, ws.length);
+			archive_wstring_free(&ws);
+			if (r < 0 && errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				return (ARCHIVE_FATAL);
+			}
+		}
+	}
+#endif
+
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove ""/"",""/."" and ""/.."" elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		/* Convert symlink name too. */
+		pathname = archive_entry_symlink(file->entry);
+		archive_strcpy(&(file->symlink),  pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+		/*
+		 * Convert a path-separator from '\' to  '/'
+		 */
+		if (archive_strlen(&(file->symlink)) > 0 &&
+		    cleanup_backslash_1(file->symlink.s) != 0) {
+			const wchar_t *wp =
+			    archive_entry_symlink_w(file->entry);
+			struct archive_wstring ws;
+
+			if (wp != NULL) {
+				int r;
+				archive_string_init(&ws);
+				archive_wstrcpy(&ws, wp);
+				cleanup_backslash_2(ws.s);
+				archive_string_empty(&(file->symlink));
+				r = archive_string_append_from_wcs(
+				    &(file->symlink),
+				    ws.s, ws.length);
+				archive_wstring_free(&ws);
+				if (r < 0 && errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    ""Can't allocate memory"");
+					return (ARCHIVE_FATAL);
+				}
+			}
+		}
+#endif
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	file->dircnt = 0;
+	for (; *p != '\0'; p++)
+		if (*p == '/') {
+			slash = p;
+			file->dircnt++;
+		}
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		*file->parentdir.s = '\0';
+		return (ret);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	if (archive_entry_filetype(file->entry) == AE_IFDIR)
+		file->dircnt ++;
+	return (ret);
+}",246
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,5009,"archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_708.cpp,"{
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory"");
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_708.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+isofile_register_hardlink(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct hardlink *hl;
+	const char *pathname;
+
+	archive_entry_set_nlink(file->entry, 1);
+	pathname = archive_entry_hardlink(file->entry);
+	if (pathname == NULL) {
+		/* This `file` is a hardlink target. */
+		hl = malloc(sizeof(*hl));
+		if (hl == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory"");
+			return (ARCHIVE_FATAL);
+		}
+		hl->nlink = 1;
+		/* A hardlink target must be the first position. */
+		file->hlnext = NULL;
+		hl->file_list.first = file;
+		hl->file_list.last = &(file->hlnext);
+		__archive_rb_tree_insert_node(&(iso9660->hardlink_rbtree),
+		    (struct archive_rb_node *)hl);
+	} else {
+		hl = (struct hardlink *)__archive_rb_tree_find_node(
+		    &(iso9660->hardlink_rbtree), pathname);
+		if (hl != NULL) {
+			/* Insert `file` entry into the tail. */
+			file->hlnext = NULL;
+			*hl->file_list.last = file;
+			hl->file_list.last = &(file->hlnext);
+			hl->nlink++;
+		}
+		archive_entry_unset_size(file->entry);
+	}
+
+	return (ARCHIVE_OK);
+}",13
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,5324,"archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_709.cpp,"{
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory"");
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_709.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]","static int
+isoent_clone_tree(struct archive_write *a, struct isoent **nroot,
+    struct isoent *root)
+{
+	struct isoent *np, *xroot, *newent;
+
+	np = root;
+	xroot = NULL;
+	do {
+		newent = isoent_clone(np);
+		if (newent == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    ""Can't allocate memory"");
+			return (ARCHIVE_FATAL);
+		}
+		if (xroot == NULL) {
+			*nroot = xroot = newent;
+			newent->parent = xroot;
+		} else
+			isoent_add_child_tail(xroot, newent);
+		if (np->dir && np->children.first != NULL) {
+			/* Enter to sub directories. */
+			np = np->children.first;
+			xroot = newent;
+			continue;
+		}
+		while (np != np->parent) {
+			if (np->chnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				xroot = xroot->parent;
+			} else {
+				np = np->chnext;
+				break;
+			}
+		}
+	} while (np != np->parent);
+
+	return (ARCHIVE_OK);
+}",11
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,5595,"archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""A name buffer is too small"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_710.cpp,"{
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""A name buffer is too small"");
+			_isoent_free(isoent);
+			return (ARCHIVE_FATAL);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_710.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0]","static int
+isoent_tree(struct archive_write *a, struct isoent **isoentpp)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
+#else
+	char name[256];
+#endif
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *dent, *isoent, *np;
+	struct isofile *f1, *f2;
+	const char *fn, *p;
+	int l;
+
+	isoent = *isoentpp;
+	dent = iso9660->primary.rootent;
+	if (isoent->file->parentdir.length > 0)
+		fn = p = isoent->file->parentdir.s;
+	else
+		fn = p = """";
+
+	/*
+	 * If the path of the parent directory of `isoent' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(iso9660->cur_dirstr))
+	      == archive_strlen(&(isoent->file->parentdir)) &&
+	    strcmp(iso9660->cur_dirstr.s, fn) == 0) {
+		if (!isoent_add_child_tail(iso9660->cur_dirent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(iso9660->cur_dirent->rbtree),
+			    isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""A name buffer is too small"");
+			_isoent_free(isoent);
+			return (ARCHIVE_FATAL);
+		}
+
+		np = isoent_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""`%s' is not directory, we cannot insert `%s' "",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));
+			_isoent_free(isoent);
+			*isoentpp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct isoent *vp;
+			struct archive_string as;
+
+			archive_string_init(&as);
+			archive_strncat(&as, p, fn - p + l);
+			if (as.s[as.length-1] == '/') {
+				as.s[as.length-1] = '\0';
+				as.length--;
+			}
+			vp = isoent_create_virtual_dir(a, iso9660, as.s);
+			if (vp == NULL) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			archive_string_free(&as);
+
+			if (vp->file->dircnt > iso9660->dircnt_max)
+				iso9660->dircnt_max = vp->file->dircnt;
+			isoent_add_child_tail(dent, vp);
+			np = vp;
+
+			fn += l;
+			if (fn[0] == '/')
+				fn++;
+			l = get_path_component(name, sizeof(name), fn);
+			if (l < 0) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""A name buffer is too small"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			dent = np;
+		}
+
+		/* Found out the parent directory where isoent can be
+		 * inserted. */
+		iso9660->cur_dirent = dent;
+		archive_string_empty(&(iso9660->cur_dirstr));
+		archive_string_ensure(&(iso9660->cur_dirstr),
+		    archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) + 2);
+		if (archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) == 0)
+			iso9660->cur_dirstr.s[0] = 0;
+		else {
+			if (archive_strlen(&(dent->file->parentdir)) > 0) {
+				archive_string_copy(&(iso9660->cur_dirstr),
+				    &(dent->file->parentdir));
+				archive_strappend_char(&(iso9660->cur_dirstr), '/');
+			}
+			archive_string_concat(&(iso9660->cur_dirstr),
+			    &(dent->file->basename));
+		}
+
+		if (!isoent_add_child_tail(dent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(dent->rbtree), isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+same_entry:
+	/*
+	 * We have already has the entry the filename of which is
+	 * the same.
+	 */
+	f1 = np->file;
+	f2 = isoent->file;
+
+	/* If the file type of entries is different,
+	 * we cannot handle it. */
+	if (archive_entry_filetype(f1->entry) !=
+	    archive_entry_filetype(f2->entry)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Found duplicate entries `%s' and its file type is ""
+		    ""different"",
+		    archive_entry_pathname(f1->entry));
+		_isoent_free(isoent);
+		*isoentpp = NULL;
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Swap file entries. */
+	np->file = f2;
+	isoent->file = f1;
+	np->virtual = 0;
+
+	_isoent_free(isoent);
+	*isoentpp = np;
+	return (ARCHIVE_OK);
+}",47
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,5609,"archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""`%s' is not directory, we cannot insert `%s' "",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_711.cpp,"{
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""`%s' is not directory, we cannot insert `%s' "",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));
+			_isoent_free(isoent);
+			*isoentpp = NULL;
+			return (ARCHIVE_FAILED);
+		}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_711.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 3, 0, 8, 0, 0, 0, 0, 0, 0]","static int
+isoent_tree(struct archive_write *a, struct isoent **isoentpp)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
+#else
+	char name[256];
+#endif
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *dent, *isoent, *np;
+	struct isofile *f1, *f2;
+	const char *fn, *p;
+	int l;
+
+	isoent = *isoentpp;
+	dent = iso9660->primary.rootent;
+	if (isoent->file->parentdir.length > 0)
+		fn = p = isoent->file->parentdir.s;
+	else
+		fn = p = """";
+
+	/*
+	 * If the path of the parent directory of `isoent' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(iso9660->cur_dirstr))
+	      == archive_strlen(&(isoent->file->parentdir)) &&
+	    strcmp(iso9660->cur_dirstr.s, fn) == 0) {
+		if (!isoent_add_child_tail(iso9660->cur_dirent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(iso9660->cur_dirent->rbtree),
+			    isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""A name buffer is too small"");
+			_isoent_free(isoent);
+			return (ARCHIVE_FATAL);
+		}
+
+		np = isoent_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""`%s' is not directory, we cannot insert `%s' "",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));
+			_isoent_free(isoent);
+			*isoentpp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct isoent *vp;
+			struct archive_string as;
+
+			archive_string_init(&as);
+			archive_strncat(&as, p, fn - p + l);
+			if (as.s[as.length-1] == '/') {
+				as.s[as.length-1] = '\0';
+				as.length--;
+			}
+			vp = isoent_create_virtual_dir(a, iso9660, as.s);
+			if (vp == NULL) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			archive_string_free(&as);
+
+			if (vp->file->dircnt > iso9660->dircnt_max)
+				iso9660->dircnt_max = vp->file->dircnt;
+			isoent_add_child_tail(dent, vp);
+			np = vp;
+
+			fn += l;
+			if (fn[0] == '/')
+				fn++;
+			l = get_path_component(name, sizeof(name), fn);
+			if (l < 0) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""A name buffer is too small"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			dent = np;
+		}
+
+		/* Found out the parent directory where isoent can be
+		 * inserted. */
+		iso9660->cur_dirent = dent;
+		archive_string_empty(&(iso9660->cur_dirstr));
+		archive_string_ensure(&(iso9660->cur_dirstr),
+		    archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) + 2);
+		if (archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) == 0)
+			iso9660->cur_dirstr.s[0] = 0;
+		else {
+			if (archive_strlen(&(dent->file->parentdir)) > 0) {
+				archive_string_copy(&(iso9660->cur_dirstr),
+				    &(dent->file->parentdir));
+				archive_strappend_char(&(iso9660->cur_dirstr), '/');
+			}
+			archive_string_concat(&(iso9660->cur_dirstr),
+			    &(dent->file->basename));
+		}
+
+		if (!isoent_add_child_tail(dent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(dent->rbtree), isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+same_entry:
+	/*
+	 * We have already has the entry the filename of which is
+	 * the same.
+	 */
+	f1 = np->file;
+	f2 = isoent->file;
+
+	/* If the file type of entries is different,
+	 * we cannot handle it. */
+	if (archive_entry_filetype(f1->entry) !=
+	    archive_entry_filetype(f2->entry)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Found duplicate entries `%s' and its file type is ""
+		    ""different"",
+		    archive_entry_pathname(f1->entry));
+		_isoent_free(isoent);
+		*isoentpp = NULL;
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Swap file entries. */
+	np->file = f2;
+	isoent->file = f1;
+	np->virtual = 0;
+
+	_isoent_free(isoent);
+	*isoentpp = np;
+	return (ARCHIVE_OK);
+}",61
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,5640,"archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_712.cpp,"{
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_712.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+isoent_tree(struct archive_write *a, struct isoent **isoentpp)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
+#else
+	char name[256];
+#endif
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *dent, *isoent, *np;
+	struct isofile *f1, *f2;
+	const char *fn, *p;
+	int l;
+
+	isoent = *isoentpp;
+	dent = iso9660->primary.rootent;
+	if (isoent->file->parentdir.length > 0)
+		fn = p = isoent->file->parentdir.s;
+	else
+		fn = p = """";
+
+	/*
+	 * If the path of the parent directory of `isoent' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(iso9660->cur_dirstr))
+	      == archive_strlen(&(isoent->file->parentdir)) &&
+	    strcmp(iso9660->cur_dirstr.s, fn) == 0) {
+		if (!isoent_add_child_tail(iso9660->cur_dirent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(iso9660->cur_dirent->rbtree),
+			    isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""A name buffer is too small"");
+			_isoent_free(isoent);
+			return (ARCHIVE_FATAL);
+		}
+
+		np = isoent_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""`%s' is not directory, we cannot insert `%s' "",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));
+			_isoent_free(isoent);
+			*isoentpp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct isoent *vp;
+			struct archive_string as;
+
+			archive_string_init(&as);
+			archive_strncat(&as, p, fn - p + l);
+			if (as.s[as.length-1] == '/') {
+				as.s[as.length-1] = '\0';
+				as.length--;
+			}
+			vp = isoent_create_virtual_dir(a, iso9660, as.s);
+			if (vp == NULL) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			archive_string_free(&as);
+
+			if (vp->file->dircnt > iso9660->dircnt_max)
+				iso9660->dircnt_max = vp->file->dircnt;
+			isoent_add_child_tail(dent, vp);
+			np = vp;
+
+			fn += l;
+			if (fn[0] == '/')
+				fn++;
+			l = get_path_component(name, sizeof(name), fn);
+			if (l < 0) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""A name buffer is too small"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			dent = np;
+		}
+
+		/* Found out the parent directory where isoent can be
+		 * inserted. */
+		iso9660->cur_dirent = dent;
+		archive_string_empty(&(iso9660->cur_dirstr));
+		archive_string_ensure(&(iso9660->cur_dirstr),
+		    archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) + 2);
+		if (archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) == 0)
+			iso9660->cur_dirstr.s[0] = 0;
+		else {
+			if (archive_strlen(&(dent->file->parentdir)) > 0) {
+				archive_string_copy(&(iso9660->cur_dirstr),
+				    &(dent->file->parentdir));
+				archive_strappend_char(&(iso9660->cur_dirstr), '/');
+			}
+			archive_string_concat(&(iso9660->cur_dirstr),
+			    &(dent->file->basename));
+		}
+
+		if (!isoent_add_child_tail(dent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(dent->rbtree), isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+same_entry:
+	/*
+	 * We have already has the entry the filename of which is
+	 * the same.
+	 */
+	f1 = np->file;
+	f2 = isoent->file;
+
+	/* If the file type of entries is different,
+	 * we cannot handle it. */
+	if (archive_entry_filetype(f1->entry) !=
+	    archive_entry_filetype(f2->entry)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Found duplicate entries `%s' and its file type is ""
+		    ""different"",
+		    archive_entry_pathname(f1->entry));
+		_isoent_free(isoent);
+		*isoentpp = NULL;
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Swap file entries. */
+	np->file = f2;
+	isoent->file = f1;
+	np->virtual = 0;
+
+	_isoent_free(isoent);
+	*isoentpp = np;
+	return (ARCHIVE_OK);
+}",92
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,5659,"archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""A name buffer is too small"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_713.cpp,"{
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""A name buffer is too small"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_713.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]","static int
+isoent_tree(struct archive_write *a, struct isoent **isoentpp)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
+#else
+	char name[256];
+#endif
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *dent, *isoent, *np;
+	struct isofile *f1, *f2;
+	const char *fn, *p;
+	int l;
+
+	isoent = *isoentpp;
+	dent = iso9660->primary.rootent;
+	if (isoent->file->parentdir.length > 0)
+		fn = p = isoent->file->parentdir.s;
+	else
+		fn = p = """";
+
+	/*
+	 * If the path of the parent directory of `isoent' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(iso9660->cur_dirstr))
+	      == archive_strlen(&(isoent->file->parentdir)) &&
+	    strcmp(iso9660->cur_dirstr.s, fn) == 0) {
+		if (!isoent_add_child_tail(iso9660->cur_dirent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(iso9660->cur_dirent->rbtree),
+			    isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""A name buffer is too small"");
+			_isoent_free(isoent);
+			return (ARCHIVE_FATAL);
+		}
+
+		np = isoent_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""`%s' is not directory, we cannot insert `%s' "",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));
+			_isoent_free(isoent);
+			*isoentpp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct isoent *vp;
+			struct archive_string as;
+
+			archive_string_init(&as);
+			archive_strncat(&as, p, fn - p + l);
+			if (as.s[as.length-1] == '/') {
+				as.s[as.length-1] = '\0';
+				as.length--;
+			}
+			vp = isoent_create_virtual_dir(a, iso9660, as.s);
+			if (vp == NULL) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    ""Can't allocate memory"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			archive_string_free(&as);
+
+			if (vp->file->dircnt > iso9660->dircnt_max)
+				iso9660->dircnt_max = vp->file->dircnt;
+			isoent_add_child_tail(dent, vp);
+			np = vp;
+
+			fn += l;
+			if (fn[0] == '/')
+				fn++;
+			l = get_path_component(name, sizeof(name), fn);
+			if (l < 0) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    ""A name buffer is too small"");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			dent = np;
+		}
+
+		/* Found out the parent directory where isoent can be
+		 * inserted. */
+		iso9660->cur_dirent = dent;
+		archive_string_empty(&(iso9660->cur_dirstr));
+		archive_string_ensure(&(iso9660->cur_dirstr),
+		    archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) + 2);
+		if (archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) == 0)
+			iso9660->cur_dirstr.s[0] = 0;
+		else {
+			if (archive_strlen(&(dent->file->parentdir)) > 0) {
+				archive_string_copy(&(iso9660->cur_dirstr),
+				    &(dent->file->parentdir));
+				archive_strappend_char(&(iso9660->cur_dirstr), '/');
+			}
+			archive_string_concat(&(iso9660->cur_dirstr),
+			    &(dent->file->basename));
+		}
+
+		if (!isoent_add_child_tail(dent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(dent->rbtree), isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+same_entry:
+	/*
+	 * We have already has the entry the filename of which is
+	 * the same.
+	 */
+	f1 = np->file;
+	f2 = isoent->file;
+
+	/* If the file type of entries is different,
+	 * we cannot handle it. */
+	if (archive_entry_filetype(f1->entry) !=
+	    archive_entry_filetype(f2->entry)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Found duplicate entries `%s' and its file type is ""
+		    ""different"",
+		    archive_entry_pathname(f1->entry));
+		_isoent_free(isoent);
+		*isoentpp = NULL;
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Swap file entries. */
+	np->file = f2;
+	isoent->file = f1;
+	np->virtual = 0;
+
+	_isoent_free(isoent);
+	*isoentpp = np;
+	return (ARCHIVE_OK);
+}",111
+second/download/CMake/CMake/CMake/Utilities/cmlibarchive/libarchive/archive_write_set_format_iso9660.cpp,5709,"archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Found duplicate entries `%s' and its file type is ""
+		    ""different"",
+		    archive_entry_pathname(f1->entry));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_714.cpp,"{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    ""Found duplicate entries `%s' and its file type is ""
+		    ""different"",
+		    archive_entry_pathname(f1->entry));
+		_isoent_free(isoent);
+		*isoentpp = NULL;
+		return (ARCHIVE_FAILED);
+	}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_714.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]","static int
+isoent_tree(struct archive_write *a, struct isoent **isoentpp)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
+#else
+	char name[256];
+#endif
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *dent, *isoent, *np;
+	struct isofile *f1, *f2;
+	const char *fn, *p;
+	int l;
+
+	isoent = *isoentpp;
+	dent = iso9660->primary.rootent;
+	if (isoent->file->parentdir.length > 0)
+		fn = p = isoent->file->parentdir.s;
+	else
+		fn = p = """";
+
+	/*
+	 * If the path of the parent directory of `isoent' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(iso9660->cur_dirstr))
+	      == archive_strlen(&(isoent->file->parentdir)) &&
+	    strcmp(iso9660->cur_dirstr.s, fn) == 0) {
+		if (!isoent_add_child_tail(iso9660->cur_dirent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(iso9660->cur_dirent->rbtree),
+			    isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""A name buffer is too small"");
+			_isoent_free(isoent);
+			return (ARCHIVE_FATAL);
+		}
+
+		np = isoent_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    ""`%s' is not directory, we cannot insert `%s' "",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));
+			_isoent_free(isoent);
+			*isoentpp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct isoent *vp;
+			struct archive_string
