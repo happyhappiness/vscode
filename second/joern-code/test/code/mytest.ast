@@ -63,7 +63,7 @@ type:IdentifierDeclStatement
 functionId:4"];
 	14 -- 114;
 	17	 [label="childNum:8
-code:if ( a + b > 3 && a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a )
+code:if ( a + b > 3 && a + b % c / d < 5 && ( c < e || c < abs ( a ) ) && ! a )
 type:IfStatement
 functionId:4"];
 	14 -- 17;
@@ -120,7 +120,7 @@ code:c = 4
 type:IdentifierDecl
 functionId:4"];
 	114 -- 115;
-	81	 [label="code:a + b > 3 && a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
+	81	 [label="code:a + b > 3 && a + b % c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
 isCFGNode:True
 childNum:0
 location:16:4:253:314
@@ -277,7 +277,7 @@ functionId:4"];
 	115 -- 116;
 	82	 [label="operator:&&
 childNum:0
-code:a + b > 3 && a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
+code:a + b > 3 && a + b % c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
 type:AndExpression
 functionId:4"];
 	81 -- 82;
@@ -362,7 +362,7 @@ functionId:4"];
 	82 -- 109;
 	83	 [label="operator:&&
 childNum:1
-code:a + b * c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
+code:a + b % c / d < 5 && ( c < e || c < abs ( a ) ) && ! a
 type:AndExpression
 functionId:4"];
 	82 -- 83;
@@ -439,7 +439,7 @@ functionId:4"];
 	109 -- 110;
 	100	 [label="operator:<
 childNum:0
-code:a + b * c / d < 5
+code:a + b % c / d < 5
 type:RelationalExpression
 functionId:4"];
 	83 -- 100;
@@ -540,7 +540,7 @@ functionId:4"];
 	111 -- 112;
 	102	 [label="operator:+
 childNum:0
-code:a + b * c / d
+code:a + b % c / d
 type:AdditiveExpression
 functionId:4"];
 	100 -- 102;
@@ -620,9 +620,9 @@ code:a
 type:Identifier
 functionId:4"];
 	102 -- 108;
-	103	 [label="operator:*
+	103	 [label="operator:%
 childNum:1
-code:b * c / d
+code:b % c / d
 type:MultiplicativeExpression
 functionId:4"];
 	102 -- 103;
