@@ -1,0 +1,22 @@
+file,loc,log,log_file,block,block_file,block_feature,function_file,ddg_feature,cdg_feature
+second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp,188,"fprintf(s->file, ""%c%c%c%c%c%c%c%c%c%c"", gz_magic[0], gz_magic[1],
+             Z_DEFLATED, 0 /*flags*/, 0,0,0,0 /*time*/, 0 /*xflags*/, OS_CODE);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_0.cpp,"{
+        /* Write a very simple .gz header:
+         */
+        fprintf(s->file, ""%c%c%c%c%c%c%c%c%c%c"", gz_magic[0], gz_magic[1],
+             Z_DEFLATED, 0 /*flags*/, 0,0,0,0 /*time*/, 0 /*xflags*/, OS_CODE);
+        s->start = 10L;
+        /* We use 10L instead of ftell(s->file) to because ftell causes an
+         * fflush on some systems. This version of the library doesn't use
+         * start anyway in write mode, so this initialization is not
+         * necessary.
+         */
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_0.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 12, 0, 0, 0, 0, 0, 0]",,189,[],"[""int"", ""size_t"", "">"", ""!"", ""&&"", ""BOOL"", ""!"", ""&&"", ""unsigned short"", ""&&"", ""BOOL"", ""&&"", ""unsigned short"", ""int"", ""<"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned"", ""size_t"", ""<""]"
+second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp,225,"sprintf(name, ""<fd:%d>"", fd);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_1.cpp,"{
+    char name[46];      /* allow for up to 128-bit integers */
+
+    if (fd < 0) return (gzFile)Z_NULL;
+    sprintf(name, ""<fd:%d>"", fd); /* for debugging */
+
+    return gz_open (name, mode, fd);
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_1.cpp,"[1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 13, 0, 0, 1, 1, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 2, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0]",,226,[],"[""int"", ""size_t"", "">"", ""!"", ""&&"", ""int"", ""archive_le16dec_ret"", ""<"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned short"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned"", ""size_t"", ""<"", ""&&"", ""BOOL"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned short"", ""int"", ""<"", ""!""]"

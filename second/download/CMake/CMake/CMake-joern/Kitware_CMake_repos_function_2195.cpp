@@ -1,0 +1,1 @@
+void doYafP() { printf("I am yet another file !\n"); }
