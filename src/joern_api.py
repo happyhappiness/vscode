@@ -57,7 +57,7 @@ class Joern_api:
     @ involve get control statement and identified variable type
     """
     def get_control_dependence(self):
-        cdg_query = '_().getControlDependence(' + self.log_id + ',' + self.flow_order +')'
+        cdg_query = '_().getControlDependence(' + self.log_id + ',' + self.order +')'
         cdg_list = Joern_api.joern_instance.runGremlinQuery(cdg_query)
         self.control_dependence = []
         if cdg_list is not None and len(cdg_list) != 0:
@@ -452,9 +452,9 @@ class Joern_api:
 
 if __name__ == "__main__":
     loc = 22
-    filename = 'mytest.c'
+    filename = 'function_1954.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 22)
+    joern_api.set_log(filename, 160)
     print joern_api.get_control_dependence()
     print joern_api.get_argument_type()
 
