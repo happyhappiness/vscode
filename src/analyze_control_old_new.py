@@ -137,6 +137,6 @@ def analyze_old_new_joern(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    analyze_old_new_joern(False)
+    analyze_old_new_joern(True)
 
     # analyze_old_new_joern()

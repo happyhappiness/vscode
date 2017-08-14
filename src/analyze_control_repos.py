@@ -156,7 +156,7 @@ def analyze_repos_joern(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-   analyze_repos_joern(True)
+   analyze_repos_joern(False)
 
 
 
