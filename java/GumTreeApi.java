@@ -105,11 +105,12 @@ public class GumTreeApi {
 //		 System.out.println(g.getActionType());
 		
 		
-		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp";
 //		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp";
 		GumTreeApi g = new GumTreeApi();
 		g.setFile(filename);
-		g.setLoc(9);
+		g.setLoc(188);
 		System.out.println(g.getLog());
 		g.printSpliter();
 		System.out.println(g.getBlock());

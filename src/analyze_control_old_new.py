@@ -59,8 +59,12 @@ def deal_log( log_record, writer, gumtree, total_log):
         myUtil.save_file(block, block_file_name)
         # get function
         function = gumtree.get_function()
+        if function == '':
+            function = open(old_file_name).read()
+            function_loc = old_loc
+        else:
+            function_loc = gumtree.get_function_loc()
         myUtil.save_file(function, function_file_name)
-        function_loc = gumtree.get_function_loc()
         # get block feature
         gumtree.set_file(block_file_name)
         block_feature = gumtree.get_block_feature()
@@ -133,6 +137,6 @@ def analyze_old_new_joern(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-    analyze_old_new_joern(False)
+    analyze_old_new_joern(True)
 
     # analyze_old_new_joern()
