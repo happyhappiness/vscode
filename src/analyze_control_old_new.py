@@ -119,14 +119,15 @@ def analyze_old_new_joern(is_rebuild = False):
     old_new_joern_writer.writerow(my_constant.ANALYZE_OLD_NEW_JOERN_TITLE)
 
     total_record = 0
-    log = 0
+    total_log = 0
     # get ddg and cdg with joern
     for record in islice(old_new_gumtree_records, 1, None):
         if joern.set_log(record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_FILE], int(record[my_constant.ANALYZE_OLD_NEW_OLD_FUNCTION_LOC])):
             ddg = json.dumps(joern.get_argument_type())
             cdg = json.dumps(joern.get_control_dependence())
             old_new_joern_writer.writerow(record + [ddg, cdg])
-        print 'have dealed with %d record' %(total_record)
+            total_log += 1
+        print 'have dealed with %d record; %d log' %(total_record, total_log)
         total_record += 1
 
     old_new_gumtree_file.close()
