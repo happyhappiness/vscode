@@ -1,22 +1,1152 @@
 file,loc,log,log_file,block,block_file,block_feature,function_file,ddg_feature,cdg_feature
-second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp,188,"fprintf(s->file, ""%c%c%c%c%c%c%c%c%c%c"", gz_magic[0], gz_magic[1],
-             Z_DEFLATED, 0 /*flags*/, 0,0,0,0 /*time*/, 0 /*xflags*/, OS_CODE);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_0.cpp,"{
-        /* Write a very simple .gz header:
-         */
-        fprintf(s->file, ""%c%c%c%c%c%c%c%c%c%c"", gz_magic[0], gz_magic[1],
-             Z_DEFLATED, 0 /*flags*/, 0,0,0,0 /*time*/, 0 /*xflags*/, OS_CODE);
-        s->start = 10L;
-        /* We use 10L instead of ftell(s->file) to because ftell causes an
-         * fflush on some systems. This version of the library doesn't use
-         * start anyway in write mode, so this initialization is not
-         * necessary.
-         */
-    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_0.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 12, 0, 0, 0, 0, 0, 0]",,189,[],"[""int"", ""size_t"", "">"", ""!"", ""&&"", ""BOOL"", ""!"", ""&&"", ""unsigned short"", ""&&"", ""BOOL"", ""&&"", ""unsigned short"", ""int"", ""<"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned"", ""size_t"", ""<""]"
-second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp,225,"sprintf(name, ""<fd:%d>"", fd);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_1.cpp,"{
-    char name[46];      /* allow for up to 128-bit integers */
+second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp,612,"(void)vsprintf(buf, format, va);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_2.cpp,"{
+    char buf[Z_PRINTF_BUFSIZE];
+    va_list va;
+    int len;
 
-    if (fd < 0) return (gzFile)Z_NULL;
-    sprintf(name, ""<fd:%d>"", fd); /* for debugging */
+    buf[sizeof(buf) - 1] = 0;
+    va_start(va, format);
+#ifdef NO_vsnprintf
+#  ifdef HAS_vsprintf_void
+    (void)vsprintf(buf, format, va);
+    va_end(va);
+    for (len = 0; len < sizeof(buf); len++)
+        if (buf[len] == 0) break;
+#  else
+    len = vsprintf(buf, format, va);
+    va_end(va);
+#  endif
+#else
+#  ifdef HAS_vsnprintf_void
+    (void)vsnprintf(buf, sizeof(buf), format, va);
+    va_end(va);
+    len = strlen(buf);
+#  else
+    len = vsnprintf(buf, sizeof(buf), format, va);
+    va_end(va);
+#  endif
+#endif
+    if (len <= 0 || len >= (int)sizeof(buf) || buf[sizeof(buf) - 1] != 0)
+        return 0;
+    return gzwrite(file, buf, (unsigned)len);
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_2.cpp,"[2, 0, 1, 0, 1, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 69, 0, 0, 3, 3, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 52, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 4, 0, 3, 2, 3, 0, 17, 0, 0, 11, 0, 30, 9, 1, 0, 0, 1, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_2.cpp,10,"[""char [ Z_PRINTF_BUFSIZE ]"", ""const char *"", ""va_list""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp,617,"len = vsprintf(buf, format, va);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_3.cpp,"{
+    char buf[Z_PRINTF_BUFSIZE];
+    va_list va;
+    int len;
 
-    return gz_open (name, mode, fd);
-}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_1.cpp,"[1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 13, 0, 0, 1, 1, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 2, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0]",,226,[],"[""int"", ""size_t"", "">"", ""!"", ""&&"", ""int"", ""archive_le16dec_ret"", ""<"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned short"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned"", ""size_t"", ""<"", ""&&"", ""BOOL"", ""&&"", ""BOOL"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""!"", ""&&"", ""unsigned short"", ""int"", ""<"", ""!""]"
+    buf[sizeof(buf) - 1] = 0;
+    va_start(va, format);
+#ifdef NO_vsnprintf
+#  ifdef HAS_vsprintf_void
+    (void)vsprintf(buf, format, va);
+    va_end(va);
+    for (len = 0; len < sizeof(buf); len++)
+        if (buf[len] == 0) break;
+#  else
+    len = vsprintf(buf, format, va);
+    va_end(va);
+#  endif
+#else
+#  ifdef HAS_vsnprintf_void
+    (void)vsnprintf(buf, sizeof(buf), format, va);
+    va_end(va);
+    len = strlen(buf);
+#  else
+    len = vsnprintf(buf, sizeof(buf), format, va);
+    va_end(va);
+#  endif
+#endif
+    if (len <= 0 || len >= (int)sizeof(buf) || buf[sizeof(buf) - 1] != 0)
+        return 0;
+    return gzwrite(file, buf, (unsigned)len);
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_3.cpp,"[2, 0, 1, 0, 1, 0, 2, 0, 0, 0, 4, 0, 0, 0, 0, 69, 0, 0, 3, 3, 0, 0, 1, 8, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 52, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 4, 0, 3, 2, 3, 0, 17, 0, 0, 11, 0, 30, 9, 1, 0, 0, 1, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_3.cpp,15,"[""char [ Z_PRINTF_BUFSIZE ]"", ""const char *"", ""va_list""]","[""int"", null, ""<"", ""&&"", ""MEMBER"", ""int"", ""=="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmzlib/inflate.cpp,284,"printf(""    static const code lenfix[%u] = {"", size);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_11.cpp,"{
+    unsigned low, size;
+    struct inflate_state state;
+
+    fixedtables(&state);
+    puts(""    /* inffixed.h -- table for decoding fixed codes"");
+    puts(""     * Generated automatically by makefixed()."");
+    puts(""     */"");
+    puts("""");
+    puts(""    /* WARNING: this file should *not* be used by applications."");
+    puts(""       It is part of the implementation of this library and is"");
+    puts(""       subject to change. Applications should only use zlib.h."");
+    puts(""     */"");
+    puts("""");
+    size = 1U << 9;
+    printf(""    static const code lenfix[%u] = {"", size);
+    low = 0;
+    for (;;) {
+        if ((low % 7) == 0) printf(""\n        "");
+        printf(""{%u,%u,%d}"", state.lencode[low].op, state.lencode[low].bits,
+               state.lencode[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }
+    puts(""\n    };"");
+    size = 1U << 5;
+    printf(""\n    static const code distfix[%u] = {"", size);
+    low = 0;
+    for (;;) {
+        if ((low % 6) == 0) printf(""\n        "");
+        printf(""{%u,%u,%d}"", state.distcode[low].op, state.distcode[low].bits,
+               state.distcode[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }
+    puts(""\n    };"");
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_11.cpp,"[4, 0, 2, 0, 2, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 70, 0, 0, 2, 3, 0, 0, 2, 29, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 0, 62, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 6, 0, 6, 4, 0, 0, 20, 0, 0, 24, 0, 28, 0, 2, 0, 0, 2, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_11.cpp,16,"[""string"", ""int""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmzlib/inflate.cpp,287,((low % 7) == 0;,second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_12.cpp,"((low % 7) == 0) printf(""\n        "")",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_12.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_12.cpp,19,"[""string""]","[""int"", ""int"", ""=="", ""&&"", ""int"", ""int"", ""=="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmzlib/inflate.cpp,288,"printf(""{%u,%u,%d}"", state.lencode[low].op, state.lencode[low].bits,
+               state.lencode[low].val);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_13.cpp,"{
+        if ((low % 7) == 0) printf(""\n        "");
+        printf(""{%u,%u,%d}"", state.lencode[low].op, state.lencode[low].bits,
+               state.lencode[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_13.cpp,"[2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 2, 2, 0, 0, 3, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_13.cpp,20,"[""string"", ""MEMBER"", ""MEMBER"", ""MEMBER""]","[""int"", ""int"", ""=="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmzlib/inflate.cpp,295,"printf(""\n    static const code distfix[%u] = {"", size);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_14.cpp,"{
+    unsigned low, size;
+    struct inflate_state state;
+
+    fixedtables(&state);
+    puts(""    /* inffixed.h -- table for decoding fixed codes"");
+    puts(""     * Generated automatically by makefixed()."");
+    puts(""     */"");
+    puts("""");
+    puts(""    /* WARNING: this file should *not* be used by applications."");
+    puts(""       It is part of the implementation of this library and is"");
+    puts(""       subject to change. Applications should only use zlib.h."");
+    puts(""     */"");
+    puts("""");
+    size = 1U << 9;
+    printf(""    static const code lenfix[%u] = {"", size);
+    low = 0;
+    for (;;) {
+        if ((low % 7) == 0) printf(""\n        "");
+        printf(""{%u,%u,%d}"", state.lencode[low].op, state.lencode[low].bits,
+               state.lencode[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }
+    puts(""\n    };"");
+    size = 1U << 5;
+    printf(""\n    static const code distfix[%u] = {"", size);
+    low = 0;
+    for (;;) {
+        if ((low % 6) == 0) printf(""\n        "");
+        printf(""{%u,%u,%d}"", state.distcode[low].op, state.distcode[low].bits,
+               state.distcode[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }
+    puts(""\n    };"");
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_14.cpp,"[4, 0, 2, 0, 2, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 70, 0, 0, 2, 3, 0, 0, 2, 29, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 0, 62, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 6, 0, 6, 4, 0, 0, 20, 0, 0, 24, 0, 28, 0, 2, 0, 0, 2, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_14.cpp,27,"[""string"", ""int""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmzlib/inflate.cpp,298,((low % 6) == 0;,second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_15.cpp,"((low % 6) == 0) printf(""\n        "")",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_15.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_15.cpp,30,"[""string""]","[""int"", ""int"", ""=="", ""&&"", ""int"", ""int"", ""=="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmzlib/inflate.cpp,299,"printf(""{%u,%u,%d}"", state.distcode[low].op, state.distcode[low].bits,
+               state.distcode[low].val);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_16.cpp,"{
+        if ((low % 6) == 0) printf(""\n        "");
+        printf(""{%u,%u,%d}"", state.distcode[low].op, state.distcode[low].bits,
+               state.distcode[low].val);
+        if (++low == size) break;
+        putchar(',');
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_16.cpp,"[2, 0, 0, 0, 1, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 2, 2, 0, 0, 3, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_16.cpp,31,"[""string"", ""MEMBER"", ""MEMBER"", ""MEMBER""]","[""int"", ""int"", ""=="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzip2recover.cpp,322,"fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: None\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_20.cpp,"{
+         case 8:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: None\n"");
+            break;
+         case 4:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: 512 MB\n"");
+            fprintf(stderr, 
+                    ""\tto circumvent, recompile with MaybeUInt64 as an\n""
+                    ""\tunsigned 64-bit int.\n"");
+            break;
+         default:
+            fprintf(stderr, 
+                    ""\tsizeof(MaybeUInt64) is not 4 or 8 -- ""
+                    ""configuration error.\n"");
+            break;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_20.cpp,"[0, 0, 0, 0, 3, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 8, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_20.cpp,22,"[null, ""string""]","[null, ""&&"", ""Int32"", ""int"", ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzip2recover.cpp,326,"fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: 512 MB\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_21.cpp,"{
+         case 8:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: None\n"");
+            break;
+         case 4:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: 512 MB\n"");
+            fprintf(stderr, 
+                    ""\tto circumvent, recompile with MaybeUInt64 as an\n""
+                    ""\tunsigned 64-bit int.\n"");
+            break;
+         default:
+            fprintf(stderr, 
+                    ""\tsizeof(MaybeUInt64) is not 4 or 8 -- ""
+                    ""configuration error.\n"");
+            break;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_21.cpp,"[0, 0, 0, 0, 3, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 8, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_21.cpp,26,"[null, ""string""]","[null, ""&&"", ""Int32"", ""int"", ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzip2recover.cpp,328,"fprintf(stderr, 
+                    ""\tto circumvent, recompile with MaybeUInt64 as an\n""
+                    ""\tunsigned 64-bit int.\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_22.cpp,"{
+         case 8:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: None\n"");
+            break;
+         case 4:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: 512 MB\n"");
+            fprintf(stderr, 
+                    ""\tto circumvent, recompile with MaybeUInt64 as an\n""
+                    ""\tunsigned 64-bit int.\n"");
+            break;
+         default:
+            fprintf(stderr, 
+                    ""\tsizeof(MaybeUInt64) is not 4 or 8 -- ""
+                    ""configuration error.\n"");
+            break;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_22.cpp,"[0, 0, 0, 0, 3, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 8, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_22.cpp,28,[],"[null, ""&&"", ""Int32"", ""int"", ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzip2recover.cpp,333,"fprintf(stderr, 
+                    ""\tsizeof(MaybeUInt64) is not 4 or 8 -- ""
+                    ""configuration error.\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_23.cpp,"{
+         case 8:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: None\n"");
+            break;
+         case 4:
+            fprintf(stderr, 
+                    ""\trestrictions on size of recovered file: 512 MB\n"");
+            fprintf(stderr, 
+                    ""\tto circumvent, recompile with MaybeUInt64 as an\n""
+                    ""\tunsigned 64-bit int.\n"");
+            break;
+         default:
+            fprintf(stderr, 
+                    ""\tsizeof(MaybeUInt64) is not 4 or 8 -- ""
+                    ""configuration error.\n"");
+            break;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_23.cpp,"[0, 0, 0, 0, 3, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 8, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_23.cpp,33,[],"[""Int32"", ""int"", ""!="", ""&&"", null]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,32,"fprintf(stderr,""Can't load %s\n"",BZ2_LIBNAME);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_24.cpp,"){
+      fprintf(stderr,""Can't load %s\n"",BZ2_LIBNAME);
+      return -1;
+   }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_24.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_24.cpp,7,"[null, ""string"", null]","[null, ""int"", ""=="", ""!"", ""&&"", ""LoadLibrary_ret"", null, ""==""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,47,"fprintf(stderr,""GetProcAddress failed.\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_25.cpp,"{
+      fprintf(stderr,""GetProcAddress failed.\n"");
+      return -1;
+   }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_25.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_25.cpp,22,"[null, ""string""]","[""!"", ""GetProcAddress_ret"", ""!"", ""GetProcAddress_ret"", ""!"", ""GetProcAddress_ret"", ""!"", ""GetProcAddress_ret"", ""!"", ""GetProcAddress_ret"", ""!"", ""GetProcAddress_ret"", ""!"", ""GetProcAddress_ret"", ""!"", ""GetProcAddress_ret"", ""||"", ""||"", ""||"", ""||"", ""||"", ""||"", ""||"", ""&&"", ""LoadLibrary_ret"", null, ""=="", ""!"", ""&&"", null, ""int"", ""=="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,77,"fprintf(stderr,""Loading of %s failed.  Giving up.\n"", BZ2_LIBNAME);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_26.cpp,"){
+      fprintf(stderr,""Loading of %s failed.  Giving up.\n"", BZ2_LIBNAME);
+      exit(1);
+   }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_26.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_26.cpp,9,"[null, ""string"", null]","[""BZ2DLLLoadLibrary_ret"", ""int"", ""<""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,80,"printf(""Loading of %s succeeded.  Library version is %s.\n"",
+          BZ2_LIBNAME, BZ2_bzlibVersion() );",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_27.cpp,"{
+   int decompress = 0;
+   int level = 9;
+   char *fn_r = NULL;
+   char *fn_w = NULL;
+
+#ifdef _WIN32
+   if(BZ2DLLLoadLibrary()<0){
+      fprintf(stderr,""Loading of %s failed.  Giving up.\n"", BZ2_LIBNAME);
+      exit(1);
+   }
+   printf(""Loading of %s succeeded.  Library version is %s.\n"",
+          BZ2_LIBNAME, BZ2_bzlibVersion() );
+#endif
+   while(++argv,--argc){
+      if(**argv =='-' || **argv=='/'){
+         char *p;
+
+         for(p=*argv+1;*p;p++){
+            if(*p=='d'){
+               decompress = 1;
+            }else if('1'<=*p && *p<='9'){
+               level = *p - '0';
+            }else{
+               usage();
+               exit(1);
+            }
+         }
+      }else{
+         break;
+      }
+   }
+   if(argc>=1){
+      fn_r = *argv;
+      argc--;argv++;
+   }else{
+      fn_r = NULL;
+   }
+   if(argc>=1){
+      fn_w = *argv;
+      argc--;argv++;
+   }else{
+      fn_w = NULL;
+   }
+   {
+      int len;
+      char buff[0x1000];
+      char mode[10];
+
+      if(decompress){
+         BZFILE *BZ2fp_r = NULL;
+         FILE *fp_w = NULL;
+
+         if(fn_w){
+            if((fp_w = fopen(fn_w,""wb""))==NULL){
+               printf(""can't open [%s]\n"",fn_w);
+               perror(""reason:"");
+               exit(1);
+            }
+         }else{
+            fp_w = stdout;
+         }
+         if((fn_r == NULL && (BZ2fp_r = BZ2_bzdopen(fileno(stdin),""rb""))==NULL)
+            || (fn_r != NULL && (BZ2fp_r = BZ2_bzopen(fn_r,""rb""))==NULL)){
+            printf(""can't bz2openstream\n"");
+            exit(1);
+         }
+         while((len=BZ2_bzread(BZ2fp_r,buff,0x1000))>0){
+            fwrite(buff,1,len,fp_w);
+         }
+         BZ2_bzclose(BZ2fp_r);
+         if(fp_w != stdout) fclose(fp_w);
+      }else{
+         BZFILE *BZ2fp_w = NULL;
+         FILE *fp_r = NULL;
+
+         if(fn_r){
+            if((fp_r = fopen(fn_r,""rb""))==NULL){
+               printf(""can't open [%s]\n"",fn_r);
+               perror(""reason:"");
+               exit(1);
+            }
+         }else{
+            fp_r = stdin;
+         }
+         mode[0]='w';
+         mode[1] = '0' + level;
+         mode[2] = '\0';
+
+         if((fn_w == NULL && (BZ2fp_w = BZ2_bzdopen(fileno(stdout),mode))==NULL)
+            || (fn_w !=NULL && (BZ2fp_w = BZ2_bzopen(fn_w,mode))==NULL)){
+            printf(""can't bz2openstream\n"");
+            exit(1);
+         }
+         while((len=fread(buff,1,0x1000,fp_r))>0){
+            BZ2_bzwrite(BZ2fp_w,buff,len);
+         }
+         BZ2_bzclose(BZ2fp_w);
+         if(fp_r!=stdin)fclose(fp_r);
+      }
+   }
+#ifdef _WIN32
+   BZ2DLLFreeLibrary();
+#endif
+   return 0;
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_27.cpp,"[15, 3, 1, 0, 1, 0, 1, 0, 0, 0, 28, 0, 0, 0, 0, 163, 0, 0, 12, 12, 0, 0, 9, 46, 0, 0, 0, 0, 7, 0, 34, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 97, 0, 125, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 5, 0, 19, 15, 7, 0, 34, 0, 0, 37, 1, 52, 4, 1, 0, 0, 1, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_27.cpp,12,"[""string"", null, ""BZ2_bzlibVersion_ret""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,124,"printf(""can't open [%s]\n"",fn_w);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_28.cpp,"){
+               printf(""can't open [%s]\n"",fn_w);
+               perror(""reason:"");
+               exit(1);
+            }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_28.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_28.cpp,56,"[""string"", ""BOOL""]","[""fopen_ret"", null, ""=="", ""&&"", ""int"", ""&&"", null]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,133,"printf(""can't bz2openstream\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_29.cpp,"){
+            printf(""can't bz2openstream\n"");
+            exit(1);
+         }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_29.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_29.cpp,65,"[""string""]","[""int"", ""&&"", null, null, ""=="", ""BZ2_bzdopen_ret"", null, ""=="", ""&&"", null, null, ""!="", ""BZ2_bzopen_ret"", null, ""=="", ""&&"", ""||""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,147,"printf(""can't open [%s]\n"",fn_r);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_30.cpp,"){
+               printf(""can't open [%s]\n"",fn_r);
+               perror(""reason:"");
+               exit(1);
+            }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_30.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_30.cpp,79,"[""string"", null]","[""fopen_ret"", null, ""=="", ""&&"", null, ""&&"", ""int"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/dlltest.cpp,160,"printf(""can't bz2openstream\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_31.cpp,"){
+            printf(""can't bz2openstream\n"");
+            exit(1);
+         }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_31.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_31.cpp,92,"[""string""]","[null, null, ""=="", ""BZ2_bzdopen_ret"", null, ""=="", ""&&"", null, null, ""!="", ""BZ2_bzopen_ret"", null, ""=="", ""&&"", ""||"", ""&&"", ""int"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/unzcrash.cpp,113,"fprintf(stderr, ""nIn/nOut mismatch %d %d\n"", nIn, nOut );",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_32.cpp,"{
+           fprintf(stderr, ""nIn/nOut mismatch %d %d\n"", nIn, nOut );
+           return 1;
+         }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_32.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_32.cpp,40,"[null, ""string"", ""fread_ret"", null]","[""MEMBER"", ""MEMBER"", ""!="", ""!"", ""&&"", ""!"", ""fopen_ret"", ""!"", ""&&"", ""int"", ""int"", ""!="", ""!"", ""&&"", ""int"", null, ""<"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""&&"", ""BZ2_bzBuffToBuffDecompress_ret"", null, ""!="", ""!"", ""&&"", null, ""fread_ret"", ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/unzcrash.cpp,118,"fprintf(stderr, ""mismatch at %d\n"", i );",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_33.cpp,"{ 
+                fprintf(stderr, ""mismatch at %d\n"", i ); 
+                return 1; 
+           }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_33.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_33.cpp,45,"[null, ""string"", ""int""]","[""MEMBER"", ""MEMBER"", ""!="", ""&&"", ""int"", ""int"", ""!="", ""!"", ""&&"", ""!"", ""fopen_ret"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""&&"", ""BZ2_bzBuffToBuffDecompress_ret"", null, ""!="", ""!"", ""&&"", null, ""fread_ret"", ""!="", ""!"", ""&&"", ""int"", null, ""<""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/unzcrash.cpp,121,(i == nOut;,second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_34.cpp,"(i == nOut) fprintf(stderr, ""really ok!\n"" )",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_34.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_34.cpp,48,"[null, ""string""]","[""int"", null, ""<"", ""!"", ""&&"", ""int"", ""int"", ""<"", ""&&"", ""BZ2_bzBuffToBuffDecompress_ret"", null, ""!="", ""!"", ""&&"", null, ""fread_ret"", ""!="", ""!"", ""&&"", ""int"", ""int"", ""!="", ""!"", ""&&"", ""int"", null, ""=="", ""&&"", ""!"", ""fopen_ret"", ""!"", ""&&"", ""MEMBER"", ""MEMBER"", ""!="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzip2.cpp,1186,"fprintf( stderr,
+                  ""%s: Input file %s is a directory.\n"",
+                  progName,inName);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_35.cpp,"{
+         fprintf( stderr,
+                  ""%s: Input file %s is a directory.\n"",
+                  progName,inName);
+         setExit(1);
+         return;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_35.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_35.cpp,55,"[null, ""string"", null, null]","[null, null, ""=="", null, null, ""=="", ""||"", ""&&"", null, null, ""!="", ""containsDubiousChars_ret"", ""&&"", ""!"", ""&&"", ""int"", null, ""<"", ""!"", ""&&"", ""hasSuffix_ret"", ""!"", ""&&"", null, null, ""!="", ""!"", ""fileExists_ret"", ""&&"", ""!"", ""&&"", ""MY_S_ISDIR_ret""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzip2.cpp,1365,"fprintf( stderr,
+                  ""%s: Input file %s is a directory.\n"",
+                  progName,inName);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_36.cpp,"{
+         fprintf( stderr,
+                  ""%s: Input file %s is a directory.\n"",
+                  progName,inName);
+         setExit(1);
+         return;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_36.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_36.cpp,53,"[null, ""string"", null, null]","[null, null, ""!="", ""containsDubiousChars_ret"", ""&&"", ""!"", ""&&"", null, null, ""=="", null, null, ""=="", ""||"", ""&&"", null, null, ""!="", ""!"", ""fileExists_ret"", ""&&"", ""!"", ""&&"", ""MY_S_ISDIR_ret""]"
+second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzip2.cpp,1545,"fprintf( stderr,
+                  ""%s: Input file %s is a directory.\n"",
+                  progName,inName);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_37.cpp,"{
+         fprintf( stderr,
+                  ""%s: Input file %s is a directory.\n"",
+                  progName,inName);
+         setExit(1);
+         return;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_37.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_37.cpp,35,"[null, ""string"", null, null]","[null, null, ""!="", ""&&"", null, null, ""!="", ""!"", ""fileExists_ret"", ""&&"", ""!"", ""&&"", ""MY_S_ISDIR_ret"", ""&&"", null, null, ""!="", ""containsDubiousChars_ret"", ""&&"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/curltest.cpp,23,"printf(""Error fetching: ftp://public.kitware.com/pub/cmake/cygwin/setup.hint\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_38.cpp,"{
+      printf(""Error fetching: ftp://public.kitware.com/pub/cmake/cygwin/setup.hint\n"");
+      retVal = 1;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_38.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_38.cpp,16,"[""string""]","[""curl_easy_perform_ret"", ""int"", ""!="", ""&&"", ""curl_easy_init_ret""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/curltest.cpp,32,"printf(""Cannot create curl object\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_39.cpp,"{
+    printf(""Cannot create curl object\n"");
+    retVal = 1;
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_39.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_39.cpp,25,"[""string""]","[""curl_easy_init_ret"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/curltest.cpp,52,"sprintf(proxy, ""%s:%s"", getenv(""HTTP_PROXY""), getenv(""HTTP_PROXY_PORT""));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_40.cpp,"{
+      sprintf(proxy, ""%s:%s"", getenv(""HTTP_PROXY""), getenv(""HTTP_PROXY_PORT""));
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_40.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_40.cpp,14,"[""char [ 1024 ]"", ""string"", ""getenv_ret"", ""getenv_ret"", ""string"", ""string""]","[""getenv_ret"", ""&&"", ""getenv_ret""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/curltest.cpp,56,"sprintf(proxy, ""%s"", getenv(""HTTP_PROXY""));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_41.cpp,"{
+      sprintf(proxy, ""%s"", getenv(""HTTP_PROXY""));
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_41.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_41.cpp,18,"[""char [ 1024 ]"", ""string"", ""getenv_ret"", ""string""]","[""getenv_ret"", ""!"", ""&&"", ""getenv_ret""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/curltest.cpp,104,"printf(""Error fetching: %s\n"", url1);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_42.cpp,"{
+      printf(""Error fetching: %s\n"", url1);
+      retVal = 1;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_42.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_42.cpp,66,"[""string"", ""char *""]","[""curl_easy_init_ret"", ""&&"", ""curl_easy_perform_ret"", ""int"", ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/curltest.cpp,127,"printf(""Cannot create curl object\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_43.cpp,"{
+    printf(""Cannot create curl object\n"");
+    retVal = 1;
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_43.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_43.cpp,89,"[""string""]","[""curl_easy_init_ret"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/curltest.cpp,147,"printf(""error: first argument should be a url to download\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_44.cpp,"{
+    printf(""error: first argument should be a url to download\n"");
+    retVal = 1;
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_44.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_44.cpp,12,"[""string""]","[""int"", ""int"", "">"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/http_digest.cpp,146,"path = (unsigned char *) aprintf(""%.*s"", urilen, uripath);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_45.cpp,"{
+      size_t urilen = tmp - (char *)uripath;
+      path = (unsigned char *) aprintf(""%.*s"", urilen, uripath);
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_45.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 11, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_45.cpp,77,"[""string"", ""size_t"", ""const unsigned char *""]","[""strchr_ret"", ""&&"", ""!"", ""BOOL"", ""!"", ""&&"", ""MEMBER""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/http_digest.cpp,161,"*allocuserpwd = aprintf(""%sAuthorization: Digest %s\r\n"",
+                          proxy ? ""Proxy-"" : """",
+                          response);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_46.cpp,"{
+  CURLcode result;
+  struct Curl_easy *data = conn->data;
+  unsigned char *path = NULL;
+  char *tmp = NULL;
+  char *response;
+  size_t len;
+  bool have_chlg;
+
+  /* Point to the address of the pointer that holds the string to send to the
+     server, which is for a plain host or for a HTTP proxy */
+  char **allocuserpwd;
+
+  /* Point to the name and password for this */
+  const char *userp;
+  const char *passwdp;
+
+  /* Point to the correct struct with this */
+  struct digestdata *digest;
+  struct auth *authp;
+
+  if(proxy) {
+    digest = &data->state.proxydigest;
+    allocuserpwd = &conn->allocptr.proxyuserpwd;
+    userp = conn->http_proxy.user;
+    passwdp = conn->http_proxy.passwd;
+    authp = &data->state.authproxy;
+  }
+  else {
+    digest = &data->state.digest;
+    allocuserpwd = &conn->allocptr.userpwd;
+    userp = conn->user;
+    passwdp = conn->passwd;
+    authp = &data->state.authhost;
+  }
+
+  Curl_safefree(*allocuserpwd);
+
+  /* not set means empty */
+  if(!userp)
+    userp = """";
+
+  if(!passwdp)
+    passwdp = """";
+
+#if defined(USE_WINDOWS_SSPI)
+  have_chlg = digest->input_token ? TRUE : FALSE;
+#else
+  have_chlg = digest->nonce ? TRUE : FALSE;
+#endif
+
+  if(!have_chlg) {
+    authp->done = FALSE;
+    return CURLE_OK;
+  }
+
+  /* So IE browsers < v7 cut off the URI part at the query part when they
+     evaluate the MD5 and some (IIS?) servers work with them so we may need to
+     do the Digest IE-style. Note that the different ways cause different MD5
+     sums to get sent.
+
+     Apache servers can be set to do the Digest IE-style automatically using
+     the BrowserMatch feature:
+     https://httpd.apache.org/docs/2.2/mod/mod_auth_digest.html#msie
+
+     Further details on Digest implementation differences:
+     http://www.fngtps.com/2006/09/http-authentication
+  */
+
+  if(authp->iestyle) {
+    tmp = strchr((char *)uripath, '?');
+    if(tmp) {
+      size_t urilen = tmp - (char *)uripath;
+      path = (unsigned char *) aprintf(""%.*s"", urilen, uripath);
+    }
+  }
+  if(!tmp)
+    path = (unsigned char *) strdup((char *) uripath);
+
+  if(!path)
+    return CURLE_OUT_OF_MEMORY;
+
+  result = Curl_auth_create_digest_http_message(data, userp, passwdp, request,
+                                                path, digest, &response, &len);
+  free(path);
+  if(result)
+    return result;
+
+  *allocuserpwd = aprintf(""%sAuthorization: Digest %s\r\n"",
+                          proxy ? ""Proxy-"" : """",
+                          response);
+  free(response);
+  if(!*allocuserpwd)
+    return CURLE_OUT_OF_MEMORY;
+
+  authp->done = TRUE;
+
+  return CURLE_OK;
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_46.cpp,"[11, 0, 0, 0, 0, 0, 5, 0, 0, 0, 12, 0, 0, 0, 2, 166, 0, 0, 13, 13, 0, 0, 4, 7, 0, 0, 0, 0, 10, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 78, 3, 74, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 13, 13, 5, 0, 9, 0, 0, 24, 0, 21, 3, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_46.cpp,92,"[""string"", ""string"", ""char *""]","[""Curl_auth_create_digest_http_message_ret"", ""!"", ""&&"", ""!"", ""BOOL"", ""!"", ""&&"", ""!"", ""unsigned char *"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/krb5.cpp,196,"stringp = aprintf(""%s@%s"", service, host);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_47.cpp,"{
+    /* this really shouldn't be repeated here, but can't help it */
+    if(service == srv_host) {
+      result = Curl_ftpsend(conn, ""AUTH GSSAPI"");
+      if(result)
+        return -2;
+
+      if(Curl_GetFTPResponse(&nread, conn, NULL))
+        return -1;
+
+      if(data->state.buffer[0] != '3')
+        return -1;
+    }
+
+    stringp = aprintf(""%s@%s"", service, host);
+    if(!stringp)
+      return -2;
+
+    input_buffer.value = stringp;
+    input_buffer.length = strlen(stringp);
+    maj = gss_import_name(&min, &input_buffer, GSS_C_NT_HOSTBASED_SERVICE,
+                          &gssname);
+    free(stringp);
+    if(maj != GSS_S_COMPLETE) {
+      gss_release_name(&min, &gssname);
+      if(service == srv_host) {
+        Curl_failf(data, ""Error importing service name %s@%s"", service, host);
+        return AUTH_ERROR;
+      }
+      service = srv_host;
+      continue;
+    }
+    /* We pass NULL as |output_name_type| to avoid a leak. */
+    gss_display_name(&min, gssname, &output_buffer, NULL);
+    Curl_infof(data, ""Trying against %s\n"", output_buffer.value);
+    gssresp = GSS_C_NO_BUFFER;
+    *context = GSS_C_NO_CONTEXT;
+
+    do {
+      /* Release the buffer at each iteration to avoid leaking: the first time
+         we are releasing the memory from gss_display_name. The last item is
+         taken care by a final gss_release_buffer. */
+      gss_release_buffer(&min, &output_buffer);
+      ret = AUTH_OK;
+      maj = Curl_gss_init_sec_context(data,
+                                      &min,
+                                      context,
+                                      gssname,
+                                      &Curl_krb5_mech_oid,
+                                      &chan,
+                                      gssresp,
+                                      &output_buffer,
+                                      TRUE,
+                                      NULL);
+
+      if(gssresp) {
+        free(_gssresp.value);
+        gssresp = NULL;
+      }
+
+      if(GSS_ERROR(maj)) {
+        Curl_infof(data, ""Error creating security context\n"");
+        ret = AUTH_ERROR;
+        break;
+      }
+
+      if(output_buffer.length != 0) {
+        char *cmd;
+
+        result = Curl_base64_encode(data, (char *)output_buffer.value,
+                                    output_buffer.length, &p, &base64_sz);
+        if(result) {
+          Curl_infof(data, ""base64-encoding: %s\n"",
+                     curl_easy_strerror(result));
+          ret = AUTH_ERROR;
+          break;
+        }
+
+        cmd = aprintf(""ADAT %s"", p);
+        if(cmd)
+          result = Curl_ftpsend(conn, cmd);
+        else
+          result = CURLE_OUT_OF_MEMORY;
+
+        free(p);
+
+        if(result) {
+          ret = -2;
+          break;
+        }
+
+        if(Curl_GetFTPResponse(&nread, conn, NULL)) {
+          ret = -1;
+          break;
+        }
+
+        if(data->state.buffer[0] != '2' && data->state.buffer[0] != '3') {
+          Curl_infof(data, ""Server didn't accept auth data\n"");
+          ret = AUTH_ERROR;
+          break;
+        }
+
+        p = data->state.buffer + 4;
+        p = strstr(p, ""ADAT="");
+        if(p) {
+          result = Curl_base64_decode(p + 5,
+                                      (unsigned char **)&_gssresp.value,
+                                      &_gssresp.length);
+          if(result) {
+            Curl_failf(data, ""base64-decoding: %s"",
+                       curl_easy_strerror(result));
+            ret = AUTH_CONTINUE;
+            break;
+          }
+        }
+
+        gssresp = &_gssresp;
+      }
+    } while(maj == GSS_S_CONTINUE_NEEDED);
+
+    gss_release_name(&min, &gssname);
+    gss_release_buffer(&min, &output_buffer);
+
+    if(gssresp)
+      free(_gssresp.value);
+
+    if(ret == AUTH_OK || service == srv_host)
+      return ret;
+
+    service = srv_host;
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_47.cpp,"[19, 0, 0, 1, 6, 1, 6, 0, 0, 0, 22, 0, 0, 0, 0, 198, 0, 0, 1, 1, 0, 0, 0, 25, 0, 0, 0, 0, 1, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 97, 0, 146, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 3, 0, 20, 19, 1, 0, 30, 0, 0, 41, 0, 76, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_47.cpp,52,"[""string"", ""const char *"", ""const char *""]","[null, null, ""=="", ""const char *"", ""const char *"", ""=="", ""||"", ""!"", ""&&"", ""const char *"", ""const char *"", ""=="", ""!"", ""&&"", ""!"", ""aprintf_ret"", ""!"", ""&&"", ""Curl_GetFTPResponse_ret"", ""!"", ""&&"", ""const char *"", ""const char *"", ""=="", ""!"", ""&&"", ""gss_import_name_ret"", null, ""!="", ""&&"", ""Curl_ftpsend_ret"", ""!"", ""&&"", ""MEMBER"", ""char"", ""!="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/krb5.cpp,208,"Curl_failf(data, ""Error importing service name %s@%s"", service, host);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_48.cpp,"{
+        Curl_failf(data, ""Error importing service name %s@%s"", service, host);
+        return AUTH_ERROR;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_48.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_48.cpp,64,"[""struct Curl_easy *"", ""string"", ""const char *"", ""const char *""]","[""Curl_GetFTPResponse_ret"", ""!"", ""&&"", ""MEMBER"", ""char"", ""!="", ""!"", ""&&"", ""const char *"", ""const char *"", ""=="", ""&&"", ""const char *"", ""const char *"", ""=="", ""!"", ""&&"", ""!"", ""aprintf_ret"", ""!"", ""&&"", null, null, ""=="", ""const char *"", ""const char *"", ""=="", ""||"", ""!"", ""&&"", ""Curl_ftpsend_ret"", ""!"", ""&&"", ""gss_import_name_ret"", null, ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/krb5.cpp,260,"cmd = aprintf(""ADAT %s"", p);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_49.cpp,"{
+        char *cmd;
+
+        result = Curl_base64_encode(data, (char *)output_buffer.value,
+                                    output_buffer.length, &p, &base64_sz);
+        if(result) {
+          Curl_infof(data, ""base64-encoding: %s\n"",
+                     curl_easy_strerror(result));
+          ret = AUTH_ERROR;
+          break;
+        }
+
+        cmd = aprintf(""ADAT %s"", p);
+        if(cmd)
+          result = Curl_ftpsend(conn, cmd);
+        else
+          result = CURLE_OUT_OF_MEMORY;
+
+        free(p);
+
+        if(result) {
+          ret = -2;
+          break;
+        }
+
+        if(Curl_GetFTPResponse(&nread, conn, NULL)) {
+          ret = -1;
+          break;
+        }
+
+        if(data->state.buffer[0] != '2' && data->state.buffer[0] != '3') {
+          Curl_infof(data, ""Server didn't accept auth data\n"");
+          ret = AUTH_ERROR;
+          break;
+        }
+
+        p = data->state.buffer + 4;
+        p = strstr(p, ""ADAT="");
+        if(p) {
+          result = Curl_base64_decode(p + 5,
+                                      (unsigned char **)&_gssresp.value,
+                                      &_gssresp.length);
+          if(result) {
+            Curl_failf(data, ""base64-decoding: %s"",
+                       curl_easy_strerror(result));
+            ret = AUTH_CONTINUE;
+            break;
+          }
+        }
+
+        gssresp = &_gssresp;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_49.cpp,"[7, 0, 0, 0, 5, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 81, 0, 0, 1, 1, 0, 0, 0, 13, 0, 0, 0, 0, 1, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 43, 0, 54, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 7, 7, 1, 0, 12, 0, 0, 17, 0, 28, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_49.cpp,116,"[""string"", ""char *""]","[""MEMBER"", ""int"", ""!="", ""&&"", ""BOOL"", null, ""=="", ""const char *"", ""const char *"", ""=="", ""||"", ""!"", ""&&"", ""strstr_ret"", ""!"", ""&&"", ""const char *"", ""const char *"", ""=="", ""!"", ""&&"", ""gss_import_name_ret"", null, ""!="", ""!"", ""&&"", ""const char *"", ""const char *"", ""=="", ""!"", ""&&"", ""Curl_ftpsend_ret"", ""!"", ""&&"", ""Curl_gss_init_sec_context_ret"", null, ""=="", ""&&"", ""Curl_GetFTPResponse_ret"", ""!"", ""&&"", ""Curl_ftpsend_ret"", ""!"", ""&&"", ""Curl_base64_decode_ret"", ""!"", ""&&"", ""Curl_base64_encode_ret"", ""!"", ""&&"", ""MEMBER"", ""char"", ""!="", ""!"", ""&&"", ""!"", ""aprintf_ret"", ""!"", ""&&"", ""GSS_ERROR_ret"", ""!"", ""&&"", ""Curl_GetFTPResponse_ret"", ""!"", ""&&"", ""MEMBER"", ""char"", ""!="", ""MEMBER"", ""char"", ""!="", ""&&"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/krb5.cpp,291,"Curl_failf(data, ""base64-decoding: %s"",
+                       curl_easy_strerror(result));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_50.cpp,"{
+            Curl_failf(data, ""base64-decoding: %s"",
+                       curl_easy_strerror(result));
+            ret = AUTH_CONTINUE;
+            break;
+          }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_50.cpp,"[0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_50.cpp,147,"[""struct Curl_easy *"", ""string"", ""curl_easy_strerror_ret"", ""Curl_base64_decode_ret""]","[null, null, ""=="", ""const char *"", ""const char *"", ""=="", ""||"", ""&&"", ""strstr_ret"", ""&&"", ""!"", ""aprintf_ret"", ""&&"", ""Curl_GetFTPResponse_ret"", ""&&"", ""Curl_gss_init_sec_context_ret"", null, ""=="", ""&&"", ""const char *"", ""const char *"", ""=="", ""&&"", ""gss_import_name_ret"", null, ""!="", ""!"", ""&&"", ""const char *"", ""const char *"", ""=="", ""&&"", null, ""!"", ""&&"", ""Curl_base64_encode_ret"", ""!"", ""&&"", ""Curl_base64_decode_ret"", ""&&"", ""Curl_GetFTPResponse_ret"", ""!"", ""&&"", ""MEMBER"", ""char"", ""!="", ""MEMBER"", ""char"", ""!="", ""&&"", ""!"", ""&&"", ""GSS_ERROR_ret"", ""!"", ""&&"", ""Curl_ftpsend_ret"", ""&&"", ""MEMBER"", ""int"", ""!="", ""&&"", ""MEMBER"", ""char"", ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/http2.cpp,230,"snprintf(p, len, "" nghttp2/%s"", h2->version_str);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_51.cpp,"{
+  nghttp2_info *h2 = nghttp2_version(0);
+  return snprintf(p, len, "" nghttp2/%s"", h2->version_str);
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_51.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 9, 0, 0, 1, 1, 0, 0, 1, 2, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_51.cpp,3,"[""char *"", ""size_t"", ""string"", ""MEMBER""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/http2.cpp,874,"h = aprintf(""%s:%s"", name, value);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_52.cpp,"{
+    char *h;
+
+    if(!stream->push_headers) {
+      stream->push_headers_alloc = 10;
+      stream->push_headers = malloc(stream->push_headers_alloc *
+                                    sizeof(char *));
+      stream->push_headers_used = 0;
+    }
+    else if(stream->push_headers_used ==
+            stream->push_headers_alloc) {
+      char **headp;
+      stream->push_headers_alloc *= 2;
+      headp = Curl_saferealloc(stream->push_headers,
+                               stream->push_headers_alloc * sizeof(char *));
+      if(!headp) {
+        stream->push_headers = NULL;
+        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+      }
+      stream->push_headers = headp;
+    }
+    h = aprintf(""%s:%s"", name, value);
+    if(h)
+      stream->push_headers[stream->push_headers_used++] = h;
+    return 0;
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_52.cpp,"[4, 0, 0, 0, 0, 0, 2, 0, 0, 0, 5, 0, 0, 0, 0, 61, 0, 0, 2, 2, 0, 0, 0, 5, 0, 0, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 31, 0, 24, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 4, 4, 0, 0, 5, 0, 0, 9, 1, 8, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_52.cpp,50,"[""string"", ""const uint8_t *"", ""const uint8_t *""]","[""!"", ""MEMBER"", ""!"", ""&&"", ""MEMBER"", ""MEMBER"", ""=="", ""!"", ""&&"", ""!"", ""Curl_saferealloc_ret"", ""!"", ""&&"", ""!"", ""nghttp2_session_get_stream_user_data_ret"", ""!"", ""&&"", ""!"", ""MEMBER"", ""!"", ""&&"", ""MEMBER"", null, ""==""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/if2ip.cpp,169,"snprintf(scope, sizeof(scope), ""%%%u"", scopeid);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_53.cpp,"snprintf(scope, sizeof(scope), ""%%%u"", scopeid)",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_53.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_53.cpp,55,"[""char [ 12 ]"", null, ""string"", ""MEMBER""]","[""unsigned int"", ""unsigned int"", ""!="", ""!"", ""&&"", ""unsigned int"", ""MEMBER"", ""unsigned int"", ""!="", ""&&"", ""!"", ""&&"", ""strcasecompare_ret"", ""&&"", ""MEMBER"", null, ""!="", ""&&"", ""MEMBER"", ""int"", ""=="", ""&&"", ""MEMBER"", ""&&"", ""struct ifaddrs *"", null, ""!="", ""&&"", ""int"", null, ""=="", ""&&"", ""getifaddrs_ret"", ""int"", "">=""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/if2ip.cpp,177,"snprintf(buf, buf_size, ""%s%s"", ip, scope);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_54.cpp,"{
+            void *addr;
+            char *ip;
+            char scope[12] = """";
+            char ipstr[64];
+#ifdef ENABLE_IPV6
+            if(af == AF_INET6) {
+              unsigned int scopeid = 0;
+              unsigned int ifscope = Curl_ipv6_scope(iface->ifa_addr);
+
+              if(ifscope != remote_scope) {
+                /* We are interested only in interface addresses whose
+                   scope matches the remote address we want to
+                   connect to: global for global, link-local for
+                   link-local, etc... */
+                if(res == IF2IP_NOT_FOUND) res = IF2IP_AF_NOT_SUPPORTED;
+                continue;
+              }
+
+              addr =
+                &((struct sockaddr_in6 *)(void *)iface->ifa_addr)->sin6_addr;
+#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
+              /* Include the scope of this interface as part of the address */
+              scopeid = ((struct sockaddr_in6 *)(void *)iface->ifa_addr)
+                            ->sin6_scope_id;
+
+              /* If given, scope id should match. */
+              if(remote_scope_id && scopeid != remote_scope_id) {
+                if(res == IF2IP_NOT_FOUND)
+                  res = IF2IP_AF_NOT_SUPPORTED;
+
+                continue;
+              }
+#endif
+              if(scopeid)
+                snprintf(scope, sizeof(scope), ""%%%u"", scopeid);
+            }
+            else
+#endif
+              addr =
+                  &((struct sockaddr_in *)(void *)iface->ifa_addr)->sin_addr;
+            res = IF2IP_FOUND;
+            ip = (char *) Curl_inet_ntop(af, addr, ipstr, sizeof(ipstr));
+            snprintf(buf, buf_size, ""%s%s"", ip, scope);
+            break;
+          }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_54.cpp,"[6, 0, 0, 0, 1, 2, 0, 0, 0, 0, 8, 0, 0, 0, 0, 77, 0, 0, 6, 6, 0, 0, 3, 6, 0, 0, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 49, 0, 36, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 2, 0, 6, 6, 1, 0, 6, 0, 0, 9, 0, 16, 4, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_54.cpp,63,"[""char *"", ""int"", ""string"", ""Curl_inet_ntop_ret"", ""char [ 12 ]""]","[""unsigned int"", ""unsigned int"", ""!="", ""!"", ""&&"", ""strcasecompare_ret"", ""&&"", ""MEMBER"", ""int"", ""=="", ""&&"", ""getifaddrs_ret"", ""int"", "">="", ""&&"", ""MEMBER"", null, ""!="", ""&&"", ""int"", null, ""=="", ""!"", ""&&"", ""struct ifaddrs *"", null, ""!="", ""&&"", ""unsigned int"", ""MEMBER"", ""unsigned int"", ""!="", ""&&"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/asyn-thread.cpp,272,"snprintf(service, sizeof(service), ""%d"", tsd->port);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_55.cpp,"{
+  struct thread_sync_data *tsd = (struct thread_sync_data*)arg;
+  struct thread_data *td = tsd->td;
+  char service[12];
+  int rc;
+
+  snprintf(service, sizeof(service), ""%d"", tsd->port);
+
+  rc = Curl_getaddrinfo_ex(tsd->hostname, service, &tsd->hints, &tsd->res);
+
+  if(rc != 0) {
+    tsd->sock_error = SOCKERRNO?SOCKERRNO:rc;
+    if(tsd->sock_error == 0)
+      tsd->sock_error = RESOLVER_ENOMEM;
+  }
+  else {
+    Curl_addrinfo_set_port(tsd->res, tsd->port);
+  }
+
+  Curl_mutex_acquire(tsd->mtx);
+  if(tsd->done) {
+    /* too late, gotta clean up the mess */
+    Curl_mutex_release(tsd->mtx);
+    destroy_thread_sync_data(tsd);
+    free(td);
+  }
+  else {
+    tsd->done = 1;
+    Curl_mutex_release(tsd->mtx);
+  }
+
+  return 0;
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_55.cpp,"[3, 0, 0, 0, 0, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 79, 0, 0, 4, 4, 0, 0, 2, 6, 0, 0, 0, 0, 2, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 1, 37, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 1, 0, 4, 4, 3, 0, 9, 0, 0, 11, 0, 16, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_55.cpp,7,"[""char [ 12 ]"", null, ""string"", ""MEMBER""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/asyn-thread.cpp,646,"snprintf(sbuf, sizeof(sbuf), ""%d"", port);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_56.cpp,"{
+  struct addrinfo hints;
+  struct in_addr in;
+  Curl_addrinfo *res;
+  int error;
+  char sbuf[12];
+  int pf = PF_INET;
+#ifdef CURLRES_IPV6
+  struct in6_addr in6;
+#endif /* CURLRES_IPV6 */
+
+  *waitp = 0; /* default to synchronous response */
+
+#ifndef USE_RESOLVE_ON_IPS
+  /* First check if this is an IPv4 address string */
+  if(Curl_inet_pton(AF_INET, hostname, &in) > 0)
+    /* This is a dotted IP address 123.123.123.123-style */
+    return Curl_ip2addr(AF_INET, &in, hostname, port);
+
+#ifdef CURLRES_IPV6
+  /* check if this is an IPv6 address string */
+  if(Curl_inet_pton(AF_INET6, hostname, &in6) > 0)
+    /* This is an IPv6 address literal */
+    return Curl_ip2addr(AF_INET6, &in6, hostname, port);
+#endif /* CURLRES_IPV6 */
+#endif /* !USE_RESOLVE_ON_IPS */
+
+#ifdef CURLRES_IPV6
+  /*
+   * Check if a limited name resolve has been requested.
+   */
+  switch(conn->ip_version) {
+  case CURL_IPRESOLVE_V4:
+    pf = PF_INET;
+    break;
+  case CURL_IPRESOLVE_V6:
+    pf = PF_INET6;
+    break;
+  default:
+    pf = PF_UNSPEC;
+    break;
+  }
+
+  if((pf != PF_INET) && !Curl_ipv6works())
+    /* The stack seems to be a non-IPv6 one */
+    pf = PF_INET;
+#endif /* CURLRES_IPV6 */
+
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = pf;
+  hints.ai_socktype = conn->socktype;
+
+  snprintf(sbuf, sizeof(sbuf), ""%d"", port);
+
+  /* fire up a new resolver thread! */
+  if(init_resolve_thread(conn, hostname, port, &hints)) {
+    *waitp = 1; /* expect asynchronous response */
+    return NULL;
+  }
+
+  /* fall-back to blocking version */
+  infof(conn->data, ""init_resolve_thread() failed for %s; %s\n"",
+        hostname, Curl_strerror(conn, ERRNO));
+
+  error = Curl_getaddrinfo_ex(hostname, sbuf, &hints, &res);
+  if(error) {
+    infof(conn->data, ""getaddrinfo() failed for %s:%d; %s\n"",
+          hostname, port, Curl_strerror(conn, SOCKERRNO));
+    return NULL;
+  }
+  else {
+    Curl_addrinfo_set_port(res, port);
+  }
+
+  return res;
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_56.cpp,"[5, 0, 0, 0, 3, 0, 5, 1, 2, 1, 8, 0, 0, 0, 0, 114, 0, 0, 7, 7, 0, 0, 1, 9, 0, 0, 0, 0, 1, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 75, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 1, 0, 6, 5, 1, 0, 16, 0, 0, 14, 0, 46, 8, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_56.cpp,56,"[""char [ 12 ]"", null, ""string"", ""int""]","[""Curl_inet_pton_ret"", ""int"", "">"", ""!"", ""&&"", ""Curl_inet_pton_ret"", ""int"", "">"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/smtp.cpp,560,"from = aprintf(""%s"", data->set.str[STRING_MAIL_FROM]);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_57.cpp,"from = aprintf(""%s"", data->set.str[STRING_MAIL_FROM])",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_57.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_57.cpp,13,"[""string"", ""MEMBER""]","[""MEMBER"", ""constant"", ""=="", ""&&"", ""!"", ""MEMBER"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/smtp.cpp,562,"from = aprintf(""<%s>"", data->set.str[STRING_MAIL_FROM]);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_58.cpp,"from = aprintf(""<%s>"", data->set.str[STRING_MAIL_FROM])",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_58.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_58.cpp,15,"[""string"", ""MEMBER""]","[""!"", ""MEMBER"", ""!"", ""&&"", ""MEMBER"", ""constant"", ""=="", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/smtp.cpp,570,"auth = aprintf(""%s"", data->set.str[STRING_MAIL_AUTH]);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_59.cpp,"auth = aprintf(""%s"", data->set.str[STRING_MAIL_AUTH])",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_59.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_59.cpp,23,"[""string"", ""MEMBER""]","[""!"", ""aprintf_ret"", ""!"", ""&&"", ""MEMBER"", ""MEMBER"", ""&&"", ""&&"", ""MEMBER"", ""constant"", ""!=""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/smtp.cpp,584,"size = aprintf(""%"" CURL_FORMAT_CURL_OFF_T, data->state.infilesize);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_60.cpp,"{
+    size = aprintf(""%"" CURL_FORMAT_CURL_OFF_T, data->state.infilesize);
+
+    if(!size) {
+      free(from);
+      free(auth);
+
+      return CURLE_OUT_OF_MEMORY;
+    }
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_60.cpp,"[1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_60.cpp,37,[],"[""!"", ""aprintf_ret"", ""!"", ""&&"", ""!"", ""strdup_ret"", ""!"", ""&&"", ""MEMBER"", ""MEMBER"", ""int"", "">"", ""&&"", ""&&"", ""MEMBER"", ""MEMBER"", ""&&"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/hostip4.cpp,146,"snprintf(sbuf, sizeof(sbuf), ""%d"", port);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_61.cpp,"{
+      snprintf(sbuf, sizeof(sbuf), ""%d"", port);
+      sbufptr = sbuf;
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_61.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 7, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_61.cpp,25,"[""char [ 12 ]"", null, ""string"", ""int""]","[""Curl_inet_pton_ret"", ""int"", "">"", ""!"", ""&&"", ""int""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/multi.cpp,3104,"fprintf(stderr, ""* Multi status: %d handles, %d alive\n"",
+          multi->num_easy, multi->num_alive);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_62.cpp,"{
+  struct Curl_easy *data;
+  int i;
+  fprintf(stderr, ""* Multi status: %d handles, %d alive\n"",
+          multi->num_easy, multi->num_alive);
+  for(data=multi->easyp; data; data = data->next) {
+    if(data->mstate < CURLM_STATE_COMPLETED) {
+      /* only display handles that are not completed */
+      fprintf(stderr, ""handle %p, state %s, %d sockets\n"",
+              (void *)data,
+              statename[data->mstate], data->numsocks);
+      for(i=0; i < data->numsocks; i++) {
+        curl_socket_t s = data->sockets[i];
+        struct Curl_sh_entry *entry = sh_getentry(&multi->sockhash, s);
+
+        fprintf(stderr, ""%d "", (int)s);
+        if(!entry) {
+          fprintf(stderr, ""INTERNAL CONFUSION\n"");
+          continue;
+        }
+        fprintf(stderr, ""[%s %s] "",
+                entry->action&CURL_POLL_IN?""RECVING"":"""",
+                entry->action&CURL_POLL_OUT?""SENDING"":"""");
+      }
+      if(data->numsocks)
+        fprintf(stderr, ""\n"");
+    }
+  }
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_62.cpp,"[3, 0, 2, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 82, 0, 0, 4, 4, 0, 0, 4, 11, 0, 0, 0, 0, 2, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 2, 47, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2, 0, 7, 5, 2, 0, 7, 0, 0, 6, 0, 22, 0, 2, 0, 0, 2, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_62.cpp,4,"[null, ""string"", ""MEMBER"", ""MEMBER""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/multi.cpp,3109,"fprintf(stderr, ""handle %p, state %s, %d sockets\n"",
+              (void *)data,
+              statename[data->mstate], data->numsocks);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_63.cpp,"{
+      /* only display handles that are not completed */
+      fprintf(stderr, ""handle %p, state %s, %d sockets\n"",
+              (void *)data,
+              statename[data->mstate], data->numsocks);
+      for(i=0; i < data->numsocks; i++) {
+        curl_socket_t s = data->sockets[i];
+        struct Curl_sh_entry *entry = sh_getentry(&multi->sockhash, s);
+
+        fprintf(stderr, ""%d "", (int)s);
+        if(!entry) {
+          fprintf(stderr, ""INTERNAL CONFUSION\n"");
+          continue;
+        }
+        fprintf(stderr, ""[%s %s] "",
+                entry->action&CURL_POLL_IN?""RECVING"":"""",
+                entry->action&CURL_POLL_OUT?""SENDING"":"""");
+      }
+      if(data->numsocks)
+        fprintf(stderr, ""\n"");
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_63.cpp,"[2, 0, 1, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 55, 0, 0, 2, 2, 0, 0, 3, 10, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20, 2, 38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0, 5, 4, 2, 0, 6, 0, 0, 5, 0, 18, 0, 1, 0, 0, 1, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_63.cpp,9,"[null, ""string"", ""MEMBER"", ""MEMBER"", ""MEMBER""]","[""MEMBER"", ""&&"", ""MEMBER"", null, ""<""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/multi.cpp,3116,"fprintf(stderr, ""%d "", (int)s);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_64.cpp,"{
+        curl_socket_t s = data->sockets[i];
+        struct Curl_sh_entry *entry = sh_getentry(&multi->sockhash, s);
+
+        fprintf(stderr, ""%d "", (int)s);
+        if(!entry) {
+          fprintf(stderr, ""INTERNAL CONFUSION\n"");
+          continue;
+        }
+        fprintf(stderr, ""[%s %s] "",
+                entry->action&CURL_POLL_IN?""RECVING"":"""",
+                entry->action&CURL_POLL_OUT?""SENDING"":"""");
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_64.cpp,"[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 32, 0, 0, 2, 2, 0, 0, 2, 7, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 2, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 3, 3, 2, 0, 4, 0, 0, 3, 0, 11, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_64.cpp,16,"[null, ""string"", ""curl_socket_t""]","[""int"", ""MEMBER"", ""<"", ""&&"", ""MEMBER"", null, ""<"", ""&&"", ""MEMBER""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/multi.cpp,3118,"fprintf(stderr, ""INTERNAL CONFUSION\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_65.cpp,"{
+          fprintf(stderr, ""INTERNAL CONFUSION\n"");
+          continue;
+        }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_65.cpp,"[0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_65.cpp,18,"[null, ""string""]","[""!"", ""struct Curl_sh_entry *"", ""&&"", ""MEMBER"", null, ""<"", ""&&"", ""int"", ""MEMBER"", ""<"", ""&&"", ""MEMBER""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/multi.cpp,3121,"fprintf(stderr, ""[%s %s] "",
+                entry->action&CURL_POLL_IN?""RECVING"":"""",
+                entry->action&CURL_POLL_OUT?""SENDING"":"""");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_66.cpp,"{
+        curl_socket_t s = data->sockets[i];
+        struct Curl_sh_entry *entry = sh_getentry(&multi->sockhash, s);
+
+        fprintf(stderr, ""%d "", (int)s);
+        if(!entry) {
+          fprintf(stderr, ""INTERNAL CONFUSION\n"");
+          continue;
+        }
+        fprintf(stderr, ""[%s %s] "",
+                entry->action&CURL_POLL_IN?""RECVING"":"""",
+                entry->action&CURL_POLL_OUT?""SENDING"":"""");
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_66.cpp,"[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 32, 0, 0, 2, 2, 0, 0, 2, 7, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 2, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 3, 3, 2, 0, 4, 0, 0, 3, 0, 11, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_66.cpp,21,"[null, ""string"", ""string"", ""string""]","[""MEMBER"", ""&&"", ""!"", ""struct Curl_sh_entry *"", ""!"", ""&&"", ""MEMBER"", null, ""<"", ""&&"", ""int"", ""MEMBER"", ""<""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/multi.cpp,3126,"fprintf(stderr, ""\n"");",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_67.cpp,"fprintf(stderr, ""\n"")",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_67.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_67.cpp,26,"[null, ""string""]","[""MEMBER"", ""&&"", ""MEMBER"", null, ""<"", ""&&"", ""MEMBER""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/hostip.cpp,201,"char *id = aprintf(""%s:%d"", name, port);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_68.cpp,"{
+  /* create and return the new allocated entry */
+  char *id = aprintf(""%s:%d"", name, port);
+  char *ptr = id;
+  if(ptr) {
+    /* lower case the name part */
+    while(*ptr && (*ptr != ':')) {
+      *ptr = (char)TOLOWER(*ptr);
+      ptr++;
+    }
+  }
+  return id;
+}",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_68.cpp,"[1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0, 17, 0, 0, 2, 2, 0, 0, 2, 2, 0, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 1, 0, 0, 2, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_68.cpp,4,"[""string"", ""const char *"", ""int""]",[]
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/base64.cpp,236,"snprintf(output, 5, ""%c%c=="",
+               table64[obuf[0]],
+               table64[obuf[1]]);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_69.cpp,"{
+    case 1: /* only one byte read */
+      snprintf(output, 5, ""%c%c=="",
+               table64[obuf[0]],
+               table64[obuf[1]]);
+      break;
+
+    case 2: /* two bytes read */
+      snprintf(output, 5, ""%c%c%c="",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]]);
+      break;
+
+    default:
+      snprintf(output, 5, ""%c%c%c%c"",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]],
+               table64[obuf[3]]);
+      break;
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_69.cpp,"[0, 0, 0, 0, 3, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 18, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_69.cpp,66,"[""int"", ""int"", ""string"", ""MEMBER"", ""MEMBER""]","[""int"", ""&&"", ""strlen_ret"", ""int"", "">"", ""!"", ""&&"", ""Curl_convert_clone_ret"", ""!"", ""&&"", ""!"", ""malloc_ret"", ""!"", ""&&"", ""strlen_ret"", ""int"", "">""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/base64.cpp,242,"snprintf(output, 5, ""%c%c%c="",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]]);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_70.cpp,"{
+    case 1: /* only one byte read */
+      snprintf(output, 5, ""%c%c=="",
+               table64[obuf[0]],
+               table64[obuf[1]]);
+      break;
+
+    case 2: /* two bytes read */
+      snprintf(output, 5, ""%c%c%c="",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]]);
+      break;
+
+    default:
+      snprintf(output, 5, ""%c%c%c%c"",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]],
+               table64[obuf[3]]);
+      break;
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_70.cpp,"[0, 0, 0, 0, 3, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 18, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_70.cpp,72,"[""int"", ""int"", ""string"", ""MEMBER"", ""MEMBER"", ""MEMBER""]","[""Curl_convert_clone_ret"", ""!"", ""&&"", ""strlen_ret"", ""int"", "">"", ""!"", ""&&"", ""!"", ""malloc_ret"", ""!"", ""&&"", ""int"", ""&&"", ""size_t"", ""int"", "">""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/base64.cpp,249,"snprintf(output, 5, ""%c%c%c%c"",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]],
+               table64[obuf[3]]);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_71.cpp,"{
+    case 1: /* only one byte read */
+      snprintf(output, 5, ""%c%c=="",
+               table64[obuf[0]],
+               table64[obuf[1]]);
+      break;
+
+    case 2: /* two bytes read */
+      snprintf(output, 5, ""%c%c%c="",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]]);
+      break;
+
+    default:
+      snprintf(output, 5, ""%c%c%c%c"",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]],
+               table64[obuf[3]]);
+      break;
+    }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_71.cpp,"[0, 0, 0, 0, 3, 0, 0, 0, 2, 1, 1, 0, 0, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 18, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_71.cpp,79,"[""malloc_ret"", ""int"", ""string"", ""MEMBER"", ""MEMBER"", ""MEMBER"", ""MEMBER""]","[""int"", ""&&"", ""size_t"", ""int"", "">"", ""!"", ""&&"", ""Curl_convert_clone_ret"", ""!"", ""&&"", ""!"", ""malloc_ret"", ""!"", ""&&"", ""strlen_ret"", ""int"", "">""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,645,"DEBUGF(fprintf(stderr, ""Error: calloc of Curl_easy failed\n""));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_72.cpp,"{
+    /* this is a very serious error */
+    DEBUGF(fprintf(stderr, ""Error: calloc of Curl_easy failed\n""));
+    return CURLE_OUT_OF_MEMORY;
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_72.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_72.cpp,9,"[""fprintf_ret"", null, ""string""]","[""!"", ""calloc_ret""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,653,"DEBUGF(fprintf(stderr, ""Error: resolver_init failed\n""));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_73.cpp,"{
+    DEBUGF(fprintf(stderr, ""Error: resolver_init failed\n""));
+    free(data);
+    return result;
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_73.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_73.cpp,17,"[""fprintf_ret"", null, ""string""]","[""Curl_resolver_init_ret"", ""&&"", ""!"", ""calloc_ret"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,662,"DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_74.cpp,"{
+    DEBUGF(fprintf(stderr, ""Error: malloc of buffer failed\n""));
+    result = CURLE_OUT_OF_MEMORY;
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_74.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_74.cpp,26,"[""fprintf_ret"", null, ""string""]","[""!"", ""MEMBER"", ""&&"", ""!"", ""calloc_ret"", ""!"", ""&&"", ""Curl_resolver_init_ret"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,668,"DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_75.cpp,"{
+    DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));
+    result = CURLE_OUT_OF_MEMORY;
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_75.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_75.cpp,32,"[""fprintf_ret"", null, ""string""]","[""!"", ""calloc_ret"", ""!"", ""&&"", ""Curl_resolver_init_ret"", ""!"", ""&&"", ""!"", ""MEMBER""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,3061,"DEBUGF(fprintf(stderr, ""DISCONNECT without easy handle, ignoring\n""));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_77.cpp,"{
+    DEBUGF(fprintf(stderr, ""DISCONNECT without easy handle, ignoring\n""));
+    return CURLE_OK;
+  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_77.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_77.cpp,8,"[""fprintf_ret"", null, ""string""]","[""!"", ""MEMBER"", ""&&"", ""!"", ""struct connectdata *"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,4543,"data->change.url = aprintf(""%s://%s%s"",
+                                   protobuf, conn->host.name, path);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_78.cpp,"{
+        infof(data, ""Unwillingly accepted illegal URL using %d slash%s!\n"",
+              s, s>1?""es"":"""");
+
+        if(data->change.url_alloc)
+          free(data->change.url);
+        /* repair the URL to use two slashes */
+        data->change.url = aprintf(""%s://%s%s"",
+                                   protobuf, conn->host.name, path);
+        if(!data->change.url)
+          return CURLE_OUT_OF_MEMORY;
+        data->change.url_alloc = TRUE;
+      }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_78.cpp,"[2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 3, 0, 0, 0, 0, 34, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 1, 19, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 1, 0, 3, 0, 0, 4, 0, 9, 0, 0, 0, 0, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_78.cpp,218,"[""string"", ""char [ 16 ]"", ""MEMBER"", ""char *""]","[""size_t"", ""int"", ""!="", ""&&"", ""MEMBER"", ""constant"", ""=="", ""!"", ""&&"", ""bool"", ""strncasecompare_ret"", ""&&"", ""!"", ""bool"", ""MEMBER"", ""strcasecompare_ret"", ""&&"", ""&&"", ""||"", ""!"", ""&&"", ""int"", ""sscanf_ret"", "">"", ""!"", ""&&"", ""int"", ""sscanf_ret"", ""=="", ""!"", ""&&"", ""strpbrk_ret"", ""!""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,4783,"s->range = aprintf(""%"" CURL_FORMAT_CURL_OFF_TU ""-"", s->resume_from);",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_79.cpp,"s->range = aprintf(""%"" CURL_FORMAT_CURL_OFF_TU ""-"", s->resume_from)",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_79.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_79.cpp,9,[],"[""MEMBER"", ""MEMBER"", ""||""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,5710,"snprintf(type, sizeof(type), "";type=%c"",
+                 data->set.prefer_ascii?'A':
+                 (data->set.ftp_list_only?'D':'I'));",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_log_80.cpp,"snprintf(type, sizeof(type), "";type=%c"",
+                 data->set.prefer_ascii?'A':
+                 (data->set.ftp_list_only?'D':'I'))",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_block_80.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 1, 0, 0]",second/download/CMake/CMake/CMake-joern/Kitware_CMake_repos_function_80.cpp,49,"[""char [ 12 ]"", null, ""string"", ""char""]","[""MEMBER"", ""&&"", ""int"", ""sscanf_ret"", ""=="", ""constant"", ""char"", ""=="", ""&&"", ""!"", ""&&"", ""MEMBER"", ""MEMBER"", ""&&"", ""&&"", ""Curl_inet_pton_ret"", ""int"", "">"", ""!"", ""&&"", ""MEMBER""]"
+second/download/CMake/CMake/CMake/Utilities/cmcurl/lib/url.cpp,5719,"url = aprintf(""%s://%s%s%s:%hu%s%s%s"", conn->given->scheme,
+                    conn->bits.ip

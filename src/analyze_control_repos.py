@@ -50,14 +50,18 @@ def deal_file( filename, log_function, writer, gumtree, total_log):
                 myUtil.save_file(block, block_file_name)
                 # get and save function
                 function = gumtree.get_function()
-                function_loc = gumtree.get_function_loc()
                 function_file_name = my_constant.SAVE_REPOS_FUNCTION + str(total_log) + '.cpp'
-                myUtil.save_file(function, function_file_name)
+                if function == '':
+                    function_loc = loc
+                    function = function.join(lines)
+                else:
+                    function_loc = gumtree.get_function_loc()
+                myUtil.save_file(function, function_file_name)                    
                 # get block feature
                 gumtree.set_file(block_file_name)
                 block_feature = gumtree.get_block_feature()
                 block_feature = json.dumps(block_feature)
-                writer.writerow([filename, loc, log, log_file_name, block, block_file_name, block_feature, function, function_loc])
+                writer.writerow([filename, loc, log, log_file_name, block, block_file_name, block_feature, function_file_name, function_loc])
                 total_log += 1
                 gumtree.set_file(filename)
         loc += 1
@@ -133,14 +137,15 @@ def analyze_repos_joern(is_rebuild = False):
     repos_joern_writer.writerow(my_constant.ANALYZE_REPOS_JOERN_TITLE)
 
     total_record = 0
-    log = 0
+    total_log = 0
     # get ddg and cdg with joern
     for record in islice(repos_gumtree_records, 1, None):
         if joern.set_log(record[my_constant.ANALYZE_REPOS_FUNCTION_FILE], int(record[my_constant.ANALYZE_REPOS_FUNCTION_LOC])):
             ddg = json.dumps(joern.get_argument_type())
             cdg = json.dumps(joern.get_control_dependence())
             repos_joern_writer.writerow(record + [ddg, cdg])
-        print 'have dealed with %d record' %(total_record)
+            total_log += 1
+        print 'have dealed with %d record %d log' %(total_record, total_log)
         total_record += 1
 
     repos_gumtree_file.close()
