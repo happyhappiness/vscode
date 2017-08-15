@@ -1,0 +1,1 @@
+bftpd_log("Warning: Unable to open %s.\n", _PATH_WTMP);

@@ -2,10 +2,10 @@
 """
 @ involve : constant definition
 """
-USER = 'Kitware'
-REPOS = 'CMake'
-# USER = 'bftpd'
-# REPOS = 'bftpd'
+# USER = 'Kitware'
+# REPOS = 'CMake'
+USER = 'bftpd'
+REPOS = 'bftpd'
 
 """
 stroed file name prefix
@@ -99,8 +99,7 @@ ANALYZE_OLD_NEW_OLD_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_fucn
 """
 analyze old new title and index
 """
-ANALYZE_OLD_NEW_JOERN_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'new_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_function_file', 'old_ddg_feature', 'old_cdg_feature']
+ANALYZE_OLD_NEW_JOERN_TITLE = ANALYZE_OLD_NEW_GUMTREE_TITLE + ['old_ddg_feature', 'old_cdg_feature']
 ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_JOERN_TITLE.index('sha')
 ANALYZE_OLD_NEW_OLD_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log_file')
 ANALYZE_OLD_NEW_NEW_LOG_FILE = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log_file')
@@ -113,8 +112,7 @@ ANALYZE_OLD_NEW_OLD_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('old_log')
 ANALYZE_OLD_NEW_NEW_LOG = ANALYZE_OLD_NEW_JOERN_TITLE.index('new_log')
 
 
-STATISTICS_OLD_NEW_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_cdg_feature', 'old_ddg_feature', 'new_log_file', 'old_log_type', 'old_log_time', 'old_log_author', 'cluster']
+STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['old_log_type', 'old_log_time', 'old_log_author', 'cluster']
 
 
 """
@@ -132,13 +130,13 @@ ANALYZE_REPOS_FUNCTION_LOC = ANALYZE_REPOS_GUMTREE_TITLE.index('function_loc')
 """
 analyze repos / cluster repos title and index
 """
-ANALYZE_REPOS_JOERN_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'function_file', 'ddg_feature', 'cdg_feature']
+ANALYZE_REPOS_JOERN_TITLE = ANALYZE_REPOS_GUMTREE_TITLE + ['ddg_feature', 'cdg_feature']
 ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_JOERN_TITLE.index('log_file')
 ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_JOERN_TITLE.index('block_file')
 ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('block_feature')
 ANALYZE_REPOS_DDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('ddg_feature')
 ANALYZE_REPOS_CDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('cdg_feature')
-CLUSTER_REPOS_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'function_file', 'ddg_feature', 'cdg_feature', 'cluster_index']
+CLUSTER_REPOS_TITLE = ANALYZE_REPOS_JOERN_TITLE + ['cluster_index']
 
 
 """
@@ -184,10 +182,11 @@ JOERN_CODE = 1
 JOERN_TYPE = 2
 JOERN_LOCATION = 3
 JOERN_OPERATOR = 3
-JOERN_BOOL_OPERATOR = ['AndExpression', 'OrExpression', 'RelationalExpression', 'EqualityExpression', 'UnaryOp']
+JOERN_BOOL_OPERATOR = ['AndExpression', 'OrExpression', 'RelationalExpression', 'EqualityExpression']
 JOERN_ADDRESS_OPERATOR = ['ArrayIndexing', 'PtrMemberAccess', 'MemberAccess']
 JOERN_BIT_OPERATOR = ['BitAndExpression', 'BitOrExpression']
-JOERN_UNARY_OPERATOR = 'UnaryOperator'
+JOERN_UNARY_OPERATOR = 'UnaryOp'
+JOERN_ASSIGN_OPERATOR = 'AssignmentExpr'
 JOERN_CALLEE_FLAG = '_ret'
 
 """

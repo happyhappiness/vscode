@@ -1,0 +1,1 @@
+bftpd_statuslog(1, 0, "quit");
