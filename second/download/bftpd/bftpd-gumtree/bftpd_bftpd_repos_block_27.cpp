@@ -1,0 +1,4 @@
+{
+           bftpd_log("Error getting max users for GLOBAL in bftpd_login.\n", 0);
+           maxusers = 0;
+        }

@@ -106,6 +106,7 @@ Gremlin.defineStep('getControlDependence', [Vertex,Pipe], { log, loopOrder -> //
 		g.V[log].as("start") // get log
 		.in("CONTROLS")
 		.loop("start"){ it.loops < loopOrder }{ it.object.type == "Condition" }
+		.order{it.a.id <=> it.b.id}
 		.as("control")
 		.select(["control"]){ [it.id, it.code, it.type, it.location] }
 		.toSet() // select type, id, code, type
@@ -127,7 +128,9 @@ Gremlin.defineStep('getDefDependence', [Vertex,Pipe], { startV -> // int, int
  	_().transform{
 		g.V[startV]
 		.inE("REACHES").as("var")
-		.outV.as("def")
+		.outV		
+		.order{it.a.id <=> it.b.id}
+		.as("def")
 		.select(["var","def"])
 		{ it.var }{ [it.id, it.code, it.type, it.location] } // select type, id, code, type
 	}
@@ -150,6 +153,19 @@ Gremlin.defineStep('getRightValue', [Vertex,Pipe], { node_id ->
 	_().transform{
 		g.V[node_id] // expression statement
 		.children() // asssignment Expr
+		.loop(1){it.object.type != 'AssignmentExpr'}{it.object.type == 'AssignmentExpr'}
+		.children().has("childNum", "1")
+		.as("result")
+		.select(["result"])
+		{[it.id, it.code, it.type]}
+	}.scatter()
+});
+
+// input node id [assignement]
+// output right value type
+Gremlin.defineStep('getRightValueForAssignment', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
 		.children().has("childNum", "1")
 		.as("result")
 		.select(["result"])
@@ -176,7 +192,7 @@ Gremlin.defineStep('getSubExpressions', [Vertex,Pipe], { node_id ->
 		g.V[node_id] // condition statement
 		.children()
 		.loop(1){ it.object.has("type", T.in, BOOL_OPERATOR_LIST).count() != 0 }
-		{ it.object.type != 'UnaryOp' }
+		{ it.object.type != 'UnaryOperator' }
 		.order{ it.b.id <=> it.a.id }.as("result")
 		.select(["result"]){ [it.id, it.code, it.type, it.operator]}
 	}.scatter()
@@ -188,8 +204,8 @@ Gremlin.defineStep('getSubExpressions', [Vertex,Pipe], { node_id ->
 Gremlin.defineStep('getArguments', [Vertex,Pipe], { node_id ->
 	_().transform{
 		g.V[node_id] // expression statement
-		.astNodes()
-		.has("type", "Argument")
+		.children()
+		.loop(1){it.object.type != "Argument"}{ it.object.type == "Argument"}
 		.children().as("result")
 		.select(["result"]){ [it.id, it.code, it.type]}
 	}.scatter()

@@ -17,7 +17,7 @@ class Joern_api:
 
         self.log = None
         self.log_id = None
-        self.order = '5'
+        self.order = '2'
         self.flow_order = '30'
 
         self.control_dependence = None
@@ -76,7 +76,7 @@ class Joern_api:
                 if len(self.control_dependence) == 0:
                     self.control_dependence = node_std_code
                 else:
-                    self.control_dependence = node_std_code + ['&&'] + self.control_dependence
+                    self.control_dependence = node_std_code + self.control_dependence + ['&&']
         # print self.control_dependence
         return self.control_dependence
 
@@ -257,6 +257,9 @@ class Joern_api:
             var_type_result = Joern_api.joern_instance.runGremlinQuery(type_query)
             if var_type_result is not None and len(var_type_result) != 0:
                 var_type = var_type_result[my_constant.JOERN_DEFALUT]
+                # array type to pointer
+                if var_type.find('[') != -1:
+                    var_type = re.sub(r'\[(.|\n)*\]', '*', var_type)
 
         return var_type
 
@@ -325,7 +328,9 @@ class Joern_api:
             else:
                 var_type = 'BOOL'
         elif node_type == my_constant.JOERN_UNARY_OPERATOR:
-            var_type = node_code
+            var_type = node_code[0]
+            if len(node) == my_constant.JOERN_OPERATOR and var_type == '!':
+                var_type = 'BOOL'
         elif node_type in my_constant.JOERN_ADDRESS_OPERATOR:
             var_type = 'MEMBER'
         elif node_type in my_constant.JOERN_BIT_OPERATOR:
@@ -334,6 +339,8 @@ class Joern_api:
             var_type = self.__get_var_type_for_constant(node_code)
         elif node_type == 'CallExpression':
             var_type = self.__get_var_type_with_callee(node_id)
+        elif node_type == my_constant.JOERN_ASSIGN_OPERATOR:
+            var_type = self.__get_var_type_for_assignment(node_id)
         return var_type
 
     """
@@ -351,6 +358,22 @@ class Joern_api:
 
         return var_type
 
+    """
+    @ param id of node
+    @ return var type
+    @ involve get callee
+    """
+    def __get_var_type_for_assignment(self, node_id):
+        var_type = None
+        # get right value
+        right_value_query = '_().getRightValueForAssignment(' + node_id + ')'
+        right_value = Joern_api.joern_instance.runGremlinQuery(right_value_query)
+        if right_value is not None and len(right_value) != 0:
+            right_value = right_value[my_constant.JOERN_DEFALUT]
+            if len(right_value) != 0:
+                var_type = self.__get_var_type_for_right_value(right_value[my_constant.JOERN_DEFALUT])
+
+        return var_type
     # """
     # @ param id of node
     # @ return var type
@@ -451,10 +474,9 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    loc = 22
-    filename = 'function_1954.cpp'
+    filename = 'function_50.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 160)
+    joern_api.set_log(filename, 33)
     print joern_api.get_control_dependence()
     print joern_api.get_argument_type()
 

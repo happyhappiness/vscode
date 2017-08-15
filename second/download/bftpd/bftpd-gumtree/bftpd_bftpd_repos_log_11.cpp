@@ -1,0 +1,1 @@
+bftpd_log("Exiting, becasue we have no way to authorize clients.\n");

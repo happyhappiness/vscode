@@ -1,0 +1,1558 @@
+file,loc,log,log_file,block,block_file,block_feature,function_file,function_loc
+second/download/bftpd/bftpd/bftpd/main.cpp,87,"control_printf(SL_SUCCESS, ""%i-%s"", number, foo);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_0.cpp,"{
+			foo[strlen(foo) - 1] = '\0';
+			control_printf(SL_SUCCESS, ""%i-%s"", number, foo);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_0.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_0.cpp,8
+second/download/bftpd/bftpd/bftpd/main.cpp,101,"bftpd_log(""Quitting.\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_1.cpp,"{
+    Force_Update_Sent_Recv_Log();
+	if (passwdfile)
+		fclose(passwdfile);
+	if (groupfile)
+		fclose(groupfile);
+	config_end();
+	bftpd_log(""Quitting.\n"");
+    bftpd_statuslog(1, 0, ""quit"");
+    bftpdutmp_end();
+	log_end();
+	login_end();
+	bftpd_cwd_end();
+	if (daemonmode) {
+		close(sock);
+		close(0);
+		close(1);
+		close(2);
+	}
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_1.cpp,"[3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 14, 0, 0, 14, 0, 10, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_1.cpp,8
+second/download/bftpd/bftpd/bftpd/main.cpp,102,"bftpd_statuslog(1, 0, ""quit"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_2.cpp,"{
+    Force_Update_Sent_Recv_Log();
+	if (passwdfile)
+		fclose(passwdfile);
+	if (groupfile)
+		fclose(groupfile);
+	config_end();
+	bftpd_log(""Quitting.\n"");
+    bftpd_statuslog(1, 0, ""quit"");
+    bftpdutmp_end();
+	log_end();
+	login_end();
+	bftpd_cwd_end();
+	if (daemonmode) {
+		close(sock);
+		close(0);
+		close(1);
+		close(2);
+	}
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_2.cpp,"[3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 14, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 27, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 3, 0, 0, 14, 0, 0, 14, 0, 10, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_2.cpp,9
+second/download/bftpd/bftpd/bftpd/main.cpp,125,"bftpd_log(""Caught HUP signal. Re-reading config file.\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_3.cpp,"{
+   bftpd_log(""Caught HUP signal. Re-reading config file.\n"");
+   Reread_Config_File();
+   signal(sig, handler_sighup);
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_3.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_3.cpp,2
+second/download/bftpd/bftpd/bftpd/main.cpp,172,"bftpd_log(""Kicked from the server due to data connection timeout.\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_4.cpp,"{
+        close(alarm_type);
+        bftpd_log(""Kicked from the server due to data connection timeout.\n"");
+        control_printf(SL_FAILURE, ""421 Kicked from the server due to data connection timeout."");
+        exit(0);
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_4.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_4.cpp,8
+second/download/bftpd/bftpd/bftpd/main.cpp,173,"control_printf(SL_FAILURE, ""421 Kicked from the server due to data connection timeout."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_5.cpp,"{
+        close(alarm_type);
+        bftpd_log(""Kicked from the server due to data connection timeout.\n"");
+        control_printf(SL_FAILURE, ""421 Kicked from the server due to data connection timeout."");
+        exit(0);
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_5.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_5.cpp,9
+second/download/bftpd/bftpd/bftpd/main.cpp,176,"bftpd_log(""Kicked from the server due to control connection timeout.\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_6.cpp,"{
+        bftpd_log(""Kicked from the server due to control connection timeout.\n"");
+        control_printf(SL_FAILURE, ""421 Kicked from the server due to control connection timeout."");
+        exit(0);
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_6.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_6.cpp,12
+second/download/bftpd/bftpd/bftpd/main.cpp,177,"control_printf(SL_FAILURE, ""421 Kicked from the server due to control connection timeout."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_7.cpp,"{
+        bftpd_log(""Kicked from the server due to control connection timeout.\n"");
+        control_printf(SL_FAILURE, ""421 Kicked from the server due to control connection timeout."");
+        exit(0);
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_7.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_7.cpp,13
+second/download/bftpd/bftpd/bftpd/main.cpp,211,"printf(
+					""Usage: %s [-h] [-i|-d|-D] [-c <filename>|-n]\n""
+					""-h print this help\n""
+					""-i (default) run from inetd\n""
+					""-d daemon mode: fork() and run in TCP listen mode\n""
+					""-D run in TCP listen mode, but don't pre-fork()\n""
+					""-c read the config file named \""filename\"" instead of "" PATH_BFTPD_CONF ""\n""
+					""-n no config file, use defaults\n"", argv[0]);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_8.cpp,"{
+			case 'h':
+				printf(
+					""Usage: %s [-h] [-i|-d|-D] [-c <filename>|-n]\n""
+					""-h print this help\n""
+					""-i (default) run from inetd\n""
+					""-d daemon mode: fork() and run in TCP listen mode\n""
+					""-D run in TCP listen mode, but don't pre-fork()\n""
+					""-c read the config file named \""filename\"" instead of "" PATH_BFTPD_CONF ""\n""
+					""-n no config file, use defaults\n"", argv[0]);
+				return 0;
+			case 'i': daemonmode = 0; break;
+			case 'd': daemonmode = 1; break;
+			case 'D': daemonmode = 2; break;
+			case 'c': configpath = strdup(optarg); break;
+			case 'n': configpath = NULL; break;
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_8.cpp,"[0, 0, 0, 0, 5, 0, 1, 0, 6, 0, 1, 0, 0, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 19, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 2, 0, 0, 6, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_8.cpp,16
+second/download/bftpd/bftpd/bftpd/main.cpp,259,"fprintf(stderr, ""Bind failed: %s\n"", strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_9.cpp,"{
+			fprintf(stderr, ""Bind failed: %s\n"", strerror(errno));
+			exit(1);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_9.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_9.cpp,64
+second/download/bftpd/bftpd/bftpd/main.cpp,263,"fprintf(stderr, ""Listen failed: %s\n"", strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_10.cpp,"{
+			fprintf(stderr, ""Listen failed: %s\n"", strerror(errno));
+			exit(1);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_10.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_10.cpp,68
+second/download/bftpd/bftpd/bftpd/main.cpp,323,"bftpd_log(""Exiting, becasue we have no way to authorize clients.\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_11.cpp,"{
+           bftpd_log(""Exiting, becasue we have no way to authorize clients.\n"");
+           exit(0);
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_11.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_11.cpp,128
+second/download/bftpd/bftpd/bftpd/main.cpp,369,"control_printf(SL_FAILURE, ""421-Could not get peer IP address.\r\n421 %s."",
+		               strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_12.cpp,"{
+		control_printf(SL_FAILURE, ""421-Could not get peer IP address.\r\n421 %s."",
+		               strerror(errno));
+		return 0;
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_12.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_12.cpp,174
+second/download/bftpd/bftpd/bftpd/main.cpp,406,"bftpd_log(""Incoming connection from %s.\n"", remotehostname);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_13.cpp,"{
+	char str[MAX_STRING_LENGTH + 1];
+	static struct hostent *he;
+	int i = 1, port;
+	int retval;
+        unsigned long get_value;
+        socklen_t my_length;
+        char *temp_string = NULL;
+
+        my_argv_list = argv;
+        signal(SIGHUP, handler_sighup);
+
+	while (((retval = getopt(argc, argv, ""c:hdDin""))) > -1) {
+		switch (retval) {
+			case 'h':
+				printf(
+					""Usage: %s [-h] [-i|-d|-D] [-c <filename>|-n]\n""
+					""-h print this help\n""
+					""-i (default) run from inetd\n""
+					""-d daemon mode: fork() and run in TCP listen mode\n""
+					""-D run in TCP listen mode, but don't pre-fork()\n""
+					""-c read the config file named \""filename\"" instead of "" PATH_BFTPD_CONF ""\n""
+					""-n no config file, use defaults\n"", argv[0]);
+				return 0;
+			case 'i': daemonmode = 0; break;
+			case 'd': daemonmode = 1; break;
+			case 'D': daemonmode = 2; break;
+			case 'c': configpath = strdup(optarg); break;
+			case 'n': configpath = NULL; break;
+		}
+	}
+	if (daemonmode) {
+		struct sockaddr_in myaddr, new;
+		if (daemonmode == 1) {
+			if (fork())
+				exit(0);  /* Exit from parent process */
+			setsid();
+			if (fork())
+				return 0;
+		}
+		signal(SIGCHLD, handler_sigchld);
+		config_init();
+		chdir(""/"");
+                hidegroups_init();
+		listensocket = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef SO_REUSEADDR
+		setsockopt(listensocket, SOL_SOCKET, SO_REUSEADDR, (void *) &i,
+				   sizeof(i));
+#endif
+#ifdef SO_REUSEPORT
+		setsockopt(listensocket, SOL_SOCKET, SO_REUSEPORT, (void *) &i,
+				   sizeof(i));
+#endif
+		memset((void *) &myaddr, 0, sizeof(myaddr));
+        if (!((port = strtoul(config_getoption(""PORT""), NULL, 10))))
+            port = DEFAULT_PORT;
+		myaddr.sin_port = htons(port);
+		if (!strcasecmp(config_getoption(""BIND_TO_ADDR""), ""any"")
+			|| !config_getoption(""BIND_TO_ADDR"")[0])
+			myaddr.sin_addr.s_addr = INADDR_ANY;
+		else
+			myaddr.sin_addr.s_addr = inet_addr(config_getoption(""BIND_TO_ADDR""));
+		if (bind(listensocket, (struct sockaddr *) &myaddr, sizeof(myaddr)) < 0) {
+			fprintf(stderr, ""Bind failed: %s\n"", strerror(errno));
+			exit(1);
+		}
+		if (listen(listensocket, 5)) {
+			fprintf(stderr, ""Listen failed: %s\n"", strerror(errno));
+			exit(1);
+		}
+               
+                /* check for open stdin, stdout, stderr */
+                if (listensocket >= 3)
+                {
+		    for (i = 0; i < 3; i++) {
+			close(i);		/* Remove fd pointing to the console */
+			open(""/dev/null"", O_RDWR);	/* Create fd pointing nowhere */
+		     }
+                }
+
+		my_length = sizeof(new);
+		while ((sock = accept(listensocket, (struct sockaddr *) &new, &my_length))) {
+			pid_t pid;
+			/* If accept() becomes interrupted by SIGCHLD, it will return -1.
+			 * So in order not to create a child process when that happens,
+			 * we have to check if accept() returned an error.
+			 */
+			if (sock > 0) {
+				pid = fork();
+				if (!pid) {       /* child */
+					close(0);
+					close(1);
+					close(2);
+					isparent = 0;
+					dup2(sock, fileno(stdin));
+					dup2(sock, fileno(stderr));
+					break;
+				} else {          /* parent */
+					struct bftpd_childpid *tmp_pid = malloc(sizeof(struct bftpd_childpid));
+					tmp_pid->pid = pid;
+					tmp_pid->sock = sock;
+					bftpd_list_add(&child_list, tmp_pid);
+				}
+			}
+		}
+	}
+        
+        /* Child only. From here on... */
+
+	devnull = fopen(""/dev/null"", ""w"");
+	global_argc = argc;
+	global_argv = argv;
+	init_everything();
+	atexit(end_child);
+	signal(SIGTERM, handler_sigterm);
+    signal(SIGALRM, handler_sigalrm);
+
+
+    /* If we do not have getpwnam() for some reason, then
+       we must use FILE_AUTH or exit. */
+    #ifdef NO_GETPWNAM
+    {
+        char *file_auth_option;
+
+        file_auth_option = config_getoption(""FILE_AUTH"");
+        if (! file_auth_option[0] )
+        {
+           bftpd_log(""Exiting, becasue we have no way to authorize clients.\n"");
+           exit(0);
+        }
+    }
+    #endif
+
+    get_value = strtoul(config_getoption(""CONTROL_TIMEOUT""), NULL, 0);
+    if (get_value <= INT_MAX)
+       control_timeout = get_value;
+    else
+       control_timeout = 0;
+    if (!control_timeout)
+        control_timeout = CONTROL_TIMEOUT;
+
+    get_value = strtoul(config_getoption(""DATA_TIMEOUT""), NULL, 0);
+    if (get_value <= INT_MAX)
+       data_timeout = get_value;
+    else
+       data_timeout = 0;
+    if (!data_timeout)
+        data_timeout = DATA_TIMEOUT;
+    get_value = strtoul(config_getoption(""XFER_BUFSIZE""), NULL, 0);
+    if (get_value <= INT_MAX)
+       xfer_bufsize = get_value;
+    else
+       xfer_bufsize = 9;
+
+    /* handled below
+    if (!xfer_bufsize)
+        xfer_bufsize = XFER_BUFSIZE;
+    */
+    /* do range check on xfer_bufsize, which is an int */
+    if ( (xfer_bufsize <= 0) || (xfer_bufsize > 1000000) )
+       xfer_bufsize = XFER_BUFSIZE;
+
+    /* get scripts to run pre and post write */
+    pre_write_script = config_getoption(""PRE_WRITE_SCRIPT"");
+    if (! pre_write_script[0])
+       pre_write_script = NULL;
+    post_write_script = config_getoption(""POST_WRITE_SCRIPT"");
+    if (! post_write_script[0])
+       post_write_script = NULL;
+
+
+	my_length = sizeof(remotename);
+    if (getpeername(fileno(stderr), (struct sockaddr *) &remotename, &my_length)) {
+		control_printf(SL_FAILURE, ""421-Could not get peer IP address.\r\n421 %s."",
+		               strerror(errno));
+		return 0;
+	}
+	i = 1;
+	setsockopt(fileno(stdin), SOL_SOCKET, SO_OOBINLINE, (void *) &i,
+			   sizeof(i));
+	setsockopt(fileno(stdin), SOL_SOCKET, SO_KEEPALIVE, (void *) &i,
+			   sizeof(i));
+	/* If option is set, determine the client FQDN */
+	if (!strcasecmp((char *) config_getoption(""RESOLVE_CLIENT_IP""), ""yes"")) {
+		if ((he = gethostbyaddr((char *) &remotename.sin_addr, sizeof(struct in_addr), AF_INET)))
+                {
+                   if (he->h_name)
+			remotehostname = strdup(he->h_name);
+                   else
+                        remotehostname = """";
+                }
+		else
+                {
+                        temp_string = inet_ntoa(remotename.sin_addr);
+                        if (temp_string)
+                           remotehostname = strdup(temp_string);
+                        else
+                           remotehostname = """";
+			/* remotehostname = strdup(inet_ntoa(remotename.sin_addr)); */
+                }
+	}
+        else
+        {
+              temp_string = inet_ntoa(remotename.sin_addr);
+              if (temp_string)
+                 remotehostname = strdup(temp_string);
+              else
+                 remotehostname = """";
+		/* remotehostname = strdup(inet_ntoa(remotename.sin_addr)); */
+        }
+	bftpd_log(""Incoming connection from %s.\n"", remotehostname);
+        bftpd_statuslog(1, 0, ""connect %s"", remotehostname);
+	my_length = sizeof(name);
+	getsockname(fileno(stdin), (struct sockaddr *) &name, &my_length);
+	print_file(220, config_getoption(""MOTD_GLOBAL""));
+	/* Parse hello message */
+	strcpy(str, (char *) config_getoption(""HELLO_STRING""));
+	replace(str, ""%v"", VERSION, MAX_STRING_LENGTH);
+	if (strstr(str, ""%h"")) {
+		if ((he = gethostbyaddr((char *) &name.sin_addr, sizeof(struct in_addr), AF_INET)))
+			replace(str, ""%h"", he->h_name, MAX_STRING_LENGTH);
+		else
+			replace(str, ""%h"", (char *) inet_ntoa(name.sin_addr), MAX_STRING_LENGTH);
+	}
+	replace(str, ""%i"", (char *) inet_ntoa(name.sin_addr), MAX_STRING_LENGTH);
+	control_printf(SL_SUCCESS, ""220 %s"", str);
+
+        /* We might not get any data, so let's set an alarm before the
+           first read. -- Jesse <slicer69@hotmail.com> */
+        alarm(control_timeout);
+        
+	/* Read lines from client and execute appropriate commands */
+	while (fgets(str, MAXCMD, stdin)) {
+        alarm(control_timeout);
+        str[strlen(str) - 2] = 0;
+        bftpd_statuslog(2, 0, ""%s"", str);
+#ifdef DEBUG
+		bftpd_log(""Processing command: %s\n"", str);
+#endif
+		parsecmd(str);
+	}
+
+        if (remotehostname) free(remotehostname);
+	return 0;
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_13.cpp,"[29, 3, 1, 0, 6, 0, 4, 1, 6, 0, 47, 0, 0, 0, 1, 395, 0, 0, 11, 12, 0, 0, 4, 100, 0, 0, 0, 0, 4, 0, 102, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 177, 0, 347, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 7, 0, 34, 29, 11, 0, 114, 0, 0, 96, 0, 195, 8, 1, 0, 0, 1, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_13.cpp,211
+second/download/bftpd/bftpd/bftpd/main.cpp,407,"bftpd_statuslog(1, 0, ""connect %s"", remotehostname);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_14.cpp,"{
+	char str[MAX_STRING_LENGTH + 1];
+	static struct hostent *he;
+	int i = 1, port;
+	int retval;
+        unsigned long get_value;
+        socklen_t my_length;
+        char *temp_string = NULL;
+
+        my_argv_list = argv;
+        signal(SIGHUP, handler_sighup);
+
+	while (((retval = getopt(argc, argv, ""c:hdDin""))) > -1) {
+		switch (retval) {
+			case 'h':
+				printf(
+					""Usage: %s [-h] [-i|-d|-D] [-c <filename>|-n]\n""
+					""-h print this help\n""
+					""-i (default) run from inetd\n""
+					""-d daemon mode: fork() and run in TCP listen mode\n""
+					""-D run in TCP listen mode, but don't pre-fork()\n""
+					""-c read the config file named \""filename\"" instead of "" PATH_BFTPD_CONF ""\n""
+					""-n no config file, use defaults\n"", argv[0]);
+				return 0;
+			case 'i': daemonmode = 0; break;
+			case 'd': daemonmode = 1; break;
+			case 'D': daemonmode = 2; break;
+			case 'c': configpath = strdup(optarg); break;
+			case 'n': configpath = NULL; break;
+		}
+	}
+	if (daemonmode) {
+		struct sockaddr_in myaddr, new;
+		if (daemonmode == 1) {
+			if (fork())
+				exit(0);  /* Exit from parent process */
+			setsid();
+			if (fork())
+				return 0;
+		}
+		signal(SIGCHLD, handler_sigchld);
+		config_init();
+		chdir(""/"");
+                hidegroups_init();
+		listensocket = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef SO_REUSEADDR
+		setsockopt(listensocket, SOL_SOCKET, SO_REUSEADDR, (void *) &i,
+				   sizeof(i));
+#endif
+#ifdef SO_REUSEPORT
+		setsockopt(listensocket, SOL_SOCKET, SO_REUSEPORT, (void *) &i,
+				   sizeof(i));
+#endif
+		memset((void *) &myaddr, 0, sizeof(myaddr));
+        if (!((port = strtoul(config_getoption(""PORT""), NULL, 10))))
+            port = DEFAULT_PORT;
+		myaddr.sin_port = htons(port);
+		if (!strcasecmp(config_getoption(""BIND_TO_ADDR""), ""any"")
+			|| !config_getoption(""BIND_TO_ADDR"")[0])
+			myaddr.sin_addr.s_addr = INADDR_ANY;
+		else
+			myaddr.sin_addr.s_addr = inet_addr(config_getoption(""BIND_TO_ADDR""));
+		if (bind(listensocket, (struct sockaddr *) &myaddr, sizeof(myaddr)) < 0) {
+			fprintf(stderr, ""Bind failed: %s\n"", strerror(errno));
+			exit(1);
+		}
+		if (listen(listensocket, 5)) {
+			fprintf(stderr, ""Listen failed: %s\n"", strerror(errno));
+			exit(1);
+		}
+               
+                /* check for open stdin, stdout, stderr */
+                if (listensocket >= 3)
+                {
+		    for (i = 0; i < 3; i++) {
+			close(i);		/* Remove fd pointing to the console */
+			open(""/dev/null"", O_RDWR);	/* Create fd pointing nowhere */
+		     }
+                }
+
+		my_length = sizeof(new);
+		while ((sock = accept(listensocket, (struct sockaddr *) &new, &my_length))) {
+			pid_t pid;
+			/* If accept() becomes interrupted by SIGCHLD, it will return -1.
+			 * So in order not to create a child process when that happens,
+			 * we have to check if accept() returned an error.
+			 */
+			if (sock > 0) {
+				pid = fork();
+				if (!pid) {       /* child */
+					close(0);
+					close(1);
+					close(2);
+					isparent = 0;
+					dup2(sock, fileno(stdin));
+					dup2(sock, fileno(stderr));
+					break;
+				} else {          /* parent */
+					struct bftpd_childpid *tmp_pid = malloc(sizeof(struct bftpd_childpid));
+					tmp_pid->pid = pid;
+					tmp_pid->sock = sock;
+					bftpd_list_add(&child_list, tmp_pid);
+				}
+			}
+		}
+	}
+        
+        /* Child only. From here on... */
+
+	devnull = fopen(""/dev/null"", ""w"");
+	global_argc = argc;
+	global_argv = argv;
+	init_everything();
+	atexit(end_child);
+	signal(SIGTERM, handler_sigterm);
+    signal(SIGALRM, handler_sigalrm);
+
+
+    /* If we do not have getpwnam() for some reason, then
+       we must use FILE_AUTH or exit. */
+    #ifdef NO_GETPWNAM
+    {
+        char *file_auth_option;
+
+        file_auth_option = config_getoption(""FILE_AUTH"");
+        if (! file_auth_option[0] )
+        {
+           bftpd_log(""Exiting, becasue we have no way to authorize clients.\n"");
+           exit(0);
+        }
+    }
+    #endif
+
+    get_value = strtoul(config_getoption(""CONTROL_TIMEOUT""), NULL, 0);
+    if (get_value <= INT_MAX)
+       control_timeout = get_value;
+    else
+       control_timeout = 0;
+    if (!control_timeout)
+        control_timeout = CONTROL_TIMEOUT;
+
+    get_value = strtoul(config_getoption(""DATA_TIMEOUT""), NULL, 0);
+    if (get_value <= INT_MAX)
+       data_timeout = get_value;
+    else
+       data_timeout = 0;
+    if (!data_timeout)
+        data_timeout = DATA_TIMEOUT;
+    get_value = strtoul(config_getoption(""XFER_BUFSIZE""), NULL, 0);
+    if (get_value <= INT_MAX)
+       xfer_bufsize = get_value;
+    else
+       xfer_bufsize = 9;
+
+    /* handled below
+    if (!xfer_bufsize)
+        xfer_bufsize = XFER_BUFSIZE;
+    */
+    /* do range check on xfer_bufsize, which is an int */
+    if ( (xfer_bufsize <= 0) || (xfer_bufsize > 1000000) )
+       xfer_bufsize = XFER_BUFSIZE;
+
+    /* get scripts to run pre and post write */
+    pre_write_script = config_getoption(""PRE_WRITE_SCRIPT"");
+    if (! pre_write_script[0])
+       pre_write_script = NULL;
+    post_write_script = config_getoption(""POST_WRITE_SCRIPT"");
+    if (! post_write_script[0])
+       post_write_script = NULL;
+
+
+	my_length = sizeof(remotename);
+    if (getpeername(fileno(stderr), (struct sockaddr *) &remotename, &my_length)) {
+		control_printf(SL_FAILURE, ""421-Could not get peer IP address.\r\n421 %s."",
+		               strerror(errno));
+		return 0;
+	}
+	i = 1;
+	setsockopt(fileno(stdin), SOL_SOCKET, SO_OOBINLINE, (void *) &i,
+			   sizeof(i));
+	setsockopt(fileno(stdin), SOL_SOCKET, SO_KEEPALIVE, (void *) &i,
+			   sizeof(i));
+	/* If option is set, determine the client FQDN */
+	if (!strcasecmp((char *) config_getoption(""RESOLVE_CLIENT_IP""), ""yes"")) {
+		if ((he = gethostbyaddr((char *) &remotename.sin_addr, sizeof(struct in_addr), AF_INET)))
+                {
+                   if (he->h_name)
+			remotehostname = strdup(he->h_name);
+                   else
+                        remotehostname = """";
+                }
+		else
+                {
+                        temp_string = inet_ntoa(remotename.sin_addr);
+                        if (temp_string)
+                           remotehostname = strdup(temp_string);
+                        else
+                           remotehostname = """";
+			/* remotehostname = strdup(inet_ntoa(remotename.sin_addr)); */
+                }
+	}
+        else
+        {
+              temp_string = inet_ntoa(remotename.sin_addr);
+              if (temp_string)
+                 remotehostname = strdup(temp_string);
+              else
+                 remotehostname = """";
+		/* remotehostname = strdup(inet_ntoa(remotename.sin_addr)); */
+        }
+	bftpd_log(""Incoming connection from %s.\n"", remotehostname);
+        bftpd_statuslog(1, 0, ""connect %s"", remotehostname);
+	my_length = sizeof(name);
+	getsockname(fileno(stdin), (struct sockaddr *) &name, &my_length);
+	print_file(220, config_getoption(""MOTD_GLOBAL""));
+	/* Parse hello message */
+	strcpy(str, (char *) config_getoption(""HELLO_STRING""));
+	replace(str, ""%v"", VERSION, MAX_STRING_LENGTH);
+	if (strstr(str, ""%h"")) {
+		if ((he = gethostbyaddr((char *) &name.sin_addr, sizeof(struct in_addr), AF_INET)))
+			replace(str, ""%h"", he->h_name, MAX_STRING_LENGTH);
+		else
+			replace(str, ""%h"", (char *) inet_ntoa(name.sin_addr), MAX_STRING_LENGTH);
+	}
+	replace(str, ""%i"", (char *) inet_ntoa(name.sin_addr), MAX_STRING_LENGTH);
+	control_printf(SL_SUCCESS, ""220 %s"", str);
+
+        /* We might not get any data, so let's set an alarm before the
+           first read. -- Jesse <slicer69@hotmail.com> */
+        alarm(control_timeout);
+        
+	/* Read lines from client and execute appropriate commands */
+	while (fgets(str, MAXCMD, stdin)) {
+        alarm(control_timeout);
+        str[strlen(str) - 2] = 0;
+        bftpd_statuslog(2, 0, ""%s"", str);
+#ifdef DEBUG
+		bftpd_log(""Processing command: %s\n"", str);
+#endif
+		parsecmd(str);
+	}
+
+        if (remotehostname) free(remotehostname);
+	return 0;
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_14.cpp,"[29, 3, 1, 0, 6, 0, 4, 1, 6, 0, 47, 0, 0, 0, 1, 395, 0, 0, 11, 12, 0, 0, 4, 100, 0, 0, 0, 0, 4, 0, 102, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 177, 0, 347, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 7, 0, 34, 29, 11, 0, 114, 0, 0, 96, 0, 195, 8, 1, 0, 0, 1, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_14.cpp,212
+second/download/bftpd/bftpd/bftpd/main.cpp,421,"control_printf(SL_SUCCESS, ""220 %s"", str);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_15.cpp,"{
+	char str[MAX_STRING_LENGTH + 1];
+	static struct hostent *he;
+	int i = 1, port;
+	int retval;
+        unsigned long get_value;
+        socklen_t my_length;
+        char *temp_string = NULL;
+
+        my_argv_list = argv;
+        signal(SIGHUP, handler_sighup);
+
+	while (((retval = getopt(argc, argv, ""c:hdDin""))) > -1) {
+		switch (retval) {
+			case 'h':
+				printf(
+					""Usage: %s [-h] [-i|-d|-D] [-c <filename>|-n]\n""
+					""-h print this help\n""
+					""-i (default) run from inetd\n""
+					""-d daemon mode: fork() and run in TCP listen mode\n""
+					""-D run in TCP listen mode, but don't pre-fork()\n""
+					""-c read the config file named \""filename\"" instead of "" PATH_BFTPD_CONF ""\n""
+					""-n no config file, use defaults\n"", argv[0]);
+				return 0;
+			case 'i': daemonmode = 0; break;
+			case 'd': daemonmode = 1; break;
+			case 'D': daemonmode = 2; break;
+			case 'c': configpath = strdup(optarg); break;
+			case 'n': configpath = NULL; break;
+		}
+	}
+	if (daemonmode) {
+		struct sockaddr_in myaddr, new;
+		if (daemonmode == 1) {
+			if (fork())
+				exit(0);  /* Exit from parent process */
+			setsid();
+			if (fork())
+				return 0;
+		}
+		signal(SIGCHLD, handler_sigchld);
+		config_init();
+		chdir(""/"");
+                hidegroups_init();
+		listensocket = socket(AF_INET, SOCK_STREAM, 0);
+#ifdef SO_REUSEADDR
+		setsockopt(listensocket, SOL_SOCKET, SO_REUSEADDR, (void *) &i,
+				   sizeof(i));
+#endif
+#ifdef SO_REUSEPORT
+		setsockopt(listensocket, SOL_SOCKET, SO_REUSEPORT, (void *) &i,
+				   sizeof(i));
+#endif
+		memset((void *) &myaddr, 0, sizeof(myaddr));
+        if (!((port = strtoul(config_getoption(""PORT""), NULL, 10))))
+            port = DEFAULT_PORT;
+		myaddr.sin_port = htons(port);
+		if (!strcasecmp(config_getoption(""BIND_TO_ADDR""), ""any"")
+			|| !config_getoption(""BIND_TO_ADDR"")[0])
+			myaddr.sin_addr.s_addr = INADDR_ANY;
+		else
+			myaddr.sin_addr.s_addr = inet_addr(config_getoption(""BIND_TO_ADDR""));
+		if (bind(listensocket, (struct sockaddr *) &myaddr, sizeof(myaddr)) < 0) {
+			fprintf(stderr, ""Bind failed: %s\n"", strerror(errno));
+			exit(1);
+		}
+		if (listen(listensocket, 5)) {
+			fprintf(stderr, ""Listen failed: %s\n"", strerror(errno));
+			exit(1);
+		}
+               
+                /* check for open stdin, stdout, stderr */
+                if (listensocket >= 3)
+                {
+		    for (i = 0; i < 3; i++) {
+			close(i);		/* Remove fd pointing to the console */
+			open(""/dev/null"", O_RDWR);	/* Create fd pointing nowhere */
+		     }
+                }
+
+		my_length = sizeof(new);
+		while ((sock = accept(listensocket, (struct sockaddr *) &new, &my_length))) {
+			pid_t pid;
+			/* If accept() becomes interrupted by SIGCHLD, it will return -1.
+			 * So in order not to create a child process when that happens,
+			 * we have to check if accept() returned an error.
+			 */
+			if (sock > 0) {
+				pid = fork();
+				if (!pid) {       /* child */
+					close(0);
+					close(1);
+					close(2);
+					isparent = 0;
+					dup2(sock, fileno(stdin));
+					dup2(sock, fileno(stderr));
+					break;
+				} else {          /* parent */
+					struct bftpd_childpid *tmp_pid = malloc(sizeof(struct bftpd_childpid));
+					tmp_pid->pid = pid;
+					tmp_pid->sock = sock;
+					bftpd_list_add(&child_list, tmp_pid);
+				}
+			}
+		}
+	}
+        
+        /* Child only. From here on... */
+
+	devnull = fopen(""/dev/null"", ""w"");
+	global_argc = argc;
+	global_argv = argv;
+	init_everything();
+	atexit(end_child);
+	signal(SIGTERM, handler_sigterm);
+    signal(SIGALRM, handler_sigalrm);
+
+
+    /* If we do not have getpwnam() for some reason, then
+       we must use FILE_AUTH or exit. */
+    #ifdef NO_GETPWNAM
+    {
+        char *file_auth_option;
+
+        file_auth_option = config_getoption(""FILE_AUTH"");
+        if (! file_auth_option[0] )
+        {
+           bftpd_log(""Exiting, becasue we have no way to authorize clients.\n"");
+           exit(0);
+        }
+    }
+    #endif
+
+    get_value = strtoul(config_getoption(""CONTROL_TIMEOUT""), NULL, 0);
+    if (get_value <= INT_MAX)
+       control_timeout = get_value;
+    else
+       control_timeout = 0;
+    if (!control_timeout)
+        control_timeout = CONTROL_TIMEOUT;
+
+    get_value = strtoul(config_getoption(""DATA_TIMEOUT""), NULL, 0);
+    if (get_value <= INT_MAX)
+       data_timeout = get_value;
+    else
+       data_timeout = 0;
+    if (!data_timeout)
+        data_timeout = DATA_TIMEOUT;
+    get_value = strtoul(config_getoption(""XFER_BUFSIZE""), NULL, 0);
+    if (get_value <= INT_MAX)
+       xfer_bufsize = get_value;
+    else
+       xfer_bufsize = 9;
+
+    /* handled below
+    if (!xfer_bufsize)
+        xfer_bufsize = XFER_BUFSIZE;
+    */
+    /* do range check on xfer_bufsize, which is an int */
+    if ( (xfer_bufsize <= 0) || (xfer_bufsize > 1000000) )
+       xfer_bufsize = XFER_BUFSIZE;
+
+    /* get scripts to run pre and post write */
+    pre_write_script = config_getoption(""PRE_WRITE_SCRIPT"");
+    if (! pre_write_script[0])
+       pre_write_script = NULL;
+    post_write_script = config_getoption(""POST_WRITE_SCRIPT"");
+    if (! post_write_script[0])
+       post_write_script = NULL;
+
+
+	my_length = sizeof(remotename);
+    if (getpeername(fileno(stderr), (struct sockaddr *) &remotename, &my_length)) {
+		control_printf(SL_FAILURE, ""421-Could not get peer IP address.\r\n421 %s."",
+		               strerror(errno));
+		return 0;
+	}
+	i = 1;
+	setsockopt(fileno(stdin), SOL_SOCKET, SO_OOBINLINE, (void *) &i,
+			   sizeof(i));
+	setsockopt(fileno(stdin), SOL_SOCKET, SO_KEEPALIVE, (void *) &i,
+			   sizeof(i));
+	/* If option is set, determine the client FQDN */
+	if (!strcasecmp((char *) config_getoption(""RESOLVE_CLIENT_IP""), ""yes"")) {
+		if ((he = gethostbyaddr((char *) &remotename.sin_addr, sizeof(struct in_addr), AF_INET)))
+                {
+                   if (he->h_name)
+			remotehostname = strdup(he->h_name);
+                   else
+                        remotehostname = """";
+                }
+		else
+                {
+                        temp_string = inet_ntoa(remotename.sin_addr);
+                        if (temp_string)
+                           remotehostname = strdup(temp_string);
+                        else
+                           remotehostname = """";
+			/* remotehostname = strdup(inet_ntoa(remotename.sin_addr)); */
+                }
+	}
+        else
+        {
+              temp_string = inet_ntoa(remotename.sin_addr);
+              if (temp_string)
+                 remotehostname = strdup(temp_string);
+              else
+                 remotehostname = """";
+		/* remotehostname = strdup(inet_ntoa(remotename.sin_addr)); */
+        }
+	bftpd_log(""Incoming connection from %s.\n"", remotehostname);
+        bftpd_statuslog(1, 0, ""connect %s"", remotehostname);
+	my_length = sizeof(name);
+	getsockname(fileno(stdin), (struct sockaddr *) &name, &my_length);
+	print_file(220, config_getoption(""MOTD_GLOBAL""));
+	/* Parse hello message */
+	strcpy(str, (char *) config_getoption(""HELLO_STRING""));
+	replace(str, ""%v"", VERSION, MAX_STRING_LENGTH);
+	if (strstr(str, ""%h"")) {
+		if ((he = gethostbyaddr((char *) &name.sin_addr, sizeof(struct in_addr), AF_INET)))
+			replace(str, ""%h"", he->h_name, MAX_STRING_LENGTH);
+		else
+			replace(str, ""%h"", (char *) inet_ntoa(name.sin_addr), MAX_STRING_LENGTH);
+	}
+	replace(str, ""%i"", (char *) inet_ntoa(name.sin_addr), MAX_STRING_LENGTH);
+	control_printf(SL_SUCCESS, ""220 %s"", str);
+
+        /* We might not get any data, so let's set an alarm before the
+           first read. -- Jesse <slicer69@hotmail.com> */
+        alarm(control_timeout);
+        
+	/* Read lines from client and execute appropriate commands */
+	while (fgets(str, MAXCMD, stdin)) {
+        alarm(control_timeout);
+        str[strlen(str) - 2] = 0;
+        bftpd_statuslog(2, 0, ""%s"", str);
+#ifdef DEBUG
+		bftpd_log(""Processing command: %s\n"", str);
+#endif
+		parsecmd(str);
+	}
+
+        if (remotehostname) free(remotehostname);
+	return 0;
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_15.cpp,"[29, 3, 1, 0, 6, 0, 4, 1, 6, 0, 47, 0, 0, 0, 1, 395, 0, 0, 11, 12, 0, 0, 4, 100, 0, 0, 0, 0, 4, 0, 102, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 177, 0, 347, 0, 0, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 0, 7, 0, 34, 29, 11, 0, 114, 0, 0, 96, 0, 195, 8, 1, 0, 0, 1, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_15.cpp,226
+second/download/bftpd/bftpd/bftpd/main.cpp,431,"bftpd_statuslog(2, 0, ""%s"", str);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_16.cpp,"{
+        alarm(control_timeout);
+        str[strlen(str) - 2] = 0;
+        bftpd_statuslog(2, 0, ""%s"", str);
+#ifdef DEBUG
+		bftpd_log(""Processing command: %s\n"", str);
+#endif
+		parsecmd(str);
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_16.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 5, 0, 0, 5, 0, 9, 2, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_16.cpp,236
+second/download/bftpd/bftpd/bftpd/main.cpp,433,"bftpd_log(""Processing command: %s\n"", str);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_17.cpp,"{
+        alarm(control_timeout);
+        str[strlen(str) - 2] = 0;
+        bftpd_statuslog(2, 0, ""%s"", str);
+#ifdef DEBUG
+		bftpd_log(""Processing command: %s\n"", str);
+#endif
+		parsecmd(str);
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_17.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 5, 0, 0, 5, 0, 9, 2, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_17.cpp,238
+second/download/bftpd/bftpd/bftpd/login.cpp,86,"sprintf(name, ""%i"", uid);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_18.cpp,"{
+	int _uid;
+	char foo[256];
+    int i;
+	if (file) {
+		rewind(file);
+        while (fscanf(file, ""%255s%*[^\n]\n"", foo) != EOF) {
+            if ((foo[0] == '#') || (!strchr(foo, ':')) || (strchr(foo, ':') > foo + USERLEN - 1))
+                continue;
+            i = strchr(foo, ':') - foo;
+            strncpy(name, foo, i);
+            name[i] = 0;
+			sscanf(strchr(foo + i + 1, ':') + 1, ""%i"", &_uid);
+			if (_uid == uid) {
+				if (name[0] == '\n')
+					cutto(name, 1);
+				return name;
+			}
+		}
+	}
+	sprintf(name, ""%i"", uid);
+	return name;
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_18.cpp,"[4, 1, 0, 0, 0, 1, 2, 0, 0, 0, 6, 0, 0, 0, 0, 49, 0, 0, 3, 3, 0, 0, 0, 17, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 23, 0, 41, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 4, 0, 5, 4, 0, 0, 10, 0, 0, 7, 0, 23, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_18.cpp,21
+second/download/bftpd/bftpd/bftpd/login.cpp,118,"bftpd_log(""Warning: Unable to open %s.\n"", _PATH_WTMP);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_19.cpp,"bftpd_log(""Warning: Unable to open %s.\n"", _PATH_WTMP)",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_19.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_19.cpp,4
+second/download/bftpd/bftpd/bftpd/login.cpp,131,"sprintf(ut.ut_line, ""ftp%i"", (int) getpid());",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_20.cpp,"{
+	struct utmp ut;
+	if (!wtmp)
+		return;
+	memset((void *) &ut, 0, sizeof(ut));
+#ifdef _HAVE_UT_PID
+	ut.ut_pid = getpid();
+#endif
+	sprintf(ut.ut_line, ""ftp%i"", (int) getpid());
+	if (type) {
+#ifdef _HAVE_UT_TYPE
+		ut.ut_type = USER_PROCESS;
+#endif
+		strncpy(ut.ut_name, user, sizeof(ut.ut_name));
+#ifdef _HAVE_UT_HOST   
+		strncpy(ut.ut_host, remotehostname, sizeof(ut.ut_host));
+#endif    
+	} else {
+#ifdef _HAVE_UT_TYPE
+		ut.ut_type = DEAD_PROCESS;
+#endif
+	}
+	time(&(ut.ut_time));
+	fseek(wtmp, 0, SEEK_END);
+	fwrite((void *) &ut, sizeof(ut), 1, wtmp);
+	fflush(wtmp);
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_20.cpp,"[2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 0, 62, 0, 0, 1, 1, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 0, 38, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 2, 1, 0, 14, 0, 0, 11, 0, 25, 8, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_20.cpp,9
+second/download/bftpd/bftpd/bftpd/login.cpp,169,"control_printf(SL_FAILURE, ""421 Initial chroot failed.\r\n."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_21.cpp,"{
+            control_printf(SL_FAILURE, ""421 Initial chroot failed.\r\n."");
+            exit(1);
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_21.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_21.cpp,8
+second/download/bftpd/bftpd/bftpd/login.cpp,214,"control_printf(SL_FAILURE, ""530 Login incorrect."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_22.cpp,"{
+                control_printf(SL_FAILURE, ""530 Login incorrect."");
+		// exit(0);
+                return -1;
+           }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_22.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_22.cpp,25
+second/download/bftpd/bftpd/bftpd/login.cpp,231,"control_printf(SL_FAILURE, ""530 Anonymous user not allowed."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_23.cpp,"{
+                  control_printf(SL_FAILURE, ""530 Anonymous user not allowed."");
+                  //exit(0);
+                  return -1;
+               }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_23.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_23.cpp,42
+second/download/bftpd/bftpd/bftpd/login.cpp,241,"control_printf(SL_FAILURE, ""530-Server disabled.\r\n421 Reason: %s"", foo);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_24.cpp,"control_printf(SL_FAILURE, ""530-Server disabled.\r\n421 Reason: %s"", foo)",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_24.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_24.cpp,52
+second/download/bftpd/bftpd/bftpd/login.cpp,243,"control_printf(SL_FAILURE, ""530 Login incorrect."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_25.cpp,"control_printf(SL_FAILURE, ""530 Login incorrect."")",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_25.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_25.cpp,54
+second/download/bftpd/bftpd/bftpd/login.cpp,244,"bftpd_log(""Login as user '%s' failed: Server disabled.\n"", user);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_26.cpp,"{
+			if (strncasecmp(foo, ""yes"", 3))
+				control_printf(SL_FAILURE, ""530-Server disabled.\r\n421 Reason: %s"", foo);
+			else
+				control_printf(SL_FAILURE, ""530 Login incorrect."");
+			bftpd_log(""Login as user '%s' failed: Server disabled.\n"", user);
+			exit(0);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_26.cpp,"[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 5, 0, 0, 4, 0, 11, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_26.cpp,55
+second/download/bftpd/bftpd/bftpd/login.cpp,253,"bftpd_log(""Error getting max users for GLOBAL in bftpd_login.\n"", 0);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_27.cpp,"{
+           bftpd_log(""Error getting max users for GLOBAL in bftpd_login.\n"", 0);
+           maxusers = 0;
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_27.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_27.cpp,64
+second/download/bftpd/bftpd/bftpd/login.cpp,257,"control_printf(SL_FAILURE, ""421 There are already %i users logged in."", maxusers);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_28.cpp,"{
+		control_printf(SL_FAILURE, ""421 There are already %i users logged in."", maxusers);
+                bftpd_log(""Login as user '%s' failed. Too many users on server.\n"", user);
+		exit(0);
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_28.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_28.cpp,68
+second/download/bftpd/bftpd/bftpd/login.cpp,258,"bftpd_log(""Login as user '%s' failed. Too many users on server.\n"", user);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_29.cpp,"{
+		control_printf(SL_FAILURE, ""421 There are already %i users logged in."", maxusers);
+                bftpd_log(""Login as user '%s' failed. Too many users on server.\n"", user);
+		exit(0);
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_29.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_29.cpp,69
+second/download/bftpd/bftpd/bftpd/login.cpp,266,"bftpd_log(""error getting max users (SINGLE USER) in bftpd_login.\n"", 0);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_30.cpp,"{
+           bftpd_log(""error getting max users (SINGLE USER) in bftpd_login.\n"", 0);
+           maxusers = 0;
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_30.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_30.cpp,77
+second/download/bftpd/bftpd/bftpd/login.cpp,270,"control_printf(SL_FAILURE, ""421 User %s is already logged in %i times."", user, maxusers);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_31.cpp,"{
+		control_printf(SL_FAILURE, ""421 User %s is already logged in %i times."", user, maxusers);
+                bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);
+		exit(0);
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_31.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_31.cpp,81
+second/download/bftpd/bftpd/bftpd/login.cpp,271,"bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_32.cpp,"{
+		control_printf(SL_FAILURE, ""421 User %s is already logged in %i times."", user, maxusers);
+                bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);
+		exit(0);
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_32.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_32.cpp,82
+second/download/bftpd/bftpd/bftpd/login.cpp,283,"bftpd_log(""Error getting max users per HOST in bftpd_login.\n"", 0);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_33.cpp,"{
+            bftpd_log(""Error getting max users per HOST in bftpd_login.\n"", 0);
+            maxusers = 0;
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_33.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_33.cpp,94
+second/download/bftpd/bftpd/bftpd/login.cpp,289,"control_printf(SL_FAILURE, ""421 Too many connections from your IP address."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_34.cpp,"{
+            control_printf(SL_FAILURE, ""421 Too many connections from your IP address."");
+            bftpd_log(""Login as user '%s' failed. Already %d connections from %s.\n"", user, maxusers, remotehostname);
+            exit(0);
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_34.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_34.cpp,100
+second/download/bftpd/bftpd/bftpd/login.cpp,290,"bftpd_log(""Login as user '%s' failed. Already %d connections from %s.\n"", user, maxusers, remotehostname);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_35.cpp,"{
+            control_printf(SL_FAILURE, ""421 Too many connections from your IP address."");
+            bftpd_log(""Login as user '%s' failed. Already %d connections from %s.\n"", user, maxusers, remotehostname);
+            exit(0);
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_35.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_35.cpp,101
+second/download/bftpd/bftpd/bftpd/login.cpp,299,"control_printf(SL_FAILURE, ""530 Login incorrect."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_36.cpp,"{
+		control_printf(SL_FAILURE, ""530 Login incorrect."");
+		// exit(0);
+                return -1;
+	    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_36.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_36.cpp,110
+second/download/bftpd/bftpd/bftpd/login.cpp,338,"control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n%s."",
+					strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_37.cpp,"{
+			control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n%s."",
+					strerror(errno));
+			exit(0);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_37.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_37.cpp,149
+second/download/bftpd/bftpd/bftpd/login.cpp,343,"control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_38.cpp,"{
+			control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");
+			exit(0);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_38.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_38.cpp,154
+second/download/bftpd/bftpd/bftpd/login.cpp,347,"control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n%s."",
+					 strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_39.cpp,"{
+			control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n%s."",
+					 strerror(errno));
+			exit(0);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_39.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_39.cpp,158
+second/download/bftpd/bftpd/bftpd/login.cpp,353,"control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_40.cpp,"{
+			control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");
+			exit(0);
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_40.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_40.cpp,164
+second/download/bftpd/bftpd/bftpd/login.cpp,357,"control_printf(SL_FAILURE, ""230 Couldn't change cwd to '%s': %s.\r\n"", str,
+					 strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_41.cpp,"{
+			control_printf(SL_FAILURE, ""230 Couldn't change cwd to '%s': %s.\r\n"", str,
+					 strerror(errno));
+			chdir(""/"");
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_41.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_41.cpp,168
+second/download/bftpd/bftpd/bftpd/login.cpp,378,"control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_42.cpp,"{
+                 control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");
+                 exit(0);
+             }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_42.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_42.cpp,189
+second/download/bftpd/bftpd/bftpd/login.cpp,383,"control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_43.cpp,"{
+                 control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");
+                 exit(0);
+             }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_43.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_43.cpp,194
+second/download/bftpd/bftpd/bftpd/login.cpp,403,"control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_44.cpp,"{
+                    control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");
+                    exit(0);
+                }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_44.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_44.cpp,214
+second/download/bftpd/bftpd/bftpd/login.cpp,408,"control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_45.cpp,"{
+                    control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");
+                    exit(0);
+                }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_45.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_45.cpp,219
+second/download/bftpd/bftpd/bftpd/login.cpp,423,"control_printf(SL_SUCCESS, ""230 User logged in."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_46.cpp,"{
+	char str[MAX_STRING_LENGTH + 1];
+	char *foo;
+	int maxusers;
+        char *file_auth;   /* if used, points to file used to auth users */
+        char *home_directory = NULL;   /* retrieved from auth_file */
+        char *anonymous = NULL;
+        unsigned long get_maxusers;
+        int anon_ok = FALSE;
+
+        str[0] = '\0';     /* avoid garbage in str */
+        file_auth = config_getoption(""FILE_AUTH"");
+
+        if (! file_auth[0] )    /* not using auth file */
+        {
+           /* check to see if regular authentication is avail */
+           anonymous = config_getoption(""ANONYMOUS_USER"");
+           if (! strcasecmp(anonymous, ""yes"") )
+           {
+              home_directory = ""/"";
+              anon_ok = TRUE;
+           }
+           #ifndef NO_GETPWNAM
+	   else if (!getpwnam(user)) {
+                control_printf(SL_FAILURE, ""530 Login incorrect."");
+		// exit(0);
+                return -1;
+           }
+           #endif
+        }
+        /* we are using auth_file */
+        else
+        {
+           home_directory = check_file_password(file_auth, user, password);
+           anonymous = config_getoption(""ANONYMOUS_USER"");
+           if (! home_directory)
+           {
+               if (! strcasecmp(anonymous, ""yes"") )
+                   home_directory = ""/"";
+               else
+               {
+                  control_printf(SL_FAILURE, ""530 Anonymous user not allowed."");
+                  //exit(0);
+                  return -1;
+               }
+           }
+        }
+
+	if (strncasecmp(foo = config_getoption(""DENY_LOGIN""), ""no"", 2)) {
+		if (foo[0] != '\0') {
+			if (strncasecmp(foo, ""yes"", 3))
+				control_printf(SL_FAILURE, ""530-Server disabled.\r\n421 Reason: %s"", foo);
+			else
+				control_printf(SL_FAILURE, ""530 Login incorrect."");
+			bftpd_log(""Login as user '%s' failed: Server disabled.\n"", user);
+			exit(0);
+		}
+	}
+	get_maxusers = strtoul(config_getoption(""USERLIMIT_GLOBAL""), NULL, 10);
+        if (get_maxusers <= INT_MAX)
+           maxusers = get_maxusers;
+        else
+        {
+           bftpd_log(""Error getting max users for GLOBAL in bftpd_login.\n"", 0);
+           maxusers = 0;
+        }
+	if ((maxusers) && (maxusers == bftpdutmp_usercount(""*""))) {
+		control_printf(SL_FAILURE, ""421 There are already %i users logged in."", maxusers);
+                bftpd_log(""Login as user '%s' failed. Too many users on server.\n"", user);
+		exit(0);
+	}
+	get_maxusers = strtoul(config_getoption(""USERLIMIT_SINGLEUSER""), NULL, 10);
+        if (get_maxusers <= INT_MAX)
+           maxusers = get_maxusers;
+        else
+        {
+           bftpd_log(""error getting max users (SINGLE USER) in bftpd_login.\n"", 0);
+           maxusers = 0;
+        }
+	if ((maxusers) && (maxusers == bftpdutmp_usercount(user))) {
+		control_printf(SL_FAILURE, ""421 User %s is already logged in %i times."", user, maxusers);
+                bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);
+		exit(0);
+	}
+
+        /* Check to see if we should block mulitple logins from the same machine.
+           -- Jesse <slicer69@hotmail.com>
+        */
+        get_maxusers = strtoul( config_getoption(""USERLIMIT_HOST""), NULL, 10);
+        if (get_maxusers <= INT_MAX)
+           maxusers = get_maxusers;
+        else
+        {
+            bftpd_log(""Error getting max users per HOST in bftpd_login.\n"", 0);
+            maxusers = 0;
+        }
+
+        if ( (maxusers) && (maxusers == bftpdutmp_dup_ip_count(remotehostname) ) )
+        {
+            control_printf(SL_FAILURE, ""421 Too many connections from your IP address."");
+            bftpd_log(""Login as user '%s' failed. Already %d connections from %s.\n"", user, maxusers, remotehostname);
+            exit(0);
+        }
+       
+        /* disable these checks when logging in via auth file */
+        if ( (! file_auth[0] ) && (!anon_ok) )
+        {
+            #ifndef NO_GETPWNAM
+	    if(checkuser() || checkshell()) {
+		control_printf(SL_FAILURE, ""530 Login incorrect."");
+		// exit(0);
+                return -1;
+	    }
+            #endif
+        }
+
+        /* do not do this check when we are using auth_file */
+        if ( (! file_auth[0] ) && (! anon_ok) )
+        {
+            #ifndef NO_GETPWNAM
+	    if (checkpass(password))
+		return 1;
+            #endif
+        }
+
+	if (strcasecmp((char *) config_getoption(""RATIO""), ""none"")) {
+		sscanf((char *) config_getoption(""RATIO""), ""%i/%i"",
+			   &ratio_send, &ratio_recv);
+	}
+
+        /* do these checks if logging in via normal methods */
+        if ( (! file_auth[0]) && (! anon_ok) )
+        {
+	     strcpy(str, config_getoption(""ROOTDIR""));
+	     if (!str[0])
+		strcpy(str, ""%h"");
+	     replace(str, ""%u"", userinfo.pw_name, MAX_STRING_LENGTH);
+	     replace(str, ""%h"", userinfo.pw_dir, MAX_STRING_LENGTH);
+	     if (!strcasecmp(config_getoption(""RESOLVE_UIDS""), ""yes"")) 
+             {
+		passwdfile = fopen(""/etc/passwd"", ""r"");
+		groupfile = fopen(""/etc/group"", ""r"");
+	     } 
+
+	setgid(userinfo.pw_gid);
+	initgroups(userinfo.pw_name, userinfo.pw_gid);
+	if (strcasecmp(config_getoption(""DO_CHROOT""), ""no"")) {
+		if (chroot(str)) {
+			control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n%s."",
+					strerror(errno));
+			exit(0);
+		}
+		if (bftpd_setuid(userinfo.pw_uid)) {
+			control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");
+			exit(0);
+		}
+		if (chdir(""/"")) {
+			control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n%s."",
+					 strerror(errno));
+			exit(0);
+		}
+	} else {
+		if (bftpd_setuid(userinfo.pw_uid)) {
+			control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");
+			exit(0);
+		}
+		if (chdir(str)) {
+			control_printf(SL_FAILURE, ""230 Couldn't change cwd to '%s': %s.\r\n"", str,
+					 strerror(errno));
+			chdir(""/"");
+		}
+	}
+
+        }   /* end of if we are using regular authentication methods */
+
+        /* perhaps we are using anonymous logins, but not file_auth? */
+        else if ( (! file_auth[0]) && (anon_ok) )
+        {
+          strcpy(str, config_getoption(""ROOTDIR""));
+          if (! str[0])
+             str[0] = '/';
+          replace(str, ""%h"", home_directory, MAX_STRING_LENGTH);
+          replace(str, ""%u"", user, MAX_STRING_LENGTH);
+          /* should we chroot? */
+          if (! strcasecmp(config_getoption(""DO_CHROOT""), ""yes"") )
+          {
+             if ( chroot(str) )
+             {
+                 control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");
+                 exit(0);
+             }
+             if ( chdir(""/"") )
+             {
+                 control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");
+                 exit(0);
+             }
+          } 
+        
+        }        /* end of using anonymous login */
+        else     /* we are using file authentication */
+        {
+            /* get home directory */
+	    strcpy(str, config_getoption(""ROOTDIR""));
+            if (! str[0])
+                strcpy(str, ""%h"");
+	    replace(str, ""%h"", home_directory, MAX_STRING_LENGTH);
+            replace(str, ""%u"", user, MAX_STRING_LENGTH);
+
+            /* see if we should change root */
+            if (! strcasecmp(config_getoption(""DO_CHROOT""), ""yes""))
+            {
+                if ( chroot(home_directory) )
+                {
+                    control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");
+                    exit(0);
+                }
+                if ( chdir(""/"") )
+                {
+                    control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");
+                    exit(0);
+                }
+            }
+               
+        }      /* end of using file auth */
+
+        new_umask();
+	/* print_file(230, config_getoption(""MOTD_USER"")); */
+        strcpy(str, config_getoption(""MOTD_USER""));
+        /* Allow user specific path to MOTD file. */
+        replace(str, ""%h"", home_directory, MAX_STRING_LENGTH);
+        replace(str, ""%u"", user, MAX_STRING_LENGTH);
+        print_file(230, str);
+
+	control_printf(SL_SUCCESS, ""230 User logged in."");
+#ifdef HAVE_UTMP_H
+	bftpd_logwtmp(1);
+#endif
+        bftpdutmp_log(1);
+	bftpd_log(""Successfully logged in as user '%s'.\n"", user);
+        if (config_getoption(""AUTO_CHDIR"")[0])
+            chdir(config_getoption(""AUTO_CHDIR""));
+
+	state = STATE_AUTHENTICATED;
+	bftpd_cwd_init();
+
+        /* a little clean up before we go */
+        if ( (home_directory) && ( strcmp(home_directory, ""/"" ) ) )
+            free(home_directory);
+           
+	return 0;
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_46.cpp,"[39, 0, 0, 0, 0, 0, 5, 0, 0, 0, 48, 0, 0, 0, 0, 314, 0, 0, 8, 8, 0, 0, 3, 124, 0, 0, 0, 0, 4, 0, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 107, 0, 350, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 13, 0, 39, 39, 8, 0, 117, 0, 0, 84, 2, 206, 8, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_46.cpp,234
+second/download/bftpd/bftpd/bftpd/login.cpp,428,"bftpd_log(""Successfully logged in as user '%s'.\n"", user);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_47.cpp,"{
+	char str[MAX_STRING_LENGTH + 1];
+	char *foo;
+	int maxusers;
+        char *file_auth;   /* if used, points to file used to auth users */
+        char *home_directory = NULL;   /* retrieved from auth_file */
+        char *anonymous = NULL;
+        unsigned long get_maxusers;
+        int anon_ok = FALSE;
+
+        str[0] = '\0';     /* avoid garbage in str */
+        file_auth = config_getoption(""FILE_AUTH"");
+
+        if (! file_auth[0] )    /* not using auth file */
+        {
+           /* check to see if regular authentication is avail */
+           anonymous = config_getoption(""ANONYMOUS_USER"");
+           if (! strcasecmp(anonymous, ""yes"") )
+           {
+              home_directory = ""/"";
+              anon_ok = TRUE;
+           }
+           #ifndef NO_GETPWNAM
+	   else if (!getpwnam(user)) {
+                control_printf(SL_FAILURE, ""530 Login incorrect."");
+		// exit(0);
+                return -1;
+           }
+           #endif
+        }
+        /* we are using auth_file */
+        else
+        {
+           home_directory = check_file_password(file_auth, user, password);
+           anonymous = config_getoption(""ANONYMOUS_USER"");
+           if (! home_directory)
+           {
+               if (! strcasecmp(anonymous, ""yes"") )
+                   home_directory = ""/"";
+               else
+               {
+                  control_printf(SL_FAILURE, ""530 Anonymous user not allowed."");
+                  //exit(0);
+                  return -1;
+               }
+           }
+        }
+
+	if (strncasecmp(foo = config_getoption(""DENY_LOGIN""), ""no"", 2)) {
+		if (foo[0] != '\0') {
+			if (strncasecmp(foo, ""yes"", 3))
+				control_printf(SL_FAILURE, ""530-Server disabled.\r\n421 Reason: %s"", foo);
+			else
+				control_printf(SL_FAILURE, ""530 Login incorrect."");
+			bftpd_log(""Login as user '%s' failed: Server disabled.\n"", user);
+			exit(0);
+		}
+	}
+	get_maxusers = strtoul(config_getoption(""USERLIMIT_GLOBAL""), NULL, 10);
+        if (get_maxusers <= INT_MAX)
+           maxusers = get_maxusers;
+        else
+        {
+           bftpd_log(""Error getting max users for GLOBAL in bftpd_login.\n"", 0);
+           maxusers = 0;
+        }
+	if ((maxusers) && (maxusers == bftpdutmp_usercount(""*""))) {
+		control_printf(SL_FAILURE, ""421 There are already %i users logged in."", maxusers);
+                bftpd_log(""Login as user '%s' failed. Too many users on server.\n"", user);
+		exit(0);
+	}
+	get_maxusers = strtoul(config_getoption(""USERLIMIT_SINGLEUSER""), NULL, 10);
+        if (get_maxusers <= INT_MAX)
+           maxusers = get_maxusers;
+        else
+        {
+           bftpd_log(""error getting max users (SINGLE USER) in bftpd_login.\n"", 0);
+           maxusers = 0;
+        }
+	if ((maxusers) && (maxusers == bftpdutmp_usercount(user))) {
+		control_printf(SL_FAILURE, ""421 User %s is already logged in %i times."", user, maxusers);
+                bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);
+		exit(0);
+	}
+
+        /* Check to see if we should block mulitple logins from the same machine.
+           -- Jesse <slicer69@hotmail.com>
+        */
+        get_maxusers = strtoul( config_getoption(""USERLIMIT_HOST""), NULL, 10);
+        if (get_maxusers <= INT_MAX)
+           maxusers = get_maxusers;
+        else
+        {
+            bftpd_log(""Error getting max users per HOST in bftpd_login.\n"", 0);
+            maxusers = 0;
+        }
+
+        if ( (maxusers) && (maxusers == bftpdutmp_dup_ip_count(remotehostname) ) )
+        {
+            control_printf(SL_FAILURE, ""421 Too many connections from your IP address."");
+            bftpd_log(""Login as user '%s' failed. Already %d connections from %s.\n"", user, maxusers, remotehostname);
+            exit(0);
+        }
+       
+        /* disable these checks when logging in via auth file */
+        if ( (! file_auth[0] ) && (!anon_ok) )
+        {
+            #ifndef NO_GETPWNAM
+	    if(checkuser() || checkshell()) {
+		control_printf(SL_FAILURE, ""530 Login incorrect."");
+		// exit(0);
+                return -1;
+	    }
+            #endif
+        }
+
+        /* do not do this check when we are using auth_file */
+        if ( (! file_auth[0] ) && (! anon_ok) )
+        {
+            #ifndef NO_GETPWNAM
+	    if (checkpass(password))
+		return 1;
+            #endif
+        }
+
+	if (strcasecmp((char *) config_getoption(""RATIO""), ""none"")) {
+		sscanf((char *) config_getoption(""RATIO""), ""%i/%i"",
+			   &ratio_send, &ratio_recv);
+	}
+
+        /* do these checks if logging in via normal methods */
+        if ( (! file_auth[0]) && (! anon_ok) )
+        {
+	     strcpy(str, config_getoption(""ROOTDIR""));
+	     if (!str[0])
+		strcpy(str, ""%h"");
+	     replace(str, ""%u"", userinfo.pw_name, MAX_STRING_LENGTH);
+	     replace(str, ""%h"", userinfo.pw_dir, MAX_STRING_LENGTH);
+	     if (!strcasecmp(config_getoption(""RESOLVE_UIDS""), ""yes"")) 
+             {
+		passwdfile = fopen(""/etc/passwd"", ""r"");
+		groupfile = fopen(""/etc/group"", ""r"");
+	     } 
+
+	setgid(userinfo.pw_gid);
+	initgroups(userinfo.pw_name, userinfo.pw_gid);
+	if (strcasecmp(config_getoption(""DO_CHROOT""), ""no"")) {
+		if (chroot(str)) {
+			control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n%s."",
+					strerror(errno));
+			exit(0);
+		}
+		if (bftpd_setuid(userinfo.pw_uid)) {
+			control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");
+			exit(0);
+		}
+		if (chdir(""/"")) {
+			control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n%s."",
+					 strerror(errno));
+			exit(0);
+		}
+	} else {
+		if (bftpd_setuid(userinfo.pw_uid)) {
+			control_printf(SL_FAILURE, ""421 Unable to change uid.\r\n"");
+			exit(0);
+		}
+		if (chdir(str)) {
+			control_printf(SL_FAILURE, ""230 Couldn't change cwd to '%s': %s.\r\n"", str,
+					 strerror(errno));
+			chdir(""/"");
+		}
+	}
+
+        }   /* end of if we are using regular authentication methods */
+
+        /* perhaps we are using anonymous logins, but not file_auth? */
+        else if ( (! file_auth[0]) && (anon_ok) )
+        {
+          strcpy(str, config_getoption(""ROOTDIR""));
+          if (! str[0])
+             str[0] = '/';
+          replace(str, ""%h"", home_directory, MAX_STRING_LENGTH);
+          replace(str, ""%u"", user, MAX_STRING_LENGTH);
+          /* should we chroot? */
+          if (! strcasecmp(config_getoption(""DO_CHROOT""), ""yes"") )
+          {
+             if ( chroot(str) )
+             {
+                 control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");
+                 exit(0);
+             }
+             if ( chdir(""/"") )
+             {
+                 control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");
+                 exit(0);
+             }
+          } 
+        
+        }        /* end of using anonymous login */
+        else     /* we are using file authentication */
+        {
+            /* get home directory */
+	    strcpy(str, config_getoption(""ROOTDIR""));
+            if (! str[0])
+                strcpy(str, ""%h"");
+	    replace(str, ""%h"", home_directory, MAX_STRING_LENGTH);
+            replace(str, ""%u"", user, MAX_STRING_LENGTH);
+
+            /* see if we should change root */
+            if (! strcasecmp(config_getoption(""DO_CHROOT""), ""yes""))
+            {
+                if ( chroot(home_directory) )
+                {
+                    control_printf(SL_FAILURE, ""421 Unable to change root directory.\r\n"");
+                    exit(0);
+                }
+                if ( chdir(""/"") )
+                {
+                    control_printf(SL_FAILURE, ""421 Unable to change working directory.\r\n"");
+                    exit(0);
+                }
+            }
+               
+        }      /* end of using file auth */
+
+        new_umask();
+	/* print_file(230, config_getoption(""MOTD_USER"")); */
+        strcpy(str, config_getoption(""MOTD_USER""));
+        /* Allow user specific path to MOTD file. */
+        replace(str, ""%h"", home_directory, MAX_STRING_LENGTH);
+        replace(str, ""%u"", user, MAX_STRING_LENGTH);
+        print_file(230, str);
+
+	control_printf(SL_SUCCESS, ""230 User logged in."");
+#ifdef HAVE_UTMP_H
+	bftpd_logwtmp(1);
+#endif
+        bftpdutmp_log(1);
+	bftpd_log(""Successfully logged in as user '%s'.\n"", user);
+        if (config_getoption(""AUTO_CHDIR"")[0])
+            chdir(config_getoption(""AUTO_CHDIR""));
+
+	state = STATE_AUTHENTICATED;
+	bftpd_cwd_init();
+
+        /* a little clean up before we go */
+        if ( (home_directory) && ( strcmp(home_directory, ""/"" ) ) )
+            free(home_directory);
+           
+	return 0;
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_47.cpp,"[39, 0, 0, 0, 0, 0, 5, 0, 0, 0, 48, 0, 0, 0, 0, 314, 0, 0, 8, 8, 0, 0, 3, 124, 0, 0, 0, 0, 4, 0, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 107, 0, 350, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 13, 0, 39, 39, 8, 0, 117, 0, 0, 84, 2, 206, 8, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_47.cpp,239
+second/download/bftpd/bftpd/bftpd/login.cpp,512,"printf(""Error while initializing PAM: %s\n"",
+			   pam_strerror(pamh, retval));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_48.cpp,"{
+		printf(""Error while initializing PAM: %s\n"",
+			   pam_strerror(pamh, retval));
+		return 1;
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_48.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 1, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_48.cpp,6
+second/download/bftpd/bftpd/bftpd/options.cpp,174,"control_printf(SL_FAILURE, ""421 Unable to open configuration file."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_49.cpp,"{
+		control_printf(SL_FAILURE, ""421 Unable to open configuration file."");
+		exit(1);
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_49.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_49.cpp,12
+second/download/bftpd/bftpd/bftpd/options.cpp,195,"control_printf(SL_FAILURE, ""421 Memory error while reading config file."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_50.cpp,"{
+                    fclose(configfile);
+                    control_printf(SL_FAILURE, ""421 Memory error while reading config file."");
+                    return;
+                }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_50.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_50.cpp,33
+second/download/bftpd/bftpd/bftpd/options.cpp,203,"control_printf(SL_FAILURE, ""421 Memory error while handling config file."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_51.cpp,"{
+                   fclose(configfile);
+                   control_printf(SL_FAILURE, ""421 Memory error while handling config file."");
+                   exit(1);
+                }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_51.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_51.cpp,41
+second/download/bftpd/bftpd/bftpd/options.cpp,217,"control_printf(SL_FAILURE, ""421 Memory error while handling config file."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_52.cpp,"{
+                    fclose(configfile);
+                    control_printf(SL_FAILURE, ""421 Memory error while handling config file."");
+                    exit(1);
+                }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_52.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_52.cpp,55
