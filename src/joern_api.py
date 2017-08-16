@@ -130,7 +130,8 @@ class Joern_api:
             node_type = data[2]
             var = data[3]
             var_type = self.__get_var_type_for_statment(node_id, node_type, var, 0)
-            depended_var[var] = var_type
+            if not depended_var.has_key(var) or depended_var[var] is None or var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
+                depended_var[var] = var_type
         return depended_var
 
     """
@@ -326,21 +327,23 @@ class Joern_api:
             if len(node) > my_constant.JOERN_OPERATOR:
                 var_type = node[my_constant.JOERN_OPERATOR]
             else:
-                var_type = 'BOOL'
+                var_type = 'bool'
         elif node_type == my_constant.JOERN_UNARY_OPERATOR:
             var_type = node_code[0]
             if len(node) == my_constant.JOERN_OPERATOR and var_type == '!':
-                var_type = 'BOOL'
+                var_type = 'bool'
         elif node_type in my_constant.JOERN_ADDRESS_OPERATOR:
-            var_type = 'MEMBER'
+            var_type = 'member'
         elif node_type in my_constant.JOERN_BIT_OPERATOR:
-            var_type = 'BOOL'
+            var_type = 'bool'
         elif node_type == 'PrimaryExpression':
             var_type = self.__get_var_type_for_constant(node_code)
         elif node_type == 'CallExpression':
             var_type = self.__get_var_type_with_callee(node_id)
         elif node_type == my_constant.JOERN_ASSIGN_OPERATOR:
             var_type = self.__get_var_type_for_assignment(node_id)
+        elif node_type == 'Identifier':
+            var_type = self.__get_var_type_for_constant_identifier(node_code)
         return var_type
 
     """
@@ -407,7 +410,19 @@ class Joern_api:
     #             if var_type is not None and not var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
     #                 break
     #     return var_type
-
+    """
+    @ param identifier code
+    @ return var type
+    @ involve regrex match to decide variable type(null, macro, None)
+    """
+    def __get_var_type_for_constant_identifier(self, constant):
+        var_type = None
+        if re.match(r'(null)', constant, re.I):
+            var_type = my_constant.JOERN_NULL
+        elif re.match(r'[A-Z0-9_]+', constant):
+            var_type = 'macro'
+        return var_type
+        
     """
     @ param constant
     @ return var type
@@ -417,10 +432,13 @@ class Joern_api:
         var_type = None
         if re.match(r'"(.|\n)*"', constant, re.I | re.M):
             var_type = 'string'
-        elif re.match(r'\'\w\'', constant, re.I):
+        elif re.match(r'\'[\\]*\S\'', constant, re.I):
             var_type = 'char'
         elif re.match(r'[0-9]+', constant, re.I):
-            var_type = 'int'
+            if constant == '0':
+                var_type = my_constant.JOERN_NULL
+            else:
+                var_type = 'int'
         else:
             var_type = 'constant'
 
@@ -474,9 +492,9 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'function_50.cpp'
+    filename = 'function_28.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 33)
+    joern_api.set_log(filename, 68)
     print joern_api.get_control_dependence()
     print joern_api.get_argument_type()
 

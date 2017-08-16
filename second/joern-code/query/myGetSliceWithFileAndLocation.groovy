@@ -129,7 +129,7 @@ Gremlin.defineStep('getDefDependence', [Vertex,Pipe], { startV -> // int, int
 		g.V[startV]
 		.inE("REACHES").as("var")
 		.outV		
-		.order{it.a.id <=> it.b.id}
+		// .order{it.a.id <=> it.b.id}
 		.as("def")
 		.select(["var","def"])
 		{ it.var }{ [it.id, it.code, it.type, it.location] } // select type, id, code, type

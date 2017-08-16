@@ -35,10 +35,10 @@ int myfunc(int a, int b)
 	int c = 4;
 	c = a + b;
 	c = 2;
-	if(a + b > 3  && a + b < 5 || c < abs(a) && !a)
+	if(a == 0 || b == NULL || a == null || c == MY_CONSTNT || c == false_constant)
 	{
 		a = a + 1;
-		if(a -b < 0 && c <= 5)
+		if(a - b < 0 && c <= 5)
 		{
 			cout << "ni hao" << endl;
 			cout << "hello world" << endl;
