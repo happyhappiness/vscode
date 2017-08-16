@@ -4,12 +4,12 @@ import sys
 import re
 import commands
 import json
-import analyze_control_clone
 from itertools import islice
+from z3_api import Z3_api
+import analyze_control_clone
 import block
 import myUtil
 import my_constant
-import z3_api
 
 """
 @ param cond_list a and b for comparing
@@ -164,14 +164,10 @@ def cluster():
     cluster_control_writer.writerow(my_constant.CLUSTER_REPOS_TITLE)
 
     context_lists = []
-    index = 0
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
         cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_CDG_FEATURE])
-        cdg_list = json.dumps(z3_api.get_infix_for_postfix(cdg_list))
-        print 'now dealing with %d record' %(index)
-        index += 1
         context_lists.append(cdg_list)
 
     # cluster log statement based on cdg_list and ddg_list
