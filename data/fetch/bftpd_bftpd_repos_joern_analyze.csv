@@ -53,23 +53,23 @@ second/download/bftpd/bftpd/bftpd/main.cpp,172,"bftpd_log(""Kicked from the serv
         bftpd_log(""Kicked from the server due to data connection timeout.\n"");
         control_printf(SL_FAILURE, ""421 Kicked from the server due to data connection timeout."");
         exit(0);
-    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_4.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_4.cpp,8,"[""string""]",[null]
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_4.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_4.cpp,8,"[""string""]","[""unkown""]"
 second/download/bftpd/bftpd/bftpd/main.cpp,173,"control_printf(SL_FAILURE, ""421 Kicked from the server due to data connection timeout."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_5.cpp,"{
         close(alarm_type);
         bftpd_log(""Kicked from the server due to data connection timeout.\n"");
         control_printf(SL_FAILURE, ""421 Kicked from the server due to data connection timeout."");
         exit(0);
-    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_5.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_5.cpp,9,"[""macro"", ""string""]",[null]
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_5.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 4, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_5.cpp,9,"[""macro"", ""string""]","[""unkown""]"
 second/download/bftpd/bftpd/bftpd/main.cpp,176,"bftpd_log(""Kicked from the server due to control connection timeout.\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_6.cpp,"{
         bftpd_log(""Kicked from the server due to control connection timeout.\n"");
         control_printf(SL_FAILURE, ""421 Kicked from the server due to control connection timeout."");
         exit(0);
-    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_6.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_6.cpp,12,"[""string""]","[null, ""!""]"
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_6.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_6.cpp,12,"[""string""]","[""unkown"", ""!""]"
 second/download/bftpd/bftpd/bftpd/main.cpp,177,"control_printf(SL_FAILURE, ""421 Kicked from the server due to control connection timeout."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_7.cpp,"{
         bftpd_log(""Kicked from the server due to control connection timeout.\n"");
         control_printf(SL_FAILURE, ""421 Kicked from the server due to control connection timeout."");
         exit(0);
-    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_7.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_7.cpp,13,"[""macro"", ""string""]","[null, ""!""]"
+    }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_7.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 4, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_7.cpp,13,"[""macro"", ""string""]","[""unkown"", ""!""]"
 second/download/bftpd/bftpd/bftpd/main.cpp,211,"printf(
 					""Usage: %s [-h] [-i|-d|-D] [-c <filename>|-n]\n""
 					""-h print this help\n""
@@ -97,11 +97,11 @@ second/download/bftpd/bftpd/bftpd/main.cpp,211,"printf(
 second/download/bftpd/bftpd/bftpd/main.cpp,259,"fprintf(stderr, ""Bind failed: %s\n"", strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_9.cpp,"{
 			fprintf(stderr, ""Bind failed: %s\n"", strerror(errno));
 			exit(1);
-		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_9.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_9.cpp,64,"[null, ""string"", ""strerror_ret""]","[""bind_ret"", ""null"", ""<""]"
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_9.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_9.cpp,64,"[""unkown"", ""string"", ""strerror_ret""]","[""bind_ret"", ""null"", ""<""]"
 second/download/bftpd/bftpd/bftpd/main.cpp,263,"fprintf(stderr, ""Listen failed: %s\n"", strerror(errno));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_10.cpp,"{
 			fprintf(stderr, ""Listen failed: %s\n"", strerror(errno));
 			exit(1);
-		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_10.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_10.cpp,68,"[null, ""string"", ""strerror_ret""]","[""listen_ret""]"
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_10.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 2, 0, 5, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_10.cpp,68,"[""unkown"", ""string"", ""strerror_ret""]","[""listen_ret""]"
 second/download/bftpd/bftpd/bftpd/main.cpp,323,"bftpd_log(""Exiting, becasue we have no way to authorize clients.\n"");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_11.cpp,"{
            bftpd_log(""Exiting, becasue we have no way to authorize clients.\n"");
            exit(0);
@@ -915,11 +915,11 @@ second/download/bftpd/bftpd/bftpd/login.cpp,131,"sprintf(ut.ut_line, ""ftp%i"", 
 	fseek(wtmp, 0, SEEK_END);
 	fwrite((void *) &ut, sizeof(ut), 1, wtmp);
 	fflush(wtmp);
-}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_20.cpp,"[2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 0, 62, 0, 0, 1, 1, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 0, 38, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 2, 1, 0, 14, 0, 0, 11, 0, 25, 8, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_20.cpp,9,"[""member"", ""string"", ""getpid_ret""]","[null, ""!"", ""!""]"
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_20.cpp,"[2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 0, 62, 0, 0, 1, 1, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 26, 0, 38, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 2, 1, 0, 14, 0, 0, 11, 0, 25, 8, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_20.cpp,9,"[""member"", ""string"", ""getpid_ret""]","[""unkown"", ""!"", ""!""]"
 second/download/bftpd/bftpd/bftpd/login.cpp,169,"control_printf(SL_FAILURE, ""421 Initial chroot failed.\r\n."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_21.cpp,"{
             control_printf(SL_FAILURE, ""421 Initial chroot failed.\r\n."");
             exit(1);
-        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_21.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_21.cpp,8,"[""macro"", ""string""]","[""chroot_ret"", ""int"", ""-"", ""==""]"
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_21.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 2, 0, 3, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_21.cpp,8,"[""macro"", ""string""]","[""chroot_ret"", ""int"", ""UnaryOp"", ""==""]"
 second/download/bftpd/bftpd/bftpd/login.cpp,214,"control_printf(SL_FAILURE, ""530 Login incorrect."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_22.cpp,"{
                 control_printf(SL_FAILURE, ""530 Login incorrect."");
 		// exit(0);
@@ -939,7 +939,7 @@ second/download/bftpd/bftpd/bftpd/login.cpp,244,"bftpd_log(""Login as user '%s' 
 				control_printf(SL_FAILURE, ""530 Login incorrect."");
 			bftpd_log(""Login as user '%s' failed: Server disabled.\n"", user);
 			exit(0);
-		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_26.cpp,"[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 5, 0, 0, 4, 0, 11, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_26.cpp,55,"[""string"", null]","[""member"", ""char"", ""!=""]"
+		}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_26.cpp,"[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 5, 0, 0, 4, 0, 11, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_26.cpp,55,"[""string"", ""unkown""]","[""member"", ""char"", ""!=""]"
 second/download/bftpd/bftpd/bftpd/login.cpp,253,"bftpd_log(""Error getting max users for GLOBAL in bftpd_login.\n"", 0);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_27.cpp,"{
            bftpd_log(""Error getting max users for GLOBAL in bftpd_login.\n"", 0);
            maxusers = 0;
@@ -953,7 +953,7 @@ second/download/bftpd/bftpd/bftpd/login.cpp,258,"bftpd_log(""Login as user '%s' 
 		control_printf(SL_FAILURE, ""421 There are already %i users logged in."", maxusers);
                 bftpd_log(""Login as user '%s' failed. Too many users on server.\n"", user);
 		exit(0);
-	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_29.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_29.cpp,69,"[""string"", null]","[""strtoul_ret"", ""strtoul_ret"", ""bftpdutmp_usercount_ret"", ""=="", ""&&""]"
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_29.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 6, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_29.cpp,69,"[""string"", ""unkown""]","[""strtoul_ret"", ""strtoul_ret"", ""bftpdutmp_usercount_ret"", ""=="", ""&&""]"
 second/download/bftpd/bftpd/bftpd/login.cpp,266,"bftpd_log(""error getting max users (SINGLE USER) in bftpd_login.\n"", 0);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_30.cpp,"{
            bftpd_log(""error getting max users (SINGLE USER) in bftpd_login.\n"", 0);
            maxusers = 0;
@@ -962,7 +962,7 @@ second/download/bftpd/bftpd/bftpd/login.cpp,270,"control_printf(SL_FAILURE, ""42
 		control_printf(SL_FAILURE, ""421 User %s is already logged in %i times."", user, maxusers);
                 bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);
 		exit(0);
-	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_31.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_31.cpp,81,"[""macro"", ""string"", null, ""strtoul_ret""]","[""strtoul_ret"", ""strtoul_ret"", ""bftpdutmp_usercount_ret"", ""=="", ""&&""]"
+	}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_31.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_31.cpp,81,"[""macro"", ""string"", ""unkown"", ""strtoul_ret""]","[""strtoul_ret"", ""strtoul_ret"", ""bftpdutmp_usercount_ret"", ""=="", ""&&""]"
 second/download/bftpd/bftpd/bftpd/login.cpp,271,"bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_32.cpp,"{
 		control_printf(SL_FAILURE, ""421 User %s is already logged in %i times."", user, maxusers);
                 bftpd_log(""Login as user '%s' failed. Already logged in %d times."", maxusers);
@@ -981,7 +981,7 @@ second/download/bftpd/bftpd/bftpd/login.cpp,290,"bftpd_log(""Login as user '%s' 
             control_printf(SL_FAILURE, ""421 Too many connections from your IP address."");
             bftpd_log(""Login as user '%s' failed. Already %d connections from %s.\n"", user, maxusers, remotehostname);
             exit(0);
-        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_35.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_35.cpp,101,"[""string"", null, ""strtoul_ret"", null]","[""strtoul_ret"", ""strtoul_ret"", ""bftpdutmp_dup_ip_count_ret"", ""=="", ""&&""]"
+        }",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_35.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 3, 0, 7, 0, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_35.cpp,101,"[""string"", ""unkown"", ""strtoul_ret"", ""unkown""]","[""strtoul_ret"", ""strtoul_ret"", ""bftpdutmp_dup_ip_count_ret"", ""=="", ""&&""]"
 second/download/bftpd/bftpd/bftpd/login.cpp,299,"control_printf(SL_FAILURE, ""530 Login incorrect."");",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_36.cpp,"{
 		control_printf(SL_FAILURE, ""530 Login incorrect."");
 		// exit(0);
@@ -1530,7 +1530,7 @@ second/download/bftpd/bftpd/bftpd/login.cpp,428,"bftpd_log(""Successfully logged
             free(home_directory);
            
 	return 0;
-}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_47.cpp,"[39, 0, 0, 0, 0, 0, 5, 0, 0, 0, 48, 0, 0, 0, 0, 314, 0, 0, 8, 8, 0, 0, 3, 124, 0, 0, 0, 0, 4, 0, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 107, 0, 350, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 13, 0, 39, 39, 8, 0, 117, 0, 0, 84, 2, 206, 8, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_47.cpp,239,"[""string"", null]","[""member"", ""!"", ""int"", ""!"", ""&&"", ""!"", ""checkpass_ret"", ""!"", ""&&""]"
+}",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_block_47.cpp,"[39, 0, 0, 0, 0, 0, 5, 0, 0, 0, 48, 0, 0, 0, 0, 314, 0, 0, 8, 8, 0, 0, 3, 124, 0, 0, 0, 0, 4, 0, 117, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 107, 0, 350, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 0, 13, 0, 39, 39, 8, 0, 117, 0, 0, 84, 2, 206, 8, 0, 0, 0, 0, 0]",second/download/bftpd/bftpd/bftpd-joern/bftpd_bftpd_repos_function_47.cpp,239,"[""string"", ""unkown""]","[""member"", ""!"", ""int"", ""!"", ""&&"", ""!"", ""checkpass_ret"", ""!"", ""&&""]"
 second/download/bftpd/bftpd/bftpd/login.cpp,512,"printf(""Error while initializing PAM: %s\n"",
 			   pam_strerror(pamh, retval));",second/download/bftpd/bftpd-gumtree/bftpd_bftpd_repos_log_48.cpp,"{
 		printf(""Error while initializing PAM: %s\n"",
