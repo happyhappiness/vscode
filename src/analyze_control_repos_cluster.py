@@ -4,100 +4,84 @@ import sys
 import re
 import commands
 import json
-from itertools import islice
-from z3_api import Z3_api
 import analyze_control_clone
+from itertools import islice
+from pygithub3 import Github
+from gumtree_api import Gumtree
+from z3_api import Z3_api
 import block
 import myUtil
 import my_constant
 
-"""
-@ param cond_list a and b for comparing
-@ return similarity value
-@ callee longestCommonSeq
-@ caller computeSimForCluster ..
-@ involve compute similarity between cond_lists, unordered common element
-"""
-def computeSimForContext(context_list_a, context_list_b):
-    return myUtil.compute_similarity(context_list_a, context_list_b)
+    
 """
 @param vec, left, right, similarity, id
 @return new cluster
 @involve cluster class with children and similarity between children
 """
 class mycluster:
-    def __init__(self, vec=None, children=None, similarity=0.0, id=None):
+    def __init__(self, vec=None, children=None, id=None):
         # for drawing picture of clusters
         self.children = children
         # feature vector
         self.vec = vec
         #  id label for locating label
         self.id = id
-        self.similarity = similarity
 
 
 """
-@ param cluster a and b for comparing, similarity_dic, last similarity(1)
+@ param cluster a and b for comparing, similarity_dic and z3_api
 @ return similarity value
-@ callee computeSim(cond_list_a, cond_list_b); self
-@ caller cluster_record ..
-@ involve compute similarity between clusters (the least similar cond_list pairs)
+@ involve compute similarity between clusters (the first one)
 """
-def computeSimForCluster(cluster_a, cluster_b, similarity_dic, similarity = 1):
+def compute_sim_cluster(cluster_a, cluster_b, similarity_dic, z3_api):
 
     #  if has record in dictory, then use dictory
-    if similarity_dic.get((cluster_a.id, cluster_b.id)) is not None:
-        return min(similarity_dic.get((cluster_a.id, cluster_b.id)), similarity)
+    if similarity_dic.get((cluster_b.id, cluster_a.id)) is not None:
+        return similarity_dic.get((cluster_b.id, cluster_a.id))
 
     # compare cdg_list of entity
     if cluster_a.id >= 0 and cluster_b.id >= 0:
-        similarity = min(computeSimForContext(cluster_a.vec, cluster_b.vec), similarity)
-        return similarity
+        return z3_api.judge_equality_for_statments(cluster_a.vec, cluster_b.vec)
 
     # first cluster (children)
     if cluster_a.id < 0:
-        # traverse children
-        for child in cluster_a.children:
-            similarity = min(computeSimForCluster(child, cluster_b, similarity_dic, similarity), similarity)
+        # translation
+        similarity = compute_sim_cluster(cluster_a.children[0], cluster_b, similarity_dic, z3_api)
         return similarity
 
     # second cluster (children)
     if cluster_b.id < 0:
-        # traverse children
-        for child in cluster_b.children:
-            similarity = min(computeSimForCluster(cluster_a, child, similarity_dic, similarity), similarity)
+        # translation
+        similarity = compute_sim_cluster(cluster_a, cluster_b.children[0], similarity_dic, z3_api)
         return similarity
 
 """
-@param: cdg_lists(entiry vectors), cluster_similarity = 0.90
+@param: cdg_lists(entiry vectors) and z3 api
 @return cluster index for each entity
-@caller cluster
-@callee computeSimForCluster
 @involve: cluster entities based on similarity
 """
-def cluster_record(context_lists, cluster_similarity = 0.95):
+def cluster_record(feature_lists, z3_api):
     # initialize the custers to consist of each entity
-    myclusters = [mycluster(children=[], vec=context_lists[i], id=i) for i in range(len(context_lists))]
-    flag = None
+    myclusters = [mycluster(children=[], vec=feature_lists[i], id=i) for i in range(len(feature_lists))]
     currentclusted = -1
     similarity_dic = {}
 
     # stop clustering based on culster number ( == 1)
-    while len(myclusters) > 1:
-        # the miniest similarity to merge two cluster
-        max_sim = cluster_similarity
+    while len(myclusters) != 0:
 
+        similarity = 0
+        flag = None
         # traverse cluster a and cluster b in clusters
         myclusters_len = len(myclusters)
         for i in range(myclusters_len - 1):
             for j in range(i + 1, myclusters_len):
-
                 # compute similaritys if no record in dictory of similaritys
                 if similarity_dic.get((myclusters[i].id, myclusters[j].id)) is None:
 
                     # compute similaritys by calling computeSim on (vector a, vector b)
                     similarity_dic[(myclusters[i].id, myclusters[j].id)] =\
-                        computeSimForCluster(myclusters[i], myclusters[j], similarity_dic)
+                        compute_sim_cluster(myclusters[i], myclusters[j], similarity_dic, z3_api)
                     # record symmetrical record
                     similarity_dic[(myclusters[j].id, myclusters[i].id)] =\
                                 similarity_dic[(myclusters[i].id, myclusters[j].id)]
@@ -105,36 +89,38 @@ def cluster_record(context_lists, cluster_similarity = 0.95):
                 #  fetch the similarity
                 similarity = similarity_dic[(myclusters[i].id, myclusters[j].id)]
                 # find cluster pair with maxest similarity and flag them
-                if similarity > max_sim:
-                    max_sim = similarity
+                if similarity:
                     flag = (i, j)
-        # stop clusterring when similarity is too small
-        if max_sim == cluster_similarity:
+                    break
+            if similarity:
+                break
+        if not similarity:
             break
-        # combine the two clusters
-        mycluster1, mycluster2 = flag
-        # create new bicluster(cluster id is minus number)
-        new_mycluster = mycluster(children=[], similarity=max_sim, id=currentclusted)
-        # children is basic level
-        if myclusters[mycluster1].id >= 0:
-            new_mycluster.children.append(myclusters[mycluster1])
         else:
-            new_mycluster.children.extend(myclusters[mycluster1].children)
+            # combine the two clusters
+            mycluster1, mycluster2 = flag
+            # create new bicluster(cluster id is minus number)
+            new_mycluster = mycluster(children=[], id=currentclusted)
+            # children is basic level
+            if myclusters[mycluster1].id >= 0:
+                new_mycluster.children.append(myclusters[mycluster1])
+            else:
+                new_mycluster.children.extend(myclusters[mycluster1].children)
 
-        if  myclusters[mycluster2].id >= 0:
-            new_mycluster.children.append(myclusters[mycluster2])
-        else:
-            new_mycluster.children.extend(myclusters[mycluster2].children)
-        currentclusted -= 1
-        # remove old cluster from the clusters
-        # have not destroy it
-        del myclusters[mycluster2]
-        del myclusters[mycluster1]
-        myclusters.append(new_mycluster)
-        print len(myclusters)
+            if  myclusters[mycluster2].id >= 0:
+                new_mycluster.children.append(myclusters[mycluster2])
+            else:
+                new_mycluster.children.extend(myclusters[mycluster2].children)
+            currentclusted -= 1
+            # remove old cluster from the clusters
+            # have not destroy it
+            del myclusters[mycluster2]
+            del myclusters[mycluster1]
+            myclusters.append(new_mycluster)
+            print len(myclusters)
 
     # compute cluster_lists based on clusters and cluster number
-    cluster_lists = [0 for i in range(len(context_lists))]
+    cluster_lists = [0 for i in range(len(feature_lists))]
     index = 0
     for now_cluster in myclusters:
         if now_cluster.id < 0:
@@ -147,11 +133,9 @@ def cluster_record(context_lists, cluster_similarity = 0.95):
     return cluster_lists
 
 """
-@ param  user and repos
+@ param
 @ return nothing
-@ caller main
-@ callee cluster_record
-@ involve read from and write back to files
+@ involve read from repos analysis records and write cluster info back
 """
 def cluster():
 
@@ -163,23 +147,24 @@ def cluster():
     cluster_control_writer = csv.writer(cluster_control)
     cluster_control_writer.writerow(my_constant.CLUSTER_REPOS_TITLE)
 
-    context_lists = []
+    feature_lists = []
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
+    z3_api = Z3_api()
     for record in islice(records, 1, None):  # remove the table title
-        # store cond_lists(index 6)
-        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_CDG_Z3_FEATURE])
-        context_lists.append(cdg_list)
+        # get cdg z3 feature
+        cdg_feature = json.loads(record[my_constant.ANALYZE_REPOS_CDG_FEATURE])
+        cdg_z3_feature = z3_api.get_infix_for_postfix(cdg_feature)
+        feature_lists.append(cdg_z3_feature)
 
     # cluster log statement based on cdg_list and ddg_list
-    # cluster_lists = context_lists
-    cluster_lists = cluster_record(context_lists, 0.95)
+    cluster_lists = cluster_record(feature_lists, z3_api)
     # record cluster index of each log statement
     analyze_control.close()
     analyze_control = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
     records = csv.reader(analyze_control)
     index = 0
     for record in islice(records, 1, None):
-        record.append(cluster_lists[index])
+        record + [ feature_lists[index], cluster_lists[index]]
         cluster_control_writer.writerow(record)
         index += 1
 

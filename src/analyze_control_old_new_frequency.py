@@ -37,8 +37,8 @@ class mycluster:
 def compute_sim_cluster(cluster_a, cluster_b, similarity_dic):
 
     #  if has record in dictory, then use dictory
-    if similarity_dic.get((cluster_a.id, cluster_b.id)) is not None:
-        return similarity_dic.get((cluster_a.id, cluster_b.id))
+    if similarity_dic.get((cluster_b.id, cluster_a.id)) is not None:
+        return similarity_dic.get((cluster_b.id, cluster_a.id))
 
     # compare cdg_list of entity
     if cluster_a.id >= 0 and cluster_b.id >= 0:

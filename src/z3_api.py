@@ -12,9 +12,11 @@ class Z3_api:
     @ involve transform postfix(list) expression into infix one(input for z3)
     """
     def judge_equality_for_statments(self, statement_one, statement_two):
-        is_equal = True
+
         if statement_one == statement_two:
-            return is_equal
+            is_equal = True
+        elif statement_one is None or statement_two is None:
+            is_equal = False
         else:
             if Z3_api.smt_solver is None:
                 Z3_api.smt_solver = Solver()
@@ -32,7 +34,7 @@ class Z3_api:
             else:
                 print 'unknow status %s, r %d' %(status, status_r)
             Z3_api.smt_solver.pop()
-            return is_equal
+        return is_equal
 
     """
     @ param postfix_expr(List)
