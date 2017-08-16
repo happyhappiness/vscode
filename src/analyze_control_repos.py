@@ -16,7 +16,6 @@ from pygithub3 import Github
 from itertools import islice
 from gumtree_api import Gumtree
 from joern_api import Joern_api
-from z3_api import Z3_api
 import my_constant
 import myUtil
 
@@ -140,15 +139,11 @@ def analyze_repos_joern(is_rebuild = False):
     total_record = 0
     total_log = 0
     # get ddg and cdg with joern
-    z3_api = Z3_api()
     for record in islice(repos_gumtree_records, 1, None):
         if joern.set_log(record[my_constant.ANALYZE_REPOS_FUNCTION_FILE], int(record[my_constant.ANALYZE_REPOS_FUNCTION_LOC])):
             ddg = json.dumps(joern.get_argument_type())
-            cdg = joern.get_control_dependence()
-            # get cdg_z3 with z3_api
-            cdg_z3 = z3_api.get_infix_for_postfix(cdg)
-            cdg = json.dumps(cdg)
-            repos_joern_writer.writerow(record + [ddg, cdg, cdg_z3])
+            cdg = json.dumps(joern.get_control_dependence())
+            repos_joern_writer.writerow(record + [ddg, cdg])
             total_log += 1
         print 'have dealed with %d record %d log' %(total_record, total_log)
         total_record += 1
