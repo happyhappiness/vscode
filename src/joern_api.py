@@ -92,6 +92,8 @@ class Joern_api:
         sub_expressions = self.__get_sub_expression(condition_id)
         for expression in sub_expressions:
             var_type = self.__get_var_type_for_node(expression, depended_var)
+            if var_type is None:
+                var_type = my_constant.JOERN_UNKOWN
             std_condition.append(var_type)
         # condition structure normalization
         if condition_label == 'False':
@@ -111,6 +113,8 @@ class Joern_api:
         arguments = self.__get_argument()
         for arg in arguments:
             var_type = self.__get_var_type_for_node(arg, depended_var)
+            if var_type is None:
+                var_type = my_constant.JOERN_UNKOWN
             self.argument.append(var_type)
         # print self.argument
         return self.argument
@@ -137,7 +141,7 @@ class Joern_api:
     """
     @ param condition node id
     @ return sub expressions
-    @ involve nodes 1 level deeper than RelationalExpression and UnaryOp(no)
+    @ involve nodes 1 level deeper than RelationalExpression and UnaryOp
     """
     def __get_sub_expression(self, condition_id):
         sub_expressions_query = '_().getSubExpressions(' + condition_id + ')'
@@ -169,6 +173,7 @@ class Joern_api:
         var_type = self.__get_var_type_for_operation(node, depended_var_dict)
         if var_type is None:
             var_type = self.__get_var_type_for_children(node_id, depended_var_dict)
+        
         return var_type
 
     """
@@ -329,9 +334,13 @@ class Joern_api:
             else:
                 var_type = 'bool'
         elif node_type == my_constant.JOERN_UNARY_OPERATOR:
-            var_type = node_code[0]
-            if len(node) == my_constant.JOERN_OPERATOR and var_type == '!':
-                var_type = 'bool'
+            if node_code[0] == '!':
+                if len(node) == my_constant.JOERN_OPERATOR:
+                    var_type = 'bool'
+                else:
+                    var_type = node_code[0]
+            else:
+                var_type = my_constant.JOERN_UNARY_OPERATOR
         elif node_type in my_constant.JOERN_ADDRESS_OPERATOR:
             var_type = 'member'
         elif node_type in my_constant.JOERN_BIT_OPERATOR:
@@ -492,9 +501,9 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'function_28.cpp'
+    filename = 'function_21.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 68)
+    joern_api.set_log(filename, 8)
     print joern_api.get_control_dependence()
     print joern_api.get_argument_type()
 

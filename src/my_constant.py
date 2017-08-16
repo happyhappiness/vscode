@@ -188,6 +188,7 @@ JOERN_BIT_OPERATOR = ['BitAndExpression', 'BitOrExpression']
 JOERN_UNARY_OPERATOR = 'UnaryOp'
 JOERN_ASSIGN_OPERATOR = 'AssignmentExpr'
 JOERN_NULL = 'null'
+JOERN_UNKOWN = 'unkown'
 JOERN_CALLEE_FLAG = '_ret'
 
 """
