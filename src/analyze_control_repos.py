@@ -85,7 +85,7 @@ def fetch_file(isFromBegin=True, start_file=0, start_log=0):
                 is_unsupport = re.search(my_constant.UNSRCML_FILE_FORMAT, filename, re.I)
                 filename = os.path.join(item[0], filename)
                 # transform format to be supported
-                if is_unsupport:                    
+                if is_unsupport:
                     new_filename = filename.replace(is_unsupport.group(), '.cpp')
                     os.rename(filename, new_filename)
                     filenames.append(new_filename)
