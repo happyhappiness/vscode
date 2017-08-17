@@ -184,7 +184,7 @@ def cluster():
     for record in islice(records, 1, None):
         record += [feature_lists[index], cluster_lists[index]]
         cluster_file_writer.writerow(record)
-        if record in class_lists:
+        if index in class_lists:
             class_file_writer.writerow(record)
         index += 1
 
