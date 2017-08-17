@@ -164,7 +164,7 @@ def cluster():
     records = csv.reader(analyze_control)
     index = 0
     for record in islice(records, 1, None):
-        record + [ feature_lists[index], cluster_lists[index]]
+        record += [ feature_lists[index], cluster_lists[index]]
         cluster_control_writer.writerow(record)
         index += 1
 
