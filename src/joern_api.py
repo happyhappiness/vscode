@@ -134,10 +134,28 @@ class Joern_api:
             node_type = data[2]
             var = data[3]
             var_type = self.__get_var_type_for_statment(node_id, node_type, var, 0)
-            if not depended_var.has_key(var) or depended_var[var] is None or not depended_var[var].endswith(my_constant.JOERN_CALLEE_FLAG):
+            if not depended_var.has_key(var) or self.__get_priority_for_type(var_type) > self.__get_priority_for_type(depended_var[var]):
                 depended_var[var] = var_type
         return depended_var
 
+    """
+    @ param var type
+    @ return its priority
+    @ involve func > certain > member > null > unknown/none
+    """
+    def __get_priority_for_type(self, var_type):
+        if var_type is None:
+            order = 0
+        elif var_type == my_constant.JOERN_NULL:
+            order = 1
+        elif var_type == my_constant.JOERN_MEMEBER:
+            order = 2
+        elif var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
+            order = 4
+        else:
+            order = 3
+        return order
+        
     """
     @ param condition node id
     @ return sub expressions
@@ -332,19 +350,19 @@ class Joern_api:
             if len(node) > my_constant.JOERN_OPERATOR:
                 var_type = node[my_constant.JOERN_OPERATOR]
             else:
-                var_type = 'bool'
+                var_type = my_constant.JOERN_BOOL
         elif node_type == my_constant.JOERN_UNARY_OPERATOR:
             if node_code[0] == '!':
                 if len(node) == my_constant.JOERN_OPERATOR:
-                    var_type = 'bool'
+                    var_type = my_constant.JOERN_BOOL
                 else:
                     var_type = node_code[0]
-            else:
-                var_type = my_constant.JOERN_UNARY_OPERATOR
+            # else:
+            #     var_type = my_constant.JOERN_UNARY_OPERATOR
         elif node_type in my_constant.JOERN_ADDRESS_OPERATOR:
-            var_type = 'member'
+            var_type = my_constant.JOERN_MEMEBER
         elif node_type in my_constant.JOERN_BIT_OPERATOR:
-            var_type = 'bool'
+            var_type = my_constant.JOERN_BOOL
         elif node_type == 'PrimaryExpression':
             var_type = self.__get_var_type_for_constant(node_code)
         elif node_type == 'CallExpression':
@@ -501,9 +519,9 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'function_21.cpp'
+    filename = 'function_29.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 8)
+    joern_api.set_log(filename, 65)
     print joern_api.get_control_dependence()
     print joern_api.get_argument_type()
 

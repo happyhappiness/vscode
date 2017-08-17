@@ -188,9 +188,12 @@ JOERN_ADDRESS_OPERATOR = ['ArrayIndexing', 'PtrMemberAccess', 'MemberAccess']
 JOERN_BIT_OPERATOR = ['BitAndExpression', 'BitOrExpression']
 JOERN_UNARY_OPERATOR = 'UnaryOp'
 JOERN_ASSIGN_OPERATOR = 'AssignmentExpr'
+# variable types
+JOERN_CALLEE_FLAG = '_ret'
 JOERN_NULL = 'null'
 JOERN_UNKNOWN = 'unkown'
-JOERN_CALLEE_FLAG = '_ret'
+JOERN_MEMEBER = 'member'
+JOERN_BOOL = 'bool'
 
 """
 split string for statement to get tokens

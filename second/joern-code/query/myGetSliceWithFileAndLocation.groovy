@@ -218,7 +218,8 @@ Gremlin.defineStep('getOperations', [Vertex,Pipe], { node_id ->
 		ALG_OPERATOR_LIST = ['MultiplicativeExpression', 'AdditiveExpression']
 		g.V[node_id] // expression statement
 		.children()
-		.loop(1){ it.object.has("type", T.in, ALG_OPERATOR_LIST).count() != 0 }{true}
+		.loop(1){ it.object.has("type", T.in, ALG_OPERATOR_LIST).count() != 0 }
+		{ it.object.type != 'UnaryOperator' }
 		.as("result")
 		.select(["result"]){ [it.id, it.code, it.type]}
 	}.scatter()
