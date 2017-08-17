@@ -45,8 +45,8 @@ class Z3_api:
         infix_expr = []
         for token in postfix_expr:
             if token in ['==', '>', '>=', '!=', '<', '<=', '&&', '||']:
-                op_right = infix_expr.pop()
                 op_left = infix_expr.pop()
+                op_right = infix_expr.pop()
                 result = self.__get_infix_for_binary_operator(token, op_left, op_right)
                 infix_expr.append(result)
             elif token == '!':
