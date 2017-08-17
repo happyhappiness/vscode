@@ -359,7 +359,8 @@ class Joern_api:
                     var_type = my_constant.JOERN_BOOL
                 else:
                     var_type = node_code[0]
-            else:
+            # condition do not need unary operator(already have children) while argument need their children
+            elif len(node) > my_constant.JOERN_OPERATOR:
                 var_type = my_constant.JOERN_UNARY_OPERATOR
         elif node_type in my_constant.JOERN_ADDRESS_OPERATOR:
             var_type = my_constant.JOERN_MEMEBER
@@ -521,9 +522,9 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'function_25.cpp'
+    filename = 'function_29.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 22)
+    joern_api.set_log(filename, 65)
     print joern_api.get_control_dependence()
     print joern_api.get_argument_type()
     # if re.match(r'^[A-Z0-9_]+$', 'BZ2_bzlibVersion'):
