@@ -93,7 +93,7 @@ class Joern_api:
         for expression in sub_expressions:
             var_type = self.__get_var_type_for_node(expression, depended_var)
             if var_type is None:
-                var_type = my_constant.JOERN_UNKOWN
+                var_type = my_constant.JOERN_UNKNOWN
             std_condition.append(var_type)
         # condition structure normalization
         if condition_label == 'False':
@@ -114,7 +114,7 @@ class Joern_api:
         for arg in arguments:
             var_type = self.__get_var_type_for_node(arg, depended_var)
             if var_type is None:
-                var_type = my_constant.JOERN_UNKOWN
+                var_type = my_constant.JOERN_UNKNOWN
             self.argument.append(var_type)
         # print self.argument
         return self.argument
@@ -134,7 +134,7 @@ class Joern_api:
             node_type = data[2]
             var = data[3]
             var_type = self.__get_var_type_for_statment(node_id, node_type, var, 0)
-            if not depended_var.has_key(var) or depended_var[var] is None or var_type.endswith(my_constant.JOERN_CALLEE_FLAG):
+            if not depended_var.has_key(var) or depended_var[var] is None or not depended_var[var].endswith(my_constant.JOERN_CALLEE_FLAG):
                 depended_var[var] = var_type
         return depended_var
 

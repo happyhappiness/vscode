@@ -94,9 +94,7 @@ class Z3_api:
             return op_left >= op_right
         # normalization
         if op == "!=":
-            op_left = Int(op_left + '_e_l')
-            op_right = Int(op_right + '_e_r')
-            return Not(op_left == op_right)
+            return Not(self.__get_infix_for_binary_operator('==', op_left, op_right))
         elif op == "<":
             op_left = Int(op_left + '_g_r')
             op_right = Int(op_right + '_g_l')

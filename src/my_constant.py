@@ -2,10 +2,10 @@
 """
 @ involve : constant definition
 """
-# USER = 'Kitware'
-# REPOS = 'CMake'
-USER = 'bftpd'
-REPOS = 'bftpd'
+USER = 'Kitware'
+REPOS = 'CMake'
+# USER = 'bftpd'
+# REPOS = 'bftpd'
 
 """
 stroed file name prefix
@@ -49,6 +49,7 @@ ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_clone_statistics.csv'
 STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics.csv'
 CLUSTER_REPOS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_cluster.csv'
+ANALYZE_REPOS_CLASS_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_class.csv'
 REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_similarity.csv'
 NODE_DICT_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_node_dict.csv'
 
@@ -137,7 +138,7 @@ ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('block_feature')
 ANALYZE_REPOS_DDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('ddg_feature')
 ANALYZE_REPOS_CDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('cdg_feature')
 CLUSTER_REPOS_TITLE = ANALYZE_REPOS_JOERN_TITLE + ['cdg_z3_feature', 'cluster_index']
-
+ANALYZE_REPOS_CLASS_TITLE = ANALYZE_REPOS_JOERN_TITLE + ['cdg_z3_feature', 'cluster_index']
 
 """
 analyze clone title
@@ -188,7 +189,7 @@ JOERN_BIT_OPERATOR = ['BitAndExpression', 'BitOrExpression']
 JOERN_UNARY_OPERATOR = 'UnaryOp'
 JOERN_ASSIGN_OPERATOR = 'AssignmentExpr'
 JOERN_NULL = 'null'
-JOERN_UNKOWN = 'unkown'
+JOERN_UNKNOWN = 'unkown'
 JOERN_CALLEE_FLAG = '_ret'
 
 """
