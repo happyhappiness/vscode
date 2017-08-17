@@ -188,7 +188,7 @@ Gremlin.defineStep('getCallee', [Vertex,Pipe], { node_id ->
 // output sub expression
 Gremlin.defineStep('getSubExpressions', [Vertex,Pipe], { node_id ->
 	_().transform{
-		BOOL_OPERATOR_LIST = ['AndExpression', 'OrExpression', 'InclusiveOrExpression', 'UnaryOp', 'EqualityExpression', 'RelationalExpression']
+		BOOL_OPERATOR_LIST = ['AndExpression', 'OrExpression', 'InclusiveOrExpression', 'EqualityExpression', 'UnaryOp', 'RelationalExpression']
 		g.V[node_id] // condition statement
 		.children()
 		.loop(1){ it.object.has("type", T.in, BOOL_OPERATOR_LIST).count() != 0 }
@@ -215,7 +215,7 @@ Gremlin.defineStep('getArguments', [Vertex,Pipe], { node_id ->
 // output Argument
 Gremlin.defineStep('getOperations', [Vertex,Pipe], { node_id ->
 	_().transform{
-		ALG_OPERATOR_LIST = ['MultiplicativeExpression', 'AdditiveExpression']
+		ALG_OPERATOR_LIST = ['MultiplicativeExpression', 'AdditiveExpression', 'UnaryOp']
 		g.V[node_id] // expression statement
 		.children()
 		.loop(1){ it.object.has("type", T.in, ALG_OPERATOR_LIST).count() != 0 }

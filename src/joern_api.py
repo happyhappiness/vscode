@@ -94,7 +94,8 @@ class Joern_api:
             var_type = self.__get_var_type_for_node(expression, depended_var)
             if var_type is None:
                 var_type = my_constant.JOERN_UNKNOWN
-            std_condition.append(var_type)
+            if var_type != my_constant.JOERN_UNARY_OPERATOR:
+                std_condition.append(var_type)
         # condition structure normalization
         if condition_label == 'False':
             std_condition.append('!')
@@ -115,7 +116,8 @@ class Joern_api:
             var_type = self.__get_var_type_for_node(arg, depended_var)
             if var_type is None:
                 var_type = my_constant.JOERN_UNKNOWN
-            self.argument.append(var_type)
+            if var_type != my_constant.JOERN_UNARY_OPERATOR:
+                self.argument.append(var_type)
         # print self.argument
         return self.argument
 
@@ -135,7 +137,7 @@ class Joern_api:
             var = data[3]
             var_type = self.__get_var_type_for_statment(node_id, node_type, var, 0)
             if not depended_var.has_key(var) or self.__get_priority_for_type(var_type) > self.__get_priority_for_type(depended_var[var]):
-                depended_var[var] = var_type
+                depended_var[var] = var_type     
         return depended_var
 
     """
@@ -357,8 +359,8 @@ class Joern_api:
                     var_type = my_constant.JOERN_BOOL
                 else:
                     var_type = node_code[0]
-            # else:
-            #     var_type = my_constant.JOERN_UNARY_OPERATOR
+            else:
+                var_type = my_constant.JOERN_UNARY_OPERATOR
         elif node_type in my_constant.JOERN_ADDRESS_OPERATOR:
             var_type = my_constant.JOERN_MEMEBER
         elif node_type in my_constant.JOERN_BIT_OPERATOR:
@@ -444,9 +446,9 @@ class Joern_api:
     """
     def __get_var_type_for_constant_identifier(self, constant):
         var_type = None
-        if re.match(r'(null)', constant, re.I):
+        if re.match(r'^(null)$', constant, re.I):
             var_type = my_constant.JOERN_NULL
-        elif re.match(r'[A-Z0-9_]+', constant):
+        elif re.match(r'^[A-Z0-9_]+$', constant):
             var_type = 'macro'
         return var_type
         
@@ -457,11 +459,11 @@ class Joern_api:
     """
     def __get_var_type_for_constant(self, constant):
         var_type = None
-        if re.match(r'"(.|\n)*"', constant, re.I | re.M):
+        if re.match(r'^"(.|\n)*"$', constant, re.I | re.M):
             var_type = 'string'
-        elif re.match(r'\'[\\]*\S\'', constant, re.I):
+        elif re.match(r'^\'[\\]*\S\'$', constant, re.I):
             var_type = 'char'
-        elif re.match(r'[0-9]+', constant, re.I):
+        elif re.match(r'^[0-9]+$', constant, re.I):
             if constant == '0':
                 var_type = my_constant.JOERN_NULL
             else:
@@ -519,9 +521,13 @@ class Joern_api:
         return label
 
 if __name__ == "__main__":
-    filename = 'function_29.cpp'
+    filename = 'function_25.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 65)
+    joern_api.set_log(filename, 22)
     print joern_api.get_control_dependence()
     print joern_api.get_argument_type()
+    # if re.match(r'^[A-Z0-9_]+$', 'BZ2_bzlibVersion'):
+    #     print 'is macro'
+    # else:
+    #     print 'is not macro'
 

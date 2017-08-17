@@ -52,7 +52,9 @@
     "rope": "cpp",
     "valarray": "cpp",
     "*.in": "cpp",
-    "iterator": "cpp"
+    "iterator": "cpp",
+    "memory": "cpp",
+    "utility": "cpp"
 },
 "git.ignoreLimitWarning": true
 }

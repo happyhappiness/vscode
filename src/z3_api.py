@@ -59,7 +59,7 @@ class Z3_api:
         if len(infix_expr) == 0:
             return None
         else:
-            return self.__normalize_operand(infix_expr[0])
+            return self.__normalize_operand(infix_expr.pop())
 
     """
     @ param operand
@@ -141,7 +141,7 @@ class Z3_api:
 
 if __name__ == "__main__":
     z3_api = Z3_api()
-    print(z3_api.get_infix_for_postfix(['int', 'int', '==', 'UnaryOp', 'func_ret', '!', '&&']))  
+    print(z3_api.get_infix_for_postfix(['unkown', u'cm_utf8_decode_character_ret', '!']))  
  
 
     
