@@ -121,16 +121,21 @@ def cluster_record(feature_lists, z3_api):
 
     # compute cluster_lists based on clusters and cluster number
     cluster_lists = [0 for i in range(len(feature_lists))]
+    class_lists = []
     index = 0
     for now_cluster in myclusters:
         if now_cluster.id < 0:
+            # add first children into class lists
+            class_lists.append(now_cluster.children[0].id)
             # traverse children
             for child in now_cluster.children:
                 cluster_lists[child.id] = index
         else:
+            class_lists.append(now_cluster.id)
             cluster_lists[now_cluster.id] = index
         index += 1
-    return cluster_lists
+
+    return cluster_lists, class_lists
 
 """
 @ param
@@ -140,38 +145,54 @@ def cluster_record(feature_lists, z3_api):
 def cluster():
 
     # initialize read file
-    analyze_control = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
-    records = csv.reader(analyze_control)
+    analyze_file = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
+    # analyze_file = file('temp.csv', 'rb')
+    records = csv.reader(analyze_file)
     # initialize write file
-    cluster_control = file(my_constant.CLUSTER_REPOS_FILE_NAME, 'wb')
-    cluster_control_writer = csv.writer(cluster_control)
-    cluster_control_writer.writerow(my_constant.CLUSTER_REPOS_TITLE)
+    cluster_file = file(my_constant.CLUSTER_REPOS_FILE_NAME, 'wb')
+    # cluster_file = file('temp-cluster.csv', 'wb')
+    cluster_file_writer = csv.writer(cluster_file)
+    cluster_file_writer.writerow(my_constant.CLUSTER_REPOS_TITLE)
+    # initialize class write file
+    class_file = file(my_constant.ANALYZE_REPOS_CLASS_FILE_NAME, 'wb')
+    class_file_writer = csv.writer(class_file)
+    class_file_writer.writerow(my_constant.ANALYZE_REPOS_CLASS_TITLE)
 
     feature_lists = []
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     z3_api = Z3_api()
+    index = 0
     for record in islice(records, 1, None):  # remove the table title
         # get cdg z3 feature
         cdg_feature = json.loads(record[my_constant.ANALYZE_REPOS_CDG_FEATURE])
+        # cdg_feature = json.loads(record[0])
         cdg_z3_feature = z3_api.get_infix_for_postfix(cdg_feature)
+        print 'have processed record %d' %(index)
+        index += 1
         feature_lists.append(cdg_z3_feature)
 
     # cluster log statement based on cdg_list and ddg_list
-    cluster_lists = cluster_record(feature_lists, z3_api)
+    cluster_lists, class_lists = cluster_record(feature_lists, z3_api)
     # record cluster index of each log statement
-    analyze_control.close()
-    analyze_control = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
-    records = csv.reader(analyze_control)
+    analyze_file.close()
+
+    # write result back
+    analyze_file = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
+    # analyze_file = file('temp.csv', 'rb')
+    records = csv.reader(analyze_file)
     index = 0
     for record in islice(records, 1, None):
-        record += [ feature_lists[index], cluster_lists[index]]
-        cluster_control_writer.writerow(record)
+        record += [feature_lists[index], cluster_lists[index]]
+        cluster_file_writer.writerow(record)
+        if record in class_lists:
+            class_file_writer.writerow(record)
         index += 1
 
     # myUtil.dumpSimilarityDic(similarity_dict)
     # close files
-    cluster_control.close()
-    analyze_control.close()
+    cluster_file.close()
+    class_file.close()
+    analyze_file.close()
 
 """
 main function
