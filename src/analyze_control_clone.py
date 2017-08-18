@@ -88,14 +88,11 @@ def seek_clone():
                 clone_writer.writerow(old_new_record_info[index_old_new] + repos_record_info[index_repos])
                 clone_count += int(repos_record_info[index_repos][1])
                 # clone_count += 1
-                clone_num_writer.writerow([clone_count])
-                print "now analyze the no.%d patch; the clone count is %d"\
-                                %(index_old_new, clone_count)
                 break
             index_repos += 1
-        # print "now analyze the no.%d patch; the clone count is %d"\
-        #          %(index_old_new, clone_count)
-        # clone_num_writer.writerow([clone_count])
+        print "now analyze the no.%d patch; the clone count is %d"\
+                 %(index_old_new, clone_count)
+        clone_num_writer.writerow([clone_count])
         index_old_new += 1
 
     clone_file.close()
