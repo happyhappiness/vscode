@@ -21,6 +21,8 @@ def is_match(old_new_info, repos_info, gumtree, z3_api):
     repos_cdg_z3_feature = repos_info[0]
     repos_log_file = repos_info[1]
     # if myUtil.compute_similarity(old_new_block_feature, repos_block_feature) > 0.999:
+    if old_new_cdg_z3_feature is None:
+        return False
     if z3_api.judge_equality_for_statments(old_new_cdg_z3_feature, repos_cdg_z3_feature):
         return True
         # return gumtree.is_match_with_edit(old_log_file, new_log_file, repos_log_file)

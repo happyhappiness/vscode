@@ -150,7 +150,7 @@ def get_time_for_sha(sha, gh):
 def cluster():
 
     # initialize read file
-    analyze_control = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'rb')
+    analyze_control = file(my_constant.ANALYZE_OLD_NEW_JOERN_FILE_NAME, 'rb')
     records = csv.reader(analyze_control)
     # initialize write file
     cluster_control = file(my_constant.STATISTICS_OLD_NEW_FILE_NAME, 'wb')
@@ -183,7 +183,7 @@ def cluster():
     cluster_lists = cluster_record(feature_lists)
     # record cluster index of each log statement
     analyze_control.close()
-    analyze_control = file(my_constant.ANALYZE_OLD_NEW_FILE_NAME, 'rb')
+    analyze_control = file(my_constant.ANALYZE_OLD_NEW_JOERN_FILE_NAME, 'rb')
     records = csv.reader(analyze_control)
     index = 0
     for record in islice(records, 1, None):
