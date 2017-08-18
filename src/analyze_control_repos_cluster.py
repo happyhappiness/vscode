@@ -121,17 +121,17 @@ def cluster_record(feature_lists, z3_api):
 
     # compute cluster_lists based on clusters and cluster number
     cluster_lists = [0 for i in range(len(feature_lists))]
-    class_lists = []
+    class_lists = {}
     index = 0
     for now_cluster in myclusters:
         if now_cluster.id < 0:
             # add first children into class lists
-            class_lists.append(now_cluster.children[0].id)
+            class_lists[now_cluster.children[0].id] = len(now_cluster.children)
             # traverse children
             for child in now_cluster.children:
                 cluster_lists[child.id] = index
         else:
-            class_lists.append(now_cluster.id)
+            class_lists[now_cluster.id] = 1
             cluster_lists[now_cluster.id] = index
         index += 1
 
@@ -184,8 +184,8 @@ def cluster():
     for record in islice(records, 1, None):
         record += [feature_lists[index], cluster_lists[index]]
         cluster_file_writer.writerow(record)
-        if index in class_lists:
-            class_file_writer.writerow(record)
+        if class_lists.has_key(index):
+            class_file_writer.writerow(record + [class_lists[index]])
         index += 1
 
     # myUtil.dumpSimilarityDic(similarity_dict)
