@@ -63,7 +63,7 @@ def deal_patch(patch_info, patch, total_hunk, writer):
                 new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
                 myUtil.save_file(new_hunk, new_hunk_name)
 
-                writer.writerow(patch_info + [ old_hunk_name, new_hunk_name, old_hunk, new_hunk, \
+                writer.writerow(patch_info + [ old_hunk_name, new_hunk_name, \
                 old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
             # initialize hunk info
             old_hunk = ''
@@ -196,6 +196,7 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_
                 # call deal_patch to deal with the patch file
                 has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
                 if has_log:
+                    patch_writer.writerow(patch_info)
                     # increment the file count
                     total_log_cpp += 1
 
@@ -213,8 +214,7 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_
                     # get old file with patch cmd and write back
                     output = commands.getoutput('patch -R ' + new_store_name \
                             + ' -i ' + patch_store_name + ' -o ' + old_store_name)
-                    output = commands.getoutput('rm ' + patch_store_name)
-                    patch_writer.writerow(patch_info)
+                    # output = commands.getoutput('rm ' + patch_store_name)
 
 
     return total_hunk, total_log_cpp, total_cpp, total_file
@@ -250,13 +250,21 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
     total_cpp = start_cpp
     total_log_cpp = start_log_cpp
     total_hunk = start_hunk
-    for commit in commits.iterator():
+    if isFromStart:
+        is_ignore_first = 0
+    else:
+        is_ignore_first = 1
+    for commit in islice(commits.iterator(), is_ignore_first, None):
+        # print commit.sha
         # call deal_commit function to deal with each commit
         total_hunk, total_log_cpp, total_cpp, total_file = deal_commit \
-                            (gh, commit.sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_writer, patch_writer)
+            (gh, commit.sha, total_hunk, total_log_cpp, total_cpp, total_file, \
+            hunk_writer, patch_writer)
         if total_file % 10 == 0:
-            print 'now have deal with %d file ; find cpp %d file ;\
-have saved %d log cpp file, %d hunk' %(total_file, total_cpp, total_log_cpp, total_hunk)
+#             print 'now have dealed with commit: %s \nnow have deal with %d file ;\
+# find cpp %d file ;have saved %d log cpp file, %d hunk' \
+            print '%s, %d, %d, %d, %d' %(commit.sha, \
+                total_file, total_cpp, total_log_cpp, total_hunk)
     print "end of commit"
     # close the commit file
     hunk_file.close()
@@ -274,7 +282,8 @@ if __name__ == "__main__":
 
     sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
     # with function to retieve all the commits of given path
-    fetch_commit(False, 0, 0, 0, 0, 0)
+    # fetch_commit(False, sha, 0, 0, 0, 0)
+    fetch_commit()
     # fetch_patch()
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
