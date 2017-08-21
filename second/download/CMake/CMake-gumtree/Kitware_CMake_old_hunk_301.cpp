@@ -1,13 +1,39 @@
-              ? "NEW"
-              : "OLD");
-
-    if (targetType == cmState::EXECUTABLE) {
-      /* Put the executable at a known location (for COPY_FILE).  */
-      fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
-      /* Create the actual executable.  */
-      fprintf(fout, "add_executable(%s", targetName.c_str());
-    } else // if (targetType == cmState::STATIC_LIBRARY)
+#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
+  CONSOLE_SCREEN_BUFFER_INFO hOutInfo;
+  HANDLE hOut = kwsysTerminalGetStreamHandle(stream);
+  if(GetConsoleScreenBufferInfo(hOut, &hOutInfo))
     {
-      /* Put the static library at a known location (for COPY_FILE).  */
-      fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
+    pipeIsConsole = 1;
+    kwsysTerminalSetConsoleColor(hOut, &hOutInfo, stream, color);
+    }
+#endif
+  if(!pipeIsConsole && kwsysTerminalStreamIsVT100(stream,
+                                                  default_vt100, default_tty))
+    {
+    pipeIsVT100 = 1;
+    kwsysTerminalSetVT100Color(stream, color);
+    }
+
+  /* Format the text into the stream.  */
+  {
+  va_list var_args;
+  va_start(var_args, format);
+  vfprintf(stream, format, var_args);
+  va_end(var_args);
+  }
+
+  /* Restore the normal color state for the stream.  */
+#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
+  if(pipeIsConsole)
+    {
+    kwsysTerminalSetConsoleColor(hOut, &hOutInfo, stream,
+                                 kwsysTerminal_Color_Normal);
+    }
+#endif
+  if(pipeIsVT100)
+    {
+    kwsysTerminalSetVT100Color(stream, kwsysTerminal_Color_Normal);
+    }
+}
+
+/*--------------------------------------------------------------------------*/

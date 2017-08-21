@@ -1,8 +1,31 @@
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  disable_debugger(1);
-#endif
-  (void)argc;
-  (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");
-  fflush(stdout);
+ */
+YY_BUFFER_STATE cmCommandArgument_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
+{
+	YY_BUFFER_STATE b;
+
+	if ( size < 2 ||
+	     base[size-2] != YY_END_OF_BUFFER_CHAR ||
+	     base[size-1] != YY_END_OF_BUFFER_CHAR )
+		/* They forgot to leave room for the EOB's. */
+		return NULL;
+
+	b = (YY_BUFFER_STATE) cmCommandArgument_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+	if ( ! b )
+		YY_FATAL_ERROR( "out of dynamic memory in cmCommandArgument_yy_scan_buffer()" );
+
+	b->yy_buf_size = size - 2;	/* "- 2" to take care of EOB's */
+	b->yy_buf_pos = b->yy_ch_buf = base;
+	b->yy_is_our_buffer = 0;
+	b->yy_input_file = NULL;
+	b->yy_n_chars = b->yy_buf_size;
+	b->yy_is_interactive = 0;
+	b->yy_at_bol = 1;
+	b->yy_fill_buffer = 0;
+	b->yy_buffer_status = YY_BUFFER_NEW;
+
+	cmCommandArgument_yy_switch_to_buffer(b ,yyscanner );
+
+	return b;
+}
+
+/** Setup the input buffer state to scan a string. The next call to cmCommandArgument_yylex() will

@@ -1,7 +1,8 @@
-    if(0 == pollrc) {
-      /* timeout! */
-      ev->ms = 0;
-      /* fprintf(stderr, "call curl_multi_socket_action(TIMEOUT)\n"); */
-      mcode = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
-                                       &ev->running_handles);
-    }
+static int test10_grandchild(int argc, const char* argv[])
+{
+  /* The grandchild just sleeps for a few seconds and handles signals.  */
+  (void)argc;
+  (void)argv;
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+  fflush(stdout);

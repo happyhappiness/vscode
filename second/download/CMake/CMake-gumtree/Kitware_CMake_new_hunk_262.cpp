@@ -1,18 +1,54 @@
-    case kwsysTerminal_Color_BackgroundWhite:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE);
-      break;
-  }
-  if (color & kwsysTerminal_Color_ForegroundBold) {
-    fprintf(stream, KWSYS_TERMINAL_VT100_BOLD);
-  }
-}
 
-/*--------------------------------------------------------------------------*/
-#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
+/* Amount of stuff to slurp up with each read. */
+#ifndef YY_READ_BUF_SIZE
+#ifdef __ia64__
+/* On IA-64, the buffer size is 16k, not 8k */
+#define YY_READ_BUF_SIZE 16384
+#else
+#define YY_READ_BUF_SIZE 8192
+#endif /* __ia64__ */
+#endif
 
-#define KWSYS_TERMINAL_MASK_FOREGROUND                                        \
-  (FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_INTENSITY)
-#define KWSYS_TERMINAL_MASK_BACKGROUND                                        \
-  (BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY)
+/* Copy whatever the last rule matched to the standard output. */
+#ifndef ECHO
+/* This used to be an fputs(), but since the string might contain NUL's,
+ * we now use fwrite().
+ */
+#define ECHO do { if (fwrite( yytext, (size_t) yyleng, 1, yyout )) {} } while (0)
+#endif
 
-/* Get the Windows handle for a FILE stream.  */
+/* Gets input and stuffs it into "buf".  number of characters read, or YY_NULL,
+ * is returned in "result".
+ */
+#ifndef YY_INPUT
+#define YY_INPUT(buf,result,max_size) \
+	if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
+		{ \
+		int c = '*'; \
+		size_t n; \
+		for ( n = 0; n < max_size && \
+			     (c = getc( yyin )) != EOF && c != '\n'; ++n ) \
+			buf[n] = (char) c; \
+		if ( c == '\n' ) \
+			buf[n++] = (char) c; \
+		if ( c == EOF && ferror( yyin ) ) \
+			YY_FATAL_ERROR( "input in flex scanner failed" ); \
+		result = n; \
+		} \
+	else \
+		{ \
+		errno=0; \
+		while ( (result = (int) fread(buf, 1, max_size, yyin))==0 && ferror(yyin)) \
+			{ \
+			if( errno != EINTR) \
+				{ \
+				YY_FATAL_ERROR( "input in flex scanner failed" ); \
+				break; \
+				} \
+			errno=0; \
+			clearerr(yyin); \
+			} \
+		}\
+\
+
+#endif

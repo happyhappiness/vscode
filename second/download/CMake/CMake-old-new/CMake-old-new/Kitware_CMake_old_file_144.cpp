@@ -1,651 +1,852 @@
-/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-   file Copyright.txt or https://cmake.org/licensing for details.  */
-#include "cmCacheManager.h"
+/*============================================================================
+  KWSys - Kitware System Library
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
-#include "cmGeneratedFileStream.h"
-#include "cmSystemTools.h"
-#include "cmVersion.h"
-#include "cmake.h"
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
-#include <algorithm>
-#include <cmsys/FStream.hxx>
-#include <cmsys/Glob.hxx>
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(CommandLineArguments.hxx)
+
+#include KWSYS_HEADER(Configure.hxx)
+#include KWSYS_HEADER(String.hxx)
+
+// Work-around CMake dependency scanning limitation.  This must
+// duplicate the above list of headers.
+#if 0
+# include "CommandLineArguments.hxx.in"
+# include "Configure.hxx.in"
+# include "String.hxx.in"
+#endif
+
+#include <vector>
+#include <map>
+#include <set>
 #include <sstream>
+#include <iostream>
+
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-cmCacheManager::cmCacheManager()
+#ifdef _MSC_VER
+# pragma warning (disable: 4786)
+#endif
+
+#if defined(__sgi) && !defined(__GNUC__)
+# pragma set woff 1375 /* base class destructor not virtual */
+#endif
+
+#if 0
+#  define CommandLineArguments_DEBUG(x) \
+  std::cout << __LINE__ << " CLA: " << x << std::endl
+#else
+#  define CommandLineArguments_DEBUG(x)
+#endif
+
+namespace KWSYS_NAMESPACE
 {
-  this->CacheMajorVersion = 0;
-  this->CacheMinorVersion = 0;
+
+//----------------------------------------------------------------------------
+//============================================================================
+struct CommandLineArgumentsCallbackStructure
+{
+  const char* Argument;
+  int ArgumentType;
+  CommandLineArguments::CallbackType Callback;
+  void* CallData;
+  void* Variable;
+  int VariableType;
+  const char* Help;
+};
+ 
+class CommandLineArgumentsVectorOfStrings : 
+  public std::vector<kwsys::String> {};
+class CommandLineArgumentsSetOfStrings :
+  public std::set<kwsys::String> {};
+class CommandLineArgumentsMapOfStrucs : 
+  public std::map<kwsys::String,
+    CommandLineArgumentsCallbackStructure> {};
+
+class CommandLineArgumentsInternal
+{
+public:
+  CommandLineArgumentsInternal()
+    {
+    this->UnknownArgumentCallback = 0;
+    this->ClientData = 0;
+    this->LastArgument = 0;
+    }
+
+  typedef CommandLineArgumentsVectorOfStrings VectorOfStrings;
+  typedef CommandLineArgumentsMapOfStrucs CallbacksMap;
+  typedef kwsys::String String;
+  typedef CommandLineArgumentsSetOfStrings SetOfStrings;
+
+  VectorOfStrings Argv;
+  String Argv0;
+  CallbacksMap Callbacks;
+
+  CommandLineArguments::ErrorCallbackType UnknownArgumentCallback;
+  void*             ClientData;
+
+  VectorOfStrings::size_type LastArgument;
+
+  VectorOfStrings UnusedArguments;
+};
+//============================================================================
+//----------------------------------------------------------------------------
+
+//----------------------------------------------------------------------------
+CommandLineArguments::CommandLineArguments()
+{
+  this->Internals = new CommandLineArguments::Internal;
+  this->Help = "";
+  this->LineLength = 80;
+  this->StoreUnusedArgumentsFlag = false;
 }
 
-void cmCacheManager::CleanCMakeFiles(const std::string& path)
+//----------------------------------------------------------------------------
+CommandLineArguments::~CommandLineArguments()
 {
-  std::string glob = path;
-  glob += cmake::GetCMakeFilesDirectory();
-  glob += "/*.cmake";
-  cmsys::Glob globIt;
-  globIt.FindFiles(glob);
-  std::vector<std::string> files = globIt.GetFiles();
-  std::for_each(files.begin(), files.end(), cmSystemTools::RemoveFile);
+  delete this->Internals;
 }
 
-bool cmCacheManager::LoadCache(const std::string& path, bool internal,
-                               std::set<std::string>& excludes,
-                               std::set<std::string>& includes)
+//----------------------------------------------------------------------------
+void CommandLineArguments::Initialize(int argc, const char* const argv[])
 {
-  std::string cacheFile = path;
-  cacheFile += "/CMakeCache.txt";
-  // clear the old cache, if we are reading in internal values
-  if (internal) {
-    this->Cache.clear();
-  }
-  if (!cmSystemTools::FileExists(cacheFile.c_str())) {
-    this->CleanCMakeFiles(path);
-    return false;
-  }
+  int cc;
 
-  cmsys::ifstream fin(cacheFile.c_str());
-  if (!fin) {
-    return false;
-  }
-  const char* realbuffer;
-  std::string buffer;
-  std::string entryKey;
-  unsigned int lineno = 0;
-  while (fin) {
-    // Format is key:type=value
-    std::string helpString;
-    CacheEntry e;
-    cmSystemTools::GetLineFromStream(fin, buffer);
-    lineno++;
-    realbuffer = buffer.c_str();
-    while (*realbuffer != '0' &&
-           (*realbuffer == ' ' || *realbuffer == '\t' || *realbuffer == '\r' ||
-            *realbuffer == '\n')) {
-      if (*realbuffer == '\n') {
-        lineno++;
-      }
-      realbuffer++;
+  this->Initialize();
+  this->Internals->Argv0 = argv[0];
+  for ( cc = 1; cc < argc; cc ++ )
+    {
+    this->ProcessArgument(argv[cc]);
     }
-    // skip blank lines and comment lines
-    if (realbuffer[0] == '#' || realbuffer[0] == 0) {
-      continue;
-    }
-    while (realbuffer[0] == '/' && realbuffer[1] == '/') {
-      if ((realbuffer[2] == '\\') && (realbuffer[3] == 'n')) {
-        helpString += "\n";
-        helpString += &realbuffer[4];
-      } else {
-        helpString += &realbuffer[2];
-      }
-      cmSystemTools::GetLineFromStream(fin, buffer);
-      lineno++;
-      realbuffer = buffer.c_str();
-      if (!fin) {
-        continue;
-      }
-    }
-    e.SetProperty("HELPSTRING", helpString.c_str());
-    if (cmState::ParseCacheEntry(realbuffer, entryKey, e.Value, e.Type)) {
-      if (excludes.find(entryKey) == excludes.end()) {
-        // Load internal values if internal is set.
-        // If the entry is not internal to the cache being loaded
-        // or if it is in the list of internal entries to be
-        // imported, load it.
-        if (internal || (e.Type != cmState::INTERNAL) ||
-            (includes.find(entryKey) != includes.end())) {
-          // If we are loading the cache from another project,
-          // make all loaded entries internal so that it is
-          // not visible in the gui
-          if (!internal) {
-            e.Type = cmState::INTERNAL;
-            helpString = "DO NOT EDIT, ";
-            helpString += entryKey;
-            helpString += " loaded from external file.  "
-                          "To change this value edit this file: ";
-            helpString += path;
-            helpString += "/CMakeCache.txt";
-            e.SetProperty("HELPSTRING", helpString.c_str());
-          }
-          if (!this->ReadPropertyEntry(entryKey, e)) {
-            e.Initialized = true;
-            this->Cache[entryKey] = e;
-          }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::Initialize(int argc, char* argv[])
+{
+  this->Initialize(argc, static_cast<const char* const*>(argv));
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::Initialize()
+{
+  this->Internals->Argv.clear();
+  this->Internals->LastArgument = 0;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::ProcessArgument(const char* arg)
+{
+  this->Internals->Argv.push_back(arg);
+}
+
+//----------------------------------------------------------------------------
+bool CommandLineArguments::GetMatchedArguments(
+  std::vector<std::string>* matches,
+  const std::string& arg)
+{
+  matches->clear();
+  CommandLineArguments::Internal::CallbacksMap::iterator it;
+
+  // Does the argument match to any we know about?
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
+    {
+    const CommandLineArguments::Internal::String& parg = it->first;
+    CommandLineArgumentsCallbackStructure *cs = &it->second;
+    if (cs->ArgumentType == CommandLineArguments::NO_ARGUMENT ||
+      cs->ArgumentType == CommandLineArguments::SPACE_ARGUMENT) 
+      {
+      if ( arg == parg )
+        {
+        matches->push_back(parg);
         }
       }
-    } else {
-      std::ostringstream error;
-      error << "Parse error in cache file " << cacheFile;
-      error << " on line " << lineno << ". Offending entry: " << realbuffer;
-      cmSystemTools::Error(error.str().c_str());
-    }
-  }
-  this->CacheMajorVersion = 0;
-  this->CacheMinorVersion = 0;
-  if (const char* cmajor =
-        this->GetInitializedCacheValue("CMAKE_CACHE_MAJOR_VERSION")) {
-    unsigned int v = 0;
-    if (sscanf(cmajor, "%u", &v) == 1) {
-      this->CacheMajorVersion = v;
-    }
-    if (const char* cminor =
-          this->GetInitializedCacheValue("CMAKE_CACHE_MINOR_VERSION")) {
-      if (sscanf(cminor, "%u", &v) == 1) {
-        this->CacheMinorVersion = v;
+    else if ( arg.find( parg ) == 0 )
+      {
+      matches->push_back(parg);
       }
     }
-  } else {
-    // CMake version not found in the list file.
-    // Set as version 0.0
-    this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", "0",
-                        "Minor version of cmake used to create the "
-                        "current loaded cache",
-                        cmState::INTERNAL);
-    this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", "0",
-                        "Major version of cmake used to create the "
-                        "current loaded cache",
-                        cmState::INTERNAL);
-  }
-  // check to make sure the cache directory has not
-  // been moved
-  const char* oldDir = this->GetInitializedCacheValue("CMAKE_CACHEFILE_DIR");
-  if (internal && oldDir) {
-    std::string currentcwd = path;
-    std::string oldcwd = oldDir;
-    cmSystemTools::ConvertToUnixSlashes(currentcwd);
-    currentcwd += "/CMakeCache.txt";
-    oldcwd += "/CMakeCache.txt";
-    if (!cmSystemTools::SameFile(oldcwd, currentcwd)) {
-      std::string message =
-        std::string("The current CMakeCache.txt directory ") + currentcwd +
-        std::string(" is different than the directory ") +
-        std::string(this->GetInitializedCacheValue("CMAKE_CACHEFILE_DIR")) +
-        std::string(" where CMakeCache.txt was created. This may result "
-                    "in binaries being created in the wrong place. If you "
-                    "are not sure, reedit the CMakeCache.txt");
-      cmSystemTools::Error(message.c_str());
-    }
-  }
-  return true;
+  return !matches->empty();
 }
 
-const char* cmCacheManager::PersistentProperties[] = { "ADVANCED", "MODIFIED",
-                                                       "STRINGS", CM_NULLPTR };
-
-bool cmCacheManager::ReadPropertyEntry(std::string const& entryKey,
-                                       CacheEntry& e)
+//----------------------------------------------------------------------------
+int CommandLineArguments::Parse()
 {
-  // All property entries are internal.
-  if (e.Type != cmState::INTERNAL) {
-    return false;
-  }
-
-  const char* end = entryKey.c_str() + entryKey.size();
-  for (const char** p = this->PersistentProperties; *p; ++p) {
-    std::string::size_type plen = strlen(*p) + 1;
-    if (entryKey.size() > plen && *(end - plen) == '-' &&
-        strcmp(end - plen + 1, *p) == 0) {
-      std::string key = entryKey.substr(0, entryKey.size() - plen);
-      cmCacheManager::CacheIterator it = this->GetCacheIterator(key.c_str());
-      if (it.IsAtEnd()) {
-        // Create an entry and store the property.
-        CacheEntry& ne = this->Cache[key];
-        ne.Type = cmState::UNINITIALIZED;
-        ne.SetProperty(*p, e.Value.c_str());
-      } else {
-        // Store this property on its entry.
-        it.SetProperty(*p, e.Value.c_str());
+  std::vector<std::string>::size_type cc;
+  std::vector<std::string> matches;
+  if ( this->StoreUnusedArgumentsFlag )
+    {
+    this->Internals->UnusedArguments.clear();
+    }
+  for ( cc = 0; cc < this->Internals->Argv.size(); cc ++ )
+    {
+    const std::string& arg = this->Internals->Argv[cc];
+    CommandLineArguments_DEBUG("Process argument: " << arg);
+    this->Internals->LastArgument = cc;
+    if ( this->GetMatchedArguments(&matches, arg) )
+      {
+      // Ok, we found one or more arguments that match what user specified.
+      // Let's find the longest one.
+      CommandLineArguments::Internal::VectorOfStrings::size_type kk;
+      CommandLineArguments::Internal::VectorOfStrings::size_type maxidx = 0;
+      CommandLineArguments::Internal::String::size_type maxlen = 0;
+      for ( kk = 0; kk < matches.size(); kk ++ )
+        {
+        if ( matches[kk].size() > maxlen )
+          {
+          maxlen = matches[kk].size();
+          maxidx = kk;
+          }
+        }
+      // So, the longest one is probably the right one. Now see if it has any
+      // additional value
+      CommandLineArgumentsCallbackStructure *cs 
+        = &this->Internals->Callbacks[matches[maxidx]];
+      const std::string& sarg = matches[maxidx];
+      if ( cs->Argument != sarg )
+        {
+        abort();
+        }
+      switch ( cs->ArgumentType )
+        {
+      case NO_ARGUMENT:
+        // No value
+        if ( !this->PopulateVariable(cs, 0) )
+          {
+          return 0;
+          }
+        break;
+      case SPACE_ARGUMENT:
+        if ( cc == this->Internals->Argv.size()-1 )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        CommandLineArguments_DEBUG("This is a space argument: " << arg
+          << " value: " << this->Internals->Argv[cc+1]);
+        // Value is the next argument
+        if ( !this->PopulateVariable(cs, this->Internals->Argv[cc+1].c_str()) )
+          {
+          return 0;
+          }
+        cc ++;
+        break;
+      case EQUAL_ARGUMENT:
+        if ( arg.size() == sarg.size() || arg.at(sarg.size()) != '=' )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        // Value is everythng followed the '=' sign
+        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size() + 1) )
+          {
+          return 0;
+          }
+        break;
+      case CONCAT_ARGUMENT:
+        // Value is whatever follows the argument
+        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size()) )
+          {
+          return 0;
+          }
+        break;
+      case MULTI_ARGUMENT:
+        // Suck in all the rest of the arguments
+        CommandLineArguments_DEBUG("This is a multi argument: " << arg);
+        for (cc++; cc < this->Internals->Argv.size(); ++ cc )
+          {
+          const std::string& marg = this->Internals->Argv[cc];
+          CommandLineArguments_DEBUG(" check multi argument value: " << marg);
+          if ( this->GetMatchedArguments(&matches, marg) )
+            {
+            CommandLineArguments_DEBUG("End of multi argument " << arg << " with value: " << marg);
+            break;
+            }
+          CommandLineArguments_DEBUG(" populate multi argument value: " << marg);
+          if ( !this->PopulateVariable(cs, marg.c_str()) )
+            {
+            return 0;
+            }
+          }
+        if ( cc != this->Internals->Argv.size() )
+          {
+          CommandLineArguments_DEBUG("Again End of multi argument " << arg);
+          cc--;
+          continue;
+          }
+        break;
+      default:
+        std::cerr << "Got unknown argument type: \"" << cs->ArgumentType << "\"" << std::endl;
+        this->Internals->LastArgument --;
+        return 0;
+        }
       }
-      return true;
-    }
-  }
-  return false;
-}
-
-void cmCacheManager::WritePropertyEntries(std::ostream& os,
-                                          CacheIterator const& i)
-{
-  for (const char** p = this->PersistentProperties; *p; ++p) {
-    if (const char* value = i.GetProperty(*p)) {
-      std::string helpstring = *p;
-      helpstring += " property for variable: ";
-      helpstring += i.GetName();
-      cmCacheManager::OutputHelpString(os, helpstring);
-
-      std::string key = i.GetName();
-      key += "-";
-      key += *p;
-      this->OutputKey(os, key);
-      os << ":INTERNAL=";
-      this->OutputValue(os, value);
-      os << "\n";
-    }
-  }
-}
-
-bool cmCacheManager::SaveCache(const std::string& path)
-{
-  std::string cacheFile = path;
-  cacheFile += "/CMakeCache.txt";
-  cmGeneratedFileStream fout(cacheFile.c_str());
-  fout.SetCopyIfDifferent(true);
-  if (!fout) {
-    cmSystemTools::Error("Unable to open cache file for save. ",
-                         cacheFile.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    return false;
-  }
-  // before writing the cache, update the version numbers
-  // to the
-  char temp[1024];
-  sprintf(temp, "%d", cmVersion::GetMinorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", temp,
-                      "Minor version of cmake used to create the "
-                      "current loaded cache",
-                      cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetMajorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", temp,
-                      "Major version of cmake used to create the "
-                      "current loaded cache",
-                      cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetPatchVersion());
-  this->AddCacheEntry("CMAKE_CACHE_PATCH_VERSION", temp,
-                      "Patch version of cmake used to create the "
-                      "current loaded cache",
-                      cmState::INTERNAL);
-
-  // Let us store the current working directory so that if somebody
-  // Copies it, he will not be surprised
-  std::string currentcwd = path;
-  if (currentcwd[0] >= 'A' && currentcwd[0] <= 'Z' && currentcwd[1] == ':') {
-    // Cast added to avoid compiler warning. Cast is ok because
-    // value is guaranteed to fit in char by the above if...
-    currentcwd[0] = static_cast<char>(currentcwd[0] - 'A' + 'a');
-  }
-  cmSystemTools::ConvertToUnixSlashes(currentcwd);
-  this->AddCacheEntry("CMAKE_CACHEFILE_DIR", currentcwd.c_str(),
-                      "This is the directory where this CMakeCache.txt"
-                      " was created",
-                      cmState::INTERNAL);
-
-  /* clang-format off */
-  fout << "# This is the CMakeCache file.\n"
-       << "# For build in directory: " << currentcwd << "\n"
-       << "# It was generated by CMake: "
-       << cmSystemTools::GetCMakeCommand() << std::endl;
-  /* clang-format on */
-
-  /* clang-format off */
-  fout << "# You can edit this file to change values found and used by cmake."
-       << std::endl
-       << "# If you do not want to change any of the values, simply exit the "
-       "editor." << std::endl
-       << "# If you do want to change a value, simply edit, save, and exit "
-       "the editor." << std::endl
-       << "# The syntax for the file is as follows:\n"
-       << "# KEY:TYPE=VALUE\n"
-       << "# KEY is the name of a variable in the cache.\n"
-       << "# TYPE is a hint to GUIs for the type of VALUE, DO NOT EDIT "
-       "TYPE!." << std::endl
-       << "# VALUE is the current value for the KEY.\n\n";
-  /* clang-format on */
-
-  fout << "########################\n";
-  fout << "# EXTERNAL cache entries\n";
-  fout << "########################\n";
-  fout << "\n";
-
-  for (std::map<std::string, CacheEntry>::const_iterator i =
-         this->Cache.begin();
-       i != this->Cache.end(); ++i) {
-    const CacheEntry& ce = (*i).second;
-    cmState::CacheEntryType t = ce.Type;
-    if (!ce.Initialized) {
-      /*
-        // This should be added in, but is not for now.
-      cmSystemTools::Error("Cache entry \"", (*i).first.c_str(),
-                           "\" is uninitialized");
-      */
-    } else if (t != cmState::INTERNAL) {
-      // Format is key:type=value
-      if (const char* help = ce.GetProperty("HELPSTRING")) {
-        cmCacheManager::OutputHelpString(fout, help);
-      } else {
-        cmCacheManager::OutputHelpString(fout, "Missing description");
+    else
+      {
+      // Handle unknown arguments
+      if ( this->Internals->UnknownArgumentCallback )
+        {
+        if ( !this->Internals->UnknownArgumentCallback(arg.c_str(), 
+            this->Internals->ClientData) )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        return 1;
+        }
+      else if ( this->StoreUnusedArgumentsFlag )
+        {
+        CommandLineArguments_DEBUG("Store unused argument " << arg);
+        this->Internals->UnusedArguments.push_back(arg);
+        }
+      else
+        {
+        std::cerr << "Got unknown argument: \"" << arg << "\"" << std::endl;
+        this->Internals->LastArgument --;
+        return 0;
+        }
       }
-      this->OutputKey(fout, i->first);
-      fout << ":" << cmState::CacheEntryTypeToString(t) << "=";
-      this->OutputValue(fout, ce.Value);
-      fout << "\n\n";
     }
+  return 1;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::GetRemainingArguments(int* argc, char*** argv)
+{
+  CommandLineArguments::Internal::VectorOfStrings::size_type size 
+    = this->Internals->Argv.size() - this->Internals->LastArgument + 1;
+  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
+
+  // Copy Argv0 as the first argument
+  char** args = new char*[ size ];
+  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
+  strcpy(args[0], this->Internals->Argv0.c_str());
+  int cnt = 1;
+
+  // Copy everything after the LastArgument, since that was not parsed.
+  for ( cc = this->Internals->LastArgument+1; 
+    cc < this->Internals->Argv.size(); cc ++ )
+    {
+    args[cnt] = new char[ this->Internals->Argv[cc].size() + 1];
+    strcpy(args[cnt], this->Internals->Argv[cc].c_str());
+    cnt ++;
+    }
+  *argc = cnt;
+  *argv = args;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::GetUnusedArguments(int* argc, char*** argv)
+{
+  CommandLineArguments::Internal::VectorOfStrings::size_type size 
+    = this->Internals->UnusedArguments.size() + 1;
+  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
+
+  // Copy Argv0 as the first argument
+  char** args = new char*[ size ];
+  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
+  strcpy(args[0], this->Internals->Argv0.c_str());
+  int cnt = 1;
+
+  // Copy everything after the LastArgument, since that was not parsed.
+  for ( cc = 0;
+    cc < this->Internals->UnusedArguments.size(); cc ++ )
+    {
+    kwsys::String &str = this->Internals->UnusedArguments[cc];
+    args[cnt] = new char[ str.size() + 1];
+    strcpy(args[cnt], str.c_str());
+    cnt ++;
+    }
+  *argc = cnt;
+  *argv = args;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::DeleteRemainingArguments(int argc, char*** argv)
+{
+  int cc;
+  for ( cc = 0; cc < argc; ++ cc )
+    {
+    delete [] (*argv)[cc];
+    }
+  delete [] *argv;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddCallback(const char* argument, ArgumentTypeEnum type, 
+  CallbackType callback, void* call_data, const char* help)
+{
+  CommandLineArgumentsCallbackStructure s;
+  s.Argument     = argument;
+  s.ArgumentType = type;
+  s.Callback     = callback;
+  s.CallData     = call_data;
+  s.VariableType = CommandLineArguments::NO_VARIABLE_TYPE;
+  s.Variable     = 0;
+  s.Help         = help;
+
+  this->Internals->Callbacks[argument] = s;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  VariableTypeEnum vtype, void* variable, const char* help)
+{
+  CommandLineArgumentsCallbackStructure s;
+  s.Argument     = argument;
+  s.ArgumentType = type;
+  s.Callback     = 0;
+  s.CallData     = 0;
+  s.VariableType = vtype;
+  s.Variable     = variable;
+  s.Help         = help;
+
+  this->Internals->Callbacks[argument] = s;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+#define CommandLineArgumentsAddArgumentMacro(type, ctype) \
+  void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type, \
+    ctype* variable, const char* help) \
+  { \
+    this->AddArgument(argument, type, CommandLineArguments::type##_TYPE, variable, help); \
   }
 
-  fout << "\n";
-  fout << "########################\n";
-  fout << "# INTERNAL cache entries\n";
-  fout << "########################\n";
-  fout << "\n";
+CommandLineArgumentsAddArgumentMacro(BOOL,       bool)
+CommandLineArgumentsAddArgumentMacro(INT,        int)
+CommandLineArgumentsAddArgumentMacro(DOUBLE,     double)
+CommandLineArgumentsAddArgumentMacro(STRING,     char*)
+CommandLineArgumentsAddArgumentMacro(STL_STRING, std::string)
 
-  for (cmCacheManager::CacheIterator i = this->NewIterator(); !i.IsAtEnd();
-       i.Next()) {
-    if (!i.Initialized()) {
-      continue;
+CommandLineArgumentsAddArgumentMacro(VECTOR_BOOL,       std::vector<bool>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_INT,        std::vector<int>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_DOUBLE,     std::vector<double>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_STRING,     std::vector<char*>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_STL_STRING, std::vector<std::string>)
+
+//----------------------------------------------------------------------------
+#define CommandLineArgumentsAddBooleanArgumentMacro(type, ctype) \
+  void CommandLineArguments::AddBooleanArgument(const char* argument, \
+    ctype* variable, const char* help) \
+  { \
+    this->AddArgument(argument, CommandLineArguments::NO_ARGUMENT, \
+      CommandLineArguments::type##_TYPE, variable, help); \
+  }
+
+CommandLineArgumentsAddBooleanArgumentMacro(BOOL,       bool)
+CommandLineArgumentsAddBooleanArgumentMacro(INT,        int)
+CommandLineArgumentsAddBooleanArgumentMacro(DOUBLE,     double)
+CommandLineArgumentsAddBooleanArgumentMacro(STRING,     char*)
+CommandLineArgumentsAddBooleanArgumentMacro(STL_STRING, std::string)
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetClientData(void* client_data)
+{
+  this->Internals->ClientData = client_data;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetUnknownArgumentCallback(
+  CommandLineArguments::ErrorCallbackType callback)
+{
+  this->Internals->UnknownArgumentCallback = callback;
+}
+
+//----------------------------------------------------------------------------
+const char* CommandLineArguments::GetHelp(const char* arg)
+{
+  CommandLineArguments::Internal::CallbacksMap::iterator it 
+    = this->Internals->Callbacks.find(arg);
+  if ( it == this->Internals->Callbacks.end() )
+    {
+    return 0;
     }
 
-    cmState::CacheEntryType t = i.GetType();
-    this->WritePropertyEntries(fout, i);
-    if (t == cmState::INTERNAL) {
-      // Format is key:type=value
-      if (const char* help = i.GetProperty("HELPSTRING")) {
-        this->OutputHelpString(fout, help);
+  // Since several arguments may point to the same argument, find the one this
+  // one point to if this one is pointing to another argument.
+  CommandLineArgumentsCallbackStructure *cs = &(it->second);
+  for(;;)
+    {
+    CommandLineArguments::Internal::CallbacksMap::iterator hit 
+      = this->Internals->Callbacks.find(cs->Help);
+    if ( hit == this->Internals->Callbacks.end() )
+      {
+      break;
       }
-      this->OutputKey(fout, i.GetName());
-      fout << ":" << cmState::CacheEntryTypeToString(t) << "=";
-      this->OutputValue(fout, i.GetValue());
-      fout << "\n";
+    cs = &(hit->second);
     }
-  }
-  fout << "\n";
-  fout.Close();
-  std::string checkCacheFile = path;
-  checkCacheFile += cmake::GetCMakeFilesDirectory();
-  cmSystemTools::MakeDirectory(checkCacheFile.c_str());
-  checkCacheFile += "/cmake.check_cache";
-  cmsys::ofstream checkCache(checkCacheFile.c_str());
-  if (!checkCache) {
-    cmSystemTools::Error("Unable to open check cache file for write. ",
-                         checkCacheFile.c_str());
-    return false;
-  }
-  checkCache << "# This file is generated by cmake for dependency checking "
-                "of the CMakeCache.txt file\n";
-  return true;
+  return cs->Help;
 }
 
-bool cmCacheManager::DeleteCache(const std::string& path)
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetLineLength(unsigned int ll)
 {
-  std::string cacheFile = path;
-  cmSystemTools::ConvertToUnixSlashes(cacheFile);
-  std::string cmakeFiles = cacheFile;
-  cacheFile += "/CMakeCache.txt";
-  if (cmSystemTools::FileExists(cacheFile.c_str())) {
-    cmSystemTools::RemoveFile(cacheFile);
-    // now remove the files in the CMakeFiles directory
-    // this cleans up language cache files
-    cmakeFiles += cmake::GetCMakeFilesDirectory();
-    if (cmSystemTools::FileIsDirectory(cmakeFiles)) {
-      cmSystemTools::RemoveADirectory(cmakeFiles);
-    }
-  }
-  return true;
-}
-
-void cmCacheManager::OutputKey(std::ostream& fout, std::string const& key)
-{
-  // support : in key name by double quoting
-  const char* q =
-    (key.find(':') != key.npos || key.find("//") == 0) ? "\"" : "";
-  fout << q << key << q;
-}
-
-void cmCacheManager::OutputValue(std::ostream& fout, std::string const& value)
-{
-  // if value has trailing space or tab, enclose it in single quotes
-  if (!value.empty() &&
-      (value[value.size() - 1] == ' ' || value[value.size() - 1] == '\t')) {
-    fout << '\'' << value << '\'';
-  } else {
-    fout << value;
-  }
-}
-
-void cmCacheManager::OutputHelpString(std::ostream& fout,
-                                      const std::string& helpString)
-{
-  std::string::size_type end = helpString.size();
-  if (end == 0) {
+  if ( ll < 9 || ll > 1000 )
+    {
     return;
-  }
-  std::string oneLine;
-  std::string::size_type pos = 0;
-  for (std::string::size_type i = 0; i <= end; i++) {
-    if ((i == end) || (helpString[i] == '\n') ||
-        ((i - pos >= 60) && (helpString[i] == ' '))) {
-      fout << "//";
-      if (helpString[pos] == '\n') {
-        pos++;
-        fout << "\\n";
+    }
+  this->LineLength = ll;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+const char* CommandLineArguments::GetArgv0()
+{
+  return this->Internals->Argv0.c_str();
+}
+
+//----------------------------------------------------------------------------
+unsigned int CommandLineArguments::GetLastArgument()
+{
+  return static_cast<unsigned int>(this->Internals->LastArgument + 1);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::GenerateHelp()
+{
+  std::ostringstream str;
+  
+  // Collapse all arguments into the map of vectors of all arguments that do
+  // the same thing.
+  CommandLineArguments::Internal::CallbacksMap::iterator it;
+  typedef std::map<CommandLineArguments::Internal::String,
+     CommandLineArguments::Internal::SetOfStrings > MapArgs;
+  MapArgs mp;
+  MapArgs::iterator mpit, smpit;
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
+    {
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      mp[it->first].insert(it->first);
       }
-      oneLine = helpString.substr(pos, i - pos);
-      fout << oneLine << "\n";
-      pos = i;
-    }
-  }
-}
-
-void cmCacheManager::RemoveCacheEntry(const std::string& key)
-{
-  CacheEntryMap::iterator i = this->Cache.find(key);
-  if (i != this->Cache.end()) {
-    this->Cache.erase(i);
-  }
-}
-
-cmCacheManager::CacheEntry* cmCacheManager::GetCacheEntry(
-  const std::string& key)
-{
-  CacheEntryMap::iterator i = this->Cache.find(key);
-  if (i != this->Cache.end()) {
-    return &i->second;
-  }
-  return CM_NULLPTR;
-}
-
-cmCacheManager::CacheIterator cmCacheManager::GetCacheIterator(const char* key)
-{
-  return CacheIterator(*this, key);
-}
-
-const char* cmCacheManager::GetInitializedCacheValue(
-  const std::string& key) const
-{
-  CacheEntryMap::const_iterator i = this->Cache.find(key);
-  if (i != this->Cache.end() && i->second.Initialized) {
-    return i->second.Value.c_str();
-  }
-  return CM_NULLPTR;
-}
-
-void cmCacheManager::PrintCache(std::ostream& out) const
-{
-  out << "=================================================" << std::endl;
-  out << "CMakeCache Contents:" << std::endl;
-  for (std::map<std::string, CacheEntry>::const_iterator i =
-         this->Cache.begin();
-       i != this->Cache.end(); ++i) {
-    if ((*i).second.Type != cmState::INTERNAL) {
-      out << (*i).first << " = " << (*i).second.Value << std::endl;
-    }
-  }
-  out << "\n\n";
-  out << "To change values in the CMakeCache, " << std::endl
-      << "edit CMakeCache.txt in your output directory.\n";
-  out << "=================================================" << std::endl;
-}
-
-void cmCacheManager::AddCacheEntry(const std::string& key, const char* value,
-                                   const char* helpString,
-                                   cmState::CacheEntryType type)
-{
-  CacheEntry& e = this->Cache[key];
-  if (value) {
-    e.Value = value;
-    e.Initialized = true;
-  } else {
-    e.Value = "";
-  }
-  e.Type = type;
-  // make sure we only use unix style paths
-  if (type == cmState::FILEPATH || type == cmState::PATH) {
-    if (e.Value.find(';') != e.Value.npos) {
-      std::vector<std::string> paths;
-      cmSystemTools::ExpandListArgument(e.Value, paths);
-      const char* sep = "";
-      e.Value = "";
-      for (std::vector<std::string>::iterator i = paths.begin();
-           i != paths.end(); ++i) {
-        cmSystemTools::ConvertToUnixSlashes(*i);
-        e.Value += sep;
-        e.Value += *i;
-        sep = ";";
+    else
+      {
+      mp[it->first].insert(it->first);
       }
-    } else {
-      cmSystemTools::ConvertToUnixSlashes(e.Value);
+    }
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
+    {
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      smpit = mp.find(it->first);
+      CommandLineArguments::Internal::SetOfStrings::iterator sit;
+      for ( sit = smpit->second.begin(); sit != smpit->second.end(); sit++ )
+        {
+        mpit->second.insert(*sit);
+        }
+      mp.erase(smpit);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
+    }
+ 
+  // Find the length of the longest string
+  CommandLineArguments::Internal::String::size_type maxlen = 0;
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      CommandLineArguments::Internal::String::size_type clen = sit->size();
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT:     clen += 0; break;
+        case CommandLineArguments::CONCAT_ARGUMENT: clen += 3; break;
+        case CommandLineArguments::SPACE_ARGUMENT:  clen += 4; break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  clen += 4; break;
+        }
+      if ( clen > maxlen )
+        {
+        maxlen = clen;
+        }
+      }
+    }
+
+  // Create format for that string
+  char format[80];
+  sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));
+
+  maxlen += 4; // For the space before and after the option
+
+  // Print help for each option
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << std::endl;
+      char argument[100];
+      sprintf(argument, "%s", sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT: break;
+        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
+        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
+        case CommandLineArguments::MULTI_ARGUMENT:  strcat(argument, " opt opt ..."); break;
+        }
+      char buffer[80];
+      sprintf(buffer, format, argument);
+      str << buffer;
+      }
+    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
+    size_t len = strlen(ptr);
+    int cnt = 0;
+    while ( len > 0)
+      {
+      // If argument with help is longer than line length, split it on previous
+      // space (or tab) and continue on the next line
+      CommandLineArguments::Internal::String::size_type cc;
+      for ( cc = 0; ptr[cc]; cc ++ )
+        {
+        if ( *ptr == ' ' || *ptr == '\t' )
+          {
+          ptr ++;
+          len --;
+          }
+        }
+      if ( cnt > 0 )
+        {
+        for ( cc = 0; cc < maxlen; cc ++ )
+          {
+          str << " ";
+          }
+        }
+      CommandLineArguments::Internal::String::size_type skip = len;
+      if ( skip > this->LineLength - maxlen )
+        {
+        skip = this->LineLength - maxlen;
+        for ( cc = skip-1; cc > 0; cc -- )
+          {
+          if ( ptr[cc] == ' ' || ptr[cc] == '\t' )
+            {
+            break;
+            }
+          }
+        if ( cc != 0 )
+          {
+          skip = cc;
+          }
+        }
+      str.write(ptr, static_cast<std::streamsize>(skip));
+      str << std::endl;
+      ptr += skip;
+      len -= skip;
+      cnt ++;
+      }
+    }
+  /*
+  // This can help debugging help string
+  str << endl;
+  unsigned int cc;
+  for ( cc = 0; cc < this->LineLength; cc ++ )
+    {
+    str << cc % 10;
+    }
+  str << endl;
+  */
+  this->Help = str.str();
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(bool* variable,
+                                            const std::string& value)
+{
+  if (value == "1" || value == "ON" || value == "on" || value == "On" ||
+      value == "TRUE" || value == "true" || value == "True" ||
+      value == "yes" || value == "Yes" || value == "YES") {
+    *variable = true;
+  } else {
+    *variable = false;
+  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(int* variable,
+                                            const std::string& value)
+{
+  char* res = 0;
+  *variable = static_cast<int>(strtol(value.c_str(), &res, 10));
+  // if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(double* variable,
+                                            const std::string& value)
+{
+  char* res = 0;
+  *variable = strtod(value.c_str(), &res);
+  // if ( res && *res )
+  //  {
+  //  Can handle non-double
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(char** variable,
+                                            const std::string& value)
+{
+  if (*variable) {
+    delete[] * variable;
+    *variable = 0;
+  }
+  *variable = new char[value.size() + 1];
+  strcpy(*variable, value.c_str());
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(std::string* variable,
+                                            const std::string& value)
+{
+  *variable = value;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(std::vector<bool>* variable,
+                                            const std::string& value)
+{
+  bool val = false;
+  if (value == "1" || value == "ON" || value == "on" || value == "On" ||
+      value == "TRUE" || value == "true" || value == "True" ||
+      value == "yes" || value == "Yes" || value == "YES") {
+    val = true;
+  }
+  variable->push_back(val);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(std::vector<int>* variable,
+                                            const std::string& value)
+{
+  char* res = 0;
+  variable->push_back(static_cast<int>(strtol(value.c_str(), &res, 10)));
+  // if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(std::vector<double>* variable,
+                                            const std::string& value)
+{
+  char* res = 0;
+  variable->push_back(strtod(value.c_str(), &res));
+  // if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(std::vector<char*>* variable,
+                                            const std::string& value)
+{
+  char* var = new char[value.size() + 1];
+  strcpy(var, value.c_str());
+  variable->push_back(var);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(std::vector<std::string>* variable,
+                                            const std::string& value)
+{
+  variable->push_back(value);
+}
+
+//----------------------------------------------------------------------------
+bool CommandLineArguments::PopulateVariable(
+  CommandLineArgumentsCallbackStructure* cs, const char* value)
+{
+  // Call the callback
+  if (cs->Callback) {
+    if (!cs->Callback(cs->Argument, value, cs->CallData)) {
+      this->Internals->LastArgument--;
+      return 0;
     }
   }
-  e.SetProperty("HELPSTRING", helpString
-                  ? helpString
-                  : "(This variable does not exist and should not be used)");
-}
-
-bool cmCacheManager::CacheIterator::IsAtEnd() const
-{
-  return this->Position == this->Container.Cache.end();
-}
-
-void cmCacheManager::CacheIterator::Begin()
-{
-  this->Position = this->Container.Cache.begin();
-}
-
-bool cmCacheManager::CacheIterator::Find(const std::string& key)
-{
-  this->Position = this->Container.Cache.find(key);
-  return !this->IsAtEnd();
-}
-
-void cmCacheManager::CacheIterator::Next()
-{
-  if (!this->IsAtEnd()) {
-    ++this->Position;
-  }
-}
-
-std::vector<std::string> cmCacheManager::CacheIterator::GetPropertyList() const
-{
-  return this->GetEntry().GetPropertyList();
-}
-
-void cmCacheManager::CacheIterator::SetValue(const char* value)
-{
-  if (this->IsAtEnd()) {
-    return;
-  }
-  CacheEntry* entry = &this->GetEntry();
-  if (value) {
-    entry->Value = value;
-    entry->Initialized = true;
-  } else {
-    entry->Value = "";
-  }
-}
-
-bool cmCacheManager::CacheIterator::GetValueAsBool() const
-{
-  return cmSystemTools::IsOn(this->GetEntry().Value.c_str());
-}
-
-std::vector<std::string> cmCacheManager::CacheEntry::GetPropertyList() const
-{
-  return this->Properties.GetPropertyList();
-}
-
-const char* cmCacheManager::CacheEntry::GetProperty(
-  const std::string& prop) const
-{
-  if (prop == "TYPE") {
-    return cmState::CacheEntryTypeToString(this->Type);
-  }
-  if (prop == "VALUE") {
-    return this->Value.c_str();
-  }
-  return this->Properties.GetPropertyValue(prop);
-}
-
-void cmCacheManager::CacheEntry::SetProperty(const std::string& prop,
-                                             const char* value)
-{
-  if (prop == "TYPE") {
-    this->Type = cmState::StringToCacheEntryType(value ? value : "STRING");
-  } else if (prop == "VALUE") {
-    this->Value = value ? value : "";
-  } else {
-    this->Properties.SetProperty(prop, value);
-  }
-}
-
-void cmCacheManager::CacheEntry::AppendProperty(const std::string& prop,
-                                                const char* value,
-                                                bool asString)
-{
-  if (prop == "TYPE") {
-    this->Type = cmState::StringToCacheEntryType(value ? value : "STRING");
-  } else if (prop == "VALUE") {
+  CommandLineArguments_DEBUG("Set argument: " << cs->Argument << " to "
+                                              << value);
+  if (cs->Variable) {
+    std::string var = "1";
     if (value) {
-      if (!this->Value.empty() && *value && !asString) {
-        this->Value += ";";
-      }
-      this->Value += value;
+      var = value;
     }
-  } else {
-    this->Properties.AppendProperty(prop, value, asString);
+    switch (cs->VariableType) {
+      case CommandLineArguments::INT_TYPE:
+        this->PopulateVariable(static_cast<int*>(cs->Variable), var);
+        break;
+      case CommandLineArguments::DOUBLE_TYPE:
+        this->PopulateVariable(static_cast<double*>(cs->Variable), var);
+        break;
+      case CommandLineArguments::STRING_TYPE:
+        this->PopulateVariable(static_cast<char**>(cs->Variable), var);
+        break;
+      case CommandLineArguments::STL_STRING_TYPE:
+        this->PopulateVariable(static_cast<std::string*>(cs->Variable), var);
+        break;
+      case CommandLineArguments::BOOL_TYPE:
+        this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
+        break;
+      case CommandLineArguments::VECTOR_BOOL_TYPE:
+        this->PopulateVariable(static_cast<std::vector<bool>*>(cs->Variable),
+                               var);
+        break;
+      case CommandLineArguments::VECTOR_INT_TYPE:
+        this->PopulateVariable(static_cast<std::vector<int>*>(cs->Variable),
+                               var);
+        break;
+      case CommandLineArguments::VECTOR_DOUBLE_TYPE:
+        this->PopulateVariable(static_cast<std::vector<double>*>(cs->Variable),
+                               var);
+        break;
+      case CommandLineArguments::VECTOR_STRING_TYPE:
+        this->PopulateVariable(static_cast<std::vector<char*>*>(cs->Variable),
+                               var);
+        break;
+      case CommandLineArguments::VECTOR_STL_STRING_TYPE:
+        this->PopulateVariable(
+          static_cast<std::vector<std::string>*>(cs->Variable), var);
+        break;
+      default:
+        std::cerr << "Got unknown variable type: \"" << cs->VariableType
+                  << "\"" << std::endl;
+        this->Internals->LastArgument--;
+        return 0;
+    }
   }
+  return 1;
 }
 
-const char* cmCacheManager::CacheIterator::GetProperty(
-  const std::string& prop) const
-{
-  if (!this->IsAtEnd()) {
-    return this->GetEntry().GetProperty(prop);
-  }
-  return CM_NULLPTR;
-}
-
-void cmCacheManager::CacheIterator::SetProperty(const std::string& p,
-                                                const char* v)
-{
-  if (!this->IsAtEnd()) {
-    this->GetEntry().SetProperty(p, v);
-  }
-}
-
-void cmCacheManager::CacheIterator::AppendProperty(const std::string& p,
-                                                   const char* v,
-                                                   bool asString)
-{
-  if (!this->IsAtEnd()) {
-    this->GetEntry().AppendProperty(p, v, asString);
-  }
-}
-
-bool cmCacheManager::CacheIterator::GetPropertyAsBool(
-  const std::string& prop) const
-{
-  if (const char* value = this->GetProperty(prop)) {
-    return cmSystemTools::IsOn(value);
-  }
-  return false;
-}
-
-void cmCacheManager::CacheIterator::SetProperty(const std::string& p, bool v)
-{
-  this->SetProperty(p, v ? "ON" : "OFF");
-}
-
-bool cmCacheManager::CacheIterator::PropertyExists(
-  const std::string& prop) const
-{
-  return this->GetProperty(prop) != CM_NULLPTR;
-}
+} // namespace KWSYS_NAMESPACE

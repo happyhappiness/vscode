@@ -1,7 +1,10 @@
-#define MAXPOLL 20
-static int test7(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
+  enum protection_level data_sec = conn->data_prot;
+#endif
+
+  va_list ap;
+  va_start(ap, fmt);
+  write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
+  va_end(ap);
+
+  strcpy(&s[write_len], "\r\n"); /* append a trailing CRLF */
+  write_len +=2;

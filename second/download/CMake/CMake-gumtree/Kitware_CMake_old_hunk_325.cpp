@@ -1,6 +1,9 @@
-  return snprintf(p, len, " nghttp2/%s", h2->version_str);
-}
-
-/*
- * The implementation of nghttp2_send_callback type. Here we write |data| with
- * size |length| to the network and return the number of bytes actually
+    case kwsysTerminal_Color_ForegroundWhite:
+      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_WHITE);
+      break;
+    }
+  switch(color & kwsysTerminal_Color_BackgroundMask)
+    {
+    case kwsysTerminal_Color_BackgroundBlack:
+      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);
+      break;

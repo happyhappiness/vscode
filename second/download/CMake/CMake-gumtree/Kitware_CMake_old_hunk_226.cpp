@@ -1,51 +1,18 @@
-}
-
-/** Set the current line number.
- * @param line_number The line number to set.
- * @param yyscanner The scanner object.
+ *	id1+size1+data1 + id2+size2+data2 ...
+ *  triplets.  id and size are 2 bytes each.
  */
-void cmCommandArgument_yyset_lineno (int  line_number , yyscan_t yyscanner)
+static void
+process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
 {
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+	unsigned offset = 0;
 
-        /* lineno is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmCommandArgument_yyset_lineno called with no buffer" , yyscanner);
+	while (offset < extra_length - 4) {
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-    yylineno = line_number;
-}
-
-/** Set the current column.
- * @param column_no The column number to set.
- * @param yyscanner The scanner object.
- */
-void cmCommandArgument_yyset_column (int  column_no , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmCommandArgument_yyset_column called with no buffer" , yyscanner);
-
-    yycolumn = column_no;
-}
-
-/** Set the input stream. This does not discard the current
- * input buffer.
- * @param in_str A readable stream.
- * @param yyscanner The scanner object.
- * @see cmCommandArgument_yy_switch_to_buffer
- */
-void cmCommandArgument_yyset_in (FILE *  in_str , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-    yyin = in_str ;
-}
-
-void cmCommandArgument_yyset_out (FILE *  out_str , yyscan_t yyscanner)
-{
-    struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-    yyout = out_str ;
-}
-
-int cmCommandArgument_yyget_debug  (yyscan_t yyscanner)
+		offset += 4;
+		if (offset + datasize > extra_length) {
+			break;
+		}
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%04x, length %d\n",

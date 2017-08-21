@@ -1,9 +1,13 @@
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBIDN
-  if(stringprep_check_version(LIBIDN_REQUIRED_VERSION)) {
-    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
-    left -= len;
-    ptr += len;
-  }
+	if (a->format_free != NULL)
+		(a->format_free)(a);
+
+	pax = (struct pax *)malloc(sizeof(*pax));
+	if (pax == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate pax data");
+		return (ARCHIVE_FATAL);
+	}
+	memset(pax, 0, sizeof(*pax));
+	a->format_data = pax;
+	a->format_name = "pax";
+	a->format_options = archive_write_pax_options;

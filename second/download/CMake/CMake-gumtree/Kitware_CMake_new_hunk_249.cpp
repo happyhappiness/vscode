@@ -1,7 +1,9 @@
-  vsnprintf(print_buffer, sizeof(print_buffer), message, args);
-  va_end(args);
+    return CURLE_BAD_CONTENT_ENCODING;
 
-  if(Curl_ftpsend(conn, print_buffer)) {
-    ftp_code = -1;
-  }
-  else {
+  /* Generate 16 bytes of random data */
+  result = Curl_rand(data, &entropy[0], 4);
+  if(result)
+    return result;
+
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",

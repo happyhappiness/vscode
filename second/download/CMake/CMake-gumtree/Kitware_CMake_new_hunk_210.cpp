@@ -1,7 +1,15 @@
-
-        lerr = SSL_get_verify_result(connssl->handle);
-        if(lerr != X509_V_OK) {
-          *certverifyresult = lerr;
-          snprintf(error_buffer, sizeof(error_buffer),
-                   "SSL certificate problem: %s",
-                   X509_verify_cert_error_string(lerr));
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Invalid Rockridge CL");
+					goto fail;
+				}
+			}
+			if (file->cl_offset == file->offset ||
+			    parent->rr_moved) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL");
+				goto fail;
+			}
+		}
+	}

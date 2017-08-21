@@ -1,7 +1,11 @@
+	if (a->format_free != NULL)
+		(a->format_free)(a);
 
-  md5this = (unsigned char *) aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && strcasecompare(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
+	cpio = (struct cpio *)calloc(1, sizeof(*cpio));
+	if (cpio == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+		return (ARCHIVE_FATAL);
+	}
+	a->format_data = cpio;
+	a->format_name = "cpio";
+	a->format_options = archive_write_newc_options;

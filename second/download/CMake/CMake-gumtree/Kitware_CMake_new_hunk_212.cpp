@@ -1,25 +1,12 @@
-        *fptr = 0;
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_mtree");
 
-        if(width >= 0) {
-          if(width >= (long)sizeof(work))
-            width = sizeof(work)-1;
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, "%ld", width);
-          fptr += len;
-          left -= len;
-        }
-        if(prec >= 0) {
-          /* for each digit in the integer part, we can have one less
-             precision */
-          size_t maxprec = sizeof(work) - 2;
-          double val = p->data.dnum;
-          while(val >= 10.0) {
-            val /= 10;
-            maxprec--;
-          }
+	mtree = (struct mtree *)calloc(1, sizeof(*mtree));
+	if (mtree == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate mtree data");
+		return (ARCHIVE_FATAL);
+	}
+	mtree->fd = -1;
 
-          if(prec > (long)maxprec)
-            prec = (long)maxprec-1;
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, ".%ld", prec);
-          fptr += len;
+	r = __archive_read_register_format(a, mtree, "mtree",

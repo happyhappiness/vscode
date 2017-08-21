@@ -1,34 +1,7 @@
-#endif
-  char* buf;
-  size_t n = name.size();
-  if (*name.rbegin() == '/' || *name.rbegin() == '\\') {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-  } else {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if (name.find('\\') != name.npos) {
-      sprintf(buf, "%s\\*", name.c_str());
-    } else {
-      sprintf(buf, "%s/*", name.c_str());
-    }
-  }
-  struct _wfinddata_t data; // data of current file
+  struct TELNET *tn = (struct TELNET *)data->req.protop;
 
-  // Now put them into the file array
-  srchHandle =
-    _wfindfirst_func((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete[] buf;
-
-  if (srchHandle == -1) {
-    return 0;
-  }
-
-  // Loop through names
-  do {
-    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
-  } while (_wfindnext_func(srchHandle, &data) != -1);
-  this->Internal->Path = name;
-  return _findclose(srchHandle) != -1;
-}
+  printsub(data, '<', (unsigned char *)tn->subbuffer, CURL_SB_LEN(tn)+2);
+  switch(CURL_SB_GET(tn)) {
+    case CURL_TELOPT_TTYPE:
+      len = strlen(tn->subopt_ttype) + 4 + 2;
+      snprintf((char *)temp, sizeof(temp),

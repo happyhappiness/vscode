@@ -1,7 +1,6 @@
-  printf("md5sum 2: expected [%s]\n"
-         "               got [%s]\n",
-         testMD5output2, md5out);
-  return (strcmp(md5out, testMD5output2) != 0)? 1:0;
-}
 
-int testEncode(int argc, char* argv[])
+        lerr = SSL_get_verify_result(connssl->handle);
+        if(lerr != X509_V_OK) {
+          snprintf(error_buffer, sizeof(error_buffer),
+                   "SSL certificate problem: %s",
+                   X509_verify_cert_error_string(lerr));

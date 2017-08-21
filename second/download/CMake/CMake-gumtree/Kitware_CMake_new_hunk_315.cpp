@@ -1,35 +1,8 @@
-               table64[obuf[0]],
-               table64[obuf[1]]);
-      break;
-
-    case 2: /* two bytes read */
-      snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]]);
-      break;
-
-    default:
-      snprintf(output, 5, "%c%c%c%c",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]],
-               table64[obuf[3]]);
-      break;
-    }
-    output += 4;
-  }
-
-  /* Zero terminate */
-  *output = '\0';
-
-  /* Return the pointer to the new data (allocated memory) */
-  *outptr = base64data;
-
-  free(convbuf);
-
-  /* Return the length of the new data */
-  *outlen = strlen(base64data);
-
-  return CURLE_OK;
-}
+static int test10_grandchild(int argc, const char* argv[])
+{
+  /* The grandchild just sleeps for a few seconds and handles signals.  */
+  (void)argc;
+  (void)argv;
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+  fflush(stdout);

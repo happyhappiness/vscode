@@ -1,10 +1,7 @@
-  enum protection_level data_sec = conn->data_prot;
-#endif
-
-  va_list ap;
-  va_start(ap, fmt);
-  write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
-  va_end(ap);
-
-  strcpy(&s[write_len], "\r\n"); /* append a trailing CRLF */
-  write_len +=2;
+		}
+	} else if (errno != ENOENT && errno != ENOTDIR) {
+		/* Stat failed? */
+		archive_set_error(&a->archive, errno, "Can't test directory '%s'", path);
+		return (ARCHIVE_FAILED);
+	} else if (slash != NULL) {
+		*slash = '\0';

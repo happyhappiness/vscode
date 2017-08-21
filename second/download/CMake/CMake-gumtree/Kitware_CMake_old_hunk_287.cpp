@@ -1,23 +1,28 @@
-     If you have problems with this test timing out on your system, or want to
-     run more than 257 iterations, you can change the number of iterations by
-     setting the KWSYS_TEST_PROCESS_1_COUNT environment variable.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
+  return CURLE_OK;
 }
 
-static int test2(int argc, const char* argv[])
+#ifdef USE_LIBIDN
+/*
+ * Initialise use of IDNA library.
+ * It falls back to ASCII if $CHARSET isn't defined. This doesn't work for
+ * idna_to_ascii_lz().
+ */
+static void idna_init (void)
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
-}
+#ifdef WIN32
+  char buf[60];
+  UINT cp = GetACP();
 
-static int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
+  if(!getenv("CHARSET") && cp > 0) {
+    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
+    putenv(buf);
+  }
+#else
+  /* to do? */
+#endif
+}
+#endif  /* USE_LIBIDN */
+
+/* true globals -- for curl_global_init() and curl_global_cleanup() */
+static unsigned int  initialized;
+static long          init_flags;

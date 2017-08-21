@@ -1,35 +1,64 @@
-               table64[obuf[0]],
-               table64[obuf[1]]);
-      break;
+ * @param yyscanner The scanner object.
+ * @return the newly allocated buffer state object.
+ */
+YY_BUFFER_STATE cmFortran_yy_scan_bytes  (yyconst char * yybytes, int  _yybytes_len , yyscan_t yyscanner)
+{
+	YY_BUFFER_STATE b;
+	char *buf;
+	yy_size_t n;
+	yy_size_t i;
 
-    case 2: /* two bytes read */
-      snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]]);
-      break;
+	/* Get memory for full buffer, including space for trailing EOB's. */
+	n = (yy_size_t) _yybytes_len + 2;
+	buf = (char *) cmFortran_yyalloc(n ,yyscanner );
+	if ( ! buf )
+		YY_FATAL_ERROR( "out of dynamic memory in cmFortran_yy_scan_bytes()" );
 
-    default:
-      snprintf(output, 5, "%c%c%c%c",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]],
-               table64[obuf[3]]);
-      break;
-    }
-    output += 4;
-  }
+	for ( i = 0; i < (size_t)_yybytes_len; ++i )
+		buf[i] = yybytes[i];
 
-  /* Zero terminate */
-  *output = '\0';
+	buf[_yybytes_len] = buf[_yybytes_len+1] = YY_END_OF_BUFFER_CHAR;
 
-  /* Return the pointer to the new data (allocated memory) */
-  *outptr = base64data;
+	b = cmFortran_yy_scan_buffer(buf,n ,yyscanner);
+	if ( ! b )
+		YY_FATAL_ERROR( "bad buffer in cmFortran_yy_scan_bytes()" );
 
-  free(convbuf);
+	/* It's okay to grow etc. this buffer, and we should throw it
+	 * away when we're done.
+	 */
+	b->yy_is_our_buffer = 1;
 
-  /* Return the length of the new data */
-  *outlen = strlen(base64data);
-
-  return CURLE_OK;
+	return b;
 }
+
+#ifndef YY_EXIT_FAILURE
+#define YY_EXIT_FAILURE 2
+#endif
+
+static void yynoreturn yy_fatal_error (yyconst char* msg , yyscan_t yyscanner)
+{
+	struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+	(void)yyg;
+	(void) fprintf( stderr, "%s\n", msg );
+	exit( YY_EXIT_FAILURE );
+}
+
+/* Redefine yyless() so it works in section 3 code. */
+
+#undef yyless
+#define yyless(n) \
+	do \
+		{ \
+		/* Undo effects of setting up yytext. */ \
+        int yyless_macro_arg = (n); \
+        YY_LESS_LINENO(yyless_macro_arg);\
+		yytext[yyleng] = yyg->yy_hold_char; \
+		yyg->yy_c_buf_p = yytext + yyless_macro_arg; \
+		yyg->yy_hold_char = *yyg->yy_c_buf_p; \
+		*yyg->yy_c_buf_p = '\0'; \
+		yyleng = yyless_macro_arg; \
+		} \
+	while ( 0 )
+
+/* Accessor  methods (get/set functions) to struct members. */
+

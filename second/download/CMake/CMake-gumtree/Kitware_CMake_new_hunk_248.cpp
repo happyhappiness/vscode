@@ -1,9 +1,7 @@
-  enum protection_level data_sec = conn->data_prot;
-#endif
+  struct TELNET *tn = (struct TELNET *)data->req.protop;
 
-  write_len = strlen(cmd);
-  if(write_len > (sizeof(s) -3))
-    return CURLE_BAD_FUNCTION_ARGUMENT;
-
-  strcpy(&s[write_len], "\r\n"); /* append a trailing CRLF */
-  write_len +=2;
+  printsub(data, '<', (unsigned char *)tn->subbuffer, CURL_SB_LEN(tn)+2);
+  switch(CURL_SB_GET(tn)) {
+    case CURL_TELOPT_TTYPE:
+      len = strlen(tn->subopt_ttype) + 4 + 2;
+      snprintf((char *)temp, sizeof(temp),

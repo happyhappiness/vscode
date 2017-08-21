@@ -1,16 +1,8 @@
-/* returns an allocated key to find a bundle for this connection */
-static char *hashkey(struct connectdata *conn)
+
+static int test8_grandchild(int argc, const char* argv[])
 {
-  const char *hostname;
-
-  if(conn->bits.proxy)
-    hostname = conn->proxy.name;
-  else if(conn->bits.conn_to_host)
-    hostname = conn->conn_to_host.name;
-  else
-    hostname = conn->host.name;
-
-  return aprintf("%s:%d", hostname, conn->port);
-}
-
-/* Look up the bundle with all the connections to the same host this
+  (void)argc;
+  (void)argv;
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+  fflush(stdout);

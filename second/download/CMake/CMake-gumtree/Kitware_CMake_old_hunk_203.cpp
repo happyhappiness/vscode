@@ -1,13 +1,11 @@
-		return (ARCHIVE_FATAL);
-	}
-
-	v7tar = (struct v7tar *)malloc(sizeof(*v7tar));
-	if (v7tar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate v7tar data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(v7tar, 0, sizeof(*v7tar));
-	a->format_data = v7tar;
-	a->format_name = "tar (non-POSIX)";
-	a->format_options = archive_write_v7tar_options;
+			    "Rejecting malformed cpio archive: symlink contents exceed 1 megabyte");
+			return (ARCHIVE_FATAL);
+		}
+		h = __archive_read_ahead(a,
+			(size_t)cpio->entry_bytes_remaining, NULL);
+		if (h == NULL)
+			return (ARCHIVE_FATAL);
+		if (archive_entry_copy_symlink_l(entry, (const char *)h,
+		    (size_t)cpio->entry_bytes_remaining, sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,

@@ -1,7 +1,9 @@
-static int test10_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds and handles signals.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
+  left -= len;
+  ptr += len;
+#endif
+#ifdef USE_LIBIDN
+  if(stringprep_check_version(LIBIDN_REQUIRED_VERSION)) {
+    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
+    left -= len;
+    ptr += len;
+  }

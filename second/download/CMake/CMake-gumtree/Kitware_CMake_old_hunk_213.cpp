@@ -1,22 +1,11 @@
+    struct mtree_option **global, const char *line, ssize_t line_len,
+    struct mtree_entry **last_entry, int is_form_d)
+{
+	struct mtree_entry *entry;
+	struct mtree_option *iter;
+	const char *next, *eq, *name, *end;
+	size_t name_len, len;
+	int r, i;
 
-  /* prepare service name */
-  if(strchr(serviceptr, '/')) {
-    service.value = malloc(strlen(serviceptr));
-    if(!service.value)
-      return CURLE_OUT_OF_MEMORY;
-    service.length = strlen(serviceptr);
-    memcpy(service.value, serviceptr, service.length);
-
-    gss_major_status = gss_import_name(&gss_minor_status, &service,
-                                       (gss_OID) GSS_C_NULL_OID, &server);
-  }
-  else {
-    service.value = malloc(strlen(serviceptr) +strlen(conn->proxy.name)+2);
-    if(!service.value)
-      return CURLE_OUT_OF_MEMORY;
-    service.length = strlen(serviceptr) +strlen(conn->proxy.name)+1;
-    snprintf(service.value, service.length+1, "%s@%s",
-             serviceptr, conn->proxy.name);
-
-    gss_major_status = gss_import_name(&gss_minor_status, &service,
-                                       GSS_C_NT_HOSTBASED_SERVICE, &server);
+	if ((entry = malloc(sizeof(*entry))) == NULL) {
+		archive_set_error(&a->archive, errno, "Can't allocate memory");

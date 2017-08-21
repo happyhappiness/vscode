@@ -1,10 +1,7 @@
-  enum protection_level data_sec = conn->data_prot;
-#endif
+  struct TELNET *tn = (struct TELNET *)data->req.protop;
 
-  va_list ap;
-  va_start(ap, fmt);
-  write_len = vsnprintf(s, SBUF_SIZE-3, fmt, ap);
-  va_end(ap);
-
-  strcpy(&s[write_len], "\r\n"); /* append a trailing CRLF */
-  write_len +=2;
+  printsub(data, '<', (unsigned char *)tn->subbuffer, CURL_SB_LEN(tn)+2);
+  switch (CURL_SB_GET(tn)) {
+    case CURL_TELOPT_TTYPE:
+      len = strlen(tn->subopt_ttype) + 4 + 2;
+      snprintf((char *)temp, sizeof(temp),

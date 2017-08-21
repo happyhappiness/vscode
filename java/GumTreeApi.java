@@ -119,31 +119,29 @@ public class GumTreeApi {
 //		System.out.println(g.getFunctionLoc());
 	
 		
-//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
-//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_new_log_260.cpp";
-//		String reposFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1838.cpp";
-//		GumTreeApi g = new GumTreeApi();
-//		g.setFile(oldFile);
-//		System.out.println(g.getBlockType());
-//		g.setOldAndNewFile(oldFile, newFile);
-//		g.getEditedNodes();
-//		System.out.println(g.isMatchWithEdit(reposFile));
-		
-		
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp";
 		GumTreeApi g = new GumTreeApi();
-		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
 		g.setOldAndNewFile(oldFile, newFile);
-//		old loc 9,10
-		g.addOldLogNode(9);
-		g.addOldLogNode(10);
-//		new loc 9, 10, 11
-		g.addNewLogNode(9);
-		g.addNewLogNode(10);
-		g.addNewLogNode(11);
-		System.out.println(g.getActionType());
-		g.setNewLoc(10);
+		g.setNewLoc(5);
 		System.out.println(g.getOldLoc());
+		System.out.println(g.getActionType());
+		
+		
+//		GumTreeApi g = new GumTreeApi();
+//		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
+//		g.setOldAndNewFile(oldFile, newFile);
+////		old loc 9,10
+//		g.addOldLogNode(9);
+//		g.addOldLogNode(10);
+////		new loc 9, 10, 11
+//		g.addNewLogNode(9);
+//		g.addNewLogNode(10);
+//		g.addNewLogNode(11);
+//		System.out.println(g.getActionType());
+//		g.setNewLoc(10);
+//		System.out.println(g.getOldLoc());
 		
 	}
 
@@ -183,14 +181,21 @@ public class GumTreeApi {
 		while(actionIter.hasNext())
 		{
 			currAction = actionIter.next();
-			if(currAction.getName().equals("INS") && this.isChildrenOf(currAction.getNode(), this.newLogNode))
+			if(currAction.getName().equals("INS") && this.isChildrenOf(this.newLogNode, currAction.getNode()))
 			{
 //				pos: 0 -> size ==> 0 -> size - 1
-				int pos = ((Insert)currAction).getPosition();
 				ITree parentNode = ((Insert)currAction).getParent();
-				pos = pos >= parentNode.getChildren().size() ? pos - 1 : pos;
-				ITree oldNode = parentNode.getChild(pos);
-				return this.getLineNumber(oldNode, this.oldFile, true) - 1;
+				if(this.isChildrenOf(parentNode, this.oldTree))
+				{
+					int pos = ((Insert)currAction).getPosition();
+//					System.out.println(getValue(parentNode, this.oldFile));
+//					System.out.println(pos);
+					int maxPos = parentNode.getChildren().size() - 1;
+					pos = pos > maxPos ? maxPos : pos;
+					ITree oldNode = parentNode.getChild(pos);
+
+					return this.getLineNumber(oldNode, this.oldFile, true) - 1;
+				}
 			}
 			
 		}

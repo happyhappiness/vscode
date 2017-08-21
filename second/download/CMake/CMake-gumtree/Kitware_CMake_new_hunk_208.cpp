@@ -1,8 +1,7 @@
-    else {
-      CURLcode result;
-      ssl_sessionid =
-        aprintf("%s:%d:%d:%s:%hu", ssl_cafile,
-                verifypeer, SSL_CONN_CONFIG(verifyhost), hostname, port);
-      ssl_sessionid_len = strlen(ssl_sessionid);
-
-      err = SSLSetPeerID(connssl->ssl_ctx, ssl_sessionid, ssl_sessionid_len);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL");
+				goto fail;
+			}
+			/*
+			 * Sanity check: The file type must be a regular file.

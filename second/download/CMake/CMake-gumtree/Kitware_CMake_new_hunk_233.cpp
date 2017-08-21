@@ -1,7 +1,8 @@
-		yy_cp += (int) (dest - source);
-		yy_bp += (int) (dest - source);
-		YY_CURRENT_BUFFER_LVALUE->yy_n_chars =
-			yyg->yy_n_chars = (int) YY_CURRENT_BUFFER_LVALUE->yy_buf_size;
-
-		if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
-			YY_FATAL_ERROR( "flex scanner push-back overflow" );
+		return (r);
+	if ((size_t)r < size) {
+		archive_set_error(&a->archive, 0,
+		    "Too much data: Truncating file at %ju bytes",
+		    (uintmax_t)a->filesize);
+		return (ARCHIVE_WARN);
+	}
+#if ARCHIVE_VERSION_NUMBER < 3999000

@@ -1,7 +1,8 @@
-  vsnprintf(print_buffer, sizeof(print_buffer), message, args);
-  va_end(args);
-
-  if(Curl_ftpsend(conn, print_buffer)) {
-    ftp_code = -1;
-  }
-  else {
+				if (errno == ENOTSUP || errno == ENOSYS) {
+					if (!warning_done) {
+						warning_done = 1;
+						archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");
