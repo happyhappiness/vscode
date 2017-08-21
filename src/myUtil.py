@@ -223,7 +223,7 @@ def save_file(content, file_name):
 """
 def rebuild_joern_index(index_dir, code_dir):
     output = commands.getoutput('rm -r ' + index_dir)
-    output = commands.getoutput('java -Xmx4g -jar $JOERN/bin/joern.jar ' + code_dir + ' -outdir ' + index_dir)
+    output = commands.getoutput('java -Xmx4g -Xms4g -jar $JOERN/bin/joern.jar ' + code_dir + ' -outdir ' + index_dir)
     output = commands.getoutput('neo4j restart')
     print output
 

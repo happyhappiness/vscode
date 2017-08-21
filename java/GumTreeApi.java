@@ -34,17 +34,13 @@ public class GumTreeApi {
 	private MappingStore mappings;
 	private List<Action> actions;
 	// application specific info for compare two file
-	private int oldLoc;
+	private int oldLoc, newLoc;
 	private ITree oldLogNode, newLogNode;
-	private List<ITree> oldLogs;
+	private List<ITree> oldLogs, newLogs;
 //	have not modify this log
-	final int LOG_FEATURE_MODIFY = 4; // feature
-	final int LOG_OTHER_LOG_FEATURE_MODIFY = 6; // other log and feature
-	final int LOG_OTHER_LOG_MODIFY = 2; // other log
-	final int LOG_NO_MODIFY = 0;
-//	have modify this log
-	final int LOG_LOG_MODIFY = 3; // log and logs
-	final int LOG_LOG_FEATURE_MODIFY = 7; // log, logs and feature
+	final int IS_LOG = 4;
+	final int IS_LOGS = 1;
+	final int IS_FEATURE = 2;
 //	final String COMMENT_TYPE = "comment";
 //	final String BLOCK_TYPE = "block";
 	final String IF_TYPE = "if";
@@ -72,6 +68,7 @@ public class GumTreeApi {
 			this.getActions();
 			// initialize application specific info
 			oldLogs = new ArrayList<ITree>();
+			newLogs = new ArrayList<ITree>();
 			editedNodes = new ArrayList<ITree>(); 
 		} catch (Exception e) {
 			// e.printStackTrace();
@@ -105,21 +102,21 @@ public class GumTreeApi {
 //		 System.out.println(g.getActionType());
 		
 		
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
-		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp";
-//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp";
-		GumTreeApi g = new GumTreeApi();
-		g.setFile(filename);
-		g.setLoc(188);
-		System.out.println(g.getLog());
-		g.printSpliter();
-		System.out.println(g.getBlock());
-		g.printSpliter();
-		System.out.println(g.getControl());
-		g.printSpliter();
-		System.out.println(g.getFunction());
-		g.printSpliter();
-		System.out.println(g.getFunctionLoc());
+////		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+//		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Utilities/cmzlib/gzio.cpp";
+////		String filename = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp";
+//		GumTreeApi g = new GumTreeApi();
+//		g.setFile(filename);
+//		g.setLoc(188);
+//		System.out.println(g.getLog());
+//		g.printSpliter();
+//		System.out.println(g.getBlock());
+//		g.printSpliter();
+//		System.out.println(g.getControl());
+//		g.printSpliter();
+//		System.out.println(g.getFunction());
+//		g.printSpliter();
+//		System.out.println(g.getFunctionLoc());
 	
 		
 //		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake-old-new/Kitware_CMake_old_new_old_log_260.cpp";
@@ -133,10 +130,21 @@ public class GumTreeApi {
 //		System.out.println(g.isMatchWithEdit(reposFile));
 		
 		
-//		GumTreeApi g = new GumTreeApi();
-//		g.setOldAndNewFile();
-//		g.addLogNode(5);
-//		g.setOldLoc(5);
+		GumTreeApi g = new GumTreeApi();
+		String oldFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if.cpp";
+		String newFile = "/usr/info/code/cpp/LogMonitor/LogMonitor/second/gumtree/c/if2.cpp";
+		g.setOldAndNewFile(oldFile, newFile);
+//		old loc 9,10
+		g.addOldLogNode(9);
+		g.addOldLogNode(10);
+//		new loc 9, 10, 11
+		g.addNewLogNode(9);
+		g.addNewLogNode(10);
+		g.addNewLogNode(11);
+		System.out.println(g.getActionType());
+		g.setNewLoc(10);
+		System.out.println(g.getOldLoc());
+		
 	}
 
 	public boolean setOldLoc(int oldLoc) {
@@ -152,22 +160,46 @@ public class GumTreeApi {
 		this.newLogNode = mappings.getDst(this.oldLogNode);
 		return true;
 	}
+	
+	public boolean setNewLoc(int newLoc) {
+		this.newLoc = newLoc;
+		this.newLogNode = getTopNodeOfLine(this.newLoc, this.newTree, this.newTreeContext, this.newFile);
+		// commented line
+		if (newLogNode == null) {
+			System.out.printf("line: %d in file: %s no node found\n", this.newLoc, this.newFile);
+			return false;
+		}
+		
+		return true;
+//		printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
+//		this.oldLogNode = mappings.getDst(this.newLogNode);
+//		return true;
+	}
 
+//	get inserted old loc for the inserted log node
 	public int getOldLoc() {
-		return this.oldLoc;
+		Iterator<Action> actionIter = this.actions.iterator();
+		Action currAction;
+		while(actionIter.hasNext())
+		{
+			currAction = actionIter.next();
+			if(currAction.getName().equals("INS") && this.isChildrenOf(currAction.getNode(), this.newLogNode))
+			{
+//				pos: 0 -> size ==> 0 -> size - 1
+				int pos = ((Insert)currAction).getPosition();
+				ITree parentNode = ((Insert)currAction).getParent();
+				pos = pos >= parentNode.getChildren().size() ? pos - 1 : pos;
+				ITree oldNode = parentNode.getChild(pos);
+				return this.getLineNumber(oldNode, this.oldFile, true) - 1;
+			}
+			
+		}
+		
+		return -1;
 	}
+	
 
-	public String getOldLog() {
-		return getValue(this.oldLogNode, this.oldFile);
-	}
-
-	public String getNewLog() {
-		if (this.newLogNode == null)
-			return null;
-		else
-			return getValue(this.newLogNode, this.newFile);
-	}
-
+	// get mapping new log loc for old loc
 	public int getNewLoc() {
 		if (this.newLogNode == null)
 			return -1;
@@ -175,74 +207,86 @@ public class GumTreeApi {
 			return getLineNumber(this.newLogNode, this.newFile, true) - 1;
 	}
 
-	public void addLogNode(int line) {
+
+	public String getOldLog() {
+		return getValue(this.oldLogNode, this.oldFile);
+	}
+
+	public String getNewLog() {
+		if (this.newLogNode == null)
+			return "";
+		else
+			return getValue(this.newLogNode, this.newFile);
+	}
+	
+	public void addOldLogNode(int line) {
 		ITree logNode = this.getTopNodeOfLine(line, this.oldTree, this.oldTreeContext, this.oldFile);
 		if (logNode != null)
 			this.oldLogs.add(logNode);
 	}
-
-	// one line to action type NO, OVER, ..
-	public int getActionType() {
-		int isLog = 0;
-		int isLogs = 0;
-		int isFeature = 0;
-		
-		Iterator<Action> actionIter = actions.iterator();
-		Action action;
-		ITree tempNode;
-		boolean isIdentified;
-//		printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
-		while (actionIter.hasNext()) {
-			action = actionIter.next();
-			// do not deal with comment modification
-			if(this.isActionOfComment(action))
-			{
-				continue;
-			}
-// 			judge if leaf edition is edition of logs
-			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
-			isIdentified = false;
-//			System.out.println(action.toString());
-			if(isFeature == 0 || isLog == 0 || isLogs == 0)
-			{
+	
+	public void addNewLogNode(int line) {
+		ITree logNode = this.getTopNodeOfLine(line, this.newTree, this.newTreeContext, this.newFile);
+		if (logNode != null)
+			this.newLogs.add(logNode);
+	}
+	
+	
+	// judge edition type based on oldLogs and newLogs
+		public int getActionType() {
+			int isLogs = 0;
+			int isFeature = 0;
+			
+			Iterator<Action> actionIter = actions.iterator();
+			Action action;
+			ITree tempNode;
+			boolean isIdentified;
+//			printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
+			while (actionIter.hasNext() && (isFeature == 0 || isLogs == 0)) {
+				action = actionIter.next();
+				// do not deal with comment modification
+				if(this.isActionOfComment(action))
+				{
+					continue;
+				}
+//	 			judge if leaf edition is edition of logs
+				tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
+				isIdentified = false;
 //				edition of old tree
 				if(!isChildrenOf(tempNode, this.oldTree))
 				{
+					if(this.isInsertionOfLog(action))
+					{
+						isLogs = this.IS_LOGS;
+					}
+					else
+					{
+						isFeature = this.IS_FEATURE;
+					}
 					continue;
 				}
-//				decide whether is log
-				if(isChildrenOf(tempNode, this.oldLogNode))
-				{
-//					System.out.println(action.getName());
-//					printNode(tempNode, this.oldTreeContext, this.oldFile);
-					isLog = 1;
-					isIdentified = true;
-					isLogs = 2;
-					continue;
-				}
-//				decide whether is logs if not this log
+//				decide whether is edition on old logs
 				Iterator<ITree> logIter = this.oldLogs.iterator();
 				while (logIter.hasNext()) {
 					if (isChildrenOf(tempNode, logIter.next())) {
-						isLogs = 2;
+						isLogs = this.IS_LOGS;
 						isIdentified = true;
 						break;
 					}
 				}
-//				decide whether features if not logs
-				if(!isIdentified && isFeature == 0)
+//				decide whether insertion of new logs
+				if(!isIdentified && isFeature == 0 && this.isInsertionOfLog(action))
 				{
-					isFeature = 4;
+					isLogs = this.IS_LOGS;
+					isIdentified = true;
+					continue;
 				}
+//				then feature if neither edition on old logs nor insertion of new logs  
+				isFeature = this.IS_FEATURE;
 			}
-			else
-			{
-				break;
-			}
+			
+			return (isLogs + isFeature);
 		}
-		
-		return (isLog + isLogs + isFeature);
-	}
 
 	public void setFile(String filename) {
 		Run.initGenerators();
@@ -607,6 +651,26 @@ public class GumTreeApi {
 		}
 		return isComment;
 	}
+	
+	// judge whether an action is about comment
+	private boolean isInsertionOfLog(Action action)
+	{
+		if(action.getName().equals("INS"))
+		{
+			ITree newNode = action.getNode();
+			Iterator<ITree> newLogsIter = this.newLogs.iterator();
+			while(newLogsIter.hasNext())
+			{
+				if(this.isChildrenOf(newNode, newLogsIter.next()))
+				{
+					return true;
+				}
+			}
+			
+		}
+		return false;
+	}
+	
 	// one line to src node
 	private ITree getTopNodeOfLine(int line, ITree rootNode, TreeContext treeContext, String filename) {
 		// ITree topNode = isOld ? oldTree : newTree;
@@ -634,9 +698,9 @@ public class GumTreeApi {
 	}
 
 	// is parentNode is one of the parents of node[include node itself]
-	private boolean isChildrenOf(ITree node, ITree parentNode) {
-		boolean isChildren = parentNode.equals(node);
-		Iterator<ITree> parents = node.getParents().iterator();
+	private boolean isChildrenOf(ITree child, ITree parentNode) {
+		boolean isChildren = parentNode.equals(child);
+		Iterator<ITree> parents = child.getParents().iterator();
 		ITree tempNode;
 		while (!isChildren && parents.hasNext()) {
 			tempNode = parents.next();
@@ -913,5 +977,70 @@ public class GumTreeApi {
 //	{
 //		printNode(action.getNode(), this.oldTreeContext, this.oldFile);
 //	}
-
+	/*
+	// one line to action type NO, OVER, ..
+	public int getActionType() {
+		int isLog = 0;
+		int isLogs = 0;
+		int isFeature = 0;
+		
+		Iterator<Action> actionIter = actions.iterator();
+		Action action;
+		ITree tempNode;
+		boolean isIdentified;
+//		printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
+		while (actionIter.hasNext()) {
+			action = actionIter.next();
+			// do not deal with comment modification
+			if(this.isActionOfComment(action))
+			{
+				continue;
+			}
+// 			judge if leaf edition is edition of logs
+			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
+			isIdentified = false;
+//			System.out.println(action.toString());
+			if(isFeature == 0 || isLog == 0 || isLogs == 0)
+			{
+//				edition of old tree
+				if(!isChildrenOf(tempNode, this.oldTree))
+				{
+//					System.out.println(action.toString());
+					continue;
+				}
+//				decide whether is log
+				if(isChildrenOf(tempNode, this.oldLogNode))
+				{
+//					System.out.println(action.getName());
+//					printNode(tempNode, this.oldTreeContext, this.oldFile);
+					isLog = 1;
+					isIdentified = true;
+					isLogs = 2;
+					continue;
+				}
+//				decide whether is logs if not this log
+				Iterator<ITree> logIter = this.oldLogs.iterator();
+				while (logIter.hasNext()) {
+					if (isChildrenOf(tempNode, logIter.next())) {
+						isLogs = 2;
+						isIdentified = true;
+						break;
+					}
+				}
+//				decide whether features if not logs
+				if(!isIdentified && isFeature == 0)
+				{
+					isFeature = 4;
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+		
+		return (isLog + isLogs + isFeature);
+	}
+*/	
+	
 }
