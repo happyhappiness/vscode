@@ -263,7 +263,7 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
         if total_file % 10 == 0:
 #             print 'now have dealed with commit: %s \nnow have deal with %d file ;\
 # find cpp %d file ;have saved %d log cpp file, %d hunk' \
-            print '%s, %d, %d, %d, %d' %(commit.sha, \
+            print '\'%s\', %d, %d, %d, %d' %(commit.sha, \
                 total_file, total_cpp, total_log_cpp, total_hunk)
     print "end of commit"
     # close the commit file
