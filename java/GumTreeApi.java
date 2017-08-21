@@ -38,9 +38,9 @@ public class GumTreeApi {
 	private ITree oldLogNode, newLogNode;
 	private List<ITree> oldLogs, newLogs;
 //	have not modify this log
-	final int IS_LOG = 4;
-	final int IS_LOGS = 1;
-	final int IS_FEATURE = 2;
+	final int IS_LOG = 1;
+	final int IS_LOGS = 2;
+	final int IS_FEATURE = 4;
 //	final String COMMENT_TYPE = "comment";
 //	final String BLOCK_TYPE = "block";
 	final String IF_TYPE = "if";
@@ -214,7 +214,7 @@ public class GumTreeApi {
 
 	public String getNewLog() {
 		if (this.newLogNode == null)
-			return "";
+			return null;
 		else
 			return getValue(this.newLogNode, this.newFile);
 	}
@@ -231,62 +231,66 @@ public class GumTreeApi {
 			this.newLogs.add(logNode);
 	}
 	
+	public int isOldLogEdited()
+	{
+		Iterator<Action> actionIter = this.actions.iterator();
+		Action currAction;
+		ITree oldNode;
+		while(actionIter.hasNext())
+		{
+			currAction = actionIter.next();
+			oldNode = currAction.getName().equals("INS") ? ((Insert)currAction).getParent() : currAction.getNode();
+			if(this.isChildrenOf(oldNode, this.oldLogNode))
+			{
+				return this.IS_LOG;
+			}
+		}
+		
+		return 0;
+	}
 	
 	// judge edition type based on oldLogs and newLogs
-		public int getActionType() {
-			int isLogs = 0;
-			int isFeature = 0;
-			
-			Iterator<Action> actionIter = actions.iterator();
-			Action action;
-			ITree tempNode;
-			boolean isIdentified;
+	public int getActionType() {
+		int isLogs = 0;
+		int isFeature = 0;
+		
+		Iterator<Action> actionIter = actions.iterator();
+		Action action;
+		ITree tempNode;
+		boolean isIdentified;
 //			printNode(this.oldLogNode, this.oldTreeContext, this.oldFile);
-			while (actionIter.hasNext() && (isFeature == 0 || isLogs == 0)) {
-				action = actionIter.next();
-				// do not deal with comment modification
-				if(this.isActionOfComment(action))
-				{
-					continue;
-				}
-//	 			judge if leaf edition is edition of logs
-				tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
-				isIdentified = false;
-//				edition of old tree
-				if(!isChildrenOf(tempNode, this.oldTree))
-				{
-					if(this.isInsertionOfLog(action))
-					{
-						isLogs = this.IS_LOGS;
-					}
-					else
-					{
-						isFeature = this.IS_FEATURE;
-					}
-					continue;
-				}
-//				decide whether is edition on old logs
-				Iterator<ITree> logIter = this.oldLogs.iterator();
-				while (logIter.hasNext()) {
-					if (isChildrenOf(tempNode, logIter.next())) {
-						isLogs = this.IS_LOGS;
-						isIdentified = true;
-						break;
-					}
-				}
-//				decide whether insertion of new logs
-				if(!isIdentified && isFeature == 0 && this.isInsertionOfLog(action))
-				{
+		while (actionIter.hasNext() && (isFeature == 0 || isLogs == 0)) {
+			action = actionIter.next();
+			// do not deal with comment modification
+			if(this.isActionOfComment(action))
+			{
+				continue;
+			}
+//	 		judge if leaf edition is edition of logs
+			tempNode = action.getName().equals("INS") ? ((Insert)action).getParent() : action.getNode();
+			isIdentified = false;
+//			decide whether is edition on old logs
+			Iterator<ITree> logIter = this.oldLogs.iterator();
+			while (logIter.hasNext()) {
+				if (isChildrenOf(tempNode, logIter.next())) {
 					isLogs = this.IS_LOGS;
 					isIdentified = true;
-					continue;
+					break;
 				}
-//				then feature if neither edition on old logs nor insertion of new logs  
-				isFeature = this.IS_FEATURE;
 			}
-			
-			return (isLogs + isFeature);
+//			decide whether insertion of new logs
+			if(!isIdentified && isFeature == 0 && this.isInsertionOfLog(action))
+			{
+				isLogs = this.IS_LOGS;
+				isIdentified = true;
+				continue;
+			}
+//			then feature if neither edition on old logs nor insertion of new logs  
+			isFeature = this.IS_FEATURE;
 		}
+		
+		return (isLogs + isFeature);
+	}
 
 	public void setFile(String filename) {
 		Run.initGenerators();
