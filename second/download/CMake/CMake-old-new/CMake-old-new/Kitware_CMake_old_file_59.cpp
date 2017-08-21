@@ -1,6 +1,6 @@
 /*-
- * Copyright (c) 2009-2011 Michihiro NAKAJIMA
- * Copyright (c) 2003-2008 Tim Kientzle and Miklos Vajna
+ * Copyright (c) 2003-2009 Tim Kientzle
+ * Copyright (c) 2010-2012 Michihiro NAKAJIMA
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,963 +25,1238 @@
  */
 
 #include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_disk_entry_from_file.c 201084 2009-12-28 02:14:09Z kientzle $");
 
-__FBSDID("$FreeBSD$");
+/* This is the tree-walking code for POSIX systems. */
+#if !defined(_WIN32) || defined(__CYGWIN__)
 
+#ifdef HAVE_SYS_TYPES_H
+/* Mac OSX requires sys/types.h before sys/acl.h. */
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_ACL_H
+#include <sys/acl.h>
+#endif
+#ifdef HAVE_SYS_EXTATTR_H
+#include <sys/extattr.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#if defined(HAVE_SYS_XATTR_H)
+#include <sys/xattr.h>
+#elif defined(HAVE_ATTR_XATTR_H)
+#include <attr/xattr.h>
+#endif
+#ifdef HAVE_SYS_EA_H
+#include <sys/ea.h>
+#endif
+#ifdef HAVE_ACL_LIBACL_H
+#include <acl/libacl.h>
+#endif
+#ifdef HAVE_COPYFILE_H
+#include <copyfile.h>
+#endif
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#include <stdio.h>
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
 #endif
-#ifdef HAVE_STRING_H
-#include <string.h>
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#ifdef HAVE_LINUX_TYPES_H
+#include <linux/types.h>
+#endif
+#ifdef HAVE_LINUX_FIEMAP_H
+#include <linux/fiemap.h>
+#endif
+#ifdef HAVE_LINUX_FS_H
+#include <linux/fs.h>
+#endif
+/*
+ * Some Linux distributions have both linux/ext2_fs.h and ext2fs/ext2_fs.h.
+ * As the include guards don't agree, the order of include is important.
+ */
+#ifdef HAVE_LINUX_EXT2_FS_H
+#include <linux/ext2_fs.h>      /* for Linux file flags */
+#endif
+#if defined(HAVE_EXT2FS_EXT2_FS_H) && !defined(__CYGWIN__)
+#include <ext2fs/ext2_fs.h>     /* Linux file flags, broken on Cygwin */
+#endif
+#ifdef HAVE_PATHS_H
+#include <paths.h>
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#if HAVE_LZMA_H
-#include <cm_lzma.h>
-#elif HAVE_LZMADEC_H
-#include <lzmadec.h>
-#endif
 
 #include "archive.h"
-#include "archive_endian.h"
+#include "archive_entry.h"
 #include "archive_private.h"
-#include "archive_read_private.h"
+#include "archive_read_disk_private.h"
 
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-
-struct private_data {
-	lzma_stream	 stream;
-	unsigned char	*out_block;
-	size_t		 out_block_size;
-	int64_t		 total_out;
-	char		 eof; /* True = found end of compressed data. */
-	char		 in_stream;
-
-	/* Following variables are used for lzip only. */
-	char		 lzip_ver;
-	uint32_t	 crc32;
-	int64_t		 member_in;
-	int64_t		 member_out;
-};
-
-#if LZMA_VERSION_MAJOR >= 5
-/* Effectively disable the limiter. */
-#define LZMA_MEMLIMIT	UINT64_MAX
-#else
-/* NOTE: This needs to check memory size which running system has. */
-#define LZMA_MEMLIMIT	(1U << 30)
-#endif
-
-/* Combined lzip/lzma/xz filter */
-static ssize_t	xz_filter_read(struct archive_read_filter *, const void **);
-static int	xz_filter_close(struct archive_read_filter *);
-static int	xz_lzma_bidder_init(struct archive_read_filter *);
-
-#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
-
-struct private_data {
-	lzmadec_stream	 stream;
-	unsigned char	*out_block;
-	size_t		 out_block_size;
-	int64_t		 total_out;
-	char		 eof; /* True = found end of compressed data. */
-};
-
-/* Lzma-only filter */
-static ssize_t	lzma_filter_read(struct archive_read_filter *, const void **);
-static int	lzma_filter_close(struct archive_read_filter *);
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	0
 #endif
 
 /*
- * Note that we can detect xz and lzma compressed files even if we
- * can't decompress them.  (In fact, we like detecting them because we
- * can give better error messages.)  So the bid framework here gets
- * compiled even if no lzma library is available.
+ * Linux and FreeBSD plug this obvious hole in POSIX.1e in
+ * different ways.
  */
-static int	xz_bidder_bid(struct archive_read_filter_bidder *,
-		    struct archive_read_filter *);
-static int	xz_bidder_init(struct archive_read_filter *);
-static int	lzma_bidder_bid(struct archive_read_filter_bidder *,
-		    struct archive_read_filter *);
-static int	lzma_bidder_init(struct archive_read_filter *);
-static int	lzip_has_member(struct archive_read_filter *);
-static int	lzip_bidder_bid(struct archive_read_filter_bidder *,
-		    struct archive_read_filter *);
-static int	lzip_bidder_init(struct archive_read_filter *);
-
-#if ARCHIVE_VERSION_NUMBER < 4000000
-/* Deprecated; remove in libarchive 4.0 */
-int
-archive_read_support_compression_xz(struct archive *a)
-{
-	return archive_read_support_filter_xz(a);
-}
+#if HAVE_ACL_GET_PERM
+#define	ACL_GET_PERM acl_get_perm
+#elif HAVE_ACL_GET_PERM_NP
+#define	ACL_GET_PERM acl_get_perm_np
 #endif
+
+static int setup_acls(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_mac_metadata(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_xattrs(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_sparse(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
 
 int
-archive_read_support_filter_xz(struct archive *_a)
+archive_read_disk_entry_from_file(struct archive *_a,
+    struct archive_entry *entry,
+    int fd,
+    const struct stat *st)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	struct archive_read_filter_bidder *bidder;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	const char *path, *name;
+	struct stat s;
+	int initial_fd = fd;
+	int r, r1;
 
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_filter_xz");
+	archive_clear_error(_a);
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
 
-	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-
-	bidder->data = NULL;
-	bidder->name = "xz";
-	bidder->bid = xz_bidder_bid;
-	bidder->init = xz_bidder_init;
-	bidder->options = NULL;
-	bidder->free = NULL;
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external xz program for xz decompression");
-	return (ARCHIVE_WARN);
+	if (a->tree == NULL) {
+		if (st == NULL) {
+#if HAVE_FSTAT
+			if (fd >= 0) {
+				if (fstat(fd, &s) != 0) {
+					archive_set_error(&a->archive, errno,
+					    "Can't fstat");
+					return (ARCHIVE_FAILED);
+				}
+			} else
 #endif
-}
-
-#if ARCHIVE_VERSION_NUMBER < 4000000
-int
-archive_read_support_compression_lzma(struct archive *a)
-{
-	return archive_read_support_filter_lzma(a);
-}
+#if HAVE_LSTAT
+			if (!a->follow_symlinks) {
+				if (lstat(path, &s) != 0) {
+					archive_set_error(&a->archive, errno,
+					    "Can't lstat %s", path);
+					return (ARCHIVE_FAILED);
+				}
+			} else
 #endif
-
-int
-archive_read_support_filter_lzma(struct archive *_a)
-{
-	struct archive_read *a = (struct archive_read *)_a;
-	struct archive_read_filter_bidder *bidder;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_filter_lzma");
-
-	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-
-	bidder->data = NULL;
-	bidder->name = "lzma";
-	bidder->bid = lzma_bidder_bid;
-	bidder->init = lzma_bidder_init;
-	bidder->options = NULL;
-	bidder->free = NULL;
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	return (ARCHIVE_OK);
-#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzma program for lzma decompression");
-	return (ARCHIVE_WARN);
-#endif
-}
-
-
-#if ARCHIVE_VERSION_NUMBER < 4000000
-int
-archive_read_support_compression_lzip(struct archive *a)
-{
-	return archive_read_support_filter_lzip(a);
-}
-#endif
-
-int
-archive_read_support_filter_lzip(struct archive *_a)
-{
-	struct archive_read *a = (struct archive_read *)_a;
-	struct archive_read_filter_bidder *bidder;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_filter_lzip");
-
-	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-
-	bidder->data = NULL;
-	bidder->name = "lzip";
-	bidder->bid = lzip_bidder_bid;
-	bidder->init = lzip_bidder_init;
-	bidder->options = NULL;
-	bidder->free = NULL;
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzip program for lzip decompression");
-	return (ARCHIVE_WARN);
-#endif
-}
-
-/*
- * Test whether we can handle this data.
- */
-static int
-xz_bidder_bid(struct archive_read_filter_bidder *self,
-    struct archive_read_filter *filter)
-{
-	const unsigned char *buffer;
-	ssize_t avail;
-
-	(void)self; /* UNUSED */
-
-	buffer = __archive_read_filter_ahead(filter, 6, &avail);
-	if (buffer == NULL)
-		return (0);
-
-	/*
-	 * Verify Header Magic Bytes : FD 37 7A 58 5A 00
-	 */
-	if (memcmp(buffer, "\xFD\x37\x7A\x58\x5A\x00", 6) != 0)
-		return (0);
-
-	return (48);
-}
-
-/*
- * Test whether we can handle this data.
- *
- * <sigh> LZMA has a rather poor file signature.  Zeros do not
- * make good signature bytes as a rule, and the only non-zero byte
- * here is an ASCII character.  For example, an uncompressed tar
- * archive whose first file is ']' would satisfy this check.  It may
- * be necessary to exclude LZMA from compression_all() because of
- * this.  Clients of libarchive would then have to explicitly enable
- * LZMA checking instead of (or in addition to) compression_all() when
- * they have other evidence (file name, command-line option) to go on.
- */
-static int
-lzma_bidder_bid(struct archive_read_filter_bidder *self,
-    struct archive_read_filter *filter)
-{
-	const unsigned char *buffer;
-	ssize_t avail;
-	uint32_t dicsize;
-	uint64_t uncompressed_size;
-	int bits_checked;
-
-	(void)self; /* UNUSED */
-
-	buffer = __archive_read_filter_ahead(filter, 14, &avail);
-	if (buffer == NULL)
-		return (0);
-
-	/* First byte of raw LZMA stream is commonly 0x5d.
-	 * The first byte is a special number, which consists of
-	 * three parameters of LZMA compression, a number of literal
-	 * context bits(which is from 0 to 8, default is 3), a number
-	 * of literal pos bits(which is from 0 to 4, default is 0),
-	 * a number of pos bits(which is from 0 to 4, default is 2).
-	 * The first byte is made by
-	 * (pos bits * 5 + literal pos bit) * 9 + * literal contest bit,
-	 * and so the default value in this field is
-	 * (2 * 5 + 0) * 9 + 3 = 0x5d.
-	 * lzma of LZMA SDK has options to change those parameters.
-	 * It means a range of this field is from 0 to 224. And lzma of
-	 * XZ Utils with option -e records 0x5e in this field. */
-	/* NOTE: If this checking of the first byte increases false
-	 * recognition, we should allow only 0x5d and 0x5e for the first
-	 * byte of LZMA stream. */
-	bits_checked = 0;
-	if (buffer[0] > (4 * 5 + 4) * 9 + 8)
-		return (0);
-	/* Most likely value in the first byte of LZMA stream. */
-	if (buffer[0] == 0x5d || buffer[0] == 0x5e)
-		bits_checked += 8;
-
-	/* Sixth through fourteenth bytes are uncompressed size,
-	 * stored in little-endian order. `-1' means uncompressed
-	 * size is unknown and lzma of XZ Utils always records `-1'
-	 * in this field. */
-	uncompressed_size = archive_le64dec(buffer+5);
-	if (uncompressed_size == (uint64_t)ARCHIVE_LITERAL_LL(-1))
-		bits_checked += 64;
-
-	/* Second through fifth bytes are dictionary size, stored in
-	 * little-endian order. The minimum dictionary size is
-	 * 1 << 12(4KiB) which the lzma of LZMA SDK uses with option
-	 * -d12 and the maxinam dictionary size is 1 << 27(128MiB)
-	 * which the one uses with option -d27.
-	 * NOTE: A comment of LZMA SDK source code says this dictionary
-	 * range is from 1 << 12 to 1 << 30. */
-	dicsize = archive_le32dec(buffer+1);
-	switch (dicsize) {
-	case 0x00001000:/* lzma of LZMA SDK option -d12. */
-	case 0x00002000:/* lzma of LZMA SDK option -d13. */
-	case 0x00004000:/* lzma of LZMA SDK option -d14. */
-	case 0x00008000:/* lzma of LZMA SDK option -d15. */
-	case 0x00010000:/* lzma of XZ Utils option -0 and -1.
-			 * lzma of LZMA SDK option -d16. */
-	case 0x00020000:/* lzma of LZMA SDK option -d17. */
-	case 0x00040000:/* lzma of LZMA SDK option -d18. */
-	case 0x00080000:/* lzma of XZ Utils option -2.
-			 * lzma of LZMA SDK option -d19. */
-	case 0x00100000:/* lzma of XZ Utils option -3.
-			 * lzma of LZMA SDK option -d20. */
-	case 0x00200000:/* lzma of XZ Utils option -4.
-			 * lzma of LZMA SDK option -d21. */
-	case 0x00400000:/* lzma of XZ Utils option -5.
-			 * lzma of LZMA SDK option -d22. */
-	case 0x00800000:/* lzma of XZ Utils option -6.
-			 * lzma of LZMA SDK option -d23. */
-	case 0x01000000:/* lzma of XZ Utils option -7.
-			 * lzma of LZMA SDK option -d24. */
-	case 0x02000000:/* lzma of XZ Utils option -8.
-			 * lzma of LZMA SDK option -d25. */
-	case 0x04000000:/* lzma of XZ Utils option -9.
-			 * lzma of LZMA SDK option -d26. */
-	case 0x08000000:/* lzma of LZMA SDK option -d27. */
-		bits_checked += 32;
-		break;
-	default:
-		/* If a memory usage for encoding was not enough on
-		 * the platform where LZMA stream was made, lzma of
-		 * XZ Utils automatically decreased the dictionary
-		 * size to enough memory for encoding by 1Mi bytes
-		 * (1 << 20).*/
-		if (dicsize <= 0x03F00000 && dicsize >= 0x00300000 &&
-		    (dicsize & ((1 << 20)-1)) == 0 &&
-		    bits_checked == 8 + 64) {
-			bits_checked += 32;
-			break;
-		}
-		/* Otherwise dictionary size is unlikely. But it is
-		 * possible that someone makes lzma stream with
-		 * liblzma/LZMA SDK in one's dictionary size. */
-		return (0);
-	}
-
-	/* TODO: The above test is still very weak.  It would be
-	 * good to do better. */
-
-	return (bits_checked);
-}
-
-static int
-lzip_has_member(struct archive_read_filter *filter)
-{
-	const unsigned char *buffer;
-	ssize_t avail;
-	int bits_checked;
-	int log2dic;
-
-	buffer = __archive_read_filter_ahead(filter, 6, &avail);
-	if (buffer == NULL)
-		return (0);
-
-	/*
-	 * Verify Header Magic Bytes : 4C 5A 49 50 (`LZIP')
-	 */
-	bits_checked = 0;
-	if (memcmp(buffer, "LZIP", 4) != 0)
-		return (0);
-	bits_checked += 32;
-
-	/* A version number must be 0 or 1 */
-	if (buffer[4] != 0 && buffer[4] != 1)
-		return (0);
-	bits_checked += 8;
-
-	/* Dictionary size. */
-	log2dic = buffer[5] & 0x1f;
-	if (log2dic < 12 || log2dic > 27)
-		return (0);
-	bits_checked += 8;
-
-	return (bits_checked);
-}
-
-static int
-lzip_bidder_bid(struct archive_read_filter_bidder *self,
-    struct archive_read_filter *filter)
-{
-
-	(void)self; /* UNUSED */
-	return (lzip_has_member(filter));
-}
-
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-
-/*
- * liblzma 4.999.7 and later support both lzma and xz streams.
- */
-static int
-xz_bidder_init(struct archive_read_filter *self)
-{
-	self->code = ARCHIVE_FILTER_XZ;
-	self->name = "xz";
-	return (xz_lzma_bidder_init(self));
-}
-
-static int
-lzma_bidder_init(struct archive_read_filter *self)
-{
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
-	return (xz_lzma_bidder_init(self));
-}
-
-static int
-lzip_bidder_init(struct archive_read_filter *self)
-{
-	self->code = ARCHIVE_FILTER_LZIP;
-	self->name = "lzip";
-	return (xz_lzma_bidder_init(self));
-}
-
-/*
- * Set an error code and choose an error message
- */
-static void
-set_error(struct archive_read_filter *self, int ret)
-{
-
-	switch (ret) {
-	case LZMA_STREAM_END: /* Found end of stream. */
-	case LZMA_OK: /* Decompressor made some progress. */
-		break;
-	case LZMA_MEM_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Lzma library error: Cannot allocate memory");
-		break;
-	case LZMA_MEMLIMIT_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Lzma library error: Out of memory");
-		break;
-	case LZMA_FORMAT_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma library error: format not recognized");
-		break;
-	case LZMA_OPTIONS_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma library error: Invalid options");
-		break;
-	case LZMA_DATA_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma library error: Corrupted input data");
-		break;
-	case LZMA_BUF_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma library error:  No progress is possible");
-		break;
-	default:
-		/* Return an error. */
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Lzma decompression failed:  Unknown error");
-		break;
-	}
-}
-
-/*
- * Setup the callbacks.
- */
-static int
-xz_lzma_bidder_init(struct archive_read_filter *self)
-{
-	static const size_t out_block_size = 64 * 1024;
-	void *out_block;
-	struct private_data *state;
-	int ret;
-
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
-	if (state == NULL || out_block == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for xz decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
-	}
-
-	self->data = state;
-	state->out_block_size = out_block_size;
-	state->out_block = out_block;
-	self->read = xz_filter_read;
-	self->skip = NULL; /* not supported */
-	self->close = xz_filter_close;
-
-	state->stream.avail_in = 0;
-
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	state->crc32 = 0;
-	if (self->code == ARCHIVE_FILTER_LZIP) {
-		/*
-		 * We have to read a lzip header and use it to initialize
-		 * compression library, thus we cannot initialize the
-		 * library for lzip here.
-		 */
-		state->in_stream = 0;
-		return (ARCHIVE_OK);
-	} else
-		state->in_stream = 1;
-
-	/* Initialize compression library. */
-	if (self->code == ARCHIVE_FILTER_XZ)
-		ret = lzma_stream_decoder(&(state->stream),
-		    LZMA_MEMLIMIT,/* memlimit */
-		    LZMA_CONCATENATED);
-	else
-		ret = lzma_alone_decoder(&(state->stream),
-		    LZMA_MEMLIMIT);/* memlimit */
-
-	if (ret == LZMA_OK)
-		return (ARCHIVE_OK);
-
-	/* Library setup failed: Choose an error message and clean up. */
-	set_error(self, ret);
-
-	free(state->out_block);
-	free(state);
-	self->data = NULL;
-	return (ARCHIVE_FATAL);
-}
-
-static int
-lzip_init(struct archive_read_filter *self)
-{
-	struct private_data *state;
-	const unsigned char *h;
-	lzma_filter filters[2];
-	unsigned char props[5];
-	ssize_t avail_in;
-	uint32_t dicsize;
-	int log2dic, ret;
-
-	state = (struct private_data *)self->data;
-	h = __archive_read_filter_ahead(self->upstream, 6, &avail_in);
-	if (h == NULL)
-		return (ARCHIVE_FATAL);
-
-	/* Get a version number. */
-	state->lzip_ver = h[4];
-
-	/*
-	 * Setup lzma property.
-	 */
-	props[0] = 0x5d;
-
-	/* Get dictionary size. */
-	log2dic = h[5] & 0x1f;
-	if (log2dic < 12 || log2dic > 27)
-		return (ARCHIVE_FATAL);
-	dicsize = 1U << log2dic;
-	if (log2dic > 12)
-		dicsize -= (dicsize / 16) * (h[5] >> 5);
-	archive_le32enc(props+1, dicsize);
-
-	/* Consume lzip header. */
-	__archive_read_filter_consume(self->upstream, 6);
-	state->member_in = 6;
-
-	filters[0].id = LZMA_FILTER_LZMA1;
-	filters[0].options = NULL;
-	filters[1].id = LZMA_VLI_UNKNOWN;
-	filters[1].options = NULL;
-
-	ret = lzma_properties_decode(&filters[0], NULL, props, sizeof(props));
-	if (ret != LZMA_OK) {
-		set_error(self, ret);
-		return (ARCHIVE_FATAL);
-	}
-	ret = lzma_raw_decoder(&(state->stream), filters);
-#if LZMA_VERSION < 50010000
-	free(filters[0].options);
-#endif
-	if (ret != LZMA_OK) {
-		set_error(self, ret);
-		return (ARCHIVE_FATAL);
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-lzip_tail(struct archive_read_filter *self)
-{
-	struct private_data *state;
-	const unsigned char *f;
-	ssize_t avail_in;
-	int tail;
-
-	state = (struct private_data *)self->data;
-	if (state->lzip_ver == 0)
-		tail = 12;
-	else
-		tail = 20;
-	f = __archive_read_filter_ahead(self->upstream, tail, &avail_in);
-	if (f == NULL && avail_in < 0)
-		return (ARCHIVE_FATAL);
-	if (f == NULL || avail_in < tail) {
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Remaining data is less bytes");
-		return (ARCHIVE_FAILED);
-	}
-
-	/* Check the crc32 value of the uncompressed data of the current
-	 * member */
-	if (state->crc32 != archive_le32dec(f)) {
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: CRC32 error");
-		return (ARCHIVE_FAILED);
-	}
-
-	/* Check the uncompressed size of the current member */
-	if ((uint64_t)state->member_out != archive_le64dec(f + 4)) {
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Uncompressed size error");
-		return (ARCHIVE_FAILED);
-	}
-
-	/* Check the total size of the current member */
-	if (state->lzip_ver == 1 &&
-	    (uint64_t)state->member_in + tail != archive_le64dec(f + 12)) {
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Lzip: Member size error");
-		return (ARCHIVE_FAILED);
-	}
-	__archive_read_filter_consume(self->upstream, tail);
-
-	/* If current lzip data consists of multi member, try decompressing
-	 * a next member. */
-	if (lzip_has_member(self->upstream) != 0) {
-		state->in_stream = 0;
-		state->crc32 = 0;
-		state->member_out = 0;
-		state->member_in = 0;
-		state->eof = 0;
-	}
-	return (ARCHIVE_OK);
-}
-
-/*
- * Return the next block of decompressed data.
- */
-static ssize_t
-xz_filter_read(struct archive_read_filter *self, const void **p)
-{
-	struct private_data *state;
-	size_t decompressed;
-	ssize_t avail_in;
-	int ret;
-
-	state = (struct private_data *)self->data;
-
-	/* Empty our output buffer. */
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	/* Try to fill the output buffer. */
-	while (state->stream.avail_out > 0 && !state->eof) {
-		if (!state->in_stream) {
-			/*
-			 * Initialize liblzma for lzip
-			 */
-			ret = lzip_init(self);
-			if (ret != ARCHIVE_OK)
-				return (ret);
-			state->in_stream = 1;
-		}
-		state->stream.next_in =
-		    __archive_read_filter_ahead(self->upstream, 1, &avail_in);
-		if (state->stream.next_in == NULL && avail_in < 0) {
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated input");
-			return (ARCHIVE_FATAL);
-		}
-		state->stream.avail_in = avail_in;
-
-		/* Decompress as much as we can in one pass. */
-		ret = lzma_code(&(state->stream),
-		    (state->stream.avail_in == 0)? LZMA_FINISH: LZMA_RUN);
-		switch (ret) {
-		case LZMA_STREAM_END: /* Found end of stream. */
-			state->eof = 1;
-			/* FALL THROUGH */
-		case LZMA_OK: /* Decompressor made some progress. */
-			__archive_read_filter_consume(self->upstream,
-			    avail_in - state->stream.avail_in);
-			state->member_in +=
-			    avail_in - state->stream.avail_in;
-			break;
-		default:
-			set_error(self, ret);
-			return (ARCHIVE_FATAL);
-		}
-	}
-
-	decompressed = state->stream.next_out - state->out_block;
-	state->total_out += decompressed;
-	state->member_out += decompressed;
-	if (decompressed == 0)
-		*p = NULL;
-	else {
-		*p = state->out_block;
-		if (self->code == ARCHIVE_FILTER_LZIP) {
-			state->crc32 = lzma_crc32(state->out_block,
-			    decompressed, state->crc32);
-			if (state->eof) {
-				ret = lzip_tail(self);
-				if (ret != ARCHIVE_OK)
-					return (ret);
+			if (stat(path, &s) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't stat %s", path);
+				return (ARCHIVE_FAILED);
 			}
+			st = &s;
+		}
+		archive_entry_copy_stat(entry, st);
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+#ifdef HAVE_STRUCT_STAT_ST_FLAGS
+	/* On FreeBSD, we get flags for free with the stat. */
+	/* TODO: Does this belong in copy_stat()? */
+	if (st->st_flags != 0)
+		archive_entry_set_fflags(entry, st->st_flags, 0);
+#endif
+
+#if defined(EXT2_IOC_GETFLAGS) && defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
+	/* Linux requires an extra ioctl to pull the flags.  Although
+	 * this is an extra step, it has a nice side-effect: We get an
+	 * open file descriptor which we can use in the subsequent lookups. */
+	if ((S_ISREG(st->st_mode) || S_ISDIR(st->st_mode))) {
+		if (fd < 0) {
+			if (a->tree != NULL)
+				fd = a->open_on_current_dir(a->tree, path,
+					O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+			else
+				fd = open(path, O_RDONLY | O_NONBLOCK |
+						O_CLOEXEC);
+			__archive_ensure_cloexec_flag(fd);
+		}
+		if (fd >= 0) {
+			int stflags;
+			r = ioctl(fd, EXT2_IOC_GETFLAGS, &stflags);
+			if (r == 0 && stflags != 0)
+				archive_entry_set_fflags(entry, stflags, 0);
 		}
 	}
-	return (decompressed);
-}
+#endif
 
-/*
- * Clean up the decompressor.
- */
-static int
-xz_filter_close(struct archive_read_filter *self)
-{
-	struct private_data *state;
+#if defined(HAVE_READLINK) || defined(HAVE_READLINKAT)
+	if (S_ISLNK(st->st_mode)) {
+		size_t linkbuffer_len = st->st_size + 1;
+		char *linkbuffer;
+		int lnklen;
 
-	state = (struct private_data *)self->data;
-	lzma_end(&(state->stream));
-	free(state->out_block);
-	free(state);
-	return (ARCHIVE_OK);
-}
-
+		linkbuffer = malloc(linkbuffer_len);
+		if (linkbuffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't read link data");
+			return (ARCHIVE_FAILED);
+		}
+		if (a->tree != NULL) {
+#ifdef HAVE_READLINKAT
+			lnklen = readlinkat(a->tree_current_dir_fd(a->tree),
+			    path, linkbuffer, linkbuffer_len);
 #else
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't read link data");
+				free(linkbuffer);
+				return (ARCHIVE_FAILED);
+			}
+			lnklen = readlink(path, linkbuffer, linkbuffer_len);
+#endif /* HAVE_READLINKAT */
+		} else
+			lnklen = readlink(path, linkbuffer, linkbuffer_len);
+		if (lnklen < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't read link data");
+			free(linkbuffer);
+			return (ARCHIVE_FAILED);
+		}
+		linkbuffer[lnklen] = 0;
+		archive_entry_set_symlink(entry, linkbuffer);
+		free(linkbuffer);
+	}
+#endif /* HAVE_READLINK || HAVE_READLINKAT */
 
-#if HAVE_LZMADEC_H && HAVE_LIBLZMADEC
+	r = setup_acls(a, entry, &fd);
+	if (!a->suppress_xattr) {
+		r1 = setup_xattrs(a, entry, &fd);
+		if (r1 < r)
+			r = r1;
+	}
+	if (a->enable_copyfile) {
+		r1 = setup_mac_metadata(a, entry, &fd);
+		if (r1 < r)
+			r = r1;
+	}
+	r1 = setup_sparse(a, entry, &fd);
+	if (r1 < r)
+		r = r1;
 
+	/* If we opened the file earlier in this function, close it. */
+	if (initial_fd != fd)
+		close(fd);
+	return (r);
+}
+
+#if defined(__APPLE__) && defined(HAVE_COPYFILE_H)
 /*
- * If we have the older liblzmadec library, then we can handle
- * LZMA streams but not XZ streams.
- */
-
-/*
- * Setup the callbacks.
+ * The Mac OS "copyfile()" API copies the extended metadata for a
+ * file into a separate file in AppleDouble format (see RFC 1740).
+ *
+ * Mac OS tar and cpio implementations store this extended
+ * metadata as a separate entry just before the regular entry
+ * with a "._" prefix added to the filename.
+ *
+ * Note that this is currently done unconditionally; the tar program has
+ * an option to discard this information before the archive is written.
+ *
+ * TODO: If there's a failure, report it and return ARCHIVE_WARN.
  */
 static int
-lzma_bidder_init(struct archive_read_filter *self)
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	static const size_t out_block_size = 64 * 1024;
-	void *out_block;
-	struct private_data *state;
-	ssize_t ret, avail_in;
+	int tempfd = -1;
+	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
+	struct stat copyfile_stat;
+	int ret = ARCHIVE_OK;
+	void *buff = NULL;
+	int have_attrs;
+	const char *name, *tempdir;
+	struct archive_string tempfile;
 
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
-
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
-	if (state == NULL || out_block == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzma decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	if (name == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
 	}
 
-	self->data = state;
-	state->out_block_size = out_block_size;
-	state->out_block = out_block;
-	self->read = lzma_filter_read;
-	self->skip = NULL; /* not supported */
-	self->close = lzma_filter_close;
+	if (a->tree != NULL) {
+		if (a->tree_enter_working_dir(a->tree) != 0) {
+			archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");
+				return (ARCHIVE_FAILED);
+		}
+	}
 
-	/* Prime the lzma library with 18 bytes of input. */
-	state->stream.next_in = (unsigned char *)(uintptr_t)
-	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
-	if (state->stream.next_in == NULL)
-		return (ARCHIVE_FATAL);
-	state->stream.avail_in = avail_in;
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	/* Initialize compression library. */
-	ret = lzmadec_init(&(state->stream));
-	__archive_read_filter_consume(self->upstream,
-	    avail_in - state->stream.avail_in);
-	if (ret == LZMADEC_OK)
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	if (have_attrs == -1) {
+		archive_set_error(&a->archive, errno,
+			"Could not check extended attributes");
+		return (ARCHIVE_WARN);
+	}
+	if (have_attrs == 0)
 		return (ARCHIVE_OK);
 
-	/* Library setup failed: Clean up. */
-	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library");
-
-	/* Override the error message if we know what really went wrong. */
-	switch (ret) {
-	case LZMADEC_HEADER_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
-		break;
-	case LZMADEC_MEM_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "out of memory");
-		break;
+	tempdir = NULL;
+	if (issetugid() == 0)
+		tempdir = getenv("TMPDIR");
+	if (tempdir == NULL)
+		tempdir = _PATH_TMP;
+	archive_string_init(&tempfile);
+	archive_strcpy(&tempfile, tempdir);
+	archive_strcat(&tempfile, "tar.md.XXXXXX");
+	tempfd = mkstemp(tempfile.s);
+	if (tempfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Could not open extended attribute file");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
 	}
+	__archive_ensure_cloexec_flag(tempfd);
 
-	free(state->out_block);
-	free(state);
-	self->data = NULL;
-	return (ARCHIVE_FATAL);
-}
-
-/*
- * Return the next block of decompressed data.
- */
-static ssize_t
-lzma_filter_read(struct archive_read_filter *self, const void **p)
-{
-	struct private_data *state;
-	size_t decompressed;
-	ssize_t avail_in, ret;
-
-	state = (struct private_data *)self->data;
-
-	/* Empty our output buffer. */
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	/* Try to fill the output buffer. */
-	while (state->stream.avail_out > 0 && !state->eof) {
-		state->stream.next_in = (unsigned char *)(uintptr_t)
-		    __archive_read_filter_ahead(self->upstream, 1, &avail_in);
-		if (state->stream.next_in == NULL && avail_in < 0) {
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "truncated lzma input");
-			return (ARCHIVE_FATAL);
-		}
-		state->stream.avail_in = avail_in;
-
-		/* Decompress as much as we can in one pass. */
-		ret = lzmadec_decode(&(state->stream), avail_in == 0);
-		switch (ret) {
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			state->eof = 1;
-			/* FALL THROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			__archive_read_filter_consume(self->upstream,
-			    avail_in - state->stream.avail_in);
-			break;
-		case LZMADEC_BUF_ERROR: /* Insufficient input data? */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Insufficient compressed data");
-			return (ARCHIVE_FATAL);
-		default:
-			/* Return an error. */
-			archive_set_error(&self->archive->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Lzma decompression failed");
-			return (ARCHIVE_FATAL);
-		}
+	/* XXX I wish copyfile() could pack directly to a memory
+	 * buffer; that would avoid the temp file here.  For that
+	 * matter, it would be nice if fcopyfile() actually worked,
+	 * that would reduce the many open/close races here. */
+	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not pack extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
 	}
-
-	decompressed = state->stream.next_out - state->out_block;
-	state->total_out += decompressed;
-	if (decompressed == 0)
-		*p = NULL;
-	else
-		*p = state->out_block;
-	return (decompressed);
-}
-
-/*
- * Clean up the decompressor.
- */
-static int
-lzma_filter_close(struct archive_read_filter *self)
-{
-	struct private_data *state;
-	int ret;
-
-	state = (struct private_data *)self->data;
-	ret = ARCHIVE_OK;
-	switch (lzmadec_end(&(state->stream))) {
-	case LZMADEC_OK:
-		break;
-	default:
-		archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC,
-		    "Failed to clean up %s compressor",
-		    self->archive->archive.compression_name);
-		ret = ARCHIVE_FATAL;
+	if (fstat(tempfd, &copyfile_stat)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not check size of extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
 	}
+	buff = malloc(copyfile_stat.st_size);
+	if (buff == NULL) {
+		archive_set_error(&a->archive, errno,
+		    "Could not allocate memory for extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not read extended attributes into memory");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
 
-	free(state->out_block);
-	free(state);
+cleanup:
+	if (tempfd >= 0) {
+		close(tempfd);
+		unlink(tempfile.s);
+	}
+	archive_string_free(&tempfile);
+	free(buff);
 	return (ret);
 }
 
 #else
 
 /*
- *
- * If we have no suitable library on this system, we can't actually do
- * the decompression.  We can, however, still detect compressed
- * archives and emit a useful message.
- *
+ * Stub implementation for non-Mac systems.
  */
 static int
-lzma_bidder_init(struct archive_read_filter *self)
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	int r;
+	(void)a; /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd; /* UNUSED */
+	return (ARCHIVE_OK);
+}
+#endif
 
-	r = __archive_read_program(self, "lzma -d -qq");
-	/* Note: We set the format here even if __archive_read_program()
-	 * above fails.  We do, after all, know what the format is
-	 * even if we weren't able to read it. */
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
-	return (r);
+
+#ifdef HAVE_POSIX_ACL
+static int translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int archive_entry_acl_type);
+
+static int
+setup_acls(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	const char	*accpath;
+	acl_t		 acl;
+#if HAVE_ACL_IS_TRIVIAL_NP
+	int		r;
+#endif
+
+	accpath = archive_entry_sourcepath(entry);
+	if (accpath == NULL)
+		accpath = archive_entry_pathname(entry);
+
+	archive_entry_acl_clear(entry);
+
+#ifdef ACL_TYPE_NFS4
+	/* Try NFS4 ACL first. */
+	if (*fd >= 0)
+		acl = acl_get_fd(*fd);
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ACL_TYPE_NFS4);
+#else
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
+#endif
+	else
+		acl = acl_get_file(accpath, ACL_TYPE_NFS4);
+#if HAVE_ACL_IS_TRIVIAL_NP
+	/* Ignore "trivial" ACLs that just mirror the file mode. */
+	acl_is_trivial_np(acl, &r);
+	if (r) {
+		acl_free(acl);
+		acl = NULL;
+	}
+#endif
+	if (acl != NULL) {
+		translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+		acl_free(acl);
+		return (ARCHIVE_OK);
+	}
+#endif
+
+	/* Retrieve access ACL from file. */
+	if (*fd >= 0)
+		acl = acl_get_fd(*fd);
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ACL_TYPE_ACCESS);
+#else
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
+#endif
+	else
+		acl = acl_get_file(accpath, ACL_TYPE_ACCESS);
+	if (acl != NULL) {
+		translate_acl(a, entry, acl,
+		    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+		acl_free(acl);
+	}
+
+	/* Only directories can have default ACLs. */
+	if (S_ISDIR(archive_entry_mode(entry))) {
+		acl = acl_get_file(accpath, ACL_TYPE_DEFAULT);
+		if (acl != NULL) {
+			translate_acl(a, entry, acl,
+			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
+			acl_free(acl);
+		}
+	}
+	return (ARCHIVE_OK);
 }
 
-#endif /* HAVE_LZMADEC_H */
+/*
+ * Translate system ACL into libarchive internal structure.
+ */
+
+static struct {
+        int archive_perm;
+        int platform_perm;
+} acl_perm_map[] = {
+        {ARCHIVE_ENTRY_ACL_EXECUTE, ACL_EXECUTE},
+        {ARCHIVE_ENTRY_ACL_WRITE, ACL_WRITE},
+        {ARCHIVE_ENTRY_ACL_READ, ACL_READ},
+#ifdef ACL_TYPE_NFS4
+        {ARCHIVE_ENTRY_ACL_READ_DATA, ACL_READ_DATA},
+        {ARCHIVE_ENTRY_ACL_LIST_DIRECTORY, ACL_LIST_DIRECTORY},
+        {ARCHIVE_ENTRY_ACL_WRITE_DATA, ACL_WRITE_DATA},
+        {ARCHIVE_ENTRY_ACL_ADD_FILE, ACL_ADD_FILE},
+        {ARCHIVE_ENTRY_ACL_APPEND_DATA, ACL_APPEND_DATA},
+        {ARCHIVE_ENTRY_ACL_ADD_SUBDIRECTORY, ACL_ADD_SUBDIRECTORY},
+        {ARCHIVE_ENTRY_ACL_READ_NAMED_ATTRS, ACL_READ_NAMED_ATTRS},
+        {ARCHIVE_ENTRY_ACL_WRITE_NAMED_ATTRS, ACL_WRITE_NAMED_ATTRS},
+        {ARCHIVE_ENTRY_ACL_DELETE_CHILD, ACL_DELETE_CHILD},
+        {ARCHIVE_ENTRY_ACL_READ_ATTRIBUTES, ACL_READ_ATTRIBUTES},
+        {ARCHIVE_ENTRY_ACL_WRITE_ATTRIBUTES, ACL_WRITE_ATTRIBUTES},
+        {ARCHIVE_ENTRY_ACL_DELETE, ACL_DELETE},
+        {ARCHIVE_ENTRY_ACL_READ_ACL, ACL_READ_ACL},
+        {ARCHIVE_ENTRY_ACL_WRITE_ACL, ACL_WRITE_ACL},
+        {ARCHIVE_ENTRY_ACL_WRITE_OWNER, ACL_WRITE_OWNER},
+        {ARCHIVE_ENTRY_ACL_SYNCHRONIZE, ACL_SYNCHRONIZE}
+#endif
+};
+
+#ifdef ACL_TYPE_NFS4
+static struct {
+        int archive_inherit;
+        int platform_inherit;
+} acl_inherit_map[] = {
+        {ARCHIVE_ENTRY_ACL_ENTRY_FILE_INHERIT, ACL_ENTRY_FILE_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_DIRECTORY_INHERIT, ACL_ENTRY_DIRECTORY_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_NO_PROPAGATE_INHERIT, ACL_ENTRY_NO_PROPAGATE_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERIT_ONLY, ACL_ENTRY_INHERIT_ONLY}
+};
+#endif
+static int
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
+{
+	acl_tag_t	 acl_tag;
+#ifdef ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	acl_flagset_t	 acl_flagset;
+	int brand, r;
+#endif
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 s, ae_id, ae_tag, ae_perm;
+	const char	*ae_name;
+
+
+#ifdef ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	acl_get_brand_np(acl, &brand);
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
+		}
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
+		}
+		break;
+	default:
+		// XXX set warning message?
+		return ARCHIVE_FAILED;
+		break;
+	}
+#endif
+
+
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	while (s == 1) {
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
+
+		acl_get_tag_type(acl_entry, &acl_tag);
+		switch (acl_tag) {
+		case ACL_USER:
+			ae_id = (int)*(uid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_uname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
+			break;
+		case ACL_GROUP:
+			ae_id = (int)*(gid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_gname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#ifdef ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+
+		// XXX acl type maps to allow/deny/audit/YYYY bits
+		// XXX acl_get_entry_type_np on FreeBSD returns EINVAL for
+		// non-NFSv4 ACLs
+		entry_acl_type = default_entry_acl_type;
+#ifdef ACL_TYPE_NFS4
+		r = acl_get_entry_type_np(acl_entry, &acl_type);
+		if (r == 0) {
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			}
+		}
+
+		/*
+		 * Libarchive stores "flag" (NFSv4 inheritance bits)
+		 * in the ae_perm bitmap.
+		 */
+		acl_get_flagset_np(acl_entry, &acl_flagset);
+                for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+			if (acl_get_flag_np(acl_flagset,
+					    acl_inherit_map[i].platform_inherit))
+				ae_perm |= acl_inherit_map[i].archive_inherit;
+
+                }
+#endif
+
+		acl_get_permset(acl_entry, &acl_permset);
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
+			/*
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
+			 */
+			if (ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm))
+				ae_perm |= acl_perm_map[i].archive_perm;
+		}
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+	}
+	return (ARCHIVE_OK);
+}
+#else
+static int
+setup_acls(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;      /* UNUSED */
+	(void)entry;  /* UNUSED */
+	(void)fd;     /* UNUSED */
+	return (ARCHIVE_OK);
+}
+#endif
+
+#if (HAVE_FGETXATTR && HAVE_FLISTXATTR && HAVE_LISTXATTR && \
+    HAVE_LLISTXATTR && HAVE_GETXATTR && HAVE_LGETXATTR) || \
+    (HAVE_FGETEA && HAVE_FLISTEA && HAVE_LISTEA)
+
+/*
+ * Linux and AIX extended attribute support.
+ *
+ * TODO:  By using a stack-allocated buffer for the first
+ * call to getxattr(), we might be able to avoid the second
+ * call entirely.  We only need the second call if the
+ * stack-allocated buffer is too small.  But a modest buffer
+ * of 1024 bytes or so will often be big enough.  Same applies
+ * to listxattr().
+ */
 
 
 static int
-xz_bidder_init(struct archive_read_filter *self)
+setup_xattr(struct archive_read_disk *a,
+    struct archive_entry *entry, const char *name, int fd)
 {
-	int r;
+	ssize_t size;
+	void *value = NULL;
+	const char *accpath;
 
-	r = __archive_read_program(self, "xz -d -qq");
-	/* Note: We set the format here even if __archive_read_program()
-	 * above fails.  We do, after all, know what the format is
-	 * even if we weren't able to read it. */
-	self->code = ARCHIVE_FILTER_XZ;
-	self->name = "xz";
-	return (r);
+	accpath = archive_entry_sourcepath(entry);
+	if (accpath == NULL)
+		accpath = archive_entry_pathname(entry);
+
+#if HAVE_FGETXATTR
+	if (fd >= 0)
+		size = fgetxattr(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetxattr(accpath, name, NULL, 0);
+	else
+		size = getxattr(accpath, name, NULL, 0);
+#elif HAVE_FGETEA
+	if (fd >= 0)
+		size = fgetea(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetea(accpath, name, NULL, 0);
+	else
+		size = getea(accpath, name, NULL, 0);
+#endif
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't query extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	if (size > 0 && (value = malloc(size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FGETXATTR
+	if (fd >= 0)
+		size = fgetxattr(fd, name, value, size);
+	else if (!a->follow_symlinks)
+		size = lgetxattr(accpath, name, value, size);
+	else
+		size = getxattr(accpath, name, value, size);
+#elif HAVE_FGETEA
+	if (fd >= 0)
+		size = fgetea(fd, name, value, size);
+	else if (!a->follow_symlinks)
+		size = lgetea(accpath, name, value, size);
+	else
+		size = getea(accpath, name, value, size);
+#endif
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't read extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	archive_entry_xattr_add_entry(entry, name, value, size);
+
+	free(value);
+	return (ARCHIVE_OK);
 }
 
 static int
-lzip_bidder_init(struct archive_read_filter *self)
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-	int r;
+	char *list, *p;
+	const char *path;
+	ssize_t list_size;
 
-	r = __archive_read_program(self, "lzip -d -q");
-	/* Note: We set the format here even if __archive_read_program()
-	 * above fails.  We do, after all, know what the format is
-	 * even if we weren't able to read it. */
-	self->code = ARCHIVE_FILTER_LZIP;
-	self->name = "lzip";
-	return (r);
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
+			}
+		}
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, NULL, 0);
+	else
+		list_size = listxattr(path, NULL, 0);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, NULL, 0);
+	else
+		list_size = listea(path, NULL, 0);
+#endif
+
+	if (list_size == -1) {
+		if (errno == ENOTSUP || errno == ENOSYS)
+			return (ARCHIVE_OK);
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, list, list_size);
+	else
+		list_size = listxattr(path, list, list_size);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, list, list_size);
+	else
+		list_size = listea(path, list, list_size);
+#endif
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
+		if (strncmp(p, "system.", 7) == 0 ||
+				strncmp(p, "xfsroot.", 8) == 0)
+			continue;
+		setup_xattr(a, entry, p, *fd);
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
 }
 
-#endif /* HAVE_LZMA_H */
+#elif HAVE_EXTATTR_GET_FILE && HAVE_EXTATTR_LIST_FILE && \
+    HAVE_DECL_EXTATTR_NAMESPACE_USER
+
+/*
+ * FreeBSD extattr interface.
+ */
+
+/* TODO: Implement this.  Follow the Linux model above, but
+ * with FreeBSD-specific system calls, of course.  Be careful
+ * to not include the system extattrs that hold ACLs; we handle
+ * those separately.
+ */
+static int
+setup_xattr(struct archive_read_disk *a, struct archive_entry *entry,
+    int namespace, const char *name, const char *fullname, int fd);
+
+static int
+setup_xattr(struct archive_read_disk *a, struct archive_entry *entry,
+    int namespace, const char *name, const char *fullname, int fd)
+{
+	ssize_t size;
+	void *value = NULL;
+	const char *accpath;
+
+	accpath = archive_entry_sourcepath(entry);
+	if (accpath == NULL)
+		accpath = archive_entry_pathname(entry);
+
+	if (fd >= 0)
+		size = extattr_get_fd(fd, namespace, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = extattr_get_link(accpath, namespace, name, NULL, 0);
+	else
+		size = extattr_get_file(accpath, namespace, name, NULL, 0);
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't query extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	if (size > 0 && (value = malloc(size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (fd >= 0)
+		size = extattr_get_fd(fd, namespace, name, value, size);
+	else if (!a->follow_symlinks)
+		size = extattr_get_link(accpath, namespace, name, value, size);
+	else
+		size = extattr_get_file(accpath, namespace, name, value, size);
+
+	if (size == -1) {
+		free(value);
+		archive_set_error(&a->archive, errno,
+		    "Couldn't read extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	archive_entry_xattr_add_entry(entry, fullname, value, size);
+
+	free(value);
+	return (ARCHIVE_OK);
+}
+
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char buff[512];
+	char *list, *p;
+	ssize_t list_size;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
+
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
+			}
+		}
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0);
+
+	if (list_size == -1 && errno == EOPNOTSUPP)
+		return (ARCHIVE_OK);
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, list, list_size);
+	else
+		list_size = extattr_list_file(path, namespace, list, list_size);
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	p = list;
+	while ((p - list) < list_size) {
+		size_t len = 255 & (int)*p;
+		char *name;
+
+		strcpy(buff, "user.");
+		name = buff + strlen(buff);
+		memcpy(name, p + 1, len);
+		name[len] = '\0';
+		setup_xattr(a, entry, namespace, name, buff, *fd);
+		p += 1 + len;
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
+}
+
+#else
+
+/*
+ * Generic (stub) extended attribute support.
+ */
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;     /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd;    /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+#endif
+
+#if defined(HAVE_LINUX_FIEMAP_H)
+
+/*
+ * Linux sparse interface.
+ *
+ * The FIEMAP ioctl returns an "extent" for each physical allocation
+ * on disk.  We need to process those to generate a more compact list
+ * of logical file blocks.  We also need to be very careful to use
+ * FIEMAP_FLAG_SYNC here, since there are reports that Linux sometimes
+ * does not report allocations for newly-written data that hasn't
+ * been synced to disk.
+ *
+ * It's important to return a minimal sparse file list because we want
+ * to not trigger sparse file extensions if we don't have to, since
+ * not all readers support them.
+ */
+
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char buff[4096];
+	struct fiemap *fm;
+	struct fiemap_extent *fe;
+	int64_t size;
+	int count, do_fiemap, iters;
+	int exit_sts = ARCHIVE_OK;
+
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
+
+	if (*fd < 0) {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		if (a->tree != NULL)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		else
+			*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		__archive_ensure_cloexec_flag(*fd);
+	}
+
+	/* Initialize buffer to avoid the error valgrind complains about. */
+	memset(buff, 0, sizeof(buff));
+	count = (sizeof(buff) - sizeof(*fm))/sizeof(*fe);
+	fm = (struct fiemap *)buff;
+	fm->fm_start = 0;
+	fm->fm_length = ~0ULL;;
+	fm->fm_flags = FIEMAP_FLAG_SYNC;
+	fm->fm_extent_count = count;
+	do_fiemap = 1;
+	size = archive_entry_size(entry);
+	for (iters = 0; ; ++iters) {
+		int i, r;
+
+		r = ioctl(*fd, FS_IOC_FIEMAP, fm); 
+		if (r < 0) {
+			/* When something error happens, it is better we
+			 * should return ARCHIVE_OK because an earlier
+			 * version(<2.6.28) cannot perfom FS_IOC_FIEMAP. */
+			goto exit_setup_sparse;
+		}
+		if (fm->fm_mapped_extents == 0) {
+			if (iters == 0) {
+				/* Fully sparse file; insert a zero-length "data" entry */
+				archive_entry_sparse_add_entry(entry, 0, 0);
+			}
+			break;
+		}
+		fe = fm->fm_extents;
+		for (i = 0; i < (int)fm->fm_mapped_extents; i++, fe++) {
+			if (!(fe->fe_flags & FIEMAP_EXTENT_UNWRITTEN)) {
+				/* The fe_length of the last block does not
+				 * adjust itself to its size files. */
+				int64_t length = fe->fe_length;
+				if (fe->fe_logical + length > (uint64_t)size)
+					length -= fe->fe_logical + length - size;
+				if (fe->fe_logical == 0 && length == size) {
+					/* This is not sparse. */
+					do_fiemap = 0;
+					break;
+				}
+				if (length > 0)
+					archive_entry_sparse_add_entry(entry,
+					    fe->fe_logical, length);
+			}
+			if (fe->fe_flags & FIEMAP_EXTENT_LAST)
+				do_fiemap = 0;
+		}
+		if (do_fiemap) {
+			fe = fm->fm_extents + fm->fm_mapped_extents -1;
+			fm->fm_start = fe->fe_logical + fe->fe_length;
+		} else
+			break;
+	}
+exit_setup_sparse:
+	return (exit_sts);
+}
+
+#elif defined(SEEK_HOLE) && defined(SEEK_DATA) && defined(_PC_MIN_HOLE_SIZE)
+
+/*
+ * FreeBSD and Solaris sparse interface.
+ */
+
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	int64_t size;
+	off_t initial_off; /* FreeBSD/Solaris only, so off_t okay here */
+	off_t off_s, off_e; /* FreeBSD/Solaris only, so off_t okay here */
+	int exit_sts = ARCHIVE_OK;
+	int check_fully_sparse = 0;
+
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
+
+	/* Does filesystem support the reporting of hole ? */
+	if (*fd < 0 && a->tree != NULL) {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+	}
+
+	if (*fd >= 0) {
+		if (fpathconf(*fd, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+		initial_off = lseek(*fd, 0, SEEK_CUR);
+		if (initial_off != 0)
+			lseek(*fd, 0, SEEK_SET);
+	} else {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+			
+		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+		*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		__archive_ensure_cloexec_flag(*fd);
+		initial_off = 0;
+	}
+
+	off_s = 0;
+	size = archive_entry_size(entry);
+	while (off_s < size) {
+		off_s = lseek(*fd, off_s, SEEK_DATA);
+		if (off_s == (off_t)-1) {
+			if (errno == ENXIO) {
+				/* no more hole */
+				if (archive_entry_sparse_count(entry) == 0) {
+					/* Potentially a fully-sparse file. */
+					check_fully_sparse = 1;
+				}
+				break;
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		off_e = lseek(*fd, off_s, SEEK_HOLE);
+		if (off_e == (off_t)-1) {
+			if (errno == ENXIO) {
+				off_e = lseek(*fd, 0, SEEK_END);
+				if (off_e != (off_t)-1)
+					break;/* no more data */
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_DATA) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		if (off_s == 0 && off_e == size)
+			break;/* This is not spase. */
+		archive_entry_sparse_add_entry(entry, off_s,
+			off_e - off_s);
+		off_s = off_e;
+	}
+
+	if (check_fully_sparse) {
+		if (lseek(*fd, 0, SEEK_HOLE) == 0 &&
+			lseek(*fd, 0, SEEK_END) == size) {
+			/* Fully sparse file; insert a zero-length "data" entry */
+			archive_entry_sparse_add_entry(entry, 0, 0);
+		}
+	}
+exit_setup_sparse:
+	lseek(*fd, initial_off, SEEK_SET);
+	return (exit_sts);
+}
+
+#else
+
+/*
+ * Generic (stub) sparse support.
+ */
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;     /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd;    /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+#endif
+
+#endif /* !defined(_WIN32) || defined(__CYGWIN__) */
+

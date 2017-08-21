@@ -1,10 +1,10 @@
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    char header[80];
-    snprintf(header, sizeof(header),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, header, 0);
-    if(result)
-      return result;
+}
+#endif
 
+#if ARCHIVE_XATTR_LINUX || ARCHIVE_XATTR_DARWIN || ARCHIVE_XATTR_AIX
+
+/*
+ * Linux, Darwin and AIX extended attribute support.
+ *
+ * TODO:  By using a stack-allocated buffer for the first
+ * call to getxattr(), we might be able to avoid the second

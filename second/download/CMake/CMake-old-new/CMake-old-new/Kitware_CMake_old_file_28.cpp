@@ -1,412 +1,359 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-   file Copyright.txt or https://cmake.org/licensing#kwsys for details.  */
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(Terminal.h)
+   file Copyright.txt or https://cmake.org/licensing for details.  */
+#include "cmExecuteProcessCommand.h"
 
-/* Work-around CMake dependency scanning limitation.  This must
-   duplicate the above list of headers.  */
-#if 0
-#include "Terminal.h.in"
-#endif
+#include "cmsys/Process.h"
+#include <ctype.h> /* isspace */
+#include <sstream>
+#include <stdio.h>
 
-/*--------------------------------------------------------------------------*/
-/* Configure support for this platform.  */
-#if defined(_WIN32) || defined(__CYGWIN__)
-#define KWSYS_TERMINAL_SUPPORT_CONSOLE
-#endif
-#if !defined(_WIN32)
-#define KWSYS_TERMINAL_ISATTY_WORKS
-#endif
+#include "cmMakefile.h"
+#include "cmProcessOutput.h"
+#include "cmSystemTools.h"
 
-/*--------------------------------------------------------------------------*/
-/* Include needed system APIs.  */
+class cmExecutionStatus;
 
-#include <stdarg.h> /* va_list */
-#include <stdlib.h> /* getenv */
-#include <string.h> /* strcmp */
-
-#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
-#include <io.h>      /* _get_osfhandle */
-#include <windows.h> /* SetConsoleTextAttribute */
-#endif
-
-#if defined(KWSYS_TERMINAL_ISATTY_WORKS)
-#include <unistd.h> /* isatty */
-#else
-#include <sys/stat.h> /* fstat */
-#endif
-
-/*--------------------------------------------------------------------------*/
-static int kwsysTerminalStreamIsVT100(FILE* stream, int default_vt100,
-                                      int default_tty);
-static void kwsysTerminalSetVT100Color(FILE* stream, int color);
-#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
-static HANDLE kwsysTerminalGetStreamHandle(FILE* stream);
-static void kwsysTerminalSetConsoleColor(HANDLE hOut,
-                                         CONSOLE_SCREEN_BUFFER_INFO* hOutInfo,
-                                         FILE* stream, int color);
-#endif
-
-/*--------------------------------------------------------------------------*/
-void kwsysTerminal_cfprintf(int color, FILE* stream, const char* format, ...)
+static bool cmExecuteProcessCommandIsWhitespace(char c)
 {
-  /* Setup the stream with the given color if possible.  */
-  int pipeIsConsole = 0;
-  int pipeIsVT100 = 0;
-  int default_vt100 = color & kwsysTerminal_Color_AssumeVT100;
-  int default_tty = color & kwsysTerminal_Color_AssumeTTY;
-#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
-  CONSOLE_SCREEN_BUFFER_INFO hOutInfo;
-  HANDLE hOut = kwsysTerminalGetStreamHandle(stream);
-  if (GetConsoleScreenBufferInfo(hOut, &hOutInfo)) {
-    pipeIsConsole = 1;
-    kwsysTerminalSetConsoleColor(hOut, &hOutInfo, stream, color);
-  }
-#endif
-  if (!pipeIsConsole &&
-      kwsysTerminalStreamIsVT100(stream, default_vt100, default_tty)) {
-    pipeIsVT100 = 1;
-    kwsysTerminalSetVT100Color(stream, color);
-  }
-
-  /* Format the text into the stream.  */
-  {
-    va_list var_args;
-    va_start(var_args, format);
-    vfprintf(stream, format, var_args);
-    va_end(var_args);
-  }
-
-/* Restore the normal color state for the stream.  */
-#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
-  if (pipeIsConsole) {
-    kwsysTerminalSetConsoleColor(hOut, &hOutInfo, stream,
-                                 kwsysTerminal_Color_Normal);
-  }
-#endif
-  if (pipeIsVT100) {
-    kwsysTerminalSetVT100Color(stream, kwsysTerminal_Color_Normal);
-  }
+  return (isspace((int)c) || c == '\n' || c == '\r');
 }
 
-/*--------------------------------------------------------------------------*/
-/* Detect cases when a stream is definitely not interactive.  */
-#if !defined(KWSYS_TERMINAL_ISATTY_WORKS)
-static int kwsysTerminalStreamIsNotInteractive(FILE* stream)
+void cmExecuteProcessCommandFixText(std::vector<char>& output,
+                                    bool strip_trailing_whitespace);
+void cmExecuteProcessCommandAppend(std::vector<char>& output, const char* data,
+                                   int length);
+
+// cmExecuteProcessCommand
+bool cmExecuteProcessCommand::InitialPass(std::vector<std::string> const& args,
+                                          cmExecutionStatus&)
 {
-  /* The given stream is definitely not interactive if it is a regular
-     file.  */
-  struct stat stream_stat;
-  if (fstat(fileno(stream), &stream_stat) == 0) {
-    if (stream_stat.st_mode & S_IFREG) {
-      return 1;
+  if (args.empty()) {
+    this->SetError("called with incorrect number of arguments");
+    return false;
+  }
+  std::vector<std::vector<const char*> > cmds;
+  std::string arguments;
+  bool doing_command = false;
+  size_t command_index = 0;
+  bool output_quiet = false;
+  bool error_quiet = false;
+  bool output_strip_trailing_whitespace = false;
+  bool error_strip_trailing_whitespace = false;
+  std::string timeout_string;
+  std::string input_file;
+  std::string output_file;
+  std::string error_file;
+  std::string output_variable;
+  std::string error_variable;
+  std::string result_variable;
+  std::string working_directory;
+  cmProcessOutput::Encoding encoding = cmProcessOutput::None;
+  for (size_t i = 0; i < args.size(); ++i) {
+    if (args[i] == "COMMAND") {
+      doing_command = true;
+      command_index = cmds.size();
+      cmds.push_back(std::vector<const char*>());
+    } else if (args[i] == "OUTPUT_VARIABLE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        output_variable = args[i];
+      } else {
+        this->SetError(" called with no value for OUTPUT_VARIABLE.");
+        return false;
+      }
+    } else if (args[i] == "ERROR_VARIABLE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        error_variable = args[i];
+      } else {
+        this->SetError(" called with no value for ERROR_VARIABLE.");
+        return false;
+      }
+    } else if (args[i] == "RESULT_VARIABLE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        result_variable = args[i];
+      } else {
+        this->SetError(" called with no value for RESULT_VARIABLE.");
+        return false;
+      }
+    } else if (args[i] == "WORKING_DIRECTORY") {
+      doing_command = false;
+      if (++i < args.size()) {
+        working_directory = args[i];
+      } else {
+        this->SetError(" called with no value for WORKING_DIRECTORY.");
+        return false;
+      }
+    } else if (args[i] == "INPUT_FILE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        input_file = args[i];
+      } else {
+        this->SetError(" called with no value for INPUT_FILE.");
+        return false;
+      }
+    } else if (args[i] == "OUTPUT_FILE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        output_file = args[i];
+      } else {
+        this->SetError(" called with no value for OUTPUT_FILE.");
+        return false;
+      }
+    } else if (args[i] == "ERROR_FILE") {
+      doing_command = false;
+      if (++i < args.size()) {
+        error_file = args[i];
+      } else {
+        this->SetError(" called with no value for ERROR_FILE.");
+        return false;
+      }
+    } else if (args[i] == "TIMEOUT") {
+      doing_command = false;
+      if (++i < args.size()) {
+        timeout_string = args[i];
+      } else {
+        this->SetError(" called with no value for TIMEOUT.");
+        return false;
+      }
+    } else if (args[i] == "OUTPUT_QUIET") {
+      doing_command = false;
+      output_quiet = true;
+    } else if (args[i] == "ERROR_QUIET") {
+      doing_command = false;
+      error_quiet = true;
+    } else if (args[i] == "OUTPUT_STRIP_TRAILING_WHITESPACE") {
+      doing_command = false;
+      output_strip_trailing_whitespace = true;
+    } else if (args[i] == "ERROR_STRIP_TRAILING_WHITESPACE") {
+      doing_command = false;
+      error_strip_trailing_whitespace = true;
+    } else if (args[i] == "ENCODING") {
+      doing_command = false;
+      if (++i < args.size()) {
+        encoding = cmProcessOutput::FindEncoding(args[i]);
+      } else {
+        this->SetError(" called with no value for ENCODING.");
+        return false;
+      }
+    } else if (doing_command) {
+      cmds[command_index].push_back(args[i].c_str());
+    } else {
+      std::ostringstream e;
+      e << " given unknown argument \"" << args[i] << "\".";
+      this->SetError(e.str());
+      return false;
     }
   }
-  return 0;
-}
-#endif
 
-/*--------------------------------------------------------------------------*/
-/* List of terminal names known to support VT100 color escape sequences.  */
-static const char* kwsysTerminalVT100Names[] = { "Eterm",
-                                                 "ansi",
-                                                 "color-xterm",
-                                                 "con132x25",
-                                                 "con132x30",
-                                                 "con132x43",
-                                                 "con132x60",
-                                                 "con80x25",
-                                                 "con80x28",
-                                                 "con80x30",
-                                                 "con80x43",
-                                                 "con80x50",
-                                                 "con80x60",
-                                                 "cons25",
-                                                 "console",
-                                                 "cygwin",
-                                                 "dtterm",
-                                                 "eterm-color",
-                                                 "gnome",
-                                                 "gnome-256color",
-                                                 "konsole",
-                                                 "konsole-256color",
-                                                 "kterm",
-                                                 "linux",
-                                                 "msys",
-                                                 "linux-c",
-                                                 "mach-color",
-                                                 "mlterm",
-                                                 "putty",
-                                                 "putty-256color",
-                                                 "rxvt",
-                                                 "rxvt-256color",
-                                                 "rxvt-cygwin",
-                                                 "rxvt-cygwin-native",
-                                                 "rxvt-unicode",
-                                                 "rxvt-unicode-256color",
-                                                 "screen",
-                                                 "screen-256color",
-                                                 "screen-256color-bce",
-                                                 "screen-bce",
-                                                 "screen-w",
-                                                 "screen.linux",
-                                                 "tmux",
-                                                 "tmux-256color",
-                                                 "vt100",
-                                                 "xterm",
-                                                 "xterm-16color",
-                                                 "xterm-256color",
-                                                 "xterm-88color",
-                                                 "xterm-color",
-                                                 "xterm-debian",
-                                                 "xterm-termite",
-                                                 0 };
+  if (!this->Makefile->CanIWriteThisFile(output_file.c_str())) {
+    std::string e = "attempted to output into a file: " + output_file +
+      " into a source directory.";
+    this->SetError(e);
+    cmSystemTools::SetFatalErrorOccured();
+    return false;
+  }
 
-/*--------------------------------------------------------------------------*/
-/* Detect whether a stream is displayed in a VT100-compatible terminal.  */
-static int kwsysTerminalStreamIsVT100(FILE* stream, int default_vt100,
-                                      int default_tty)
-{
-  /* Force color according to http://bixense.com/clicolors/ convention.  */
-  {
-    const char* clicolor_force = getenv("CLICOLOR_FORCE");
-    if (clicolor_force && *clicolor_force &&
-        strcmp(clicolor_force, "0") != 0) {
-      return 1;
+  // Check for commands given.
+  if (cmds.empty()) {
+    this->SetError(" called with no COMMAND argument.");
+    return false;
+  }
+  for (unsigned int i = 0; i < cmds.size(); ++i) {
+    if (cmds[i].empty()) {
+      this->SetError(" given COMMAND argument with no value.");
+      return false;
+    }
+    // Add the null terminating pointer to the command argument list.
+    cmds[i].push_back(CM_NULLPTR);
+  }
+
+  // Parse the timeout string.
+  double timeout = -1;
+  if (!timeout_string.empty()) {
+    if (sscanf(timeout_string.c_str(), "%lg", &timeout) != 1) {
+      this->SetError(" called with TIMEOUT value that could not be parsed.");
+      return false;
     }
   }
 
-  /* If running inside emacs the terminal is not VT100.  Some emacs
-     seem to claim the TERM is xterm even though they do not support
-     VT100 escapes.  */
-  {
-    const char* emacs = getenv("EMACS");
-    if (emacs && *emacs == 't') {
-      return 0;
-    }
+  // Create a process instance.
+  cmsysProcess* cp = cmsysProcess_New();
+
+  // Set the command sequence.
+  for (unsigned int i = 0; i < cmds.size(); ++i) {
+    cmsysProcess_AddCommand(cp, &*cmds[i].begin());
   }
 
-  /* Check for a valid terminal.  */
-  if (!default_vt100) {
-    const char** t = 0;
-    const char* term = getenv("TERM");
-    if (term) {
-      for (t = kwsysTerminalVT100Names; *t && strcmp(term, *t) != 0; ++t) {
+  // Set the process working directory.
+  if (!working_directory.empty()) {
+    cmsysProcess_SetWorkingDirectory(cp, working_directory.c_str());
+  }
+
+  // Always hide the process window.
+  cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
+
+  // Check the output variables.
+  bool merge_output = false;
+  if (!input_file.empty()) {
+    cmsysProcess_SetPipeFile(cp, cmsysProcess_Pipe_STDIN, input_file.c_str());
+  }
+  if (!output_file.empty()) {
+    cmsysProcess_SetPipeFile(cp, cmsysProcess_Pipe_STDOUT,
+                             output_file.c_str());
+  }
+  if (!error_file.empty()) {
+    if (error_file == output_file) {
+      merge_output = true;
+    } else {
+      cmsysProcess_SetPipeFile(cp, cmsysProcess_Pipe_STDERR,
+                               error_file.c_str());
+    }
+  }
+  if (!output_variable.empty() && output_variable == error_variable) {
+    merge_output = true;
+  }
+  if (merge_output) {
+    cmsysProcess_SetOption(cp, cmsysProcess_Option_MergeOutput, 1);
+  }
+
+  // Set the timeout if any.
+  if (timeout >= 0) {
+    cmsysProcess_SetTimeout(cp, timeout);
+  }
+
+  // Start the process.
+  cmsysProcess_Execute(cp);
+
+  // Read the process output.
+  std::vector<char> tempOutput;
+  std::vector<char> tempError;
+  int length;
+  char* data;
+  int p;
+  cmProcessOutput processOutput(encoding);
+  std::string strdata;
+  while ((p = cmsysProcess_WaitForData(cp, &data, &length, CM_NULLPTR), p)) {
+    // Put the output in the right place.
+    if (p == cmsysProcess_Pipe_STDOUT && !output_quiet) {
+      if (output_variable.empty()) {
+        processOutput.DecodeText(data, length, strdata, 1);
+        cmSystemTools::Stdout(strdata.c_str(), strdata.size());
+      } else {
+        cmExecuteProcessCommandAppend(tempOutput, data, length);
+      }
+    } else if (p == cmsysProcess_Pipe_STDERR && !error_quiet) {
+      if (error_variable.empty()) {
+        processOutput.DecodeText(data, length, strdata, 2);
+        cmSystemTools::Stderr(strdata.c_str(), strdata.size());
+      } else {
+        cmExecuteProcessCommandAppend(tempError, data, length);
       }
     }
-    if (!(t && *t)) {
-      return 0;
+  }
+  if (!output_quiet && output_variable.empty()) {
+    processOutput.DecodeText(std::string(), strdata, 1);
+    if (!strdata.empty()) {
+      cmSystemTools::Stdout(strdata.c_str(), strdata.size());
+    }
+  }
+  if (!error_quiet && error_variable.empty()) {
+    processOutput.DecodeText(std::string(), strdata, 2);
+    if (!strdata.empty()) {
+      cmSystemTools::Stderr(strdata.c_str(), strdata.size());
     }
   }
 
-#if defined(KWSYS_TERMINAL_ISATTY_WORKS)
-  /* Make sure the stream is a tty. */
-  (void)default_tty;
-  return isatty(fileno(stream)) ? 1 : 0;
-#else
-  /* Check for cases in which the stream is definitely not a tty.  */
-  if (kwsysTerminalStreamIsNotInteractive(stream)) {
-    return 0;
+  // All output has been read.  Wait for the process to exit.
+  cmsysProcess_WaitForExit(cp, CM_NULLPTR);
+  processOutput.DecodeText(tempOutput, tempOutput);
+  processOutput.DecodeText(tempError, tempError);
+
+  // Fix the text in the output strings.
+  cmExecuteProcessCommandFixText(tempOutput, output_strip_trailing_whitespace);
+  cmExecuteProcessCommandFixText(tempError, error_strip_trailing_whitespace);
+
+  // Store the output obtained.
+  if (!output_variable.empty() && !tempOutput.empty()) {
+    this->Makefile->AddDefinition(output_variable, &*tempOutput.begin());
+  }
+  if (!merge_output && !error_variable.empty() && !tempError.empty()) {
+    this->Makefile->AddDefinition(error_variable, &*tempError.begin());
   }
 
-  /* Use the provided default for whether this is a tty.  */
-  return default_tty;
-#endif
+  // Store the result of running the process.
+  if (!result_variable.empty()) {
+    switch (cmsysProcess_GetState(cp)) {
+      case cmsysProcess_State_Exited: {
+        int v = cmsysProcess_GetExitValue(cp);
+        char buf[100];
+        sprintf(buf, "%d", v);
+        this->Makefile->AddDefinition(result_variable, buf);
+      } break;
+      case cmsysProcess_State_Exception:
+        this->Makefile->AddDefinition(result_variable,
+                                      cmsysProcess_GetExceptionString(cp));
+        break;
+      case cmsysProcess_State_Error:
+        this->Makefile->AddDefinition(result_variable,
+                                      cmsysProcess_GetErrorString(cp));
+        break;
+      case cmsysProcess_State_Expired:
+        this->Makefile->AddDefinition(result_variable,
+                                      "Process terminated due to timeout");
+        break;
+    }
+  }
+
+  // Delete the process instance.
+  cmsysProcess_Delete(cp);
+
+  return true;
 }
 
-/*--------------------------------------------------------------------------*/
-/* VT100 escape sequence strings.  */
-#define KWSYS_TERMINAL_VT100_NORMAL "\33[0m"
-#define KWSYS_TERMINAL_VT100_BOLD "\33[1m"
-#define KWSYS_TERMINAL_VT100_UNDERLINE "\33[4m"
-#define KWSYS_TERMINAL_VT100_BLINK "\33[5m"
-#define KWSYS_TERMINAL_VT100_INVERSE "\33[7m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_BLACK "\33[30m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_RED "\33[31m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_GREEN "\33[32m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_YELLOW "\33[33m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_BLUE "\33[34m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_MAGENTA "\33[35m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_CYAN "\33[36m"
-#define KWSYS_TERMINAL_VT100_FOREGROUND_WHITE "\33[37m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_BLACK "\33[40m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_RED "\33[41m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_GREEN "\33[42m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_YELLOW "\33[43m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_BLUE "\33[44m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_MAGENTA "\33[45m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_CYAN "\33[46m"
-#define KWSYS_TERMINAL_VT100_BACKGROUND_WHITE "\33[47m"
-
-/*--------------------------------------------------------------------------*/
-/* Write VT100 escape sequences to the stream for the given color.  */
-static void kwsysTerminalSetVT100Color(FILE* stream, int color)
+void cmExecuteProcessCommandFixText(std::vector<char>& output,
+                                    bool strip_trailing_whitespace)
 {
-  if (color == kwsysTerminal_Color_Normal) {
-    fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL);
-    return;
+  // Remove \0 characters and the \r part of \r\n pairs.
+  unsigned int in_index = 0;
+  unsigned int out_index = 0;
+  while (in_index < output.size()) {
+    char c = output[in_index++];
+    if ((c != '\r' ||
+         !(in_index < output.size() && output[in_index] == '\n')) &&
+        c != '\0') {
+      output[out_index++] = c;
+    }
   }
 
-  switch (color & kwsysTerminal_Color_ForegroundMask) {
-    case kwsysTerminal_Color_Normal:
-      fprintf(stream, KWSYS_TERMINAL_VT100_NORMAL);
-      break;
-    case kwsysTerminal_Color_ForegroundBlack:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_BLACK);
-      break;
-    case kwsysTerminal_Color_ForegroundRed:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_RED);
-      break;
-    case kwsysTerminal_Color_ForegroundGreen:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_GREEN);
-      break;
-    case kwsysTerminal_Color_ForegroundYellow:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_YELLOW);
-      break;
-    case kwsysTerminal_Color_ForegroundBlue:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_BLUE);
-      break;
-    case kwsysTerminal_Color_ForegroundMagenta:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_MAGENTA);
-      break;
-    case kwsysTerminal_Color_ForegroundCyan:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_CYAN);
-      break;
-    case kwsysTerminal_Color_ForegroundWhite:
-      fprintf(stream, KWSYS_TERMINAL_VT100_FOREGROUND_WHITE);
-      break;
+  // Remove trailing whitespace if requested.
+  if (strip_trailing_whitespace) {
+    while (out_index > 0 &&
+           cmExecuteProcessCommandIsWhitespace(output[out_index - 1])) {
+      --out_index;
+    }
   }
-  switch (color & kwsysTerminal_Color_BackgroundMask) {
-    case kwsysTerminal_Color_BackgroundBlack:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLACK);
-      break;
-    case kwsysTerminal_Color_BackgroundRed:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_RED);
-      break;
-    case kwsysTerminal_Color_BackgroundGreen:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_GREEN);
-      break;
-    case kwsysTerminal_Color_BackgroundYellow:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_YELLOW);
-      break;
-    case kwsysTerminal_Color_BackgroundBlue:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_BLUE);
-      break;
-    case kwsysTerminal_Color_BackgroundMagenta:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_MAGENTA);
-      break;
-    case kwsysTerminal_Color_BackgroundCyan:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_CYAN);
-      break;
-    case kwsysTerminal_Color_BackgroundWhite:
-      fprintf(stream, KWSYS_TERMINAL_VT100_BACKGROUND_WHITE);
-      break;
-  }
-  if (color & kwsysTerminal_Color_ForegroundBold) {
-    fprintf(stream, KWSYS_TERMINAL_VT100_BOLD);
-  }
+
+  // Shrink the vector to the size needed.
+  output.resize(out_index);
+
+  // Put a terminator on the text string.
+  output.push_back('\0');
 }
 
-/*--------------------------------------------------------------------------*/
-#if defined(KWSYS_TERMINAL_SUPPORT_CONSOLE)
-
-#define KWSYS_TERMINAL_MASK_FOREGROUND                                        \
-  (FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_INTENSITY)
-#define KWSYS_TERMINAL_MASK_BACKGROUND                                        \
-  (BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED | BACKGROUND_INTENSITY)
-
-/* Get the Windows handle for a FILE stream.  */
-static HANDLE kwsysTerminalGetStreamHandle(FILE* stream)
+void cmExecuteProcessCommandAppend(std::vector<char>& output, const char* data,
+                                   int length)
 {
-  /* Get the C-library file descriptor from the stream.  */
-  int fd = fileno(stream);
-
-#if defined(__CYGWIN__)
-  /* Cygwin seems to have an extra pipe level.  If the file descriptor
-     corresponds to stdout or stderr then obtain the matching windows
-     handle directly.  */
-  if (fd == fileno(stdout)) {
-    return GetStdHandle(STD_OUTPUT_HANDLE);
-  } else if (fd == fileno(stderr)) {
-    return GetStdHandle(STD_ERROR_HANDLE);
+#if defined(__APPLE__)
+  // HACK on Apple to work around bug with inserting at the
+  // end of an empty vector.  This resulted in random failures
+  // that were hard to reproduce.
+  if (output.empty() && length > 0) {
+    output.push_back(data[0]);
+    ++data;
+    --length;
   }
 #endif
-
-  /* Get the underlying Windows handle for the descriptor.  */
-  return (HANDLE)_get_osfhandle(fd);
+  output.insert(output.end(), data, data + length);
 }
-
-/* Set color attributes in a Windows console.  */
-static void kwsysTerminalSetConsoleColor(HANDLE hOut,
-                                         CONSOLE_SCREEN_BUFFER_INFO* hOutInfo,
-                                         FILE* stream, int color)
-{
-  WORD attributes = 0;
-  switch (color & kwsysTerminal_Color_ForegroundMask) {
-    case kwsysTerminal_Color_Normal:
-      attributes |= hOutInfo->wAttributes & KWSYS_TERMINAL_MASK_FOREGROUND;
-      break;
-    case kwsysTerminal_Color_ForegroundBlack:
-      attributes |= 0;
-      break;
-    case kwsysTerminal_Color_ForegroundRed:
-      attributes |= FOREGROUND_RED;
-      break;
-    case kwsysTerminal_Color_ForegroundGreen:
-      attributes |= FOREGROUND_GREEN;
-      break;
-    case kwsysTerminal_Color_ForegroundYellow:
-      attributes |= FOREGROUND_RED | FOREGROUND_GREEN;
-      break;
-    case kwsysTerminal_Color_ForegroundBlue:
-      attributes |= FOREGROUND_BLUE;
-      break;
-    case kwsysTerminal_Color_ForegroundMagenta:
-      attributes |= FOREGROUND_RED | FOREGROUND_BLUE;
-      break;
-    case kwsysTerminal_Color_ForegroundCyan:
-      attributes |= FOREGROUND_BLUE | FOREGROUND_GREEN;
-      break;
-    case kwsysTerminal_Color_ForegroundWhite:
-      attributes |= FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED;
-      break;
-  }
-  switch (color & kwsysTerminal_Color_BackgroundMask) {
-    case kwsysTerminal_Color_Normal:
-      attributes |= hOutInfo->wAttributes & KWSYS_TERMINAL_MASK_BACKGROUND;
-      break;
-    case kwsysTerminal_Color_BackgroundBlack:
-      attributes |= 0;
-      break;
-    case kwsysTerminal_Color_BackgroundRed:
-      attributes |= BACKGROUND_RED;
-      break;
-    case kwsysTerminal_Color_BackgroundGreen:
-      attributes |= BACKGROUND_GREEN;
-      break;
-    case kwsysTerminal_Color_BackgroundYellow:
-      attributes |= BACKGROUND_RED | BACKGROUND_GREEN;
-      break;
-    case kwsysTerminal_Color_BackgroundBlue:
-      attributes |= BACKGROUND_BLUE;
-      break;
-    case kwsysTerminal_Color_BackgroundMagenta:
-      attributes |= BACKGROUND_RED | BACKGROUND_BLUE;
-      break;
-    case kwsysTerminal_Color_BackgroundCyan:
-      attributes |= BACKGROUND_BLUE | BACKGROUND_GREEN;
-      break;
-    case kwsysTerminal_Color_BackgroundWhite:
-      attributes |= BACKGROUND_BLUE | BACKGROUND_GREEN | BACKGROUND_RED;
-      break;
-  }
-  if (color & kwsysTerminal_Color_ForegroundBold) {
-    attributes |= FOREGROUND_INTENSITY;
-  }
-  if (color & kwsysTerminal_Color_BackgroundBold) {
-    attributes |= BACKGROUND_INTENSITY;
-  }
-  fflush(stream);
-  SetConsoleTextAttribute(hOut, attributes);
-}
-#endif

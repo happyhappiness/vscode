@@ -1,21 +1,22 @@
-	const char *path;
-	ssize_t list_size;
+     * The application kindly asks for a differently sized receive buffer.
+     * If it seems reasonable, we'll use it.
+     */
+    data->set.buffer_size = va_arg(param, long);
 
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
+    if(data->set.buffer_size > MAX_BUFSIZE)
+      data->set.buffer_size = MAX_BUFSIZE; /* huge internal default */
+    else if(data->set.buffer_size < 1)
+      data->set.buffer_size = BUFSIZE;
 
-	if (*fd < 0 && a->tree != NULL) {
-		if (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)
-			*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
-			}
-		}
-	}
+    /* Resize only if larger than default buffer size. */
+    if(data->set.buffer_size > BUFSIZE) {
+      data->state.buffer = realloc(data->state.buffer,
+                                   data->set.buffer_size + 1);
+      if(!data->state.buffer) {
+        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+        result = CURLE_OUT_OF_MEMORY;
+      }
+    }
+
+    break;
 

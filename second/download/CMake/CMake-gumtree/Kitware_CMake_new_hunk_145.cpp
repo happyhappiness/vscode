@@ -1,7 +1,7 @@
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL");
+				goto fail;
+			}
+			parent->subdirs++;
+			/* Overwrite an offset and a number of this "CL" entry

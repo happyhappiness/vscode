@@ -1,25 +1,11 @@
-        {
-          const BIGNUM *n;
-          const BIGNUM *e;
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
 
-          RSA_get0_key(rsa, &n, &e, NULL);
-          BN_print(mem, n);
-          push_certinfo("RSA Public Key", i);
-          print_pubkey_BN(rsa, n, i);
-          print_pubkey_BN(rsa, e, i);
-        }
-#else
-        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
-        push_certinfo("RSA Public Key", i);
-        print_pubkey_BN(rsa, n, i);
-        print_pubkey_BN(rsa, e, i);
-#endif
+  /* Generate 32 random hex chars, 32 bytes + 1 zero termination */
+  result = Curl_rand_hex(data, (unsigned char *)cnonce, sizeof(cnonce));
+  if(result)
+    return result;
 
-        break;
-      }
-      case EVP_PKEY_DSA:
-      {
-#ifndef OPENSSL_NO_DSA
-        DSA *dsa;
-#ifdef HAVE_OPAQUE_EVP_PKEY
-        dsa = EVP_PKEY_get0_DSA(pubkey);
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)

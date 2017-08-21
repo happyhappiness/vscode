@@ -1,11 +1,12 @@
-			    "Rejecting malformed cpio archive: symlink contents exceed 1 megabyte");
-			return (ARCHIVE_FATAL);
-		}
-		hl = __archive_read_ahead(a,
-			(size_t)cpio->entry_bytes_remaining, NULL);
-		if (hl == NULL)
-			return (ARCHIVE_FATAL);
-		if (archive_entry_copy_symlink_l(entry, (const char *)hl,
-		    (size_t)cpio->entry_bytes_remaining, sconv) != 0) {
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
+		*used = avail_in - xar->lzstream.avail_in;
+		*outbytes = avail_out - xar->lzstream.avail_out;
+		break;
+#endif
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
+	case BZIP2:
+#endif
+#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
+	case LZMA:
+	case XZ:
+#endif
+	case NONE:

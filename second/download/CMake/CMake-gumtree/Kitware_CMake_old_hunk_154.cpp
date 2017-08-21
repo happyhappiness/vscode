@@ -1,7 +1,8 @@
-#endif
+	if (tar->entry_bytes_remaining < 0) {
+		tar->entry_bytes_remaining = 0;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Tar entry has negative size?");
+		err = ARCHIVE_WARN;
 	}
-
-	/* Check if an error happend in decompression process. */
-	if (uncompressed_size < 0) {
-		archive_set_error(&(self->archive->archive),
-		    ARCHIVE_ERRNO_MISC, "lz4 decompression failed");
+	tar->realsize = tar->entry_bytes_remaining;
+	archive_entry_set_size(entry, tar->entry_bytes_remaining);

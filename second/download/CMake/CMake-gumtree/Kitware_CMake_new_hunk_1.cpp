@@ -1,14 +1,10 @@
-                 << static_cast<int>(percent + .5f) << "% tests passed, "
-                 << failed.size() << " tests failed out of " << total
-                 << std::endl);
+	struct archive_string tempfile;
 
-    if (!this->CTest->GetLabelsForSubprojects().empty() &&
-        this->CTest->GetSubprojectSummary()) {
-      this->PrintSubprojectSummary();
-    } else if (this->CTest->GetLabelSummary()) {
-      this->PrintLabelSummary();
-    }
+	(void)fd; /* UNUSED */
 
-    char realBuf[1024];
-    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
+	name = archive_read_disk_entry_setup_path(a, entry, NULL);
+	if (name == NULL)
+		return (ARCHIVE_WARN);
+
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);

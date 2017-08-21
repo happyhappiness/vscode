@@ -1,7 +1,13 @@
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
+#endif
+#endif
+    default:
+      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
+      sprintf(cp->ProcessResults[idx].ExitExceptionString, "Signal %d", sig);
+      break;
+  }
+}
+#undef KWSYSPE_CASE
+
+/* When the child process encounters an error before its program is
+   invoked, this is called to report the error to the parent and
+   exit.  */

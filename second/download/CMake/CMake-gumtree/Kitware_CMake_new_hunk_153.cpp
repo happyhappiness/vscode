@@ -1,9 +1,8 @@
-		mine->block_size = new_block_size;
+			return (ARCHIVE_FATAL);
 	}
-	buffer = malloc(mine->block_size);
-	if (buffer == NULL) {
-		archive_set_error(a, ENOMEM, "No memory");
-		goto fail;
-	}
-	mine->buffer = buffer;
-	mine->fd = fd;
+	archive_strncpy(&(tar->localname), acl, p - acl);
+	err = archive_acl_from_text_l(archive_entry_acl(entry),
+	    tar->localname.s, acl_type, tar->sconv_acl);
+	if (err != ARCHIVE_OK) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,

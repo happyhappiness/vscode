@@ -1,13 +1,6 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
 
-	ar = (struct ar *)malloc(sizeof(*ar));
-	if (ar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate ar data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(ar, 0, sizeof(*ar));
-	ar->strtab = NULL;
+  /* We do some initial setup here, all those fields that can't be just 0 */
 
-	r = __archive_read_register_format(a,
+  data->state.headerbuff = malloc(HEADERSIZE);
+  if(!data->state.headerbuff) {
+    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));

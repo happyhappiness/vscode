@@ -1,18 +1,21 @@
- *	id1+size1+data1 + id2+size2+data2 ...
- *  triplets.  id and size are 2 bytes each.
- */
-static void
-process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
-{
-	unsigned offset = 0;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
 
-	while (offset < extra_length - 4) {
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
 
-		offset += 4;
-		if (offset + datasize > extra_length) {
-			break;
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
+			}
 		}
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%04x, length %d\n",
+	}
+

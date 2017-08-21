@@ -1,7 +1,10 @@
+	struct archive_string tempfile;
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
+	(void)fd; /* UNUSED */
 
-  data->state.buffer = malloc(READBUFFER_SIZE + 1);
-  if(!data->state.buffer) {
-    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
+	name = archive_read_disk_entry_setup_path(a, entry, NULL);
+	if (name == NULL)
+		return (ARCHIVE_WARN);
+
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);

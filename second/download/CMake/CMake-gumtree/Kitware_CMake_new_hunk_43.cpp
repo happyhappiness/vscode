@@ -1,9 +1,14 @@
+                 << static_cast<int>(percent + .5f) << "% tests passed, "
+                 << failed.size() << " tests failed out of " << total
+                 << std::endl);
 
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ProcessResults[idx].ExitException = kwsysProcess_Exception_Other;
-      _snprintf(cp->ProcessResults[idx].ExitExceptionString,
-                KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
-      break;
-  }
-}
+    if (!this->CTest->GetLabelsForSubprojects().empty() &&
+        this->CTest->GetSubprojectSummary()) {
+      this->PrintSubprojectSummary();
+    } else if (this->CTest->GetLabelSummary()) {
+      this->PrintLabelSummary();
+    }
+
+    char realBuf[1024];
+    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,

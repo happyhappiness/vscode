@@ -1,7 +1,19 @@
+	struct archive_string tempfile;
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	else if (a->tree != NULL && a->tree_enter_working_dir(a->tree) != 0) {
+		archive_set_error(&a->archive, errno,
+			    "Can't change dir to read extended attributes");
+			return (ARCHIVE_FAILED);
+	}
+	if (name == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
+	}
 
-  data->state.buffer = malloc(BUFSIZE + 1);
-  if(!data->state.buffer) {
-    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);

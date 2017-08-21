@@ -1,10 +1,10 @@
-  else
-    hostname = conn->host.name;
+    time_t filetime;
+    struct tm buffer;
+    const struct tm *tm = &buffer;
+    char header[80];
+    snprintf(header, sizeof(header),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, header, 0);
+    if(result)
+      return result;
 
-  DEBUGASSERT(len > 32);
-
-  /* put the number first so that the hostname gets cut off if too long */
-  snprintf(buf, len, "%ld%s", conn->port, hostname);
-}
-
-/* Look up the bundle with all the connections to the same host this

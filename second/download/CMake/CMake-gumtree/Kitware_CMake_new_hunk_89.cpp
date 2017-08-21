@@ -1,9 +1,7 @@
-		mine->block_size = new_block_size;
-	}
-	buffer = malloc(mine->block_size);
-	if (buffer == NULL) {
-		archive_set_error(a, ENOMEM, "No memory");
-		goto fail;
-	}
-	mine->buffer = buffer;
-	mine->fd = fd;
+        /* we have a time, reformat it */
+        time_t secs=time(NULL);
+        /* using the good old yacc/bison yuck */
+        snprintf(buf, CURL_BUFSIZE(conn->data->set.buffer_size),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);
+        /* now, convert this into a time() value: */

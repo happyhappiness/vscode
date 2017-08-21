@@ -1,12 +1,20 @@
+{
+  va_list ap;
+  size_t len;
+  char error[CURL_ERROR_SIZE + 2];
+  va_start(ap, fmt);
 
-  /* We do some initial setup here, all those fields that can't be just 0 */
+  vsnprintf(error, CURL_ERROR_SIZE, fmt, ap);
+  len = strlen(error);
 
-  data->state.buffer = malloc(BUFSIZE + 1);
-  if(!data->state.buffer) {
-    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
-    result = CURLE_OUT_OF_MEMORY;
+  if(data->set.errorbuffer && !data->state.errorbuf) {
+    strcpy(data->set.errorbuffer, error);
+    data->state.errorbuf = TRUE; /* wrote error string */
+  }
+  if(data->set.verbose) {
+    error[len] = '\n';
+    error[++len] = '\0';
+    Curl_debug(data, CURLINFO_TEXT, error, len, NULL);
   }
 
-  data->state.headerbuff = malloc(HEADERSIZE);
-  if(!data->state.headerbuff) {
-    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));
+  va_end(ap);

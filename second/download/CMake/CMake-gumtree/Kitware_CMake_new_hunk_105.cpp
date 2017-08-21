@@ -1,9 +1,12 @@
-	/* Get a real compressed file size. */
-	lha->compsize -= extdsize - 2;
 
-	if (lha->compsize < 0)
-		goto invalid;	/* Invalid compressed file size */
+  /* We do some initial setup here, all those fields that can't be just 0 */
 
-	if (sum_calculated != headersum) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "LHa header sum error");
+  data->state.buffer = malloc(BUFSIZE + 1);
+  if(!data->state.buffer) {
+    DEBUGF(fprintf(stderr, "Error: malloc of buffer failed\n"));
+    result = CURLE_OUT_OF_MEMORY;
+  }
+
+  data->state.headerbuff = malloc(HEADERSIZE);
+  if(!data->state.headerbuff) {
+    DEBUGF(fprintf(stderr, "Error: malloc of headerbuff failed\n"));

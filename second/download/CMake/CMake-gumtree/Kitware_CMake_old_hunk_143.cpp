@@ -1,8 +1,7 @@
-		if (path == NULL)
-			path = archive_entry_pathname(entry);
-			
-		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
-			return (ARCHIVE_OK);
-		*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
-		if (*fd < 0) {
-			archive_set_error(&a->archive, errno,
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge RE");
+				return (NULL);
+			}
+		} else if (parent != NULL && parent->rr_moved)
+			file->rr_moved_has_re_only = 0;

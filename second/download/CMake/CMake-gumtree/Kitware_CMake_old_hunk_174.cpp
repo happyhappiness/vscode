@@ -1,11 +1,7 @@
-	switch ((int)type & ~0777777) {
-	case 01000000:
-		/* POSIX.1e ACL */
-		break;
-	case 03000000:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Solaris NFSv4 ACLs not supported");
-		return (ARCHIVE_WARN);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (unsupported type %o)",
+		}
+	} else if (errno != ENOENT && errno != ENOTDIR) {
+		/* Stat failed? */
+		archive_set_error(&a->archive, errno, "Can't test directory '%s'", path);
+		return (ARCHIVE_FAILED);
+	} else if (slash != NULL) {
+		*slash = '\0';

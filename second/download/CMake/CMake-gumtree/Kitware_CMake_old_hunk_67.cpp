@@ -1,9 +1,18 @@
-    fprintf(stderr, "File is an executable.  I don't dump those.\n");
-    return false;
-  }
-  /* Does it look like a i386 COFF OBJ file??? */
-  else if (((dosHeader->e_magic == IMAGE_FILE_MACHINE_I386) ||
-            (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64)) &&
-           (dosHeader->e_sp == 0)) {
-    /*
-    * The two tests above aren't what they look like.  They're
+  return 1;
+}
+
+static void showtime(struct Curl_easy *data,
+                     const char *text,
+                     time_t stamp)
+{
+  struct tm buffer;
+  const struct tm *tm = &buffer;
+  CURLcode result = Curl_gmtime(stamp, &buffer);
+  if(result)
+    return;
+
+  snprintf(data->state.buffer,
+           BUFSIZE,
+           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT",
+           text,
+           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],

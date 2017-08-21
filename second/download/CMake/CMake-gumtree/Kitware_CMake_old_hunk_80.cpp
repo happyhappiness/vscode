@@ -1,7 +1,7 @@
-		r = archive_match_path_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
+    switch (cmsysProcess_GetState(cp)) {
+      case cmsysProcess_State_Exited: {
+        int v = cmsysProcess_GetExitValue(cp);
+        char buf[100];
+        sprintf(buf, "%d", v);
+        this->Makefile->AddDefinition(result_variable, buf);
+      } break;

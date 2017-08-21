@@ -1,19 +1,17 @@
-int
-archive_read_disk_set_atime_restored(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_restore_atime");
-#ifdef HAVE_UTIMES
-	a->flags |= ARCHIVE_READDISK_RESTORE_ATIME;
-	if (a->tree != NULL)
-		a->tree->flags |= needsRestoreTimes;
-	return (ARCHIVE_OK);
-#else
-	/* Display warning and unset flag */
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Cannot restore access time on this system");
-	a->flags &= ~ARCHIVE_READDISK_RESTORE_ATIME;
-	return (ARCHIVE_WARN);
-#endif
-}
+      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
+         last .sss part is optional and means fractions of a second */
+      int year, month, day, hour, minute, second;
+      if(6 == sscanf(&data->state.buffer[4], "%04d%02d%02d%02d%02d%02d",
+                     &year, &month, &day, &hour, &minute, &second)) {
+        /* we have a time, reformat it */
+        char timebuf[24];
+        time_t secs=time(NULL);
+
+        snprintf(timebuf, sizeof(timebuf),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);
+        /* now, convert this into a time() value: */
+        data->info.filetime = (long)curl_getdate(timebuf, &secs);
+      }
+
+#ifdef CURL_FTP_HTTPSTYLE_HEAD

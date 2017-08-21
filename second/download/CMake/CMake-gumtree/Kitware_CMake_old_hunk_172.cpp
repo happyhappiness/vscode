@@ -1,13 +1,26 @@
-  archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
-                      "archive_read_support_format_rar");
+ * is set) if the path is absolute.
+ */
+static int
+cleanup_pathname(struct archive_write_disk *a)
+{
+	char *dest, *src;
+	char separator = '\0';
 
-  rar = (struct rar *)malloc(sizeof(*rar));
-  if (rar == NULL)
-  {
-    archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data");
-    return (ARCHIVE_FATAL);
-  }
-  memset(rar, 0, sizeof(*rar));
+	dest = src = a->name;
+	if (*src == '\0') {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid empty pathname");
+		return (ARCHIVE_FAILED);
+	}
 
-	/*
-	 * Until enough data has been read, we cannot tell about
+#if defined(__CYGWIN__)
+	cleanup_pathname_win(a);
+#endif
+	/* Skip leading '/'. */
+	if (*src == '/') {
+		if (a->flags & ARCHIVE_EXTRACT_SECURE_NOABSOLUTEPATHS) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			                  "Path is absolute");
+			return (ARCHIVE_FAILED);
+		}
+

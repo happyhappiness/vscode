@@ -1,2308 +1,3325 @@
-/*-
- * Copyright (c) 2003-2009 Tim Kientzle
- * Copyright (c) 2010-2012 Michihiro NAKAJIMA
- * All rights reserved.
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer
- *    in this position and unchanged.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-#include "archive_platform.h"
-__FBSDID("$FreeBSD$");
-
-#if defined(_WIN32) && !defined(__CYGWIN__)
-
-#ifdef HAVE_ERRNO_H
-#include <errno.h>
-#endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#include <winioctl.h>
-
-#include "archive.h"
-#include "archive_string.h"
-#include "archive_entry.h"
-#include "archive_private.h"
-#include "archive_read_disk_private.h"
-
-#ifndef O_BINARY
-#define O_BINARY	0
-#endif
-#ifndef IO_REPARSE_TAG_SYMLINK
-/* Old SDKs do not provide IO_REPARSE_TAG_SYMLINK */
-#define	IO_REPARSE_TAG_SYMLINK 0xA000000CL
-#endif
-
-/*-
- * This is a new directory-walking system that addresses a number
- * of problems I've had with fts(3).  In particular, it has no
- * pathname-length limits (other than the size of 'int'), handles
- * deep logical traversals, uses considerably less memory, and has
- * an opaque interface (easier to modify in the future).
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at https://curl.haxx.se/docs/copyright.html.
  *
- * Internally, it keeps a single list of "tree_entry" items that
- * represent filesystem objects that require further attention.
- * Non-directories are not kept in memory: they are pulled from
- * readdir(), returned to the client, then freed as soon as possible.
- * Any directory entry to be traversed gets pushed onto the stack.
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
  *
- * There is surprisingly little information that needs to be kept for
- * each item on the stack.  Just the name, depth (represented here as the
- * string length of the parent directory's pathname), and some markers
- * indicating how to get back to the parent (via chdir("..") for a
- * regular dir or via fchdir(2) for a symlink).
- */
-
-struct restore_time {
-	const wchar_t		*full_path;
-	FILETIME		 lastWriteTime;
-	FILETIME		 lastAccessTime;
-	mode_t			 filetype;
-};
-
-struct tree_entry {
-	int			 depth;
-	struct tree_entry	*next;
-	struct tree_entry	*parent;
-	size_t			 full_path_dir_length;
-	struct archive_wstring	 name;
-	struct archive_wstring	 full_path;
-	size_t			 dirname_length;
-	int64_t			 dev;
-	int64_t			 ino;
-	int			 flags;
-	int			 filesystem_id;
-	/* How to restore time of a directory. */
-	struct restore_time	 restore_time;
-};
-
-struct filesystem {
-	int64_t		dev;
-	int		synthetic;
-	int		remote;
-	DWORD		bytesPerSector;
-};
-
-/* Definitions for tree_entry.flags bitmap. */
-#define	isDir		1  /* This entry is a regular directory. */
-#define	isDirLink	2  /* This entry is a symbolic link to a directory. */
-#define	needsFirstVisit	4  /* This is an initial entry. */
-#define	needsDescent	8  /* This entry needs to be previsited. */
-#define	needsOpen	16 /* This is a directory that needs to be opened. */
-#define	needsAscent	32 /* This entry needs to be postvisited. */
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
 /*
- * On Windows, "first visit" is handled as a pattern to be handed to
- * _findfirst().  This is consistent with Windows conventions that
- * file patterns are handled within the application.  On Posix,
- * "first visit" is just returned to the client.
+ * Source file for all OpenSSL-specific code for the TLS/SSL layer. No code
+ * but vtls.c should ever call or use these functions.
  */
-
-#define MAX_OVERLAPPED	8
-#define BUFFER_SIZE	(1024 * 8)
-#define DIRECT_IO	0/* Disabled */
-#define ASYNC_IO	1/* Enabled */
 
 /*
- * Local data for this package.
+ * The original SSLeay-using code for curl was written by Linas Vepstas and
+ * Sampo Kellomaki 1998.
  */
-struct tree {
-	struct tree_entry	*stack;
-	struct tree_entry	*current;
-	HANDLE d;
-	WIN32_FIND_DATAW	_findData;
-	WIN32_FIND_DATAW	*findData;
-	int			 flags;
-	int			 visit_type;
-	/* Error code from last failed operation. */
-	int			 tree_errno;
 
-	/* A full path with "\\?\" prefix. */
-	struct archive_wstring	 full_path;
-	size_t			 full_path_dir_length;
-	/* Dynamically-sized buffer for holding path */
-	struct archive_wstring	 path;
+#include "curl_setup.h"
 
-	/* Last path element */
-	const wchar_t		*basename;
-	/* Leading dir length */
-	size_t			 dirname_length;
+#ifdef USE_OPENSSL
 
-	int	 depth;
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
 
-	BY_HANDLE_FILE_INFORMATION	lst;
-	BY_HANDLE_FILE_INFORMATION	st;
-	int			 descend;
-	/* How to restore time of a file. */
-	struct restore_time	restore_time;
+#include "urldata.h"
+#include "sendf.h"
+#include "formdata.h" /* for the boundary function */
+#include "url.h" /* for the ssl config check function */
+#include "inet_pton.h"
+#include "openssl.h"
+#include "connect.h"
+#include "slist.h"
+#include "select.h"
+#include "vtls.h"
+#include "strcase.h"
+#include "hostcheck.h"
+#include "curl_printf.h"
 
-	struct entry_sparse {
-		int64_t		 length;
-		int64_t		 offset;
-	}			*sparse_list, *current_sparse;
-	int			 sparse_count;
-	int			 sparse_list_size;
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
+#include <openssl/x509v3.h>
+#include <openssl/dsa.h>
+#include <openssl/dh.h>
+#include <openssl/err.h>
+#include <openssl/md5.h>
+#include <openssl/conf.h>
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
 
-	char			 initial_symlink_mode;
-	char			 symlink_mode;
-	struct filesystem	*current_filesystem;
-	struct filesystem	*filesystem_table;
-	int			 initial_filesystem_id;
-	int			 current_filesystem_id;
-	int			 max_filesystem_id;
-	int			 allocated_filesystem;
+#ifdef HAVE_OPENSSL_PKCS12_H
+#include <openssl/pkcs12.h>
+#endif
 
-	HANDLE			 entry_fh;
-	int			 entry_eof;
-	int64_t			 entry_remaining_bytes;
-	int64_t			 entry_total;
+#if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_OCSP)
+#include <openssl/ocsp.h>
+#endif
 
-	int			 ol_idx_doing;
-	int			 ol_idx_done;
-	int			 ol_num_doing;
-	int			 ol_num_done;
-	int64_t			 ol_remaining_bytes;
-	int64_t			 ol_total;
-	struct la_overlapped {
-		OVERLAPPED	 ol;
-		struct archive * _a;
-		unsigned char	*buff;
-		size_t		 buff_size;
-		int64_t		 offset;
-		size_t		 bytes_expected;
-		size_t		 bytes_transferred;
-	}			 ol[MAX_OVERLAPPED];
-	int			 direct_io;
-	int			 async_io;
-};
+#include "warnless.h"
+#include "non-ascii.h" /* for Curl_convert_from_utf8 prototype */
 
-#define bhfi_dev(bhfi)	((bhfi)->dwVolumeSerialNumber)
-/* Treat FileIndex as i-node. We should remove a sequence number
- * which is high-16-bits of nFileIndexHigh. */
-#define bhfi_ino(bhfi)	\
-	((((int64_t)((bhfi)->nFileIndexHigh & 0x0000FFFFUL)) << 32) \
-    + (bhfi)->nFileIndexLow)
+/* The last #include files should be: */
+#include "curl_memory.h"
+#include "memdebug.h"
 
-/* Definitions for tree.flags bitmap. */
-#define	hasStat		16 /* The st entry is valid. */
-#define	hasLstat	32 /* The lst entry is valid. */
-#define	needsRestoreTimes 128
+#ifndef OPENSSL_VERSION_NUMBER
+#error "OPENSSL_VERSION_NUMBER not defined"
+#endif
+
+#if defined(HAVE_OPENSSL_ENGINE_H)
+#include <openssl/ui.h>
+#endif
+
+#if OPENSSL_VERSION_NUMBER >= 0x00909000L
+#define SSL_METHOD_QUAL const
+#else
+#define SSL_METHOD_QUAL
+#endif
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10000000L)
+#define HAVE_ERR_REMOVE_THREAD_STATE 1
+#endif
+
+#if !defined(HAVE_SSLV2_CLIENT_METHOD) || \
+  OPENSSL_VERSION_NUMBER >= 0x10100000L /* 1.1.0+ has no SSLv2 */
+#undef OPENSSL_NO_SSL2 /* undef first to avoid compiler warnings */
+#define OPENSSL_NO_SSL2
+#endif
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && /* OpenSSL 1.1.0+ */ \
+  !defined(LIBRESSL_VERSION_NUMBER)
+#define SSLEAY_VERSION_NUMBER OPENSSL_VERSION_NUMBER
+#define HAVE_X509_GET0_EXTENSIONS 1 /* added in 1.1.0 -pre1 */
+#define HAVE_OPAQUE_EVP_PKEY 1 /* since 1.1.0 -pre3 */
+#define HAVE_OPAQUE_RSA_DSA_DH 1 /* since 1.1.0 -pre5 */
+#define CONST_EXTS const
+#define CONST_ASN1_BIT_STRING const
+#define HAVE_ERR_REMOVE_THREAD_STATE_DEPRECATED 1
+#else
+/* For OpenSSL before 1.1.0 */
+#define ASN1_STRING_get0_data(x) ASN1_STRING_data(x)
+#define X509_get0_notBefore(x) X509_get_notBefore(x)
+#define X509_get0_notAfter(x) X509_get_notAfter(x)
+#define CONST_EXTS /* nope */
+#define CONST_ASN1_BIT_STRING /* nope */
+#ifdef LIBRESSL_VERSION_NUMBER
+static unsigned long OpenSSL_version_num(void)
+{
+  return LIBRESSL_VERSION_NUMBER;
+}
+#else
+#define OpenSSL_version_num() SSLeay()
+#endif
+#endif
+
+#if (OPENSSL_VERSION_NUMBER >= 0x1000200fL) && /* 1.0.2 or later */ \
+  !defined(LIBRESSL_VERSION_NUMBER)
+#define HAVE_X509_GET0_SIGNATURE 1
+#endif
+
+#if OPENSSL_VERSION_NUMBER >= 0x10002003L && \
+  OPENSSL_VERSION_NUMBER <= 0x10002FFFL && \
+  !defined(OPENSSL_NO_COMP)
+#define HAVE_SSL_COMP_FREE_COMPRESSION_METHODS 1
+#endif
+
+#if (OPENSSL_VERSION_NUMBER < 0x0090808fL)
+/* not present in older OpenSSL */
+#define OPENSSL_load_builtin_modules(x)
+#endif
+
+#if defined(LIBRESSL_VERSION_NUMBER)
+#define OSSL_PACKAGE "LibreSSL"
+#elif defined(OPENSSL_IS_BORINGSSL)
+#define OSSL_PACKAGE "BoringSSL"
+#else
+#define OSSL_PACKAGE "OpenSSL"
+#endif
+
+/*
+ * Number of bytes to read from the random number seed file. This must be
+ * a finite value (because some entropy "files" like /dev/urandom have
+ * an infinite length), but must be large enough to provide enough
+ * entopy to properly seed OpenSSL's PRNG.
+ */
+#define RAND_LOAD_LENGTH 1024
+
+static int passwd_callback(char *buf, int num, int encrypting,
+                           void *global_passwd)
+{
+  DEBUGASSERT(0 == encrypting);
+
+  if(!encrypting) {
+    int klen = curlx_uztosi(strlen((char *)global_passwd));
+    if(num > klen) {
+      memcpy(buf, global_passwd, klen+1);
+      return klen;
+    }
+  }
+  return 0;
+}
+
+/*
+ * rand_enough() returns TRUE if we have seeded the random engine properly.
+ */
+static bool rand_enough(void)
+{
+  return (0 != RAND_status()) ? TRUE : FALSE;
+}
+
+static CURLcode Curl_ossl_seed(struct Curl_easy *data)
+{
+  /* we have the "SSL is seeded" boolean static to prevent multiple
+     time-consuming seedings in vain */
+  static bool ssl_seeded = FALSE;
+  char *buf = data->state.buffer; /* point to the big buffer */
+  int nread=0;
+
+  if(ssl_seeded)
+    return CURLE_OK;
+
+  if(rand_enough()) {
+    /* OpenSSL 1.1.0+ will return here */
+    ssl_seeded = TRUE;
+    return CURLE_OK;
+  }
+
+#ifndef RANDOM_FILE
+  /* if RANDOM_FILE isn't defined, we only perform this if an option tells
+     us to! */
+  if(data->set.str[STRING_SSL_RANDOM_FILE])
+#define RANDOM_FILE "" /* doesn't matter won't be used */
+#endif
+  {
+    /* let the option override the define */
+    nread += RAND_load_file((data->set.str[STRING_SSL_RANDOM_FILE]?
+                             data->set.str[STRING_SSL_RANDOM_FILE]:
+                             RANDOM_FILE),
+                            RAND_LOAD_LENGTH);
+    if(rand_enough())
+      return nread;
+  }
+
+#if defined(HAVE_RAND_EGD)
+  /* only available in OpenSSL 0.9.5 and later */
+  /* EGD_SOCKET is set at configure time or not at all */
+#ifndef EGD_SOCKET
+  /* If we don't have the define set, we only do this if the egd-option
+     is set */
+  if(data->set.str[STRING_SSL_EGDSOCKET])
+#define EGD_SOCKET "" /* doesn't matter won't be used */
+#endif
+  {
+    /* If there's an option and a define, the option overrides the
+       define */
+    int ret = RAND_egd(data->set.str[STRING_SSL_EGDSOCKET]?
+                       data->set.str[STRING_SSL_EGDSOCKET]:EGD_SOCKET);
+    if(-1 != ret) {
+      nread += ret;
+      if(rand_enough())
+        return nread;
+    }
+  }
+#endif
+
+  /* If we get here, it means we need to seed the PRNG using a "silly"
+     approach! */
+  do {
+    unsigned char randb[64];
+    int len = sizeof(randb);
+    if(!RAND_bytes(randb, len))
+      break;
+    RAND_add(randb, len, (len >> 1));
+  } while(!rand_enough());
+
+  /* generates a default path for the random seed file */
+  buf[0]=0; /* blank it first */
+  RAND_file_name(buf, BUFSIZE);
+  if(buf[0]) {
+    /* we got a file name to try */
+    nread += RAND_load_file(buf, RAND_LOAD_LENGTH);
+    if(rand_enough())
+      return nread;
+  }
+
+  infof(data, "libcurl is now using a weak random seed!\n");
+  return CURLE_SSL_CONNECT_ERROR; /* confusing error code */
+}
+
+#ifndef SSL_FILETYPE_ENGINE
+#define SSL_FILETYPE_ENGINE 42
+#endif
+#ifndef SSL_FILETYPE_PKCS12
+#define SSL_FILETYPE_PKCS12 43
+#endif
+static int do_file_type(const char *type)
+{
+  if(!type || !type[0])
+    return SSL_FILETYPE_PEM;
+  if(strcasecompare(type, "PEM"))
+    return SSL_FILETYPE_PEM;
+  if(strcasecompare(type, "DER"))
+    return SSL_FILETYPE_ASN1;
+  if(strcasecompare(type, "ENG"))
+    return SSL_FILETYPE_ENGINE;
+  if(strcasecompare(type, "P12"))
+    return SSL_FILETYPE_PKCS12;
+  return -1;
+}
+
+#if defined(HAVE_OPENSSL_ENGINE_H)
+/*
+ * Supply default password to the engine user interface conversation.
+ * The password is passed by OpenSSL engine from ENGINE_load_private_key()
+ * last argument to the ui and can be obtained by UI_get0_user_data(ui) here.
+ */
+static int ssl_ui_reader(UI *ui, UI_STRING *uis)
+{
+  const char *password;
+  switch(UI_get_string_type(uis)) {
+  case UIT_PROMPT:
+  case UIT_VERIFY:
+    password = (const char *)UI_get0_user_data(ui);
+    if(password && (UI_get_input_flags(uis) & UI_INPUT_FLAG_DEFAULT_PWD)) {
+      UI_set_result(ui, uis, password);
+      return 1;
+    }
+  default:
+    break;
+  }
+  return (UI_method_get_reader(UI_OpenSSL()))(ui, uis);
+}
+
+/*
+ * Suppress interactive request for a default password if available.
+ */
+static int ssl_ui_writer(UI *ui, UI_STRING *uis)
+{
+  switch(UI_get_string_type(uis)) {
+  case UIT_PROMPT:
+  case UIT_VERIFY:
+    if(UI_get0_user_data(ui) &&
+       (UI_get_input_flags(uis) & UI_INPUT_FLAG_DEFAULT_PWD)) {
+      return 1;
+    }
+  default:
+    break;
+  }
+  return (UI_method_get_writer(UI_OpenSSL()))(ui, uis);
+}
+#endif
+
+static
+int cert_stuff(struct connectdata *conn,
+               SSL_CTX* ctx,
+               char *cert_file,
+               const char *cert_type,
+               char *key_file,
+               const char *key_type,
+               char *key_passwd)
+{
+  struct Curl_easy *data = conn->data;
+
+  int file_type = do_file_type(cert_type);
+
+  if(cert_file || (file_type == SSL_FILETYPE_ENGINE)) {
+    SSL *ssl;
+    X509 *x509;
+    int cert_done = 0;
+
+    if(key_passwd) {
+      /* set the password in the callback userdata */
+      SSL_CTX_set_default_passwd_cb_userdata(ctx, key_passwd);
+      /* Set passwd callback: */
+      SSL_CTX_set_default_passwd_cb(ctx, passwd_callback);
+    }
+
+
+    switch(file_type) {
+    case SSL_FILETYPE_PEM:
+      /* SSL_CTX_use_certificate_chain_file() only works on PEM files */
+      if(SSL_CTX_use_certificate_chain_file(ctx,
+                                            cert_file) != 1) {
+        failf(data,
+              "could not load PEM client certificate, " OSSL_PACKAGE
+              " error %s, "
+              "(no key found, wrong pass phrase, or wrong file format?)",
+              ERR_error_string(ERR_get_error(), NULL) );
+        return 0;
+      }
+      break;
+
+    case SSL_FILETYPE_ASN1:
+      /* SSL_CTX_use_certificate_file() works with either PEM or ASN1, but
+         we use the case above for PEM so this can only be performed with
+         ASN1 files. */
+      if(SSL_CTX_use_certificate_file(ctx,
+                                      cert_file,
+                                      file_type) != 1) {
+        failf(data,
+              "could not load ASN1 client certificate, " OSSL_PACKAGE
+              " error %s, "
+              "(no key found, wrong pass phrase, or wrong file format?)",
+              ERR_error_string(ERR_get_error(), NULL) );
+        return 0;
+      }
+      break;
+    case SSL_FILETYPE_ENGINE:
+#if defined(HAVE_OPENSSL_ENGINE_H) && defined(ENGINE_CTRL_GET_CMD_FROM_NAME)
+      {
+        if(data->state.engine) {
+          const char *cmd_name = "LOAD_CERT_CTRL";
+          struct {
+            const char *cert_id;
+            X509 *cert;
+          } params;
+
+          params.cert_id = cert_file;
+          params.cert = NULL;
+
+          /* Does the engine supports LOAD_CERT_CTRL ? */
+          if(!ENGINE_ctrl(data->state.engine, ENGINE_CTRL_GET_CMD_FROM_NAME,
+                          0, (void *)cmd_name, NULL)) {
+            failf(data, "ssl engine does not support loading certificates");
+            return 0;
+          }
+
+          /* Load the certificate from the engine */
+          if(!ENGINE_ctrl_cmd(data->state.engine, cmd_name,
+                              0, &params, NULL, 1)) {
+            failf(data, "ssl engine cannot load client cert with id"
+                  " '%s' [%s]", cert_file,
+                  ERR_error_string(ERR_get_error(), NULL));
+            return 0;
+          }
+
+          if(!params.cert) {
+            failf(data, "ssl engine didn't initialized the certificate "
+                  "properly.");
+            return 0;
+          }
+
+          if(SSL_CTX_use_certificate(ctx, params.cert) != 1) {
+            failf(data, "unable to set client certificate");
+            X509_free(params.cert);
+            return 0;
+          }
+          X509_free(params.cert); /* we don't need the handle any more... */
+        }
+        else {
+          failf(data, "crypto engine not set, can't load certificate");
+          return 0;
+        }
+      }
+      break;
+#else
+      failf(data, "file type ENG for certificate not implemented");
+      return 0;
+#endif
+
+    case SSL_FILETYPE_PKCS12:
+    {
+#ifdef HAVE_OPENSSL_PKCS12_H
+      FILE *f;
+      PKCS12 *p12;
+      EVP_PKEY *pri;
+      STACK_OF(X509) *ca = NULL;
+
+      f = fopen(cert_file, "rb");
+      if(!f) {
+        failf(data, "could not open PKCS12 file '%s'", cert_file);
+        return 0;
+      }
+      p12 = d2i_PKCS12_fp(f, NULL);
+      fclose(f);
+
+      if(!p12) {
+        failf(data, "error reading PKCS12 file '%s'", cert_file);
+        return 0;
+      }
+
+      PKCS12_PBE_add();
+
+      if(!PKCS12_parse(p12, key_passwd, &pri, &x509,
+                       &ca)) {
+        failf(data,
+              "could not parse PKCS12 file, check password, " OSSL_PACKAGE
+              " error %s",
+              ERR_error_string(ERR_get_error(), NULL) );
+        PKCS12_free(p12);
+        return 0;
+      }
+
+      PKCS12_free(p12);
+
+      if(SSL_CTX_use_certificate(ctx, x509) != 1) {
+        failf(data,
+              "could not load PKCS12 client certificate, " OSSL_PACKAGE
+              " error %s",
+              ERR_error_string(ERR_get_error(), NULL) );
+        goto fail;
+      }
+
+      if(SSL_CTX_use_PrivateKey(ctx, pri) != 1) {
+        failf(data, "unable to use private key from PKCS12 file '%s'",
+              cert_file);
+        goto fail;
+      }
+
+      if(!SSL_CTX_check_private_key (ctx)) {
+        failf(data, "private key from PKCS12 file '%s' "
+              "does not match certificate in same file", cert_file);
+        goto fail;
+      }
+      /* Set Certificate Verification chain */
+      if(ca) {
+        while(sk_X509_num(ca)) {
+          /*
+           * Note that sk_X509_pop() is used below to make sure the cert is
+           * removed from the stack properly before getting passed to
+           * SSL_CTX_add_extra_chain_cert(). Previously we used
+           * sk_X509_value() instead, but then we'd clean it in the subsequent
+           * sk_X509_pop_free() call.
+           */
+          X509 *x = sk_X509_pop(ca);
+          if(!SSL_CTX_add_extra_chain_cert(ctx, x)) {
+            X509_free(x);
+            failf(data, "cannot add certificate to certificate chain");
+            goto fail;
+          }
+          /* SSL_CTX_add_client_CA() seems to work with either sk_* function,
+           * presumably because it duplicates what we pass to it.
+           */
+          if(!SSL_CTX_add_client_CA(ctx, x)) {
+            failf(data, "cannot add certificate to client CA list");
+            goto fail;
+          }
+        }
+      }
+
+      cert_done = 1;
+  fail:
+      EVP_PKEY_free(pri);
+      X509_free(x509);
+      sk_X509_pop_free(ca, X509_free);
+
+      if(!cert_done)
+        return 0; /* failure! */
+      break;
+#else
+      failf(data, "file type P12 for certificate not supported");
+      return 0;
+#endif
+    }
+    default:
+      failf(data, "not supported file type '%s' for certificate", cert_type);
+      return 0;
+    }
+
+    file_type = do_file_type(key_type);
+
+    switch(file_type) {
+    case SSL_FILETYPE_PEM:
+      if(cert_done)
+        break;
+      if(!key_file)
+        /* cert & key can only be in PEM case in the same file */
+        key_file=cert_file;
+    case SSL_FILETYPE_ASN1:
+      if(SSL_CTX_use_PrivateKey_file(ctx, key_file, file_type) != 1) {
+        failf(data, "unable to set private key file: '%s' type %s",
+              key_file, key_type?key_type:"PEM");
+        return 0;
+      }
+      break;
+    case SSL_FILETYPE_ENGINE:
+#ifdef HAVE_OPENSSL_ENGINE_H
+      {                         /* XXXX still needs some work */
+        EVP_PKEY *priv_key = NULL;
+        if(data->state.engine) {
+          UI_METHOD *ui_method =
+            UI_create_method((char *)"curl user interface");
+          if(!ui_method) {
+            failf(data, "unable do create " OSSL_PACKAGE
+                  " user-interface method");
+            return 0;
+          }
+          UI_method_set_opener(ui_method, UI_method_get_opener(UI_OpenSSL()));
+          UI_method_set_closer(ui_method, UI_method_get_closer(UI_OpenSSL()));
+          UI_method_set_reader(ui_method, ssl_ui_reader);
+          UI_method_set_writer(ui_method, ssl_ui_writer);
+          /* the typecast below was added to please mingw32 */
+          priv_key = (EVP_PKEY *)
+            ENGINE_load_private_key(data->state.engine, key_file,
+                                    ui_method,
+                                    key_passwd);
+          UI_destroy_method(ui_method);
+          if(!priv_key) {
+            failf(data, "failed to load private key from crypto engine");
+            return 0;
+          }
+          if(SSL_CTX_use_PrivateKey(ctx, priv_key) != 1) {
+            failf(data, "unable to set private key");
+            EVP_PKEY_free(priv_key);
+            return 0;
+          }
+          EVP_PKEY_free(priv_key);  /* we don't need the handle any more... */
+        }
+        else {
+          failf(data, "crypto engine not set, can't load private key");
+          return 0;
+        }
+      }
+      break;
+#else
+      failf(data, "file type ENG for private key not supported");
+      return 0;
+#endif
+    case SSL_FILETYPE_PKCS12:
+      if(!cert_done) {
+        failf(data, "file type P12 for private key not supported");
+        return 0;
+      }
+      break;
+    default:
+      failf(data, "not supported file type for private key");
+      return 0;
+    }
+
+    ssl=SSL_new(ctx);
+    if(!ssl) {
+      failf(data, "unable to create an SSL structure");
+      return 0;
+    }
+
+    x509=SSL_get_certificate(ssl);
+
+    /* This version was provided by Evan Jordan and is supposed to not
+       leak memory as the previous version: */
+    if(x509) {
+      EVP_PKEY *pktmp = X509_get_pubkey(x509);
+      EVP_PKEY_copy_parameters(pktmp, SSL_get_privatekey(ssl));
+      EVP_PKEY_free(pktmp);
+    }
+
+    SSL_free(ssl);
+
+    /* If we are using DSA, we can copy the parameters from
+     * the private key */
+
+
+    /* Now we know that a key and cert have been set against
+     * the SSL context */
+    if(!SSL_CTX_check_private_key(ctx)) {
+      failf(data, "Private key does not match the certificate public key");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+/* returns non-zero on failure */
+static int x509_name_oneline(X509_NAME *a, char *buf, size_t size)
+{
+#if 0
+  return X509_NAME_oneline(a, buf, size);
+#else
+  BIO *bio_out = BIO_new(BIO_s_mem());
+  BUF_MEM *biomem;
+  int rc;
+
+  if(!bio_out)
+    return 1; /* alloc failed! */
+
+  rc = X509_NAME_print_ex(bio_out, a, 0, XN_FLAG_SEP_SPLUS_SPC);
+  BIO_get_mem_ptr(bio_out, &biomem);
+
+  if((size_t)biomem->length < size)
+    size = biomem->length;
+  else
+    size--; /* don't overwrite the buffer end */
+
+  memcpy(buf, biomem->data, size);
+  buf[size]=0;
+
+  BIO_free(bio_out);
+
+  return !rc;
+#endif
+}
+
+/* Return error string for last OpenSSL error
+ */
+static char *ossl_strerror(unsigned long error, char *buf, size_t size)
+{
+  /* OpenSSL 0.9.6 and later has a function named
+     ERR_error_string_n() that takes the size of the buffer as a
+     third argument */
+  ERR_error_string_n(error, buf, size);
+  return buf;
+}
+
+/**
+ * Global SSL init
+ *
+ * @retval 0 error initializing SSL
+ * @retval 1 SSL initialized successfully
+ */
+int Curl_ossl_init(void)
+{
+  OPENSSL_load_builtin_modules();
+
+#ifdef HAVE_ENGINE_LOAD_BUILTIN_ENGINES
+  ENGINE_load_builtin_engines();
+#endif
+
+  /* OPENSSL_config(NULL); is "strongly recommended" to use but unfortunately
+     that function makes an exit() call on wrongly formatted config files
+     which makes it hard to use in some situations. OPENSSL_config() itself
+     calls CONF_modules_load_file() and we use that instead and we ignore
+     its return code! */
+
+  /* CONF_MFLAGS_DEFAULT_SECTION introduced some time between 0.9.8b and
+     0.9.8e */
+#ifndef CONF_MFLAGS_DEFAULT_SECTION
+#define CONF_MFLAGS_DEFAULT_SECTION 0x0
+#endif
+
+  CONF_modules_load_file(NULL, NULL,
+                         CONF_MFLAGS_DEFAULT_SECTION|
+                         CONF_MFLAGS_IGNORE_MISSING_FILE);
+
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && \
+    !defined(LIBRESSL_VERSION_NUMBER)
+  /* OpenSSL 1.1.0+ takes care of initialization itself */
+#else
+  /* Lets get nice error messages */
+  SSL_load_error_strings();
+
+  /* Init the global ciphers and digests */
+  if(!SSLeay_add_ssl_algorithms())
+    return 0;
+
+  OpenSSL_add_all_algorithms();
+#endif
+
+  return 1;
+}
+
+/* Global cleanup */
+void Curl_ossl_cleanup(void)
+{
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && \
+    !defined(LIBRESSL_VERSION_NUMBER)
+  /* OpenSSL 1.1 deprecates all these cleanup functions and
+     turns them into no-ops in OpenSSL 1.0 compatibility mode */
+#else
+  /* Free ciphers and digests lists */
+  EVP_cleanup();
+
+#ifdef HAVE_ENGINE_CLEANUP
+  /* Free engine list */
+  ENGINE_cleanup();
+#endif
+
+  /* Free OpenSSL error strings */
+  ERR_free_strings();
+
+  /* Free thread local error state, destroying hash upon zero refcount */
+#ifdef HAVE_ERR_REMOVE_THREAD_STATE
+  ERR_remove_thread_state(NULL);
+#else
+  ERR_remove_state(0);
+#endif
+
+  /* Free all memory allocated by all configuration modules */
+  CONF_modules_free();
+
+#ifdef HAVE_SSL_COMP_FREE_COMPRESSION_METHODS
+  SSL_COMP_free_compression_methods();
+#endif
+#endif
+}
+
+/*
+ * This function is used to determine connection status.
+ *
+ * Return codes:
+ *     1 means the connection is still in place
+ *     0 means the connection has been closed
+ *    -1 means the connection status is unknown
+ */
+int Curl_ossl_check_cxn(struct connectdata *conn)
+{
+  /* SSL_peek takes data out of the raw recv buffer without peeking so we use
+     recv MSG_PEEK instead. Bug #795 */
+#ifdef MSG_PEEK
+  char buf;
+  ssize_t nread;
+  nread = recv((RECV_TYPE_ARG1)conn->sock[FIRSTSOCKET], (RECV_TYPE_ARG2)&buf,
+               (RECV_TYPE_ARG3)1, (RECV_TYPE_ARG4)MSG_PEEK);
+  if(nread == 0)
+    return 0; /* connection has been closed */
+  else if(nread == 1)
+    return 1; /* connection still in place */
+  else if(nread == -1) {
+      int err = SOCKERRNO;
+      if(err == EINPROGRESS ||
+#if defined(EAGAIN) && (EAGAIN != EWOULDBLOCK)
+         err == EAGAIN ||
+#endif
+         err == EWOULDBLOCK)
+        return 1; /* connection still in place */
+      if(err == ECONNRESET ||
+#ifdef ECONNABORTED
+         err == ECONNABORTED ||
+#endif
+#ifdef ENETDOWN
+         err == ENETDOWN ||
+#endif
+#ifdef ENETRESET
+         err == ENETRESET ||
+#endif
+#ifdef ESHUTDOWN
+         err == ESHUTDOWN ||
+#endif
+#ifdef ETIMEDOUT
+         err == ETIMEDOUT ||
+#endif
+         err == ENOTCONN)
+        return 0; /* connection has been closed */
+  }
+#endif
+  return -1; /* connection status unknown */
+}
+
+/* Selects an OpenSSL crypto engine
+ */
+CURLcode Curl_ossl_set_engine(struct Curl_easy *data, const char *engine)
+{
+#if defined(USE_OPENSSL) && defined(HAVE_OPENSSL_ENGINE_H)
+  ENGINE *e;
+
+#if OPENSSL_VERSION_NUMBER >= 0x00909000L
+  e = ENGINE_by_id(engine);
+#else
+  /* avoid memory leak */
+  for(e = ENGINE_get_first(); e; e = ENGINE_get_next(e)) {
+    const char *e_id = ENGINE_get_id(e);
+    if(!strcmp(engine, e_id))
+      break;
+  }
+#endif
+
+  if(!e) {
+    failf(data, "SSL Engine '%s' not found", engine);
+    return CURLE_SSL_ENGINE_NOTFOUND;
+  }
+
+  if(data->state.engine) {
+    ENGINE_finish(data->state.engine);
+    ENGINE_free(data->state.engine);
+    data->state.engine = NULL;
+  }
+  if(!ENGINE_init(e)) {
+    char buf[256];
+
+    ENGINE_free(e);
+    failf(data, "Failed to initialise SSL Engine '%s':\n%s",
+          engine, ossl_strerror(ERR_get_error(), buf, sizeof(buf)));
+    return CURLE_SSL_ENGINE_INITFAILED;
+  }
+  data->state.engine = e;
+  return CURLE_OK;
+#else
+  (void)engine;
+  failf(data, "SSL Engine not supported");
+  return CURLE_SSL_ENGINE_NOTFOUND;
+#endif
+}
+
+/* Sets engine as default for all SSL operations
+ */
+CURLcode Curl_ossl_set_engine_default(struct Curl_easy *data)
+{
+#ifdef HAVE_OPENSSL_ENGINE_H
+  if(data->state.engine) {
+    if(ENGINE_set_default(data->state.engine, ENGINE_METHOD_ALL) > 0) {
+      infof(data, "set default crypto engine '%s'\n",
+            ENGINE_get_id(data->state.engine));
+    }
+    else {
+      failf(data, "set default crypto engine '%s' failed",
+            ENGINE_get_id(data->state.engine));
+      return CURLE_SSL_ENGINE_SETFAILED;
+    }
+  }
+#else
+  (void) data;
+#endif
+  return CURLE_OK;
+}
+
+/* Return list of OpenSSL crypto engine names.
+ */
+struct curl_slist *Curl_ossl_engines_list(struct Curl_easy *data)
+{
+  struct curl_slist *list = NULL;
+#if defined(USE_OPENSSL) && defined(HAVE_OPENSSL_ENGINE_H)
+  struct curl_slist *beg;
+  ENGINE *e;
+
+  for(e = ENGINE_get_first(); e; e = ENGINE_get_next(e)) {
+    beg = curl_slist_append(list, ENGINE_get_id(e));
+    if(!beg) {
+      curl_slist_free_all(list);
+      return NULL;
+    }
+    list = beg;
+  }
+#endif
+  (void) data;
+  return list;
+}
+
+
+static void ossl_close(struct ssl_connect_data *connssl)
+{
+  if(connssl->handle) {
+    (void)SSL_shutdown(connssl->handle);
+    SSL_set_connect_state(connssl->handle);
+
+    SSL_free(connssl->handle);
+    connssl->handle = NULL;
+  }
+  if(connssl->ctx) {
+    SSL_CTX_free(connssl->ctx);
+    connssl->ctx = NULL;
+  }
+}
+
+/*
+ * This function is called when an SSL connection is closed.
+ */
+void Curl_ossl_close(struct connectdata *conn, int sockindex)
+{
+  ossl_close(&conn->ssl[sockindex]);
+  ossl_close(&conn->proxy_ssl[sockindex]);
+}
+
+/*
+ * This function is called to shut down the SSL layer but keep the
+ * socket open (CCC - Clear Command Channel)
+ */
+int Curl_ossl_shutdown(struct connectdata *conn, int sockindex)
+{
+  int retval = 0;
+  struct ssl_connect_data *connssl = &conn->ssl[sockindex];
+  struct Curl_easy *data = conn->data;
+  char buf[256]; /* We will use this for the OpenSSL error buffer, so it has
+                    to be at least 256 bytes long. */
+  unsigned long sslerror;
+  ssize_t nread;
+  int buffsize;
+  int err;
+  int done = 0;
+
+  /* This has only been tested on the proftpd server, and the mod_tls code
+     sends a close notify alert without waiting for a close notify alert in
+     response. Thus we wait for a close notify alert from the server, but
+     we do not send one. Let's hope other servers do the same... */
+
+  if(data->set.ftp_ccc == CURLFTPSSL_CCC_ACTIVE)
+      (void)SSL_shutdown(connssl->handle);
+
+  if(connssl->handle) {
+    buffsize = (int)sizeof(buf);
+    while(!done) {
+      int what = SOCKET_READABLE(conn->sock[sockindex],
+                                 SSL_SHUTDOWN_TIMEOUT);
+      if(what > 0) {
+        ERR_clear_error();
+
+        /* Something to read, let's do it and hope that it is the close
+           notify alert from the server */
+        nread = (ssize_t)SSL_read(conn->ssl[sockindex].handle, buf,
+                                  buffsize);
+        err = SSL_get_error(conn->ssl[sockindex].handle, (int)nread);
+
+        switch(err) {
+        case SSL_ERROR_NONE: /* this is not an error */
+        case SSL_ERROR_ZERO_RETURN: /* no more data */
+          /* This is the expected response. There was no data but only
+             the close notify alert */
+          done = 1;
+          break;
+        case SSL_ERROR_WANT_READ:
+          /* there's data pending, re-invoke SSL_read() */
+          infof(data, "SSL_ERROR_WANT_READ\n");
+          break;
+        case SSL_ERROR_WANT_WRITE:
+          /* SSL wants a write. Really odd. Let's bail out. */
+          infof(data, "SSL_ERROR_WANT_WRITE\n");
+          done = 1;
+          break;
+        default:
+          /* openssl/ssl.h says "look at error stack/return value/errno" */
+          sslerror = ERR_get_error();
+          failf(conn->data, OSSL_PACKAGE " SSL read: %s, errno %d",
+                ossl_strerror(sslerror, buf, sizeof(buf)),
+                SOCKERRNO);
+          done = 1;
+          break;
+        }
+      }
+      else if(0 == what) {
+        /* timeout */
+        failf(data, "SSL shutdown timeout");
+        done = 1;
+      }
+      else {
+        /* anything that gets here is fatally bad */
+        failf(data, "select/poll on SSL socket, errno: %d", SOCKERRNO);
+        retval = -1;
+        done = 1;
+      }
+    } /* while()-loop for the select() */
+
+    if(data->set.verbose) {
+#ifdef HAVE_SSL_GET_SHUTDOWN
+      switch(SSL_get_shutdown(connssl->handle)) {
+      case SSL_SENT_SHUTDOWN:
+        infof(data, "SSL_get_shutdown() returned SSL_SENT_SHUTDOWN\n");
+        break;
+      case SSL_RECEIVED_SHUTDOWN:
+        infof(data, "SSL_get_shutdown() returned SSL_RECEIVED_SHUTDOWN\n");
+        break;
+      case SSL_SENT_SHUTDOWN|SSL_RECEIVED_SHUTDOWN:
+        infof(data, "SSL_get_shutdown() returned SSL_SENT_SHUTDOWN|"
+              "SSL_RECEIVED__SHUTDOWN\n");
+        break;
+      }
+#endif
+    }
+
+    SSL_free(connssl->handle);
+    connssl->handle = NULL;
+  }
+  return retval;
+}
+
+void Curl_ossl_session_free(void *ptr)
+{
+  /* free the ID */
+  SSL_SESSION_free(ptr);
+}
+
+/*
+ * This function is called when the 'data' struct is going away. Close
+ * down everything and free all resources!
+ */
+void Curl_ossl_close_all(struct Curl_easy *data)
+{
+#ifdef HAVE_OPENSSL_ENGINE_H
+  if(data->state.engine) {
+    ENGINE_finish(data->state.engine);
+    ENGINE_free(data->state.engine);
+    data->state.engine = NULL;
+  }
+#else
+  (void)data;
+#endif
+#if !defined(HAVE_ERR_REMOVE_THREAD_STATE_DEPRECATED) && \
+  defined(HAVE_ERR_REMOVE_THREAD_STATE)
+  /* OpenSSL 1.0.1 and 1.0.2 build an error queue that is stored per-thread
+     so we need to clean it here in case the thread will be killed. All OpenSSL
+     code should extract the error in association with the error so clearing
+     this queue here should be harmless at worst. */
+  ERR_remove_thread_state(NULL);
+#endif
+}
+
+/* ====================================================== */
+
+
+/* Quote from RFC2818 section 3.1 "Server Identity"
+
+   If a subjectAltName extension of type dNSName is present, that MUST
+   be used as the identity. Otherwise, the (most specific) Common Name
+   field in the Subject field of the certificate MUST be used. Although
+   the use of the Common Name is existing practice, it is deprecated and
+   Certification Authorities are encouraged to use the dNSName instead.
+
+   Matching is performed using the matching rules specified by
+   [RFC2459].  If more than one identity of a given type is present in
+   the certificate (e.g., more than one dNSName name, a match in any one
+   of the set is considered acceptable.) Names may contain the wildcard
+   character * which is considered to match any single domain name
+   component or component fragment. E.g., *.a.com matches foo.a.com but
+   not bar.foo.a.com. f*.com matches foo.com but not bar.com.
+
+   In some cases, the URI is specified as an IP address rather than a
+   hostname. In this case, the iPAddress subjectAltName must be present
+   in the certificate and must exactly match the IP in the URI.
+
+*/
+static CURLcode verifyhost(struct connectdata *conn, X509 *server_cert)
+{
+  bool matched = FALSE;
+  int target = GEN_DNS; /* target type, GEN_DNS or GEN_IPADD */
+  size_t addrlen = 0;
+  struct Curl_easy *data = conn->data;
+  STACK_OF(GENERAL_NAME) *altnames;
+#ifdef ENABLE_IPV6
+  struct in6_addr addr;
+#else
+  struct in_addr addr;
+#endif
+  CURLcode result = CURLE_OK;
+  bool dNSName = FALSE; /* if a dNSName field exists in the cert */
+  bool iPAddress = FALSE; /* if a iPAddress field exists in the cert */
+  const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
+    conn->host.name;
+  const char * const dispname = SSL_IS_PROXY() ?
+    conn->http_proxy.host.dispname : conn->host.dispname;
+
+#ifdef ENABLE_IPV6
+  if(conn->bits.ipv6_ip &&
+     Curl_inet_pton(AF_INET6, hostname, &addr)) {
+    target = GEN_IPADD;
+    addrlen = sizeof(struct in6_addr);
+  }
+  else
+#endif
+    if(Curl_inet_pton(AF_INET, hostname, &addr)) {
+      target = GEN_IPADD;
+      addrlen = sizeof(struct in_addr);
+    }
+
+  /* get a "list" of alternative names */
+  altnames = X509_get_ext_d2i(server_cert, NID_subject_alt_name, NULL, NULL);
+
+  if(altnames) {
+    int numalts;
+    int i;
+    bool dnsmatched = FALSE;
+    bool ipmatched = FALSE;
+
+    /* get amount of alternatives, RFC2459 claims there MUST be at least
+       one, but we don't depend on it... */
+    numalts = sk_GENERAL_NAME_num(altnames);
+
+    /* loop through all alternatives - until a dnsmatch */
+    for(i=0; (i < numalts) && !dnsmatched; i++) {
+      /* get a handle to alternative name number i */
+      const GENERAL_NAME *check = sk_GENERAL_NAME_value(altnames, i);
+
+      if(check->type == GEN_DNS)
+        dNSName = TRUE;
+      else if(check->type == GEN_IPADD)
+        iPAddress = TRUE;
+
+      /* only check alternatives of the same type the target is */
+      if(check->type == target) {
+        /* get data and length */
+        const char *altptr = (char *)ASN1_STRING_get0_data(check->d.ia5);
+        size_t altlen = (size_t) ASN1_STRING_length(check->d.ia5);
+
+        switch(target) {
+        case GEN_DNS: /* name/pattern comparison */
+          /* The OpenSSL man page explicitly says: "In general it cannot be
+             assumed that the data returned by ASN1_STRING_data() is null
+             terminated or does not contain embedded nulls." But also that
+             "The actual format of the data will depend on the actual string
+             type itself: for example for and IA5String the data will be ASCII"
+
+             Gisle researched the OpenSSL sources:
+             "I checked the 0.9.6 and 0.9.8 sources before my patch and
+             it always 0-terminates an IA5String."
+          */
+          if((altlen == strlen(altptr)) &&
+             /* if this isn't true, there was an embedded zero in the name
+                string and we cannot match it. */
+             Curl_cert_hostcheck(altptr, hostname)) {
+            dnsmatched = TRUE;
+            infof(data,
+                  " subjectAltName: host \"%s\" matched cert's \"%s\"\n",
+                  dispname, altptr);
+          }
+          break;
+
+        case GEN_IPADD: /* IP address comparison */
+          /* compare alternative IP address if the data chunk is the same size
+             our server IP address is */
+          if((altlen == addrlen) && !memcmp(altptr, &addr, altlen)) {
+            ipmatched = TRUE;
+            infof(data,
+                  " subjectAltName: host \"%s\" matched cert's IP address!\n",
+                  dispname);
+          }
+          break;
+        }
+      }
+    }
+    GENERAL_NAMES_free(altnames);
+
+    if(dnsmatched || ipmatched)
+      matched = TRUE;
+  }
+
+  if(matched)
+    /* an alternative name matched */
+    ;
+  else if(dNSName || iPAddress) {
+    infof(data, " subjectAltName does not match %s\n", dispname);
+    failf(data, "SSL: no alternative certificate subject name matches "
+          "target host name '%s'", dispname);
+    result = CURLE_PEER_FAILED_VERIFICATION;
+  }
+  else {
+    /* we have to look to the last occurrence of a commonName in the
+       distinguished one to get the most significant one. */
+    int j, i=-1;
+
+    /* The following is done because of a bug in 0.9.6b */
+
+    unsigned char *nulstr = (unsigned char *)"";
+    unsigned char *peer_CN = nulstr;
+
+    X509_NAME *name = X509_get_subject_name(server_cert);
+    if(name)
+      while((j = X509_NAME_get_index_by_NID(name, NID_commonName, i))>=0)
+        i=j;
+
+    /* we have the name entry and we will now convert this to a string
+       that we can use for comparison. Doing this we support BMPstring,
+       UTF8 etc. */
+
+    if(i>=0) {
+      ASN1_STRING *tmp =
+        X509_NAME_ENTRY_get_data(X509_NAME_get_entry(name, i));
+
+      /* In OpenSSL 0.9.7d and earlier, ASN1_STRING_to_UTF8 fails if the input
+         is already UTF-8 encoded. We check for this case and copy the raw
+         string manually to avoid the problem. This code can be made
+         conditional in the future when OpenSSL has been fixed. Work-around
+         brought by Alexis S. L. Carvalho. */
+      if(tmp) {
+        if(ASN1_STRING_type(tmp) == V_ASN1_UTF8STRING) {
+          j = ASN1_STRING_length(tmp);
+          if(j >= 0) {
+            peer_CN = OPENSSL_malloc(j+1);
+            if(peer_CN) {
+              memcpy(peer_CN, ASN1_STRING_get0_data(tmp), j);
+              peer_CN[j] = '\0';
+            }
+          }
+        }
+        else /* not a UTF8 name */
+          j = ASN1_STRING_to_UTF8(&peer_CN, tmp);
+
+        if(peer_CN && (curlx_uztosi(strlen((char *)peer_CN)) != j)) {
+          /* there was a terminating zero before the end of string, this
+             cannot match and we return failure! */
+          failf(data, "SSL: illegal cert name field");
+          result = CURLE_PEER_FAILED_VERIFICATION;
+        }
+      }
+    }
+
+    if(peer_CN == nulstr)
+       peer_CN = NULL;
+    else {
+      /* convert peer_CN from UTF8 */
+      CURLcode rc = Curl_convert_from_utf8(data, peer_CN, strlen(peer_CN));
+      /* Curl_convert_from_utf8 calls failf if unsuccessful */
+      if(rc) {
+        OPENSSL_free(peer_CN);
+        return rc;
+      }
+    }
+
+    if(result)
+      /* error already detected, pass through */
+      ;
+    else if(!peer_CN) {
+      failf(data,
+            "SSL: unable to obtain common name from peer certificate");
+      result = CURLE_PEER_FAILED_VERIFICATION;
+    }
+    else if(!Curl_cert_hostcheck((const char *)peer_CN, hostname)) {
+      failf(data, "SSL: certificate subject name '%s' does not match "
+            "target host name '%s'", peer_CN, dispname);
+      result = CURLE_PEER_FAILED_VERIFICATION;
+    }
+    else {
+      infof(data, " common name: %s (matched)\n", peer_CN);
+    }
+    if(peer_CN)
+      OPENSSL_free(peer_CN);
+  }
+
+  return result;
+}
+
+#if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \
+    !defined(OPENSSL_NO_OCSP)
+static CURLcode verifystatus(struct connectdata *conn,
+                             struct ssl_connect_data *connssl)
+{
+  int i, ocsp_status;
+  const unsigned char *p;
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data = conn->data;
+
+  OCSP_RESPONSE *rsp = NULL;
+  OCSP_BASICRESP *br = NULL;
+  X509_STORE     *st = NULL;
+  STACK_OF(X509) *ch = NULL;
+
+  long len = SSL_get_tlsext_status_ocsp_resp(connssl->handle, &p);
+
+  if(!p) {
+    failf(data, "No OCSP response received");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  rsp = d2i_OCSP_RESPONSE(NULL, &p, len);
+  if(!rsp) {
+    failf(data, "Invalid OCSP response");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  ocsp_status = OCSP_response_status(rsp);
+  if(ocsp_status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+    failf(data, "Invalid OCSP response status: %s (%d)",
+          OCSP_response_status_str(ocsp_status), ocsp_status);
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  br = OCSP_response_get1_basic(rsp);
+  if(!br) {
+    failf(data, "Invalid OCSP response");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  ch = SSL_get_peer_cert_chain(connssl->handle);
+  st = SSL_CTX_get_cert_store(connssl->ctx);
+
+#if ((OPENSSL_VERSION_NUMBER <= 0x1000201fL) /* Fixed after 1.0.2a */ || \
+     defined(LIBRESSL_VERSION_NUMBER))
+  /* The authorized responder cert in the OCSP response MUST be signed by the
+     peer cert's issuer (see RFC6960 section 4.2.2.2). If that's a root cert,
+     no problem, but if it's an intermediate cert OpenSSL has a bug where it
+     expects this issuer to be present in the chain embedded in the OCSP
+     response. So we add it if necessary. */
+
+  /* First make sure the peer cert chain includes both a peer and an issuer,
+     and the OCSP response contains a responder cert. */
+  if(sk_X509_num(ch) >= 2 && sk_X509_num(br->certs) >= 1) {
+    X509 *responder = sk_X509_value(br->certs, sk_X509_num(br->certs) - 1);
+
+    /* Find issuer of responder cert and add it to the OCSP response chain */
+    for(i = 0; i < sk_X509_num(ch); i++) {
+      X509 *issuer = sk_X509_value(ch, i);
+      if(X509_check_issued(issuer, responder) == X509_V_OK) {
+        if(!OCSP_basic_add1_cert(br, issuer)) {
+          failf(data, "Could not add issuer cert to OCSP response");
+          result = CURLE_SSL_INVALIDCERTSTATUS;
+          goto end;
+        }
+      }
+    }
+  }
+#endif
+
+  if(OCSP_basic_verify(br, ch, st, 0) <= 0) {
+    failf(data, "OCSP response verification failed");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto end;
+  }
+
+  for(i = 0; i < OCSP_resp_count(br); i++) {
+    int cert_status, crl_reason;
+    OCSP_SINGLERESP *single = NULL;
+
+    ASN1_GENERALIZEDTIME *rev, *thisupd, *nextupd;
+
+    single = OCSP_resp_get0(br, i);
+    if(!single)
+      continue;
+
+    cert_status = OCSP_single_get0_status(single, &crl_reason, &rev,
+                                          &thisupd, &nextupd);
+
+    if(!OCSP_check_validity(thisupd, nextupd, 300L, -1L)) {
+      failf(data, "OCSP response has expired");
+      result = CURLE_SSL_INVALIDCERTSTATUS;
+      goto end;
+    }
+
+    infof(data, "SSL certificate status: %s (%d)\n",
+          OCSP_cert_status_str(cert_status), cert_status);
+
+    switch(cert_status) {
+      case V_OCSP_CERTSTATUS_GOOD:
+        break;
+
+      case V_OCSP_CERTSTATUS_REVOKED:
+        result = CURLE_SSL_INVALIDCERTSTATUS;
+
+        failf(data, "SSL certificate revocation reason: %s (%d)",
+              OCSP_crl_reason_str(crl_reason), crl_reason);
+        goto end;
+
+      case V_OCSP_CERTSTATUS_UNKNOWN:
+        result = CURLE_SSL_INVALIDCERTSTATUS;
+        goto end;
+    }
+  }
+
+end:
+  if(br) OCSP_BASICRESP_free(br);
+  OCSP_RESPONSE_free(rsp);
+
+  return result;
+}
+#endif
+
+#endif /* USE_OPENSSL */
+
+/* The SSL_CTRL_SET_MSG_CALLBACK doesn't exist in ancient OpenSSL versions
+   and thus this cannot be done there. */
+#ifdef SSL_CTRL_SET_MSG_CALLBACK
+
+static const char *ssl_msg_type(int ssl_ver, int msg)
+{
+#ifdef SSL2_VERSION_MAJOR
+  if(ssl_ver == SSL2_VERSION_MAJOR) {
+    switch(msg) {
+      case SSL2_MT_ERROR:
+        return "Error";
+      case SSL2_MT_CLIENT_HELLO:
+        return "Client hello";
+      case SSL2_MT_CLIENT_MASTER_KEY:
+        return "Client key";
+      case SSL2_MT_CLIENT_FINISHED:
+        return "Client finished";
+      case SSL2_MT_SERVER_HELLO:
+        return "Server hello";
+      case SSL2_MT_SERVER_VERIFY:
+        return "Server verify";
+      case SSL2_MT_SERVER_FINISHED:
+        return "Server finished";
+      case SSL2_MT_REQUEST_CERTIFICATE:
+        return "Request CERT";
+      case SSL2_MT_CLIENT_CERTIFICATE:
+        return "Client CERT";
+    }
+  }
+  else
+#endif
+  if(ssl_ver == SSL3_VERSION_MAJOR) {
+    switch(msg) {
+      case SSL3_MT_HELLO_REQUEST:
+        return "Hello request";
+      case SSL3_MT_CLIENT_HELLO:
+        return "Client hello";
+      case SSL3_MT_SERVER_HELLO:
+        return "Server hello";
+#ifdef SSL3_MT_NEWSESSION_TICKET
+      case SSL3_MT_NEWSESSION_TICKET:
+        return "Newsession Ticket";
+#endif
+      case SSL3_MT_CERTIFICATE:
+        return "Certificate";
+      case SSL3_MT_SERVER_KEY_EXCHANGE:
+        return "Server key exchange";
+      case SSL3_MT_CLIENT_KEY_EXCHANGE:
+        return "Client key exchange";
+      case SSL3_MT_CERTIFICATE_REQUEST:
+        return "Request CERT";
+      case SSL3_MT_SERVER_DONE:
+        return "Server finished";
+      case SSL3_MT_CERTIFICATE_VERIFY:
+        return "CERT verify";
+      case SSL3_MT_FINISHED:
+        return "Finished";
+#ifdef SSL3_MT_CERTIFICATE_STATUS
+      case SSL3_MT_CERTIFICATE_STATUS:
+        return "Certificate Status";
+#endif
+    }
+  }
+  return "Unknown";
+}
+
+static const char *tls_rt_type(int type)
+{
+  switch(type) {
+#ifdef SSL3_RT_HEADER
+  case SSL3_RT_HEADER:
+    return "TLS header";
+#endif
+  case SSL3_RT_CHANGE_CIPHER_SPEC:
+    return "TLS change cipher";
+  case SSL3_RT_ALERT:
+    return "TLS alert";
+  case SSL3_RT_HANDSHAKE:
+    return "TLS handshake";
+  case SSL3_RT_APPLICATION_DATA:
+    return "TLS app data";
+  default:
+    return "TLS Unknown";
+  }
+}
+
+
+/*
+ * Our callback from the SSL/TLS layers.
+ */
+static void ssl_tls_trace(int direction, int ssl_ver, int content_type,
+                          const void *buf, size_t len, SSL *ssl,
+                          void *userp)
+{
+  struct Curl_easy *data;
+  const char *msg_name, *tls_rt_name;
+  char ssl_buf[1024];
+  char unknown[32];
+  int msg_type, txt_len;
+  const char *verstr = NULL;
+  struct connectdata *conn = userp;
+
+  if(!conn || !conn->data || !conn->data->set.fdebug ||
+     (direction != 0 && direction != 1))
+    return;
+
+  data = conn->data;
+
+  switch(ssl_ver) {
+#ifdef SSL2_VERSION /* removed in recent versions */
+  case SSL2_VERSION:
+    verstr = "SSLv2";
+    break;
+#endif
+#ifdef SSL3_VERSION
+  case SSL3_VERSION:
+    verstr = "SSLv3";
+    break;
+#endif
+  case TLS1_VERSION:
+    verstr = "TLSv1.0";
+    break;
+#ifdef TLS1_1_VERSION
+  case TLS1_1_VERSION:
+    verstr = "TLSv1.1";
+    break;
+#endif
+#ifdef TLS1_2_VERSION
+  case TLS1_2_VERSION:
+    verstr = "TLSv1.2";
+    break;
+#endif
+#ifdef TLS1_3_VERSION
+  case TLS1_3_VERSION:
+    verstr = "TLSv1.3";
+    break;
+#endif
+  case 0:
+    break;
+  default:
+    snprintf(unknown, sizeof(unknown), "(%x)", ssl_ver);
+    verstr = unknown;
+    break;
+  }
+
+  if(ssl_ver) {
+    /* the info given when the version is zero is not that useful for us */
+
+    ssl_ver >>= 8; /* check the upper 8 bits only below */
+
+    /* SSLv2 doesn't seem to have TLS record-type headers, so OpenSSL
+     * always pass-up content-type as 0. But the interesting message-type
+     * is at 'buf[0]'.
+     */
+    if(ssl_ver == SSL3_VERSION_MAJOR && content_type)
+      tls_rt_name = tls_rt_type(content_type);
+    else
+      tls_rt_name = "";
+
+    msg_type = *(char *)buf;
+    msg_name = ssl_msg_type(ssl_ver, msg_type);
+
+    txt_len = snprintf(ssl_buf, sizeof(ssl_buf), "%s (%s), %s, %s (%d):\n",
+                       verstr, direction?"OUT":"IN",
+                       tls_rt_name, msg_name, msg_type);
+    Curl_debug(data, CURLINFO_TEXT, ssl_buf, (size_t)txt_len, NULL);
+  }
+
+  Curl_debug(data, (direction == 1) ? CURLINFO_SSL_DATA_OUT :
+             CURLINFO_SSL_DATA_IN, (char *)buf, len, NULL);
+  (void) ssl;
+}
+#endif
+
+#ifdef USE_OPENSSL
+/* ====================================================== */
+
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+#  define use_sni(x)  sni = (x)
+#else
+#  define use_sni(x)  Curl_nop_stmt
+#endif
+
+/* Check for OpenSSL 1.0.2 which has ALPN support. */
+#undef HAS_ALPN
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L \
+    && !defined(OPENSSL_NO_TLSEXT)
+#  define HAS_ALPN 1
+#endif
+
+/* Check for OpenSSL 1.0.1 which has NPN support. */
+#undef HAS_NPN
+#if OPENSSL_VERSION_NUMBER >= 0x10001000L \
+    && !defined(OPENSSL_NO_TLSEXT) \
+    && !defined(OPENSSL_NO_NEXTPROTONEG)
+#  define HAS_NPN 1
+#endif
+
+#ifdef HAS_NPN
+
+/*
+ * in is a list of lenght prefixed strings. this function has to select
+ * the protocol we want to use from the list and write its string into out.
+ */
 
 static int
-tree_dir_next_windows(struct tree *t, const wchar_t *pattern);
-
-/* Initiate/terminate a tree traversal. */
-static struct tree *tree_open(const wchar_t *, int, int);
-static struct tree *tree_reopen(struct tree *, const wchar_t *, int);
-static void tree_close(struct tree *);
-static void tree_free(struct tree *);
-static void tree_push(struct tree *, const wchar_t *, const wchar_t *,
-		int, int64_t, int64_t, struct restore_time *);
-
-/*
- * tree_next() returns Zero if there is no next entry, non-zero if
- * there is.  Note that directories are visited three times.
- * Directories are always visited first as part of enumerating their
- * parent; that is a "regular" visit.  If tree_descend() is invoked at
- * that time, the directory is added to a work list and will
- * subsequently be visited two more times: once just after descending
- * into the directory ("postdescent") and again just after ascending
- * back to the parent ("postascent").
- *
- * TREE_ERROR_DIR is returned if the descent failed (because the
- * directory couldn't be opened, for instance).  This is returned
- * instead of TREE_POSTDESCENT/TREE_POSTASCENT.  TREE_ERROR_DIR is not a
- * fatal error, but it does imply that the relevant subtree won't be
- * visited.  TREE_ERROR_FATAL is returned for an error that left the
- * traversal completely hosed.  Right now, this is only returned for
- * chdir() failures during ascent.
- */
-#define	TREE_REGULAR		1
-#define	TREE_POSTDESCENT	2
-#define	TREE_POSTASCENT		3
-#define	TREE_ERROR_DIR		-1
-#define	TREE_ERROR_FATAL	-2
-
-static int tree_next(struct tree *);
-
-/*
- * Return information about the current entry.
- */
-
-/*
- * The current full pathname, length of the full pathname, and a name
- * that can be used to access the file.  Because tree does use chdir
- * extensively, the access path is almost never the same as the full
- * current path.
- *
- */
-static const wchar_t *tree_current_path(struct tree *);
-static const wchar_t *tree_current_access_path(struct tree *);
-
-/*
- * Request the lstat() or stat() data for the current path.  Since the
- * tree package needs to do some of this anyway, and caches the
- * results, you should take advantage of it here if you need it rather
- * than make a redundant stat() or lstat() call of your own.
- */
-static const BY_HANDLE_FILE_INFORMATION *tree_current_stat(struct tree *);
-static const BY_HANDLE_FILE_INFORMATION *tree_current_lstat(struct tree *);
-
-/* The following functions use tricks to avoid a certain number of
- * stat()/lstat() calls. */
-/* "is_physical_dir" is equivalent to S_ISDIR(tree_current_lstat()->st_mode) */
-static int tree_current_is_physical_dir(struct tree *);
-/* "is_physical_link" is equivalent to S_ISLNK(tree_current_lstat()->st_mode) */
-static int tree_current_is_physical_link(struct tree *);
-/* Instead of archive_entry_copy_stat for BY_HANDLE_FILE_INFORMATION */
-static void tree_archive_entry_copy_bhfi(struct archive_entry *,
-		    struct tree *, const BY_HANDLE_FILE_INFORMATION *);
-/* "is_dir" is equivalent to S_ISDIR(tree_current_stat()->st_mode) */
-static int tree_current_is_dir(struct tree *);
-static int update_current_filesystem(struct archive_read_disk *a,
-		    int64_t dev);
-static int setup_current_filesystem(struct archive_read_disk *);
-static int tree_target_is_same_as_parent(struct tree *,
-		    const BY_HANDLE_FILE_INFORMATION *);
-
-static int	_archive_read_disk_open_w(struct archive *, const wchar_t *);
-static int	_archive_read_free(struct archive *);
-static int	_archive_read_close(struct archive *);
-static int	_archive_read_data_block(struct archive *,
-		    const void **, size_t *, int64_t *);
-static int	_archive_read_next_header(struct archive *,
-		    struct archive_entry **);
-static int	_archive_read_next_header2(struct archive *,
-		    struct archive_entry *);
-static const char *trivial_lookup_gname(void *, int64_t gid);
-static const char *trivial_lookup_uname(void *, int64_t uid);
-static int	setup_sparse(struct archive_read_disk *, struct archive_entry *);
-static int	close_and_restore_time(HANDLE, struct tree *,
-		    struct restore_time *);
-static int	setup_sparse_from_disk(struct archive_read_disk *,
-		    struct archive_entry *, HANDLE);
-
-
-
-static struct archive_vtable *
-archive_read_disk_vtable(void)
+select_next_protocol(unsigned char **out, unsigned char *outlen,
+                     const unsigned char *in, unsigned int inlen,
+                     const char *key, unsigned int keylen)
 {
-	static struct archive_vtable av;
-	static int inited = 0;
-
-	if (!inited) {
-		av.archive_free = _archive_read_free;
-		av.archive_close = _archive_read_close;
-		av.archive_read_data_block = _archive_read_data_block;
-		av.archive_read_next_header = _archive_read_next_header;
-		av.archive_read_next_header2 = _archive_read_next_header2;
-		inited = 1;
-	}
-	return (&av);
-}
-
-const char *
-archive_read_disk_gname(struct archive *_a, int64_t gid)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	if (ARCHIVE_OK != __archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-		ARCHIVE_STATE_ANY, "archive_read_disk_gname"))
-		return (NULL);
-	if (a->lookup_gname == NULL)
-		return (NULL);
-	return ((*a->lookup_gname)(a->lookup_gname_data, gid));
-}
-
-const char *
-archive_read_disk_uname(struct archive *_a, int64_t uid)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	if (ARCHIVE_OK != __archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-		ARCHIVE_STATE_ANY, "archive_read_disk_uname"))
-		return (NULL);
-	if (a->lookup_uname == NULL)
-		return (NULL);
-	return ((*a->lookup_uname)(a->lookup_uname_data, uid));
-}
-
-int
-archive_read_disk_set_gname_lookup(struct archive *_a,
-    void *private_data,
-    const char * (*lookup_gname)(void *private, int64_t gid),
-    void (*cleanup_gname)(void *private))
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(&a->archive, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_set_gname_lookup");
-
-	if (a->cleanup_gname != NULL && a->lookup_gname_data != NULL)
-		(a->cleanup_gname)(a->lookup_gname_data);
-
-	a->lookup_gname = lookup_gname;
-	a->cleanup_gname = cleanup_gname;
-	a->lookup_gname_data = private_data;
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_set_uname_lookup(struct archive *_a,
-    void *private_data,
-    const char * (*lookup_uname)(void *private, int64_t uid),
-    void (*cleanup_uname)(void *private))
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(&a->archive, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_set_uname_lookup");
-
-	if (a->cleanup_uname != NULL && a->lookup_uname_data != NULL)
-		(a->cleanup_uname)(a->lookup_uname_data);
-
-	a->lookup_uname = lookup_uname;
-	a->cleanup_uname = cleanup_uname;
-	a->lookup_uname_data = private_data;
-	return (ARCHIVE_OK);
-}
-
-/*
- * Create a new archive_read_disk object and initialize it with global state.
- */
-struct archive *
-archive_read_disk_new(void)
-{
-	struct archive_read_disk *a;
-
-	a = (struct archive_read_disk *)calloc(1, sizeof(*a));
-	if (a == NULL)
-		return (NULL);
-	a->archive.magic = ARCHIVE_READ_DISK_MAGIC;
-	a->archive.state = ARCHIVE_STATE_NEW;
-	a->archive.vtable = archive_read_disk_vtable();
-	a->entry = archive_entry_new2(&a->archive);
-	a->lookup_uname = trivial_lookup_uname;
-	a->lookup_gname = trivial_lookup_gname;
-	a->enable_copyfile = 1;
-	a->traverse_mount_points = 1;
-	return (&a->archive);
+  unsigned int i;
+  for(i = 0; i + keylen <= inlen; i += in[i] + 1) {
+    if(memcmp(&in[i + 1], key, keylen) == 0) {
+      *out = (unsigned char *) &in[i + 1];
+      *outlen = in[i];
+      return 0;
+    }
+  }
+  return -1;
 }
 
 static int
-_archive_read_free(struct archive *_a)
+select_next_proto_cb(SSL *ssl,
+                     unsigned char **out, unsigned char *outlen,
+                     const unsigned char *in, unsigned int inlen,
+                     void *arg)
 {
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	int r;
+  struct connectdata *conn = (struct connectdata*) arg;
 
-	if (_a == NULL)
-		return (ARCHIVE_OK);
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY | ARCHIVE_STATE_FATAL, "archive_read_free");
+  (void)ssl;
 
-	if (a->archive.state != ARCHIVE_STATE_CLOSED)
-		r = _archive_read_close(&a->archive);
-	else
-		r = ARCHIVE_OK;
+#ifdef USE_NGHTTP2
+  if(conn->data->set.httpversion >= CURL_HTTP_VERSION_2 &&
+     !select_next_protocol(out, outlen, in, inlen, NGHTTP2_PROTO_VERSION_ID,
+                           NGHTTP2_PROTO_VERSION_ID_LEN)) {
+    infof(conn->data, "NPN, negotiated HTTP2 (%s)\n",
+          NGHTTP2_PROTO_VERSION_ID);
+    conn->negnpn = CURL_HTTP_VERSION_2;
+    return SSL_TLSEXT_ERR_OK;
+  }
+#endif
 
-	tree_free(a->tree);
-	if (a->cleanup_gname != NULL && a->lookup_gname_data != NULL)
-		(a->cleanup_gname)(a->lookup_gname_data);
-	if (a->cleanup_uname != NULL && a->lookup_uname_data != NULL)
-		(a->cleanup_uname)(a->lookup_uname_data);
-	archive_string_free(&a->archive.error_string);
-	archive_entry_free(a->entry);
-	a->archive.magic = 0;
-	free(a);
-	return (r);
+  if(!select_next_protocol(out, outlen, in, inlen, ALPN_HTTP_1_1,
+                           ALPN_HTTP_1_1_LENGTH)) {
+    infof(conn->data, "NPN, negotiated HTTP1.1\n");
+    conn->negnpn = CURL_HTTP_VERSION_1_1;
+    return SSL_TLSEXT_ERR_OK;
+  }
+
+  infof(conn->data, "NPN, no overlap, use HTTP1.1\n");
+  *out = (unsigned char *)ALPN_HTTP_1_1;
+  *outlen = ALPN_HTTP_1_1_LENGTH;
+  conn->negnpn = CURL_HTTP_VERSION_1_1;
+
+  return SSL_TLSEXT_ERR_OK;
 }
+#endif /* HAS_NPN */
 
-static int
-_archive_read_close(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY | ARCHIVE_STATE_FATAL, "archive_read_close");
-
-	if (a->archive.state != ARCHIVE_STATE_FATAL)
-		a->archive.state = ARCHIVE_STATE_CLOSED;
-
-	tree_close(a->tree);
-
-	return (ARCHIVE_OK);
-}
-
-static void
-setup_symlink_mode(struct archive_read_disk *a, char symlink_mode, 
-    int follow_symlinks)
-{
-	a->symlink_mode = symlink_mode;
-	a->follow_symlinks = follow_symlinks;
-	if (a->tree != NULL) {
-		a->tree->initial_symlink_mode = a->symlink_mode;
-		a->tree->symlink_mode = a->symlink_mode;
-	}
-}
-
-int
-archive_read_disk_set_symlink_logical(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_set_symlink_logical");
-	setup_symlink_mode(a, 'L', 1);
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_set_symlink_physical(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_set_symlink_physical");
-	setup_symlink_mode(a, 'P', 0);
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_set_symlink_hybrid(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_set_symlink_hybrid");
-	setup_symlink_mode(a, 'H', 1);/* Follow symlinks initially. */
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_set_atime_restored(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_restore_atime");
-	a->restore_time = 1;
-	if (a->tree != NULL)
-		a->tree->flags |= needsRestoreTimes;
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_set_behavior(struct archive *_a, int flags)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	int r = ARCHIVE_OK;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_honor_nodump");
-
-	if (flags & ARCHIVE_READDISK_RESTORE_ATIME)
-		r = archive_read_disk_set_atime_restored(_a);
-	else {
-		a->restore_time = 0;
-		if (a->tree != NULL)
-			a->tree->flags &= ~needsRestoreTimes;
-	}
-	if (flags & ARCHIVE_READDISK_HONOR_NODUMP)
-		a->honor_nodump = 1;
-	else
-		a->honor_nodump = 0;
-	if (flags & ARCHIVE_READDISK_MAC_COPYFILE)
-		a->enable_copyfile = 1;
-	else
-		a->enable_copyfile = 0;
-	if (flags & ARCHIVE_READDISK_NO_TRAVERSE_MOUNTS)
-		a->traverse_mount_points = 0;
-	else
-		a->traverse_mount_points = 1;
-	return (r);
-}
-
-/*
- * Trivial implementations of gname/uname lookup functions.
- * These are normally overridden by the client, but these stub
- * versions ensure that we always have something that works.
- */
 static const char *
-trivial_lookup_gname(void *private_data, int64_t gid)
+get_ssl_version_txt(SSL *ssl)
 {
-	(void)private_data; /* UNUSED */
-	(void)gid; /* UNUSED */
-	return (NULL);
+  if(!ssl)
+    return "";
+
+  switch(SSL_version(ssl)) {
+#ifdef TLS1_3_VERSION
+  case TLS1_3_VERSION:
+    return "TLSv1.3";
+#endif
+#if OPENSSL_VERSION_NUMBER >= 0x1000100FL
+  case TLS1_2_VERSION:
+    return "TLSv1.2";
+  case TLS1_1_VERSION:
+    return "TLSv1.1";
+#endif
+  case TLS1_VERSION:
+    return "TLSv1.0";
+  case SSL3_VERSION:
+    return "SSLv3";
+  case SSL2_VERSION:
+    return "SSLv2";
+  }
+  return "unknown";
 }
 
-static const char *
-trivial_lookup_uname(void *private_data, int64_t uid)
+static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
 {
-	(void)private_data; /* UNUSED */
-	(void)uid; /* UNUSED */
-	return (NULL);
-}
-
-static int64_t
-align_num_per_sector(struct tree *t, int64_t size)
-{
-	int64_t surplus;
-
-	size += t->current_filesystem->bytesPerSector -1;
-	surplus = size % t->current_filesystem->bytesPerSector;
-	size -= surplus;
-	return (size);
-}
-
-static int
-start_next_async_read(struct archive_read_disk *a, struct tree *t)
-{
-	struct la_overlapped *olp;
-	DWORD buffbytes, rbytes;
-
-	if (t->ol_remaining_bytes == 0)
-		return (ARCHIVE_EOF);
-
-	olp = &(t->ol[t->ol_idx_doing]);
-	t->ol_idx_doing = (t->ol_idx_doing + 1) % MAX_OVERLAPPED;
-
-	/* Allocate read buffer. */
-	if (olp->buff == NULL) {
-		void *p;
-		size_t s = (size_t)align_num_per_sector(t, BUFFER_SIZE);
-		p = VirtualAlloc(NULL, s, MEM_COMMIT, PAGE_READWRITE);
-		if (p == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Couldn't allocate memory");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
-		olp->buff = p;
-		olp->buff_size = s;
-		olp->_a = &a->archive;
-		olp->ol.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-		if (olp->ol.hEvent == NULL) {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "CreateEvent failed");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
-	} else
-		ResetEvent(olp->ol.hEvent);
-
-	buffbytes = (DWORD)olp->buff_size;
-	if (buffbytes > t->current_sparse->length)
-		buffbytes = (DWORD)t->current_sparse->length;
-
-	/* Skip hole. */
-	if (t->current_sparse->offset > t->ol_total) {
-		t->ol_remaining_bytes -=
-			t->current_sparse->offset - t->ol_total;
-	}
-
-	olp->offset = t->current_sparse->offset;
-	olp->ol.Offset = (DWORD)(olp->offset & 0xffffffff);
-	olp->ol.OffsetHigh = (DWORD)(olp->offset >> 32);
-
-	if (t->ol_remaining_bytes > buffbytes) {
-		olp->bytes_expected = buffbytes;
-		t->ol_remaining_bytes -= buffbytes;
-	} else {
-		olp->bytes_expected = (size_t)t->ol_remaining_bytes;
-		t->ol_remaining_bytes = 0;
-	}
-	olp->bytes_transferred = 0;
-	t->current_sparse->offset += buffbytes;
-	t->current_sparse->length -= buffbytes;
-	t->ol_total = t->current_sparse->offset;
-	if (t->current_sparse->length == 0 && t->ol_remaining_bytes > 0)
-		t->current_sparse++;
-
-	if (!ReadFile(t->entry_fh, olp->buff, buffbytes, &rbytes, &(olp->ol))) {
-		DWORD lasterr;
-
-		lasterr = GetLastError();
-		if (lasterr == ERROR_HANDLE_EOF) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Reading file truncated");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		} else if (lasterr != ERROR_IO_PENDING) {
-			if (lasterr == ERROR_NO_DATA)
-				errno = EAGAIN;
-			else if (lasterr == ERROR_ACCESS_DENIED)
-				errno = EBADF;
-			else
-				la_dosmaperr(lasterr);
-			archive_set_error(&a->archive, errno, "Read error");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
-	} else
-		olp->bytes_transferred = rbytes;
-	t->ol_num_doing++;
-
-	return (t->ol_remaining_bytes == 0)? ARCHIVE_EOF: ARCHIVE_OK;
-}
-
-static void
-cancel_async(struct tree *t)
-{
-	if (t->ol_num_doing != t->ol_num_done) {
-		CancelIo(t->entry_fh);
-		t->ol_num_doing = t->ol_num_done = 0;
-	}
-}
-
-static int
-_archive_read_data_block(struct archive *_a, const void **buff,
-    size_t *size, int64_t *offset)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
-	struct la_overlapped *olp;
-	DWORD bytes_transferred;
-	int r = ARCHIVE_FATAL;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_data_block");
-
-	if (t->entry_eof || t->entry_remaining_bytes <= 0) {
-		r = ARCHIVE_EOF;
-		goto abort_read_data;
-	}
-
-	/*
-	 * Make a request to read the file in asynchronous.
-	 */
-	if (t->ol_num_doing == 0) {
-		do {
-			r = start_next_async_read(a, t);
-			if (r == ARCHIVE_FATAL)
-				goto abort_read_data;
-			if (!t->async_io)
-				break;
-		} while (r == ARCHIVE_OK && t->ol_num_doing < MAX_OVERLAPPED);
-	} else {
-		if (start_next_async_read(a, t) == ARCHIVE_FATAL)
-			goto abort_read_data;
-	}
-
-	olp = &(t->ol[t->ol_idx_done]);
-	t->ol_idx_done = (t->ol_idx_done + 1) % MAX_OVERLAPPED;
-	if (olp->bytes_transferred)
-		bytes_transferred = (DWORD)olp->bytes_transferred;
-	else if (!GetOverlappedResult(t->entry_fh, &(olp->ol),
-	    &bytes_transferred, TRUE)) {
-		la_dosmaperr(GetLastError());
-		archive_set_error(&a->archive, errno,
-		    "GetOverlappedResult failed");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		r = ARCHIVE_FATAL;
-		goto abort_read_data;
-	}
-	t->ol_num_done++;
-
-	if (bytes_transferred == 0 ||
-	    olp->bytes_expected != bytes_transferred) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Reading file truncated");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		r = ARCHIVE_FATAL;
-		goto abort_read_data;
-	}
-
-	*buff = olp->buff;
-	*size = bytes_transferred;
-	*offset = olp->offset;
-	if (olp->offset > t->entry_total)
-		t->entry_remaining_bytes -= olp->offset - t->entry_total;
-	t->entry_total = olp->offset + *size;
-	t->entry_remaining_bytes -= *size;
-	if (t->entry_remaining_bytes == 0) {
-		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-		t->entry_eof = 1;
-	}
-	return (ARCHIVE_OK);
-
-abort_read_data:
-	*buff = NULL;
-	*size = 0;
-	*offset = t->entry_total;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		cancel_async(t);
-		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-	}
-	return (r);
-}
-
-static int
-next_entry(struct archive_read_disk *a, struct tree *t,
-    struct archive_entry *entry)
-{
-	const BY_HANDLE_FILE_INFORMATION *st;
-	const BY_HANDLE_FILE_INFORMATION *lst;
-	const char*name;
-	int descend, r;
-
-	st = NULL;
-	lst = NULL;
-	t->descend = 0;
-	do {
-		switch (tree_next(t)) {
-		case TREE_ERROR_FATAL:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
-			    tree_current_path(t));
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
-			    tree_current_path(t));
-			return (ARCHIVE_FAILED);
-		case 0:
-			return (ARCHIVE_EOF);
-		case TREE_POSTDESCENT:
-		case TREE_POSTASCENT:
-			break;
-		case TREE_REGULAR:
-			lst = tree_current_lstat(t);
-			if (lst == NULL) {
-				archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
-				    tree_current_path(t));
-				return (ARCHIVE_FAILED);
-			}
-			break;
-		}	
-	} while (lst == NULL);
-
-	archive_entry_copy_pathname_w(entry, tree_current_path(t));
-
-	/*
-	 * Perform path matching.
-	 */
-	if (a->matching) {
-		r = archive_match_path_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/*
-	 * Distinguish 'L'/'P'/'H' symlink following.
-	 */
-	switch(t->symlink_mode) {
-	case 'H':
-		/* 'H': After the first item, rest like 'P'. */
-		t->symlink_mode = 'P';
-		/* 'H': First item (from command line) like 'L'. */
-		/* FALLTHROUGH */
-	case 'L':
-		/* 'L': Do descend through a symlink to dir. */
-		descend = tree_current_is_dir(t);
-		/* 'L': Follow symlinks to files. */
-		a->symlink_mode = 'L';
-		a->follow_symlinks = 1;
-		/* 'L': Archive symlinks as targets, if we can. */
-		st = tree_current_stat(t);
-		if (st != NULL && !tree_target_is_same_as_parent(t, st))
-			break;
-		/* If stat fails, we have a broken symlink;
-		 * in that case, don't follow the link. */
-		/* FALLTHROUGH */
-	default:
-		/* 'P': Don't descend through a symlink to dir. */
-		descend = tree_current_is_physical_dir(t);
-		/* 'P': Don't follow symlinks to files. */
-		a->symlink_mode = 'P';
-		a->follow_symlinks = 0;
-		/* 'P': Archive symlinks as symlinks. */
-		st = lst;
-		break;
-	}
-
-	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
-	if (t->initial_filesystem_id == -1)
-		t->initial_filesystem_id = t->current_filesystem_id;
-	if (!a->traverse_mount_points) {
-		if (t->initial_filesystem_id != t->current_filesystem_id)
-			return (ARCHIVE_RETRY);
-	}
-	t->descend = descend;
-
-	tree_archive_entry_copy_bhfi(entry, t, st);
-
-	/* Save the times to be restored. This must be in before
-	 * calling archive_read_disk_descend() or any chance of it,
-	 * especially, invoking a callback. */
-	t->restore_time.lastWriteTime = st->ftLastWriteTime;
-	t->restore_time.lastAccessTime = st->ftLastAccessTime;
-	t->restore_time.filetype = archive_entry_filetype(entry);
-
-	/*
-	 * Perform time matching.
-	 */
-	if (a->matching) {
-		r = archive_match_time_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(&(a->archive), archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(&(a->archive), archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
-
-	/*
-	 * Perform owner matching.
-	 */
-	if (a->matching) {
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
-			if (a->excluded_cb_func)
-				a->excluded_cb_func(&(a->archive),
-				    a->excluded_cb_data, entry);
-			return (ARCHIVE_RETRY);
-		}
-	}
-
-	/*
-	 * Invoke a meta data filter callback.
-	 */
-	if (a->metadata_filter_func) {
-		if (!a->metadata_filter_func(&(a->archive),
-		    a->metadata_filter_data, entry))
-			return (ARCHIVE_RETRY);
-	}
-
-	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
-
-	r = ARCHIVE_OK;
-	if (archive_entry_filetype(entry) == AE_IFREG &&
-	    archive_entry_size(entry) > 0) {
-		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
-		if (t->async_io)
-			flags |= FILE_FLAG_OVERLAPPED;
-		if (t->direct_io)
-			flags |= FILE_FLAG_NO_BUFFERING;
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
-			return (ARCHIVE_FAILED);
-		}
-
-		/* Find sparse data from the disk. */
-		if (archive_entry_hardlink(entry) == NULL &&
-		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
-			r = setup_sparse_from_disk(a, entry, t->entry_fh);
-	}
-	return (r);
-}
-
-static int
-_archive_read_next_header(struct archive *_a, struct archive_entry **entryp)
-{
-       int ret;
-       struct archive_read_disk *a = (struct archive_read_disk *)_a;
-       *entryp = NULL;
-       ret = _archive_read_next_header2(_a, a->entry);
-       *entryp = a->entry;
-       return ret;
-}
-
-static int
-_archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
-	    "archive_read_next_header2");
-
-	t = a->tree;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		cancel_async(t);
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-	}
-
-	while ((r = next_entry(a, t, entry)) == ARCHIVE_RETRY)
-		archive_entry_clear(entry);
-
-	/*
-	 * EOF and FATAL are persistent at this layer.  By
-	 * modifying the state, we guarantee that future calls to
-	 * read a header or read data will fail.
-	 */
-	switch (r) {
-	case ARCHIVE_EOF:
-		a->archive.state = ARCHIVE_STATE_EOF;
-		break;
-	case ARCHIVE_OK:
-	case ARCHIVE_WARN:
-		t->entry_total = 0;
-		if (archive_entry_filetype(entry) == AE_IFREG) {
-			t->entry_remaining_bytes = archive_entry_size(entry);
-			t->entry_eof = (t->entry_remaining_bytes == 0)? 1: 0;
-			if (!t->entry_eof &&
-			    setup_sparse(a, entry) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		} else {
-			t->entry_remaining_bytes = 0;
-			t->entry_eof = 1;
-		}
-		t->ol_idx_doing = t->ol_idx_done = 0;
-		t->ol_num_doing = t->ol_num_done = 0;
-		t->ol_remaining_bytes = t->entry_remaining_bytes;
-		t->ol_total = 0;
-		a->archive.state = ARCHIVE_STATE_DATA;
-		break;
-	case ARCHIVE_RETRY:
-		break;
-	case ARCHIVE_FATAL:
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		break;
-	}
-
-	__archive_reset_read_data(&a->archive);
-	return (r);
-}
-
-static int
-setup_sparse(struct archive_read_disk *a, struct archive_entry *entry)
-{
-	struct tree *t = a->tree;
-	int64_t aligned, length, offset;
-	int i;
-
-	t->sparse_count = archive_entry_sparse_reset(entry);
-	if (t->sparse_count+1 > t->sparse_list_size) {
-		free(t->sparse_list);
-		t->sparse_list_size = t->sparse_count + 1;
-		t->sparse_list = malloc(sizeof(t->sparse_list[0]) *
-		    t->sparse_list_size);
-		if (t->sparse_list == NULL) {
-			t->sparse_list_size = 0;
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate data");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
-	}
-	/*
-	 * Get sparse list and make sure those offsets and lengths are
-	 * aligned by a sector size.
-	 */
-	for (i = 0; i < t->sparse_count; i++) {
-		archive_entry_sparse_next(entry, &offset, &length);
-		aligned = align_num_per_sector(t, offset);
-		if (aligned != offset) {
-			aligned -= t->current_filesystem->bytesPerSector;
-			length += offset - aligned;
-		}
-		t->sparse_list[i].offset = aligned;
-		aligned = align_num_per_sector(t, length);
-		t->sparse_list[i].length = aligned;
-	}
-
-	aligned = align_num_per_sector(t, archive_entry_size(entry));
-	if (i == 0) {
-		t->sparse_list[i].offset = 0;
-		t->sparse_list[i].length = aligned;
-	} else {
-		int j, last = i;
-
-		t->sparse_list[i].offset = aligned;
-		t->sparse_list[i].length = 0;
-		for (i = 0; i < last; i++) {
-			if ((t->sparse_list[i].offset +
-			       t->sparse_list[i].length) <= 
-					t->sparse_list[i+1].offset)
-				continue;
-			/*
-			 * Now sparse_list[i+1] is overlapped by sparse_list[i].
-			 * Merge those two.
-			 */
-			length = t->sparse_list[i+1].offset -
-					t->sparse_list[i].offset;
-			t->sparse_list[i+1].offset = t->sparse_list[i].offset;
-			t->sparse_list[i+1].length += length;
-			/* Remove sparse_list[i]. */
-			for (j = i; j < last; j++) {
-				t->sparse_list[j].offset =
-				    t->sparse_list[j+1].offset;
-				t->sparse_list[j].length =
-				    t->sparse_list[j+1].length;
-			}
-			last--;
-		}
-	}
-	t->current_sparse = t->sparse_list;
-
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_set_matching(struct archive *_a, struct archive *_ma,
-    void (*_excluded_func)(struct archive *, void *, struct archive_entry *),
-    void *_client_data)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_ANY, "archive_read_disk_set_matching");
-	a->matching = _ma;
-	a->excluded_cb_func = _excluded_func;
-	a->excluded_cb_data = _client_data;
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_set_metadata_filter_callback(struct archive *_a,
-    int (*_metadata_filter_func)(struct archive *, void *,
-    struct archive_entry *), void *_client_data)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_ANY,
-	    "archive_read_disk_set_metadata_filter_callback");
-
-	a->metadata_filter_func = _metadata_filter_func;
-	a->metadata_filter_data = _client_data;
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_can_descend(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
-	    "archive_read_disk_can_descend");
-
-	return (t->visit_type == TREE_REGULAR && t->descend);
-}
-
-/*
- * Called by the client to mark the directory just returned from
- * tree_next() as needing to be visited.
- */
-int
-archive_read_disk_descend(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct tree *t = a->tree;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
-	    "archive_read_disk_descend");
-
-	if (t->visit_type != TREE_REGULAR || !t->descend)
-		return (ARCHIVE_OK);
-
-	if (tree_current_is_physical_dir(t)) {
-		tree_push(t, t->basename, t->full_path.s,
-		    t->current_filesystem_id,
-		    bhfi_dev(&(t->lst)), bhfi_ino(&(t->lst)),
-		    &t->restore_time);
-		t->stack->flags |= isDir;
-	} else if (tree_current_is_dir(t)) {
-		tree_push(t, t->basename, t->full_path.s,
-		    t->current_filesystem_id,
-		    bhfi_dev(&(t->st)), bhfi_ino(&(t->st)),
-		    &t->restore_time);
-		t->stack->flags |= isDirLink;
-	}
-	t->descend = 0;
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_disk_open(struct archive *_a, const char *pathname)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct archive_wstring wpath;
-	int ret;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
-	    "archive_read_disk_open");
-	archive_clear_error(&a->archive);
-
-	/* Make a wchar_t string from a char string. */
-	archive_string_init(&wpath);
-	if (archive_wstring_append_from_mbs(&wpath, pathname,
-	    strlen(pathname)) != 0) {
-		if (errno == ENOMEM)
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory");
-		else
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't convert a path to a wchar_t string");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		ret = ARCHIVE_FATAL;
-	} else
-		ret = _archive_read_disk_open_w(_a, wpath.s);
-
-	archive_wstring_free(&wpath);
-	return (ret);
-}
-
-int
-archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
-	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
-	    "archive_read_disk_open_w");
-	archive_clear_error(&a->archive);
-
-	return (_archive_read_disk_open_w(_a, pathname));
-}
-
-static int
-_archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	if (a->tree != NULL)
-		a->tree = tree_reopen(a->tree, pathname, a->restore_time);
-	else
-		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		return (ARCHIVE_FATAL);
-	}
-	a->archive.state = ARCHIVE_STATE_HEADER;
-
-	return (ARCHIVE_OK);
-}
-
-/*
- * Return a current filesystem ID which is index of the filesystem entry
- * you've visited through archive_read_disk.
- */
-int
-archive_read_disk_current_filesystem(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_disk_current_filesystem");
-
-	return (a->tree->current_filesystem_id);
-}
-
-static int
-update_current_filesystem(struct archive_read_disk *a, int64_t dev)
-{
-	struct tree *t = a->tree;
-	int i, fid;
-
-	if (t->current_filesystem != NULL &&
-	    t->current_filesystem->dev == dev)
-		return (ARCHIVE_OK);
-
-	for (i = 0; i < t->max_filesystem_id; i++) {
-		if (t->filesystem_table[i].dev == dev) {
-			/* There is the filesystem ID we've already generated. */
-			t->current_filesystem_id = i;
-			t->current_filesystem = &(t->filesystem_table[i]);
-			return (ARCHIVE_OK);
-		}
-	}
-
-	/*
-	 * There is a new filesystem, we generate a new ID for.
-	 */
-	fid = t->max_filesystem_id++;
-	if (t->max_filesystem_id > t->allocated_filesystem) {
-		size_t s;
-		void *p;
-
-		s = t->max_filesystem_id * 2;
-		p = realloc(t->filesystem_table,
-			s * sizeof(*t->filesystem_table));
-		if (p == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate tar data");
-			return (ARCHIVE_FATAL);
-		}
-		t->filesystem_table = (struct filesystem *)p;
-		t->allocated_filesystem = (int)s;
-	}
-	t->current_filesystem_id = fid;
-	t->current_filesystem = &(t->filesystem_table[fid]);
-	t->current_filesystem->dev = dev;
-
-	return (setup_current_filesystem(a));
-}
-
-/*
- * Returns 1 if current filesystem is generated filesystem, 0 if it is not
- * or -1 if it is unknown.
- */
-int
-archive_read_disk_current_filesystem_is_synthetic(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_disk_current_filesystem");
-
-	return (a->tree->current_filesystem->synthetic);
-}
-
-/*
- * Returns 1 if current filesystem is remote filesystem, 0 if it is not
- * or -1 if it is unknown.
- */
-int
-archive_read_disk_current_filesystem_is_remote(struct archive *_a)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
-	    "archive_read_disk_current_filesystem");
-
-	return (a->tree->current_filesystem->remote);
-}
-
-/*
- * If symlink is broken, statfs or statvfs will fail.
- * Use its directory path instead.
- */
-static wchar_t *
-safe_path_for_statfs(struct tree *t)
-{
-	const wchar_t *path;
-	wchar_t *cp, *p = NULL;
-
-	path = tree_current_access_path(t);
-	if (tree_current_stat(t) == NULL) {
-		p = _wcsdup(path);
-		cp = wcsrchr(p, '/');
-		if (cp != NULL && wcslen(cp) >= 2) {
-			cp[1] = '.';
-			cp[2] = '\0';
-			path = p;
-		}
-	} else
-		p = _wcsdup(path);
-	return (p);
-}
-
-/*
- * Get conditions of synthetic and remote on Windows
- */
-static int
-setup_current_filesystem(struct archive_read_disk *a)
-{
-	struct tree *t = a->tree;
-	wchar_t vol[256];
-	wchar_t *path;
-
-	t->current_filesystem->synthetic = -1;/* Not supported */
-	path = safe_path_for_statfs(t);
-	if (!GetVolumePathNameW(path, vol, sizeof(vol)/sizeof(vol[0]))) {
-		free(path);
-		t->current_filesystem->remote = -1;
-		t->current_filesystem->bytesPerSector = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetVolumePathName failed: %d", (int)GetLastError());
-		return (ARCHIVE_FAILED);
-	}
-	free(path);
-	switch (GetDriveTypeW(vol)) {
-	case DRIVE_UNKNOWN:
-	case DRIVE_NO_ROOT_DIR:
-		t->current_filesystem->remote = -1;
-		break;
-	case DRIVE_REMOTE:
-		t->current_filesystem->remote = 1;
-		break;
-	default:
-		t->current_filesystem->remote = 0;
-		break;
-	}
-
-	if (!GetDiskFreeSpaceW(vol, NULL,
-	    &(t->current_filesystem->bytesPerSector), NULL, NULL)) {
-		t->current_filesystem->bytesPerSector = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetDiskFreeSpace failed: %d", (int)GetLastError());
-		return (ARCHIVE_FAILED);
-	}
-
-	return (ARCHIVE_OK);
-}
-
-static int
-close_and_restore_time(HANDLE h, struct tree *t, struct restore_time *rt)
-{
-	HANDLE handle;
-	int r = 0;
-
-	if (h == INVALID_HANDLE_VALUE && AE_IFLNK == rt->filetype)
-		return (0);
-
-	/* Close a file descriptor.
-	 * It will not be used for SetFileTime() because it has been opened
-	 * by a read only mode.
-	 */
-	if (h != INVALID_HANDLE_VALUE)
-		CloseHandle(h);
-	if ((t->flags & needsRestoreTimes) == 0)
-		return (r);
-
-	handle = CreateFileW(rt->full_path, FILE_WRITE_ATTRIBUTES,
-		    0, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-	if (handle == INVALID_HANDLE_VALUE) {
-		errno = EINVAL;
-		return (-1);
-	}
-
-	if (SetFileTime(handle, NULL, &rt->lastAccessTime,
-	    &rt->lastWriteTime) == 0) {
-		errno = EINVAL;
-		r = -1;
-	} else
-		r = 0;
-	CloseHandle(handle);
-	return (r);
-}
-
-/*
- * Add a directory path to the current stack.
- */
-static void
-tree_push(struct tree *t, const wchar_t *path, const wchar_t *full_path,
-    int filesystem_id, int64_t dev, int64_t ino, struct restore_time *rt)
-{
-	struct tree_entry *te;
-
-	te = calloc(1, sizeof(*te));
-	te->next = t->stack;
-	te->parent = t->current;
-	if (te->parent)
-		te->depth = te->parent->depth + 1;
-	t->stack = te;
-	archive_string_init(&te->name);
-	archive_wstrcpy(&te->name, path);
-	archive_string_init(&te->full_path);
-	archive_wstrcpy(&te->full_path, full_path);
-	te->flags = needsDescent | needsOpen | needsAscent;
-	te->filesystem_id = filesystem_id;
-	te->dev = dev;
-	te->ino = ino;
-	te->dirname_length = t->dirname_length;
-	te->full_path_dir_length = t->full_path_dir_length;
-	te->restore_time.full_path = te->full_path.s;
-	if (rt != NULL) {
-		te->restore_time.lastWriteTime = rt->lastWriteTime;
-		te->restore_time.lastAccessTime = rt->lastAccessTime;
-		te->restore_time.filetype = rt->filetype;
-	}
-}
-
-/*
- * Append a name to the current dir path.
- */
-static void
-tree_append(struct tree *t, const wchar_t *name, size_t name_length)
-{
-	size_t size_needed;
-
-	t->path.s[t->dirname_length] = L'\0';
-	t->path.length = t->dirname_length;
-	/* Strip trailing '/' from name, unless entire name is "/". */
-	while (name_length > 1 && name[name_length - 1] == L'/')
-		name_length--;
-
-	/* Resize pathname buffer as needed. */
-	size_needed = name_length + t->dirname_length + 2;
-	archive_wstring_ensure(&t->path, size_needed);
-	/* Add a separating '/' if it's needed. */
-	if (t->dirname_length > 0 &&
-	    t->path.s[archive_strlen(&t->path)-1] != L'/')
-		archive_wstrappend_wchar(&t->path, L'/');
-	t->basename = t->path.s + archive_strlen(&t->path);
-	archive_wstrncat(&t->path, name, name_length);
-	t->restore_time.full_path = t->basename;
-	if (t->full_path_dir_length > 0) {
-		t->full_path.s[t->full_path_dir_length] = L'\0';
-		t->full_path.length = t->full_path_dir_length;
-		size_needed = name_length + t->full_path_dir_length + 2;
-		archive_wstring_ensure(&t->full_path, size_needed);
-		/* Add a separating '\' if it's needed. */
-		if (t->full_path.s[archive_strlen(&t->full_path)-1] != L'\\')
-			archive_wstrappend_wchar(&t->full_path, L'\\');
-		archive_wstrncat(&t->full_path, name, name_length);
-		t->restore_time.full_path = t->full_path.s;
-	}
-}
-
-/*
- * Open a directory tree for traversal.
- */
-static struct tree *
-tree_open(const wchar_t *path, int symlink_mode, int restore_time)
-{
-	struct tree *t;
-
-	t = calloc(1, sizeof(*t));
-	archive_string_init(&(t->full_path));
-	archive_string_init(&t->path);
-	archive_wstring_ensure(&t->path, 15);
-	t->initial_symlink_mode = symlink_mode;
-	return (tree_reopen(t, path, restore_time));
-}
-
-static struct tree *
-tree_reopen(struct tree *t, const wchar_t *path, int restore_time)
-{
-	struct archive_wstring ws;
-	wchar_t *pathname, *p, *base;
-
-	t->flags = (restore_time)?needsRestoreTimes:0;
-	t->visit_type = 0;
-	t->tree_errno = 0;
-	t->full_path_dir_length = 0;
-	t->dirname_length = 0;
-	t->depth = 0;
-	t->descend = 0;
-	t->current = NULL;
-	t->d = INVALID_HANDLE_VALUE;
-	t->symlink_mode = t->initial_symlink_mode;
-	archive_string_empty(&(t->full_path));
-	archive_string_empty(&t->path);
-	t->entry_fh = INVALID_HANDLE_VALUE;
-	t->entry_eof = 0;
-	t->entry_remaining_bytes = 0;
-	t->initial_filesystem_id = -1;
-
-	/* Get wchar_t strings from char strings. */
-	archive_string_init(&ws);
-	archive_wstrcpy(&ws, path);
-	pathname = ws.s;
-	/* Get a full-path-name. */
-	p = __la_win_permissive_name_w(pathname);
-	if (p == NULL)
-		goto failed;
-	archive_wstrcpy(&(t->full_path), p);
-	free(p);
-
-	/* Convert path separators from '\' to '/' */
-	for (p = pathname; *p != L'\0'; ++p) {
-		if (*p == L'\\')
-			*p = L'/';
-	}
-	base = pathname;
-
-	/* First item is set up a lot like a symlink traversal. */
-	/* printf("Looking for wildcard in %s\n", path); */
-	if ((base[0] == L'/' && base[1] == L'/' &&
-	     base[2] == L'?' && base[3] == L'/' &&
-	     (wcschr(base+4, L'*') || wcschr(base+4, L'?'))) ||
-	    (!(base[0] == L'/' && base[1] == L'/' &&
-	       base[2] == L'?' && base[3] == L'/') &&
-	       (wcschr(base, L'*') || wcschr(base, L'?')))) {
-		// It has a wildcard in it...
-		// Separate the last element.
-		p = wcsrchr(base, L'/');
-		if (p != NULL) {
-			*p = L'\0';
-			tree_append(t, base, p - base);
-			t->dirname_length = archive_strlen(&t->path);
-			base = p + 1;
-		}
-		p = wcsrchr(t->full_path.s, L'\\');
-		if (p != NULL) {
-			*p = L'\0';
-			t->full_path.length = wcslen(t->full_path.s);
-			t->full_path_dir_length = archive_strlen(&t->full_path);
-		}
-	}
-	tree_push(t, base, t->full_path.s, 0, 0, 0, NULL);
-	archive_wstring_free(&ws);
-	t->stack->flags = needsFirstVisit;
-	/*
-	 * Debug flag for Direct IO(No buffering) or Async IO.
-	 * Those dependent on environment variable switches
-	 * will be removed until next release.
-	 */
-	{
-		const char *e;
-		if ((e = getenv("LIBARCHIVE_DIRECT_IO")) != NULL) {
-			if (e[0] == '0')
-				t->direct_io = 0;
-			else
-				t->direct_io = 1;
-			fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
-				(t->direct_io)?"Enabled":"Disabled");
-		} else
-			t->direct_io = DIRECT_IO;
-		if ((e = getenv("LIBARCHIVE_ASYNC_IO")) != NULL) {
-			if (e[0] == '0')
-				t->async_io = 0;
-			else
-				t->async_io = 1;
-			fprintf(stderr, "LIBARCHIVE_ASYNC_IO=%s\n",
-			    (t->async_io)?"Enabled":"Disabled");
-		} else
-			t->async_io = ASYNC_IO;
-	}
-	return (t);
-failed:
-	archive_wstring_free(&ws);
-	tree_free(t);
-	return (NULL);
-}
-
-static int
-tree_descent(struct tree *t)
-{
-	t->dirname_length = archive_strlen(&t->path);
-	t->full_path_dir_length = archive_strlen(&t->full_path);
-	t->depth++;
-	return (0);
-}
-
-/*
- * We've finished a directory; ascend back to the parent.
- */
-static int
-tree_ascend(struct tree *t)
-{
-	struct tree_entry *te;
-
-	te = t->stack;
-	t->depth--;
-	close_and_restore_time(INVALID_HANDLE_VALUE, t, &te->restore_time);
-	return (0);
-}
-
-/*
- * Pop the working stack.
- */
-static void
-tree_pop(struct tree *t)
-{
-	struct tree_entry *te;
-
-	t->full_path.s[t->full_path_dir_length] = L'\0';
-	t->full_path.length = t->full_path_dir_length;
-	t->path.s[t->dirname_length] = L'\0';
-	t->path.length = t->dirname_length;
-	if (t->stack == t->current && t->current != NULL)
-		t->current = t->current->parent;
-	te = t->stack;
-	t->stack = te->next;
-	t->dirname_length = te->dirname_length;
-	t->basename = t->path.s + t->dirname_length;
-	t->full_path_dir_length = te->full_path_dir_length;
-	while (t->basename[0] == L'/')
-		t->basename++;
-	archive_wstring_free(&te->name);
-	archive_wstring_free(&te->full_path);
-	free(te);
-}
-
-/*
- * Get the next item in the tree traversal.
- */
-static int
-tree_next(struct tree *t)
-{
-	int r;
-
-	while (t->stack != NULL) {
-		/* If there's an open dir, get the next entry from there. */
-		if (t->d != INVALID_HANDLE_VALUE) {
-			r = tree_dir_next_windows(t, NULL);
-			if (r == 0)
-				continue;
-			return (r);
-		}
-
-		if (t->stack->flags & needsFirstVisit) {
-			wchar_t *d = t->stack->name.s;
-			t->stack->flags &= ~needsFirstVisit;
-			if (!(d[0] == L'/' && d[1] == L'/' &&
-			      d[2] == L'?' && d[3] == L'/') &&
-			    (wcschr(d, L'*') || wcschr(d, L'?'))) {
-				r = tree_dir_next_windows(t, d);
-				if (r == 0)
-					continue;
-				return (r);
-			} else {
-				HANDLE h = FindFirstFileW(d, &t->_findData);
-				if (h == INVALID_HANDLE_VALUE) {
-					la_dosmaperr(GetLastError());
-					t->tree_errno = errno;
-					t->visit_type = TREE_ERROR_DIR;
-					return (t->visit_type);
-				}
-				t->findData = &t->_findData;
-				FindClose(h);
-			}
-			/* Top stack item needs a regular visit. */
-			t->current = t->stack;
-			tree_append(t, t->stack->name.s,
-			    archive_strlen(&(t->stack->name)));
-			//t->dirname_length = t->path_length;
-			//tree_pop(t);
-			t->stack->flags &= ~needsFirstVisit;
-			return (t->visit_type = TREE_REGULAR);
-		} else if (t->stack->flags & needsDescent) {
-			/* Top stack item is dir to descend into. */
-			t->current = t->stack;
-			tree_append(t, t->stack->name.s,
-			    archive_strlen(&(t->stack->name)));
-			t->stack->flags &= ~needsDescent;
-			r = tree_descent(t);
-			if (r != 0) {
-				tree_pop(t);
-				t->visit_type = r;
-			} else
-				t->visit_type = TREE_POSTDESCENT;
-			return (t->visit_type);
-		} else if (t->stack->flags & needsOpen) {
-			t->stack->flags &= ~needsOpen;
-			r = tree_dir_next_windows(t, L"*");
-			if (r == 0)
-				continue;
-			return (r);
-		} else if (t->stack->flags & needsAscent) {
-		        /* Top stack item is dir and we're done with it. */
-			r = tree_ascend(t);
-			tree_pop(t);
-			t->visit_type = r != 0 ? r : TREE_POSTASCENT;
-			return (t->visit_type);
-		} else {
-			/* Top item on stack is dead. */
-			tree_pop(t);
-			t->flags &= ~hasLstat;
-			t->flags &= ~hasStat;
-		}
-	}
-	return (t->visit_type = 0);
-}
-
-static int
-tree_dir_next_windows(struct tree *t, const wchar_t *pattern)
-{
-	const wchar_t *name;
-	size_t namelen;
-	int r;
-
-	for (;;) {
-		if (pattern != NULL) {
-			struct archive_wstring pt;
-
-			archive_string_init(&pt);
-			archive_wstring_ensure(&pt,
-			    archive_strlen(&(t->full_path))
-			      + 2 + wcslen(pattern));
-			archive_wstring_copy(&pt, &(t->full_path));
-			archive_wstrappend_wchar(&pt, L'\\');
-			archive_wstrcat(&pt, pattern);
-			t->d = FindFirstFileW(pt.s, &t->_findData);
-			archive_wstring_free(&pt);
-			if (t->d == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				t->tree_errno = errno;
-				r = tree_ascend(t); /* Undo "chdir" */
-				tree_pop(t);
-				t->visit_type = r != 0 ? r : TREE_ERROR_DIR;
-				return (t->visit_type);
-			}
-			t->findData = &t->_findData;
-			pattern = NULL;
-		} else if (!FindNextFileW(t->d, &t->_findData)) {
-			FindClose(t->d);
-			t->d = INVALID_HANDLE_VALUE;
-			t->findData = NULL;
-			return (0);
-		}
-		name = t->findData->cFileName;
-		namelen = wcslen(name);
-		t->flags &= ~hasLstat;
-		t->flags &= ~hasStat;
-		if (name[0] == L'.' && name[1] == L'\0')
-			continue;
-		if (name[0] == L'.' && name[1] == L'.' && name[2] == L'\0')
-			continue;
-		tree_append(t, name, namelen);
-		return (t->visit_type = TREE_REGULAR);
-	}
-}
-
-#define EPOC_TIME ARCHIVE_LITERAL_ULL(116444736000000000)
-static void
-fileTimeToUtc(const FILETIME *filetime, time_t *t, long *ns)
-{
-	ULARGE_INTEGER utc;
-
-	utc.HighPart = filetime->dwHighDateTime;
-	utc.LowPart  = filetime->dwLowDateTime;
-	if (utc.QuadPart >= EPOC_TIME) {
-		utc.QuadPart -= EPOC_TIME;
-		/* milli seconds base */
-		*t = (time_t)(utc.QuadPart / 10000000);
-		/* nano seconds base */
-		*ns = (long)(utc.QuadPart % 10000000) * 100;
-	} else {
-		*t = 0;
-		*ns = 0;
-	}
-}
-
-static void
-entry_copy_bhfi(struct archive_entry *entry, const wchar_t *path,
-	const WIN32_FIND_DATAW *findData,
-	const BY_HANDLE_FILE_INFORMATION *bhfi)
-{
-	time_t secs;
-	long nsecs;
-	mode_t mode;
-
-	fileTimeToUtc(&bhfi->ftLastAccessTime, &secs, &nsecs);
-	archive_entry_set_atime(entry, secs, nsecs);
-	fileTimeToUtc(&bhfi->ftLastWriteTime, &secs, &nsecs);
-	archive_entry_set_mtime(entry, secs, nsecs);
-	fileTimeToUtc(&bhfi->ftCreationTime, &secs, &nsecs);
-	archive_entry_set_birthtime(entry, secs, nsecs);
-	archive_entry_set_ctime(entry, secs, nsecs);
-	archive_entry_set_dev(entry, bhfi_dev(bhfi));
-	archive_entry_set_ino64(entry, bhfi_ino(bhfi));
-	if (bhfi->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-		archive_entry_set_nlink(entry, bhfi->nNumberOfLinks + 1);
-	else
-		archive_entry_set_nlink(entry, bhfi->nNumberOfLinks);
-	archive_entry_set_size(entry,
-	    (((int64_t)bhfi->nFileSizeHigh) << 32)
-	    + bhfi->nFileSizeLow);
-	archive_entry_set_uid(entry, 0);
-	archive_entry_set_gid(entry, 0);
-	archive_entry_set_rdev(entry, 0);
-
-	mode = S_IRUSR | S_IRGRP | S_IROTH;
-	if ((bhfi->dwFileAttributes & FILE_ATTRIBUTE_READONLY) == 0)
-		mode |= S_IWUSR | S_IWGRP | S_IWOTH;
-	if ((bhfi->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
-	    findData != NULL &&
-	    findData->dwReserved0 == IO_REPARSE_TAG_SYMLINK)
-		mode |= S_IFLNK;
-	else if (bhfi->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-		mode |= S_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
-	else {
-		const wchar_t *p;
-
-		mode |= S_IFREG;
-		p = wcsrchr(path, L'.');
-		if (p != NULL && wcslen(p) == 4) {
-			switch (p[1]) {
-			case L'B': case L'b':
-				if ((p[2] == L'A' || p[2] == L'a' ) &&
-				    (p[3] == L'T' || p[3] == L't' ))
-					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-				break;
-			case L'C': case L'c':
-				if (((p[2] == L'M' || p[2] == L'm' ) &&
-				    (p[3] == L'D' || p[3] == L'd' )))
-					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-				break;
-			case L'E': case L'e':
-				if ((p[2] == L'X' || p[2] == L'x' ) &&
-				    (p[3] == L'E' || p[3] == L'e' ))
-					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-				break;
-			default:
-				break;
-			}
-		}
-	}
-	archive_entry_set_mode(entry, mode);
-}
-
-static void
-tree_archive_entry_copy_bhfi(struct archive_entry *entry, struct tree *t,
-	const BY_HANDLE_FILE_INFORMATION *bhfi)
-{
-	entry_copy_bhfi(entry, tree_current_path(t), t->findData, bhfi);
-}
-
-static int
-tree_current_file_information(struct tree *t, BY_HANDLE_FILE_INFORMATION *st,
- int sim_lstat)
-{
-	HANDLE h;
-	int r;
-	DWORD flag = FILE_FLAG_BACKUP_SEMANTICS;
-	
-	if (sim_lstat && tree_current_is_physical_link(t))
-		flag |= FILE_FLAG_OPEN_REPARSE_POINT;
-	h = CreateFileW(tree_current_access_path(t), 0, FILE_SHARE_READ, NULL,
-	    OPEN_EXISTING, flag, NULL);
-	if (h == INVALID_HANDLE_VALUE) {
-		la_dosmaperr(GetLastError());
-		t->tree_errno = errno;
-		return (0);
-	}
-	r = GetFileInformationByHandle(h, st);
-	CloseHandle(h);
-	return (r);
-}
-
-/*
- * Get the stat() data for the entry just returned from tree_next().
- */
-static const BY_HANDLE_FILE_INFORMATION *
-tree_current_stat(struct tree *t)
-{
-	if (!(t->flags & hasStat)) {
-		if (!tree_current_file_information(t, &t->st, 0))
-			return NULL;
-		t->flags |= hasStat;
-	}
-	return (&t->st);
-}
-
-/*
- * Get the lstat() data for the entry just returned from tree_next().
- */
-static const BY_HANDLE_FILE_INFORMATION *
-tree_current_lstat(struct tree *t)
-{
-	if (!(t->flags & hasLstat)) {
-		if (!tree_current_file_information(t, &t->lst, 1))
-			return NULL;
-		t->flags |= hasLstat;
-	}
-	return (&t->lst);
-}
-
-/*
- * Test whether current entry is a dir or link to a dir.
- */
-static int
-tree_current_is_dir(struct tree *t)
-{
-	if (t->findData)
-		return (t->findData->dwFileAttributes
-		    & FILE_ATTRIBUTE_DIRECTORY);
-	return (0);
-}
-
-/*
- * Test whether current entry is a physical directory.  Usually, we
- * already have at least one of stat() or lstat() in memory, so we
- * use tricks to try to avoid an extra trip to the disk.
- */
-static int
-tree_current_is_physical_dir(struct tree *t)
-{
-	if (tree_current_is_physical_link(t))
-		return (0);
-	return (tree_current_is_dir(t));
-}
-
-/*
- * Test whether current entry is a symbolic link.
- */
-static int
-tree_current_is_physical_link(struct tree *t)
-{
-	if (t->findData)
-		return ((t->findData->dwFileAttributes
-			        & FILE_ATTRIBUTE_REPARSE_POINT) &&
-			(t->findData->dwReserved0
-			    == IO_REPARSE_TAG_SYMLINK));
-	return (0);
-}
-
-/*
- * Test whether the same file has been in the tree as its parent.
- */
-static int
-tree_target_is_same_as_parent(struct tree *t,
-    const BY_HANDLE_FILE_INFORMATION *st)
-{
-	struct tree_entry *te;
-	int64_t dev = bhfi_dev(st);
-	int64_t ino = bhfi_ino(st);
-
-	for (te = t->current->parent; te != NULL; te = te->parent) {
-		if (te->dev == dev && te->ino == ino)
-			return (1);
-	}
-	return (0);
-}
-
-/*
- * Return the access path for the entry just returned from tree_next().
- */
-static const wchar_t *
-tree_current_access_path(struct tree *t)
-{
-	return (t->full_path.s);
-}
-
-/*
- * Return the full path for the entry just returned from tree_next().
- */
-static const wchar_t *
-tree_current_path(struct tree *t)
-{
-	return (t->path.s);
-}
-
-/*
- * Terminate the traversal.
- */
-static void
-tree_close(struct tree *t)
-{
-
-	if (t == NULL)
-		return;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		cancel_async(t);
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
-	}
-	/* Close the handle of FindFirstFileW */
-	if (t->d != INVALID_HANDLE_VALUE) {
-		FindClose(t->d);
-		t->d = INVALID_HANDLE_VALUE;
-		t->findData = NULL;
-	}
-	/* Release anything remaining in the stack. */
-	while (t->stack != NULL)
-		tree_pop(t);
-}
-
-/*
- * Release any resources.
- */
-static void
-tree_free(struct tree *t)
-{
-	int i;
-
-	if (t == NULL)
-		return;
-	archive_wstring_free(&t->path);
-	archive_wstring_free(&t->full_path);
-	free(t->sparse_list);
-	free(t->filesystem_table);
-	for (i = 0; i < MAX_OVERLAPPED; i++) {
-		if (t->ol[i].buff)
-			VirtualFree(t->ol[i].buff, 0, MEM_RELEASE);
-		CloseHandle(t->ol[i].ol.hEvent);
-	}
-	free(t);
-}
-
-
-/*
- * Populate the archive_entry with metadata from the disk.
- */
-int
-archive_read_disk_entry_from_file(struct archive *_a,
-    struct archive_entry *entry, int fd, const struct stat *st)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	const wchar_t *path;
-	const wchar_t *wname;
-	const char *name;
-	HANDLE h;
-	BY_HANDLE_FILE_INFORMATION bhfi;
-	DWORD fileAttributes = 0;
-	int r;
-
-	archive_clear_error(_a);
-	wname = archive_entry_sourcepath_w(entry);
-	if (wname == NULL)
-		wname = archive_entry_pathname_w(entry);
-	if (wname == NULL) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Can't get a wide character version of the path");
-		return (ARCHIVE_FAILED);
-	}
-	path = __la_win_permissive_name_w(wname);
-
-	if (st == NULL) {
-		/*
-		 * Get metadata through GetFileInformationByHandle().
-		 */
-		if (fd >= 0) {
-			h = (HANDLE)_get_osfhandle(fd);
-			r = GetFileInformationByHandle(h, &bhfi);
-			if (r == 0) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't GetFileInformationByHandle");
-				return (ARCHIVE_FAILED);
-			}
-			entry_copy_bhfi(entry, path, NULL, &bhfi);
-		} else {
-			WIN32_FIND_DATAW findData;
-			DWORD flag, desiredAccess;
-	
-			h = FindFirstFileW(path, &findData);
-			if (h == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't FindFirstFileW");
-				return (ARCHIVE_FAILED);
-			}
-			FindClose(h);
-
-			flag = FILE_FLAG_BACKUP_SEMANTICS;
-			if (!a->follow_symlinks &&
-			    (findData.dwFileAttributes
-			      & FILE_ATTRIBUTE_REPARSE_POINT) &&
-				  (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
-				flag |= FILE_FLAG_OPEN_REPARSE_POINT;
-				desiredAccess = 0;
-			} else if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-				desiredAccess = 0;
-			} else
-				desiredAccess = GENERIC_READ;
-
-			h = CreateFileW(path, desiredAccess, FILE_SHARE_READ, NULL,
-			    OPEN_EXISTING, flag, NULL);
-			if (h == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
-			r = GetFileInformationByHandle(h, &bhfi);
-			if (r == 0) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't GetFileInformationByHandle");
-				CloseHandle(h);
-				return (ARCHIVE_FAILED);
-			}
-			entry_copy_bhfi(entry, path, &findData, &bhfi);
-		}
-		fileAttributes = bhfi.dwFileAttributes;
-	} else {
-		archive_entry_copy_stat(entry, st);
-		h = INVALID_HANDLE_VALUE;
-	}
-
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
-
-	/*
-	 * Can this file be sparse file ?
-	 */
-	if (archive_entry_filetype(entry) != AE_IFREG
-	    || archive_entry_size(entry) <= 0
-		|| archive_entry_hardlink(entry) != NULL) {
-		if (h != INVALID_HANDLE_VALUE && fd < 0)
-			CloseHandle(h);
-		return (ARCHIVE_OK);
-	}
-
-	if (h == INVALID_HANDLE_VALUE) {
-		if (fd >= 0) {
-			h = (HANDLE)_get_osfhandle(fd);
-		} else {
-			h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
-			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-			if (h == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
-		}
-		r = GetFileInformationByHandle(h, &bhfi);
-		if (r == 0) {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "Can't GetFileInformationByHandle");
-			if (h != INVALID_HANDLE_VALUE && fd < 0)
-				CloseHandle(h);
-			return (ARCHIVE_FAILED);
-		}
-		fileAttributes = bhfi.dwFileAttributes;
-	}
-
-	/* Sparse file must be set a mark, FILE_ATTRIBUTE_SPARSE_FILE */
-	if ((fileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) == 0) {
-		if (fd < 0)
-			CloseHandle(h);
-		return (ARCHIVE_OK);
-	}
-
-	r = setup_sparse_from_disk(a, entry, h);
-	if (fd < 0)
-		CloseHandle(h);
-
-	return (r);
-}
-
-/*
- * Windows sparse interface.
- */
-#if defined(__MINGW32__) && !defined(FSCTL_QUERY_ALLOCATED_RANGES)
-#define FSCTL_QUERY_ALLOCATED_RANGES 0x940CF
-typedef struct {
-	LARGE_INTEGER FileOffset;
-	LARGE_INTEGER Length;
-} FILE_ALLOCATED_RANGE_BUFFER;
+  CURLcode result = CURLE_OK;
+  char *ciphers;
+  struct Curl_easy *data = conn->data;
+  SSL_METHOD_QUAL SSL_METHOD *req_method = NULL;
+  X509_LOOKUP *lookup = NULL;
+  curl_socket_t sockfd = conn->sock[sockindex];
+  struct ssl_connect_data *connssl = &conn->ssl[sockindex];
+  long ctx_options;
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+  bool sni;
+#ifdef ENABLE_IPV6
+  struct in6_addr addr;
+#else
+  struct in_addr addr;
+#endif
+#endif
+  long * const certverifyresult = SSL_IS_PROXY() ?
+    &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
+  const long int ssl_version = SSL_CONN_CONFIG(version);
+#ifdef USE_TLS_SRP
+  const enum CURL_TLSAUTH ssl_authtype = SSL_SET_OPTION(authtype);
+#endif
+  char * const ssl_cert = SSL_SET_OPTION(cert);
+  const char * const ssl_cert_type = SSL_SET_OPTION(cert_type);
+  const char * const ssl_cafile = SSL_CONN_CONFIG(CAfile);
+  const char * const ssl_capath = SSL_CONN_CONFIG(CApath);
+  const bool verifypeer = SSL_CONN_CONFIG(verifypeer);
+  const char * const ssl_crlfile = SSL_SET_OPTION(CRLfile);
+  const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
+    conn->host.name;
+
+  DEBUGASSERT(ssl_connect_1 == connssl->connecting_state);
+
+  /* Make funny stuff to get random input */
+  result = Curl_ossl_seed(data);
+  if(result)
+    return result;
+
+  *certverifyresult = !X509_V_OK;
+
+  /* check to see if we've been told to use an explicit SSL/TLS version */
+
+  switch(ssl_version) {
+  case CURL_SSLVERSION_DEFAULT:
+  case CURL_SSLVERSION_TLSv1:
+  case CURL_SSLVERSION_TLSv1_0:
+  case CURL_SSLVERSION_TLSv1_1:
+  case CURL_SSLVERSION_TLSv1_2:
+  case CURL_SSLVERSION_TLSv1_3:
+    /* it will be handled later with the context options */
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && \
+    !defined(LIBRESSL_VERSION_NUMBER)
+    req_method = TLS_client_method();
+#else
+    req_method = SSLv23_client_method();
+#endif
+    use_sni(TRUE);
+    break;
+  case CURL_SSLVERSION_SSLv2:
+#ifdef OPENSSL_NO_SSL2
+    failf(data, OSSL_PACKAGE " was built without SSLv2 support");
+    return CURLE_NOT_BUILT_IN;
+#else
+#ifdef USE_TLS_SRP
+    if(ssl_authtype == CURL_TLSAUTH_SRP)
+      return CURLE_SSL_CONNECT_ERROR;
+#endif
+    req_method = SSLv2_client_method();
+    use_sni(FALSE);
+    break;
+#endif
+  case CURL_SSLVERSION_SSLv3:
+#ifdef OPENSSL_NO_SSL3_METHOD
+    failf(data, OSSL_PACKAGE " was built without SSLv3 support");
+    return CURLE_NOT_BUILT_IN;
+#else
+#ifdef USE_TLS_SRP
+    if(ssl_authtype == CURL_TLSAUTH_SRP)
+      return CURLE_SSL_CONNECT_ERROR;
+#endif
+    req_method = SSLv3_client_method();
+    use_sni(FALSE);
+    break;
+#endif
+  default:
+    failf(data, "Unrecognized parameter passed via CURLOPT_SSLVERSION");
+    return CURLE_SSL_CONNECT_ERROR;
+  }
+
+  if(connssl->ctx)
+    SSL_CTX_free(connssl->ctx);
+  connssl->ctx = SSL_CTX_new(req_method);
+
+  if(!connssl->ctx) {
+    failf(data, "SSL: couldn't create a context: %s",
+          ERR_error_string(ERR_peek_error(), NULL));
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+#ifdef SSL_MODE_RELEASE_BUFFERS
+  SSL_CTX_set_mode(connssl->ctx, SSL_MODE_RELEASE_BUFFERS);
 #endif
 
-static int
-setup_sparse_from_disk(struct archive_read_disk *a,
-    struct archive_entry *entry, HANDLE handle)
-{
-	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
-	size_t outranges_size;
-	int64_t entry_size = archive_entry_size(entry);
-	int exit_sts = ARCHIVE_OK;
+#ifdef SSL_CTRL_SET_MSG_CALLBACK
+  if(data->set.fdebug && data->set.verbose) {
+    /* the SSL trace callback is only used for verbose logging */
+    SSL_CTX_set_msg_callback(connssl->ctx, ssl_tls_trace);
+    SSL_CTX_set_msg_callback_arg(connssl->ctx, conn);
+  }
+#endif
 
-	range.FileOffset.QuadPart = 0;
-	range.Length.QuadPart = entry_size;
-	outranges_size = 2048;
-	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
-	if (outranges == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-			"Couldn't allocate memory");
-		exit_sts = ARCHIVE_FATAL;
-		goto exit_setup_sparse;
-	}
+  /* OpenSSL contains code to work-around lots of bugs and flaws in various
+     SSL-implementations. SSL_CTX_set_options() is used to enabled those
+     work-arounds. The man page for this option states that SSL_OP_ALL enables
+     all the work-arounds and that "It is usually safe to use SSL_OP_ALL to
+     enable the bug workaround options if compatibility with somewhat broken
+     implementations is desired."
 
-	for (;;) {
-		DWORD retbytes;
-		BOOL ret;
+     The "-no_ticket" option was introduced in Openssl0.9.8j. It's a flag to
+     disable "rfc4507bis session ticket support".  rfc4507bis was later turned
+     into the proper RFC5077 it seems: https://tools.ietf.org/html/rfc5077
 
-		for (;;) {
-			ret = DeviceIoControl(handle,
-			    FSCTL_QUERY_ALLOCATED_RANGES,
-			    &range, sizeof(range), outranges,
-			    (DWORD)outranges_size, &retbytes, NULL);
-			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
-				free(outranges);
-				outranges_size *= 2;
-				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
-				    malloc(outranges_size);
-				if (outranges == NULL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Couldn't allocate memory");
-					exit_sts = ARCHIVE_FATAL;
-					goto exit_setup_sparse;
-				}
-				continue;
-			} else
-				break;
-		}
-		if (ret != 0) {
-			if (retbytes > 0) {
-				DWORD i, n;
+     The enabled extension concerns the session management. I wonder how often
+     libcurl stops a connection and then resumes a TLS session. also, sending
+     the session data is some overhead. .I suggest that you just use your
+     proposed patch (which explicitly disables TICKET).
 
-				n = retbytes / sizeof(outranges[0]);
-				if (n == 1 &&
-				    outranges[0].FileOffset.QuadPart == 0 &&
-				    outranges[0].Length.QuadPart == entry_size)
-					break;/* This is not sparse. */
-				for (i = 0; i < n; i++)
-					archive_entry_sparse_add_entry(entry,
-					    outranges[i].FileOffset.QuadPart,
-						outranges[i].Length.QuadPart);
-				range.FileOffset.QuadPart =
-				    outranges[n-1].FileOffset.QuadPart
-				    + outranges[n-1].Length.QuadPart;
-				range.Length.QuadPart =
-				    entry_size - range.FileOffset.QuadPart;
-				if (range.Length.QuadPart > 0)
-					continue;
-			} else {
-				/* The remaining data is hole. */
-				archive_entry_sparse_add_entry(entry,
-				    range.FileOffset.QuadPart,
-				    range.Length.QuadPart);
-			}
-			break;
-		} else {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "DeviceIoControl Failed: %lu", GetLastError());
-			exit_sts = ARCHIVE_FAILED;
-			goto exit_setup_sparse;
-		}
-	}
-exit_setup_sparse:
-	free(outranges);
+     If someone writes an application with libcurl and openssl who wants to
+     enable the feature, one can do this in the SSL callback.
 
-	return (exit_sts);
+     SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG option enabling allowed proper
+     interoperability with web server Netscape Enterprise Server 2.0.1 which
+     was released back in 1996.
+
+     Due to CVE-2010-4180, option SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG has
+     become ineffective as of OpenSSL 0.9.8q and 1.0.0c. In order to mitigate
+     CVE-2010-4180 when using previous OpenSSL versions we no longer enable
+     this option regardless of OpenSSL version and SSL_OP_ALL definition.
+
+     OpenSSL added a work-around for a SSL 3.0/TLS 1.0 CBC vulnerability
+     (https://www.openssl.org/~bodo/tls-cbc.txt). In 0.9.6e they added a bit to
+     SSL_OP_ALL that _disables_ that work-around despite the fact that
+     SSL_OP_ALL is documented to do "rather harmless" workarounds. In order to
+     keep the secure work-around, the SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS bit
+     must not be set.
+  */
+
+  ctx_options = SSL_OP_ALL;
+
+#ifdef SSL_OP_NO_TICKET
+  ctx_options |= SSL_OP_NO_TICKET;
+#endif
+
+#ifdef SSL_OP_NO_COMPRESSION
+  ctx_options |= SSL_OP_NO_COMPRESSION;
+#endif
+
+#ifdef SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG
+  /* mitigate CVE-2010-4180 */
+  ctx_options &= ~SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG;
+#endif
+
+#ifdef SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
+  /* unless the user explicitly ask to allow the protocol vulnerability we
+     use the work-around */
+  if(!SSL_SET_OPTION(enable_beast))
+    ctx_options &= ~SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS;
+#endif
+
+  switch(ssl_version) {
+  case CURL_SSLVERSION_SSLv3:
+#ifdef USE_TLS_SRP
+    if(ssl_authtype == CURL_TLSAUTH_SRP) {
+      infof(data, "Set version TLSv1.x for SRP authorisation\n");
+    }
+#endif
+    ctx_options |= SSL_OP_NO_SSLv2;
+    ctx_options |= SSL_OP_NO_TLSv1;
+#if OPENSSL_VERSION_NUMBER >= 0x1000100FL
+    ctx_options |= SSL_OP_NO_TLSv1_1;
+    ctx_options |= SSL_OP_NO_TLSv1_2;
+#ifdef TLS1_3_VERSION
+    ctx_options |= SSL_OP_NO_TLSv1_3;
+#endif
+#endif
+    break;
+
+  case CURL_SSLVERSION_DEFAULT:
+  case CURL_SSLVERSION_TLSv1:
+    ctx_options |= SSL_OP_NO_SSLv2;
+    ctx_options |= SSL_OP_NO_SSLv3;
+    break;
+
+  case CURL_SSLVERSION_TLSv1_0:
+    ctx_options |= SSL_OP_NO_SSLv2;
+    ctx_options |= SSL_OP_NO_SSLv3;
+#if OPENSSL_VERSION_NUMBER >= 0x1000100FL
+    ctx_options |= SSL_OP_NO_TLSv1_1;
+    ctx_options |= SSL_OP_NO_TLSv1_2;
+#ifdef TLS1_3_VERSION
+    ctx_options |= SSL_OP_NO_TLSv1_3;
+#endif
+#endif
+    break;
+
+  case CURL_SSLVERSION_TLSv1_1:
+#if OPENSSL_VERSION_NUMBER >= 0x1000100FL
+    ctx_options |= SSL_OP_NO_SSLv2;
+    ctx_options |= SSL_OP_NO_SSLv3;
+    ctx_options |= SSL_OP_NO_TLSv1;
+    ctx_options |= SSL_OP_NO_TLSv1_2;
+#ifdef TLS1_3_VERSION
+    ctx_options |= SSL_OP_NO_TLSv1_3;
+#endif
+    break;
+#else
+    failf(data, OSSL_PACKAGE " was built without TLS 1.1 support");
+    return CURLE_NOT_BUILT_IN;
+#endif
+
+  case CURL_SSLVERSION_TLSv1_2:
+#if OPENSSL_VERSION_NUMBER >= 0x1000100FL
+    ctx_options |= SSL_OP_NO_SSLv2;
+    ctx_options |= SSL_OP_NO_SSLv3;
+    ctx_options |= SSL_OP_NO_TLSv1;
+    ctx_options |= SSL_OP_NO_TLSv1_1;
+#ifdef TLS1_3_VERSION
+    ctx_options |= SSL_OP_NO_TLSv1_3;
+#endif
+    break;
+#else
+    failf(data, OSSL_PACKAGE " was built without TLS 1.2 support");
+    return CURLE_NOT_BUILT_IN;
+#endif
+
+  case CURL_SSLVERSION_TLSv1_3:
+#ifdef TLS1_3_VERSION
+    SSL_CTX_set_max_proto_version(connssl->ctx, TLS1_3_VERSION);
+    ctx_options |= SSL_OP_NO_SSLv2;
+    ctx_options |= SSL_OP_NO_SSLv3;
+    ctx_options |= SSL_OP_NO_TLSv1;
+    ctx_options |= SSL_OP_NO_TLSv1_1;
+    ctx_options |= SSL_OP_NO_TLSv1_2;
+    break;
+#else
+    failf(data, OSSL_PACKAGE " was built without TLS 1.3 support");
+    return CURLE_NOT_BUILT_IN;
+#endif
+
+  case CURL_SSLVERSION_SSLv2:
+#ifndef OPENSSL_NO_SSL2
+    ctx_options |= SSL_OP_NO_SSLv3;
+    ctx_options |= SSL_OP_NO_TLSv1;
+#if OPENSSL_VERSION_NUMBER >= 0x1000100FL
+    ctx_options |= SSL_OP_NO_TLSv1_1;
+    ctx_options |= SSL_OP_NO_TLSv1_2;
+#ifdef TLS1_3_VERSION
+    ctx_options |= SSL_OP_NO_TLSv1_3;
+#endif
+#endif
+    break;
+#else
+    failf(data, OSSL_PACKAGE " was built without SSLv2 support");
+    return CURLE_NOT_BUILT_IN;
+#endif
+
+  default:
+    failf(data, "Unrecognized parameter passed via CURLOPT_SSLVERSION");
+    return CURLE_SSL_CONNECT_ERROR;
+  }
+
+  SSL_CTX_set_options(connssl->ctx, ctx_options);
+
+#ifdef HAS_NPN
+  if(conn->bits.tls_enable_npn)
+    SSL_CTX_set_next_proto_select_cb(connssl->ctx, select_next_proto_cb, conn);
+#endif
+
+#ifdef HAS_ALPN
+  if(conn->bits.tls_enable_alpn) {
+    int cur = 0;
+    unsigned char protocols[128];
+
+#ifdef USE_NGHTTP2
+    if(data->set.httpversion >= CURL_HTTP_VERSION_2) {
+      protocols[cur++] = NGHTTP2_PROTO_VERSION_ID_LEN;
+
+      memcpy(&protocols[cur], NGHTTP2_PROTO_VERSION_ID,
+          NGHTTP2_PROTO_VERSION_ID_LEN);
+      cur += NGHTTP2_PROTO_VERSION_ID_LEN;
+      infof(data, "ALPN, offering %s\n", NGHTTP2_PROTO_VERSION_ID);
+    }
+#endif
+
+    protocols[cur++] = ALPN_HTTP_1_1_LENGTH;
+    memcpy(&protocols[cur], ALPN_HTTP_1_1, ALPN_HTTP_1_1_LENGTH);
+    cur += ALPN_HTTP_1_1_LENGTH;
+    infof(data, "ALPN, offering %s\n", ALPN_HTTP_1_1);
+
+    /* expects length prefixed preference ordered list of protocols in wire
+     * format
+     */
+    SSL_CTX_set_alpn_protos(connssl->ctx, protocols, cur);
+  }
+#endif
+
+  if(ssl_cert || ssl_cert_type) {
+    if(!cert_stuff(conn, connssl->ctx, ssl_cert, ssl_cert_type,
+                   SSL_SET_OPTION(key), SSL_SET_OPTION(key_type),
+                   SSL_SET_OPTION(key_passwd))) {
+      /* failf() is already done in cert_stuff() */
+      return CURLE_SSL_CERTPROBLEM;
+    }
+  }
+
+  ciphers = SSL_CONN_CONFIG(cipher_list);
+  if(!ciphers)
+    ciphers = (char *)DEFAULT_CIPHER_SELECTION;
+  if(!SSL_CTX_set_cipher_list(connssl->ctx, ciphers)) {
+    failf(data, "failed setting cipher list: %s", ciphers);
+    return CURLE_SSL_CIPHER;
+  }
+  infof(data, "Cipher selection: %s\n", ciphers);
+
+#ifdef USE_TLS_SRP
+  if(ssl_authtype == CURL_TLSAUTH_SRP) {
+    char * const ssl_username = SSL_SET_OPTION(username);
+
+    infof(data, "Using TLS-SRP username: %s\n", ssl_username);
+
+    if(!SSL_CTX_set_srp_username(connssl->ctx, ssl_username)) {
+      failf(data, "Unable to set SRP user name");
+      return CURLE_BAD_FUNCTION_ARGUMENT;
+    }
+    if(!SSL_CTX_set_srp_password(connssl->ctx, SSL_SET_OPTION(password))) {
+      failf(data, "failed setting SRP password");
+      return CURLE_BAD_FUNCTION_ARGUMENT;
+    }
+    if(!SSL_CONN_CONFIG(cipher_list)) {
+      infof(data, "Setting cipher list SRP\n");
+
+      if(!SSL_CTX_set_cipher_list(connssl->ctx, "SRP")) {
+        failf(data, "failed setting SRP cipher list");
+        return CURLE_SSL_CIPHER;
+      }
+    }
+  }
+#endif
+
+  if(ssl_cafile || ssl_capath) {
+    /* tell SSL where to find CA certificates that are used to verify
+       the servers certificate. */
+    if(!SSL_CTX_load_verify_locations(connssl->ctx, ssl_cafile, ssl_capath)) {
+      if(verifypeer) {
+        /* Fail if we insist on successfully verifying the server. */
+        failf(data, "error setting certificate verify locations:\n"
+              "  CAfile: %s\n  CApath: %s",
+              ssl_cafile ? ssl_cafile : "none",
+              ssl_capath ? ssl_capath : "none");
+        return CURLE_SSL_CACERT_BADFILE;
+      }
+      else {
+        /* Just continue with a warning if no strict  certificate verification
+           is required. */
+        infof(data, "error setting certificate verify locations,"
+              " continuing anyway:\n");
+      }
+    }
+    else {
+      /* Everything is fine. */
+      infof(data, "successfully set certificate verify locations:\n");
+    }
+    infof(data,
+          "  CAfile: %s\n"
+          "  CApath: %s\n",
+          ssl_cafile ? ssl_cafile : "none",
+          ssl_capath ? ssl_capath : "none");
+  }
+#ifdef CURL_CA_FALLBACK
+  else if(verifypeer) {
+    /* verfying the peer without any CA certificates won't
+       work so use openssl's built in default as fallback */
+    SSL_CTX_set_default_verify_paths(connssl->ctx);
+  }
+#endif
+
+  if(ssl_crlfile) {
+    /* tell SSL where to find CRL file that is used to check certificate
+     * revocation */
+    lookup=X509_STORE_add_lookup(SSL_CTX_get_cert_store(connssl->ctx),
+                                 X509_LOOKUP_file());
+    if(!lookup ||
+       (!X509_load_crl_file(lookup, ssl_crlfile, X509_FILETYPE_PEM)) ) {
+      failf(data, "error loading CRL file: %s", ssl_crlfile);
+      return CURLE_SSL_CRL_BADFILE;
+    }
+    else {
+      /* Everything is fine. */
+      infof(data, "successfully load CRL file:\n");
+      X509_STORE_set_flags(SSL_CTX_get_cert_store(connssl->ctx),
+                           X509_V_FLAG_CRL_CHECK|X509_V_FLAG_CRL_CHECK_ALL);
+    }
+    infof(data, "  CRLfile: %s\n", ssl_crlfile);
+  }
+
+  /* Try building a chain using issuers in the trusted store first to avoid
+  problems with server-sent legacy intermediates.
+  Newer versions of OpenSSL do alternate chain checking by default which
+  gives us the same fix without as much of a performance hit (slight), so we
+  prefer that if available.
+  https://rt.openssl.org/Ticket/Display.html?id=3621&user=guest&pass=guest
+  */
+#if defined(X509_V_FLAG_TRUSTED_FIRST) && !defined(X509_V_FLAG_NO_ALT_CHAINS)
+  if(verifypeer) {
+    X509_STORE_set_flags(SSL_CTX_get_cert_store(connssl->ctx),
+                         X509_V_FLAG_TRUSTED_FIRST);
+  }
+#endif
+
+  /* SSL always tries to verify the peer, this only says whether it should
+   * fail to connect if the verification fails, or if it should continue
+   * anyway. In the latter case the result of the verification is checked with
+   * SSL_get_verify_result() below. */
+  SSL_CTX_set_verify(connssl->ctx,
+                     verifypeer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
+
+  /* give application a chance to interfere with SSL set up. */
+  if(data->set.ssl.fsslctx) {
+    result = (*data->set.ssl.fsslctx)(data, connssl->ctx,
+                                      data->set.ssl.fsslctxp);
+    if(result) {
+      failf(data, "error signaled by ssl ctx callback");
+      return result;
+    }
+  }
+
+  /* Lets make an SSL structure */
+  if(connssl->handle)
+    SSL_free(connssl->handle);
+  connssl->handle = SSL_new(connssl->ctx);
+  if(!connssl->handle) {
+    failf(data, "SSL: couldn't create a context (handle)!");
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \
+    !defined(OPENSSL_NO_OCSP)
+  if(SSL_CONN_CONFIG(verifystatus))
+    SSL_set_tlsext_status_type(connssl->handle, TLSEXT_STATUSTYPE_ocsp);
+#endif
+
+  SSL_set_connect_state(connssl->handle);
+
+  connssl->server_cert = 0x0;
+#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
+  if((0 == Curl_inet_pton(AF_INET, hostname, &addr)) &&
+#ifdef ENABLE_IPV6
+     (0 == Curl_inet_pton(AF_INET6, hostname, &addr)) &&
+#endif
+     sni &&
+     !SSL_set_tlsext_host_name(connssl->handle, hostname))
+    infof(data, "WARNING: failed to configure server name indication (SNI) "
+          "TLS extension\n");
+#endif
+
+  /* Check if there's a cached ID we can/should use here! */
+  if(data->set.general_ssl.sessionid) {
+    void *ssl_sessionid = NULL;
+
+    Curl_ssl_sessionid_lock(conn);
+    if(!Curl_ssl_getsessionid(conn, &ssl_sessionid, NULL, sockindex)) {
+      /* we got a session id, use it! */
+      if(!SSL_set_session(connssl->handle, ssl_sessionid)) {
+        Curl_ssl_sessionid_unlock(conn);
+        failf(data, "SSL: SSL_set_session failed: %s",
+              ERR_error_string(ERR_get_error(), NULL));
+        return CURLE_SSL_CONNECT_ERROR;
+      }
+      /* Informational message */
+      infof(data, "SSL re-using session ID\n");
+    }
+    Curl_ssl_sessionid_unlock(conn);
+  }
+
+  if(conn->proxy_ssl[sockindex].use) {
+    BIO *const bio = BIO_new(BIO_f_ssl());
+    DEBUGASSERT(ssl_connection_complete == conn->proxy_ssl[sockindex].state);
+    DEBUGASSERT(conn->proxy_ssl[sockindex].handle != NULL);
+    DEBUGASSERT(bio != NULL);
+    BIO_set_ssl(bio, conn->proxy_ssl[sockindex].handle, FALSE);
+    SSL_set_bio(connssl->handle, bio, bio);
+  }
+  else if(!SSL_set_fd(connssl->handle, (int)sockfd)) {
+    /* pass the raw socket into the SSL layers */
+    failf(data, "SSL: SSL_set_fd failed: %s",
+          ERR_error_string(ERR_get_error(), NULL));
+    return CURLE_SSL_CONNECT_ERROR;
+  }
+
+  connssl->connecting_state = ssl_connect_2;
+
+  return CURLE_OK;
 }
 
+static CURLcode ossl_connect_step2(struct connectdata *conn, int sockindex)
+{
+  struct Curl_easy *data = conn->data;
+  int err;
+  struct ssl_connect_data *connssl = &conn->ssl[sockindex];
+  long * const certverifyresult = SSL_IS_PROXY() ?
+    &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
+  DEBUGASSERT(ssl_connect_2 == connssl->connecting_state
+              || ssl_connect_2_reading == connssl->connecting_state
+              || ssl_connect_2_writing == connssl->connecting_state);
+
+  ERR_clear_error();
+
+  err = SSL_connect(connssl->handle);
+
+  /* 1  is fine
+     0  is "not successful but was shut down controlled"
+     <0 is "handshake was not successful, because a fatal error occurred" */
+  if(1 != err) {
+    int detail = SSL_get_error(connssl->handle, err);
+
+    if(SSL_ERROR_WANT_READ == detail) {
+      connssl->connecting_state = ssl_connect_2_reading;
+      return CURLE_OK;
+    }
+    else if(SSL_ERROR_WANT_WRITE == detail) {
+      connssl->connecting_state = ssl_connect_2_writing;
+      return CURLE_OK;
+    }
+    else {
+      /* untreated error */
+      unsigned long errdetail;
+      char error_buffer[256]=""; /* OpenSSL documents that this must be at
+                                    least 256 bytes long. */
+      CURLcode result;
+      long lerr;
+      int lib;
+      int reason;
+
+      /* the connection failed, we're not waiting for anything else. */
+      connssl->connecting_state = ssl_connect_2;
+
+      /* Get the earliest error code from the thread's error queue and removes
+         the entry. */
+      errdetail = ERR_get_error();
+
+      /* Extract which lib and reason */
+      lib = ERR_GET_LIB(errdetail);
+      reason = ERR_GET_REASON(errdetail);
+
+      if((lib == ERR_LIB_SSL) &&
+         (reason == SSL_R_CERTIFICATE_VERIFY_FAILED)) {
+        result = CURLE_SSL_CACERT;
+
+        lerr = SSL_get_verify_result(connssl->handle);
+        if(lerr != X509_V_OK) {
+          *certverifyresult = lerr;
+          snprintf(error_buffer, sizeof(error_buffer),
+                   "SSL certificate problem: %s",
+                   X509_verify_cert_error_string(lerr));
+        }
+        else
+          /* strcpy() is fine here as long as the string fits within
+             error_buffer */
+          strcpy(error_buffer, "SSL certificate verification failed");
+      }
+      else {
+        result = CURLE_SSL_CONNECT_ERROR;
+        ossl_strerror(errdetail, error_buffer, sizeof(error_buffer));
+      }
+
+      /* detail is already set to the SSL error above */
+
+      /* If we e.g. use SSLv2 request-method and the server doesn't like us
+       * (RST connection etc.), OpenSSL gives no explanation whatsoever and
+       * the SO_ERROR is also lost.
+       */
+      if(CURLE_SSL_CONNECT_ERROR == result && errdetail == 0) {
+        const char * const hostname = SSL_IS_PROXY() ?
+          conn->http_proxy.host.name : conn->host.name;
+        const long int port = SSL_IS_PROXY() ? conn->port : conn->remote_port;
+        failf(data, "Unknown SSL protocol error in connection to %s:%ld ",
+              hostname, port);
+        return result;
+      }
+
+      /* Could be a CERT problem */
+      failf(data, "%s", error_buffer);
+
+      return result;
+    }
+  }
+  else {
+    /* we have been connected fine, we're not waiting for anything else. */
+    connssl->connecting_state = ssl_connect_3;
+
+    /* Informational message */
+    infof(data, "SSL connection using %s / %s\n",
+          get_ssl_version_txt(connssl->handle),
+          SSL_get_cipher(connssl->handle));
+
+#ifdef HAS_ALPN
+    /* Sets data and len to negotiated protocol, len is 0 if no protocol was
+     * negotiated
+     */
+    if(conn->bits.tls_enable_alpn) {
+      const unsigned char *neg_protocol;
+      unsigned int len;
+      SSL_get0_alpn_selected(connssl->handle, &neg_protocol, &len);
+      if(len != 0) {
+        infof(data, "ALPN, server accepted to use %.*s\n", len, neg_protocol);
+
+#ifdef USE_NGHTTP2
+        if(len == NGHTTP2_PROTO_VERSION_ID_LEN &&
+           !memcmp(NGHTTP2_PROTO_VERSION_ID, neg_protocol, len)) {
+          conn->negnpn = CURL_HTTP_VERSION_2;
+        }
+        else
 #endif
+        if(len == ALPN_HTTP_1_1_LENGTH &&
+           !memcmp(ALPN_HTTP_1_1, neg_protocol, ALPN_HTTP_1_1_LENGTH)) {
+          conn->negnpn = CURL_HTTP_VERSION_1_1;
+        }
+      }
+      else
+        infof(data, "ALPN, server did not agree to a protocol\n");
+    }
+#endif
+
+    return CURLE_OK;
+  }
+}
+
+static int asn1_object_dump(ASN1_OBJECT *a, char *buf, size_t len)
+{
+  int i, ilen;
+
+  ilen = (int)len;
+  if(ilen < 0)
+    return 1; /* buffer too big */
+
+  i = i2t_ASN1_OBJECT(buf, ilen, a);
+
+  if(i >= ilen)
+    return 1; /* buffer too small */
+
+  return 0;
+}
+
+#define push_certinfo(_label, _num) \
+do {                              \
+  long info_len = BIO_get_mem_data(mem, &ptr); \
+  Curl_ssl_push_certinfo_len(data, _num, _label, ptr, info_len); \
+  if(1!=BIO_reset(mem))                                          \
+    break;                                                       \
+} WHILE_FALSE
+
+static void pubkey_show(struct Curl_easy *data,
+                        BIO *mem,
+                        int num,
+                        const char *type,
+                        const char *name,
+#ifdef HAVE_OPAQUE_RSA_DSA_DH
+                        const
+#endif
+                        BIGNUM *bn)
+{
+  char *ptr;
+  char namebuf[32];
+
+  snprintf(namebuf, sizeof(namebuf), "%s(%s)", type, name);
+
+  if(bn)
+    BN_print(mem, bn);
+  push_certinfo(namebuf, num);
+}
+
+#ifdef HAVE_OPAQUE_RSA_DSA_DH
+#define print_pubkey_BN(_type, _name, _num)              \
+  pubkey_show(data, mem, _num, #_type, #_name, _name)
+
+#else
+#define print_pubkey_BN(_type, _name, _num)    \
+do {                              \
+  if(_type->_name) { \
+    pubkey_show(data, mem, _num, #_type, #_name, _type->_name); \
+  } \
+} WHILE_FALSE
+#endif
+
+static int X509V3_ext(struct Curl_easy *data,
+                      int certnum,
+                      CONST_EXTS STACK_OF(X509_EXTENSION) *exts)
+{
+  int i;
+  size_t j;
+
+  if((int)sk_X509_EXTENSION_num(exts) <= 0)
+    /* no extensions, bail out */
+    return 1;
+
+  for(i=0; i < (int)sk_X509_EXTENSION_num(exts); i++) {
+    ASN1_OBJECT *obj;
+    X509_EXTENSION *ext = sk_X509_EXTENSION_value(exts, i);
+    BUF_MEM *biomem;
+    char buf[512];
+    char *ptr=buf;
+    char namebuf[128];
+    BIO *bio_out = BIO_new(BIO_s_mem());
+
+    if(!bio_out)
+      return 1;
+
+    obj = X509_EXTENSION_get_object(ext);
+
+    asn1_object_dump(obj, namebuf, sizeof(namebuf));
+
+    if(!X509V3_EXT_print(bio_out, ext, 0, 0))
+      ASN1_STRING_print(bio_out, (ASN1_STRING *)X509_EXTENSION_get_data(ext));
+
+    BIO_get_mem_ptr(bio_out, &biomem);
+
+    for(j = 0; j < (size_t)biomem->length; j++) {
+      const char *sep="";
+      if(biomem->data[j] == '\n') {
+        sep=", ";
+        j++; /* skip the newline */
+      };
+      while((j<(size_t)biomem->length) && (biomem->data[j] == ' '))
+        j++;
+      if(j<(size_t)biomem->length)
+        ptr+=snprintf(ptr, sizeof(buf)-(ptr-buf), "%s%c", sep,
+                      biomem->data[j]);
+    }
+
+    Curl_ssl_push_certinfo(data, certnum, namebuf, buf);
+
+    BIO_free(bio_out);
+
+  }
+  return 0; /* all is fine */
+}
+
+static CURLcode get_cert_chain(struct connectdata *conn,
+                               struct ssl_connect_data *connssl)
+
+{
+  CURLcode result;
+  STACK_OF(X509) *sk;
+  int i;
+  struct Curl_easy *data = conn->data;
+  int numcerts;
+  BIO *mem;
+
+  sk = SSL_get_peer_cert_chain(connssl->handle);
+  if(!sk) {
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  numcerts = sk_X509_num(sk);
+
+  result = Curl_ssl_init_certinfo(data, numcerts);
+  if(result) {
+    return result;
+  }
+
+  mem = BIO_new(BIO_s_mem());
+
+  for(i = 0; i < numcerts; i++) {
+    ASN1_INTEGER *num;
+    X509 *x = sk_X509_value(sk, i);
+    EVP_PKEY *pubkey=NULL;
+    int j;
+    char *ptr;
+    CONST_ASN1_BIT_STRING ASN1_BIT_STRING *psig = NULL;
+
+    X509_NAME_print_ex(mem, X509_get_subject_name(x), 0, XN_FLAG_ONELINE);
+    push_certinfo("Subject", i);
+
+    X509_NAME_print_ex(mem, X509_get_issuer_name(x), 0, XN_FLAG_ONELINE);
+    push_certinfo("Issuer", i);
+
+    BIO_printf(mem, "%lx", X509_get_version(x));
+    push_certinfo("Version", i);
+
+    num = X509_get_serialNumber(x);
+    if(num->type == V_ASN1_NEG_INTEGER)
+      BIO_puts(mem, "-");
+    for(j = 0; j < num->length; j++)
+      BIO_printf(mem, "%02x", num->data[j]);
+    push_certinfo("Serial Number", i);
+
+#if defined(HAVE_X509_GET0_SIGNATURE) && defined(HAVE_X509_GET0_EXTENSIONS)
+    {
+      const X509_ALGOR *palg = NULL;
+      ASN1_STRING *a = ASN1_STRING_new();
+      if(a) {
+        X509_get0_signature(&psig, &palg, x);
+        X509_signature_print(mem, palg, a);
+        ASN1_STRING_free(a);
+
+        if(palg) {
+          i2a_ASN1_OBJECT(mem, palg->algorithm);
+          push_certinfo("Public Key Algorithm", i);
+        }
+      }
+      X509V3_ext(data, i, X509_get0_extensions(x));
+    }
+#else
+    {
+      /* before OpenSSL 1.0.2 */
+      X509_CINF *cinf = x->cert_info;
+
+      i2a_ASN1_OBJECT(mem, cinf->signature->algorithm);
+      push_certinfo("Signature Algorithm", i);
+
+      i2a_ASN1_OBJECT(mem, cinf->key->algor->algorithm);
+      push_certinfo("Public Key Algorithm", i);
+
+      X509V3_ext(data, i, cinf->extensions);
+
+      psig = x->signature;
+    }
+#endif
+
+    ASN1_TIME_print(mem, X509_get0_notBefore(x));
+    push_certinfo("Start date", i);
+
+    ASN1_TIME_print(mem, X509_get0_notAfter(x));
+    push_certinfo("Expire date", i);
+
+    pubkey = X509_get_pubkey(x);
+    if(!pubkey)
+      infof(data, "   Unable to load public key\n");
+    else {
+      int pktype;
+#ifdef HAVE_OPAQUE_EVP_PKEY
+      pktype = EVP_PKEY_id(pubkey);
+#else
+      pktype = pubkey->type;
+#endif
+      switch(pktype) {
+      case EVP_PKEY_RSA:
+      {
+        RSA *rsa;
+#ifdef HAVE_OPAQUE_EVP_PKEY
+        rsa = EVP_PKEY_get0_RSA(pubkey);
+#else
+        rsa = pubkey->pkey.rsa;
+#endif
+
+#ifdef HAVE_OPAQUE_RSA_DSA_DH
+        {
+          const BIGNUM *n;
+          const BIGNUM *e;
+          const BIGNUM *d;
+          const BIGNUM *p;
+          const BIGNUM *q;
+          const BIGNUM *dmp1;
+          const BIGNUM *dmq1;
+          const BIGNUM *iqmp;
+
+          RSA_get0_key(rsa, &n, &e, &d);
+          RSA_get0_factors(rsa, &p, &q);
+          RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
+          BN_print(mem, n);
+          push_certinfo("RSA Public Key", i);
+          print_pubkey_BN(rsa, n, i);
+          print_pubkey_BN(rsa, e, i);
+          print_pubkey_BN(rsa, d, i);
+          print_pubkey_BN(rsa, p, i);
+          print_pubkey_BN(rsa, q, i);
+          print_pubkey_BN(rsa, dmp1, i);
+          print_pubkey_BN(rsa, dmq1, i);
+          print_pubkey_BN(rsa, iqmp, i);
+        }
+#else
+        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
+        push_certinfo("RSA Public Key", i);
+        print_pubkey_BN(rsa, n, i);
+        print_pubkey_BN(rsa, e, i);
+        print_pubkey_BN(rsa, d, i);
+        print_pubkey_BN(rsa, p, i);
+        print_pubkey_BN(rsa, q, i);
+        print_pubkey_BN(rsa, dmp1, i);
+        print_pubkey_BN(rsa, dmq1, i);
+        print_pubkey_BN(rsa, iqmp, i);
+#endif
+
+        break;
+      }
+      case EVP_PKEY_DSA:
+      {
+        DSA *dsa;
+#ifdef HAVE_OPAQUE_EVP_PKEY
+        dsa = EVP_PKEY_get0_DSA(pubkey);
+#else
+        dsa = pubkey->pkey.dsa;
+#endif
+#ifdef HAVE_OPAQUE_RSA_DSA_DH
+        {
+          const BIGNUM *p;
+          const BIGNUM *q;
+          const BIGNUM *g;
+          const BIGNUM *priv_key;
+          const BIGNUM *pub_key;
+
+          DSA_get0_pqg(dsa, &p, &q, &g);
+          DSA_get0_key(dsa, &pub_key, &priv_key);
+
+          print_pubkey_BN(dsa, p, i);
+          print_pubkey_BN(dsa, q, i);
+          print_pubkey_BN(dsa, g, i);
+          print_pubkey_BN(dsa, priv_key, i);
+          print_pubkey_BN(dsa, pub_key, i);
+        }
+#else
+        print_pubkey_BN(dsa, p, i);
+        print_pubkey_BN(dsa, q, i);
+        print_pubkey_BN(dsa, g, i);
+        print_pubkey_BN(dsa, priv_key, i);
+        print_pubkey_BN(dsa, pub_key, i);
+#endif
+        break;
+      }
+      case EVP_PKEY_DH:
+      {
+        DH *dh;
+#ifdef HAVE_OPAQUE_EVP_PKEY
+        dh = EVP_PKEY_get0_DH(pubkey);
+#else
+        dh = pubkey->pkey.dh;
+#endif
+#ifdef HAVE_OPAQUE_RSA_DSA_DH
+        {
+          const BIGNUM *p;
+          const BIGNUM *q;
+          const BIGNUM *g;
+          const BIGNUM *priv_key;
+          const BIGNUM *pub_key;
+          DH_get0_pqg(dh, &p, &q, &g);
+          DH_get0_key(dh, &pub_key, &priv_key);
+          print_pubkey_BN(dh, p, i);
+          print_pubkey_BN(dh, q, i);
+          print_pubkey_BN(dh, g, i);
+          print_pubkey_BN(dh, priv_key, i);
+          print_pubkey_BN(dh, pub_key, i);
+       }
+#else
+        print_pubkey_BN(dh, p, i);
+        print_pubkey_BN(dh, g, i);
+        print_pubkey_BN(dh, priv_key, i);
+        print_pubkey_BN(dh, pub_key, i);
+#endif
+        break;
+      }
+#if 0
+      case EVP_PKEY_EC: /* symbol not present in OpenSSL 0.9.6 */
+        /* left TODO */
+        break;
+#endif
+      }
+      EVP_PKEY_free(pubkey);
+    }
+
+    if(psig) {
+      for(j = 0; j < psig->length; j++)
+        BIO_printf(mem, "%02x:", psig->data[j]);
+      push_certinfo("Signature", i);
+    }
+
+    PEM_write_bio_X509(mem, x);
+    push_certinfo("Cert", i);
+  }
+
+  BIO_free(mem);
+
+  return CURLE_OK;
+}
+
+/*
+ * Heavily modified from:
+ * https://www.owasp.org/index.php/Certificate_and_Public_Key_Pinning#OpenSSL
+ */
+static CURLcode pkp_pin_peer_pubkey(struct Curl_easy *data, X509* cert,
+                                    const char *pinnedpubkey)
+{
+  /* Scratch */
+  int len1 = 0, len2 = 0;
+  unsigned char *buff1 = NULL, *temp = NULL;
+
+  /* Result is returned to caller */
+  CURLcode result = CURLE_SSL_PINNEDPUBKEYNOTMATCH;
+
+  /* if a path wasn't specified, don't pin */
+  if(!pinnedpubkey)
+    return CURLE_OK;
+
+  if(!cert)
+    return result;
+
+  do {
+    /* Begin Gyrations to get the subjectPublicKeyInfo     */
+    /* Thanks to Viktor Dukhovni on the OpenSSL mailing list */
+
+    /* https://groups.google.com/group/mailing.openssl.users/browse_thread
+     /thread/d61858dae102c6c7 */
+    len1 = i2d_X509_PUBKEY(X509_get_X509_PUBKEY(cert), NULL);
+    if(len1 < 1)
+      break; /* failed */
+
+    /* https://www.openssl.org/docs/crypto/buffer.html */
+    buff1 = temp = malloc(len1);
+    if(!buff1)
+      break; /* failed */
+
+    /* https://www.openssl.org/docs/crypto/d2i_X509.html */
+    len2 = i2d_X509_PUBKEY(X509_get_X509_PUBKEY(cert), &temp);
+
+    /*
+     * These checks are verifying we got back the same values as when we
+     * sized the buffer. It's pretty weak since they should always be the
+     * same. But it gives us something to test.
+     */
+    if((len1 != len2) || !temp || ((temp - buff1) != len1))
+      break; /* failed */
+
+    /* End Gyrations */
+
+    /* The one good exit point */
+    result = Curl_pin_peer_pubkey(data, pinnedpubkey, buff1, len1);
+  } while(0);
+
+  /* https://www.openssl.org/docs/crypto/buffer.html */
+  if(buff1)
+    free(buff1);
+
+  return result;
+}
+
+/*
+ * Get the server cert, verify it and show it etc, only call failf() if the
+ * 'strict' argument is TRUE as otherwise all this is for informational
+ * purposes only!
+ *
+ * We check certificates to authenticate the server; otherwise we risk
+ * man-in-the-middle attack.
+ */
+static CURLcode servercert(struct connectdata *conn,
+                           struct ssl_connect_data *connssl,
+                           bool strict)
+{
+  CURLcode result = CURLE_OK;
+  int rc;
+  long lerr, len;
+  struct Curl_easy *data = conn->data;
+  X509 *issuer;
+  FILE *fp;
+  char *buffer = data->state.buffer;
+  const char *ptr;
+  long * const certverifyresult = SSL_IS_PROXY() ?
+    &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
+  BIO *mem = BIO_new(BIO_s_mem());
+
+  if(data->set.ssl.certinfo)
+    /* we've been asked to gather certificate info! */
+    (void)get_cert_chain(conn, connssl);
+
+  connssl->server_cert = SSL_get_peer_certificate(connssl->handle);
+  if(!connssl->server_cert) {
+    if(!strict)
+      return CURLE_OK;
+
+    failf(data, "SSL: couldn't get peer certificate!");
+    return CURLE_PEER_FAILED_VERIFICATION;
+  }
+
+  infof(data, "%s certificate:\n", SSL_IS_PROXY() ? "Proxy" : "Server");
+
+  rc = x509_name_oneline(X509_get_subject_name(connssl->server_cert),
+                         buffer, BUFSIZE);
+  infof(data, " subject: %s\n", rc?"[NONE]":buffer);
+
+  ASN1_TIME_print(mem, X509_get0_notBefore(connssl->server_cert));
+  len = BIO_get_mem_data(mem, (char **) &ptr);
+  infof(data, " start date: %.*s\n", len, ptr);
+  rc = BIO_reset(mem);
+
+  ASN1_TIME_print(mem, X509_get0_notAfter(connssl->server_cert));
+  len = BIO_get_mem_data(mem, (char **) &ptr);
+  infof(data, " expire date: %.*s\n", len, ptr);
+  rc = BIO_reset(mem);
+
+  BIO_free(mem);
+
+  if(SSL_CONN_CONFIG(verifyhost)) {
+    result = verifyhost(conn, connssl->server_cert);
+    if(result) {
+      X509_free(connssl->server_cert);
+      connssl->server_cert = NULL;
+      return result;
+    }
+  }
+
+  rc = x509_name_oneline(X509_get_issuer_name(connssl->server_cert),
+                         buffer, BUFSIZE);
+  if(rc) {
+    if(strict)
+      failf(data, "SSL: couldn't get X509-issuer name!");
+    result = CURLE_SSL_CONNECT_ERROR;
+  }
+  else {
+    infof(data, " issuer: %s\n", buffer);
+
+    /* We could do all sorts of certificate verification stuff here before
+       deallocating the certificate. */
+
+    /* e.g. match issuer name with provided issuer certificate */
+    if(SSL_SET_OPTION(issuercert)) {
+      fp = fopen(SSL_SET_OPTION(issuercert), FOPEN_READTEXT);
+      if(!fp) {
+        if(strict)
+          failf(data, "SSL: Unable to open issuer cert (%s)",
+                SSL_SET_OPTION(issuercert));
+        X509_free(connssl->server_cert);
+        connssl->server_cert = NULL;
+        return CURLE_SSL_ISSUER_ERROR;
+      }
+
+      issuer = PEM_read_X509(fp, NULL, ZERO_NULL, NULL);
+      if(!issuer) {
+        if(strict)
+          failf(data, "SSL: Unable to read issuer cert (%s)",
+                SSL_SET_OPTION(issuercert));
+        X509_free(connssl->server_cert);
+        X509_free(issuer);
+        fclose(fp);
+        return CURLE_SSL_ISSUER_ERROR;
+      }
+
+      fclose(fp);
+
+      if(X509_check_issued(issuer, connssl->server_cert) != X509_V_OK) {
+        if(strict)
+          failf(data, "SSL: Certificate issuer check failed (%s)",
+                SSL_SET_OPTION(issuercert));
+        X509_free(connssl->server_cert);
+        X509_free(issuer);
+        connssl->server_cert = NULL;
+        return CURLE_SSL_ISSUER_ERROR;
+      }
+
+      infof(data, " SSL certificate issuer check ok (%s)\n",
+            SSL_SET_OPTION(issuercert));
+      X509_free(issuer);
+    }
+
+    lerr = *certverifyresult = SSL_get_verify_result(connssl->handle);
+
+    if(*certverifyresult != X509_V_OK) {
+      if(SSL_CONN_CONFIG(verifypeer)) {
+        /* We probably never reach this, because SSL_connect() will fail
+           and we return earlier if verifypeer is set? */
+        if(strict)
+          failf(data, "SSL certificate verify result: %s (%ld)",
+                X509_verify_cert_error_string(lerr), lerr);
+        result = CURLE_PEER_FAILED_VERIFICATION;
+      }
+      else
+        infof(data, " SSL certificate verify result: %s (%ld),"
+              " continuing anyway.\n",
+              X509_verify_cert_error_string(lerr), lerr);
+    }
+    else
+      infof(data, " SSL certificate verify ok.\n");
+  }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \
+    !defined(OPENSSL_NO_OCSP)
+  if(SSL_CONN_CONFIG(verifystatus)) {
+    result = verifystatus(conn, connssl);
+    if(result) {
+      X509_free(connssl->server_cert);
+      connssl->server_cert = NULL;
+      return result;
+    }
+  }
+#endif
+
+  if(!strict)
+    /* when not strict, we don't bother about the verify cert problems */
+    result = CURLE_OK;
+
+  ptr = SSL_IS_PROXY() ? data->set.str[STRING_SSL_PINNEDPUBLICKEY_PROXY] :
+                         data->set.str[STRING_SSL_PINNEDPUBLICKEY_ORIG];
+  if(!result && ptr) {
+    result = pkp_pin_peer_pubkey(data, connssl->server_cert, ptr);
+    if(result)
+      failf(data, "SSL: public key does not match pinned public key!");
+  }
+
+  X509_free(connssl->server_cert);
+  connssl->server_cert = NULL;
+  connssl->connecting_state = ssl_connect_done;
+
+  return result;
+}
+
+static CURLcode ossl_connect_step3(struct connectdata *conn, int sockindex)
+{
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data = conn->data;
+  struct ssl_connect_data *connssl = &conn->ssl[sockindex];
+
+  DEBUGASSERT(ssl_connect_3 == connssl->connecting_state);
+
+  if(data->set.general_ssl.sessionid) {
+    bool incache;
+    SSL_SESSION *our_ssl_sessionid;
+    void *old_ssl_sessionid = NULL;
+
+    our_ssl_sessionid = SSL_get1_session(connssl->handle);
+
+    /* SSL_get1_session() will increment the reference count and the session
+        will stay in memory until explicitly freed with SSL_SESSION_free(3),
+        regardless of its state. */
+
+    Curl_ssl_sessionid_lock(conn);
+    incache = !(Curl_ssl_getsessionid(conn, &old_ssl_sessionid, NULL,
+                                      sockindex));
+    if(incache) {
+      if(old_ssl_sessionid != our_ssl_sessionid) {
+        infof(data, "old SSL session ID is stale, removing\n");
+        Curl_ssl_delsessionid(conn, old_ssl_sessionid);
+        incache = FALSE;
+      }
+    }
+
+    if(!incache) {
+      result = Curl_ssl_addsessionid(conn, our_ssl_sessionid,
+                                      0 /* unknown size */, sockindex);
+      if(result) {
+        Curl_ssl_sessionid_unlock(conn);
+        failf(data, "failed to store ssl session");
+        return result;
+      }
+    }
+    else {
+      /* Session was incache, so refcount already incremented earlier.
+        * Avoid further increments with each SSL_get1_session() call.
+        * This does not free the session as refcount remains > 0
+        */
+      SSL_SESSION_free(our_ssl_sessionid);
+    }
+    Curl_ssl_sessionid_unlock(conn);
+  }
+
+  /*
+   * We check certificates to authenticate the server; otherwise we risk
+   * man-in-the-middle attack; NEVERTHELESS, if we're told explicitly not to
+   * verify the peer ignore faults and failures from the server cert
+   * operations.
+   */
+
+  result = servercert(conn, connssl, (SSL_CONN_CONFIG(verifypeer) ||
+                                      SSL_CONN_CONFIG(verifyhost)));
+
+  if(!result)
+    connssl->connecting_state = ssl_connect_done;
+
+  return result;
+}
+
+static Curl_recv ossl_recv;
+static Curl_send ossl_send;
+
+static CURLcode ossl_connect_common(struct connectdata *conn,
+                                    int sockindex,
+                                    bool nonblocking,
+                                    bool *done)
+{
+  CURLcode result;
+  struct Curl_easy *data = conn->data;
+  struct ssl_connect_data *connssl = &conn->ssl[sockindex];
+  curl_socket_t sockfd = conn->sock[sockindex];
+  time_t timeout_ms;
+  int what;
+
+  /* check if the connection has already been established */
+  if(ssl_connection_complete == connssl->state) {
+    *done = TRUE;
+    return CURLE_OK;
+  }
+
+  if(ssl_connect_1 == connssl->connecting_state) {
+    /* Find out how much more time we're allowed */
+    timeout_ms = Curl_timeleft(data, NULL, TRUE);
+
+    if(timeout_ms < 0) {
+      /* no need to continue if time already is up */
+      failf(data, "SSL connection timeout");
+      return CURLE_OPERATION_TIMEDOUT;
+    }
+
+    result = ossl_connect_step1(conn, sockindex);
+    if(result)
+      return result;
+  }
+
+  while(ssl_connect_2 == connssl->connecting_state ||
+        ssl_connect_2_reading == connssl->connecting_state ||
+        ssl_connect_2_writing == connssl->connecting_state) {
+
+    /* check allowed time left */
+    timeout_ms = Curl_timeleft(data, NULL, TRUE);
+
+    if(timeout_ms < 0) {
+      /* no need to continue if time already is up */
+      failf(data, "SSL connection timeout");
+      return CURLE_OPERATION_TIMEDOUT;
+    }
+
+    /* if ssl is expecting something, check if it's available. */
+    if(connssl->connecting_state == ssl_connect_2_reading ||
+       connssl->connecting_state == ssl_connect_2_writing) {
+
+      curl_socket_t writefd = ssl_connect_2_writing==
+        connssl->connecting_state?sockfd:CURL_SOCKET_BAD;
+      curl_socket_t readfd = ssl_connect_2_reading==
+        connssl->connecting_state?sockfd:CURL_SOCKET_BAD;
+
+      what = Curl_socket_check(readfd, CURL_SOCKET_BAD, writefd,
+                               nonblocking?0:timeout_ms);
+      if(what < 0) {
+        /* fatal error */
+        failf(data, "select/poll on SSL socket, errno: %d", SOCKERRNO);
+        return CURLE_SSL_CONNECT_ERROR;
+      }
+      else if(0 == what) {
+        if(nonblocking) {
+          *done = FALSE;
+          return CURLE_OK;
+        }
+        else {
+          /* timeout */
+          failf(data, "SSL connection timeout");
+          return CURLE_OPERATION_TIMEDOUT;
+        }
+      }
+      /* socket is readable or writable */
+    }
+
+    /* Run transaction, and return to the caller if it failed or if this
+     * connection is done nonblocking and this loop would execute again. This
+     * permits the owner of a multi handle to abort a connection attempt
+     * before step2 has completed while ensuring that a client using select()
+     * or epoll() will always have a valid fdset to wait on.
+     */
+    result = ossl_connect_step2(conn, sockindex);
+    if(result || (nonblocking &&
+                  (ssl_connect_2 == connssl->connecting_state ||
+                   ssl_connect_2_reading == connssl->connecting_state ||
+                   ssl_connect_2_writing == connssl->connecting_state)))
+      return result;
+
+  } /* repeat step2 until all transactions are done. */
+
+  if(ssl_connect_3 == connssl->connecting_state) {
+    result = ossl_connect_step3(conn, sockindex);
+    if(result)
+      return result;
+  }
+
+  if(ssl_connect_done == connssl->connecting_state) {
+    connssl->state = ssl_connection_complete;
+    conn->recv[sockindex] = ossl_recv;
+    conn->send[sockindex] = ossl_send;
+    *done = TRUE;
+  }
+  else
+    *done = FALSE;
+
+  /* Reset our connect state machine */
+  connssl->connecting_state = ssl_connect_1;
+
+  return CURLE_OK;
+}
+
+CURLcode Curl_ossl_connect_nonblocking(struct connectdata *conn,
+                                       int sockindex,
+                                       bool *done)
+{
+  return ossl_connect_common(conn, sockindex, TRUE, done);
+}
+
+CURLcode Curl_ossl_connect(struct connectdata *conn, int sockindex)
+{
+  CURLcode result;
+  bool done = FALSE;
+
+  result = ossl_connect_common(conn, sockindex, FALSE, &done);
+  if(result)
+    return result;
+
+  DEBUGASSERT(done);
+
+  return CURLE_OK;
+}
+
+bool Curl_ossl_data_pending(const struct connectdata *conn, int connindex)
+{
+  if(conn->ssl[connindex].handle)
+    /* SSL is in use */
+    return (0 != SSL_pending(conn->ssl[connindex].handle) ||
+           (conn->proxy_ssl[connindex].handle &&
+            0 != SSL_pending(conn->proxy_ssl[connindex].handle))) ?
+           TRUE : FALSE;
+  else
+    return FALSE;
+}
+
+static ssize_t ossl_send(struct connectdata *conn,
+                         int sockindex,
+                         const void *mem,
+                         size_t len,
+                         CURLcode *curlcode)
+{
+  /* SSL_write() is said to return 'int' while write() and send() returns
+     'size_t' */
+  int err;
+  char error_buffer[256]; /* OpenSSL documents that this must be at least 256
+                             bytes long. */
+  unsigned long sslerror;
+  int memlen;
+  int rc;
+
+  ERR_clear_error();
+
+  memlen = (len > (size_t)INT_MAX) ? INT_MAX : (int)len;
+  rc = SSL_write(conn->ssl[sockindex].handle, mem, memlen);
+
+  if(rc <= 0) {
+    err = SSL_get_error(conn->ssl[sockindex].handle, rc);
+
+    switch(err) {
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+      /* The operation did not complete; the same TLS/SSL I/O function
+         should be called again later. This is basically an EWOULDBLOCK
+         equivalent. */
+      *curlcode = CURLE_AGAIN;
+      return -1;
+    case SSL_ERROR_SYSCALL:
+      failf(conn->data, "SSL_write() returned SYSCALL, errno = %d",
+            SOCKERRNO);
+      *curlcode = CURLE_SEND_ERROR;
+      return -1;
+    case SSL_ERROR_SSL:
+      /*  A failure in the SSL library occurred, usually a protocol error.
+          The OpenSSL error queue contains more information on the error. */
+      sslerror = ERR_get_error();
+      if(ERR_GET_LIB(sslerror) == ERR_LIB_SSL &&
+         ERR_GET_REASON(sslerror) == SSL_R_BIO_NOT_SET &&
+         conn->ssl[sockindex].state == ssl_connection_complete &&
+         conn->proxy_ssl[sockindex].state == ssl_connection_complete) {
+        char ver[120];
+        Curl_ossl_version(ver, 120);
+        failf(conn->data, "Error: %s does not support double SSL tunneling.",
+              ver);
+      }
+      else
+        failf(conn->data, "SSL_write() error: %s",
+              ossl_strerror(sslerror, error_buffer, sizeof(error_buffer)));
+      *curlcode = CURLE_SEND_ERROR;
+      return -1;
+    }
+    /* a true error */
+    failf(conn->data, "SSL_write() return error %d", err);
+    *curlcode = CURLE_SEND_ERROR;
+    return -1;
+  }
+  *curlcode = CURLE_OK;
+  return (ssize_t)rc; /* number of bytes */
+}
+
+static ssize_t ossl_recv(struct connectdata *conn, /* connection data */
+                         int num,                  /* socketindex */
+                         char *buf,                /* store read data here */
+                         size_t buffersize,        /* max amount to read */
+                         CURLcode *curlcode)
+{
+  char error_buffer[256]; /* OpenSSL documents that this must be at
+                             least 256 bytes long. */
+  unsigned long sslerror;
+  ssize_t nread;
+  int buffsize;
+
+  ERR_clear_error();
+
+  buffsize = (buffersize > (size_t)INT_MAX) ? INT_MAX : (int)buffersize;
+  nread = (ssize_t)SSL_read(conn->ssl[num].handle, buf, buffsize);
+  if(nread <= 0) {
+    /* failed SSL_read */
+    int err = SSL_get_error(conn->ssl[num].handle, (int)nread);
+
+    switch(err) {
+    case SSL_ERROR_NONE: /* this is not an error */
+    case SSL_ERROR_ZERO_RETURN: /* no more data */
+      break;
+    case SSL_ERROR_WANT_READ:
+    case SSL_ERROR_WANT_WRITE:
+      /* there's data pending, re-invoke SSL_read() */
+      *curlcode = CURLE_AGAIN;
+      return -1;
+    default:
+      /* openssl/ssl.h for SSL_ERROR_SYSCALL says "look at error stack/return
+         value/errno" */
+      /* https://www.openssl.org/docs/crypto/ERR_get_error.html */
+      sslerror = ERR_get_error();
+      if((nread < 0) || sslerror) {
+        /* If the return code was negative or there actually is an error in the
+           queue */
+        failf(conn->data, "SSL read: %s, errno %d",
+              ossl_strerror(sslerror, error_buffer, sizeof(error_buffer)),
+              SOCKERRNO);
+        *curlcode = CURLE_RECV_ERROR;
+        return -1;
+      }
+    }
+  }
+  return nread;
+}
+
+size_t Curl_ossl_version(char *buffer, size_t size)
+{
+#ifdef OPENSSL_IS_BORINGSSL
+  return snprintf(buffer, size, OSSL_PACKAGE);
+#else /* OPENSSL_IS_BORINGSSL */
+  char sub[3];
+  unsigned long ssleay_value;
+  sub[2]='\0';
+  sub[1]='\0';
+  ssleay_value=OpenSSL_version_num();
+  if(ssleay_value < 0x906000) {
+    ssleay_value=SSLEAY_VERSION_NUMBER;
+    sub[0]='\0';
+  }
+  else {
+    if(ssleay_value&0xff0) {
+      int minor_ver = (ssleay_value >> 4) & 0xff;
+      if(minor_ver > 26) {
+        /* handle extended version introduced for 0.9.8za */
+        sub[1] = (char) ((minor_ver - 1) % 26 + 'a' + 1);
+        sub[0] = 'z';
+      }
+      else {
+        sub[0] = (char) (minor_ver + 'a' - 1);
+      }
+    }
+    else
+      sub[0]='\0';
+  }
+
+  return snprintf(buffer, size, "%s/%lx.%lx.%lx%s",
+                  OSSL_PACKAGE,
+                  (ssleay_value>>28)&0xf,
+                  (ssleay_value>>20)&0xff,
+                  (ssleay_value>>12)&0xff,
+                  sub);
+#endif /* OPENSSL_IS_BORINGSSL */
+}
+
+/* can be called with data == NULL */
+int Curl_ossl_random(struct Curl_easy *data, unsigned char *entropy,
+                     size_t length)
+{
+  if(data) {
+    if(Curl_ossl_seed(data)) /* Initiate the seed if not already done */
+      return 1; /* couldn't seed for some reason */
+  }
+  else {
+    if(!rand_enough())
+      return 1;
+  }
+  RAND_bytes(entropy, curlx_uztosi(length));
+  return 0; /* 0 as in no problem */
+}
+
+void Curl_ossl_md5sum(unsigned char *tmp, /* input */
+                      size_t tmplen,
+                      unsigned char *md5sum /* output */,
+                      size_t unused)
+{
+  MD5_CTX MD5pw;
+  (void)unused;
+  MD5_Init(&MD5pw);
+  MD5_Update(&MD5pw, tmp, tmplen);
+  MD5_Final(md5sum, &MD5pw);
+}
+
+#if (OPENSSL_VERSION_NUMBER >= 0x0090800fL) && !defined(OPENSSL_NO_SHA256)
+void Curl_ossl_sha256sum(const unsigned char *tmp, /* input */
+                      size_t tmplen,
+                      unsigned char *sha256sum /* output */,
+                      size_t unused)
+{
+  SHA256_CTX SHA256pw;
+  (void)unused;
+  SHA256_Init(&SHA256pw);
+  SHA256_Update(&SHA256pw, tmp, tmplen);
+  SHA256_Final(sha256sum, &SHA256pw);
+}
+#endif
+
+bool Curl_ossl_cert_status_request(void)
+{
+#if (OPENSSL_VERSION_NUMBER >= 0x0090808fL) && !defined(OPENSSL_NO_TLSEXT) && \
+    !defined(OPENSSL_NO_OCSP)
+  return TRUE;
+#else
+  return FALSE;
+#endif
+}
+#endif /* USE_OPENSSL */

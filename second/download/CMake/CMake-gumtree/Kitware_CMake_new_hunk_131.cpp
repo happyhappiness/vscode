@@ -1,11 +1,9 @@
-			} else if (src[1] == '.') {
-				if (src[2] == '/' || src[2] == '\0') {
-					/* Conditionally warn about '..' */
-					if (flags
-					    & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
-						fsobj_error(a_eno, a_estr,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains ", "'..'");
-						return (ARCHIVE_FAILED);
-					}
-				}
+		mine->block_size = new_block_size;
+	}
+	buffer = malloc(mine->block_size);
+	if (buffer == NULL) {
+		archive_set_error(a, ENOMEM, "No memory");
+		goto fail;
+	}
+	mine->buffer = buffer;
+	mine->fd = fd;

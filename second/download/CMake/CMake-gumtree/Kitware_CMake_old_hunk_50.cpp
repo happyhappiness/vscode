@@ -1,7 +1,8 @@
-    pwd = conn->passwd;
-  }
+   */
 
-  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
-
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
+  /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+  snprintf(buf, BUFSIZE-1,
+           "%s, %02d %s %4d %02d:%02d:%02d GMT",
+           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+           tm->tm_mday,
+           Curl_month[tm->tm_mon],

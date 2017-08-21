@@ -1,7 +1,21 @@
-      return result;
+		return (ARCHIVE_FATAL);
+	}
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, list, list_size);
+	else
+		list_size = listxattr(path, list, list_size);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, list, list_size);
+	else
+		list_size = listea(path, list, list_size);
+#endif
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
