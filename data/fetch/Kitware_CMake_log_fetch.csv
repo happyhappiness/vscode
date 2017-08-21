@@ -710,4 +710,4 @@ We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/
   curl 2017-04-19 (d957e218)
 
 Resolve conflicts in `CMakeLists.txt` in favor of the upstream version.
-We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_40.cpp,second/download/C
+We will re-apply our logic as needed in following commits.",[],Utilities/cmcurl/lib/url.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_40.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_40.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_old_hunk_94.cpp,second/download/CMake/CMake-gumtree/Kitware_CMake_new_hunk_94.cpp,641,644,645,654,"DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));","DEBUGF(fprintf(stderr, ""Error: malloc of headerbuff failed\n""));",4
