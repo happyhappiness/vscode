@@ -1,7 +1,13 @@
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge RE");
-				return (NULL);
-			}
-			/*
-			 * Sanity check: file does not have "CL" extension.
+		}
+		offset += datasize;
+	}
+#ifdef DEBUG
+	if (offset != extra_length)
+	{
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}
+#endif
+}
+
+/*

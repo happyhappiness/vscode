@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1999 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -18,581 +18,1164 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- ***************************************************************************/
+ *
+ * Purpose:
+ *  A merge of Bjorn Reese's format() function and Daniel's dsprintf()
+ *  1.0. A full blooded printf() clone with full support for <num>$
+ *  everywhere (parameters, widths and precisions) including variabled
+ *  sized parameters (like doubles, long longs, long doubles and even
+ *  void * in 64-bit architectures).
+ *
+ * Current restrictions:
+ * - Max 128 parameters
+ * - No 'long double' support.
+ *
+ * If you ever want truly portable and good *printf() clones, the project that
+ * took on from here is named 'Trio' and you find more details on the trio web
+ * page at https://daniel.haxx.se/projects/trio/
+ */
 
 #include "curl_setup.h"
+#include <curl/mprintf.h>
 
-#ifndef CURL_DISABLE_FILE
-
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-#ifdef HAVE_NET_IF_H
-#include <net/if.h>
-#endif
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-
-#include "strtoofft.h"
-#include "urldata.h"
-#include <curl/curl.h>
-#include "progress.h"
-#include "sendf.h"
-#include "escape.h"
-#include "file.h"
-#include "speedcheck.h"
-#include "getinfo.h"
-#include "transfer.h"
-#include "url.h"
-#include "parsedate.h" /* for the week day and month names */
-#include "warnless.h"
-/* The last 3 #include files should be in this order */
-#include "curl_printf.h"
 #include "curl_memory.h"
+/* The last #include file should be: */
 #include "memdebug.h"
 
-#if defined(WIN32) || defined(MSDOS) || defined(__EMX__) || \
-  defined(__SYMBIAN32__)
-#define DOS_FILESYSTEM 1
+/*
+ * If SIZEOF_SIZE_T has not been defined, default to the size of long.
+ */
+
+#ifndef SIZEOF_SIZE_T
+#  define SIZEOF_SIZE_T CURL_SIZEOF_LONG
 #endif
 
-#ifdef OPEN_NEEDS_ARG3
-#  define open_readonly(p,f) open((p),(f),(0))
+#ifdef HAVE_LONGLONG
+#  define LONG_LONG_TYPE long long
+#  define HAVE_LONG_LONG_TYPE
 #else
-#  define open_readonly(p,f) open((p),(f))
+#  if defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64)
+#    define LONG_LONG_TYPE __int64
+#    define HAVE_LONG_LONG_TYPE
+#  else
+#    undef LONG_LONG_TYPE
+#    undef HAVE_LONG_LONG_TYPE
+#  endif
 #endif
 
 /*
- * Forward declarations.
+ * Non-ANSI integer extensions
  */
 
-static CURLcode file_do(struct connectdata *, bool *done);
-static CURLcode file_done(struct connectdata *conn,
-                          CURLcode status, bool premature);
-static CURLcode file_connect(struct connectdata *conn, bool *done);
-static CURLcode file_disconnect(struct connectdata *conn,
-                                bool dead_connection);
-static CURLcode file_setup_connection(struct connectdata *conn);
+#if (defined(__BORLANDC__) && (__BORLANDC__ >= 0x520)) || \
+    (defined(__WATCOMC__) && defined(__386__)) || \
+    (defined(__POCC__) && defined(_MSC_VER)) || \
+    (defined(_WIN32_WCE)) || \
+    (defined(__MINGW32__)) || \
+    (defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64))
+#  define MP_HAVE_INT_EXTENSIONS
+#endif
 
 /*
- * FILE scheme handler.
+ * Max integer data types that mprintf.c is capable
  */
 
-const struct Curl_handler Curl_handler_file = {
-  "FILE",                               /* scheme */
-  file_setup_connection,                /* setup_connection */
-  file_do,                              /* do_it */
-  file_done,                            /* done */
-  ZERO_NULL,                            /* do_more */
-  file_connect,                         /* connect_it */
-  ZERO_NULL,                            /* connecting */
-  ZERO_NULL,                            /* doing */
-  ZERO_NULL,                            /* proto_getsock */
-  ZERO_NULL,                            /* doing_getsock */
-  ZERO_NULL,                            /* domore_getsock */
-  ZERO_NULL,                            /* perform_getsock */
-  file_disconnect,                      /* disconnect */
-  ZERO_NULL,                            /* readwrite */
-  0,                                    /* defport */
-  CURLPROTO_FILE,                       /* protocol */
-  PROTOPT_NONETWORK | PROTOPT_NOURLQUERY /* flags */
+#ifdef HAVE_LONG_LONG_TYPE
+#  define mp_intmax_t LONG_LONG_TYPE
+#  define mp_uintmax_t unsigned LONG_LONG_TYPE
+#else
+#  define mp_intmax_t long
+#  define mp_uintmax_t unsigned long
+#endif
+
+#define BUFFSIZE 326 /* buffer for long-to-str and float-to-str calcs, should
+                        fit negative DBL_MAX (317 letters) */
+#define MAX_PARAMETERS 128 /* lame static limit */
+
+#ifdef __AMIGA__
+# undef FORMAT_INT
+#endif
+
+/* Lower-case digits.  */
+static const char lower_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+/* Upper-case digits.  */
+static const char upper_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+#define OUTCHAR(x) \
+  do{ \
+    if(stream((unsigned char)(x), (FILE *)data) != -1) \
+      done++; \
+    else \
+     return done; /* return immediately on failure */ \
+  } WHILE_FALSE
+
+/* Data type to read from the arglist */
+typedef enum  {
+  FORMAT_UNKNOWN = 0,
+  FORMAT_STRING,
+  FORMAT_PTR,
+  FORMAT_INT,
+  FORMAT_INTPTR,
+  FORMAT_LONG,
+  FORMAT_LONGLONG,
+  FORMAT_DOUBLE,
+  FORMAT_LONGDOUBLE,
+  FORMAT_WIDTH /* For internal use */
+} FormatType;
+
+/* conversion and display flags */
+enum {
+  FLAGS_NEW        = 0,
+  FLAGS_SPACE      = 1<<0,
+  FLAGS_SHOWSIGN   = 1<<1,
+  FLAGS_LEFT       = 1<<2,
+  FLAGS_ALT        = 1<<3,
+  FLAGS_SHORT      = 1<<4,
+  FLAGS_LONG       = 1<<5,
+  FLAGS_LONGLONG   = 1<<6,
+  FLAGS_LONGDOUBLE = 1<<7,
+  FLAGS_PAD_NIL    = 1<<8,
+  FLAGS_UNSIGNED   = 1<<9,
+  FLAGS_OCTAL      = 1<<10,
+  FLAGS_HEX        = 1<<11,
+  FLAGS_UPPER      = 1<<12,
+  FLAGS_WIDTH      = 1<<13, /* '*' or '*<num>$' used */
+  FLAGS_WIDTHPARAM = 1<<14, /* width PARAMETER was specified */
+  FLAGS_PREC       = 1<<15, /* precision was specified */
+  FLAGS_PRECPARAM  = 1<<16, /* precision PARAMETER was specified */
+  FLAGS_CHAR       = 1<<17, /* %c story */
+  FLAGS_FLOATE     = 1<<18, /* %e or %E */
+  FLAGS_FLOATG     = 1<<19  /* %g or %G */
 };
 
+typedef struct {
+  FormatType type;
+  int flags;
+  long width;     /* width OR width parameter number */
+  long precision; /* precision OR precision parameter number */
+  union {
+    char *str;
+    void *ptr;
+    union {
+      mp_intmax_t as_signed;
+      mp_uintmax_t as_unsigned;
+    } num;
+    double dnum;
+  } data;
+} va_stack_t;
 
-static CURLcode file_setup_connection(struct connectdata *conn)
+struct nsprintf {
+  char *buffer;
+  size_t length;
+  size_t max;
+};
+
+struct asprintf {
+  char *buffer; /* allocated buffer */
+  size_t len;   /* length of string */
+  size_t alloc; /* length of alloc */
+  int fail;     /* (!= 0) if an alloc has failed and thus
+                   the output is not the complete data */
+};
+
+static long dprintf_DollarString(char *input, char **end)
 {
-  /* allocate the FILE specific struct */
-  conn->data->req.protop = calloc(1, sizeof(struct FILEPROTO));
-  if(!conn->data->req.protop)
-    return CURLE_OUT_OF_MEMORY;
-
-  return CURLE_OK;
+  int number=0;
+  while(ISDIGIT(*input)) {
+    number *= 10;
+    number += *input-'0';
+    input++;
+  }
+  if(number && ('$'==*input++)) {
+    *end = input;
+    return number;
+  }
+  return 0;
 }
 
- /*
-  Check if this is a range download, and if so, set the internal variables
-  properly. This code is copied from the FTP implementation and might as
-  well be factored out.
- */
-static CURLcode file_range(struct connectdata *conn)
+static bool dprintf_IsQualifierNoDollar(const char *fmt)
 {
-  curl_off_t from, to;
-  curl_off_t totalsize=-1;
-  char *ptr;
-  char *ptr2;
-  struct Curl_easy *data = conn->data;
-
-  if(data->state.use_range && data->state.range) {
-    from=curlx_strtoofft(data->state.range, &ptr, 0);
-    while(*ptr && (ISSPACE(*ptr) || (*ptr=='-')))
-      ptr++;
-    to=curlx_strtoofft(ptr, &ptr2, 0);
-    if(ptr == ptr2) {
-      /* we didn't get any digit */
-      to=-1;
-    }
-    if((-1 == to) && (from>=0)) {
-      /* X - */
-      data->state.resume_from = from;
-      DEBUGF(infof(data, "RANGE %" CURL_FORMAT_CURL_OFF_T " to end of file\n",
-                   from));
-    }
-    else if(from < 0) {
-      /* -Y */
-      data->req.maxdownload = -from;
-      data->state.resume_from = from;
-      DEBUGF(infof(data, "RANGE the last %" CURL_FORMAT_CURL_OFF_T " bytes\n",
-                   -from));
-    }
-    else {
-      /* X-Y */
-      totalsize = to-from;
-      data->req.maxdownload = totalsize+1; /* include last byte */
-      data->state.resume_from = from;
-      DEBUGF(infof(data, "RANGE from %" CURL_FORMAT_CURL_OFF_T
-                   " getting %" CURL_FORMAT_CURL_OFF_T " bytes\n",
-                   from, data->req.maxdownload));
-    }
-    DEBUGF(infof(data, "range-download from %" CURL_FORMAT_CURL_OFF_T
-                 " to %" CURL_FORMAT_CURL_OFF_T ", totally %"
-                 CURL_FORMAT_CURL_OFF_T " bytes\n",
-                 from, to, data->req.maxdownload));
+#if defined(MP_HAVE_INT_EXTENSIONS)
+  if(!strncmp(fmt, "I32", 3) || !strncmp(fmt, "I64", 3)) {
+    return TRUE;
   }
-  else
-    data->req.maxdownload = -1;
-  return CURLE_OK;
-}
-
-/*
- * file_connect() gets called from Curl_protocol_connect() to allow us to
- * do protocol-specific actions at connect-time.  We emulate a
- * connect-then-transfer protocol and "connect" to the file here
- */
-static CURLcode file_connect(struct connectdata *conn, bool *done)
-{
-  struct Curl_easy *data = conn->data;
-  char *real_path;
-  struct FILEPROTO *file = data->req.protop;
-  int fd;
-#ifdef DOS_FILESYSTEM
-  size_t i;
-  char *actual_path;
-#endif
-  size_t real_path_len;
-
-  CURLcode result = Curl_urldecode(data, data->state.path, 0, &real_path,
-                                   &real_path_len, FALSE);
-  if(result)
-    return result;
-
-#ifdef DOS_FILESYSTEM
-  /* If the first character is a slash, and there's
-     something that looks like a drive at the beginning of
-     the path, skip the slash.  If we remove the initial
-     slash in all cases, paths without drive letters end up
-     relative to the current directory which isn't how
-     browsers work.
-
-     Some browsers accept | instead of : as the drive letter
-     separator, so we do too.
-
-     On other platforms, we need the slash to indicate an
-     absolute pathname.  On Windows, absolute paths start
-     with a drive letter.
-  */
-  actual_path = real_path;
-  if((actual_path[0] == '/') &&
-      actual_path[1] &&
-     (actual_path[2] == ':' || actual_path[2] == '|')) {
-    actual_path[2] = ':';
-    actual_path++;
-    real_path_len--;
-  }
-
-  /* change path separators from '/' to '\\' for DOS, Windows and OS/2 */
-  for(i=0; i < real_path_len; ++i)
-    if(actual_path[i] == '/')
-      actual_path[i] = '\\';
-    else if(!actual_path[i]) { /* binary zero */
-      Curl_safefree(real_path);
-      return CURLE_URL_MALFORMAT;
-    }
-
-  fd = open_readonly(actual_path, O_RDONLY|O_BINARY);
-  file->path = actual_path;
-#else
-  if(memchr(real_path, 0, real_path_len)) {
-    /* binary zeroes indicate foul play */
-    Curl_safefree(real_path);
-    return CURLE_URL_MALFORMAT;
-  }
-
-  fd = open_readonly(real_path, O_RDONLY);
-  file->path = real_path;
-#endif
-  file->freepath = real_path; /* free this when done */
-
-  file->fd = fd;
-  if(!data->set.upload && (fd == -1)) {
-    failf(data, "Couldn't open file %s", data->state.path);
-    file_done(conn, CURLE_FILE_COULDNT_READ_FILE, FALSE);
-    return CURLE_FILE_COULDNT_READ_FILE;
-  }
-  *done = TRUE;
-
-  return CURLE_OK;
-}
-
-static CURLcode file_done(struct connectdata *conn,
-                               CURLcode status, bool premature)
-{
-  struct FILEPROTO *file = conn->data->req.protop;
-  (void)status; /* not used */
-  (void)premature; /* not used */
-
-  if(file) {
-    Curl_safefree(file->freepath);
-    file->path = NULL;
-    if(file->fd != -1)
-      close(file->fd);
-    file->fd = -1;
-  }
-
-  return CURLE_OK;
-}
-
-static CURLcode file_disconnect(struct connectdata *conn,
-                                bool dead_connection)
-{
-  struct FILEPROTO *file = conn->data->req.protop;
-  (void)dead_connection; /* not used */
-
-  if(file) {
-    Curl_safefree(file->freepath);
-    file->path = NULL;
-    if(file->fd != -1)
-      close(file->fd);
-    file->fd = -1;
-  }
-
-  return CURLE_OK;
-}
-
-#ifdef DOS_FILESYSTEM
-#define DIRSEP '\\'
-#else
-#define DIRSEP '/'
 #endif
 
-static CURLcode file_upload(struct connectdata *conn)
-{
-  struct FILEPROTO *file = conn->data->req.protop;
-  const char *dir = strchr(file->path, DIRSEP);
-  int fd;
-  int mode;
-  CURLcode result = CURLE_OK;
-  struct Curl_easy *data = conn->data;
-  char *buf = data->state.buffer;
-  size_t nread;
-  size_t nwrite;
-  curl_off_t bytecount = 0;
-  struct timeval now = Curl_tvnow();
-  struct_stat file_stat;
-  const char *buf2;
-
-  /*
-   * Since FILE: doesn't do the full init, we need to provide some extra
-   * assignments here.
-   */
-  conn->data->req.upload_fromhere = buf;
-
-  if(!dir)
-    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
-
-  if(!dir[1])
-    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
-
-#ifdef O_BINARY
-#define MODE_DEFAULT O_WRONLY|O_CREAT|O_BINARY
-#else
-#define MODE_DEFAULT O_WRONLY|O_CREAT
+  switch(*fmt) {
+  case '-': case '+': case ' ': case '#': case '.':
+  case '0': case '1': case '2': case '3': case '4':
+  case '5': case '6': case '7': case '8': case '9':
+  case 'h': case 'l': case 'L': case 'z': case 'q':
+  case '*': case 'O':
+#if defined(MP_HAVE_INT_EXTENSIONS)
+  case 'I':
 #endif
+    return TRUE;
 
-  if(data->state.resume_from)
-    mode = MODE_DEFAULT|O_APPEND;
-  else
-    mode = MODE_DEFAULT|O_TRUNC;
-
-  fd = open(file->path, mode, conn->data->set.new_file_perms);
-  if(fd < 0) {
-    failf(data, "Can't open %s for writing", file->path);
-    return CURLE_WRITE_ERROR;
+  default:
+    return FALSE;
   }
+}
 
-  if(-1 != data->state.infilesize)
-    /* known size of data to "upload" */
-    Curl_pgrsSetUploadSize(data, data->state.infilesize);
+/******************************************************************
+ *
+ * Pass 1:
+ * Create an index with the type of each parameter entry and its
+ * value (may vary in size)
+ *
+ * Returns zero on success.
+ *
+ ******************************************************************/
 
-  /* treat the negative resume offset value as the case of "-" */
-  if(data->state.resume_from < 0) {
-    if(fstat(fd, &file_stat)) {
-      close(fd);
-      failf(data, "Can't get the size of %s", file->path);
-      return CURLE_WRITE_ERROR;
-    }
-    else
-      data->state.resume_from = (curl_off_t)file_stat.st_size;
-  }
+static int dprintf_Pass1(const char *format, va_stack_t *vto, char **endpos,
+                         va_list arglist)
+{
+  char *fmt = (char *)format;
+  int param_num = 0;
+  long this_param;
+  long width;
+  long precision;
+  int flags;
+  long max_param=0;
+  long i;
 
-  while(!result) {
-    int readcount;
-    result = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
-    if(result)
-      break;
-
-    if(readcount <= 0)  /* fix questionable compare error. curlvms */
-      break;
-
-    nread = (size_t)readcount;
-
-    /*skip bytes before resume point*/
-    if(data->state.resume_from) {
-      if((curl_off_t)nread <= data->state.resume_from) {
-        data->state.resume_from -= nread;
-        nread = 0;
-        buf2 = buf;
+  while(*fmt) {
+    if(*fmt++ == '%') {
+      if(*fmt == '%') {
+        fmt++;
+        continue; /* while */
       }
-      else {
-        buf2 = buf + data->state.resume_from;
-        nread -= (size_t)data->state.resume_from;
-        data->state.resume_from = 0;
+
+      flags = FLAGS_NEW;
+
+      /* Handle the positional case (N$) */
+
+      param_num++;
+
+      this_param = dprintf_DollarString(fmt, &fmt);
+      if(0 == this_param)
+        /* we got no positional, get the next counter */
+        this_param = param_num;
+
+      if(this_param > max_param)
+        max_param = this_param;
+
+      /*
+       * The parameter with number 'i' should be used. Next, we need
+       * to get SIZE and TYPE of the parameter. Add the information
+       * to our array.
+       */
+
+      width = 0;
+      precision = 0;
+
+      /* Handle the flags */
+
+      while(dprintf_IsQualifierNoDollar(fmt)) {
+#if defined(MP_HAVE_INT_EXTENSIONS)
+        if(!strncmp(fmt, "I32", 3)) {
+          flags |= FLAGS_LONG;
+          fmt += 3;
+        }
+        else if(!strncmp(fmt, "I64", 3)) {
+          flags |= FLAGS_LONGLONG;
+          fmt += 3;
+        }
+        else
+#endif
+
+        switch(*fmt++) {
+        case ' ':
+          flags |= FLAGS_SPACE;
+          break;
+        case '+':
+          flags |= FLAGS_SHOWSIGN;
+          break;
+        case '-':
+          flags |= FLAGS_LEFT;
+          flags &= ~FLAGS_PAD_NIL;
+          break;
+        case '#':
+          flags |= FLAGS_ALT;
+          break;
+        case '.':
+          if('*' == *fmt) {
+            /* The precision is picked from a specified parameter */
+
+            flags |= FLAGS_PRECPARAM;
+            fmt++;
+            param_num++;
+
+            i = dprintf_DollarString(fmt, &fmt);
+            if(i)
+              precision = i;
+            else
+              precision = param_num;
+
+            if(precision > max_param)
+              max_param = precision;
+          }
+          else {
+            flags |= FLAGS_PREC;
+            precision = strtol(fmt, &fmt, 10);
+          }
+          break;
+        case 'h':
+          flags |= FLAGS_SHORT;
+          break;
+#if defined(MP_HAVE_INT_EXTENSIONS)
+        case 'I':
+#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
+          flags |= FLAGS_LONGLONG;
+#else
+          flags |= FLAGS_LONG;
+#endif
+          break;
+#endif
+        case 'l':
+          if(flags & FLAGS_LONG)
+            flags |= FLAGS_LONGLONG;
+          else
+            flags |= FLAGS_LONG;
+          break;
+        case 'L':
+          flags |= FLAGS_LONGDOUBLE;
+          break;
+        case 'q':
+          flags |= FLAGS_LONGLONG;
+          break;
+        case 'z':
+          /* the code below generates a warning if -Wunreachable-code is
+             used */
+#if (SIZEOF_SIZE_T > CURL_SIZEOF_LONG)
+          flags |= FLAGS_LONGLONG;
+#else
+          flags |= FLAGS_LONG;
+#endif
+          break;
+        case 'O':
+#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
+          flags |= FLAGS_LONGLONG;
+#else
+          flags |= FLAGS_LONG;
+#endif
+          break;
+        case '0':
+          if(!(flags & FLAGS_LEFT))
+            flags |= FLAGS_PAD_NIL;
+          /* FALLTHROUGH */
+        case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':
+          flags |= FLAGS_WIDTH;
+          width = strtol(fmt-1, &fmt, 10);
+          break;
+        case '*':  /* Special case */
+          flags |= FLAGS_WIDTHPARAM;
+          param_num++;
+
+          i = dprintf_DollarString(fmt, &fmt);
+          if(i)
+            width = i;
+          else
+            width = param_num;
+          if(width > max_param)
+            max_param=width;
+          break;
+        default:
+          break;
+        }
+      } /* switch */
+
+      /* Handle the specifier */
+
+      i = this_param - 1;
+
+      if((i < 0) || (i >= MAX_PARAMETERS))
+        /* out of allowed range */
+        return 1;
+
+      switch (*fmt) {
+      case 'S':
+        flags |= FLAGS_ALT;
+        /* FALLTHROUGH */
+      case 's':
+        vto[i].type = FORMAT_STRING;
+        break;
+      case 'n':
+        vto[i].type = FORMAT_INTPTR;
+        break;
+      case 'p':
+        vto[i].type = FORMAT_PTR;
+        break;
+      case 'd': case 'i':
+        vto[i].type = FORMAT_INT;
+        break;
+      case 'u':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_UNSIGNED;
+        break;
+      case 'o':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_OCTAL;
+        break;
+      case 'x':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_HEX|FLAGS_UNSIGNED;
+        break;
+      case 'X':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_HEX|FLAGS_UPPER|FLAGS_UNSIGNED;
+        break;
+      case 'c':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_CHAR;
+        break;
+      case 'f':
+        vto[i].type = FORMAT_DOUBLE;
+        break;
+      case 'e':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATE;
+        break;
+      case 'E':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATE|FLAGS_UPPER;
+        break;
+      case 'g':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATG;
+        break;
+      case 'G':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATG|FLAGS_UPPER;
+        break;
+      default:
+        vto[i].type = FORMAT_UNKNOWN;
+        break;
+      } /* switch */
+
+      vto[i].flags = flags;
+      vto[i].width = width;
+      vto[i].precision = precision;
+
+      if(flags & FLAGS_WIDTHPARAM) {
+        /* we have the width specified from a parameter, so we make that
+           parameter's info setup properly */
+        long k = width - 1;
+        vto[i].width = k;
+        vto[k].type = FORMAT_WIDTH;
+        vto[k].flags = FLAGS_NEW;
+        /* can't use width or precision of width! */
+        vto[k].width = 0;
+        vto[k].precision = 0;
+      }
+      if(flags & FLAGS_PRECPARAM) {
+        /* we have the precision specified from a parameter, so we make that
+           parameter's info setup properly */
+        long k = precision - 1;
+        vto[i].precision = k;
+        vto[k].type = FORMAT_WIDTH;
+        vto[k].flags = FLAGS_NEW;
+        /* can't use width or precision of width! */
+        vto[k].width = 0;
+        vto[k].precision = 0;
+      }
+      *endpos++ = fmt + 1; /* end of this sequence */
+    }
+  }
+
+  /* Read the arg list parameters into our data list */
+  for(i=0; i<max_param; i++) {
+    /* Width/precision arguments must be read before the main argument
+       they are attached to */
+    if(vto[i].flags & FLAGS_WIDTHPARAM) {
+      vto[vto[i].width].data.num.as_signed =
+        (mp_intmax_t)va_arg(arglist, int);
+    }
+    if(vto[i].flags & FLAGS_PRECPARAM) {
+      vto[vto[i].precision].data.num.as_signed =
+        (mp_intmax_t)va_arg(arglist, int);
+    }
+
+    switch(vto[i].type) {
+    case FORMAT_STRING:
+      vto[i].data.str = va_arg(arglist, char *);
+      break;
+
+    case FORMAT_INTPTR:
+    case FORMAT_UNKNOWN:
+    case FORMAT_PTR:
+      vto[i].data.ptr = va_arg(arglist, void *);
+      break;
+
+    case FORMAT_INT:
+#ifdef HAVE_LONG_LONG_TYPE
+      if((vto[i].flags & FLAGS_LONGLONG) && (vto[i].flags & FLAGS_UNSIGNED))
+        vto[i].data.num.as_unsigned =
+          (mp_uintmax_t)va_arg(arglist, mp_uintmax_t);
+      else if(vto[i].flags & FLAGS_LONGLONG)
+        vto[i].data.num.as_signed =
+          (mp_intmax_t)va_arg(arglist, mp_intmax_t);
+      else
+#endif
+      {
+        if((vto[i].flags & FLAGS_LONG) && (vto[i].flags & FLAGS_UNSIGNED))
+          vto[i].data.num.as_unsigned =
+            (mp_uintmax_t)va_arg(arglist, unsigned long);
+        else if(vto[i].flags & FLAGS_LONG)
+          vto[i].data.num.as_signed =
+            (mp_intmax_t)va_arg(arglist, long);
+        else if(vto[i].flags & FLAGS_UNSIGNED)
+          vto[i].data.num.as_unsigned =
+            (mp_uintmax_t)va_arg(arglist, unsigned int);
+        else
+          vto[i].data.num.as_signed =
+            (mp_intmax_t)va_arg(arglist, int);
+      }
+      break;
+
+    case FORMAT_DOUBLE:
+      vto[i].data.dnum = va_arg(arglist, double);
+      break;
+
+    case FORMAT_WIDTH:
+      /* Argument has been read. Silently convert it into an integer
+       * for later use
+       */
+      vto[i].type = FORMAT_INT;
+      break;
+
+    default:
+      break;
+    }
+  }
+
+  return 0;
+
+}
+
+static int dprintf_formatf(
+  void *data, /* untouched by format(), just sent to the stream() function in
+                 the second argument */
+  /* function pointer called for each output character */
+  int (*stream)(int, FILE *),
+  const char *format,    /* %-formatted string */
+  va_list ap_save) /* list of parameters */
+{
+  /* Base-36 digits for numbers.  */
+  const char *digits = lower_digits;
+
+  /* Pointer into the format string.  */
+  char *f;
+
+  /* Number of characters written.  */
+  int done = 0;
+
+  long param; /* current parameter to read */
+  long param_num=0; /* parameter counter */
+
+  va_stack_t vto[MAX_PARAMETERS];
+  char *endpos[MAX_PARAMETERS];
+  char **end;
+
+  char work[BUFFSIZE];
+
+  va_stack_t *p;
+
+  /* 'workend' points to the final buffer byte position, but with an extra
+     byte as margin to avoid the (false?) warning Coverity gives us
+     otherwise */
+  char *workend = &work[sizeof(work) - 2];
+
+  /* Do the actual %-code parsing */
+  if(dprintf_Pass1(format, vto, endpos, ap_save))
+    return -1;
+
+  end = &endpos[0]; /* the initial end-position from the list dprintf_Pass1()
+                       created for us */
+
+  f = (char *)format;
+  while(*f != '\0') {
+    /* Format spec modifiers.  */
+    int is_alt;
+
+    /* Width of a field.  */
+    long width;
+
+    /* Precision of a field.  */
+    long prec;
+
+    /* Decimal integer is negative.  */
+    int is_neg;
+
+    /* Base of a number to be written.  */
+    long base;
+
+    /* Integral values to be written.  */
+    mp_uintmax_t num;
+
+    /* Used to convert negative in positive.  */
+    mp_intmax_t signed_num;
+
+    char *w;
+
+    if(*f != '%') {
+      /* This isn't a format spec, so write everything out until the next one
+         OR end of string is reached.  */
+      do {
+        OUTCHAR(*f);
+      } while(*++f && ('%' != *f));
+      continue;
+    }
+
+    ++f;
+
+    /* Check for "%%".  Note that although the ANSI standard lists
+       '%' as a conversion specifier, it says "The complete format
+       specification shall be `%%'," so we can avoid all the width
+       and precision processing.  */
+    if(*f == '%') {
+      ++f;
+      OUTCHAR('%');
+      continue;
+    }
+
+    /* If this is a positional parameter, the position must follow immediately
+       after the %, thus create a %<num>$ sequence */
+    param=dprintf_DollarString(f, &f);
+
+    if(!param)
+      param = param_num;
+    else
+      --param;
+
+    param_num++; /* increase this always to allow "%2$s %1$s %s" and then the
+                    third %s will pick the 3rd argument */
+
+    p = &vto[param];
+
+    /* pick up the specified width */
+    if(p->flags & FLAGS_WIDTHPARAM) {
+      width = (long)vto[p->width].data.num.as_signed;
+      param_num++; /* since the width is extracted from a parameter, we
+                      must skip that to get to the next one properly */
+      if(width < 0) {
+        /* "A negative field width is taken as a '-' flag followed by a
+           positive field width." */
+        width = -width;
+        p->flags |= FLAGS_LEFT;
+        p->flags &= ~FLAGS_PAD_NIL;
       }
     }
     else
-      buf2 = buf;
+      width = p->width;
 
-    /* write the data to the target */
-    nwrite = write(fd, buf2, nread);
-    if(nwrite != nread) {
-      result = CURLE_SEND_ERROR;
-      break;
+    /* pick up the specified precision */
+    if(p->flags & FLAGS_PRECPARAM) {
+      prec = (long)vto[p->precision].data.num.as_signed;
+      param_num++; /* since the precision is extracted from a parameter, we
+                      must skip that to get to the next one properly */
+      if(prec < 0)
+        /* "A negative precision is taken as if the precision were
+           omitted." */
+        prec = -1;
     }
-
-    bytecount += nread;
-
-    Curl_pgrsSetUploadCounter(data, bytecount);
-
-    if(Curl_pgrsUpdate(conn))
-      result = CURLE_ABORTED_BY_CALLBACK;
+    else if(p->flags & FLAGS_PREC)
+      prec = p->precision;
     else
-      result = Curl_speedcheck(data, now);
-  }
-  if(!result && Curl_pgrsUpdate(conn))
-    result = CURLE_ABORTED_BY_CALLBACK;
+      prec = -1;
 
-  close(fd);
+    is_alt = (p->flags & FLAGS_ALT) ? 1 : 0;
 
-  return result;
-}
+    switch(p->type) {
+    case FORMAT_INT:
+      num = p->data.num.as_unsigned;
+      if(p->flags & FLAGS_CHAR) {
+        /* Character.  */
+        if(!(p->flags & FLAGS_LEFT))
+          while(--width > 0)
+            OUTCHAR(' ');
+        OUTCHAR((char) num);
+        if(p->flags & FLAGS_LEFT)
+          while(--width > 0)
+            OUTCHAR(' ');
+        break;
+      }
+      if(p->flags & FLAGS_OCTAL) {
+        /* Octal unsigned integer.  */
+        base = 8;
+        goto unsigned_number;
+      }
+      else if(p->flags & FLAGS_HEX) {
+        /* Hexadecimal unsigned integer.  */
 
-/*
- * file_do() is the protocol-specific function for the do-phase, separated
- * from the connect-phase above. Other protocols merely setup the transfer in
- * the do-phase, to have it done in the main transfer loop but since some
- * platforms we support don't allow select()ing etc on file handles (as
- * opposed to sockets) we instead perform the whole do-operation in this
- * function.
- */
-static CURLcode file_do(struct connectdata *conn, bool *done)
-{
-  /* This implementation ignores the host name in conformance with
-     RFC 1738. Only local files (reachable via the standard file system)
-     are supported. This means that files on remotely mounted directories
-     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
-  */
-  CURLcode result = CURLE_OK;
-  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
-                          Windows version to have a different struct without
-                          having to redefine the simple word 'stat' */
-  curl_off_t expected_size=0;
-  bool size_known;
-  bool fstated=FALSE;
-  ssize_t nread;
-  struct Curl_easy *data = conn->data;
-  char *buf = data->state.buffer;
-  curl_off_t bytecount = 0;
-  int fd;
-  struct timeval now = Curl_tvnow();
-  struct FILEPROTO *file;
+        digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
+        base = 16;
+        goto unsigned_number;
+      }
+      else if(p->flags & FLAGS_UNSIGNED) {
+        /* Decimal unsigned integer.  */
+        base = 10;
+        goto unsigned_number;
+      }
 
-  *done = TRUE; /* unconditionally */
+      /* Decimal integer.  */
+      base = 10;
 
-  Curl_initinfo(data);
-  Curl_pgrsStartNow(data);
+      is_neg = (p->data.num.as_signed < (mp_intmax_t)0) ? 1 : 0;
+      if(is_neg) {
+        /* signed_num might fail to hold absolute negative minimum by 1 */
+        signed_num = p->data.num.as_signed + (mp_intmax_t)1;
+        signed_num = -signed_num;
+        num = (mp_uintmax_t)signed_num;
+        num += (mp_uintmax_t)1;
+      }
 
-  if(data->set.upload)
-    return file_upload(conn);
+      goto number;
 
-  file = conn->data->req.protop;
+      unsigned_number:
+      /* Unsigned number of base BASE.  */
+      is_neg = 0;
 
-  /* get the fd from the connection phase */
-  fd = file->fd;
+      number:
+      /* Number of base BASE.  */
 
-  /* VMS: This only works reliable for STREAMLF files */
-  if(-1 != fstat(fd, &statbuf)) {
-    /* we could stat it, then read out the size */
-    expected_size = statbuf.st_size;
-    /* and store the modification time */
-    data->info.filetime = (long)statbuf.st_mtime;
-    fstated = TRUE;
-  }
+      /* Supply a default precision if none was given.  */
+      if(prec == -1)
+        prec = 1;
 
-  if(fstated && !data->state.range && data->set.timecondition) {
-    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
-      *done = TRUE;
-      return CURLE_OK;
-    }
-  }
+      /* Put the number in WORK.  */
+      w = workend;
+      while(num > 0) {
+        *w-- = digits[num % base];
+        num /= base;
+      }
+      width -= (long)(workend - w);
+      prec -= (long)(workend - w);
 
-  /* If we have selected NOBODY and HEADER, it means that we only want file
-     information. Which for FILE can't be much more than the file size and
-     date. */
-  if(data->set.opt_no_body && data->set.include_header && fstated) {
-    time_t filetime;
-    struct tm buffer;
-    const struct tm *tm = &buffer;
-    snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(result)
-      return result;
+      if(is_alt && base == 8 && prec <= 0) {
+        *w-- = '0';
+        --width;
+      }
 
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
-                               (char *)"Accept-ranges: bytes\r\n", 0);
-    if(result)
-      return result;
+      if(prec > 0) {
+        width -= prec;
+        while(prec-- > 0)
+          *w-- = '0';
+      }
 
-    filetime = (time_t)statbuf.st_mtime;
-    result = Curl_gmtime(filetime, &buffer);
-    if(result)
-      return result;
+      if(is_alt && base == 16)
+        width -= 2;
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
-             Curl_month[tm->tm_mon],
-             tm->tm_year + 1900,
-             tm->tm_hour,
-             tm->tm_min,
-             tm->tm_sec);
-    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-    if(!result)
-      /* set the file size to make it available post transfer */
-      Curl_pgrsSetDownloadSize(data, expected_size);
-    return result;
-  }
+      if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
+        --width;
 
-  /* Check whether file range has been specified */
-  file_range(conn);
+      if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
+        while(width-- > 0)
+          OUTCHAR(' ');
 
-  /* Adjust the start offset in case we want to get the N last bytes
-   * of the stream iff the filesize could be determined */
-  if(data->state.resume_from < 0) {
-    if(!fstated) {
-      failf(data, "Can't get the size of file.");
-      return CURLE_READ_ERROR;
-    }
-    else
-      data->state.resume_from += (curl_off_t)statbuf.st_size;
-  }
+      if(is_neg)
+        OUTCHAR('-');
+      else if(p->flags & FLAGS_SHOWSIGN)
+        OUTCHAR('+');
+      else if(p->flags & FLAGS_SPACE)
+        OUTCHAR(' ');
 
-  if(data->state.resume_from <= expected_size)
-    expected_size -= data->state.resume_from;
-  else {
-    failf(data, "failed to resume file:// transfer");
-    return CURLE_BAD_DOWNLOAD_RESUME;
-  }
+      if(is_alt && base == 16) {
+        OUTCHAR('0');
+        if(p->flags & FLAGS_UPPER)
+          OUTCHAR('X');
+        else
+          OUTCHAR('x');
+      }
 
-  /* A high water mark has been specified so we obey... */
-  if(data->req.maxdownload > 0)
-    expected_size = data->req.maxdownload;
+      if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
+        while(width-- > 0)
+          OUTCHAR('0');
 
-  if(!fstated || (expected_size == 0))
-    size_known = FALSE;
-  else
-    size_known = TRUE;
+      /* Write the number.  */
+      while(++w <= workend) {
+        OUTCHAR(*w);
+      }
 
-  /* The following is a shortcut implementation of file reading
-     this is both more efficient than the former call to download() and
-     it avoids problems with select() and recv() on file descriptors
-     in Winsock */
-  if(fstated)
-    Curl_pgrsSetDownloadSize(data, expected_size);
-
-  if(data->state.resume_from) {
-    if(data->state.resume_from !=
-       lseek(fd, data->state.resume_from, SEEK_SET))
-      return CURLE_BAD_DOWNLOAD_RESUME;
-  }
-
-  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
-
-  while(!result) {
-    /* Don't fill a whole buffer if we want less than all data */
-    size_t bytestoread;
-
-    if(size_known) {
-      bytestoread =
-        (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
-        curlx_sotouz(expected_size) : BUFSIZE - 1;
-    }
-    else
-      bytestoread = BUFSIZE-1;
-
-    nread = read(fd, buf, bytestoread);
-
-    if(nread > 0)
-      buf[nread] = 0;
-
-    if(nread <= 0 || (size_known && (expected_size == 0)))
+      if(p->flags & FLAGS_LEFT)
+        while(width-- > 0)
+          OUTCHAR(' ');
       break;
 
-    bytecount += nread;
-    if(size_known)
-      expected_size -= nread;
+    case FORMAT_STRING:
+            /* String.  */
+      {
+        static const char null[] = "(nil)";
+        const char *str;
+        size_t len;
 
-    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
-    if(result)
-      return result;
+        str = (char *) p->data.str;
+        if(str == NULL) {
+          /* Write null[] if there's space.  */
+          if(prec == -1 || prec >= (long) sizeof(null) - 1) {
+            str = null;
+            len = sizeof(null) - 1;
+            /* Disable quotes around (nil) */
+            p->flags &= (~FLAGS_ALT);
+          }
+          else {
+            str = "";
+            len = 0;
+          }
+        }
+        else if(prec != -1)
+          len = (size_t)prec;
+        else
+          len = strlen(str);
 
-    Curl_pgrsSetDownloadCounter(data, bytecount);
+        width -= (len > LONG_MAX) ? LONG_MAX : (long)len;
 
-    if(Curl_pgrsUpdate(conn))
-      result = CURLE_ABORTED_BY_CALLBACK;
-    else
-      result = Curl_speedcheck(data, now);
-  }
-  if(Curl_pgrsUpdate(conn))
-    result = CURLE_ABORTED_BY_CALLBACK;
+        if(p->flags & FLAGS_ALT)
+          OUTCHAR('"');
 
-  return result;
-}
+        if(!(p->flags&FLAGS_LEFT))
+          while(width-- > 0)
+            OUTCHAR(' ');
 
+        while((len-- > 0) && *str)
+          OUTCHAR(*str++);
+        if(p->flags&FLAGS_LEFT)
+          while(width-- > 0)
+            OUTCHAR(' ');
+
+        if(p->flags & FLAGS_ALT)
+          OUTCHAR('"');
+      }
+      break;
+
+    case FORMAT_PTR:
+      /* Generic pointer.  */
+      {
+        void *ptr;
+        ptr = (void *) p->data.ptr;
+        if(ptr != NULL) {
+          /* If the pointer is not NULL, write it as a %#x spec.  */
+          base = 16;
+          digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
+          is_alt = 1;
+          num = (size_t) ptr;
+          is_neg = 0;
+          goto number;
+        }
+        else {
+          /* Write "(nil)" for a nil pointer.  */
+          static const char strnil[] = "(nil)";
+          const char *point;
+
+          width -= (long)(sizeof(strnil) - 1);
+          if(p->flags & FLAGS_LEFT)
+            while(width-- > 0)
+              OUTCHAR(' ');
+          for(point = strnil; *point != '\0'; ++point)
+            OUTCHAR(*point);
+          if(! (p->flags & FLAGS_LEFT))
+            while(width-- > 0)
+              OUTCHAR(' ');
+        }
+      }
+      break;
+
+    case FORMAT_DOUBLE:
+      {
+        char formatbuf[32]="%";
+        char *fptr = &formatbuf[1];
+        size_t left = sizeof(formatbuf)-strlen(formatbuf);
+        int len;
+
+        width = -1;
+        if(p->flags & FLAGS_WIDTH)
+          width = p->width;
+        else if(p->flags & FLAGS_WIDTHPARAM)
+          width = (long)vto[p->width].data.num.as_signed;
+
+        prec = -1;
+        if(p->flags & FLAGS_PREC)
+          prec = p->precision;
+        else if(p->flags & FLAGS_PRECPARAM)
+          prec = (long)vto[p->precision].data.num.as_signed;
+
+        if(p->flags & FLAGS_LEFT)
+          *fptr++ = '-';
+        if(p->flags & FLAGS_SHOWSIGN)
+          *fptr++ = '+';
+        if(p->flags & FLAGS_SPACE)
+          *fptr++ = ' ';
+        if(p->flags & FLAGS_ALT)
+          *fptr++ = '#';
+
+        *fptr = 0;
+
+        if(width >= 0) {
+          if(width >= (long)sizeof(work))
+            width = sizeof(work)-1;
+          /* RECURSIVE USAGE */
+          len = curl_msnprintf(fptr, left, "%ld", width);
+          fptr += len;
+          left -= len;
+        }
+        if(prec >= 0) {
+          /* for each digit in the integer part, we can have one less
+             precision */
+          size_t maxprec = sizeof(work) - 2;
+          double val = p->data.dnum;
+          while(val >= 10.0) {
+            val /= 10;
+            maxprec--;
+          }
+
+          if(prec > (long)maxprec)
+            prec = (long)maxprec-1;
+          /* RECURSIVE USAGE */
+          len = curl_msnprintf(fptr, left, ".%ld", prec);
+          fptr += len;
+        }
+        if(p->flags & FLAGS_LONG)
+          *fptr++ = 'l';
+
+        if(p->flags & FLAGS_FLOATE)
+          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'E':'e');
+        else if(p->flags & FLAGS_FLOATG)
+          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'G' : 'g');
+        else
+          *fptr++ = 'f';
+
+        *fptr = 0; /* and a final zero termination */
+
+        /* NOTE NOTE NOTE!! Not all sprintf implementations return number of
+           output characters */
+        (sprintf)(work, formatbuf, p->data.dnum);
+#ifdef CURLDEBUG
+        assert(strlen(work) <= sizeof(work));
 #endif
+        for(fptr=work; *fptr; fptr++)
+          OUTCHAR(*fptr);
+      }
+      break;
+
+    case FORMAT_INTPTR:
+      /* Answer the count of characters written.  */
+#ifdef HAVE_LONG_LONG_TYPE
+      if(p->flags & FLAGS_LONGLONG)
+        *(LONG_LONG_TYPE *) p->data.ptr = (LONG_LONG_TYPE)done;
+      else
+#endif
+        if(p->flags & FLAGS_LONG)
+          *(long *) p->data.ptr = (long)done;
+      else if(!(p->flags & FLAGS_SHORT))
+        *(int *) p->data.ptr = (int)done;
+      else
+        *(short *) p->data.ptr = (short)done;
+      break;
+
+    default:
+      break;
+    }
+    f = *end++; /* goto end of %-code */
+
+  }
+  return done;
+}
+
+/* fputc() look-alike */
+static int addbyter(int output, FILE *data)
+{
+  struct nsprintf *infop=(struct nsprintf *)data;
+  unsigned char outc = (unsigned char)output;
+
+  if(infop->length < infop->max) {
+    /* only do this if we haven't reached max length yet */
+    infop->buffer[0] = outc; /* store */
+    infop->buffer++; /* increase pointer */
+    infop->length++; /* we are now one byte larger */
+    return outc;     /* fputc() returns like this on success */
+  }
+  return -1;
+}
+
+int curl_mvsnprintf(char *buffer, size_t maxlength, const char *format,
+                    va_list ap_save)
+{
+  int retcode;
+  struct nsprintf info;
+
+  info.buffer = buffer;
+  info.length = 0;
+  info.max = maxlength;
+
+  retcode = dprintf_formatf(&info, addbyter, format, ap_save);
+  if((retcode != -1) && info.max) {
+    /* we terminate this with a zero byte */
+    if(info.max == info.length)
+      /* we're at maximum, scrap the last letter */
+      info.buffer[-1] = 0;
+    else
+      info.buffer[0] = 0;
+  }
+  return retcode;
+}
+
+int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...)
+{
+  int retcode;
+  va_list ap_save; /* argument pointer */
+  va_start(ap_save, format);
+  retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save);
+  va_end(ap_save);
+  return retcode;
+}
+
+/* fputc() look-alike */
+static int alloc_addbyter(int output, FILE *data)
+{
+  struct asprintf *infop=(struct asprintf *)data;
+  unsigned char outc = (unsigned char)output;
+
+  if(!infop->buffer) {
+    infop->buffer = malloc(32);
+    if(!infop->buffer) {
+      infop->fail = 1;
+      return -1; /* fail */
+    }
+    infop->alloc = 32;
+    infop->len =0;
+  }
+  else if(infop->len+1 >= infop->alloc) {
+    char *newptr = NULL;
+    size_t newsize = infop->alloc*2;
+
+    /* detect wrap-around or other overflow problems */
+    if(newsize > infop->alloc)
+      newptr = realloc(infop->buffer, newsize);
+
+    if(!newptr) {
+      infop->fail = 1;
+      return -1; /* fail */
+    }
+    infop->buffer = newptr;
+    infop->alloc = newsize;
+  }
+
+  infop->buffer[ infop->len ] = outc;
+
+  infop->len++;
+
+  return outc; /* fputc() returns like this on success */
+}
+
+char *curl_maprintf(const char *format, ...)
+{
+  va_list ap_save; /* argument pointer */
+  int retcode;
+  struct asprintf info;
+
+  info.buffer = NULL;
+  info.len = 0;
+  info.alloc = 0;
+  info.fail = 0;
+
+  va_start(ap_save, format);
+  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
+  va_end(ap_save);
+  if((-1 == retcode) || info.fail) {
+    if(info.alloc)
+      free(info.buffer);
+    return NULL;
+  }
+  if(info.alloc) {
+    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
+    return info.buffer;
+  }
+  else
+    return strdup("");
+}
+
+char *curl_mvaprintf(const char *format, va_list ap_save)
+{
+  int retcode;
+  struct asprintf info;
+
+  info.buffer = NULL;
+  info.len = 0;
+  info.alloc = 0;
+  info.fail = 0;
+
+  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
+  if((-1 == retcode) || info.fail) {
+    if(info.alloc)
+      free(info.buffer);
+    return NULL;
+  }
+
+  if(info.alloc) {
+    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
+    return info.buffer;
+  }
+  else
+    return strdup("");
+}
+
+static int storebuffer(int output, FILE *data)
+{
+  char **buffer = (char **)data;
+  unsigned char outc = (unsigned char)output;
+  **buffer = outc;
+  (*buffer)++;
+  return outc; /* act like fputc() ! */
+}
+
+int curl_msprintf(char *buffer, const char *format, ...)
+{
+  va_list ap_save; /* argument pointer */
+  int retcode;
+  va_start(ap_save, format);
+  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
+  va_end(ap_save);
+  *buffer=0; /* we terminate this with a zero byte */
+  return retcode;
+}
+
+int curl_mprintf(const char *format, ...)
+{
+  int retcode;
+  va_list ap_save; /* argument pointer */
+  va_start(ap_save, format);
+
+  retcode = dprintf_formatf(stdout, fputc, format, ap_save);
+  va_end(ap_save);
+  return retcode;
+}
+
+int curl_mfprintf(FILE *whereto, const char *format, ...)
+{
+  int retcode;
+  va_list ap_save; /* argument pointer */
+  va_start(ap_save, format);
+  retcode = dprintf_formatf(whereto, fputc, format, ap_save);
+  va_end(ap_save);
+  return retcode;
+}
+
+int curl_mvsprintf(char *buffer, const char *format, va_list ap_save)
+{
+  int retcode;
+  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
+  *buffer=0; /* we terminate this with a zero byte */
+  return retcode;
+}
+
+int curl_mvprintf(const char *format, va_list ap_save)
+{
+  return dprintf_formatf(stdout, fputc, format, ap_save);
+}
+
+int curl_mvfprintf(FILE *whereto, const char *format, va_list ap_save)
+{
+  return dprintf_formatf(whereto, fputc, format, ap_save);
+}

@@ -1,44 +1,15 @@
-        {
-          const BIGNUM *n;
-          const BIGNUM *e;
-          const BIGNUM *d;
-          const BIGNUM *p;
-          const BIGNUM *q;
-          const BIGNUM *dmp1;
-          const BIGNUM *dmq1;
-          const BIGNUM *iqmp;
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
 
-          RSA_get0_key(rsa, &n, &e, &d);
-          RSA_get0_factors(rsa, &p, &q);
-          RSA_get0_crt_params(rsa, &dmp1, &dmq1, &iqmp);
-          BN_print(mem, n);
-          push_certinfo("RSA Public Key", i);
-          print_pubkey_BN(rsa, n, i);
-          print_pubkey_BN(rsa, e, i);
-          print_pubkey_BN(rsa, d, i);
-          print_pubkey_BN(rsa, p, i);
-          print_pubkey_BN(rsa, q, i);
-          print_pubkey_BN(rsa, dmp1, i);
-          print_pubkey_BN(rsa, dmq1, i);
-          print_pubkey_BN(rsa, iqmp, i);
-        }
-#else
-        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
-        push_certinfo("RSA Public Key", i);
-        print_pubkey_BN(rsa, n, i);
-        print_pubkey_BN(rsa, e, i);
-        print_pubkey_BN(rsa, d, i);
-        print_pubkey_BN(rsa, p, i);
-        print_pubkey_BN(rsa, q, i);
-        print_pubkey_BN(rsa, dmp1, i);
-        print_pubkey_BN(rsa, dmq1, i);
-        print_pubkey_BN(rsa, iqmp, i);
-#endif
+  /* Generate 16 bytes of random data */
+  result = Curl_rand(data, &entropy[0], 4);
+  if(result)
+    return result;
 
-        break;
-      }
-      case EVP_PKEY_DSA:
-      {
-        DSA *dsa;
-#ifdef HAVE_OPAQUE_EVP_PKEY
-        dsa = EVP_PKEY_get0_DSA(pubkey);
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
+
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)

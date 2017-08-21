@@ -1,7 +1,7 @@
-	    &state->child_stdout);
-	if (child == -1) {
-		free(state->out_buf);
-		archive_string_free(&state->description);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
+  case CURLWC_DOWNLOADING: {
+    /* filelist has at least one file, lets get first one */
+    struct ftp_conn *ftpc = &conn->proto.ftpc;
+    struct curl_fileinfo *finfo = wildcard->filelist.head->ptr;
+
+    char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
+    if(!tmp_path)

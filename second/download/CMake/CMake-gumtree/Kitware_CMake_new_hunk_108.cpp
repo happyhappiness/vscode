@@ -1,12 +1,25 @@
-  archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
-                      "archive_read_support_format_rar");
+        {
+          const BIGNUM *n;
+          const BIGNUM *e;
 
-  rar = (struct rar *)calloc(sizeof(*rar), 1);
-  if (rar == NULL)
-  {
-    archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data");
-    return (ARCHIVE_FATAL);
-  }
+          RSA_get0_key(rsa, &n, &e, NULL);
+          BN_print(mem, n);
+          push_certinfo("RSA Public Key", i);
+          print_pubkey_BN(rsa, n, i);
+          print_pubkey_BN(rsa, e, i);
+        }
+#else
+        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
+        push_certinfo("RSA Public Key", i);
+        print_pubkey_BN(rsa, n, i);
+        print_pubkey_BN(rsa, e, i);
+#endif
 
-	/*
-	 * Until enough data has been read, we cannot tell about
+        break;
+      }
+      case EVP_PKEY_DSA:
+      {
+#ifndef OPENSSL_NO_DSA
+        DSA *dsa;
+#ifdef HAVE_OPAQUE_EVP_PKEY
+        dsa = EVP_PKEY_get0_DSA(pubkey);

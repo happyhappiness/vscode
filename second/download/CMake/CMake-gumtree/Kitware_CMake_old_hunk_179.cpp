@@ -1,12 +1,13 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_warc");
+	if (a->format_free != NULL)
+		(a->format_free)(a);
 
-	if ((w = malloc(sizeof(*w))) == NULL) {
+	pax = (struct pax *)malloc(sizeof(*pax));
+	if (pax == NULL) {
 		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
+		    "Can't allocate pax data");
 		return (ARCHIVE_FATAL);
 	}
-	memset(w, 0, sizeof(*w));
-
-	r = __archive_read_register_format(
-		a, w, "warc",
+	memset(pax, 0, sizeof(*pax));
+	a->format_data = pax;
+	a->format_name = "pax";
+	a->format_options = archive_write_pax_options;

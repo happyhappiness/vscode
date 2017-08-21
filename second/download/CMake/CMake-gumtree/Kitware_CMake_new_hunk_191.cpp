@@ -1,8 +1,7 @@
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes",
-		    (uintmax_t)a->filesize);
-		return (ARCHIVE_WARN);
-	}
-#if ARCHIVE_VERSION_NUMBER < 3999000
+		r = archive_match_time_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Failed : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {

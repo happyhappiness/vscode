@@ -1,7 +1,9 @@
-  case CURLWC_DOWNLOADING: {
-    /* filelist has at least one file, lets get first one */
-    struct ftp_conn *ftpc = &conn->proto.ftpc;
-    struct curl_fileinfo *finfo = wildcard->filelist->head->ptr;
-
-    char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
-    if(!tmp_path)
+  if(instate == FTP_SIZE) {
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+    if(-1 != filesize) {
+      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
+    }

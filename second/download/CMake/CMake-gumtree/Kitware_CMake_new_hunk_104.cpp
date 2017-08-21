@@ -1,15 +1,7 @@
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "Invalid Rockridge CL");
-					goto fail;
-				}
-			}
-			if (file->cl_offset == file->offset ||
-			    parent->rr_moved) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge CL");
-				goto fail;
-			}
-		}
-	}
+    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
+    return info.buffer;
+  }
+  return strdup("");
+}
+
+char *curl_mvaprintf(const char *format, va_list ap_save)

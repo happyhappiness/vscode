@@ -1,7 +1,7 @@
-	    && bytes_avail > zip->entry_bytes_remaining) {
-		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
-	}
-	if (bytes_avail < 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file body");
-		return (ARCHIVE_FATAL);
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Failed : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {

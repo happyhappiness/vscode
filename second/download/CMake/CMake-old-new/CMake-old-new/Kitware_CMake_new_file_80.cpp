@@ -1,6 +1,6 @@
 /*-
- * Copyright (c) 2007 Joerg Sonnenberger
- * Copyright (c) 2012 Michihiro NAKAJIMA
+ * Copyright (c) 2003-2007 Tim Kientzle
+ * Copyright (c) 2011-2012 Michihiro NAKAJIMA
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,492 +27,634 @@
 #include "archive_platform.h"
 __FBSDID("$FreeBSD$");
 
-#ifdef HAVE_SYS_WAIT_H
-#  include <sys/wait.h>
-#endif
+
 #ifdef HAVE_ERRNO_H
-#  include <errno.h>
+#include <errno.h>
 #endif
-#ifdef HAVE_FCNTL_H
-#  include <fcntl.h>
-#endif
-#ifdef HAVE_LIMITS_H
-#  include <limits.h>
-#endif
-#ifdef HAVE_SIGNAL_H
-#  include <signal.h>
-#endif
+#include <stdio.h>
 #ifdef HAVE_STDLIB_H
-#  include <stdlib.h>
+#include <stdlib.h>
 #endif
 #ifdef HAVE_STRING_H
-#  include <string.h>
-#endif
-#ifdef HAVE_UNISTD_H
-#  include <unistd.h>
+#include <string.h>
 #endif
 
 #include "archive.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
 #include "archive_private.h"
-#include "archive_string.h"
-#include "archive_read_private.h"
-#include "filter_fork.h"
+#include "archive_write_private.h"
 
+struct v7tar {
+	uint64_t	entry_bytes_remaining;
+	uint64_t	entry_padding;
 
-#if ARCHIVE_VERSION_NUMBER < 4000000
-/* Deprecated; remove in libarchive 4.0 */
-int
-archive_read_support_compression_program(struct archive *a, const char *cmd)
-{
-	return archive_read_support_filter_program(a, cmd);
-}
-
-int
-archive_read_support_compression_program_signature(struct archive *a,
-    const char *cmd, const void *signature, size_t signature_len)
-{
-	return archive_read_support_filter_program_signature(a,
-	    cmd, signature, signature_len);
-}
-#endif
-
-int
-archive_read_support_filter_program(struct archive *a, const char *cmd)
-{
-	return (archive_read_support_filter_program_signature(a, cmd, NULL, 0));
-}
-
-/*
- * The bidder object stores the command and the signature to watch for.
- * The 'inhibit' entry here is used to ensure that unchecked filters never
- * bid twice in the same pipeline.
- */
-struct program_bidder {
-	char *description;
-	char *cmd;
-	void *signature;
-	size_t signature_len;
-	int inhibit;
+	struct archive_string_conv *opt_sconv;
+	struct archive_string_conv *sconv_default;
+	int	init_default_conversion;
 };
 
-static int	program_bidder_bid(struct archive_read_filter_bidder *,
-		    struct archive_read_filter *upstream);
-static int	program_bidder_init(struct archive_read_filter *);
-static int	program_bidder_free(struct archive_read_filter_bidder *);
+/*
+ * Define structure of POSIX 'v7tar' tar header.
+ */
+#define	V7TAR_name_offset 0
+#define	V7TAR_name_size 100
+#define	V7TAR_mode_offset 100
+#define	V7TAR_mode_size 6
+#define	V7TAR_mode_max_size 8
+#define	V7TAR_uid_offset 108
+#define	V7TAR_uid_size 6
+#define	V7TAR_uid_max_size 8
+#define	V7TAR_gid_offset 116
+#define	V7TAR_gid_size 6
+#define	V7TAR_gid_max_size 8
+#define	V7TAR_size_offset 124
+#define	V7TAR_size_size 11
+#define	V7TAR_size_max_size 12
+#define	V7TAR_mtime_offset 136
+#define	V7TAR_mtime_size 11
+#define	V7TAR_mtime_max_size 12
+#define	V7TAR_checksum_offset 148
+#define	V7TAR_checksum_size 8
+#define	V7TAR_typeflag_offset 156
+#define	V7TAR_typeflag_size 1
+#define	V7TAR_linkname_offset 157
+#define	V7TAR_linkname_size 100
+#define	V7TAR_padding_offset 257
+#define	V7TAR_padding_size 255
 
 /*
- * The actual filter needs to track input and output data.
+ * A filled-in copy of the header for initialization.
  */
-struct program_filter {
-	struct archive_string description;
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	HANDLE		 child;
-#else
-	pid_t		 child;
-#endif
-	int		 exit_status;
-	int		 waitpid_return;
-	int		 child_stdin, child_stdout;
-
-	char		*out_buf;
-	size_t		 out_buf_len;
+static const char template_header[] = {
+	/* name: 100 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,
+	/* Mode, space-null termination: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* uid, space-null termination: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* gid, space-null termination: 8 bytes */
+	'0','0','0','0','0','0', ' ','\0',
+	/* size, space termination: 12 bytes */
+	'0','0','0','0','0','0','0','0','0','0','0', ' ',
+	/* mtime, space termination: 12 bytes */
+	'0','0','0','0','0','0','0','0','0','0','0', ' ',
+	/* Initial checksum value: 8 spaces */
+	' ',' ',' ',' ',' ',' ',' ',' ',
+	/* Typeflag: 1 byte */
+	0,
+	/* Linkname: 100 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,
+	/* Padding: 255 bytes */
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,
+	0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0
 };
 
-static ssize_t	program_filter_read(struct archive_read_filter *,
-		    const void **);
-static int	program_filter_close(struct archive_read_filter *);
-static void	free_state(struct program_bidder *);
+static ssize_t	archive_write_v7tar_data(struct archive_write *a, const void *buff,
+		    size_t s);
+static int	archive_write_v7tar_free(struct archive_write *);
+static int	archive_write_v7tar_close(struct archive_write *);
+static int	archive_write_v7tar_finish_entry(struct archive_write *);
+static int	archive_write_v7tar_header(struct archive_write *,
+		    struct archive_entry *entry);
+static int	archive_write_v7tar_options(struct archive_write *,
+		    const char *, const char *);
+static int	format_256(int64_t, char *, int);
+static int	format_number(int64_t, char *, int size, int max, int strict);
+static int	format_octal(int64_t, char *, int);
+static int	format_header_v7tar(struct archive_write *, char h[512],
+		    struct archive_entry *, int, struct archive_string_conv *);
 
-static int
-set_bidder_signature(struct archive_read_filter_bidder *bidder,
-    struct program_bidder *state, const void *signature, size_t signature_len)
-{
-
-	if (signature != NULL && signature_len > 0) {
-		state->signature_len = signature_len;
-		state->signature = malloc(signature_len);
-		memcpy(state->signature, signature, signature_len);
-	}
-
-	/*
-	 * Fill in the bidder object.
-	 */
-	bidder->data = state;
-	bidder->bid = program_bidder_bid;
-	bidder->init = program_bidder_init;
-	bidder->options = NULL;
-	bidder->free = program_bidder_free;
-	return (ARCHIVE_OK);
-}
-
+/*
+ * Set output format to 'v7tar' format.
+ */
 int
-archive_read_support_filter_program_signature(struct archive *_a,
-    const char *cmd, const void *signature, size_t signature_len)
+archive_write_set_format_v7tar(struct archive *_a)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	struct archive_read_filter_bidder *bidder;
-	struct program_bidder *state;
+	struct archive_write *a = (struct archive_write *)_a;
+	struct v7tar *v7tar;
 
-	/*
-	 * Get a bidder object from the read core.
-	 */
-	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_set_format_v7tar");
+
+	/* If someone else was already registered, unregister them. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
+
+	/* Basic internal sanity test. */
+	if (sizeof(template_header) != 512) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal: template_header wrong size: %zu should be 512",
+		    sizeof(template_header));
 		return (ARCHIVE_FATAL);
+	}
 
-	/*
-	 * Allocate our private state.
-	 */
-	state = (struct program_bidder *)calloc(1, sizeof (*state));
-	if (state == NULL)
-		goto memerr;
-	state->cmd = strdup(cmd);
-	if (state->cmd == NULL)
-		goto memerr;
-
-	return set_bidder_signature(bidder, state, signature, signature_len);
-memerr:
-	free_state(state);
-	archive_set_error(_a, ENOMEM, "Can't allocate memory");
-	return (ARCHIVE_FATAL);
-}
-
-static int
-program_bidder_free(struct archive_read_filter_bidder *self)
-{
-	struct program_bidder *state = (struct program_bidder *)self->data;
-
-	free_state(state);
+	v7tar = (struct v7tar *)calloc(1, sizeof(*v7tar));
+	if (v7tar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate v7tar data");
+		return (ARCHIVE_FATAL);
+	}
+	a->format_data = v7tar;
+	a->format_name = "tar (non-POSIX)";
+	a->format_options = archive_write_v7tar_options;
+	a->format_write_header = archive_write_v7tar_header;
+	a->format_write_data = archive_write_v7tar_data;
+	a->format_close = archive_write_v7tar_close;
+	a->format_free = archive_write_v7tar_free;
+	a->format_finish_entry = archive_write_v7tar_finish_entry;
+	a->archive.archive_format = ARCHIVE_FORMAT_TAR;
+	a->archive.archive_format_name = "tar (non-POSIX)";
 	return (ARCHIVE_OK);
 }
 
-static void
-free_state(struct program_bidder *state)
-{
-
-	if (state) {
-		free(state->cmd);
-		free(state->signature);
-		free(state);
-	}
-}
-
-/*
- * If we do have a signature, bid only if that matches.
- *
- * If there's no signature, we bid INT_MAX the first time
- * we're called, then never bid again.
- */
 static int
-program_bidder_bid(struct archive_read_filter_bidder *self,
-    struct archive_read_filter *upstream)
+archive_write_v7tar_options(struct archive_write *a, const char *key,
+    const char *val)
 {
-	struct program_bidder *state = self->data;
-	const char *p;
+	struct v7tar *v7tar = (struct v7tar *)a->format_data;
+	int ret = ARCHIVE_FAILED;
 
-	/* If we have a signature, use that to match. */
-	if (state->signature_len > 0) {
-		p = __archive_read_filter_ahead(upstream,
-		    state->signature_len, NULL);
-		if (p == NULL)
-			return (0);
-		/* No match, so don't bid. */
-		if (memcmp(p, state->signature, state->signature_len) != 0)
-			return (0);
-		return ((int)state->signature_len * 8);
+	if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);
+		else {
+			v7tar->opt_sconv = archive_string_conversion_to_charset(
+			    &a->archive, val, 0);
+			if (v7tar->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+		return (ret);
 	}
 
-	/* Otherwise, bid once and then never bid again. */
-	if (state->inhibit)
-		return (0);
-	state->inhibit = 1;
-	return (INT_MAX);
-}
-
-/*
- * Shut down the child, return ARCHIVE_OK if it exited normally.
- *
- * Note that the return value is sticky; if we're called again,
- * we won't reap the child again, but we will return the same status
- * (including error message if the child came to a bad end).
- */
-static int
-child_stop(struct archive_read_filter *self, struct program_filter *state)
-{
-	/* Close our side of the I/O with the child. */
-	if (state->child_stdin != -1) {
-		close(state->child_stdin);
-		state->child_stdin = -1;
-	}
-	if (state->child_stdout != -1) {
-		close(state->child_stdout);
-		state->child_stdout = -1;
-	}
-
-	if (state->child != 0) {
-		/* Reap the child. */
-		do {
-			state->waitpid_return
-			    = waitpid(state->child, &state->exit_status, 0);
-		} while (state->waitpid_return == -1 && errno == EINTR);
-#if defined(_WIN32) && !defined(__CYGWIN__)
-		CloseHandle(state->child);
-#endif
-		state->child = 0;
-	}
-
-	if (state->waitpid_return < 0) {
-		/* waitpid() failed?  This is ugly. */
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Child process exited badly");
-		return (ARCHIVE_WARN);
-	}
-
-#if !defined(_WIN32) || defined(__CYGWIN__)
-	if (WIFSIGNALED(state->exit_status)) {
-#ifdef SIGPIPE
-		/* If the child died because we stopped reading before
-		 * it was done, that's okay.  Some archive formats
-		 * have padding at the end that we routinely ignore. */
-		/* The alternative to this would be to add a step
-		 * before close(child_stdout) above to read from the
-		 * child until the child has no more to write. */
-		if (WTERMSIG(state->exit_status) == SIGPIPE)
-			return (ARCHIVE_OK);
-#endif
-		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-		    "Child process exited with signal %d",
-		    WTERMSIG(state->exit_status));
-		return (ARCHIVE_WARN);
-	}
-#endif /* !_WIN32 || __CYGWIN__ */
-
-	if (WIFEXITED(state->exit_status)) {
-		if (WEXITSTATUS(state->exit_status) == 0)
-			return (ARCHIVE_OK);
-
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Child process exited with status %d",
-		    WEXITSTATUS(state->exit_status));
-		return (ARCHIVE_WARN);
-	}
-
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
 	return (ARCHIVE_WARN);
 }
 
-/*
- * Use select() to decide whether the child is ready for read or write.
- */
-static ssize_t
-child_read(struct archive_read_filter *self, char *buf, size_t buf_len)
+static int
+archive_write_v7tar_header(struct archive_write *a, struct archive_entry *entry)
 {
-	struct program_filter *state = self->data;
-	ssize_t ret, requested, avail;
-	const char *p;
+	char buff[512];
+	int ret, ret2;
+	struct v7tar *v7tar;
+	struct archive_entry *entry_main;
+	struct archive_string_conv *sconv;
+
+	v7tar = (struct v7tar *)a->format_data;
+
+	/* Setup default string conversion. */
+	if (v7tar->opt_sconv == NULL) {
+		if (!v7tar->init_default_conversion) {
+			v7tar->sconv_default =
+			    archive_string_default_conversion_for_write(
+				&(a->archive));
+			v7tar->init_default_conversion = 1;
+		}
+		sconv = v7tar->sconv_default;
+	} else
+		sconv = v7tar->opt_sconv;
+
+	/* Sanity check. */
+	if (archive_entry_pathname(entry) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't record entry in tar file without pathname");
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Only regular files (not hardlinks) have data. */
+	if (archive_entry_hardlink(entry) != NULL ||
+	    archive_entry_symlink(entry) != NULL ||
+	    !(archive_entry_filetype(entry) == AE_IFREG))
+		archive_entry_set_size(entry, 0);
+
+	if (AE_IFDIR == archive_entry_filetype(entry)) {
+		const char *p;
+		size_t path_length;
+		/*
+		 * Ensure a trailing '/'.  Modify the entry so
+		 * the client sees the change.
+		 */
 #if defined(_WIN32) && !defined(__CYGWIN__)
-	HANDLE handle = (HANDLE)_get_osfhandle(state->child_stdout);
-#endif
+		const wchar_t *wp;
 
-	requested = buf_len > SSIZE_MAX ? SSIZE_MAX : buf_len;
+		wp = archive_entry_pathname_w(entry);
+		if (wp != NULL && wp[wcslen(wp) -1] != L'/') {
+			struct archive_wstring ws;
 
-	for (;;) {
-		do {
-#if defined(_WIN32) && !defined(__CYGWIN__)
-			/* Avoid infinity wait.
-			 * Note: If there is no data in the pipe, ReadFile()
-			 * called in read() never returns and so we won't
-			 * write remaining encoded data to the pipe.
-			 * Note: This way may cause performance problem.
-			 * we are looking forward to great code to resolve
-			 * this.  */
-			DWORD pipe_avail = -1;
-			int cnt = 2;
-
-			while (PeekNamedPipe(handle, NULL, 0, NULL,
-			    &pipe_avail, NULL) != 0 && pipe_avail == 0 &&
-			    cnt--)
-				Sleep(5);
-			if (pipe_avail == 0) {
-				ret = -1;
-				errno = EAGAIN;
-				break;
+			archive_string_init(&ws);
+			path_length = wcslen(wp);
+			if (archive_wstring_ensure(&ws,
+			    path_length + 2) == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate v7tar data");
+				archive_wstring_free(&ws);
+				return(ARCHIVE_FATAL);
 			}
+			/* Should we keep '\' ? */
+			if (wp[path_length -1] == L'\\')
+				path_length--;
+			archive_wstrncpy(&ws, wp, path_length);
+			archive_wstrappend_wchar(&ws, L'/');
+			archive_entry_copy_pathname_w(entry, ws.s);
+			archive_wstring_free(&ws);
+			p = NULL;
+		} else
 #endif
-			ret = read(state->child_stdout, buf, requested);
-		} while (ret == -1 && errno == EINTR);
+			p = archive_entry_pathname(entry);
+		/*
+		 * On Windows, this is a backup operation just in
+		 * case getting WCS failed. On POSIX, this is a
+		 * normal operation.
+		 */
+		if (p != NULL && p[strlen(p) - 1] != '/') {
+			struct archive_string as;
 
-		if (ret > 0)
-			return (ret);
-		if (ret == 0 || (ret == -1 && errno == EPIPE))
-			/* Child has closed its output; reap the child
-			 * and return the status. */
-			return (child_stop(self, state));
-		if (ret == -1 && errno != EAGAIN)
-			return (-1);
-
-		if (state->child_stdin == -1) {
-			/* Block until child has some I/O ready. */
-			__archive_check_child(state->child_stdin,
-			    state->child_stdout);
-			continue;
-		}
-
-		/* Get some more data from upstream. */
-		p = __archive_read_filter_ahead(self->upstream, 1, &avail);
-		if (p == NULL) {
-			close(state->child_stdin);
-			state->child_stdin = -1;
-			fcntl(state->child_stdout, F_SETFL, 0);
-			if (avail < 0)
-				return (avail);
-			continue;
-		}
-
-		do {
-			ret = write(state->child_stdin, p, avail);
-		} while (ret == -1 && errno == EINTR);
-
-		if (ret > 0) {
-			/* Consume whatever we managed to write. */
-			__archive_read_filter_consume(self->upstream, ret);
-		} else if (ret == -1 && errno == EAGAIN) {
-			/* Block until child has some I/O ready. */
-			__archive_check_child(state->child_stdin,
-			    state->child_stdout);
-		} else {
-			/* Write failed. */
-			close(state->child_stdin);
-			state->child_stdin = -1;
-			fcntl(state->child_stdout, F_SETFL, 0);
-			/* If it was a bad error, we're done; otherwise
-			 * it was EPIPE or EOF, and we can still read
-			 * from the child. */
-			if (ret == -1 && errno != EPIPE)
-				return (-1);
+			archive_string_init(&as);
+			path_length = strlen(p);
+			if (archive_string_ensure(&as,
+			    path_length + 2) == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate v7tar data");
+				archive_string_free(&as);
+				return(ARCHIVE_FATAL);
+			}
+#if defined(_WIN32) && !defined(__CYGWIN__)
+			/* NOTE: This might break the pathname
+			 * if the current code page is CP932 and
+			 * the pathname includes a character '\'
+			 * as a part of its multibyte pathname. */
+			if (p[strlen(p) -1] == '\\')
+				path_length--;
+			else
+#endif
+			archive_strncpy(&as, p, path_length);
+			archive_strappend_char(&as, '/');
+			archive_entry_copy_pathname(entry, as.s);
+			archive_string_free(&as);
 		}
 	}
+
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	/* Make sure the path separators in pathname, hardlink and symlink
+	 * are all slash '/', not the Windows path separator '\'. */
+	entry_main = __la_win_entry_in_posix_pathseparator(entry);
+	if (entry_main == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate v7tar data");
+		return(ARCHIVE_FATAL);
+	}
+	if (entry != entry_main)
+		entry = entry_main;
+	else
+		entry_main = NULL;
+#else
+	entry_main = NULL;
+#endif
+	ret = format_header_v7tar(a, buff, entry, 1, sconv);
+	if (ret < ARCHIVE_WARN) {
+		if (entry_main)
+			archive_entry_free(entry_main);
+		return (ret);
+	}
+	ret2 = __archive_write_output(a, buff, 512);
+	if (ret2 < ARCHIVE_WARN) {
+		if (entry_main)
+			archive_entry_free(entry_main);
+		return (ret2);
+	}
+	if (ret2 < ret)
+		ret = ret2;
+
+	v7tar->entry_bytes_remaining = archive_entry_size(entry);
+	v7tar->entry_padding = 0x1ff & (-(int64_t)v7tar->entry_bytes_remaining);
+	if (entry_main)
+		archive_entry_free(entry_main);
+	return (ret);
 }
 
-int
-__archive_read_program(struct archive_read_filter *self, const char *cmd)
+/*
+ * Format a basic 512-byte "v7tar" header.
+ *
+ * Returns -1 if format failed (due to field overflow).
+ * Note that this always formats as much of the header as possible.
+ * If "strict" is set to zero, it will extend numeric fields as
+ * necessary (overwriting terminators or using base-256 extensions).
+ *
+ */
+static int
+format_header_v7tar(struct archive_write *a, char h[512],
+    struct archive_entry *entry, int strict,
+    struct archive_string_conv *sconv)
 {
-	struct program_filter	*state;
-	static const size_t out_buf_len = 65536;
-	char *out_buf;
-	const char *prefix = "Program: ";
-	pid_t child;
-	size_t l;
+	unsigned int checksum;
+	int i, r, ret;
+	size_t copy_length;
+	const char *p, *pp;
+	int mytartype;
 
-	l = strlen(prefix) + strlen(cmd) + 1;
-	state = (struct program_filter *)calloc(1, sizeof(*state));
-	out_buf = (char *)malloc(out_buf_len);
-	if (state == NULL || out_buf == NULL ||
-	    archive_string_ensure(&state->description, l) == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate input data");
-		if (state != NULL) {
-			archive_string_free(&state->description);
-			free(state);
+	ret = 0;
+	mytartype = -1;
+	/*
+	 * The "template header" already includes the "v7tar"
+	 * signature, various end-of-field markers and other required
+	 * elements.
+	 */
+	memcpy(h, &template_header, 512);
+
+	/*
+	 * Because the block is already null-filled, and strings
+	 * are allowed to exactly fill their destination (without null),
+	 * I use memcpy(dest, src, strlen()) here a lot to copy strings.
+	 */
+	r = archive_entry_pathname_l(entry, &pp, &copy_length, sconv);
+	if (r != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
 		}
-		free(out_buf);
-		return (ARCHIVE_FATAL);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate pathname '%s' to %s",
+		    pp, archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
 	}
-	archive_strcpy(&state->description, prefix);
-	archive_strcat(&state->description, cmd);
-
-	self->code = ARCHIVE_FILTER_PROGRAM;
-	self->name = state->description.s;
-
-	state->out_buf = out_buf;
-	state->out_buf_len = out_buf_len;
-
-	child = __archive_create_child(cmd, &state->child_stdin,
-	    &state->child_stdout);
-	if (child == -1) {
-		free(state->out_buf);
-		archive_string_free(&state->description);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
-		    cmd);
-		return (ARCHIVE_FATAL);
+	if (strict && copy_length < V7TAR_name_size)
+		memcpy(h + V7TAR_name_offset, pp, copy_length);
+	else if (!strict && copy_length <= V7TAR_name_size)
+		memcpy(h + V7TAR_name_offset, pp, copy_length);
+	else {
+		/* Prefix is too long. */
+		archive_set_error(&a->archive, ENAMETOOLONG,
+		    "Pathname too long");
+		ret = ARCHIVE_FAILED;
 	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	state->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
-	if (state->child == NULL) {
-		child_stop(self, state);
-		free(state->out_buf);
-		archive_string_free(&state->description);
-		free(state);
-		archive_set_error(&self->archive->archive, EINVAL,
-		    "Can't initialize filter; unable to run program \"%s\"",
-		    cmd);
-		return (ARCHIVE_FATAL);
+
+	r = archive_entry_hardlink_l(entry, &p, &copy_length, sconv);
+	if (r != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Linkname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate linkname '%s' to %s",
+		    p, archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
 	}
-#else
-	state->child = child;
-#endif
+	if (copy_length > 0)
+		mytartype = '1';
+	else {
+		r = archive_entry_symlink_l(entry, &p, &copy_length, sconv);
+		if (r != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Can't translate linkname '%s' to %s",
+			    p, archive_string_conversion_charset_name(sconv));
+			ret = ARCHIVE_WARN;
+		}
+	}
+	if (copy_length > 0) {
+		if (copy_length >= V7TAR_linkname_size) {
+			archive_set_error(&a->archive, ENAMETOOLONG,
+			    "Link contents too long");
+			ret = ARCHIVE_FAILED;
+			copy_length = V7TAR_linkname_size;
+		}
+		memcpy(h + V7TAR_linkname_offset, p, copy_length);
+	}
 
-	self->data = state;
-	self->read = program_filter_read;
-	self->skip = NULL;
-	self->close = program_filter_close;
+	if (format_number(archive_entry_mode(entry) & 07777,
+	    h + V7TAR_mode_offset, V7TAR_mode_size,
+	    V7TAR_mode_max_size, strict)) {
+		archive_set_error(&a->archive, ERANGE,
+		    "Numeric mode too large");
+		ret = ARCHIVE_FAILED;
+	}
 
-	/* XXX Check that we can read at least one byte? */
+	if (format_number(archive_entry_uid(entry),
+	    h + V7TAR_uid_offset, V7TAR_uid_size, V7TAR_uid_max_size, strict)) {
+		archive_set_error(&a->archive, ERANGE,
+		    "Numeric user ID too large");
+		ret = ARCHIVE_FAILED;
+	}
+
+	if (format_number(archive_entry_gid(entry),
+	    h + V7TAR_gid_offset, V7TAR_gid_size, V7TAR_gid_max_size, strict)) {
+		archive_set_error(&a->archive, ERANGE,
+		    "Numeric group ID too large");
+		ret = ARCHIVE_FAILED;
+	}
+
+	if (format_number(archive_entry_size(entry),
+	    h + V7TAR_size_offset, V7TAR_size_size,
+	    V7TAR_size_max_size, strict)) {
+		archive_set_error(&a->archive, ERANGE,
+		    "File size out of range");
+		ret = ARCHIVE_FAILED;
+	}
+
+	if (format_number(archive_entry_mtime(entry),
+	    h + V7TAR_mtime_offset, V7TAR_mtime_size,
+	    V7TAR_mtime_max_size, strict)) {
+		archive_set_error(&a->archive, ERANGE,
+		    "File modification time too large");
+		ret = ARCHIVE_FAILED;
+	}
+
+	if (mytartype >= 0) {
+		h[V7TAR_typeflag_offset] = mytartype;
+	} else {
+		switch (archive_entry_filetype(entry)) {
+		case AE_IFREG: case AE_IFDIR:
+			break;
+		case AE_IFLNK:
+			h[V7TAR_typeflag_offset] = '2';
+			break;
+		case AE_IFCHR:
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "tar format cannot archive character device");
+			return (ARCHIVE_FAILED);
+		case AE_IFBLK:
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "tar format cannot archive block device");
+			return (ARCHIVE_FAILED);
+		case AE_IFIFO:
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "tar format cannot archive fifo");
+			return (ARCHIVE_FAILED);
+		case AE_IFSOCK:
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "tar format cannot archive socket");
+			return (ARCHIVE_FAILED);
+		default:
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "tar format cannot archive this (mode=0%lo)",
+			    (unsigned long)archive_entry_mode(entry));
+			ret = ARCHIVE_FAILED;
+		}
+	}
+
+	checksum = 0;
+	for (i = 0; i < 512; i++)
+		checksum += 255 & (unsigned int)h[i];
+	format_octal(checksum, h + V7TAR_checksum_offset, 6);
+	/* Can't be pre-set in the template. */
+	h[V7TAR_checksum_offset + 6] = '\0';
+	return (ret);
+}
+
+/*
+ * Format a number into a field, with some intelligence.
+ */
+static int
+format_number(int64_t v, char *p, int s, int maxsize, int strict)
+{
+	int64_t limit;
+
+	limit = ((int64_t)1 << (s*3));
+
+	/* "Strict" only permits octal values with proper termination. */
+	if (strict)
+		return (format_octal(v, p, s));
+
+	/*
+	 * In non-strict mode, we allow the number to overwrite one or
+	 * more bytes of the field termination.  Even old tar
+	 * implementations should be able to handle this with no
+	 * problem.
+	 */
+	if (v >= 0) {
+		while (s <= maxsize) {
+			if (v < limit)
+				return (format_octal(v, p, s));
+			s++;
+			limit <<= 3;
+		}
+	}
+
+	/* Base-256 can handle any number, positive or negative. */
+	return (format_256(v, p, maxsize));
+}
+
+/*
+ * Format a number into the specified field using base-256.
+ */
+static int
+format_256(int64_t v, char *p, int s)
+{
+	p += s;
+	while (s-- > 0) {
+		*--p = (char)(v & 0xff);
+		v >>= 8;
+	}
+	*p |= 0x80; /* Set the base-256 marker bit. */
+	return (0);
+}
+
+/*
+ * Format a number into the specified field.
+ */
+static int
+format_octal(int64_t v, char *p, int s)
+{
+	int len;
+
+	len = s;
+
+	/* Octal values can't be negative, so use 0. */
+	if (v < 0) {
+		while (len-- > 0)
+			*p++ = '0';
+		return (-1);
+	}
+
+	p += s;		/* Start at the end and work backwards. */
+	while (s-- > 0) {
+		*--p = (char)('0' + (v & 7));
+		v >>= 3;
+	}
+
+	if (v == 0)
+		return (0);
+
+	/* If it overflowed, fill field with max value. */
+	while (len-- > 0)
+		*p++ = '7';
+
+	return (-1);
+}
+
+static int
+archive_write_v7tar_close(struct archive_write *a)
+{
+	return (__archive_write_nulls(a, 512*2));
+}
+
+static int
+archive_write_v7tar_free(struct archive_write *a)
+{
+	struct v7tar *v7tar;
+
+	v7tar = (struct v7tar *)a->format_data;
+	free(v7tar);
+	a->format_data = NULL;
 	return (ARCHIVE_OK);
 }
 
 static int
-program_bidder_init(struct archive_read_filter *self)
+archive_write_v7tar_finish_entry(struct archive_write *a)
 {
-	struct program_bidder   *bidder_state;
+	struct v7tar *v7tar;
+	int ret;
 
-	bidder_state = (struct program_bidder *)self->bidder->data;
-	return (__archive_read_program(self, bidder_state->cmd));
+	v7tar = (struct v7tar *)a->format_data;
+	ret = __archive_write_nulls(a,
+	    (size_t)(v7tar->entry_bytes_remaining + v7tar->entry_padding));
+	v7tar->entry_bytes_remaining = v7tar->entry_padding = 0;
+	return (ret);
 }
 
 static ssize_t
-program_filter_read(struct archive_read_filter *self, const void **buff)
+archive_write_v7tar_data(struct archive_write *a, const void *buff, size_t s)
 {
-	struct program_filter *state;
-	ssize_t bytes;
-	size_t total;
-	char *p;
+	struct v7tar *v7tar;
+	int ret;
 
-	state = (struct program_filter *)self->data;
-
-	total = 0;
-	p = state->out_buf;
-	while (state->child_stdout != -1 && total < state->out_buf_len) {
-		bytes = child_read(self, p, state->out_buf_len - total);
-		if (bytes < 0)
-			/* No recovery is possible if we can no longer
-			 * read from the child. */
-			return (ARCHIVE_FATAL);
-		if (bytes == 0)
-			/* We got EOF from the child. */
-			break;
-		total += bytes;
-		p += bytes;
-	}
-
-	*buff = state->out_buf;
-	return (total);
-}
-
-static int
-program_filter_close(struct archive_read_filter *self)
-{
-	struct program_filter	*state;
-	int e;
-
-	state = (struct program_filter *)self->data;
-	e = child_stop(self, state);
-
-	/* Release our private data. */
-	free(state->out_buf);
-	archive_string_free(&state->description);
-	free(state);
-
-	return (e);
+	v7tar = (struct v7tar *)a->format_data;
+	if (s > v7tar->entry_bytes_remaining)
+		s = (size_t)v7tar->entry_bytes_remaining;
+	ret = __archive_write_output(a, buff, s);
+	v7tar->entry_bytes_remaining -= s;
+	if (ret != ARCHIVE_OK)
+		return (ret);
+	return (s);
 }

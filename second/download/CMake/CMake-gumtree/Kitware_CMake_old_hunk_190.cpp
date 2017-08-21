@@ -1,7 +1,7 @@
-		bytes_to_write = size;
-		/* Seek if necessary to the specified offset. */
-		if (a->offset < a->fd_offset) {
-			/* Can't support backword move. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Seek failed");
-			return (ARCHIVE_FATAL);
+		r = archive_match_path_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {

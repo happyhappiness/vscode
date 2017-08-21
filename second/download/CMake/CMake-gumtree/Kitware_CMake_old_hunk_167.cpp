@@ -1,7 +1,7 @@
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Invalid Rockridge CL");
-				return (NULL);
-			}
-			parent->subdirs++;
-			/* Overwrite an offset and a number of this "CL" entry
+	if (a->restore_pwd >= 0) {
+		r = fchdir(a->restore_pwd);
+		if (r != 0) {
+			archive_set_error(&a->archive, errno, "chdir() failure");
+			ret = ARCHIVE_FATAL;
+		}
+		close(a->restore_pwd);

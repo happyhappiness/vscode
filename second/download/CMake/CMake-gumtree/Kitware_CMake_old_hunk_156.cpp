@@ -1,8 +1,12 @@
-	bidder->free = NULL;
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	return (ARCHIVE_OK);
-#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
-	return (ARCHIVE_OK);
-#else
-	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
-	    "Using external lzma program for lzma decompression");
+{
+	struct sparse_block *p;
+
+	p = (struct sparse_block *)malloc(sizeof(*p));
+	if (p == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+	memset(p, 0, sizeof(*p));
+	if (tar->sparse_last != NULL)
+		tar->sparse_last->next = p;
+	else

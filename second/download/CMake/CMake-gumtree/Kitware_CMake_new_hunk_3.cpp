@@ -1,7 +1,32 @@
-      return result;
+	ssize_t size;
+	void *value = NULL;
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(header, sizeof(header),
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
+
+	if (fd >= 0) {
+#if ARCHIVE_XATTR_LINUX
+		size = fgetxattr(fd, name, NULL, 0);
+#elif ARCHIVE_XATTR_DARWIN
+		size = fgetxattr(fd, name, NULL, 0, 0, 0);
+#elif ARCHIVE_XATTR_AIX
+		size = fgetea(fd, name, NULL, 0);
+#endif
+	} else if (!a->follow_symlinks) {
+#if ARCHIVE_XATTR_LINUX
+		size = lgetxattr(accpath, name, NULL, 0);
+#elif ARCHIVE_XATTR_DARWIN
+		size = getxattr(accpath, name, NULL, 0, 0, XATTR_NOFOLLOW);
+#elif ARCHIVE_XATTR_AIX
+		size = lgetea(accpath, name, NULL, 0);
+#endif
+	} else {
+#if ARCHIVE_XATTR_LINUX
+		size = getxattr(accpath, name, NULL, 0);
+#elif ARCHIVE_XATTR_DARWIN
+		size = getxattr(accpath, name, NULL, 0, 0, 0);
+#elif ARCHIVE_XATTR_AIX
+		size = getea(accpath, name, NULL, 0);
+#endif
+	}
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,

@@ -1,7 +1,27 @@
-  case CURLWC_DOWNLOADING: {
-    /* filelist has at least one file, lets get first one */
-    struct ftp_conn *ftpc = &conn->proto.ftpc;
-    struct curl_fileinfo *finfo = wildcard->filelist->head->ptr;
+    pwd = conn->passwd;
+  }
 
-    char *tmp_path = aprintf("%s%s", wildcard->path, finfo->filename);
-    if(!tmp_path)
+  snprintf(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd);
+
+  result = Curl_base64_encode(data,
+                              data->state.buffer, strlen(data->state.buffer),
+                              &authorization, &size);
+  if(result)
+    return result;
+
+  if(!authorization)
+    return CURLE_REMOTE_ACCESS_DENIED;
+
+  free(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy ? "Proxy-" : "",
+                   authorization);
+  free(authorization);
+  if(!*userp)
+    return CURLE_OUT_OF_MEMORY;
+
+  return CURLE_OK;
+}
+
+/* pickoneauth() selects the most favourable authentication method from the

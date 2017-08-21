@@ -1,20 +1,32 @@
-  return 1;
-}
+		return (ARCHIVE_FATAL);
+	}
 
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
-static void showtime(struct Curl_easy *data,
-                     const char *text,
-                     time_t stamp)
-{
-  struct tm buffer;
-  const struct tm *tm = &buffer;
-  char str[96];
-  CURLcode result = Curl_gmtime(stamp, &buffer);
-  if(result)
-    return;
 
-  snprintf(str,
-           sizeof(str),
-           "\t %s: %s, %02d %s %4d %02d:%02d:%02d GMT",
-           text,
-           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+	if (fd >= 0) {
+#if ARCHIVE_XATTR_LINUX
+		size = fgetxattr(fd, name, value, size);
+#elif ARCHIVE_XATTR_DARWIN
+		size = fgetxattr(fd, name, value, size, 0, 0);
+#elif ARCHIVE_XATTR_AIX
+		size = fgetea(fd, name, value, size);
+#endif
+	} else if (!a->follow_symlinks) {
+#if ARCHIVE_XATTR_LINUX
+		size = lgetxattr(accpath, name, value, size);
+#elif ARCHIVE_XATTR_DARWIN
+		size = getxattr(accpath, name, value, size, 0, XATTR_NOFOLLOW);
+#elif ARCHIVE_XATTR_AIX
+		size = lgetea(accpath, name, value, size);
+#endif
+	} else {
+#if ARCHIVE_XATTR_LINUX
+		size = getxattr(accpath, name, value, size);
+#elif ARCHIVE_XATTR_DARWIN
+		size = getxattr(accpath, name, value, size, 0, 0);
+#elif ARCHIVE_XATTR_AIX
+		size = getea(accpath, name, value, size);
+#endif
+	}
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,

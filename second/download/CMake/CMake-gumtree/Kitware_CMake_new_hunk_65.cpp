@@ -1,9 +1,26 @@
+     * The application kindly asks for a differently sized receive buffer.
+     * If it seems reasonable, we'll use it.
+     */
+    arg = va_arg(param, long);
 
-size_t Curl_cyassl_version(char *buffer, size_t size)
-{
-#if LIBCYASSL_VERSION_HEX >= 0x03006000
-  return snprintf(buffer, size, "wolfSSL/%s", wolfSSL_lib_version());
-#elif defined(WOLFSSL_VERSION)
-  return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
-#elif defined(CYASSL_VERSION)
-  return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);
+    if(arg > READBUFFER_MAX)
+      arg = READBUFFER_MAX;
+    else if(arg < 1)
+      arg = READBUFFER_SIZE;
+    else if(arg < READBUFFER_MIN)
+      arg = READBUFFER_MIN;
+
+    /* Resize if new size */
+    if(arg != data->set.buffer_size) {
+      char *newbuff = realloc(data->state.buffer, arg + 1);
+      if(!newbuff) {
+        DEBUGF(fprintf(stderr, "Error: realloc of buffer failed\n"));
+        result = CURLE_OUT_OF_MEMORY;
+      }
+      else
+        data->state.buffer = newbuff;
+    }
+    data->set.buffer_size = arg;
+
+    break;
+

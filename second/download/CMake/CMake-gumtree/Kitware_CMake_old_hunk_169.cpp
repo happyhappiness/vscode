@@ -1,6 +1,7 @@
-	/* Get a real compressed file size. */
-	lha->compsize -= extdsize - 2;
-
-	if (sum_calculated != headersum) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "LHa header sum error");
+		return (r);
+	if ((size_t)r < size) {
+		archive_set_error(&a->archive, 0,
+		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
+		return (ARCHIVE_WARN);
+	}
+#if ARCHIVE_VERSION_NUMBER < 3999000

@@ -1,2390 +1,2014 @@
-/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-   file Copyright.txt or https://cmake.org/licensing for details.  */
-#include "cmCTestTestHandler.h"
+/*-
+ * Copyright (c) 2003-2009 Tim Kientzle
+ * Copyright (c) 2010-2012 Michihiro NAKAJIMA
+ * Copyright (c) 2016 Martin Matuska
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-#include "cmsys/Base64.h"
-#include "cmsys/Directory.hxx"
-#include "cmsys/FStream.hxx"
-#include "cmsys/RegularExpression.hxx"
-#include <algorithm>
-#include <functional>
-#include <iomanip>
-#include <iterator>
-#include <set>
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_disk_entry_from_file.c 201084 2009-12-28 02:14:09Z kientzle $");
 
-#include "cmAlgorithms.h"
-#include "cmCTest.h"
-#include "cmCTestBatchTestHandler.h"
-#include "cmCTestMultiProcessHandler.h"
-#include "cmCommand.h"
-#include "cmGeneratedFileStream.h"
-#include "cmGlobalGenerator.h"
-#include "cmMakefile.h"
-#include "cmState.h"
-#include "cmStateSnapshot.h"
-#include "cmSystemTools.h"
-#include "cmWorkingDirectory.h"
-#include "cmXMLWriter.h"
-#include "cm_auto_ptr.hxx"
-#include "cm_utf8.h"
-#include "cmake.h"
+/* This is the tree-walking code for POSIX systems. */
+#if !defined(_WIN32) || defined(__CYGWIN__)
 
-class cmExecutionStatus;
+#ifdef HAVE_SYS_TYPES_H
+/* Mac OSX requires sys/types.h before sys/acl.h. */
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_ACL_H
+#include <sys/acl.h>
+#endif
+#ifdef HAVE_DARWIN_ACL
+#include <membership.h>
+#include <grp.h>
+#include <pwd.h>
+#endif
+#ifdef HAVE_SYS_EXTATTR_H
+#include <sys/extattr.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#if defined(HAVE_SYS_XATTR_H)
+#include <sys/xattr.h>
+#elif defined(HAVE_ATTR_XATTR_H)
+#include <attr/xattr.h>
+#endif
+#ifdef HAVE_SYS_EA_H
+#include <sys/ea.h>
+#endif
+#ifdef HAVE_ACL_LIBACL_H
+#include <acl/libacl.h>
+#endif
+#ifdef HAVE_COPYFILE_H
+#include <copyfile.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#ifdef HAVE_LINUX_TYPES_H
+#include <linux/types.h>
+#endif
+#ifdef HAVE_LINUX_FIEMAP_H
+#include <linux/fiemap.h>
+#endif
+#ifdef HAVE_LINUX_FS_H
+#include <linux/fs.h>
+#endif
+/*
+ * Some Linux distributions have both linux/ext2_fs.h and ext2fs/ext2_fs.h.
+ * As the include guards don't agree, the order of include is important.
+ */
+#ifdef HAVE_LINUX_EXT2_FS_H
+#include <linux/ext2_fs.h>      /* for Linux file flags */
+#endif
+#if defined(HAVE_EXT2FS_EXT2_FS_H) && !defined(__CYGWIN__)
+#include <ext2fs/ext2_fs.h>     /* Linux file flags, broken on Cygwin */
+#endif
+#ifdef HAVE_PATHS_H
+#include <paths.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 
-class cmCTestSubdirCommand : public cmCommand
+#include "archive.h"
+#include "archive_entry.h"
+#include "archive_private.h"
+#include "archive_read_disk_private.h"
+
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	0
+#endif
+
+/*
+ * Linux and FreeBSD plug this obvious hole in POSIX.1e in
+ * different ways.
+ */
+#if HAVE_ACL_GET_PERM
+#define	ACL_GET_PERM acl_get_perm
+#elif HAVE_ACL_GET_PERM_NP
+#define	ACL_GET_PERM acl_get_perm_np
+#endif
+
+/* NFSv4 platform ACL type */
+#if HAVE_SUN_ACL
+#define	ARCHIVE_PLATFORM_ACL_TYPE_NFS4	ACE_T
+#elif HAVE_DARWIN_ACL
+#define	ARCHIVE_PLATFORM_ACL_TYPE_NFS4	ACL_TYPE_EXTENDED
+#elif HAVE_ACL_TYPE_NFS4
+#define	ARCHIVE_PLATFORM_ACL_TYPE_NFS4	ACL_TYPE_NFS4
+#endif
+
+static int setup_acls(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_mac_metadata(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_xattrs(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_sparse(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+#if defined(HAVE_LINUX_FIEMAP_H)
+static int setup_sparse_fiemap(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+#endif
+
+int
+archive_read_disk_entry_from_file(struct archive *_a,
+    struct archive_entry *entry,
+    int fd,
+    const struct stat *st)
 {
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  cmCommand* Clone() CM_OVERRIDE
-  {
-    cmCTestSubdirCommand* c = new cmCTestSubdirCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-  }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& /*unused*/) CM_OVERRIDE;
-
-  cmCTestTestHandler* TestHandler;
-};
-
-bool cmCTestSubdirCommand::InitialPass(std::vector<std::string> const& args,
-                                       cmExecutionStatus& /*unused*/)
-{
-  if (args.empty()) {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-  }
-  std::vector<std::string>::const_iterator it;
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  for (it = args.begin(); it != args.end(); ++it) {
-    std::string fname;
-
-    if (cmSystemTools::FileIsFullPath(it->c_str())) {
-      fname = *it;
-    } else {
-      fname = cwd;
-      fname += "/";
-      fname += *it;
-    }
-
-    if (!cmSystemTools::FileIsDirectory(fname)) {
-      // No subdirectory? So what...
-      continue;
-    }
-    bool readit = false;
-    {
-      cmWorkingDirectory workdir(fname);
-      const char* testFilename;
-      if (cmSystemTools::FileExists("CTestTestfile.cmake")) {
-        // does the CTestTestfile.cmake exist ?
-        testFilename = "CTestTestfile.cmake";
-      } else if (cmSystemTools::FileExists("DartTestfile.txt")) {
-        // does the DartTestfile.txt exist ?
-        testFilename = "DartTestfile.txt";
-      } else {
-        // No CTestTestfile? Who cares...
-        continue;
-      }
-      fname += "/";
-      fname += testFilename;
-      readit = this->Makefile->ReadDependentFile(fname.c_str());
-    }
-    if (!readit) {
-      std::string m = "Could not find include file: ";
-      m += fname;
-      this->SetError(m);
-      return false;
-    }
-  }
-  return true;
-}
-
-class cmCTestAddSubdirectoryCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  cmCommand* Clone() CM_OVERRIDE
-  {
-    cmCTestAddSubdirectoryCommand* c = new cmCTestAddSubdirectoryCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-  }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  bool InitialPass(std::vector<std::string> const& args,
-                   cmExecutionStatus& /*unused*/) CM_OVERRIDE;
-
-  cmCTestTestHandler* TestHandler;
-};
-
-bool cmCTestAddSubdirectoryCommand::InitialPass(
-  std::vector<std::string> const& args, cmExecutionStatus& /*unused*/)
-{
-  if (args.empty()) {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-  }
-
-  std::string fname = cmSystemTools::GetCurrentWorkingDirectory();
-  fname += "/";
-  fname += args[0];
-
-  if (!cmSystemTools::FileExists(fname.c_str())) {
-    // No subdirectory? So what...
-    return true;
-  }
-  bool readit = false;
-  {
-    const char* testFilename;
-    if (cmSystemTools::FileExists("CTestTestfile.cmake")) {
-      // does the CTestTestfile.cmake exist ?
-      testFilename = "CTestTestfile.cmake";
-    } else if (cmSystemTools::FileExists("DartTestfile.txt")) {
-      // does the DartTestfile.txt exist ?
-      testFilename = "DartTestfile.txt";
-    } else {
-      // No CTestTestfile? Who cares...
-      return true;
-    }
-    fname += "/";
-    fname += testFilename;
-    readit = this->Makefile->ReadDependentFile(fname.c_str());
-  }
-  if (!readit) {
-    std::string m = "Could not find include file: ";
-    m += fname;
-    this->SetError(m);
-    return false;
-  }
-  return true;
-}
-
-class cmCTestAddTestCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  cmCommand* Clone() CM_OVERRIDE
-  {
-    cmCTestAddTestCommand* c = new cmCTestAddTestCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-  }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  bool InitialPass(std::vector<std::string> const& /*args*/,
-                   cmExecutionStatus& /*unused*/) CM_OVERRIDE;
-
-  cmCTestTestHandler* TestHandler;
-};
-
-bool cmCTestAddTestCommand::InitialPass(std::vector<std::string> const& args,
-                                        cmExecutionStatus& /*unused*/)
-{
-  if (args.size() < 2) {
-    this->SetError("called with incorrect number of arguments");
-    return false;
-  }
-  return this->TestHandler->AddTest(args);
-}
-
-class cmCTestSetTestsPropertiesCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  cmCommand* Clone() CM_OVERRIDE
-  {
-    cmCTestSetTestsPropertiesCommand* c = new cmCTestSetTestsPropertiesCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-  }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-   */
-  bool InitialPass(std::vector<std::string> const& /*args*/,
-                   cmExecutionStatus& /*unused*/) CM_OVERRIDE;
-
-  cmCTestTestHandler* TestHandler;
-};
-
-bool cmCTestSetTestsPropertiesCommand::InitialPass(
-  std::vector<std::string> const& args, cmExecutionStatus& /*unused*/)
-{
-  return this->TestHandler->SetTestsProperties(args);
-}
-
-class cmCTestSetDirectoryPropertiesCommand : public cmCommand
-{
-public:
-  /**
-   * This is a virtual constructor for the command.
-   */
-  cmCommand* Clone() CM_OVERRIDE
-  {
-    cmCTestSetDirectoryPropertiesCommand* c =
-      new cmCTestSetDirectoryPropertiesCommand;
-    c->TestHandler = this->TestHandler;
-    return c;
-  }
-
-  /**
-   * This is called when the command is first encountered in
-   * the CMakeLists.txt file.
-  */
-  bool InitialPass(std::vector<std::string> const& /*unused*/,
-                   cmExecutionStatus& /*unused*/) CM_OVERRIDE;
-
-  cmCTestTestHandler* TestHandler;
-};
-
-bool cmCTestSetDirectoryPropertiesCommand::InitialPass(
-  std::vector<std::string> const& args, cmExecutionStatus&)
-{
-  return this->TestHandler->SetDirectoryProperties(args);
-}
-
-// get the next number in a string with numbers separated by ,
-// pos is the start of the search and pos2 is the end of the search
-// pos becomes pos2 after a call to GetNextNumber.
-// -1 is returned at the end of the list.
-inline int GetNextNumber(std::string const& in, int& val,
-                         std::string::size_type& pos,
-                         std::string::size_type& pos2)
-{
-  pos2 = in.find(',', pos);
-  if (pos2 != std::string::npos) {
-    if (pos2 - pos == 0) {
-      val = -1;
-    } else {
-      val = atoi(in.substr(pos, pos2 - pos).c_str());
-    }
-    pos = pos2 + 1;
-    return 1;
-  }
-  if (in.size() - pos == 0) {
-    val = -1;
-  } else {
-    val = atoi(in.substr(pos, in.size() - pos).c_str());
-  }
-  return 0;
-}
-
-// get the next number in a string with numbers separated by ,
-// pos is the start of the search and pos2 is the end of the search
-// pos becomes pos2 after a call to GetNextNumber.
-// -1 is returned at the end of the list.
-inline int GetNextRealNumber(std::string const& in, double& val,
-                             std::string::size_type& pos,
-                             std::string::size_type& pos2)
-{
-  pos2 = in.find(',', pos);
-  if (pos2 != std::string::npos) {
-    if (pos2 - pos == 0) {
-      val = -1;
-    } else {
-      val = atof(in.substr(pos, pos2 - pos).c_str());
-    }
-    pos = pos2 + 1;
-    return 1;
-  }
-  if (in.size() - pos == 0) {
-    val = -1;
-  } else {
-    val = atof(in.substr(pos, in.size() - pos).c_str());
-  }
-  return 0;
-}
-
-cmCTestTestHandler::cmCTestTestHandler()
-{
-  this->UseUnion = false;
-
-  this->UseIncludeLabelRegExpFlag = false;
-  this->UseExcludeLabelRegExpFlag = false;
-  this->UseIncludeRegExpFlag = false;
-  this->UseExcludeRegExpFlag = false;
-  this->UseExcludeRegExpFirst = false;
-
-  this->CustomMaximumPassedTestOutputSize = 1 * 1024;
-  this->CustomMaximumFailedTestOutputSize = 300 * 1024;
-
-  this->MemCheck = false;
-
-  this->LogFile = CM_NULLPTR;
-
-  // regex to detect <DartMeasurement>...</DartMeasurement>
-  this->DartStuff.compile("(<DartMeasurement.*/DartMeasurement[a-zA-Z]*>)");
-  // regex to detect each individual <DartMeasurement>...</DartMeasurement>
-  this->DartStuff1.compile(
-    "(<DartMeasurement[^<]*</DartMeasurement[a-zA-Z]*>)");
-}
-
-void cmCTestTestHandler::Initialize()
-{
-  this->Superclass::Initialize();
-
-  this->ElapsedTestingTime = -1;
-
-  this->TestResults.clear();
-
-  this->CustomTestsIgnore.clear();
-  this->StartTest = "";
-  this->EndTest = "";
-
-  this->CustomPreTest.clear();
-  this->CustomPostTest.clear();
-  this->CustomMaximumPassedTestOutputSize = 1 * 1024;
-  this->CustomMaximumFailedTestOutputSize = 300 * 1024;
-
-  this->TestsToRun.clear();
-
-  this->UseIncludeLabelRegExpFlag = false;
-  this->UseExcludeLabelRegExpFlag = false;
-  this->UseIncludeRegExpFlag = false;
-  this->UseExcludeRegExpFlag = false;
-  this->UseExcludeRegExpFirst = false;
-  this->IncludeLabelRegularExpression = "";
-  this->ExcludeLabelRegularExpression = "";
-  this->IncludeRegExp = "";
-  this->ExcludeRegExp = "";
-  this->ExcludeFixtureRegExp.clear();
-  this->ExcludeFixtureSetupRegExp.clear();
-  this->ExcludeFixtureCleanupRegExp.clear();
-
-  TestsToRunString = "";
-  this->UseUnion = false;
-  this->TestList.clear();
-}
-
-void cmCTestTestHandler::PopulateCustomVectors(cmMakefile* mf)
-{
-  this->CTest->PopulateCustomVector(mf, "CTEST_CUSTOM_PRE_TEST",
-                                    this->CustomPreTest);
-  this->CTest->PopulateCustomVector(mf, "CTEST_CUSTOM_POST_TEST",
-                                    this->CustomPostTest);
-  this->CTest->PopulateCustomVector(mf, "CTEST_CUSTOM_TESTS_IGNORE",
-                                    this->CustomTestsIgnore);
-  this->CTest->PopulateCustomInteger(
-    mf, "CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE",
-    this->CustomMaximumPassedTestOutputSize);
-  this->CTest->PopulateCustomInteger(
-    mf, "CTEST_CUSTOM_MAXIMUM_FAILED_TEST_OUTPUT_SIZE",
-    this->CustomMaximumFailedTestOutputSize);
-}
-
-int cmCTestTestHandler::PreProcessHandler()
-{
-  if (!this->ExecuteCommands(this->CustomPreTest)) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "Problem executing pre-test command(s)." << std::endl);
-    return 0;
-  }
-  return 1;
-}
-
-int cmCTestTestHandler::PostProcessHandler()
-{
-  if (!this->ExecuteCommands(this->CustomPostTest)) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE,
-               "Problem executing post-test command(s)." << std::endl);
-    return 0;
-  }
-  return 1;
-}
-
-// clearly it would be nice if this were broken up into a few smaller
-// functions and commented...
-int cmCTestTestHandler::ProcessHandler()
-{
-  // Update internal data structure from generic one
-  this->SetTestsToRunInformation(this->GetOption("TestsToRunInformation"));
-  this->SetUseUnion(cmSystemTools::IsOn(this->GetOption("UseUnion")));
-  if (cmSystemTools::IsOn(this->GetOption("ScheduleRandom"))) {
-    this->CTest->SetScheduleType("Random");
-  }
-  if (this->GetOption("ParallelLevel")) {
-    this->CTest->SetParallelLevel(atoi(this->GetOption("ParallelLevel")));
-  }
-
-  const char* val;
-  val = this->GetOption("LabelRegularExpression");
-  if (val) {
-    this->UseIncludeLabelRegExpFlag = true;
-    this->IncludeLabelRegExp = val;
-  }
-  val = this->GetOption("ExcludeLabelRegularExpression");
-  if (val) {
-    this->UseExcludeLabelRegExpFlag = true;
-    this->ExcludeLabelRegExp = val;
-  }
-  val = this->GetOption("IncludeRegularExpression");
-  if (val) {
-    this->UseIncludeRegExp();
-    this->SetIncludeRegExp(val);
-  }
-  val = this->GetOption("ExcludeRegularExpression");
-  if (val) {
-    this->UseExcludeRegExp();
-    this->SetExcludeRegExp(val);
-  }
-  val = this->GetOption("ExcludeFixtureRegularExpression");
-  if (val) {
-    this->ExcludeFixtureRegExp = val;
-  }
-  val = this->GetOption("ExcludeFixtureSetupRegularExpression");
-  if (val) {
-    this->ExcludeFixtureSetupRegExp = val;
-  }
-  val = this->GetOption("ExcludeFixtureCleanupRegularExpression");
-  if (val) {
-    this->ExcludeFixtureCleanupRegExp = val;
-  }
-  this->SetRerunFailed(cmSystemTools::IsOn(this->GetOption("RerunFailed")));
-
-  this->TestResults.clear();
-
-  cmCTestOptionalLog(
-    this->CTest, HANDLER_OUTPUT, (this->MemCheck ? "Memory check" : "Test")
-      << " project " << cmSystemTools::GetCurrentWorkingDirectory()
-      << std::endl,
-    this->Quiet);
-  if (!this->PreProcessHandler()) {
-    return -1;
-  }
-
-  cmGeneratedFileStream mLogFile;
-  this->StartLogFile((this->MemCheck ? "DynamicAnalysis" : "Test"), mLogFile);
-  this->LogFile = &mLogFile;
-
-  std::vector<std::string> passed;
-  std::vector<std::string> failed;
-  int total;
-
-  // start the real time clock
-  double clock_start, clock_finish;
-  clock_start = cmSystemTools::GetTime();
-
-  this->ProcessDirectory(passed, failed);
-
-  clock_finish = cmSystemTools::GetTime();
-
-  total = int(passed.size()) + int(failed.size());
-
-  if (total == 0) {
-    if (!this->CTest->GetShowOnly() && !this->CTest->ShouldPrintLabels()) {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "No tests were found!!!"
-                   << std::endl);
-    }
-  } else {
-    if (this->HandlerVerbose && !passed.empty() &&
-        (this->UseIncludeRegExpFlag || this->UseExcludeRegExpFlag)) {
-      cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, std::endl
-                           << "The following tests passed:" << std::endl,
-                         this->Quiet);
-      for (std::vector<std::string>::iterator j = passed.begin();
-           j != passed.end(); ++j) {
-        cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                           "\t" << *j << std::endl, this->Quiet);
-      }
-    }
-
-    typedef std::set<cmCTestTestHandler::cmCTestTestResult,
-                     cmCTestTestResultLess>
-      SetOfTests;
-    SetOfTests resultsSet(this->TestResults.begin(), this->TestResults.end());
-    std::vector<cmCTestTestHandler::cmCTestTestResult> disabledTests;
-
-    for (SetOfTests::iterator ftit = resultsSet.begin();
-         ftit != resultsSet.end(); ++ftit) {
-      if (cmHasLiteralPrefix(ftit->CompletionStatus, "SKIP_RETURN_CODE=") ||
-          ftit->CompletionStatus == "Disabled") {
-        disabledTests.push_back(*ftit);
-      }
-    }
-
-    float percent = float(passed.size()) * 100.0f / float(total);
-    if (!failed.empty() && percent > 99) {
-      percent = 99;
-    }
-
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                 << static_cast<int>(percent + .5f) << "% tests passed, "
-                 << failed.size() << " tests failed out of " << total
-                 << std::endl);
-    if (this->CTest->GetLabelSummary()) {
-      this->PrintLabelSummary();
-    }
-    char realBuf[1024];
-    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT,
-                       "\nTotal Test time (real) = " << realBuf << "\n",
-                       this->Quiet);
-
-    if (!disabledTests.empty()) {
-      cmGeneratedFileStream ofs;
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                   << "The following tests did not run:" << std::endl);
-      this->StartLogFile("TestsDisabled", ofs);
-
-      const char* disabled_reason;
-      for (std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator dtit =
-             disabledTests.begin();
-           dtit != disabledTests.end(); ++dtit) {
-        ofs << dtit->TestCount << ":" << dtit->Name << std::endl;
-        if (dtit->CompletionStatus == "Disabled") {
-          disabled_reason = "Disabled";
-        } else {
-          disabled_reason = "Skipped";
-        }
-        cmCTestLog(this->CTest, HANDLER_OUTPUT, "\t"
-                     << std::setw(3) << dtit->TestCount << " - " << dtit->Name
-                     << " (" << disabled_reason << ")" << std::endl);
-      }
-    }
-
-    if (!failed.empty()) {
-      cmGeneratedFileStream ofs;
-      cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl
-                   << "The following tests FAILED:" << std::endl);
-      this->StartLogFile("TestsFailed", ofs);
-
-      for (SetOfTests::iterator ftit = resultsSet.begin();
-           ftit != resultsSet.end(); ++ftit) {
-        if (ftit->Status != cmCTestTestHandler::COMPLETED &&
-            !cmHasLiteralPrefix(ftit->CompletionStatus, "SKIP_RETURN_CODE=") &&
-            ftit->CompletionStatus != "Disabled") {
-          ofs << ftit->TestCount << ":" << ftit->Name << std::endl;
-          cmCTestLog(
-            this->CTest, HANDLER_OUTPUT, "\t"
-              << std::setw(3) << ftit->TestCount << " - " << ftit->Name << " ("
-              << this->GetTestStatus(ftit->Status) << ")" << std::endl);
-        }
-      }
-    }
-  }
-
-  if (this->CTest->GetProduceXML()) {
-    cmGeneratedFileStream xmlfile;
-    if (!this->StartResultingXML(
-          (this->MemCheck ? cmCTest::PartMemCheck : cmCTest::PartTest),
-          (this->MemCheck ? "DynamicAnalysis" : "Test"), xmlfile)) {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot create "
-                   << (this->MemCheck ? "memory check" : "testing")
-                   << " XML file" << std::endl);
-      this->LogFile = CM_NULLPTR;
-      return 1;
-    }
-    cmXMLWriter xml(xmlfile);
-    this->GenerateDartOutput(xml);
-  }
-
-  if (!this->PostProcessHandler()) {
-    this->LogFile = CM_NULLPTR;
-    return -1;
-  }
-
-  if (!failed.empty()) {
-    this->LogFile = CM_NULLPTR;
-    return -1;
-  }
-  this->LogFile = CM_NULLPTR;
-  return 0;
-}
-
-void cmCTestTestHandler::PrintLabelSummary()
-{
-  cmCTestTestHandler::ListOfTests::iterator it = this->TestList.begin();
-  std::map<std::string, double> labelTimes;
-  std::map<std::string, int> labelCounts;
-  std::set<std::string> labels;
-  // initialize maps
-  std::string::size_type maxlen = 0;
-  for (; it != this->TestList.end(); ++it) {
-    cmCTestTestProperties& p = *it;
-    if (!p.Labels.empty()) {
-      for (std::vector<std::string>::iterator l = p.Labels.begin();
-           l != p.Labels.end(); ++l) {
-        if ((*l).size() > maxlen) {
-          maxlen = (*l).size();
-        }
-        labels.insert(*l);
-        labelTimes[*l] = 0;
-        labelCounts[*l] = 0;
-      }
-    }
-  }
-  cmCTestTestHandler::TestResultsVector::iterator ri =
-    this->TestResults.begin();
-  // fill maps
-  for (; ri != this->TestResults.end(); ++ri) {
-    cmCTestTestResult& result = *ri;
-    cmCTestTestProperties& p = *result.Properties;
-    if (!p.Labels.empty()) {
-      for (std::vector<std::string>::iterator l = p.Labels.begin();
-           l != p.Labels.end(); ++l) {
-        labelTimes[*l] += result.ExecutionTime;
-        ++labelCounts[*l];
-      }
-    }
-  }
-  // now print times
-  if (!labels.empty()) {
-    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\nLabel Time Summary:",
-                       this->Quiet);
-  }
-  for (std::set<std::string>::const_iterator i = labels.begin();
-       i != labels.end(); ++i) {
-    std::string label = *i;
-    label.resize(maxlen + 3, ' ');
-
-    char buf[1024];
-    sprintf(buf, "%6.2f sec", labelTimes[*i]);
-
-    std::ostringstream labelCountStr;
-    labelCountStr << "(" << labelCounts[*i] << " test";
-    if (labelCounts[*i] > 1) {
-      labelCountStr << "s";
-    }
-    labelCountStr << ")";
-
-    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\n"
-                         << label << " = " << buf << " "
-                         << labelCountStr.str(),
-                       this->Quiet);
-    if (this->LogFile) {
-      *this->LogFile << "\n" << *i << " = " << buf << "\n";
-    }
-  }
-  if (!labels.empty()) {
-    if (this->LogFile) {
-      *this->LogFile << "\n";
-    }
-    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\n", this->Quiet);
-  }
-}
-
-void cmCTestTestHandler::CheckLabelFilterInclude(cmCTestTestProperties& it)
-{
-  // if not using Labels to filter then return
-  if (!this->UseIncludeLabelRegExpFlag) {
-    return;
-  }
-  // if there are no labels and we are filtering by labels
-  // then exclude the test as it does not have the label
-  if (it.Labels.empty()) {
-    it.IsInBasedOnREOptions = false;
-    return;
-  }
-  // check to see if the label regular expression matches
-  bool found = false; // assume it does not match
-  // loop over all labels and look for match
-  for (std::vector<std::string>::iterator l = it.Labels.begin();
-       l != it.Labels.end(); ++l) {
-    if (this->IncludeLabelRegularExpression.find(*l)) {
-      found = true;
-    }
-  }
-  // if no match was found, exclude the test
-  if (!found) {
-    it.IsInBasedOnREOptions = false;
-  }
-}
-
-void cmCTestTestHandler::CheckLabelFilterExclude(cmCTestTestProperties& it)
-{
-  // if not using Labels to filter then return
-  if (!this->UseExcludeLabelRegExpFlag) {
-    return;
-  }
-  // if there are no labels and we are excluding by labels
-  // then do nothing as a no label can not be a match
-  if (it.Labels.empty()) {
-    return;
-  }
-  // check to see if the label regular expression matches
-  bool found = false; // assume it does not match
-  // loop over all labels and look for match
-  for (std::vector<std::string>::iterator l = it.Labels.begin();
-       l != it.Labels.end(); ++l) {
-    if (this->ExcludeLabelRegularExpression.find(*l)) {
-      found = true;
-    }
-  }
-  // if match was found, exclude the test
-  if (found) {
-    it.IsInBasedOnREOptions = false;
-  }
-}
-
-void cmCTestTestHandler::CheckLabelFilter(cmCTestTestProperties& it)
-{
-  this->CheckLabelFilterInclude(it);
-  this->CheckLabelFilterExclude(it);
-}
-
-void cmCTestTestHandler::ComputeTestList()
-{
-  this->TestList.clear(); // clear list of test
-  this->GetListOfTests();
-
-  if (this->RerunFailed) {
-    this->ComputeTestListForRerunFailed();
-    return;
-  }
-
-  cmCTestTestHandler::ListOfTests::size_type tmsize = this->TestList.size();
-  // how many tests are in based on RegExp?
-  int inREcnt = 0;
-  cmCTestTestHandler::ListOfTests::iterator it;
-  for (it = this->TestList.begin(); it != this->TestList.end(); it++) {
-    this->CheckLabelFilter(*it);
-    if (it->IsInBasedOnREOptions) {
-      inREcnt++;
-    }
-  }
-  // expand the test list based on the union flag
-  if (this->UseUnion) {
-    this->ExpandTestsToRunInformation((int)tmsize);
-  } else {
-    this->ExpandTestsToRunInformation(inREcnt);
-  }
-  // Now create a final list of tests to run
-  int cnt = 0;
-  inREcnt = 0;
-  std::string last_directory;
-  ListOfTests finalList;
-  for (it = this->TestList.begin(); it != this->TestList.end(); it++) {
-    cnt++;
-    if (it->IsInBasedOnREOptions) {
-      inREcnt++;
-    }
-
-    if (this->UseUnion) {
-      // if it is not in the list and not in the regexp then skip
-      if ((!this->TestsToRun.empty() &&
-           std::find(this->TestsToRun.begin(), this->TestsToRun.end(), cnt) ==
-             this->TestsToRun.end()) &&
-          !it->IsInBasedOnREOptions) {
-        continue;
-      }
-    } else {
-      // is this test in the list of tests to run? If not then skip it
-      if ((!this->TestsToRun.empty() &&
-           std::find(this->TestsToRun.begin(), this->TestsToRun.end(),
-                     inREcnt) == this->TestsToRun.end()) ||
-          !it->IsInBasedOnREOptions) {
-        continue;
-      }
-    }
-    it->Index = cnt; // save the index into the test list for this test
-    finalList.push_back(*it);
-  }
-
-  UpdateForFixtures(finalList);
-
-  // Save the total number of tests before exclusions
-  this->TotalNumberOfTests = this->TestList.size();
-  // Set the TestList to the final list of all test
-  this->TestList = finalList;
-
-  this->UpdateMaxTestNameWidth();
-}
-
-void cmCTestTestHandler::ComputeTestListForRerunFailed()
-{
-  this->ExpandTestsToRunInformationForRerunFailed();
-
-  cmCTestTestHandler::ListOfTests::iterator it;
-  ListOfTests finalList;
-  int cnt = 0;
-  for (it = this->TestList.begin(); it != this->TestList.end(); it++) {
-    cnt++;
-
-    // if this test is not in our list of tests to run, then skip it.
-    if ((!this->TestsToRun.empty() &&
-         std::find(this->TestsToRun.begin(), this->TestsToRun.end(), cnt) ==
-           this->TestsToRun.end())) {
-      continue;
-    }
-
-    it->Index = cnt;
-    finalList.push_back(*it);
-  }
-
-  UpdateForFixtures(finalList);
-
-  // Save the total number of tests before exclusions
-  this->TotalNumberOfTests = this->TestList.size();
-
-  // Set the TestList to the list of failed tests to rerun
-  this->TestList = finalList;
-
-  this->UpdateMaxTestNameWidth();
-}
-
-void cmCTestTestHandler::UpdateForFixtures(ListOfTests& tests) const
-{
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                     "Updating test list for fixtures" << std::endl,
-                     this->Quiet);
-
-  // Prepare regular expression evaluators
-  std::string setupRegExp(this->ExcludeFixtureRegExp);
-  std::string cleanupRegExp(this->ExcludeFixtureRegExp);
-  if (!this->ExcludeFixtureSetupRegExp.empty()) {
-    if (setupRegExp.empty()) {
-      setupRegExp = this->ExcludeFixtureSetupRegExp;
-    } else {
-      setupRegExp.append("(" + setupRegExp + ")|(" +
-                         this->ExcludeFixtureSetupRegExp + ")");
-    }
-  }
-  if (!this->ExcludeFixtureCleanupRegExp.empty()) {
-    if (cleanupRegExp.empty()) {
-      cleanupRegExp = this->ExcludeFixtureCleanupRegExp;
-    } else {
-      cleanupRegExp.append("(" + cleanupRegExp + ")|(" +
-                           this->ExcludeFixtureCleanupRegExp + ")");
-    }
-  }
-  cmsys::RegularExpression excludeSetupRegex(setupRegExp);
-  cmsys::RegularExpression excludeCleanupRegex(cleanupRegExp);
-
-  // Prepare some maps to help us find setup and cleanup tests for
-  // any given fixture
-  typedef ListOfTests::const_iterator TestIterator;
-  typedef std::multimap<std::string, TestIterator> FixtureDependencies;
-  typedef FixtureDependencies::const_iterator FixtureDepsIterator;
-  FixtureDependencies fixtureSetups;
-  FixtureDependencies fixtureCleanups;
-
-  for (ListOfTests::const_iterator it = this->TestList.begin();
-       it != this->TestList.end(); ++it) {
-    const cmCTestTestProperties& p = *it;
-
-    const std::set<std::string>& setups = p.FixturesSetup;
-    for (std::set<std::string>::const_iterator depsIt = setups.begin();
-         depsIt != setups.end(); ++depsIt) {
-      fixtureSetups.insert(std::make_pair(*depsIt, it));
-    }
-
-    const std::set<std::string>& cleanups = p.FixturesCleanup;
-    for (std::set<std::string>::const_iterator depsIt = cleanups.begin();
-         depsIt != cleanups.end(); ++depsIt) {
-      fixtureCleanups.insert(std::make_pair(*depsIt, it));
-    }
-  }
-
-  // Prepare fast lookup of tests already included in our list of tests
-  std::set<std::string> addedTests;
-  for (ListOfTests::const_iterator it = tests.begin(); it != tests.end();
-       ++it) {
-    const cmCTestTestProperties& p = *it;
-    addedTests.insert(p.Name);
-  }
-
-  // These are lookups of fixture name to a list of indices into the final
-  // tests array for tests which require that fixture and tests which are
-  // setups for that fixture. They are needed at the end to populate
-  // dependencies of the cleanup tests in our final list of tests.
-  std::map<std::string, std::vector<size_t> > fixtureRequirements;
-  std::map<std::string, std::vector<size_t> > setupFixturesAdded;
-
-  // Use integer index for iteration because we append to
-  // the tests vector as we go
-  size_t fixtureTestsAdded = 0;
-  std::set<std::string> addedFixtures;
-  for (size_t i = 0; i < tests.size(); ++i) {
-    // Skip disabled tests
-    if (tests[i].Disabled) {
-      continue;
-    }
-
-    // There are two things to do for each test:
-    //   1. For every fixture required by this test, record that fixture as
-    //      being required and create dependencies on that fixture's setup
-    //      tests.
-    //   2. Record all setup tests in the final test list so we can later make
-    //      cleanup tests in the test list depend on their associated setup
-    //      tests to enforce correct ordering.
-
-    // 1. Handle fixture requirements
-    //
-    // Must copy the set of fixtures required because we may invalidate
-    // the tests array by appending to it
-    std::set<std::string> fixtures = tests[i].FixturesRequired;
-    for (std::set<std::string>::const_iterator fixturesIt = fixtures.begin();
-         fixturesIt != fixtures.end(); ++fixturesIt) {
-
-      const std::string& requiredFixtureName = *fixturesIt;
-      if (requiredFixtureName.empty()) {
-        continue;
-      }
-
-      fixtureRequirements[requiredFixtureName].push_back(i);
-
-      // Add dependencies to this test for all of the setup tests
-      // associated with the required fixture. If any of those setup
-      // tests fail, this test should not run. We make the fixture's
-      // cleanup tests depend on this test case later.
-      std::pair<FixtureDepsIterator, FixtureDepsIterator> setupRange =
-        fixtureSetups.equal_range(requiredFixtureName);
-      for (FixtureDepsIterator sIt = setupRange.first;
-           sIt != setupRange.second; ++sIt) {
-        const std::string& setupTestName = sIt->second->Name;
-        tests[i].RequireSuccessDepends.insert(setupTestName);
-        if (std::find(tests[i].Depends.begin(), tests[i].Depends.end(),
-                      setupTestName) == tests[i].Depends.end()) {
-          tests[i].Depends.push_back(setupTestName);
-        }
-      }
-
-      // Append any fixture setup/cleanup tests to our test list if they
-      // are not already in it (they could have been in the original
-      // set of tests passed to us at the outset or have already been
-      // added from a previously checked test). A fixture isn't required
-      // to have setup/cleanup tests.
-      if (!addedFixtures.insert(requiredFixtureName).second) {
-        // Already seen this fixture, no need to check it again
-        continue;
-      }
-
-      // Only add setup tests if this fixture has not been excluded
-      if (setupRegExp.empty() ||
-          !excludeSetupRegex.find(requiredFixtureName)) {
-        std::pair<FixtureDepsIterator, FixtureDepsIterator> fixtureRange =
-          fixtureSetups.equal_range(requiredFixtureName);
-        for (FixtureDepsIterator it = fixtureRange.first;
-             it != fixtureRange.second; ++it) {
-          ListOfTests::const_iterator lotIt = it->second;
-          const cmCTestTestProperties& p = *lotIt;
-
-          if (!addedTests.insert(p.Name).second) {
-            // Already have p in our test list
-            continue;
-          }
-
-          // This is a test not yet in our list, so add it and
-          // update its index to reflect where it was in the original
-          // full list of all tests (needed to track individual tests
-          // across ctest runs for re-run failed, etc.)
-          tests.push_back(p);
-          tests.back().Index =
-            1 + static_cast<int>(std::distance(this->TestList.begin(), lotIt));
-          ++fixtureTestsAdded;
-
-          cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                             "Added setup test "
-                               << p.Name << " required by fixture "
-                               << requiredFixtureName << std::endl,
-                             this->Quiet);
-        }
-      }
-
-      // Only add cleanup tests if this fixture has not been excluded
-      if (cleanupRegExp.empty() ||
-          !excludeCleanupRegex.find(requiredFixtureName)) {
-        std::pair<FixtureDepsIterator, FixtureDepsIterator> fixtureRange =
-          fixtureCleanups.equal_range(requiredFixtureName);
-        for (FixtureDepsIterator it = fixtureRange.first;
-             it != fixtureRange.second; ++it) {
-          ListOfTests::const_iterator lotIt = it->second;
-          const cmCTestTestProperties& p = *lotIt;
-
-          if (!addedTests.insert(p.Name).second) {
-            // Already have p in our test list
-            continue;
-          }
-
-          // This is a test not yet in our list, so add it and
-          // update its index to reflect where it was in the original
-          // full list of all tests (needed to track individual tests
-          // across ctest runs for re-run failed, etc.)
-          tests.push_back(p);
-          tests.back().Index =
-            1 + static_cast<int>(std::distance(this->TestList.begin(), lotIt));
-          ++fixtureTestsAdded;
-
-          cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                             "Added cleanup test "
-                               << p.Name << " required by fixture "
-                               << requiredFixtureName << std::endl,
-                             this->Quiet);
-        }
-      }
-    }
-
-    // 2. Record all setup fixtures included in the final list of tests
-    for (std::set<std::string>::const_iterator fixturesIt =
-           tests[i].FixturesSetup.begin();
-         fixturesIt != tests[i].FixturesSetup.end(); ++fixturesIt) {
-
-      const std::string& setupFixtureName = *fixturesIt;
-      if (setupFixtureName.empty()) {
-        continue;
-      }
-
-      setupFixturesAdded[setupFixtureName].push_back(i);
-    }
-  }
-
-  // Now that we have the final list of tests, we can update all cleanup
-  // tests to depend on those tests which require that fixture and on any
-  // setup tests for that fixture. The latter is required to handle the
-  // pathological case where setup and cleanup tests are in the test set
-  // but no other test has that fixture as a requirement.
-  for (ListOfTests::iterator tIt = tests.begin(); tIt != tests.end(); ++tIt) {
-    cmCTestTestProperties& p = *tIt;
-    const std::set<std::string>& cleanups = p.FixturesCleanup;
-    for (std::set<std::string>::const_iterator fIt = cleanups.begin();
-         fIt != cleanups.end(); ++fIt) {
-      const std::string& fixture = *fIt;
-
-      // This cleanup test could be part of the original test list that was
-      // passed in. It is then possible that no other test requires the
-      // fIt fixture, so we have to check for this.
-      std::map<std::string, std::vector<size_t> >::const_iterator cIt =
-        fixtureRequirements.find(fixture);
-      if (cIt != fixtureRequirements.end()) {
-        const std::vector<size_t>& indices = cIt->second;
-        for (std::vector<size_t>::const_iterator indexIt = indices.begin();
-             indexIt != indices.end(); ++indexIt) {
-          const std::string& reqTestName = tests[*indexIt].Name;
-          if (std::find(p.Depends.begin(), p.Depends.end(), reqTestName) ==
-              p.Depends.end()) {
-            p.Depends.push_back(reqTestName);
-          }
-        }
-      }
-
-      // Ensure fixture cleanup tests always run after their setup tests, even
-      // if no other test cases require the fixture
-      cIt = setupFixturesAdded.find(fixture);
-      if (cIt != setupFixturesAdded.end()) {
-        const std::vector<size_t>& indices = cIt->second;
-        for (std::vector<size_t>::const_iterator indexIt = indices.begin();
-             indexIt != indices.end(); ++indexIt) {
-          const std::string& setupTestName = tests[*indexIt].Name;
-          if (std::find(p.Depends.begin(), p.Depends.end(), setupTestName) ==
-              p.Depends.end()) {
-            p.Depends.push_back(setupTestName);
-          }
-        }
-      }
-    }
-  }
-
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Added "
-                       << fixtureTestsAdded
-                       << " tests to meet fixture requirements" << std::endl,
-                     this->Quiet);
-}
-
-void cmCTestTestHandler::UpdateMaxTestNameWidth()
-{
-  std::string::size_type max = this->CTest->GetMaxTestNameWidth();
-  for (cmCTestTestHandler::ListOfTests::iterator it = this->TestList.begin();
-       it != this->TestList.end(); it++) {
-    cmCTestTestProperties& p = *it;
-    if (max < p.Name.size()) {
-      max = p.Name.size();
-    }
-  }
-  if (static_cast<std::string::size_type>(
-        this->CTest->GetMaxTestNameWidth()) != max) {
-    this->CTest->SetMaxTestNameWidth(static_cast<int>(max));
-  }
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag, int& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  bool ret = true;
-  cmSystemTools::GetLineFromStream(fin, line);
-  if (line == tag) {
-    fin >> value;
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-  } else {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "parse error: missing tag: "
-                 << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-  }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag, double& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if (line == tag) {
-    fin >> value;
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-  } else {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "parse error: missing tag: "
-                 << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-  }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag, bool& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if (line == tag) {
-#ifdef __HAIKU__
-    int tmp = 0;
-    fin >> tmp;
-    value = false;
-    if (tmp) {
-      value = true;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	const char *path, *name;
+	struct stat s;
+	int initial_fd = fd;
+	int r, r1;
+
+	archive_clear_error(_a);
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (a->tree == NULL) {
+		if (st == NULL) {
+#if HAVE_FSTAT
+			if (fd >= 0) {
+				if (fstat(fd, &s) != 0) {
+					archive_set_error(&a->archive, errno,
+					    "Can't fstat");
+					return (ARCHIVE_FAILED);
+				}
+			} else
+#endif
+#if HAVE_LSTAT
+			if (!a->follow_symlinks) {
+				if (lstat(path, &s) != 0) {
+					archive_set_error(&a->archive, errno,
+					    "Can't lstat %s", path);
+					return (ARCHIVE_FAILED);
+				}
+			} else
+#endif
+			if (stat(path, &s) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't stat %s", path);
+				return (ARCHIVE_FAILED);
+			}
+			st = &s;
+		}
+		archive_entry_copy_stat(entry, st);
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+#ifdef HAVE_STRUCT_STAT_ST_FLAGS
+	/* On FreeBSD, we get flags for free with the stat. */
+	/* TODO: Does this belong in copy_stat()? */
+	if ((a->flags & ARCHIVE_READDISK_NO_FFLAGS) == 0 && st->st_flags != 0)
+		archive_entry_set_fflags(entry, st->st_flags, 0);
+#endif
+
+#if (defined(FS_IOC_GETFLAGS) && defined(HAVE_WORKING_FS_IOC_GETFLAGS)) || \
+    (defined(EXT2_IOC_GETFLAGS) && defined(HAVE_WORKING_EXT2_IOC_GETFLAGS))
+	/* Linux requires an extra ioctl to pull the flags.  Although
+	 * this is an extra step, it has a nice side-effect: We get an
+	 * open file descriptor which we can use in the subsequent lookups. */
+	if ((a->flags & ARCHIVE_READDISK_NO_FFLAGS) == 0 &&
+	    (S_ISREG(st->st_mode) || S_ISDIR(st->st_mode))) {
+		if (fd < 0) {
+			if (a->tree != NULL)
+				fd = a->open_on_current_dir(a->tree, path,
+					O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+			else
+				fd = open(path, O_RDONLY | O_NONBLOCK |
+						O_CLOEXEC);
+			__archive_ensure_cloexec_flag(fd);
+		}
+		if (fd >= 0) {
+			int stflags;
+			r = ioctl(fd,
+#if defined(FS_IOC_GETFLAGS)
+			    FS_IOC_GETFLAGS,
 #else
-    fin >> value;
+			    EXT2_IOC_GETFLAGS,
 #endif
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-  } else {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "parse error: missing tag: "
-                 << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-  }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag, size_t& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if (line == tag) {
-    fin >> value;
-    ret = cmSystemTools::GetLineFromStream(fin, line); // read blank line
-  } else {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "parse error: missing tag: "
-                 << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-  }
-  return ret;
-}
-
-bool cmCTestTestHandler::GetValue(const char* tag, std::string& value,
-                                  std::istream& fin)
-{
-  std::string line;
-  cmSystemTools::GetLineFromStream(fin, line);
-  bool ret = true;
-  if (line == tag) {
-    ret = cmSystemTools::GetLineFromStream(fin, value);
-  } else {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "parse error: missing tag: "
-                 << tag << " found [" << line << "]" << std::endl);
-    ret = false;
-  }
-  return ret;
-}
-
-void cmCTestTestHandler::ProcessDirectory(std::vector<std::string>& passed,
-                                          std::vector<std::string>& failed)
-{
-  this->ComputeTestList();
-  this->StartTest = this->CTest->CurrentTime();
-  this->StartTestTime = static_cast<unsigned int>(cmSystemTools::GetTime());
-  double elapsed_time_start = cmSystemTools::GetTime();
-
-  cmCTestMultiProcessHandler* parallel = this->CTest->GetBatchJobs()
-    ? new cmCTestBatchTestHandler
-    : new cmCTestMultiProcessHandler;
-  parallel->SetCTest(this->CTest);
-  parallel->SetParallelLevel(this->CTest->GetParallelLevel());
-  parallel->SetTestHandler(this);
-  parallel->SetQuiet(this->Quiet);
-  if (this->TestLoad > 0) {
-    parallel->SetTestLoad(this->TestLoad);
-  } else {
-    parallel->SetTestLoad(this->CTest->GetTestLoad());
-  }
-
-  *this->LogFile
-    << "Start testing: " << this->CTest->CurrentTime() << std::endl
-    << "----------------------------------------------------------"
-    << std::endl;
-
-  cmCTestMultiProcessHandler::TestMap tests;
-  cmCTestMultiProcessHandler::PropertiesMap properties;
-
-  bool randomSchedule = this->CTest->GetScheduleType() == "Random";
-  if (randomSchedule) {
-    srand((unsigned)time(CM_NULLPTR));
-  }
-
-  for (ListOfTests::iterator it = this->TestList.begin();
-       it != this->TestList.end(); ++it) {
-    cmCTestTestProperties& p = *it;
-    cmCTestMultiProcessHandler::TestSet depends;
-
-    if (randomSchedule) {
-      p.Cost = static_cast<float>(rand());
-    }
-
-    if (p.Timeout == 0 && this->CTest->GetGlobalTimeout() != 0) {
-      p.Timeout = this->CTest->GetGlobalTimeout();
-    }
-
-    if (!p.Depends.empty()) {
-      for (std::vector<std::string>::iterator i = p.Depends.begin();
-           i != p.Depends.end(); ++i) {
-        for (ListOfTests::iterator it2 = this->TestList.begin();
-             it2 != this->TestList.end(); ++it2) {
-          if (it2->Name == *i) {
-            depends.insert(it2->Index);
-            break; // break out of test loop as name can only match 1
-          }
-        }
-      }
-    }
-    tests[it->Index] = depends;
-    properties[it->Index] = &*it;
-  }
-  parallel->SetTests(tests, properties);
-  parallel->SetPassFailVectors(&passed, &failed);
-  this->TestResults.clear();
-  parallel->SetTestResults(&this->TestResults);
-
-  if (this->CTest->ShouldPrintLabels()) {
-    parallel->PrintLabels();
-  } else if (this->CTest->GetShowOnly()) {
-    parallel->PrintTestList();
-  } else {
-    parallel->RunTests();
-  }
-  delete parallel;
-  this->EndTest = this->CTest->CurrentTime();
-  this->EndTestTime = static_cast<unsigned int>(cmSystemTools::GetTime());
-  this->ElapsedTestingTime = cmSystemTools::GetTime() - elapsed_time_start;
-  *this->LogFile << "End testing: " << this->CTest->CurrentTime() << std::endl;
-}
-
-void cmCTestTestHandler::GenerateTestCommand(
-  std::vector<std::string>& /*unused*/, int /*unused*/)
-{
-}
-
-void cmCTestTestHandler::GenerateDartOutput(cmXMLWriter& xml)
-{
-  if (!this->CTest->GetProduceXML()) {
-    return;
-  }
-
-  this->CTest->StartXML(xml, this->AppendXML);
-  this->CTest->GenerateSubprojectsOutput(xml);
-  xml.StartElement("Testing");
-  xml.Element("StartDateTime", this->StartTest);
-  xml.Element("StartTestTime", this->StartTestTime);
-  xml.StartElement("TestList");
-  cmCTestTestHandler::TestResultsVector::size_type cc;
-  for (cc = 0; cc < this->TestResults.size(); cc++) {
-    cmCTestTestResult* result = &this->TestResults[cc];
-    std::string testPath = result->Path + "/" + result->Name;
-    xml.Element("Test", this->CTest->GetShortPathToFile(testPath.c_str()));
-  }
-  xml.EndElement(); // TestList
-  for (cc = 0; cc < this->TestResults.size(); cc++) {
-    cmCTestTestResult* result = &this->TestResults[cc];
-    this->WriteTestResultHeader(xml, result);
-    xml.StartElement("Results");
-
-    if (result->Status != cmCTestTestHandler::NOT_RUN) {
-      if (result->Status != cmCTestTestHandler::COMPLETED ||
-          result->ReturnValue) {
-        xml.StartElement("NamedMeasurement");
-        xml.Attribute("type", "text/string");
-        xml.Attribute("name", "Exit Code");
-        xml.Element("Value", this->GetTestStatus(result->Status));
-        xml.EndElement(); // NamedMeasurement
-
-        xml.StartElement("NamedMeasurement");
-        xml.Attribute("type", "text/string");
-        xml.Attribute("name", "Exit Value");
-        xml.Element("Value", result->ReturnValue);
-        xml.EndElement(); // NamedMeasurement
-      }
-      this->GenerateRegressionImages(xml, result->DartString);
-      xml.StartElement("NamedMeasurement");
-      xml.Attribute("type", "numeric/double");
-      xml.Attribute("name", "Execution Time");
-      xml.Element("Value", result->ExecutionTime);
-      xml.EndElement(); // NamedMeasurement
-      if (!result->Reason.empty()) {
-        const char* reasonType = "Pass Reason";
-        if (result->Status != cmCTestTestHandler::COMPLETED) {
-          reasonType = "Fail Reason";
-        }
-        xml.StartElement("NamedMeasurement");
-        xml.Attribute("type", "text/string");
-        xml.Attribute("name", reasonType);
-        xml.Element("Value", result->Reason);
-        xml.EndElement(); // NamedMeasurement
-      }
-    }
-
-    xml.StartElement("NamedMeasurement");
-    xml.Attribute("type", "text/string");
-    xml.Attribute("name", "Completion Status");
-    xml.Element("Value", result->CompletionStatus);
-    xml.EndElement(); // NamedMeasurement
-
-    xml.StartElement("NamedMeasurement");
-    xml.Attribute("type", "text/string");
-    xml.Attribute("name", "Command Line");
-    xml.Element("Value", result->FullCommandLine);
-    xml.EndElement(); // NamedMeasurement
-    std::map<std::string, std::string>::iterator measureIt;
-    for (measureIt = result->Properties->Measurements.begin();
-         measureIt != result->Properties->Measurements.end(); ++measureIt) {
-      xml.StartElement("NamedMeasurement");
-      xml.Attribute("type", "text/string");
-      xml.Attribute("name", measureIt->first);
-      xml.Element("Value", measureIt->second);
-      xml.EndElement(); // NamedMeasurement
-    }
-    xml.StartElement("Measurement");
-    xml.StartElement("Value");
-    if (result->CompressOutput) {
-      xml.Attribute("encoding", "base64");
-      xml.Attribute("compression", "gzip");
-    }
-    xml.Content(result->Output);
-    xml.EndElement(); // Value
-    xml.EndElement(); // Measurement
-    xml.EndElement(); // Results
-
-    this->AttachFiles(xml, result);
-    this->WriteTestResultFooter(xml, result);
-  }
-
-  xml.Element("EndDateTime", this->EndTest);
-  xml.Element("EndTestTime", this->EndTestTime);
-  xml.Element("ElapsedMinutes",
-              static_cast<int>(this->ElapsedTestingTime / 6) / 10.0);
-  xml.EndElement(); // Testing
-  this->CTest->EndXML(xml);
-}
-
-void cmCTestTestHandler::WriteTestResultHeader(cmXMLWriter& xml,
-                                               cmCTestTestResult* result)
-{
-  xml.StartElement("Test");
-  if (result->Status == cmCTestTestHandler::COMPLETED) {
-    xml.Attribute("Status", "passed");
-  } else if (result->Status == cmCTestTestHandler::NOT_RUN) {
-    xml.Attribute("Status", "notrun");
-  } else {
-    xml.Attribute("Status", "failed");
-  }
-  std::string testPath = result->Path + "/" + result->Name;
-  xml.Element("Name", result->Name);
-  xml.Element("Path", this->CTest->GetShortPathToFile(result->Path.c_str()));
-  xml.Element("FullName", this->CTest->GetShortPathToFile(testPath.c_str()));
-  xml.Element("FullCommandLine", result->FullCommandLine);
-}
-
-void cmCTestTestHandler::WriteTestResultFooter(cmXMLWriter& xml,
-                                               cmCTestTestResult* result)
-{
-  if (!result->Properties->Labels.empty()) {
-    xml.StartElement("Labels");
-    std::vector<std::string> const& labels = result->Properties->Labels;
-    for (std::vector<std::string>::const_iterator li = labels.begin();
-         li != labels.end(); ++li) {
-      xml.Element("Label", *li);
-    }
-    xml.EndElement(); // Labels
-  }
-
-  xml.EndElement(); // Test
-}
-
-void cmCTestTestHandler::AttachFiles(cmXMLWriter& xml,
-                                     cmCTestTestResult* result)
-{
-  if (result->Status != cmCTestTestHandler::COMPLETED &&
-      !result->Properties->AttachOnFail.empty()) {
-    result->Properties->AttachedFiles.insert(
-      result->Properties->AttachedFiles.end(),
-      result->Properties->AttachOnFail.begin(),
-      result->Properties->AttachOnFail.end());
-  }
-  for (std::vector<std::string>::const_iterator file =
-         result->Properties->AttachedFiles.begin();
-       file != result->Properties->AttachedFiles.end(); ++file) {
-    const std::string& base64 = this->CTest->Base64GzipEncodeFile(*file);
-    std::string fname = cmSystemTools::GetFilenameName(*file);
-    xml.StartElement("NamedMeasurement");
-    xml.Attribute("name", "Attached File");
-    xml.Attribute("encoding", "base64");
-    xml.Attribute("compression", "tar/gzip");
-    xml.Attribute("filename", fname);
-    xml.Attribute("type", "file");
-    xml.Element("Value", base64);
-    xml.EndElement(); // NamedMeasurement
-  }
-}
-
-int cmCTestTestHandler::ExecuteCommands(std::vector<std::string>& vec)
-{
-  std::vector<std::string>::iterator it;
-  for (it = vec.begin(); it != vec.end(); ++it) {
-    int retVal = 0;
-    cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                       "Run command: " << *it << std::endl, this->Quiet);
-    if (!cmSystemTools::RunSingleCommand(it->c_str(), CM_NULLPTR, CM_NULLPTR,
-                                         &retVal, CM_NULLPTR,
-                                         cmSystemTools::OUTPUT_MERGE
-                                         /*this->Verbose*/) ||
-        retVal != 0) {
-      cmCTestLog(this->CTest, ERROR_MESSAGE,
-                 "Problem running command: " << *it << std::endl);
-      return 0;
-    }
-  }
-  return 1;
-}
-
-// Find the appropriate executable to run for a test
-std::string cmCTestTestHandler::FindTheExecutable(const char* exe)
-{
-  std::string resConfig;
-  std::vector<std::string> extraPaths;
-  std::vector<std::string> failedPaths;
-  if (strcmp(exe, "NOT_AVAILABLE") == 0) {
-    return exe;
-  }
-  return cmCTestTestHandler::FindExecutable(this->CTest, exe, resConfig,
-                                            extraPaths, failedPaths);
-}
-
-// add additional configurations to the search path
-void cmCTestTestHandler::AddConfigurations(
-  cmCTest* ctest, std::vector<std::string>& attempted,
-  std::vector<std::string>& attemptedConfigs, std::string filepath,
-  std::string& filename)
-{
-  std::string tempPath;
-
-  if (!filepath.empty() && filepath[filepath.size() - 1] != '/') {
-    filepath += "/";
-  }
-  tempPath = filepath + filename;
-  attempted.push_back(tempPath);
-  attemptedConfigs.push_back("");
-
-  if (!ctest->GetConfigType().empty()) {
-    tempPath = filepath;
-    tempPath += ctest->GetConfigType();
-    tempPath += "/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back(ctest->GetConfigType());
-    // If the file is an OSX bundle then the configtype
-    // will be at the start of the path
-    tempPath = ctest->GetConfigType();
-    tempPath += "/";
-    tempPath += filepath;
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back(ctest->GetConfigType());
-  } else {
-    // no config specified - try some options...
-    tempPath = filepath;
-    tempPath += "Release/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Release");
-    tempPath = filepath;
-    tempPath += "Debug/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Debug");
-    tempPath = filepath;
-    tempPath += "MinSizeRel/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("MinSizeRel");
-    tempPath = filepath;
-    tempPath += "RelWithDebInfo/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("RelWithDebInfo");
-    tempPath = filepath;
-    tempPath += "Deployment/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Deployment");
-    tempPath = filepath;
-    tempPath += "Development/";
-    tempPath += filename;
-    attempted.push_back(tempPath);
-    attemptedConfigs.push_back("Deployment");
-  }
-}
-
-// Find the appropriate executable to run for a test
-std::string cmCTestTestHandler::FindExecutable(
-  cmCTest* ctest, const char* testCommand, std::string& resultingConfig,
-  std::vector<std::string>& extraPaths, std::vector<std::string>& failed)
-{
-  // now run the compiled test if we can find it
-  std::vector<std::string> attempted;
-  std::vector<std::string> attemptedConfigs;
-  std::string tempPath;
-  std::string filepath = cmSystemTools::GetFilenamePath(testCommand);
-  std::string filename = cmSystemTools::GetFilenameName(testCommand);
-
-  cmCTestTestHandler::AddConfigurations(ctest, attempted, attemptedConfigs,
-                                        filepath, filename);
-
-  // even if a fullpath was specified also try it relative to the current
-  // directory
-  if (!filepath.empty() && filepath[0] == '/') {
-    std::string localfilepath = filepath.substr(1, filepath.size() - 1);
-    cmCTestTestHandler::AddConfigurations(ctest, attempted, attemptedConfigs,
-                                          localfilepath, filename);
-  }
-
-  // if extraPaths are provided and we were not passed a full path, try them,
-  // try any extra paths
-  if (filepath.empty()) {
-    for (unsigned int i = 0; i < extraPaths.size(); ++i) {
-      std::string filepathExtra =
-        cmSystemTools::GetFilenamePath(extraPaths[i]);
-      std::string filenameExtra =
-        cmSystemTools::GetFilenameName(extraPaths[i]);
-      cmCTestTestHandler::AddConfigurations(ctest, attempted, attemptedConfigs,
-                                            filepathExtra, filenameExtra);
-    }
-  }
-
-  // store the final location in fullPath
-  std::string fullPath;
-
-  // now look in the paths we specified above
-  for (unsigned int ai = 0; ai < attempted.size() && fullPath.empty(); ++ai) {
-    // first check without exe extension
-    if (cmSystemTools::FileExists(attempted[ai].c_str()) &&
-        !cmSystemTools::FileIsDirectory(attempted[ai])) {
-      fullPath = cmSystemTools::CollapseFullPath(attempted[ai]);
-      resultingConfig = attemptedConfigs[ai];
-    }
-    // then try with the exe extension
-    else {
-      failed.push_back(attempted[ai]);
-      tempPath = attempted[ai];
-      tempPath += cmSystemTools::GetExecutableExtension();
-      if (cmSystemTools::FileExists(tempPath.c_str()) &&
-          !cmSystemTools::FileIsDirectory(tempPath)) {
-        fullPath = cmSystemTools::CollapseFullPath(tempPath);
-        resultingConfig = attemptedConfigs[ai];
-      } else {
-        failed.push_back(tempPath);
-      }
-    }
-  }
-
-  // if everything else failed, check the users path, but only if a full path
-  // wasn't specified
-  if (fullPath.empty() && filepath.empty()) {
-    std::string path = cmSystemTools::FindProgram(filename.c_str());
-    if (path != "") {
-      resultingConfig = "";
-      return path;
-    }
-  }
-  if (fullPath.empty()) {
-    cmCTestLog(ctest, HANDLER_OUTPUT, "Could not find executable "
-                 << testCommand << "\n"
-                 << "Looked in the following places:\n");
-    for (std::vector<std::string>::iterator i = failed.begin();
-         i != failed.end(); ++i) {
-      cmCTestLog(ctest, HANDLER_OUTPUT, *i << "\n");
-    }
-  }
-
-  return fullPath;
-}
-
-void cmCTestTestHandler::GetListOfTests()
-{
-  if (!this->IncludeLabelRegExp.empty()) {
-    this->IncludeLabelRegularExpression.compile(
-      this->IncludeLabelRegExp.c_str());
-  }
-  if (!this->ExcludeLabelRegExp.empty()) {
-    this->ExcludeLabelRegularExpression.compile(
-      this->ExcludeLabelRegExp.c_str());
-  }
-  if (!this->IncludeRegExp.empty()) {
-    this->IncludeTestsRegularExpression.compile(this->IncludeRegExp.c_str());
-  }
-  if (!this->ExcludeRegExp.empty()) {
-    this->ExcludeTestsRegularExpression.compile(this->ExcludeRegExp.c_str());
-  }
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                     "Constructing a list of tests" << std::endl, this->Quiet);
-  cmake cm(cmake::RoleScript);
-  cm.SetHomeDirectory("");
-  cm.SetHomeOutputDirectory("");
-  cm.GetCurrentSnapshot().SetDefaultDefinitions();
-  cmGlobalGenerator gg(&cm);
-  CM_AUTO_PTR<cmMakefile> mf(new cmMakefile(&gg, cm.GetCurrentSnapshot()));
-  mf->AddDefinition("CTEST_CONFIGURATION_TYPE",
-                    this->CTest->GetConfigType().c_str());
-
-  // Add handler for ADD_TEST
-  cmCTestAddTestCommand* newCom1 = new cmCTestAddTestCommand;
-  newCom1->TestHandler = this;
-  cm.GetState()->AddBuiltinCommand("add_test", newCom1);
-
-  // Add handler for SUBDIRS
-  cmCTestSubdirCommand* newCom2 = new cmCTestSubdirCommand;
-  newCom2->TestHandler = this;
-  cm.GetState()->AddBuiltinCommand("subdirs", newCom2);
-
-  // Add handler for ADD_SUBDIRECTORY
-  cmCTestAddSubdirectoryCommand* newCom3 = new cmCTestAddSubdirectoryCommand;
-  newCom3->TestHandler = this;
-  cm.GetState()->AddBuiltinCommand("add_subdirectory", newCom3);
-
-  // Add handler for SET_TESTS_PROPERTIES
-  cmCTestSetTestsPropertiesCommand* newCom4 =
-    new cmCTestSetTestsPropertiesCommand;
-  newCom4->TestHandler = this;
-  cm.GetState()->AddBuiltinCommand("set_tests_properties", newCom4);
-
-  // Add handler for SET_DIRECTORY_PROPERTIES
-  cmCTestSetDirectoryPropertiesCommand* newCom5 =
-    new cmCTestSetDirectoryPropertiesCommand;
-  newCom5->TestHandler = this;
-  cm.GetState()->AddBuiltinCommand("set_directory_properties", newCom5);
-
-  const char* testFilename;
-  if (cmSystemTools::FileExists("CTestTestfile.cmake")) {
-    // does the CTestTestfile.cmake exist ?
-    testFilename = "CTestTestfile.cmake";
-  } else if (cmSystemTools::FileExists("DartTestfile.txt")) {
-    // does the DartTestfile.txt exist ?
-    testFilename = "DartTestfile.txt";
-  } else {
-    return;
-  }
-
-  if (!mf->ReadListFile(testFilename)) {
-    return;
-  }
-  if (cmSystemTools::GetErrorOccuredFlag()) {
-    return;
-  }
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                     "Done constructing a list of tests" << std::endl,
-                     this->Quiet);
-}
-
-void cmCTestTestHandler::UseIncludeRegExp()
-{
-  this->UseIncludeRegExpFlag = true;
-}
-
-void cmCTestTestHandler::UseExcludeRegExp()
-{
-  this->UseExcludeRegExpFlag = true;
-  this->UseExcludeRegExpFirst = !this->UseIncludeRegExpFlag;
-}
-
-const char* cmCTestTestHandler::GetTestStatus(int status)
-{
-  static const char* statuses[] = { "Not Run",     "Timeout",   "SEGFAULT",
-                                    "ILLEGAL",     "INTERRUPT", "NUMERICAL",
-                                    "OTHER_FAULT", "Failed",    "BAD_COMMAND",
-                                    "Completed" };
-
-  if (status < cmCTestTestHandler::NOT_RUN ||
-      status > cmCTestTestHandler::COMPLETED) {
-    return "No Status";
-  }
-  return statuses[status];
-}
-
-void cmCTestTestHandler::ExpandTestsToRunInformation(size_t numTests)
-{
-  if (this->TestsToRunString.empty()) {
-    return;
-  }
-
-  int start;
-  int end = -1;
-  double stride = -1;
-  std::string::size_type pos = 0;
-  std::string::size_type pos2;
-  // read start
-  if (GetNextNumber(this->TestsToRunString, start, pos, pos2)) {
-    // read end
-    if (GetNextNumber(this->TestsToRunString, end, pos, pos2)) {
-      // read stride
-      if (GetNextRealNumber(this->TestsToRunString, stride, pos, pos2)) {
-        int val = 0;
-        // now read specific numbers
-        while (GetNextNumber(this->TestsToRunString, val, pos, pos2)) {
-          this->TestsToRun.push_back(val);
-        }
-        this->TestsToRun.push_back(val);
-      }
-    }
-  }
-
-  // if start is not specified then we assume we start at 1
-  if (start == -1) {
-    start = 1;
-  }
-
-  // if end isnot specified then we assume we end with the last test
-  if (end == -1) {
-    end = static_cast<int>(numTests);
-  }
-
-  // if the stride wasn't specified then it defaults to 1
-  if (stride == -1) {
-    stride = 1;
-  }
-
-  // if we have a range then add it
-  if (end != -1 && start != -1 && stride > 0) {
-    int i = 0;
-    while (i * stride + start <= end) {
-      this->TestsToRun.push_back(static_cast<int>(i * stride + start));
-      ++i;
-    }
-  }
-
-  // sort the array
-  std::sort(this->TestsToRun.begin(), this->TestsToRun.end(),
-            std::less<int>());
-  // remove duplicates
-  std::vector<int>::iterator new_end =
-    std::unique(this->TestsToRun.begin(), this->TestsToRun.end());
-  this->TestsToRun.erase(new_end, this->TestsToRun.end());
-}
-
-void cmCTestTestHandler::ExpandTestsToRunInformationForRerunFailed()
-{
-
-  std::string dirName = this->CTest->GetBinaryDir() + "/Testing/Temporary";
-
-  cmsys::Directory directory;
-  if (directory.Load(dirName) == 0) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "Unable to read the contents of "
-                 << dirName << std::endl);
-    return;
-  }
-
-  int numFiles =
-    static_cast<int>(cmsys::Directory::GetNumberOfFilesInDirectory(dirName));
-  std::string pattern = "LastTestsFailed";
-  std::string logName;
-
-  for (int i = 0; i < numFiles; ++i) {
-    std::string fileName = directory.GetFile(i);
-    // bcc crashes if we attempt a normal substring comparison,
-    // hence the following workaround
-    std::string fileNameSubstring = fileName.substr(0, pattern.length());
-    if (fileNameSubstring != pattern) {
-      continue;
-    }
-    if (logName == "") {
-      logName = fileName;
-    } else {
-      // if multiple matching logs were found we use the most recently
-      // modified one.
-      int res;
-      cmSystemTools::FileTimeCompare(logName, fileName, &res);
-      if (res == -1) {
-        logName = fileName;
-      }
-    }
-  }
-
-  std::string lastTestsFailedLog =
-    this->CTest->GetBinaryDir() + "/Testing/Temporary/" + logName;
-
-  if (!cmSystemTools::FileExists(lastTestsFailedLog.c_str())) {
-    if (!this->CTest->GetShowOnly() && !this->CTest->ShouldPrintLabels()) {
-      cmCTestLog(this->CTest, ERROR_MESSAGE, lastTestsFailedLog
-                   << " does not exist!" << std::endl);
-    }
-    return;
-  }
-
-  // parse the list of tests to rerun from LastTestsFailed.log
-  cmsys::ifstream ifs(lastTestsFailedLog.c_str());
-  if (ifs) {
-    std::string line;
-    std::string::size_type pos;
-    while (cmSystemTools::GetLineFromStream(ifs, line)) {
-      pos = line.find(':', 0);
-      if (pos == std::string::npos) {
-        continue;
-      }
-
-      int val = atoi(line.substr(0, pos).c_str());
-      this->TestsToRun.push_back(val);
-    }
-    ifs.close();
-  } else if (!this->CTest->GetShowOnly() &&
-             !this->CTest->ShouldPrintLabels()) {
-    cmCTestLog(this->CTest, ERROR_MESSAGE, "Problem reading file: "
-                 << lastTestsFailedLog
-                 << " while generating list of previously failed tests."
-                 << std::endl);
-  }
-}
-
-// Just for convenience
-#define SPACE_REGEX "[ \t\r\n]"
-void cmCTestTestHandler::GenerateRegressionImages(cmXMLWriter& xml,
-                                                  const std::string& dart)
-{
-  cmsys::RegularExpression twoattributes(
-    "<DartMeasurement" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression threeattributes(
-    "<DartMeasurement" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression fourattributes(
-    "<DartMeasurement" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*>([^<]*)</DartMeasurement>");
-  cmsys::RegularExpression cdatastart(
-    "<DartMeasurement" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*>" SPACE_REGEX "*<!\\[CDATA\\[");
-  cmsys::RegularExpression cdataend("]]>" SPACE_REGEX "*</DartMeasurement>");
-  cmsys::RegularExpression measurementfile(
-    "<DartMeasurementFile" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*(name|type|encoding|compression)=\"([^\"]*)\"" SPACE_REGEX
-    "*>([^<]*)</DartMeasurementFile>");
-
-  bool done = false;
-  std::string cxml = dart;
-  while (!done) {
-    if (twoattributes.find(cxml)) {
-      xml.StartElement("NamedMeasurement");
-      xml.Attribute(twoattributes.match(1).c_str(), twoattributes.match(2));
-      xml.Attribute(twoattributes.match(3).c_str(), twoattributes.match(4));
-      xml.Element("Value", twoattributes.match(5));
-      xml.EndElement();
-      cxml.erase(twoattributes.start(),
-                 twoattributes.end() - twoattributes.start());
-    } else if (threeattributes.find(cxml)) {
-      xml.StartElement("NamedMeasurement");
-      xml.Attribute(threeattributes.match(1).c_str(),
-                    threeattributes.match(2));
-      xml.Attribute(threeattributes.match(3).c_str(),
-                    threeattributes.match(4));
-      xml.Attribute(threeattributes.match(5).c_str(),
-                    threeattributes.match(6));
-      xml.Element("Value", twoattributes.match(7));
-      xml.EndElement();
-      cxml.erase(threeattributes.start(),
-                 threeattributes.end() - threeattributes.start());
-    } else if (fourattributes.find(cxml)) {
-      xml.StartElement("NamedMeasurement");
-      xml.Attribute(fourattributes.match(1).c_str(), fourattributes.match(2));
-      xml.Attribute(fourattributes.match(3).c_str(), fourattributes.match(4));
-      xml.Attribute(fourattributes.match(5).c_str(), fourattributes.match(6));
-      xml.Attribute(fourattributes.match(7).c_str(), fourattributes.match(8));
-      xml.Element("Value", twoattributes.match(9));
-      xml.EndElement();
-      cxml.erase(fourattributes.start(),
-                 fourattributes.end() - fourattributes.start());
-    } else if (cdatastart.find(cxml) && cdataend.find(cxml)) {
-      xml.StartElement("NamedMeasurement");
-      xml.Attribute(cdatastart.match(1).c_str(), cdatastart.match(2));
-      xml.Attribute(cdatastart.match(3).c_str(), cdatastart.match(4));
-      xml.StartElement("Value");
-      xml.CData(
-        cxml.substr(cdatastart.end(), cdataend.start() - cdatastart.end()));
-      xml.EndElement(); // Value
-      xml.EndElement(); // NamedMeasurement
-      cxml.erase(cdatastart.start(), cdataend.end() - cdatastart.start());
-    } else if (measurementfile.find(cxml)) {
-      const std::string& filename =
-        cmCTest::CleanString(measurementfile.match(5));
-      if (cmSystemTools::FileExists(filename.c_str())) {
-        long len = cmSystemTools::FileLength(filename);
-        if (len == 0) {
-          std::string k1 = measurementfile.match(1);
-          std::string v1 = measurementfile.match(2);
-          std::string k2 = measurementfile.match(3);
-          std::string v2 = measurementfile.match(4);
-          if (cmSystemTools::LowerCase(k1) == "type") {
-            v1 = "text/string";
-          }
-          if (cmSystemTools::LowerCase(k2) == "type") {
-            v2 = "text/string";
-          }
-
-          xml.StartElement("NamedMeasurement");
-          xml.Attribute(k1.c_str(), v1);
-          xml.Attribute(k2.c_str(), v2);
-          xml.Attribute("encoding", "none");
-          xml.Element("Value", "Image " + filename + " is empty");
-          xml.EndElement();
-        } else {
-          cmsys::ifstream ifs(filename.c_str(), std::ios::in
-#ifdef _WIN32
-                                | std::ios::binary
+			    &stflags);
+			if (r == 0 && stflags != 0)
+				archive_entry_set_fflags(entry, stflags, 0);
+		}
+	}
 #endif
-                              );
-          unsigned char* file_buffer = new unsigned char[len + 1];
-          ifs.read(reinterpret_cast<char*>(file_buffer), len);
-          unsigned char* encoded_buffer = new unsigned char[static_cast<int>(
-            static_cast<double>(len) * 1.5 + 5.0)];
 
-          size_t rlen =
-            cmsysBase64_Encode(file_buffer, len, encoded_buffer, 1);
+#if defined(HAVE_READLINK) || defined(HAVE_READLINKAT)
+	if (S_ISLNK(st->st_mode)) {
+		size_t linkbuffer_len = st->st_size + 1;
+		char *linkbuffer;
+		int lnklen;
 
-          xml.StartElement("NamedMeasurement");
-          xml.Attribute(measurementfile.match(1).c_str(),
-                        measurementfile.match(2));
-          xml.Attribute(measurementfile.match(3).c_str(),
-                        measurementfile.match(4));
-          xml.Attribute("encoding", "base64");
-          std::ostringstream ostr;
-          for (size_t cc = 0; cc < rlen; cc++) {
-            ostr << encoded_buffer[cc];
-            if (cc % 60 == 0 && cc) {
-              ostr << std::endl;
-            }
-          }
-          xml.Element("Value", ostr.str());
-          xml.EndElement(); // NamedMeasurement
-          delete[] file_buffer;
-          delete[] encoded_buffer;
-        }
-      } else {
-        int idx = 4;
-        if (measurementfile.match(1) == "name") {
-          idx = 2;
-        }
-        xml.StartElement("NamedMeasurement");
-        xml.Attribute("name", measurementfile.match(idx));
-        xml.Attribute("text", "text/string");
-        xml.Element("Value", "File " + filename + " not found");
-        xml.EndElement();
-        cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "File \""
-                             << filename << "\" not found." << std::endl,
-                           this->Quiet);
-      }
-      cxml.erase(measurementfile.start(),
-                 measurementfile.end() - measurementfile.start());
-    } else {
-      done = true;
-    }
-  }
+		linkbuffer = malloc(linkbuffer_len);
+		if (linkbuffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't read link data");
+			return (ARCHIVE_FAILED);
+		}
+		if (a->tree != NULL) {
+#ifdef HAVE_READLINKAT
+			lnklen = readlinkat(a->tree_current_dir_fd(a->tree),
+			    path, linkbuffer, linkbuffer_len);
+#else
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't read link data");
+				free(linkbuffer);
+				return (ARCHIVE_FAILED);
+			}
+			lnklen = readlink(path, linkbuffer, linkbuffer_len);
+#endif /* HAVE_READLINKAT */
+		} else
+			lnklen = readlink(path, linkbuffer, linkbuffer_len);
+		if (lnklen < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't read link data");
+			free(linkbuffer);
+			return (ARCHIVE_FAILED);
+		}
+		linkbuffer[lnklen] = 0;
+		archive_entry_set_symlink(entry, linkbuffer);
+		free(linkbuffer);
+	}
+#endif /* HAVE_READLINK || HAVE_READLINKAT */
+
+	r = 0;
+	if ((a->flags & ARCHIVE_READDISK_NO_ACL) == 0)
+		r = setup_acls(a, entry, &fd);
+	if ((a->flags & ARCHIVE_READDISK_NO_XATTR) == 0) {
+		r1 = setup_xattrs(a, entry, &fd);
+		if (r1 < r)
+			r = r1;
+	}
+	if (a->flags & ARCHIVE_READDISK_MAC_COPYFILE) {
+		r1 = setup_mac_metadata(a, entry, &fd);
+		if (r1 < r)
+			r = r1;
+	}
+	r1 = setup_sparse(a, entry, &fd);
+	if (r1 < r)
+		r = r1;
+
+	/* If we opened the file earlier in this function, close it. */
+	if (initial_fd != fd)
+		close(fd);
+	return (r);
 }
 
-void cmCTestTestHandler::SetIncludeRegExp(const char* arg)
+#if defined(__APPLE__) && defined(HAVE_COPYFILE_H)
+/*
+ * The Mac OS "copyfile()" API copies the extended metadata for a
+ * file into a separate file in AppleDouble format (see RFC 1740).
+ *
+ * Mac OS tar and cpio implementations store this extended
+ * metadata as a separate entry just before the regular entry
+ * with a "._" prefix added to the filename.
+ *
+ * Note that this is currently done unconditionally; the tar program has
+ * an option to discard this information before the archive is written.
+ *
+ * TODO: If there's a failure, report it and return ARCHIVE_WARN.
+ */
+static int
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  this->IncludeRegExp = arg;
+	int tempfd = -1;
+	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
+	struct stat copyfile_stat;
+	int ret = ARCHIVE_OK;
+	void *buff = NULL;
+	int have_attrs;
+	const char *name, *tempdir;
+	struct archive_string tempfile;
+
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	else if (a->tree != NULL && a->tree_enter_working_dir(a->tree) != 0) {
+		archive_set_error(&a->archive, errno,
+			    "Can't change dir to read extended attributes");
+			return (ARCHIVE_FAILED);
+	}
+	if (name == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
+	}
+
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	if (have_attrs == -1) {
+		archive_set_error(&a->archive, errno,
+			"Could not check extended attributes");
+		return (ARCHIVE_WARN);
+	}
+	if (have_attrs == 0)
+		return (ARCHIVE_OK);
+
+	tempdir = NULL;
+	if (issetugid() == 0)
+		tempdir = getenv("TMPDIR");
+	if (tempdir == NULL)
+		tempdir = _PATH_TMP;
+	archive_string_init(&tempfile);
+	archive_strcpy(&tempfile, tempdir);
+	archive_strcat(&tempfile, "tar.md.XXXXXX");
+	tempfd = mkstemp(tempfile.s);
+	if (tempfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Could not open extended attribute file");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	__archive_ensure_cloexec_flag(tempfd);
+
+	/* XXX I wish copyfile() could pack directly to a memory
+	 * buffer; that would avoid the temp file here.  For that
+	 * matter, it would be nice if fcopyfile() actually worked,
+	 * that would reduce the many open/close races here. */
+	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not pack extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (fstat(tempfd, &copyfile_stat)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not check size of extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	buff = malloc(copyfile_stat.st_size);
+	if (buff == NULL) {
+		archive_set_error(&a->archive, errno,
+		    "Could not allocate memory for extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not read extended attributes into memory");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
+
+cleanup:
+	if (tempfd >= 0) {
+		close(tempfd);
+		unlink(tempfile.s);
+	}
+	archive_string_free(&tempfile);
+	free(buff);
+	return (ret);
 }
 
-void cmCTestTestHandler::SetExcludeRegExp(const char* arg)
+#else
+
+/*
+ * Stub implementation for non-Mac systems.
+ */
+static int
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  this->ExcludeRegExp = arg;
+	(void)a; /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd; /* UNUSED */
+	return (ARCHIVE_OK);
 }
+#endif
 
-void cmCTestTestHandler::SetTestsToRunInformation(const char* in)
+#if HAVE_DARWIN_ACL
+static int translate_guid(struct archive *, acl_entry_t,
+    int *, int *, const char **);
+
+static void add_trivial_nfs4_acl(struct archive_entry *);
+#endif
+
+#if HAVE_SUN_ACL
+static int
+sun_acl_is_trivial(acl_t *, mode_t, int *trivialp);
+#endif
+
+#if HAVE_POSIX_ACL || HAVE_NFS4_ACL
+static int translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry,
+#if HAVE_SUN_ACL
+    acl_t *acl,
+#else
+    acl_t acl,
+#endif
+    int archive_entry_acl_type);
+
+static int
+setup_acls(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  if (!in) {
-    return;
-  }
-  this->TestsToRunString = in;
-  // if the argument is a file, then read it and use the contents as the
-  // string
-  if (cmSystemTools::FileExists(in)) {
-    cmsys::ifstream fin(in);
-    unsigned long filelen = cmSystemTools::FileLength(in);
-    char* buff = new char[filelen + 1];
-    fin.getline(buff, filelen);
-    buff[fin.gcount()] = 0;
-    this->TestsToRunString = buff;
-    delete[] buff;
-  }
+	const char	*accpath;
+#if HAVE_SUN_ACL
+	acl_t		*acl;
+#else
+	acl_t		acl;
+#endif
+	int		r;
+
+	accpath = NULL;
+
+#if HAVE_SUN_ACL || HAVE_DARWIN_ACL || HAVE_ACL_GET_FD_NP
+	if (*fd < 0)
+#else
+	/* For default ACLs on Linux we need reachable accpath */
+	if (*fd < 0 || S_ISDIR(archive_entry_mode(entry)))
+#endif
+	{
+		accpath = archive_entry_sourcepath(entry);
+		if (accpath == NULL || (a->tree != NULL &&
+		    a->tree_enter_working_dir(a->tree) != 0))
+			accpath = archive_entry_pathname(entry);
+		if (accpath == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read ACLs");
+			return (ARCHIVE_WARN);
+		}
+		if (a->tree != NULL &&
+#if !HAVE_SUN_ACL && !HAVE_DARWIN_ACL && !HAVE_ACL_GET_FD_NP
+		    *fd < 0 &&
+#endif
+		    (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+			*fd = a->open_on_current_dir(a->tree,
+			    accpath, O_RDONLY | O_NONBLOCK);
+		}
+	}
+
+	archive_entry_acl_clear(entry);
+
+	acl = NULL;
+
+#if HAVE_NFS4_ACL
+	/* Try NFSv4 ACL first. */
+	if (*fd >= 0)
+#if HAVE_SUN_ACL
+		/* Solaris reads both POSIX.1e and NFSv4 ACL here */
+		facl_get(*fd, 0, &acl);
+#elif HAVE_ACL_GET_FD_NP
+		acl = acl_get_fd_np(*fd, ARCHIVE_PLATFORM_ACL_TYPE_NFS4);
+#else
+		acl = acl_get_fd(*fd);
+#endif
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ARCHIVE_PLATFORM_ACL_TYPE_NFS4);
+#else
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
+#endif
+	else
+#if HAVE_SUN_ACL
+		/* Solaris reads both POSIX.1e and NFSv4 ACLs here */
+		acl_get(accpath, 0, &acl);
+#else
+		acl = acl_get_file(accpath, ARCHIVE_PLATFORM_ACL_TYPE_NFS4);
+#endif
+
+
+#if HAVE_ACL_IS_TRIVIAL_NP || HAVE_SUN_ACL
+	/* Ignore "trivial" ACLs that just mirror the file mode. */
+	if (acl != NULL) {
+#if HAVE_SUN_ACL
+		if (sun_acl_is_trivial(acl, archive_entry_mode(entry),
+		    &r) == 0 && r == 1)
+#elif HAVE_ACL_IS_TRIVIAL_NP
+		if (acl_is_trivial_np(acl, &r) == 0 && r == 1)
+#endif
+		{
+			acl_free(acl);
+			acl = NULL;
+			/*
+			 * Simultaneous NFSv4 and POSIX.1e ACLs for the same
+			 * entry are not allowed, so we should return here
+			 */
+			return (ARCHIVE_OK);
+		}
+	}
+#endif	/* HAVE_ACL_IS_TRIVIAL_NP || HAVE_SUN_ACL */
+	if (acl != NULL) {
+		r = translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+		acl_free(acl);
+		if (r != ARCHIVE_OK) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't translate "
+#if !HAVE_SUN_ACL
+			    "NFSv4 "
+#endif
+			    "ACLs");
+		}
+#if HAVE_DARWIN_ACL
+		/*
+		 * Because Mac OS doesn't support owner@, group@ and everyone@
+		 * ACLs we need to add NFSv4 ACLs mirroring the file mode to
+		 * the archive entry. Otherwise extraction on non-Mac platforms
+		 * would lead to an invalid file mode.
+		 */
+		if ((archive_entry_acl_types(entry) &
+		    ARCHIVE_ENTRY_ACL_TYPE_NFS4) != 0)
+			add_trivial_nfs4_acl(entry);
+#endif
+		return (r);
+	}
+#endif	/* HAVE_NFS4_ACL */
+
+#if HAVE_POSIX_ACL
+	/* This code path is skipped on MacOS and Solaris */
+
+	/* Retrieve access ACL from file. */
+	if (*fd >= 0)
+		acl = acl_get_fd(*fd);
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ACL_TYPE_ACCESS);
+#else
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
+#endif
+	else
+		acl = acl_get_file(accpath, ACL_TYPE_ACCESS);
+
+#if HAVE_ACL_IS_TRIVIAL_NP
+	/* Ignore "trivial" ACLs that just mirror the file mode. */
+	if (acl != NULL && acl_is_trivial_np(acl, &r) == 0) {
+		if (r) {
+			acl_free(acl);
+			acl = NULL;
+		}
+	}
+#endif
+
+	if (acl != NULL) {
+		r = translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+		acl_free(acl);
+		acl = NULL;
+		if (r != ARCHIVE_OK) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't translate access ACLs");
+			return (r);
+		}
+	}
+
+	/* Only directories can have default ACLs. */
+	if (S_ISDIR(archive_entry_mode(entry))) {
+#if HAVE_ACL_GET_FD_NP
+		if (*fd >= 0)
+			acl = acl_get_fd_np(*fd, ACL_TYPE_DEFAULT);
+		else
+#endif
+		acl = acl_get_file(accpath, ACL_TYPE_DEFAULT);
+		if (acl != NULL) {
+			r = translate_acl(a, entry, acl,
+			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
+			acl_free(acl);
+			if (r != ARCHIVE_OK) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't translate default ACLs");
+				return (r);
+			}
+		}
+	}
+#endif	/* HAVE_POSIX_ACL */
+	return (ARCHIVE_OK);
 }
 
-bool cmCTestTestHandler::CleanTestOutput(std::string& output, size_t length)
+/*
+ * Translate system ACL permissions into libarchive internal structure
+ */
+static const struct {
+	const int archive_perm;
+	const int platform_perm;
+} acl_perm_map[] = {
+#if HAVE_SUN_ACL	/* Solaris NFSv4 ACL permissions */
+	{ARCHIVE_ENTRY_ACL_EXECUTE, ACE_EXECUTE},
+	{ARCHIVE_ENTRY_ACL_READ_DATA, ACE_READ_DATA},
+	{ARCHIVE_ENTRY_ACL_LIST_DIRECTORY, ACE_LIST_DIRECTORY},
+	{ARCHIVE_ENTRY_ACL_WRITE_DATA, ACE_WRITE_DATA},
+	{ARCHIVE_ENTRY_ACL_ADD_FILE, ACE_ADD_FILE},
+	{ARCHIVE_ENTRY_ACL_APPEND_DATA, ACE_APPEND_DATA},
+	{ARCHIVE_ENTRY_ACL_ADD_SUBDIRECTORY, ACE_ADD_SUBDIRECTORY},
+	{ARCHIVE_ENTRY_ACL_READ_NAMED_ATTRS, ACE_READ_NAMED_ATTRS},
+	{ARCHIVE_ENTRY_ACL_WRITE_NAMED_ATTRS, ACE_WRITE_NAMED_ATTRS},
+	{ARCHIVE_ENTRY_ACL_DELETE_CHILD, ACE_DELETE_CHILD},
+	{ARCHIVE_ENTRY_ACL_READ_ATTRIBUTES, ACE_READ_ATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_WRITE_ATTRIBUTES, ACE_WRITE_ATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_DELETE, ACE_DELETE},
+	{ARCHIVE_ENTRY_ACL_READ_ACL, ACE_READ_ACL},
+	{ARCHIVE_ENTRY_ACL_WRITE_ACL, ACE_WRITE_ACL},
+	{ARCHIVE_ENTRY_ACL_WRITE_OWNER, ACE_WRITE_OWNER},
+	{ARCHIVE_ENTRY_ACL_SYNCHRONIZE, ACE_SYNCHRONIZE}
+#elif HAVE_DARWIN_ACL	/* MacOS ACL permissions */
+	{ARCHIVE_ENTRY_ACL_READ_DATA, ACL_READ_DATA},
+	{ARCHIVE_ENTRY_ACL_LIST_DIRECTORY, ACL_LIST_DIRECTORY},
+	{ARCHIVE_ENTRY_ACL_WRITE_DATA, ACL_WRITE_DATA},
+	{ARCHIVE_ENTRY_ACL_ADD_FILE, ACL_ADD_FILE},
+	{ARCHIVE_ENTRY_ACL_EXECUTE, ACL_EXECUTE},
+	{ARCHIVE_ENTRY_ACL_DELETE, ACL_DELETE},
+	{ARCHIVE_ENTRY_ACL_APPEND_DATA, ACL_APPEND_DATA},
+	{ARCHIVE_ENTRY_ACL_ADD_SUBDIRECTORY, ACL_ADD_SUBDIRECTORY},
+	{ARCHIVE_ENTRY_ACL_DELETE_CHILD, ACL_DELETE_CHILD},
+	{ARCHIVE_ENTRY_ACL_READ_ATTRIBUTES, ACL_READ_ATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_WRITE_ATTRIBUTES, ACL_WRITE_ATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_READ_NAMED_ATTRS, ACL_READ_EXTATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_WRITE_NAMED_ATTRS, ACL_WRITE_EXTATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_READ_ACL, ACL_READ_SECURITY},
+	{ARCHIVE_ENTRY_ACL_WRITE_ACL, ACL_WRITE_SECURITY},
+	{ARCHIVE_ENTRY_ACL_WRITE_OWNER, ACL_CHANGE_OWNER},
+	{ARCHIVE_ENTRY_ACL_SYNCHRONIZE, ACL_SYNCHRONIZE}
+#else	/* POSIX.1e ACL permissions */
+	{ARCHIVE_ENTRY_ACL_EXECUTE, ACL_EXECUTE},
+	{ARCHIVE_ENTRY_ACL_WRITE, ACL_WRITE},
+	{ARCHIVE_ENTRY_ACL_READ, ACL_READ},
+#if HAVE_ACL_TYPE_NFS4	/* FreeBSD NFSv4 ACL permissions */
+	{ARCHIVE_ENTRY_ACL_READ_DATA, ACL_READ_DATA},
+	{ARCHIVE_ENTRY_ACL_LIST_DIRECTORY, ACL_LIST_DIRECTORY},
+	{ARCHIVE_ENTRY_ACL_WRITE_DATA, ACL_WRITE_DATA},
+	{ARCHIVE_ENTRY_ACL_ADD_FILE, ACL_ADD_FILE},
+	{ARCHIVE_ENTRY_ACL_APPEND_DATA, ACL_APPEND_DATA},
+	{ARCHIVE_ENTRY_ACL_ADD_SUBDIRECTORY, ACL_ADD_SUBDIRECTORY},
+	{ARCHIVE_ENTRY_ACL_READ_NAMED_ATTRS, ACL_READ_NAMED_ATTRS},
+	{ARCHIVE_ENTRY_ACL_WRITE_NAMED_ATTRS, ACL_WRITE_NAMED_ATTRS},
+	{ARCHIVE_ENTRY_ACL_DELETE_CHILD, ACL_DELETE_CHILD},
+	{ARCHIVE_ENTRY_ACL_READ_ATTRIBUTES, ACL_READ_ATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_WRITE_ATTRIBUTES, ACL_WRITE_ATTRIBUTES},
+	{ARCHIVE_ENTRY_ACL_DELETE, ACL_DELETE},
+	{ARCHIVE_ENTRY_ACL_READ_ACL, ACL_READ_ACL},
+	{ARCHIVE_ENTRY_ACL_WRITE_ACL, ACL_WRITE_ACL},
+	{ARCHIVE_ENTRY_ACL_WRITE_OWNER, ACL_WRITE_OWNER},
+	{ARCHIVE_ENTRY_ACL_SYNCHRONIZE, ACL_SYNCHRONIZE}
+#endif
+#endif	/* !HAVE_SUN_ACL && !HAVE_DARWIN_ACL */
+};
+
+#if HAVE_NFS4_ACL
+/*
+ * Translate system NFSv4 inheritance flags into libarchive internal structure
+ */
+static const struct {
+	const int archive_inherit;
+	const int platform_inherit;
+} acl_inherit_map[] = {
+#if HAVE_SUN_ACL	/* Solaris ACL inheritance flags */
+	{ARCHIVE_ENTRY_ACL_ENTRY_FILE_INHERIT, ACE_FILE_INHERIT_ACE},
+	{ARCHIVE_ENTRY_ACL_ENTRY_DIRECTORY_INHERIT, ACE_DIRECTORY_INHERIT_ACE},
+	{ARCHIVE_ENTRY_ACL_ENTRY_NO_PROPAGATE_INHERIT, ACE_NO_PROPAGATE_INHERIT_ACE},
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERIT_ONLY, ACE_INHERIT_ONLY_ACE},
+	{ARCHIVE_ENTRY_ACL_ENTRY_SUCCESSFUL_ACCESS, ACE_SUCCESSFUL_ACCESS_ACE_FLAG},
+	{ARCHIVE_ENTRY_ACL_ENTRY_FAILED_ACCESS, ACE_FAILED_ACCESS_ACE_FLAG},
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERITED, ACE_INHERITED_ACE}
+#elif HAVE_DARWIN_ACL	/* MacOS NFSv4 inheritance flags */
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERITED, ACL_ENTRY_INHERITED},
+	{ARCHIVE_ENTRY_ACL_ENTRY_FILE_INHERIT, ACL_ENTRY_FILE_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_DIRECTORY_INHERIT, ACL_ENTRY_DIRECTORY_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_NO_PROPAGATE_INHERIT, ACL_ENTRY_LIMIT_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERIT_ONLY, ACL_ENTRY_ONLY_INHERIT}
+#else	/* FreeBSD NFSv4 ACL inheritance flags */
+	{ARCHIVE_ENTRY_ACL_ENTRY_FILE_INHERIT, ACL_ENTRY_FILE_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_DIRECTORY_INHERIT, ACL_ENTRY_DIRECTORY_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_NO_PROPAGATE_INHERIT, ACL_ENTRY_NO_PROPAGATE_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERIT_ONLY, ACL_ENTRY_INHERIT_ONLY},
+	{ARCHIVE_ENTRY_ACL_ENTRY_SUCCESSFUL_ACCESS, ACL_ENTRY_SUCCESSFUL_ACCESS},
+	{ARCHIVE_ENTRY_ACL_ENTRY_FAILED_ACCESS, ACL_ENTRY_FAILED_ACCESS},
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERITED, ACL_ENTRY_INHERITED}
+#endif	/* !HAVE_SUN_ACL && !HAVE_DARWIN_ACL */
+};
+#endif	/* HAVE_NFS4_ACL */
+
+#if HAVE_DARWIN_ACL
+static int translate_guid(struct archive *a, acl_entry_t acl_entry,
+    int *ae_id, int *ae_tag, const char **ae_name)
 {
-  if (!length || length >= output.size() ||
-      output.find("CTEST_FULL_OUTPUT") != std::string::npos) {
-    return true;
-  }
+	void *q;
+	uid_t ugid;
+	int r, idtype;
+	struct passwd *pwd;
+	struct group *grp;
 
-  // Truncate at given length but do not break in the middle of a multi-byte
-  // UTF-8 encoding.
-  char const* const begin = output.c_str();
-  char const* const end = begin + output.size();
-  char const* const truncate = begin + length;
-  char const* current = begin;
-  while (current < truncate) {
-    unsigned int ch;
-    if (const char* next = cm_utf8_decode_character(current, end, &ch)) {
-      if (next > truncate) {
-        break;
-      }
-      current = next;
-    } else // Bad byte will be handled by cmXMLWriter.
-    {
-      ++current;
-    }
-  }
-  output = output.substr(0, current - begin);
+	q = acl_get_qualifier(acl_entry);
+	if (q == NULL)
+		return (1);
+	r = mbr_uuid_to_id((const unsigned char *)q, &ugid, &idtype);
+	if (r != 0) {
+		acl_free(q);
+		return (1);
+	}
+	if (idtype == ID_TYPE_UID) {
+		*ae_tag = ARCHIVE_ENTRY_ACL_USER;
+		pwd = getpwuuid(q);
+		if (pwd == NULL) {
+			*ae_id = ugid;
+			*ae_name = NULL;
+		} else {
+			*ae_id = pwd->pw_uid;
+			*ae_name = archive_read_disk_uname(a, *ae_id);
+		}
+	} else if (idtype == ID_TYPE_GID) {
+		*ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+		grp = getgruuid(q);
+		if (grp == NULL) {
+			*ae_id = ugid;
+			*ae_name = NULL;
+		} else {
+			*ae_id = grp->gr_gid;
+			*ae_name = archive_read_disk_gname(a, *ae_id);
+		}
+	} else
+		r = 1;
 
-  // Append truncation message.
-  std::ostringstream msg;
-  msg << "...\n"
-         "The rest of the test output was removed since it exceeds the "
-         "threshold "
-         "of "
-      << length << " bytes.\n";
-  output += msg.str();
-  return true;
+	acl_free(q);
+	return (r);
 }
 
-bool cmCTestTestHandler::SetTestsProperties(
-  const std::vector<std::string>& args)
+/*
+ * Add trivial NFSv4 ACL entries from mode
+ */
+static void
+add_trivial_nfs4_acl(struct archive_entry *entry)
 {
-  std::vector<std::string>::const_iterator it;
-  std::vector<std::string> tests;
-  bool found = false;
-  for (it = args.begin(); it != args.end(); ++it) {
-    if (*it == "PROPERTIES") {
-      found = true;
-      break;
-    }
-    tests.push_back(*it);
-  }
-  if (!found) {
-    return false;
-  }
-  ++it; // skip PROPERTIES
-  for (; it != args.end(); ++it) {
-    std::string key = *it;
-    ++it;
-    if (it == args.end()) {
-      break;
-    }
-    std::string val = *it;
-    std::vector<std::string>::const_iterator tit;
-    for (tit = tests.begin(); tit != tests.end(); ++tit) {
-      cmCTestTestHandler::ListOfTests::iterator rtit;
-      for (rtit = this->TestList.begin(); rtit != this->TestList.end();
-           ++rtit) {
-        if (*tit == rtit->Name) {
-          if (key == "WILL_FAIL") {
-            rtit->WillFail = cmSystemTools::IsOn(val.c_str());
-          }
-          if (key == "DISABLED") {
-            rtit->Disabled = cmSystemTools::IsOn(val.c_str());
-          }
-          if (key == "ATTACHED_FILES") {
-            cmSystemTools::ExpandListArgument(val, rtit->AttachedFiles);
-          }
-          if (key == "ATTACHED_FILES_ON_FAIL") {
-            cmSystemTools::ExpandListArgument(val, rtit->AttachOnFail);
-          }
-          if (key == "RESOURCE_LOCK") {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
+	mode_t mode;
+	int i;
+	const int rperm = ARCHIVE_ENTRY_ACL_READ_DATA;
+	const int wperm = ARCHIVE_ENTRY_ACL_WRITE_DATA |
+	    ARCHIVE_ENTRY_ACL_APPEND_DATA;
+	const int eperm = ARCHIVE_ENTRY_ACL_EXECUTE;
+	const int pubset = ARCHIVE_ENTRY_ACL_READ_ATTRIBUTES |
+	    ARCHIVE_ENTRY_ACL_READ_NAMED_ATTRS |
+	    ARCHIVE_ENTRY_ACL_READ_ACL |
+	    ARCHIVE_ENTRY_ACL_SYNCHRONIZE;
+	const int ownset = pubset | ARCHIVE_ENTRY_ACL_WRITE_ATTRIBUTES |
+	    ARCHIVE_ENTRY_ACL_WRITE_NAMED_ATTRS |
+	    ARCHIVE_ENTRY_ACL_WRITE_ACL |
+	    ARCHIVE_ENTRY_ACL_WRITE_OWNER;
 
-            rtit->LockedResources.insert(lval.begin(), lval.end());
-          }
-          if (key == "FIXTURES_SETUP") {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
+	struct {
+	    const int type;
+	    const int tag;
+	    int permset;
+	} tacl_entry[] = {
+	    {ARCHIVE_ENTRY_ACL_TYPE_ALLOW, ARCHIVE_ENTRY_ACL_USER_OBJ, 0},
+	    {ARCHIVE_ENTRY_ACL_TYPE_DENY, ARCHIVE_ENTRY_ACL_USER_OBJ, 0},
+	    {ARCHIVE_ENTRY_ACL_TYPE_DENY, ARCHIVE_ENTRY_ACL_GROUP_OBJ, 0},
+	    {ARCHIVE_ENTRY_ACL_TYPE_ALLOW, ARCHIVE_ENTRY_ACL_USER_OBJ, ownset},
+	    {ARCHIVE_ENTRY_ACL_TYPE_ALLOW, ARCHIVE_ENTRY_ACL_GROUP_OBJ, pubset},
+	    {ARCHIVE_ENTRY_ACL_TYPE_ALLOW, ARCHIVE_ENTRY_ACL_EVERYONE, pubset}
+	};
 
-            rtit->FixturesSetup.insert(lval.begin(), lval.end());
-          }
-          if (key == "FIXTURES_CLEANUP") {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
+	mode = archive_entry_mode(entry);
 
-            rtit->FixturesCleanup.insert(lval.begin(), lval.end());
-          }
-          if (key == "FIXTURES_REQUIRED") {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
+	/* Permissions for everyone@ */
+	if (mode & 0004)
+		tacl_entry[5].permset |= rperm;
+	if (mode & 0002)
+		tacl_entry[5].permset |= wperm;
+	if (mode & 0001)
+		tacl_entry[5].permset |= eperm;
 
-            rtit->FixturesRequired.insert(lval.begin(), lval.end());
-          }
-          if (key == "TIMEOUT") {
-            rtit->Timeout = atof(val.c_str());
-            rtit->ExplicitTimeout = true;
-          }
-          if (key == "COST") {
-            rtit->Cost = static_cast<float>(atof(val.c_str()));
-          }
-          if (key == "REQUIRED_FILES") {
-            cmSystemTools::ExpandListArgument(val, rtit->RequiredFiles);
-          }
-          if (key == "RUN_SERIAL") {
-            rtit->RunSerial = cmSystemTools::IsOn(val.c_str());
-          }
-          if (key == "FAIL_REGULAR_EXPRESSION") {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
-            std::vector<std::string>::iterator crit;
-            for (crit = lval.begin(); crit != lval.end(); ++crit) {
-              rtit->ErrorRegularExpressions.push_back(
-                std::pair<cmsys::RegularExpression, std::string>(
-                  cmsys::RegularExpression(crit->c_str()),
-                  std::string(*crit)));
-            }
-          }
-          if (key == "PROCESSORS") {
-            rtit->Processors = atoi(val.c_str());
-            if (rtit->Processors < 1) {
-              rtit->Processors = 1;
-            }
-          }
-          if (key == "SKIP_RETURN_CODE") {
-            rtit->SkipReturnCode = atoi(val.c_str());
-            if (rtit->SkipReturnCode < 0 || rtit->SkipReturnCode > 255) {
-              rtit->SkipReturnCode = -1;
-            }
-          }
-          if (key == "DEPENDS") {
-            cmSystemTools::ExpandListArgument(val, rtit->Depends);
-          }
-          if (key == "ENVIRONMENT") {
-            cmSystemTools::ExpandListArgument(val, rtit->Environment);
-          }
-          if (key == "LABELS") {
-            std::vector<std::string> Labels;
-            cmSystemTools::ExpandListArgument(val, Labels);
-            rtit->Labels.insert(rtit->Labels.end(), Labels.begin(),
-                                Labels.end());
-            // sort the array
-            std::sort(rtit->Labels.begin(), rtit->Labels.end());
-            // remove duplicates
-            std::vector<std::string>::iterator new_end =
-              std::unique(rtit->Labels.begin(), rtit->Labels.end());
-            rtit->Labels.erase(new_end, rtit->Labels.end());
-          }
-          if (key == "MEASUREMENT") {
-            size_t pos = val.find_first_of('=');
-            if (pos != std::string::npos) {
-              std::string mKey = val.substr(0, pos);
-              const char* mVal = val.c_str() + pos + 1;
-              rtit->Measurements[mKey] = mVal;
-            } else {
-              rtit->Measurements[val] = "1";
-            }
-          }
-          if (key == "PASS_REGULAR_EXPRESSION") {
-            std::vector<std::string> lval;
-            cmSystemTools::ExpandListArgument(val, lval);
-            std::vector<std::string>::iterator crit;
-            for (crit = lval.begin(); crit != lval.end(); ++crit) {
-              rtit->RequiredRegularExpressions.push_back(
-                std::pair<cmsys::RegularExpression, std::string>(
-                  cmsys::RegularExpression(crit->c_str()),
-                  std::string(*crit)));
-            }
-          }
-          if (key == "WORKING_DIRECTORY") {
-            rtit->Directory = val;
-          }
-          if (key == "TIMEOUT_AFTER_MATCH") {
-            std::vector<std::string> propArgs;
-            cmSystemTools::ExpandListArgument(val, propArgs);
-            if (propArgs.size() != 2) {
-              cmCTestLog(this->CTest, WARNING,
-                         "TIMEOUT_AFTER_MATCH expects two arguments, found "
-                           << propArgs.size() << std::endl);
-            } else {
-              rtit->AlternateTimeout = atof(propArgs[0].c_str());
-              std::vector<std::string> lval;
-              cmSystemTools::ExpandListArgument(propArgs[1], lval);
-              std::vector<std::string>::iterator crit;
-              for (crit = lval.begin(); crit != lval.end(); ++crit) {
-                rtit->TimeoutRegularExpressions.push_back(
-                  std::pair<cmsys::RegularExpression, std::string>(
-                    cmsys::RegularExpression(crit->c_str()),
-                    std::string(*crit)));
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-  return true;
+	/* Permissions for group@ */
+	if (mode & 0040)
+		tacl_entry[4].permset |= rperm;
+	else if (mode & 0004)
+		tacl_entry[2].permset |= rperm;
+	if (mode & 0020)
+		tacl_entry[4].permset |= wperm;
+	else if (mode & 0002)
+		tacl_entry[2].permset |= wperm;
+	if (mode & 0010)
+		tacl_entry[4].permset |= eperm;
+	else if (mode & 0001)
+		tacl_entry[2].permset |= eperm;
+
+	/* Permissions for owner@ */
+	if (mode & 0400) {
+		tacl_entry[3].permset |= rperm;
+		if (!(mode & 0040) && (mode & 0004))
+			tacl_entry[0].permset |= rperm;
+	} else if ((mode & 0040) || (mode & 0004))
+		tacl_entry[1].permset |= rperm;
+	if (mode & 0200) {
+		tacl_entry[3].permset |= wperm;
+		if (!(mode & 0020) && (mode & 0002))
+			tacl_entry[0].permset |= wperm;
+	} else if ((mode & 0020) || (mode & 0002))
+		tacl_entry[1].permset |= wperm;
+	if (mode & 0100) {
+		tacl_entry[3].permset |= eperm;
+		if (!(mode & 0010) && (mode & 0001))
+			tacl_entry[0].permset |= eperm;
+	} else if ((mode & 0010) || (mode & 0001))
+		tacl_entry[1].permset |= eperm;
+
+	for (i = 0; i < 6; i++) {
+		if (tacl_entry[i].permset != 0) {
+			archive_entry_acl_add_entry(entry,
+			    tacl_entry[i].type, tacl_entry[i].permset,
+			    tacl_entry[i].tag, -1, NULL);
+		}
+	}
+
+	return;
 }
-
-bool cmCTestTestHandler::SetDirectoryProperties(
-  const std::vector<std::string>& args)
+#elif HAVE_SUN_ACL
+/*
+ * Check if acl is trivial
+ * This is a FreeBSD acl_is_trivial_np() implementation for Solaris
+ */
+static int
+sun_acl_is_trivial(acl_t *acl, mode_t mode, int *trivialp)
 {
-  std::vector<std::string>::const_iterator it;
-  std::vector<std::string> tests;
-  bool found = false;
-  for (it = args.begin(); it != args.end(); ++it) {
-    if (*it == "PROPERTIES") {
-      found = true;
-      break;
-    }
-    tests.push_back(*it);
-  }
+	int i, p;
+	const uint32_t rperm = ACE_READ_DATA;
+	const uint32_t wperm = ACE_WRITE_DATA | ACE_APPEND_DATA;
+	const uint32_t eperm = ACE_EXECUTE;
+	const uint32_t pubset = ACE_READ_ATTRIBUTES | ACE_READ_NAMED_ATTRS |
+	    ACE_READ_ACL | ACE_SYNCHRONIZE;
+	const uint32_t ownset = pubset | ACE_WRITE_ATTRIBUTES |
+	    ACE_WRITE_NAMED_ATTRS | ACE_WRITE_ACL | ACE_WRITE_OWNER;
 
-  if (!found) {
-    return false;
-  }
-  ++it; // skip PROPERTIES
-  for (; it != args.end(); ++it) {
-    std::string key = *it;
-    ++it;
-    if (it == args.end()) {
-      break;
-    }
-    std::string val = *it;
-    cmCTestTestHandler::ListOfTests::iterator rtit;
-    for (rtit = this->TestList.begin(); rtit != this->TestList.end(); ++rtit) {
-      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-      if (cwd == rtit->Directory) {
-        if (key == "LABELS") {
-          std::vector<std::string> DirectoryLabels;
-          cmSystemTools::ExpandListArgument(val, DirectoryLabels);
-          rtit->Labels.insert(rtit->Labels.end(), DirectoryLabels.begin(),
-                              DirectoryLabels.end());
+	ace_t *ace;
+	ace_t tace[6];
 
-          // sort the array
-          std::sort(rtit->Labels.begin(), rtit->Labels.end());
-          // remove duplicates
-          std::vector<std::string>::iterator new_end =
-            std::unique(rtit->Labels.begin(), rtit->Labels.end());
-          rtit->Labels.erase(new_end, rtit->Labels.end());
-        }
-      }
-    }
-  }
-  return true;
+	if (acl == NULL || trivialp == NULL)
+		return (-1);
+
+	*trivialp = 0;
+
+	/* ACL_IS_TRIVIAL flag must be set for both POSIX.1e and NFSv4 ACLs */
+	if ((acl->acl_flags & ACL_IS_TRIVIAL) == 0)
+		return (0);
+
+	/*
+	 * POSIX.1e ACLs marked with ACL_IS_TRIVIAL are compatible with
+	 * FreeBSD acl_is_trivial_np(). On Solaris they have 4 entries,
+	 * including mask.
+	 */
+	if (acl->acl_type == ACLENT_T) {
+		if (acl->acl_cnt == 4)
+			*trivialp = 1;
+		return (0);
+	}
+
+	if (acl->acl_type != ACE_T || acl->acl_entry_size != sizeof(ace_t))
+		return (-1);
+
+	/*
+	 * Continue with checking NFSv4 ACLs
+	 *
+	 * Create list of trivial ace's to be compared
+	 */
+
+	/* owner@ allow pre */
+	tace[0].a_flags = ACE_OWNER;
+	tace[0].a_type = ACE_ACCESS_ALLOWED_ACE_TYPE;
+	tace[0].a_access_mask = 0;
+
+	/* owner@ deny */
+	tace[1].a_flags = ACE_OWNER;
+	tace[1].a_type = ACE_ACCESS_DENIED_ACE_TYPE;
+	tace[1].a_access_mask = 0;
+
+	/* group@ deny */
+	tace[2].a_flags = ACE_GROUP | ACE_IDENTIFIER_GROUP;
+	tace[2].a_type = ACE_ACCESS_DENIED_ACE_TYPE;
+	tace[2].a_access_mask = 0;
+
+	/* owner@ allow */
+	tace[3].a_flags = ACE_OWNER;
+	tace[3].a_type = ACE_ACCESS_ALLOWED_ACE_TYPE;
+	tace[3].a_access_mask = ownset;
+
+	/* group@ allow */
+	tace[4].a_flags = ACE_GROUP | ACE_IDENTIFIER_GROUP;
+	tace[4].a_type = ACE_ACCESS_ALLOWED_ACE_TYPE;
+	tace[4].a_access_mask = pubset;
+
+	/* everyone@ allow */
+	tace[5].a_flags = ACE_EVERYONE;
+	tace[5].a_type = ACE_ACCESS_ALLOWED_ACE_TYPE;
+	tace[5].a_access_mask = pubset;
+
+	/* Permissions for everyone@ */
+	if (mode & 0004)
+		tace[5].a_access_mask |= rperm;
+	if (mode & 0002)
+		tace[5].a_access_mask |= wperm;
+	if (mode & 0001)
+		tace[5].a_access_mask |= eperm;
+
+	/* Permissions for group@ */
+	if (mode & 0040)
+		tace[4].a_access_mask |= rperm;
+	else if (mode & 0004)
+		tace[2].a_access_mask |= rperm;
+	if (mode & 0020)
+		tace[4].a_access_mask |= wperm;
+	else if (mode & 0002)
+		tace[2].a_access_mask |= wperm;
+	if (mode & 0010)
+		tace[4].a_access_mask |= eperm;
+	else if (mode & 0001)
+		tace[2].a_access_mask |= eperm;
+
+	/* Permissions for owner@ */
+	if (mode & 0400) {
+		tace[3].a_access_mask |= rperm;
+		if (!(mode & 0040) && (mode & 0004))
+			tace[0].a_access_mask |= rperm;
+	} else if ((mode & 0040) || (mode & 0004))
+		tace[1].a_access_mask |= rperm;
+	if (mode & 0200) {
+		tace[3].a_access_mask |= wperm;
+		if (!(mode & 0020) && (mode & 0002))
+			tace[0].a_access_mask |= wperm;
+	} else if ((mode & 0020) || (mode & 0002))
+		tace[1].a_access_mask |= wperm;
+	if (mode & 0100) {
+		tace[3].a_access_mask |= eperm;
+		if (!(mode & 0010) && (mode & 0001))
+			tace[0].a_access_mask |= eperm;
+	} else if ((mode & 0010) || (mode & 0001))
+		tace[1].a_access_mask |= eperm;
+
+	/* Check if the acl count matches */
+	p = 3;
+	for (i = 0; i < 3; i++) {
+		if (tace[i].a_access_mask != 0)
+			p++;
+	}
+	if (acl->acl_cnt != p)
+		return (0);
+
+	p = 0;
+	for (i = 0; i < 6; i++) {
+		if (tace[i].a_access_mask != 0) {
+			ace = &((ace_t *)acl->acl_aclp)[p];
+			/*
+			 * Illumos added ACE_DELETE_CHILD to write perms for
+			 * directories. We have to check against that, too.
+			 */
+			if (ace->a_flags != tace[i].a_flags ||
+			    ace->a_type != tace[i].a_type ||
+			    (ace->a_access_mask != tace[i].a_access_mask &&
+			    ((acl->acl_flags & ACL_IS_DIR) == 0 ||
+			    (tace[i].a_access_mask & wperm) == 0 ||
+			    ace->a_access_mask !=
+			    (tace[i].a_access_mask | ACE_DELETE_CHILD))))
+				return (0);
+			p++;
+		}
+	}
+
+	*trivialp = 1;
+	return (0);
 }
+#endif	/* HAVE_SUN_ACL */
 
-bool cmCTestTestHandler::AddTest(const std::vector<std::string>& args)
+#if HAVE_SUN_ACL
+/*
+ * Translate Solaris POSIX.1e and NFSv4 ACLs into libarchive internal ACL
+ */
+static int
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t *acl, int default_entry_acl_type)
 {
-  const std::string& testname = args[0];
-  cmCTestOptionalLog(this->CTest, DEBUG, "Add test: " << args[0] << std::endl,
-                     this->Quiet);
+	int e, i;
+	int ae_id, ae_tag, ae_perm;
+	int entry_acl_type;
+	const char *ae_name;
+	aclent_t *aclent;
+	ace_t *ace;
 
-  if (this->UseExcludeRegExpFlag && this->UseExcludeRegExpFirst &&
-      this->ExcludeTestsRegularExpression.find(testname.c_str())) {
-    return true;
-  }
-  if (this->MemCheck) {
-    std::vector<std::string>::iterator it;
-    bool found = false;
-    for (it = this->CustomTestsIgnore.begin();
-         it != this->CustomTestsIgnore.end(); ++it) {
-      if (*it == testname) {
-        found = true;
-        break;
-      }
-    }
-    if (found) {
-      cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                         "Ignore memcheck: " << *it << std::endl, this->Quiet);
-      return true;
-    }
-  } else {
-    std::vector<std::string>::iterator it;
-    bool found = false;
-    for (it = this->CustomTestsIgnore.begin();
-         it != this->CustomTestsIgnore.end(); ++it) {
-      if (*it == testname) {
-        found = true;
-        break;
-      }
-    }
-    if (found) {
-      cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-                         "Ignore test: " << *it << std::endl, this->Quiet);
-      return true;
-    }
-  }
+	(void)default_entry_acl_type;
 
-  cmCTestTestProperties test;
-  test.Name = testname;
-  test.Args = args;
-  test.Directory = cmSystemTools::GetCurrentWorkingDirectory();
-  cmCTestOptionalLog(this->CTest, DEBUG,
-                     "Set test directory: " << test.Directory << std::endl,
-                     this->Quiet);
+	if (acl->acl_cnt <= 0)
+		return (ARCHIVE_OK);
 
-  test.IsInBasedOnREOptions = true;
-  test.WillFail = false;
-  test.Disabled = false;
-  test.RunSerial = false;
-  test.Timeout = 0;
-  test.ExplicitTimeout = false;
-  test.Cost = 0;
-  test.Processors = 1;
-  test.SkipReturnCode = -1;
-  test.PreviousRuns = 0;
-  if (this->UseIncludeRegExpFlag &&
-      !this->IncludeTestsRegularExpression.find(testname.c_str())) {
-    test.IsInBasedOnREOptions = false;
-  } else if (this->UseExcludeRegExpFlag && !this->UseExcludeRegExpFirst &&
-             this->ExcludeTestsRegularExpression.find(testname.c_str())) {
-    test.IsInBasedOnREOptions = false;
-  }
-  this->TestList.push_back(test);
-  return true;
+	for (e = 0; e < acl->acl_cnt; e++) {
+		ae_name = NULL;
+		ae_tag = 0;
+		ae_perm = 0;
+
+		if (acl->acl_type == ACE_T) {
+			ace = &((ace_t *)acl->acl_aclp)[e];
+			ae_id = ace->a_who;
+
+			switch(ace->a_type) {
+			case ACE_ACCESS_ALLOWED_ACE_TYPE:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACE_ACCESS_DENIED_ACE_TYPE:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACE_SYSTEM_AUDIT_ACE_TYPE:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;
+				break;
+			case ACE_SYSTEM_ALARM_ACE_TYPE:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			default:
+				/* Unknown entry type, skip */
+				continue;
+			}
+
+			if ((ace->a_flags & ACE_OWNER) != 0)
+				ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			else if ((ace->a_flags & ACE_GROUP) != 0)
+				ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			else if ((ace->a_flags & ACE_EVERYONE) != 0)
+				ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			else if ((ace->a_flags & ACE_IDENTIFIER_GROUP) != 0) {
+				ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+				ae_name = archive_read_disk_gname(&a->archive,
+				    ae_id);
+			} else {
+				ae_tag = ARCHIVE_ENTRY_ACL_USER;
+				ae_name = archive_read_disk_uname(&a->archive,
+				    ae_id);
+			}
+
+			for (i = 0; i < (int)(sizeof(acl_inherit_map) /
+			    sizeof(acl_inherit_map[0])); ++i) {
+				if ((ace->a_flags &
+				    acl_inherit_map[i].platform_inherit) != 0)
+					ae_perm |=
+					    acl_inherit_map[i].archive_inherit;
+			}
+
+			for (i = 0; i < (int)(sizeof(acl_perm_map) /
+			    sizeof(acl_perm_map[0])); ++i) {
+				if ((ace->a_access_mask &
+				    acl_perm_map[i].platform_perm) != 0)
+					ae_perm |=
+					    acl_perm_map[i].archive_perm;
+			}
+		} else {
+			aclent = &((aclent_t *)acl->acl_aclp)[e];
+			if ((aclent->a_type & ACL_DEFAULT) != 0)
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DEFAULT;
+			else
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;
+			ae_id = aclent->a_id;
+
+			switch(aclent->a_type) {
+			case DEF_USER:
+			case USER:
+				ae_name = archive_read_disk_uname(&a->archive,
+				    ae_id);
+				ae_tag = ARCHIVE_ENTRY_ACL_USER;
+				break;
+			case DEF_GROUP:
+			case GROUP:
+				ae_name = archive_read_disk_gname(&a->archive,
+				    ae_id);
+				ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+				break;
+			case DEF_CLASS_OBJ:
+			case CLASS_OBJ:
+				ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+				break;
+			case DEF_USER_OBJ:
+			case USER_OBJ:
+				ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+				break;
+			case DEF_GROUP_OBJ:
+			case GROUP_OBJ:
+				ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+				break;
+			case DEF_OTHER_OBJ:
+			case OTHER_OBJ:
+				ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+				break;
+			default:
+				/* Unknown tag type, skip */
+				continue;
+			}
+
+			if ((aclent->a_perm & 1) != 0)
+				ae_perm |= ARCHIVE_ENTRY_ACL_EXECUTE;
+			if ((aclent->a_perm & 2) != 0)
+				ae_perm |= ARCHIVE_ENTRY_ACL_WRITE;
+			if ((aclent->a_perm & 4) != 0)
+				ae_perm |= ARCHIVE_ENTRY_ACL_READ;
+		} /* default_entry_acl_type != ARCHIVE_ENTRY_ACL_TYPE_NFS4 */
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+		    ae_perm, ae_tag, ae_id, ae_name);
+	}
+	return (ARCHIVE_OK);
 }
+#else	/* !HAVE_SUN_ACL */
+/*
+ * Translate POSIX.1e (Linux), FreeBSD (both POSIX.1e and NFSv4) and
+ * MacOS (NFSv4 only) ACLs into libarchive internal structure
+ */
+static int
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
+{
+	acl_tag_t	 acl_tag;
+#if HAVE_ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	int brand;
+#endif
+#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
+	acl_flagset_t	 acl_flagset;
+#endif
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 r, s, ae_id, ae_tag, ae_perm;
+#if !HAVE_DARWIN_ACL
+	void		*q;
+#endif
+	const char	*ae_name;
+
+#if HAVE_ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	if (acl_get_brand_np(acl, &brand) != 0) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to read ACL brand");
+		return (ARCHIVE_WARN);
+	}
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for POSIX.1e ACL");
+			return (ARCHIVE_WARN);
+		}
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid ACL entry type for NFSv4 ACL");
+			return (ARCHIVE_WARN);
+		}
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown ACL brand");
+		return (ARCHIVE_WARN);
+	}
+#endif
+
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	if (s == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");
+		return (ARCHIVE_WARN);
+	}
+
+#if HAVE_DARWIN_ACL
+	while (s == 0)
+#else	/* FreeBSD, Linux */
+	while (s == 1)
+#endif
+	{
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
+
+		if (acl_get_tag_type(acl_entry, &acl_tag) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get ACL tag type");
+			return (ARCHIVE_WARN);
+		}
+		switch (acl_tag) {
+#if !HAVE_DARWIN_ACL	/* FreeBSD, Linux */
+		case ACL_USER:
+			q = acl_get_qualifier(acl_entry);
+			if (q != NULL) {
+				ae_id = (int)*(uid_t *)q;
+				acl_free(q);
+				ae_name = archive_read_disk_uname(&a->archive,
+				    ae_id);
+			}
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
+			break;
+		case ACL_GROUP:
+			q = acl_get_qualifier(acl_entry);
+			if (q != NULL) {
+				ae_id = (int)*(gid_t *)q;
+				acl_free(q);
+				ae_name = archive_read_disk_gname(&a->archive,
+				    ae_id);
+			}
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#if HAVE_ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+#else	/* HAVE_DARWIN_ACL */
+		case ACL_EXTENDED_ALLOW:
+			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+			r = translate_guid(&a->archive, acl_entry, &ae_id,
+			    &ae_tag, &ae_name);
+			break;
+		case ACL_EXTENDED_DENY:
+			entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+			r = translate_guid(&a->archive, acl_entry, &ae_id,
+			    &ae_tag, &ae_name);
+			break;
+#endif	/* HAVE_DARWIN_ACL */
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+
+#if HAVE_DARWIN_ACL
+		/* Skip if translate_guid() above failed */
+		if (r != 0) {
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
+#endif
+
+#if !HAVE_DARWIN_ACL
+		// XXX acl_type maps to allow/deny/audit/YYYY bits
+		entry_acl_type = default_entry_acl_type;
+#endif
+#if HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL
+		if (default_entry_acl_type & ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+#if HAVE_ACL_TYPE_NFS4
+			/*
+			 * acl_get_entry_type_np() fails with non-NFSv4 ACLs
+			 */
+			if (acl_get_entry_type_np(acl_entry, &acl_type) != 0) {
+				archive_set_error(&a->archive, errno, "Failed "
+				    "to get ACL type from a NFSv4 ACL entry");
+				return (ARCHIVE_WARN);
+			}
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			default:
+				archive_set_error(&a->archive, errno,
+				    "Invalid NFSv4 ACL entry type");
+				return (ARCHIVE_WARN);
+			}
+#endif	/* HAVE_ACL_TYPE_NFS4 */
+
+			/*
+			 * Libarchive stores "flag" (NFSv4 inheritance bits)
+			 * in the ae_perm bitmap.
+			 *
+			 * acl_get_flagset_np() fails with non-NFSv4 ACLs
+			 */
+			if (acl_get_flagset_np(acl_entry, &acl_flagset) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Failed to get flagset from a NFSv4 ACL entry");
+				return (ARCHIVE_WARN);
+			}
+			for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+				r = acl_get_flag_np(acl_flagset,
+				    acl_inherit_map[i].platform_inherit);
+				if (r == -1) {
+					archive_set_error(&a->archive, errno,
+					    "Failed to check flag in a NFSv4 "
+					    "ACL flagset");
+					return (ARCHIVE_WARN);
+				} else if (r)
+					ae_perm |= acl_inherit_map[i].archive_inherit;
+			}
+		}
+#endif	/* HAVE_ACL_TYPE_NFS4 || HAVE_DARWIN_ACL */
+
+		if (acl_get_permset(acl_entry, &acl_permset) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get ACL permission set");
+			return (ARCHIVE_WARN);
+		}
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
+			/*
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
+			 */
+			r = ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm);
+			if (r == -1) {
+				archive_set_error(&a->archive, errno,
+				    "Failed to check permission in an ACL permission set");
+				return (ARCHIVE_WARN);
+			} else if (r)
+				ae_perm |= acl_perm_map[i].archive_perm;
+		}
+
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
+
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+#if !HAVE_DARWIN_ACL
+		if (s == -1) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get next ACL entry");
+			return (ARCHIVE_WARN);
+		}
+#endif
+	}
+	return (ARCHIVE_OK);
+}
+#endif	/* !HAVE_SUN_ACL */
+#else	/* !HAVE_POSIX_ACL && !HAVE_NFS4_ACL */
+static int
+setup_acls(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;      /* UNUSED */
+	(void)entry;  /* UNUSED */
+	(void)fd;     /* UNUSED */
+	return (ARCHIVE_OK);
+}
+#endif	/* !HAVE_POSIX_ACL && !HAVE_NFS4_ACL */
+
+#if (HAVE_FGETXATTR && HAVE_FLISTXATTR && HAVE_LISTXATTR && \
+    HAVE_LLISTXATTR && HAVE_GETXATTR && HAVE_LGETXATTR) || \
+    (HAVE_FGETEA && HAVE_FLISTEA && HAVE_LISTEA)
+
+/*
+ * Linux and AIX extended attribute support.
+ *
+ * TODO:  By using a stack-allocated buffer for the first
+ * call to getxattr(), we might be able to avoid the second
+ * call entirely.  We only need the second call if the
+ * stack-allocated buffer is too small.  But a modest buffer
+ * of 1024 bytes or so will often be big enough.  Same applies
+ * to listxattr().
+ */
+
+
+static int
+setup_xattr(struct archive_read_disk *a,
+    struct archive_entry *entry, const char *name, int fd, const char *accpath)
+{
+	ssize_t size;
+	void *value = NULL;
+
+#if HAVE_FGETXATTR
+	if (fd >= 0)
+		size = fgetxattr(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetxattr(accpath, name, NULL, 0);
+	else
+		size = getxattr(accpath, name, NULL, 0);
+#elif HAVE_FGETEA
+	if (fd >= 0)
+		size = fgetea(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetea(accpath, name, NULL, 0);
+	else
+		size = getea(accpath, name, NULL, 0);
+#endif
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't query extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	if (size > 0 && (value = malloc(size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FGETXATTR
+	if (fd >= 0)
+		size = fgetxattr(fd, name, value, size);
+	else if (!a->follow_symlinks)
+		size = lgetxattr(accpath, name, value, size);
+	else
+		size = getxattr(accpath, name, value, size);
+#elif HAVE_FGETEA
+	if (fd >= 0)
+		size = fgetea(fd, name, value, size);
+	else if (!a->follow_symlinks)
+		size = lgetea(accpath, name, value, size);
+	else
+		size = getea(accpath, name, value, size);
+#endif
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't read extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	archive_entry_xattr_add_entry(entry, name, value, size);
+
+	free(value);
+	return (ARCHIVE_OK);
+}
+
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char *list, *p;
+	const char *path;
+	ssize_t list_size;
+
+	path = NULL;
+
+	if (*fd < 0) {
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL || (a->tree != NULL &&
+		    a->tree_enter_working_dir(a->tree) != 0))
+			path = archive_entry_pathname(entry);
+		if (path == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read "
+			    "extended attributes");
+			return (ARCHIVE_WARN);
+		}
+		if (a->tree != NULL && (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+			*fd = a->open_on_current_dir(a->tree,
+			    path, O_RDONLY | O_NONBLOCK);
+		}
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, NULL, 0);
+	else
+		list_size = listxattr(path, NULL, 0);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, NULL, 0);
+	else
+		list_size = listea(path, NULL, 0);
+#endif
+
+	if (list_size == -1) {
+		if (errno == ENOTSUP || errno == ENOSYS)
+			return (ARCHIVE_OK);
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, list, list_size);
+	else
+		list_size = listxattr(path, list, list_size);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, list, list_size);
+	else
+		list_size = listea(path, list, list_size);
+#endif
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
+		if (strncmp(p, "system.", 7) == 0 ||
+				strncmp(p, "xfsroot.", 8) == 0)
+			continue;
+		setup_xattr(a, entry, p, *fd, path);
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
+}
+
+#elif HAVE_EXTATTR_GET_FILE && HAVE_EXTATTR_LIST_FILE && \
+    HAVE_DECL_EXTATTR_NAMESPACE_USER
+
+/*
+ * FreeBSD extattr interface.
+ */
+
+/* TODO: Implement this.  Follow the Linux model above, but
+ * with FreeBSD-specific system calls, of course.  Be careful
+ * to not include the system extattrs that hold ACLs; we handle
+ * those separately.
+ */
+static int
+setup_xattr(struct archive_read_disk *a, struct archive_entry *entry,
+    int namespace, const char *name, const char *fullname, int fd,
+    const char *path);
+
+static int
+setup_xattr(struct archive_read_disk *a, struct archive_entry *entry,
+    int namespace, const char *name, const char *fullname, int fd,
+    const char *accpath)
+{
+	ssize_t size;
+	void *value = NULL;
+
+	if (fd >= 0)
+		size = extattr_get_fd(fd, namespace, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = extattr_get_link(accpath, namespace, name, NULL, 0);
+	else
+		size = extattr_get_file(accpath, namespace, name, NULL, 0);
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't query extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	if (size > 0 && (value = malloc(size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (fd >= 0)
+		size = extattr_get_fd(fd, namespace, name, value, size);
+	else if (!a->follow_symlinks)
+		size = extattr_get_link(accpath, namespace, name, value, size);
+	else
+		size = extattr_get_file(accpath, namespace, name, value, size);
+
+	if (size == -1) {
+		free(value);
+		archive_set_error(&a->archive, errno,
+		    "Couldn't read extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	archive_entry_xattr_add_entry(entry, fullname, value, size);
+
+	free(value);
+	return (ARCHIVE_OK);
+}
+
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char buff[512];
+	char *list, *p;
+	ssize_t list_size;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
+
+	path = NULL;
+
+	if (*fd < 0) {
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL || (a->tree != NULL &&
+		    a->tree_enter_working_dir(a->tree) != 0))
+			path = archive_entry_pathname(entry);
+		if (path == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Couldn't determine file path to read "
+			    "extended attributes");
+			return (ARCHIVE_WARN);
+		}
+		if (a->tree != NULL && (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)) {
+			*fd = a->open_on_current_dir(a->tree,
+			    path, O_RDONLY | O_NONBLOCK);
+		}
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0);
+
+	if (list_size == -1 && errno == EOPNOTSUPP)
+		return (ARCHIVE_OK);
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, list, list_size);
+	else
+		list_size = extattr_list_file(path, namespace, list, list_size);
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	p = list;
+	while ((p - list) < list_size) {
+		size_t len = 255 & (int)*p;
+		char *name;
+
+		strcpy(buff, "user.");
+		name = buff + strlen(buff);
+		memcpy(name, p + 1, len);
+		name[len] = '\0';
+		setup_xattr(a, entry, namespace, name, buff, *fd, path);
+		p += 1 + len;
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
+}
+
+#else
+
+/*
+ * Generic (stub) extended attribute support.
+ */
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;     /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd;    /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+#endif
+
+#if defined(HAVE_LINUX_FIEMAP_H)
+
+/*
+ * Linux FIEMAP sparse interface.
+ *
+ * The FIEMAP ioctl returns an "extent" for each physical allocation
+ * on disk.  We need to process those to generate a more compact list
+ * of logical file blocks.  We also need to be very careful to use
+ * FIEMAP_FLAG_SYNC here, since there are reports that Linux sometimes
+ * does not report allocations for newly-written data that hasn't
+ * been synced to disk.
+ *
+ * It's important to return a minimal sparse file list because we want
+ * to not trigger sparse file extensions if we don't have to, since
+ * not all readers support them.
+ */
+
+static int
+setup_sparse_fiemap(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char buff[4096];
+	struct fiemap *fm;
+	struct fiemap_extent *fe;
+	int64_t size;
+	int count, do_fiemap, iters;
+	int exit_sts = ARCHIVE_OK;
+
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
+
+	if (*fd < 0) {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		if (a->tree != NULL)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		else
+			*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		__archive_ensure_cloexec_flag(*fd);
+	}
+
+	/* Initialize buffer to avoid the error valgrind complains about. */
+	memset(buff, 0, sizeof(buff));
+	count = (sizeof(buff) - sizeof(*fm))/sizeof(*fe);
+	fm = (struct fiemap *)buff;
+	fm->fm_start = 0;
+	fm->fm_length = ~0ULL;;
+	fm->fm_flags = FIEMAP_FLAG_SYNC;
+	fm->fm_extent_count = count;
+	do_fiemap = 1;
+	size = archive_entry_size(entry);
+	for (iters = 0; ; ++iters) {
+		int i, r;
+
+		r = ioctl(*fd, FS_IOC_FIEMAP, fm); 
+		if (r < 0) {
+			/* When something error happens, it is better we
+			 * should return ARCHIVE_OK because an earlier
+			 * version(<2.6.28) cannot perform FS_IOC_FIEMAP. */
+			goto exit_setup_sparse_fiemap;
+		}
+		if (fm->fm_mapped_extents == 0) {
+			if (iters == 0) {
+				/* Fully sparse file; insert a zero-length "data" entry */
+				archive_entry_sparse_add_entry(entry, 0, 0);
+			}
+			break;
+		}
+		fe = fm->fm_extents;
+		for (i = 0; i < (int)fm->fm_mapped_extents; i++, fe++) {
+			if (!(fe->fe_flags & FIEMAP_EXTENT_UNWRITTEN)) {
+				/* The fe_length of the last block does not
+				 * adjust itself to its size files. */
+				int64_t length = fe->fe_length;
+				if (fe->fe_logical + length > (uint64_t)size)
+					length -= fe->fe_logical + length - size;
+				if (fe->fe_logical == 0 && length == size) {
+					/* This is not sparse. */
+					do_fiemap = 0;
+					break;
+				}
+				if (length > 0)
+					archive_entry_sparse_add_entry(entry,
+					    fe->fe_logical, length);
+			}
+			if (fe->fe_flags & FIEMAP_EXTENT_LAST)
+				do_fiemap = 0;
+		}
+		if (do_fiemap) {
+			fe = fm->fm_extents + fm->fm_mapped_extents -1;
+			fm->fm_start = fe->fe_logical + fe->fe_length;
+		} else
+			break;
+	}
+exit_setup_sparse_fiemap:
+	return (exit_sts);
+}
+
+#if !defined(SEEK_HOLE) || !defined(SEEK_DATA)
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	return setup_sparse_fiemap(a, entry, fd);
+}
+#endif
+#endif	/* defined(HAVE_LINUX_FIEMAP_H) */
+
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+
+/*
+ * SEEK_HOLE sparse interface (FreeBSD, Linux, Solaris)
+ */
+
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	int64_t size;
+	off_t initial_off;
+	off_t off_s, off_e;
+	int exit_sts = ARCHIVE_OK;
+	int check_fully_sparse = 0;
+
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
+
+	/* Does filesystem support the reporting of hole ? */
+	if (*fd < 0 && a->tree != NULL) {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+	}
+
+	if (*fd >= 0) {
+#ifdef _PC_MIN_HOLE_SIZE
+		if (fpathconf(*fd, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+#endif
+		initial_off = lseek(*fd, 0, SEEK_CUR);
+		if (initial_off != 0)
+			lseek(*fd, 0, SEEK_SET);
+	} else {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+			
+#ifdef _PC_MIN_HOLE_SIZE
+		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+#endif
+		*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		__archive_ensure_cloexec_flag(*fd);
+		initial_off = 0;
+	}
+
+#ifndef _PC_MIN_HOLE_SIZE
+	/* Check if the underlying filesystem supports seek hole */
+	off_s = lseek(*fd, 0, SEEK_HOLE);
+	if (off_s < 0)
+#if defined(HAVE_LINUX_FIEMAP_H)
+		return setup_sparse_fiemap(a, entry, fd);
+#else
+		goto exit_setup_sparse;
+#endif
+	else if (off_s > 0)
+		lseek(*fd, 0, SEEK_SET);
+#endif
+
+	off_s = 0;
+	size = archive_entry_size(entry);
+	while (off_s < size) {
+		off_s = lseek(*fd, off_s, SEEK_DATA);
+		if (off_s == (off_t)-1) {
+			if (errno == ENXIO) {
+				/* no more hole */
+				if (archive_entry_sparse_count(entry) == 0) {
+					/* Potentially a fully-sparse file. */
+					check_fully_sparse = 1;
+				}
+				break;
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		off_e = lseek(*fd, off_s, SEEK_HOLE);
+		if (off_e == (off_t)-1) {
+			if (errno == ENXIO) {
+				off_e = lseek(*fd, 0, SEEK_END);
+				if (off_e != (off_t)-1)
+					break;/* no more data */
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_DATA) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		if (off_s == 0 && off_e == size)
+			break;/* This is not sparse. */
+		archive_entry_sparse_add_entry(entry, off_s,
+			off_e - off_s);
+		off_s = off_e;
+	}
+
+	if (check_fully_sparse) {
+		if (lseek(*fd, 0, SEEK_HOLE) == 0 &&
+			lseek(*fd, 0, SEEK_END) == size) {
+			/* Fully sparse file; insert a zero-length "data" entry */
+			archive_entry_sparse_add_entry(entry, 0, 0);
+		}
+	}
+exit_setup_sparse:
+	lseek(*fd, initial_off, SEEK_SET);
+	return (exit_sts);
+}
+
+#elif !defined(HAVE_LINUX_FIEMAP_H)
+
+/*
+ * Generic (stub) sparse support.
+ */
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;     /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd;    /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+#endif
+
+#endif /* !defined(_WIN32) || defined(__CYGWIN__) */
+

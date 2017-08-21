@@ -1,7 +1,21 @@
-      return result;
+	ssize_t size;
+	void *value = NULL;
 
-    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-    snprintf(buf, BUFSIZE-1,
-             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-             tm->tm_mday,
+#if HAVE_FGETXATTR
+	if (fd >= 0)
+		size = fgetxattr(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetxattr(accpath, name, NULL, 0);
+	else
+		size = getxattr(accpath, name, NULL, 0);
+#elif HAVE_FGETEA
+	if (fd >= 0)
+		size = fgetea(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetea(accpath, name, NULL, 0);
+	else
+		size = getea(accpath, name, NULL, 0);
+#endif
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,

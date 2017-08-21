@@ -1,7 +1,7 @@
-	__archive_read_consume(a, 4);
-
-	/*return (ARCHIVE_OK);
-	 * This is not fully implemnted yet.*/
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Encrypted file is unsupported");
-	return (ARCHIVE_FAILED);
+		r = archive_match_owner_excluded(a->matching, entry);
+		if (r < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Faild : %s", archive_error_string(a->matching));
+			return (r);
+		}
+		if (r) {

@@ -1,11 +1,25 @@
-			    "Rejecting malformed cpio archive: symlink contents exceed 1 megabyte");
-			return (ARCHIVE_FATAL);
-		}
-		hl = __archive_read_ahead(a,
-			(size_t)cpio->entry_bytes_remaining, NULL);
-		if (hl == NULL)
-			return (ARCHIVE_FATAL);
-		if (archive_entry_copy_symlink_l(entry, (const char *)hl,
-		    (size_t)cpio->entry_bytes_remaining, sconv) != 0) {
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
+        {
+          const BIGNUM *n;
+          const BIGNUM *e;
+
+          RSA_get0_key(rsa, &n, &e, NULL);
+          BN_print(mem, n);
+          push_certinfo("RSA Public Key", i);
+          print_pubkey_BN(rsa, n, i);
+          print_pubkey_BN(rsa, e, i);
+        }
+#else
+        BIO_printf(mem, "%d", BN_num_bits(rsa->n));
+        push_certinfo("RSA Public Key", i);
+        print_pubkey_BN(rsa, n, i);
+        print_pubkey_BN(rsa, e, i);
+#endif
+
+        break;
+      }
+      case EVP_PKEY_DSA:
+      {
+#ifndef OPENSSL_NO_DSA
+        DSA *dsa;
+#ifdef HAVE_OPAQUE_EVP_PKEY
+        dsa = EVP_PKEY_get0_DSA(pubkey);

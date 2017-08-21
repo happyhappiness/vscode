@@ -1,9 +1,9 @@
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-
-	if (a->tree != NULL)
-		a->tree = tree_reopen(a->tree, pathname, a->restore_time);
-	else
-		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
+  if(instate == FTP_SIZE) {
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+    if(-1 != filesize) {
+      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
+    }

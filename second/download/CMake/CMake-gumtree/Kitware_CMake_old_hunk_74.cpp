@@ -1,10 +1,8 @@
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+   */
 
-	if (a->tree != NULL)
-		a->tree = tree_reopen(a->tree, pathname, a->restore_time);
-	else
-		a->tree = tree_open(pathname, a->symlink_mode,
-		    a->restore_time);
-	if (a->tree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
+  /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+  snprintf(buf, BUFSIZE-1,
+           "%s, %02d %s %4d %02d:%02d:%02d GMT",
+           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+           tm->tm_mday,
+           Curl_month[tm->tm_mon],

@@ -1,7 +1,12 @@
-		r = archive_match_owner_excluded(a->matching, entry);
-		if (r < 0) {
-			archive_set_error(&(a->archive), errno,
-			    "Failed : %s", archive_error_string(a->matching));
-			return (r);
-		}
-		if (r) {
+  archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
+                      "archive_read_support_format_rar");
+
+  rar = (struct rar *)calloc(sizeof(*rar), 1);
+  if (rar == NULL)
+  {
+    archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data");
+    return (ARCHIVE_FATAL);
+  }
+
+	/*
+	 * Until enough data has been read, we cannot tell about

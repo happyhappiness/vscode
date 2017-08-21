@@ -1,6 +1,7 @@
+    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
+    return info.buffer;
+  }
+  return strdup("");
+}
 
-#else
-
-/*
- *
- * If we have no suitable library on this system, we can't actually do
+char *curl_mvaprintf(const char *format, va_list ap_save)

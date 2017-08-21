@@ -1,7 +1,5 @@
 /*-
- * Copyright (c) 2004-2013 Tim Kientzle
- * Copyright (c) 2011-2012,2014 Michihiro NAKAJIMA
- * Copyright (c) 2013 Konrad Kleine
+ * Copyright (c) 2008-2014 Michihiro NAKAJIMA
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,799 +24,613 @@
  */
 
 #include "archive_platform.h"
-__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_zip.c 201102 2009-12-28 03:11:36Z kientzle $");
-
-/*
- * The definitive documentation of the Zip file format is:
- *   http://www.pkware.com/documents/casestudies/APPNOTE.TXT
- *
- * The Info-Zip project has pioneered various extensions to better
- * support Zip on Unix, including the 0x5455 "UT", 0x5855 "UX", 0x7855
- * "Ux", and 0x7875 "ux" extensions for time and ownership
- * information.
- *
- * History of this code: The streaming Zip reader was first added to
- * libarchive in January 2005.  Support for seekable input sources was
- * added in Nov 2011.  Zip64 support (including a significant code
- * refactoring) was added in 2014.
- */
 
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#ifdef HAVE_ZLIB_H
-#include <cm_zlib.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
 #endif
 
 #include "archive.h"
-#include "archive_digest_private.h"
-#include "archive_cryptor_private.h"
-#include "archive_endian.h"
 #include "archive_entry.h"
 #include "archive_entry_locale.h"
-#include "archive_hmac_private.h"
 #include "archive_private.h"
-#include "archive_rb.h"
 #include "archive_read_private.h"
+#include "archive_endian.h"
 
-#ifndef HAVE_ZLIB_H
-#include "archive_crc32.h"
-#endif
 
-struct zip_entry {
-	struct archive_rb_node	node;
-	struct zip_entry	*next;
-	int64_t			local_header_offset;
-	int64_t			compressed_size;
-	int64_t			uncompressed_size;
-	int64_t			gid;
-	int64_t			uid;
-	struct archive_string	rsrcname;
-	time_t			mtime;
-	time_t			atime;
-	time_t			ctime;
-	uint32_t		crc32;
-	uint16_t		mode;
-	uint16_t		zip_flags; /* From GP Flags Field */
-	unsigned char		compression;
-	unsigned char		system; /* From "version written by" */
-	unsigned char		flags; /* Our extra markers. */
-	unsigned char		decdat;/* Used for Decryption check */
-
-	/* WinZip AES encryption extra field should be available
-	 * when compression is 99. */
-	struct {
-		/* Vendor version: AE-1 - 0x0001, AE-2 - 0x0002 */
-		unsigned	vendor;
-#define AES_VENDOR_AE_1	0x0001
-#define AES_VENDOR_AE_2	0x0002
-		/* AES encryption strength:
-		 * 1 - 128 bits, 2 - 192 bits, 2 - 256 bits. */
-		unsigned	strength;
-		/* Actual compression method. */
-		unsigned char	compression;
-	}			aes_extra;
-};
-
-struct trad_enc_ctx {
-	uint32_t	keys[3];
-};
-
-/* Bits used in zip_flags. */
-#define ZIP_ENCRYPTED	(1 << 0)
-#define ZIP_LENGTH_AT_END	(1 << 3)
-#define ZIP_STRONG_ENCRYPTED	(1 << 6)
-#define ZIP_UTF8_NAME	(1 << 11)
-/* See "7.2 Single Password Symmetric Encryption Method"
-   in http://www.pkware.com/documents/casestudies/APPNOTE.TXT */
-#define ZIP_CENTRAL_DIRECTORY_ENCRYPTED	(1 << 13)
-
-/* Bits used in flags. */
-#define LA_USED_ZIP64	(1 << 0)
-#define LA_FROM_CENTRAL_DIRECTORY (1 << 1)
-
+#define MAXMATCH		256	/* Maximum match length. */
+#define MINMATCH		3	/* Minimum match length. */
 /*
- * See "WinZip - AES Encryption Information"
- *     http://www.winzip.com/aes_info.htm
+ * Literal table format:
+ * +0              +256                      +510
+ * +---------------+-------------------------+
+ * | literal code  |       match length      |
+ * |   0 ... 255   |  MINMATCH ... MAXMATCH  |
+ * +---------------+-------------------------+
+ *  <---          LT_BITLEN_SIZE         --->
  */
-/* Value used in compression method. */
-#define WINZIP_AES_ENCRYPTION	99
-/* Authentication code size. */
-#define AUTH_CODE_SIZE	10
-/**/
-#define MAX_DERIVED_KEY_BUF_SIZE	(AES_MAX_KEY_SIZE * 2 + 2)
+/* Literal table size. */
+#define LT_BITLEN_SIZE		(UCHAR_MAX + 1 + MAXMATCH - MINMATCH + 1)
+/* Position table size.
+ * Note: this used for both position table and pre literal table.*/
+#define PT_BITLEN_SIZE		(3 + 16)
 
-struct zip {
-	/* Structural information about the archive. */
-	struct archive_string	format_name;
-	int64_t			central_directory_offset;
-	size_t			central_directory_entries_total;
-	size_t			central_directory_entries_on_this_disk;
-	int			has_encrypted_entries;
+struct lzh_dec {
+	/* Decoding status. */
+	int     		 state;
 
-	/* List of entries (seekable Zip only) */
-	struct zip_entry	*zip_entries;
-	struct archive_rb_tree	tree;
-	struct archive_rb_tree	tree_rsrc;
+	/*
+	 * Window to see last 8Ki(lh5),32Ki(lh6),64Ki(lh7) bytes of decoded
+	 * data.
+	 */
+	int			 w_size;
+	int			 w_mask;
+	/* Window buffer, which is a loop buffer. */
+	unsigned char		*w_buff;
+	/* The insert position to the window. */
+	int			 w_pos;
+	/* The position where we can copy decoded code from the window. */
+	int     		 copy_pos;
+	/* The length how many bytes we can copy decoded code from
+	 * the window. */
+	int     		 copy_len;
 
-	/* Bytes read but not yet consumed via __archive_read_consume() */
-	size_t			unconsumed;
+	/*
+	 * Bit stream reader.
+	 */
+	struct lzh_br {
+#define CACHE_TYPE		uint64_t
+#define CACHE_BITS		(8 * sizeof(CACHE_TYPE))
+	 	/* Cache buffer. */
+		CACHE_TYPE	 cache_buffer;
+		/* Indicates how many bits avail in cache_buffer. */
+		int		 cache_avail;
+	} br;
 
-	/* Information about entry we're currently reading. */
-	struct zip_entry	*entry;
-	int64_t			entry_bytes_remaining;
+	/*
+	 * Huffman coding.
+	 */
+	struct huffman {
+		int		 len_size;
+		int		 len_avail;
+		int		 len_bits;
+		int		 freq[17];
+		unsigned char	*bitlen;
 
-	/* These count the number of bytes actually read for the entry. */
-	int64_t			entry_compressed_bytes_read;
-	int64_t			entry_uncompressed_bytes_read;
+		/*
+		 * Use a index table. It's faster than searching a huffman
+		 * coding tree, which is a binary tree. But a use of a large
+		 * index table causes L1 cache read miss many times.
+		 */
+#define HTBL_BITS	10
+		int		 max_bits;
+		int		 shift_bits;
+		int		 tbl_bits;
+		int		 tree_used;
+		int		 tree_avail;
+		/* Direct access table. */
+		uint16_t	*tbl;
+		/* Binary tree table for extra bits over the direct access. */
+		struct htree_t {
+			uint16_t left;
+			uint16_t right;
+		}		*tree;
+	}			 lt, pt;
 
-	/* Running CRC32 of the decompressed data */
-	unsigned long		entry_crc32;
-	unsigned long		(*crc32func)(unsigned long, const void *,
-				    size_t);
-	char			ignore_crc32;
+	int			 blocks_avail;
+	int			 pos_pt_len_size;
+	int			 pos_pt_len_bits;
+	int			 literal_pt_len_size;
+	int			 literal_pt_len_bits;
+	int			 reading_position;
+	int			 loop;
+	int			 error;
+};
+
+struct lzh_stream {
+	const unsigned char	*next_in;
+	int			 avail_in;
+	int64_t			 total_in;
+	const unsigned char	*ref_ptr;
+	int			 avail_out;
+	int64_t			 total_out;
+	struct lzh_dec		*ds;
+};
+
+struct lha {
+	/* entry_bytes_remaining is the number of bytes we expect.	    */
+	int64_t                  entry_offset;
+	int64_t                  entry_bytes_remaining;
+	int64_t			 entry_unconsumed;
+	uint16_t		 entry_crc_calculated;
+ 
+	size_t			 header_size;	/* header size		    */
+	unsigned char		 level;		/* header level		    */
+	char			 method[3];	/* compress type	    */
+	int64_t			 compsize;	/* compressed data size	    */
+	int64_t			 origsize;	/* original file size	    */
+	int			 setflag;
+#define BIRTHTIME_IS_SET	1
+#define ATIME_IS_SET		2
+#define UNIX_MODE_IS_SET	4
+#define CRC_IS_SET		8
+	time_t			 birthtime;
+	long			 birthtime_tv_nsec;
+	time_t			 mtime;
+	long			 mtime_tv_nsec;
+	time_t			 atime;
+	long			 atime_tv_nsec;
+	mode_t			 mode;
+	int64_t			 uid;
+	int64_t			 gid;
+	struct archive_string 	 uname;
+	struct archive_string 	 gname;
+	uint16_t		 header_crc;
+	uint16_t		 crc;
+	struct archive_string_conv *sconv;
+	struct archive_string_conv *opt_sconv;
+
+	struct archive_string 	 dirname;
+	struct archive_string 	 filename;
+	struct archive_wstring	 ws;
+
+	unsigned char		 dos_attr;
+
+	/* Flag to mark progress that an archive was read their first header.*/
+	char			 found_first_header;
+	/* Flag to mark that indicates an empty directory. */
+	char			 directory;
 
 	/* Flags to mark progress of decompression. */
-	char			decompress_init;
-	char			end_of_entry;
+	char			 decompress_init;
+	char			 end_of_entry;
+	char			 end_of_entry_cleanup;
+	char			 entry_is_compressed;
 
-#ifdef HAVE_ZLIB_H
-	unsigned char 		*uncompressed_buffer;
-	size_t 			uncompressed_buffer_size;
-	z_stream		stream;
-	char			stream_valid;
-#endif
+	char			 format_name[64];
 
-	struct archive_string_conv *sconv;
-	struct archive_string_conv *sconv_default;
-	struct archive_string_conv *sconv_utf8;
-	int			init_default_conversion;
-	int			process_mac_extensions;
+	struct lzh_stream	 strm;
+};
 
-	char			init_decryption;
+/*
+ * LHA header common member offset.
+ */
+#define H_METHOD_OFFSET	2	/* Compress type. */
+#define H_ATTR_OFFSET	19	/* DOS attribute. */
+#define H_LEVEL_OFFSET	20	/* Header Level.  */
+#define H_SIZE		22	/* Minimum header size. */
 
-	/* Decryption buffer. */
+static int      archive_read_format_lha_bid(struct archive_read *, int);
+static int      archive_read_format_lha_options(struct archive_read *,
+		    const char *, const char *);
+static int	archive_read_format_lha_read_header(struct archive_read *,
+		    struct archive_entry *);
+static int	archive_read_format_lha_read_data(struct archive_read *,
+		    const void **, size_t *, int64_t *);
+static int	archive_read_format_lha_read_data_skip(struct archive_read *);
+static int	archive_read_format_lha_cleanup(struct archive_read *);
+
+static void	lha_replace_path_separator(struct lha *,
+		    struct archive_entry *);
+static int	lha_read_file_header_0(struct archive_read *, struct lha *);
+static int	lha_read_file_header_1(struct archive_read *, struct lha *);
+static int	lha_read_file_header_2(struct archive_read *, struct lha *);
+static int	lha_read_file_header_3(struct archive_read *, struct lha *);
+static int	lha_read_file_extended_header(struct archive_read *,
+		    struct lha *, uint16_t *, int, size_t, size_t *);
+static size_t	lha_check_header_format(const void *);
+static int	lha_skip_sfx(struct archive_read *);
+static time_t	lha_dos_time(const unsigned char *);
+static time_t	lha_win_time(uint64_t, long *);
+static unsigned char	lha_calcsum(unsigned char, const void *,
+		    int, size_t);
+static int	lha_parse_linkname(struct archive_string *,
+		    struct archive_string *);
+static int	lha_read_data_none(struct archive_read *, const void **,
+		    size_t *, int64_t *);
+static int	lha_read_data_lzh(struct archive_read *, const void **,
+		    size_t *, int64_t *);
+static void	lha_crc16_init(void);
+static uint16_t lha_crc16(uint16_t, const void *, size_t);
+static int	lzh_decode_init(struct lzh_stream *, const char *);
+static void	lzh_decode_free(struct lzh_stream *);
+static int	lzh_decode(struct lzh_stream *, int);
+static int	lzh_br_fillup(struct lzh_stream *, struct lzh_br *);
+static int	lzh_huffman_init(struct huffman *, size_t, int);
+static void	lzh_huffman_free(struct huffman *);
+static int	lzh_read_pt_bitlen(struct lzh_stream *, int start, int end);
+static int	lzh_make_fake_table(struct huffman *, uint16_t);
+static int	lzh_make_huffman_table(struct huffman *);
+static inline int lzh_decode_huffman(struct huffman *, unsigned);
+static int	lzh_decode_huffman_tree(struct huffman *, unsigned, int);
+
+
+int
+archive_read_support_format_lha(struct archive *_a)
+{
+	struct archive_read *a = (struct archive_read *)_a;
+	struct lha *lha;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_lha");
+
+	lha = (struct lha *)calloc(1, sizeof(*lha));
+	if (lha == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate lha data");
+		return (ARCHIVE_FATAL);
+	}
+	archive_string_init(&lha->ws);
+
+	r = __archive_read_register_format(a,
+	    lha,
+	    "lha",
+	    archive_read_format_lha_bid,
+	    archive_read_format_lha_options,
+	    archive_read_format_lha_read_header,
+	    archive_read_format_lha_read_data,
+	    archive_read_format_lha_read_data_skip,
+	    NULL,
+	    archive_read_format_lha_cleanup,
+	    NULL,
+	    NULL);
+
+	if (r != ARCHIVE_OK)
+		free(lha);
+	return (ARCHIVE_OK);
+}
+
+static size_t
+lha_check_header_format(const void *h)
+{
+	const unsigned char *p = h;
+	size_t next_skip_bytes;
+
+	switch (p[H_METHOD_OFFSET+3]) {
 	/*
-	 * The decrypted data starts at decrypted_ptr and
-	 * extends for decrypted_bytes_remaining.  Decryption
-	 * adds new data to the end of this block, data is returned
-	 * to clients from the beginning.  When the block hits the
-	 * end of decrypted_buffer, it has to be shuffled back to
-	 * the beginning of the buffer.
+	 * "-lh0-" ... "-lh7-" "-lhd-"
+	 * "-lzs-" "-lz5-"
 	 */
-	unsigned char 		*decrypted_buffer;
-	unsigned char 		*decrypted_ptr;
-	size_t 			decrypted_buffer_size;
-	size_t 			decrypted_bytes_remaining;
-	size_t 			decrypted_unconsumed_bytes;
+	case '0': case '1': case '2': case '3':
+	case '4': case '5': case '6': case '7':
+	case 'd':
+	case 's':
+		next_skip_bytes = 4;
 
-	/* Traditional PKWARE decryption. */
-	struct trad_enc_ctx	tctx;
-	char			tctx_valid;
-
-	/* WinZip AES decyption. */
-	/* Contexts used for AES decryption. */
-	archive_crypto_ctx	cctx;
-	char			cctx_valid;
-	archive_hmac_sha1_ctx	hctx;
-	char			hctx_valid;
-
-	/* Strong encryption's decryption header information. */
-	unsigned		iv_size;
-	unsigned		alg_id;
-	unsigned		bit_len;
-	unsigned		flags;
-	unsigned		erd_size;
-	unsigned		v_size;
-	unsigned		v_crc32;
-	uint8_t			*iv;
-	uint8_t			*erd;
-	uint8_t			*v_data;
-};
-
-/* Many systems define min or MIN, but not all. */
-#define	zipmin(a,b) ((a) < (b) ? (a) : (b))
-
-/* ------------------------------------------------------------------------ */
-
-/*
-  Traditional PKWARE Decryption functions.
- */
-
-static void
-trad_enc_update_keys(struct trad_enc_ctx *ctx, uint8_t c)
-{
-	uint8_t t;
-#define CRC32(c, b) (crc32(c ^ 0xffffffffUL, &b, 1) ^ 0xffffffffUL)
-
-	ctx->keys[0] = CRC32(ctx->keys[0], c);
-	ctx->keys[1] = (ctx->keys[1] + (ctx->keys[0] & 0xff)) * 134775813L + 1;
-	t = (ctx->keys[1] >> 24) & 0xff;
-	ctx->keys[2] = CRC32(ctx->keys[2], t);
-#undef CRC32
-}
-
-static uint8_t
-trad_enc_decypt_byte(struct trad_enc_ctx *ctx)
-{
-	unsigned temp = ctx->keys[2] | 2;
-	return (uint8_t)((temp * (temp ^ 1)) >> 8) & 0xff;
-}
-
-static void
-trad_enc_decrypt_update(struct trad_enc_ctx *ctx, const uint8_t *in,
-    size_t in_len, uint8_t *out, size_t out_len)
-{
-	unsigned i, max;
-
-	max = (unsigned)((in_len < out_len)? in_len: out_len);
-
-	for (i = 0; i < max; i++) {
-		uint8_t t = in[i] ^ trad_enc_decypt_byte(ctx);
-		out[i] = t;
-		trad_enc_update_keys(ctx, t);
-	}
-}
-
-static int
-trad_enc_init(struct trad_enc_ctx *ctx, const char *pw, size_t pw_len,
-    const uint8_t *key, size_t key_len, uint8_t *crcchk)
-{
-	uint8_t header[12];
-
-	if (key_len < 12) {
-		*crcchk = 0xff;
-		return -1;
-	}
-
-	ctx->keys[0] = 305419896L;
-	ctx->keys[1] = 591751049L;
-	ctx->keys[2] = 878082192L;
-
-	for (;pw_len; --pw_len)
-		trad_enc_update_keys(ctx, *pw++);
-
-	trad_enc_decrypt_update(ctx, key, 12, header, 12);
-	/* Return the last byte for CRC check. */
-	*crcchk = header[11];
-	return 0;
-}
-
-#if 0
-static void
-crypt_derive_key_sha1(const void *p, int size, unsigned char *key,
-    int key_size)
-{
-#define MD_SIZE 20
-	archive_sha1_ctx ctx;
-	unsigned char md1[MD_SIZE];
-	unsigned char md2[MD_SIZE * 2];
-	unsigned char mkb[64];
-	int i;
-
-	archive_sha1_init(&ctx);
-	archive_sha1_update(&ctx, p, size);
-	archive_sha1_final(&ctx, md1);
-
-	memset(mkb, 0x36, sizeof(mkb));
-	for (i = 0; i < MD_SIZE; i++)
-		mkb[i] ^= md1[i];
-	archive_sha1_init(&ctx);
-	archive_sha1_update(&ctx, mkb, sizeof(mkb));
-	archive_sha1_final(&ctx, md2);
-
-	memset(mkb, 0x5C, sizeof(mkb));
-	for (i = 0; i < MD_SIZE; i++)
-		mkb[i] ^= md1[i];
-	archive_sha1_init(&ctx);
-	archive_sha1_update(&ctx, mkb, sizeof(mkb));
-	archive_sha1_final(&ctx, md2 + MD_SIZE);
-
-	if (key_size > 32)
-		key_size = 32;
-	memcpy(key, md2, key_size);
-#undef MD_SIZE
-}
-#endif
-
-/*
- * Common code for streaming or seeking modes.
- *
- * Includes code to read local file headers, decompress data
- * from entry bodies, and common API.
- */
-
-static unsigned long
-real_crc32(unsigned long crc, const void *buff, size_t len)
-{
-	return crc32(crc, buff, (unsigned int)len);
-}
-
-/* Used by "ignorecrc32" option to speed up tests. */
-static unsigned long
-fake_crc32(unsigned long crc, const void *buff, size_t len)
-{
-	(void)crc; /* UNUSED */
-	(void)buff; /* UNUSED */
-	(void)len; /* UNUSED */
-	return 0;
-}
-
-static struct {
-	int id;
-	const char * name;
-} compression_methods[] = {
-	{0, "uncompressed"}, /* The file is stored (no compression) */
-	{1, "shrinking"}, /* The file is Shrunk */
-	{2, "reduced-1"}, /* The file is Reduced with compression factor 1 */
-	{3, "reduced-2"}, /* The file is Reduced with compression factor 2 */
-	{4, "reduced-3"}, /* The file is Reduced with compression factor 3 */
-	{5, "reduced-4"}, /* The file is Reduced with compression factor 4 */
-	{6, "imploded"},  /* The file is Imploded */
-	{7, "reserved"},  /* Reserved for Tokenizing compression algorithm */
-	{8, "deflation"}, /* The file is Deflated */
-	{9, "deflation-64-bit"}, /* Enhanced Deflating using Deflate64(tm) */
-	{10, "ibm-terse"},/* PKWARE Data Compression Library Imploding
-			   * (old IBM TERSE) */
-	{11, "reserved"}, /* Reserved by PKWARE */
-	{12, "bzip"},     /* File is compressed using BZIP2 algorithm */
-	{13, "reserved"}, /* Reserved by PKWARE */
-	{14, "lzma"},     /* LZMA (EFS) */
-	{15, "reserved"}, /* Reserved by PKWARE */
-	{16, "reserved"}, /* Reserved by PKWARE */
-	{17, "reserved"}, /* Reserved by PKWARE */
-	{18, "ibm-terse-new"}, /* File is compressed using IBM TERSE (new) */
-	{19, "ibm-lz777"},/* IBM LZ77 z Architecture (PFS) */
-	{97, "wav-pack"}, /* WavPack compressed data */
-	{98, "ppmd-1"},   /* PPMd version I, Rev 1 */
-	{99, "aes"}       /* WinZip AES encryption  */
-};
-
-static const char *
-compression_name(const int compression)
-{
-	static const int num_compression_methods =
-		sizeof(compression_methods)/sizeof(compression_methods[0]);
-	int i=0;
-
-	while(compression >= 0 && i < num_compression_methods) {
-		if (compression_methods[i].id == compression)
-			return compression_methods[i].name;
-		i++;
-	}
-	return "??";
-}
-
-/* Convert an MSDOS-style date/time into Unix-style time. */
-static time_t
-zip_time(const char *p)
-{
-	int msTime, msDate;
-	struct tm ts;
-
-	msTime = (0xff & (unsigned)p[0]) + 256 * (0xff & (unsigned)p[1]);
-	msDate = (0xff & (unsigned)p[2]) + 256 * (0xff & (unsigned)p[3]);
-
-	memset(&ts, 0, sizeof(ts));
-	ts.tm_year = ((msDate >> 9) & 0x7f) + 80; /* Years since 1900. */
-	ts.tm_mon = ((msDate >> 5) & 0x0f) - 1; /* Month number. */
-	ts.tm_mday = msDate & 0x1f; /* Day of month. */
-	ts.tm_hour = (msTime >> 11) & 0x1f;
-	ts.tm_min = (msTime >> 5) & 0x3f;
-	ts.tm_sec = (msTime << 1) & 0x3e;
-	ts.tm_isdst = -1;
-	return mktime(&ts);
-}
-
-/*
- * The extra data is stored as a list of
- *	id1+size1+data1 + id2+size2+data2 ...
- *  triplets.  id and size are 2 bytes each.
- */
-static void
-process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
-{
-	unsigned offset = 0;
-
-	while (offset < extra_length - 4) {
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
-
-		offset += 4;
-		if (offset + datasize > extra_length) {
+		/* b0 == 0 means the end of an LHa archive file.	*/
+		if (p[0] == 0)
 			break;
-		}
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%04x, length %d\n",
-		    headerid, datasize);
-#endif
-		switch (headerid) {
-		case 0x0001:
-			/* Zip64 extended information extra field. */
-			zip_entry->flags |= LA_USED_ZIP64;
-			if (zip_entry->uncompressed_size == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->uncompressed_size =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->compressed_size == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->compressed_size =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			if (zip_entry->local_header_offset == 0xffffffff) {
-				if (datasize < 8)
-					break;
-				zip_entry->local_header_offset =
-				    archive_le64dec(p + offset);
-				offset += 8;
-				datasize -= 8;
-			}
-			/* archive_le32dec(p + offset) gives disk
-			 * on which file starts, but we don't handle
-			 * multi-volume Zip files. */
+		if (p[H_METHOD_OFFSET] != '-' || p[H_METHOD_OFFSET+1] != 'l'
+		    ||  p[H_METHOD_OFFSET+4] != '-')
 			break;
-#ifdef DEBUG
-		case 0x0017:
-		{
-			/* Strong encryption field. */
-			if (archive_le16dec(p + offset) == 2) {
-				unsigned algId =
-					archive_le16dec(p + offset + 2);
-				unsigned bitLen =
-					archive_le16dec(p + offset + 4);
-				int	 flags =
-					archive_le16dec(p + offset + 6);
-				fprintf(stderr, "algId=0x%04x, bitLen=%u, "
-				    "flgas=%d\n", algId, bitLen,flags);
-			}
-			break;
-		}
-#endif
-		case 0x5455:
-		{
-			/* Extended time field "UT". */
-			int flags = p[offset];
-			offset++;
-			datasize--;
-			/* Flag bits indicate which dates are present. */
-			if (flags & 0x01)
-			{
-#ifdef DEBUG
-				fprintf(stderr, "mtime: %lld -> %d\n",
-				    (long long)zip_entry->mtime,
-				    archive_le32dec(p + offset));
-#endif
-				if (datasize < 4)
-					break;
-				zip_entry->mtime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x02)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->atime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			if (flags & 0x04)
-			{
-				if (datasize < 4)
-					break;
-				zip_entry->ctime = archive_le32dec(p + offset);
-				offset += 4;
-				datasize -= 4;
-			}
-			break;
-		}
-		case 0x5855:
-		{
-			/* Info-ZIP Unix Extra Field (old version) "UX". */
-			if (datasize >= 8) {
-				zip_entry->atime = archive_le32dec(p + offset);
-				zip_entry->mtime =
-				    archive_le32dec(p + offset + 4);
-			}
-			if (datasize >= 12) {
-				zip_entry->uid =
-				    archive_le16dec(p + offset + 8);
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 10);
-			}
-			break;
-		}
-		case 0x6c78:
-		{
-			/* Experimental 'xl' field */
-			/*
-			 * Introduced Dec 2013 to provide a way to
-			 * include external file attributes (and other
-			 * fields that ordinarily appear only in
-			 * central directory) in local file header.
-			 * This provides file type and permission
-			 * information necessary to support full
-			 * streaming extraction.  Currently being
-			 * discussed with other Zip developers
-			 * ... subject to change.
-			 *
-			 * Format:
-			 *  The field starts with a bitmap that specifies
-			 *  which additional fields are included.  The
-			 *  bitmap is variable length and can be extended in
-			 *  the future.
-			 *
-			 *  n bytes - feature bitmap: first byte has low-order
-			 *    7 bits.  If high-order bit is set, a subsequent
-			 *    byte holds the next 7 bits, etc.
-			 *
-			 *  if bitmap & 1, 2 byte "version made by"
-			 *  if bitmap & 2, 2 byte "internal file attributes"
-			 *  if bitmap & 4, 4 byte "external file attributes"
-			 *  if bitmap & 8, 2 byte comment length + n byte comment
-			 */
-			int bitmap, bitmap_last;
 
-			if (datasize < 1)
+		if (p[H_METHOD_OFFSET+2] == 'h') {
+			/* "-lh?-" */
+			if (p[H_METHOD_OFFSET+3] == 's')
 				break;
-			bitmap_last = bitmap = 0xff & p[offset];
-			offset += 1;
-			datasize -= 1;
-
-			/* We only support first 7 bits of bitmap; skip rest. */
-			while ((bitmap_last & 0x80) != 0
-			    && datasize >= 1) {
-				bitmap_last = p[offset];
-				offset += 1;
-				datasize -= 1;
-			}
-
-			if (bitmap & 1) {
-				/* 2 byte "version made by" */
-				if (datasize < 2)
-					break;
-				zip_entry->system
-				    = archive_le16dec(p + offset) >> 8;
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 2) {
-				/* 2 byte "internal file attributes" */
-				uint32_t internal_attributes;
-				if (datasize < 2)
-					break;
-				internal_attributes
-				    = archive_le16dec(p + offset);
-				/* Not used by libarchive at present. */
-				(void)internal_attributes; /* UNUSED */
-				offset += 2;
-				datasize -= 2;
-			}
-			if (bitmap & 4) {
-				/* 4 byte "external file attributes" */
-				uint32_t external_attributes;
-				if (datasize < 4)
-					break;
-				external_attributes
-				    = archive_le32dec(p + offset);
-				if (zip_entry->system == 3) {
-					zip_entry->mode
-					    = external_attributes >> 16;
-				} else if (zip_entry->system == 0) {
-					// Interpret MSDOS directory bit
-					if (0x10 == (external_attributes & 0x10)) {
-						zip_entry->mode = AE_IFDIR | 0775;
-					} else {
-						zip_entry->mode = AE_IFREG | 0664;
-					}
-					if (0x01 == (external_attributes & 0x01)) {
-						// Read-only bit; strip write permissions
-						zip_entry->mode &= 0555;
-					}
-				} else {
-					zip_entry->mode = 0;
-				}
-				offset += 4;
-				datasize -= 4;
-			}
-			if (bitmap & 8) {
-				/* 2 byte comment length + comment */
-				uint32_t comment_length;
-				if (datasize < 2)
-					break;
-				comment_length
-				    = archive_le16dec(p + offset);
-				offset += 2;
-				datasize -= 2;
-
-				if (datasize < comment_length)
-					break;
-				/* Comment is not supported by libarchive */
-				offset += comment_length;
-				datasize -= comment_length;
-			}
-			break;
+			if (p[H_LEVEL_OFFSET] == 0)
+				return (0);
+			if (p[H_LEVEL_OFFSET] <= 3 && p[H_ATTR_OFFSET] == 0x20)
+				return (0);
 		}
-		case 0x7855:
-			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
-#ifdef DEBUG
-			fprintf(stderr, "uid %d gid %d\n",
-			    archive_le16dec(p + offset),
-			    archive_le16dec(p + offset + 2));
-#endif
-			if (datasize >= 2)
-				zip_entry->uid = archive_le16dec(p + offset);
-			if (datasize >= 4)
-				zip_entry->gid =
-				    archive_le16dec(p + offset + 2);
-			break;
-		case 0x7875:
-		{
-			/* Info-Zip Unix Extra Field (type 3) "ux". */
-			int uidsize = 0, gidsize = 0;
-
-			/* TODO: support arbitrary uidsize/gidsize. */
-			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
-				if (datasize >= 4) {
-					/* get a uid size. */
-					uidsize = 0xff & (int)p[offset+1];
-					if (uidsize == 2)
-						zip_entry->uid =
-						    archive_le16dec(
-						        p + offset + 2);
-					else if (uidsize == 4 && datasize >= 6)
-						zip_entry->uid =
-						    archive_le32dec(
-						        p + offset + 2);
-				}
-				if (datasize >= (2 + uidsize + 3)) {
-					/* get a gid size. */
-					gidsize = 0xff & (int)p[offset+2+uidsize];
-					if (gidsize == 2)
-						zip_entry->gid =
-						    archive_le16dec(
-						        p+offset+2+uidsize+1);
-					else if (gidsize == 4 &&
-					    datasize >= (2 + uidsize + 5))
-						zip_entry->gid =
-						    archive_le32dec(
-						        p+offset+2+uidsize+1);
-				}
-			}
-			break;
+		if (p[H_METHOD_OFFSET+2] == 'z') {
+			/* LArc extensions: -lzs-,-lz4- and -lz5- */
+			if (p[H_LEVEL_OFFSET] != 0)
+				break;
+			if (p[H_METHOD_OFFSET+3] == 's'
+			    || p[H_METHOD_OFFSET+3] == '4'
+			    || p[H_METHOD_OFFSET+3] == '5')
+				return (0);
 		}
-		case 0x9901:
-			/* WinZIp AES extra data field. */
-			if (p[offset + 2] == 'A' && p[offset + 3] == 'E') {
-				/* Vendor version. */
-				zip_entry->aes_extra.vendor =
-				    archive_le16dec(p + offset);
-				/* AES encryption strength. */
-				zip_entry->aes_extra.strength = p[offset + 4];
-				/* Actual compression method. */
-				zip_entry->aes_extra.compression =
-				    p[offset + 5];
-			}
-			break;
-		default:
-			break;
-		}
-		offset += datasize;
+		break;
+	case 'h': next_skip_bytes = 1; break;
+	case 'z': next_skip_bytes = 1; break;
+	case 'l': next_skip_bytes = 2; break;
+	case '-': next_skip_bytes = 3; break;
+	default : next_skip_bytes = 4; break;
 	}
-#ifdef DEBUG
-	if (offset != extra_length)
-	{
-		fprintf(stderr,
-		    "Extra data field contents do not match reported size!\n");
-	}
-#endif
+
+	return (next_skip_bytes);
 }
 
-/*
- * Assumes file pointer is at beginning of local file header.
- */
 static int
-zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
-    struct zip *zip)
+archive_read_format_lha_bid(struct archive_read *a, int best_bid)
 {
 	const char *p;
-	const void *h;
-	const wchar_t *wp;
-	const char *cp;
-	size_t len, filename_length, extra_length;
-	struct archive_string_conv *sconv;
-	struct zip_entry *zip_entry = zip->entry;
-	struct zip_entry zip_entry_central_dir;
-	int ret = ARCHIVE_OK;
-	char version;
+	const void *buff;
+	ssize_t bytes_avail, offset, window;
+	size_t next;
 
-	/* Save a copy of the original for consistency checks. */
-	zip_entry_central_dir = *zip_entry;
+	/* If there's already a better bid than we can ever
+	   make, don't bother testing. */
+	if (best_bid > 30)
+		return (-1);
 
-	zip->decompress_init = 0;
-	zip->end_of_entry = 0;
-	zip->entry_uncompressed_bytes_read = 0;
-	zip->entry_compressed_bytes_read = 0;
-	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
+	if ((p = __archive_read_ahead(a, H_SIZE, NULL)) == NULL)
+		return (-1);
 
-	/* Setup default conversion. */
-	if (zip->sconv == NULL && !zip->init_default_conversion) {
-		zip->sconv_default =
-		    archive_string_default_conversion_for_read(&(a->archive));
-		zip->init_default_conversion = 1;
-	}
+	if (lha_check_header_format(p) == 0)
+		return (30);
 
-	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-
-	if (memcmp(p, "PK\003\004", 4) != 0) {
-		archive_set_error(&a->archive, -1, "Damaged Zip archive");
-		return ARCHIVE_FATAL;
-	}
-	version = p[4];
-	zip_entry->system = p[5];
-	zip_entry->zip_flags = archive_le16dec(p + 6);
-	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
-		archive_entry_set_is_data_encrypted(entry, 1);
-		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_ENCRYPTED &&
-			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
-			archive_entry_set_is_metadata_encrypted(entry, 1);
-			return ARCHIVE_FATAL;
+	if (p[0] == 'M' && p[1] == 'Z') {
+		/* PE file */
+		offset = 0;
+		window = 4096;
+		while (offset < (1024 * 20)) {
+			buff = __archive_read_ahead(a, offset + window,
+			    &bytes_avail);
+			if (buff == NULL) {
+				/* Remaining bytes are less than window. */
+				window >>= 1;
+				if (window < (H_SIZE + 3))
+					return (0);
+				continue;
+			}
+			p = (const char *)buff + offset;
+			while (p + H_SIZE < (const char *)buff + bytes_avail) {
+				if ((next = lha_check_header_format(p)) == 0)
+					return (30);
+				p += next;
+			}
+			offset = p - (const char *)buff;
 		}
 	}
-	zip->init_decryption = (zip_entry->zip_flags & ZIP_ENCRYPTED);
-	zip_entry->compression = (char)archive_le16dec(p + 8);
-	zip_entry->mtime = zip_time(p + 10);
-	zip_entry->crc32 = archive_le32dec(p + 14);
-	if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-		zip_entry->decdat = p[11];
-	else
-		zip_entry->decdat = p[17];
-	zip_entry->compressed_size = archive_le32dec(p + 18);
-	zip_entry->uncompressed_size = archive_le32dec(p + 22);
-	filename_length = archive_le16dec(p + 26);
-	extra_length = archive_le16dec(p + 28);
+	return (0);
+}
 
-	__archive_read_consume(a, 30);
+static int
+archive_read_format_lha_options(struct archive_read *a,
+    const char *key, const char *val)
+{
+	struct lha *lha;
+	int ret = ARCHIVE_FAILED;
 
-	/* Read the filename. */
-	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
-		/* The filename is stored to be UTF-8. */
-		if (zip->sconv_utf8 == NULL) {
-			zip->sconv_utf8 =
+	lha = (struct lha *)(a->format->data);
+	if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "lha: hdrcharset option needs a character-set name");
+		else {
+			lha->opt_sconv =
 			    archive_string_conversion_from_charset(
-				&a->archive, "UTF-8", 1);
-			if (zip->sconv_utf8 == NULL)
-				return (ARCHIVE_FATAL);
+				&a->archive, val, 0);
+			if (lha->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
 		}
-		sconv = zip->sconv_utf8;
-	} else if (zip->sconv != NULL)
-		sconv = zip->sconv;
-	else
-		sconv = zip->sconv_default;
+		return (ret);
+	}
 
-	if (archive_entry_copy_pathname_l(entry,
-	    h, filename_length, sconv) != 0) {
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+}
+
+static int
+lha_skip_sfx(struct archive_read *a)
+{
+	const void *h;
+	const char *p, *q;
+	size_t next, skip;
+	ssize_t bytes, window;
+
+	window = 4096;
+	for (;;) {
+		h = __archive_read_ahead(a, window, &bytes);
+		if (h == NULL) {
+			/* Remaining bytes are less than window. */
+			window >>= 1;
+			if (window < (H_SIZE + 3))
+				goto fatal;
+			continue;
+		}
+		if (bytes < H_SIZE)
+			goto fatal;
+		p = h;
+		q = p + bytes;
+
+		/*
+		 * Scan ahead until we find something that looks
+		 * like the lha header.
+		 */
+		while (p + H_SIZE < q) {
+			if ((next = lha_check_header_format(p)) == 0) {
+				skip = p - (const char *)h;
+				__archive_read_consume(a, skip);
+				return (ARCHIVE_OK);
+			}
+			p += next;
+		}
+		skip = p - (const char *)h;
+		__archive_read_consume(a, skip);
+	}
+fatal:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Couldn't find out LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+truncated_error(struct archive_read *a)
+{
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+archive_read_format_lha_read_header(struct archive_read *a,
+    struct archive_entry *entry)
+{
+	struct archive_string linkname;
+	struct archive_string pathname;
+	struct lha *lha;
+	const unsigned char *p;
+	const char *signature;
+	int err;
+	
+	lha_crc16_init();
+
+	a->archive.archive_format = ARCHIVE_FORMAT_LHA;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "lha";
+
+	lha = (struct lha *)(a->format->data);
+	lha->decompress_init = 0;
+	lha->end_of_entry = 0;
+	lha->end_of_entry_cleanup = 0;
+	lha->entry_unconsumed = 0;
+
+	if ((p = __archive_read_ahead(a, H_SIZE, NULL)) == NULL) {
+		/*
+		 * LHa archiver added 0 to the tail of its archive file as
+		 * the mark of the end of the archive.
+		 */
+		signature = __archive_read_ahead(a, sizeof(signature[0]), NULL);
+		if (signature == NULL || signature[0] == 0)
+			return (ARCHIVE_EOF);
+		return (truncated_error(a));
+	}
+
+	signature = (const char *)p;
+	if (lha->found_first_header == 0 &&
+	    signature[0] == 'M' && signature[1] == 'Z') {
+                /* This is an executable?  Must be self-extracting... 	*/
+		err = lha_skip_sfx(a);
+		if (err < ARCHIVE_WARN)
+			return (err);
+
+		if ((p = __archive_read_ahead(a, sizeof(*p), NULL)) == NULL)
+			return (truncated_error(a));
+		signature = (const char *)p;
+	}
+	/* signature[0] == 0 means the end of an LHa archive file. */
+	if (signature[0] == 0)
+		return (ARCHIVE_EOF);
+
+	/*
+	 * Check the header format and method type.
+	 */
+	if (lha_check_header_format(p) != 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Bad LHa file");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* We've found the first header. */
+	lha->found_first_header = 1;
+	/* Set a default value and common data */
+	lha->header_size = 0;
+	lha->level = p[H_LEVEL_OFFSET];
+	lha->method[0] = p[H_METHOD_OFFSET+1];
+	lha->method[1] = p[H_METHOD_OFFSET+2];
+	lha->method[2] = p[H_METHOD_OFFSET+3];
+	if (memcmp(lha->method, "lhd", 3) == 0)
+		lha->directory = 1;
+	else
+		lha->directory = 0;
+	if (memcmp(lha->method, "lh0", 3) == 0 ||
+	    memcmp(lha->method, "lz4", 3) == 0)
+		lha->entry_is_compressed = 0;
+	else
+		lha->entry_is_compressed = 1;
+
+	lha->compsize = 0;
+	lha->origsize = 0;
+	lha->setflag = 0;
+	lha->birthtime = 0;
+	lha->birthtime_tv_nsec = 0;
+	lha->mtime = 0;
+	lha->mtime_tv_nsec = 0;
+	lha->atime = 0;
+	lha->atime_tv_nsec = 0;
+	lha->mode = (lha->directory)? 0777 : 0666;
+	lha->uid = 0;
+	lha->gid = 0;
+	archive_string_empty(&lha->dirname);
+	archive_string_empty(&lha->filename);
+	lha->dos_attr = 0;
+	if (lha->opt_sconv != NULL)
+		lha->sconv = lha->opt_sconv;
+	else
+		lha->sconv = NULL;
+
+	switch (p[H_LEVEL_OFFSET]) {
+	case 0:
+		err = lha_read_file_header_0(a, lha);
+		break;
+	case 1:
+		err = lha_read_file_header_1(a, lha);
+		break;
+	case 2:
+		err = lha_read_file_header_2(a, lha);
+		break;
+	case 3:
+		err = lha_read_file_header_3(a, lha);
+		break;
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported LHa header level %d", p[H_LEVEL_OFFSET]);
+		err = ARCHIVE_FATAL;
+		break;
+	}
+	if (err < ARCHIVE_WARN)
+		return (err);
+
+
+	if (!lha->directory && archive_strlen(&lha->filename) == 0)
+		/* The filename has not been set */
+		return (truncated_error(a));
+
+	/*
+	 * Make a pathname from a dirname and a filename.
+	 */
+	archive_string_concat(&lha->dirname, &lha->filename);
+	archive_string_init(&pathname);
+	archive_string_init(&linkname);
+	archive_string_copy(&pathname, &lha->dirname);
+
+	if ((lha->mode & AE_IFMT) == AE_IFLNK) {
+		/*
+	 	 * Extract the symlink-name if it's included in the pathname.
+	 	 */
+		if (!lha_parse_linkname(&linkname, &pathname)) {
+			/* We couldn't get the symlink-name. */
+			archive_set_error(&a->archive,
+		    	    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unknown symlink-name");
+			archive_string_free(&pathname);
+			archive_string_free(&linkname);
+			return (ARCHIVE_FAILED);
+		}
+	} else {
+		/*
+		 * Make sure a file-type is set.
+		 * The mode has been overridden if it is in the extended data.
+		 */
+		lha->mode = (lha->mode & ~AE_IFMT) |
+		    ((lha->directory)? AE_IFDIR: AE_IFREG);
+	}
+	if ((lha->setflag & UNIX_MODE_IS_SET) == 0 &&
+	    (lha->dos_attr & 1) != 0)
+		lha->mode &= ~(0222);/* read only. */
+
+	/*
+	 * Set basic file parameters.
+	 */
+	if (archive_entry_copy_pathname_l(entry, pathname.s,
+	    pathname.length, lha->sconv) != 0) {
 		if (errno == ENOMEM) {
 			archive_set_error(&a->archive, ENOMEM,
 			    "Can't allocate memory for Pathname");
@@ -828,459 +640,844 @@ zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
 		    ARCHIVE_ERRNO_FILE_FORMAT,
 		    "Pathname cannot be converted "
 		    "from %s to current locale.",
-		    archive_string_conversion_charset_name(sconv));
-		ret = ARCHIVE_WARN;
+		    archive_string_conversion_charset_name(lha->sconv));
+		err = ARCHIVE_WARN;
 	}
-	__archive_read_consume(a, filename_length);
+	archive_string_free(&pathname);
+	if (archive_strlen(&linkname) > 0) {
+		if (archive_entry_copy_symlink_l(entry, linkname.s,
+		    linkname.length, lha->sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Linkname cannot be converted "
+			    "from %s to current locale.",
+			    archive_string_conversion_charset_name(lha->sconv));
+			err = ARCHIVE_WARN;
+		}
+	} else
+		archive_entry_set_symlink(entry, NULL);
+	archive_string_free(&linkname);
+	/*
+	 * When a header level is 0, there is a possibility that
+	 * a pathname and a symlink has '\' character, a directory
+	 * separator in DOS/Windows. So we should convert it to '/'.
+	 */
+	if (p[H_LEVEL_OFFSET] == 0)
+		lha_replace_path_separator(lha, entry);
 
-	/* Read the extra data. */
-	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+	archive_entry_set_mode(entry, lha->mode);
+	archive_entry_set_uid(entry, lha->uid);
+	archive_entry_set_gid(entry, lha->gid);
+	if (archive_strlen(&lha->uname) > 0)
+		archive_entry_set_uname(entry, lha->uname.s);
+	if (archive_strlen(&lha->gname) > 0)
+		archive_entry_set_gname(entry, lha->gname.s);
+	if (lha->setflag & BIRTHTIME_IS_SET) {
+		archive_entry_set_birthtime(entry, lha->birthtime,
+		    lha->birthtime_tv_nsec);
+		archive_entry_set_ctime(entry, lha->birthtime,
+		    lha->birthtime_tv_nsec);
+	} else {
+		archive_entry_unset_birthtime(entry);
+		archive_entry_unset_ctime(entry);
+	}
+	archive_entry_set_mtime(entry, lha->mtime, lha->mtime_tv_nsec);
+	if (lha->setflag & ATIME_IS_SET)
+		archive_entry_set_atime(entry, lha->atime,
+		    lha->atime_tv_nsec);
+	else
+		archive_entry_unset_atime(entry);
+	if (lha->directory || archive_entry_symlink(entry) != NULL)
+		archive_entry_unset_size(entry);
+	else
+		archive_entry_set_size(entry, lha->origsize);
+
+	/*
+	 * Prepare variables used to read a file content.
+	 */
+	lha->entry_bytes_remaining = lha->compsize;
+	lha->entry_offset = 0;
+	lha->entry_crc_calculated = 0;
+
+	/*
+	 * This file does not have a content.
+	 */
+	if (lha->directory || lha->compsize == 0)
+		lha->end_of_entry = 1;
+
+	sprintf(lha->format_name, "lha -%c%c%c-",
+	    lha->method[0], lha->method[1], lha->method[2]);
+	a->archive.archive_format_name = lha->format_name;
+
+	return (err);
+}
+
+/*
+ * Replace a DOS path separator '\' by a character '/'.
+ * Some multi-byte character set have  a character '\' in its second byte.
+ */
+static void
+lha_replace_path_separator(struct lha *lha, struct archive_entry *entry)
+{
+	const wchar_t *wp;
+	size_t i;
+
+	if ((wp = archive_entry_pathname_w(entry)) != NULL) {
+		archive_wstrcpy(&(lha->ws), wp);
+		for (i = 0; i < archive_strlen(&(lha->ws)); i++) {
+			if (lha->ws.s[i] == L'\\')
+				lha->ws.s[i] = L'/';
+		}
+		archive_entry_copy_pathname_w(entry, lha->ws.s);
+	}
+
+	if ((wp = archive_entry_symlink_w(entry)) != NULL) {
+		archive_wstrcpy(&(lha->ws), wp);
+		for (i = 0; i < archive_strlen(&(lha->ws)); i++) {
+			if (lha->ws.s[i] == L'\\')
+				lha->ws.s[i] = L'/';
+		}
+		archive_entry_copy_symlink_w(entry, lha->ws.s);
+	}
+}
+
+/*
+ * Header 0 format
+ *
+ * +0              +1         +2               +7                  +11
+ * +---------------+----------+----------------+-------------------+
+ * |header size(*1)|header sum|compression type|compressed size(*2)|
+ * +---------------+----------+----------------+-------------------+
+ *                             <---------------------(*1)----------*
+ *
+ * +11               +15       +17       +19            +20              +21
+ * +-----------------+---------+---------+--------------+----------------+
+ * |uncompressed size|time(DOS)|date(DOS)|attribute(DOS)|header level(=0)|
+ * +-----------------+---------+---------+--------------+----------------+
+ * *--------------------------------(*1)---------------------------------*
+ *
+ * +21             +22       +22+(*3)   +22+(*3)+2       +22+(*3)+2+(*4)
+ * +---------------+---------+----------+----------------+------------------+
+ * |name length(*3)|file name|file CRC16|extra header(*4)|  compressed data |
+ * +---------------+---------+----------+----------------+------------------+
+ *                  <--(*3)->                             <------(*2)------>
+ * *----------------------(*1)-------------------------->
+ *
+ */
+#define H0_HEADER_SIZE_OFFSET	0
+#define H0_HEADER_SUM_OFFSET	1
+#define H0_COMP_SIZE_OFFSET	7
+#define H0_ORIG_SIZE_OFFSET	11
+#define H0_DOS_TIME_OFFSET	15
+#define H0_NAME_LEN_OFFSET	21
+#define H0_FILE_NAME_OFFSET	22
+#define H0_FIXED_SIZE		24
+static int
+lha_read_file_header_0(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	int extdsize, namelen;
+	unsigned char headersum, sum_calculated;
+
+	if ((p = __archive_read_ahead(a, H0_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+	lha->header_size = p[H0_HEADER_SIZE_OFFSET] + 2;
+	headersum = p[H0_HEADER_SUM_OFFSET];
+	lha->compsize = archive_le32dec(p + H0_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H0_ORIG_SIZE_OFFSET);
+	lha->mtime = lha_dos_time(p + H0_DOS_TIME_OFFSET);
+	namelen = p[H0_NAME_LEN_OFFSET];
+	extdsize = (int)lha->header_size - H0_FIXED_SIZE - namelen;
+	if ((namelen > 221 || extdsize < 0) && extdsize != -2) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
+		    "Invalid LHa header");
+		return (ARCHIVE_FATAL);
+	}
+	if ((p = __archive_read_ahead(a, lha->header_size, NULL)) == NULL)
+		return (truncated_error(a));
+
+	archive_strncpy(&lha->filename, p + H0_FILE_NAME_OFFSET, namelen);
+	/* When extdsize == -2, A CRC16 value is not present in the header. */
+	if (extdsize >= 0) {
+		lha->crc = archive_le16dec(p + H0_FILE_NAME_OFFSET + namelen);
+		lha->setflag |= CRC_IS_SET;
+	}
+	sum_calculated = lha_calcsum(0, p, 2, lha->header_size - 2);
+
+	/* Read an extended header */
+	if (extdsize > 0) {
+		/* This extended data is set by 'LHa for UNIX' only.
+		 * Maybe fixed size.
+		 */
+		p += H0_FILE_NAME_OFFSET + namelen + 2;
+		if (p[0] == 'U' && extdsize == 12) {
+			/* p[1] is a minor version. */
+			lha->mtime = archive_le32dec(&p[2]);
+			lha->mode = archive_le16dec(&p[6]);
+			lha->uid = archive_le16dec(&p[8]);
+			lha->gid = archive_le16dec(&p[10]);
+			lha->setflag |= UNIX_MODE_IS_SET;
+		}
+	}
+	__archive_read_consume(a, lha->header_size);
+
+	if (sum_calculated != headersum) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "LHa header sum error");
 		return (ARCHIVE_FATAL);
 	}
 
-	process_extra(h, extra_length, zip_entry);
-	__archive_read_consume(a, extra_length);
-
-	/* Work around a bug in Info-Zip: When reading from a pipe, it
-	 * stats the pipe instead of synthesizing a file entry. */
-	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
-		zip_entry->mode &= ~ AE_IFMT;
-		zip_entry->mode |= AE_IFREG;
-	}
-
-	if ((zip_entry->mode & AE_IFMT) == 0) {
-		/* Especially in streaming mode, we can end up
-		   here without having seen proper mode information.
-		   Guess from the filename. */
-		wp = archive_entry_pathname_w(entry);
-		if (wp != NULL) {
-			len = wcslen(wp);
-			if (len > 0 && wp[len - 1] == L'/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		} else {
-			cp = archive_entry_pathname(entry);
-			len = (cp != NULL)?strlen(cp):0;
-			if (len > 0 && cp[len - 1] == '/')
-				zip_entry->mode |= AE_IFDIR;
-			else
-				zip_entry->mode |= AE_IFREG;
-		}
-		if (zip_entry->mode == AE_IFDIR) {
-			zip_entry->mode |= 0775;
-		} else if (zip_entry->mode == AE_IFREG) {
-			zip_entry->mode |= 0664;
-		}
-	}
-
-	/* Make sure directories end in '/' */
-	if ((zip_entry->mode & AE_IFMT) == AE_IFDIR) {
-		wp = archive_entry_pathname_w(entry);
-		if (wp != NULL) {
-			len = wcslen(wp);
-			if (len > 0 && wp[len - 1] != L'/') {
-				struct archive_wstring s;
-				archive_string_init(&s);
-				archive_wstrcat(&s, wp);
-				archive_wstrappend_wchar(&s, L'/');
-				archive_entry_copy_pathname_w(entry, s.s);
-			}
-		} else {
-			cp = archive_entry_pathname(entry);
-			len = (cp != NULL)?strlen(cp):0;
-			if (len > 0 && cp[len - 1] != '/') {
-				struct archive_string s;
-				archive_string_init(&s);
-				archive_strcat(&s, cp);
-				archive_strappend_char(&s, '/');
-				archive_entry_set_pathname(entry, s.s);
-			}
-		}
-	}
-
-	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
-		/* If this came from the central dir, it's size info
-		 * is definitive, so ignore the length-at-end flag. */
-		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
-		/* If local header is missing a value, use the one from
-		   the central directory.  If both have it, warn about
-		   mismatches. */
-		if (zip_entry->crc32 == 0) {
-			zip_entry->crc32 = zip_entry_central_dir.crc32;
-		} else if (!zip->ignore_crc32
-		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent CRC32 values");
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->compressed_size == 0) {
-			zip_entry->compressed_size
-			    = zip_entry_central_dir.compressed_size;
-		} else if (zip_entry->compressed_size
-		    != zip_entry_central_dir.compressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent compressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.compressed_size,
-			    (intmax_t)zip_entry->compressed_size);
-			ret = ARCHIVE_WARN;
-		}
-		if (zip_entry->uncompressed_size == 0) {
-			zip_entry->uncompressed_size
-			    = zip_entry_central_dir.uncompressed_size;
-		} else if (zip_entry->uncompressed_size
-		    != zip_entry_central_dir.uncompressed_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Inconsistent uncompressed size: "
-			    "%jd in central directory, %jd in local header",
-			    (intmax_t)zip_entry_central_dir.uncompressed_size,
-			    (intmax_t)zip_entry->uncompressed_size);
-			ret = ARCHIVE_WARN;
-		}
-	}
-
-	/* Populate some additional entry fields: */
-	archive_entry_set_mode(entry, zip_entry->mode);
-	archive_entry_set_uid(entry, zip_entry->uid);
-	archive_entry_set_gid(entry, zip_entry->gid);
-	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
-	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
-	archive_entry_set_atime(entry, zip_entry->atime, 0);
-
-	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
-		size_t linkname_length;
-
-		if (zip_entry->compressed_size > 64 * 1024) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Zip file with oversized link entry");
-			return ARCHIVE_FATAL;
-		}
-
-		linkname_length = (size_t)zip_entry->compressed_size;
-
-		archive_entry_set_size(entry, 0);
-		p = __archive_read_ahead(a, linkname_length, NULL);
-		if (p == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Truncated Zip file");
-			return ARCHIVE_FATAL;
-		}
-
-		sconv = zip->sconv;
-		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			sconv = zip->sconv_utf8;
-		if (sconv == NULL)
-			sconv = zip->sconv_default;
-		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
-		    sconv) != 0) {
-			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
-			    archive_entry_copy_symlink_l(entry, p,
-				linkname_length, NULL);
-			if (errno == ENOMEM) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Can't allocate memory for Symlink");
-				return (ARCHIVE_FATAL);
-			}
-			/*
-			 * Since there is no character-set regulation for
-			 * symlink name, do not report the conversion error
-			 * in an automatic conversion.
-			 */
-			if (sconv != zip->sconv_utf8 ||
-			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symlink cannot be converted "
-				    "from %s to current locale.",
-				    archive_string_conversion_charset_name(
-					sconv));
-				ret = ARCHIVE_WARN;
-			}
-		}
-		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
-
-		if (__archive_read_consume(a, linkname_length) < 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Read error skipping symlink target name");
-			return ARCHIVE_FATAL;
-		}
-	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    || zip_entry->uncompressed_size > 0) {
-		/* Set the size only if it's meaningful. */
-		archive_entry_set_size(entry, zip_entry->uncompressed_size);
-	}
-	zip->entry_bytes_remaining = zip_entry->compressed_size;
-
-	/* If there's no body, force read_data() to return EOF immediately. */
-	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < 1)
-		zip->end_of_entry = 1;
-
-	/* Set up a more descriptive format name. */
-	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
-	    version / 10, version % 10,
-	    compression_name(zip->entry->compression));
-	a->archive.archive_format_name = zip->format_name.s;
-
-	return (ret);
-}
-
-static int
-check_authentication_code(struct archive_read *a, const void *_p)
-{
-	struct zip *zip = (struct zip *)(a->format->data);
-
-	/* Check authentication code. */
-	if (zip->hctx_valid) {
-		const void *p;
-		uint8_t hmac[20];
-		size_t hmac_len = 20;
-		int cmp;
-
-		archive_hmac_sha1_final(&zip->hctx, hmac, &hmac_len);
-		if (_p == NULL) {
-			/* Read authentication code. */
-			p = __archive_read_ahead(a, AUTH_CODE_SIZE, NULL);
-			if (p == NULL) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Truncated ZIP file data");
-				return (ARCHIVE_FATAL);
-			}
-		} else {
-			p = _p;
-		}
-		cmp = memcmp(hmac, p, AUTH_CODE_SIZE);
-		__archive_read_consume(a, AUTH_CODE_SIZE);
-		if (cmp != 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "ZIP bad Authentication code");
-			return (ARCHIVE_WARN);
-		}
-	}
 	return (ARCHIVE_OK);
 }
 
 /*
- * Read "uncompressed" data.  There are three cases:
- *  1) We know the size of the data.  This is always true for the
- * seeking reader (we've examined the Central Directory already).
- *  2) ZIP_LENGTH_AT_END was set, but only the CRC was deferred.
- * Info-ZIP seems to do this; we know the size but have to grab
- * the CRC from the data descriptor afterwards.
- *  3) We're streaming and ZIP_LENGTH_AT_END was specified and
- * we have no size information.  In this case, we can do pretty
- * well by watching for the data descriptor record.  The data
- * descriptor is 16 bytes and includes a computed CRC that should
- * provide a strong check.
+ * Header 1 format
  *
- * TODO: Technically, the PK\007\010 signature is optional.
- * In the original spec, the data descriptor contained CRC
- * and size fields but had no leading signature.  In practice,
- * newer writers seem to provide the signature pretty consistently.
+ * +0              +1         +2               +7            +11
+ * +---------------+----------+----------------+-------------+
+ * |header size(*1)|header sum|compression type|skip size(*2)|
+ * +---------------+----------+----------------+-------------+
+ *                             <---------------(*1)----------*
  *
- * For uncompressed data, the PK\007\010 marker seems essential
- * to be sure we've actually seen the end of the entry.
+ * +11               +15       +17       +19            +20              +21
+ * +-----------------+---------+---------+--------------+----------------+
+ * |uncompressed size|time(DOS)|date(DOS)|attribute(DOS)|header level(=1)|
+ * +-----------------+---------+---------+--------------+----------------+
+ * *-------------------------------(*1)----------------------------------*
  *
- * Returns ARCHIVE_OK if successful, ARCHIVE_FATAL otherwise, sets
- * zip->end_of_entry if it consumes all of the data.
+ * +21             +22       +22+(*3)   +22+(*3)+2  +22+(*3)+3  +22+(*3)+3+(*4)
+ * +---------------+---------+----------+-----------+-----------+
+ * |name length(*3)|file name|file CRC16|  creator  |padding(*4)|
+ * +---------------+---------+----------+-----------+-----------+
+ *                  <--(*3)->
+ * *----------------------------(*1)----------------------------*
+ *
+ * +22+(*3)+3+(*4)  +22+(*3)+3+(*4)+2     +22+(*3)+3+(*4)+2+(*5)
+ * +----------------+---------------------+------------------------+
+ * |next header size| extended header(*5) |     compressed data    |
+ * +----------------+---------------------+------------------------+
+ * *------(*1)-----> <--------------------(*2)-------------------->
+ */
+#define H1_HEADER_SIZE_OFFSET	0
+#define H1_HEADER_SUM_OFFSET	1
+#define H1_COMP_SIZE_OFFSET	7
+#define H1_ORIG_SIZE_OFFSET	11
+#define H1_DOS_TIME_OFFSET	15
+#define H1_NAME_LEN_OFFSET	21
+#define H1_FILE_NAME_OFFSET	22
+#define H1_FIXED_SIZE		27
+static int
+lha_read_file_header_1(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	size_t extdsize;
+	int i, err, err2;
+	int namelen, padding;
+	unsigned char headersum, sum_calculated;
+
+	err = ARCHIVE_OK;
+
+	if ((p = __archive_read_ahead(a, H1_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+
+	lha->header_size = p[H1_HEADER_SIZE_OFFSET] + 2;
+	headersum = p[H1_HEADER_SUM_OFFSET];
+	/* Note: An extended header size is included in a compsize. */
+	lha->compsize = archive_le32dec(p + H1_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H1_ORIG_SIZE_OFFSET);
+	lha->mtime = lha_dos_time(p + H1_DOS_TIME_OFFSET);
+	namelen = p[H1_NAME_LEN_OFFSET];
+	/* Calculate a padding size. The result will be normally 0 only(?) */
+	padding = ((int)lha->header_size) - H1_FIXED_SIZE - namelen;
+
+	if (namelen > 230 || padding < 0)
+		goto invalid;
+
+	if ((p = __archive_read_ahead(a, lha->header_size, NULL)) == NULL)
+		return (truncated_error(a));
+
+	for (i = 0; i < namelen; i++) {
+		if (p[i + H1_FILE_NAME_OFFSET] == 0xff)
+			goto invalid;/* Invalid filename. */
+	}
+	archive_strncpy(&lha->filename, p + H1_FILE_NAME_OFFSET, namelen);
+	lha->crc = archive_le16dec(p + H1_FILE_NAME_OFFSET + namelen);
+	lha->setflag |= CRC_IS_SET;
+
+	sum_calculated = lha_calcsum(0, p, 2, lha->header_size - 2);
+	/* Consume used bytes but not include `next header size' data
+	 * since it will be consumed in lha_read_file_extended_header(). */
+	__archive_read_consume(a, lha->header_size - 2);
+
+	/* Read extended headers */
+	err2 = lha_read_file_extended_header(a, lha, NULL, 2,
+	    (size_t)(lha->compsize + 2), &extdsize);
+	if (err2 < ARCHIVE_WARN)
+		return (err2);
+	if (err2 < err)
+		err = err2;
+	/* Get a real compressed file size. */
+	lha->compsize -= extdsize - 2;
+
+	if (sum_calculated != headersum) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "LHa header sum error");
+		return (ARCHIVE_FATAL);
+	}
+	return (err);
+invalid:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Invalid LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+/*
+ * Header 2 format
+ *
+ * +0              +2               +7                  +11               +15
+ * +---------------+----------------+-------------------+-----------------+
+ * |header size(*1)|compression type|compressed size(*2)|uncompressed size|
+ * +---------------+----------------+-------------------+-----------------+
+ *  <--------------------------------(*1)---------------------------------*
+ *
+ * +15               +19          +20              +21        +23         +24
+ * +-----------------+------------+----------------+----------+-----------+
+ * |data/time(time_t)| 0x20 fixed |header level(=2)|file CRC16|  creator  |
+ * +-----------------+------------+----------------+----------+-----------+
+ * *---------------------------------(*1)---------------------------------*
+ *
+ * +24              +26                 +26+(*3)      +26+(*3)+(*4)
+ * +----------------+-------------------+-------------+-------------------+
+ * |next header size|extended header(*3)| padding(*4) |  compressed data  |
+ * +----------------+-------------------+-------------+-------------------+
+ * *--------------------------(*1)-------------------> <------(*2)------->
+ *
+ */
+#define H2_HEADER_SIZE_OFFSET	0
+#define H2_COMP_SIZE_OFFSET	7
+#define H2_ORIG_SIZE_OFFSET	11
+#define H2_TIME_OFFSET		15
+#define H2_CRC_OFFSET		21
+#define H2_FIXED_SIZE		24
+static int
+lha_read_file_header_2(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	size_t extdsize;
+	int err, padding;
+	uint16_t header_crc;
+
+	if ((p = __archive_read_ahead(a, H2_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+
+	lha->header_size =archive_le16dec(p + H2_HEADER_SIZE_OFFSET);
+	lha->compsize = archive_le32dec(p + H2_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H2_ORIG_SIZE_OFFSET);
+	lha->mtime = archive_le32dec(p + H2_TIME_OFFSET);
+	lha->crc = archive_le16dec(p + H2_CRC_OFFSET);
+	lha->setflag |= CRC_IS_SET;
+
+	if (lha->header_size < H2_FIXED_SIZE) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Invalid LHa header size");
+		return (ARCHIVE_FATAL);
+	}
+
+	header_crc = lha_crc16(0, p, H2_FIXED_SIZE);
+	__archive_read_consume(a, H2_FIXED_SIZE);
+
+	/* Read extended headers */
+	err = lha_read_file_extended_header(a, lha, &header_crc, 2,
+		  lha->header_size - H2_FIXED_SIZE, &extdsize);
+	if (err < ARCHIVE_WARN)
+		return (err);
+
+	/* Calculate a padding size. The result will be normally 0 or 1. */
+	padding = (int)lha->header_size - (int)(H2_FIXED_SIZE + extdsize);
+	if (padding > 0) {
+		if ((p = __archive_read_ahead(a, padding, NULL)) == NULL)
+			return (truncated_error(a));
+		header_crc = lha_crc16(header_crc, p, padding);
+		__archive_read_consume(a, padding);
+	}
+
+	if (header_crc != lha->header_crc) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "LHa header CRC error");
+		return (ARCHIVE_FATAL);
+	}
+	return (err);
+}
+
+/*
+ * Header 3 format
+ *
+ * +0           +2               +7                  +11               +15
+ * +------------+----------------+-------------------+-----------------+
+ * | 0x04 fixed |compression type|compressed size(*2)|uncompressed size|
+ * +------------+----------------+-------------------+-----------------+
+ *  <-------------------------------(*1)-------------------------------*
+ *
+ * +15               +19          +20              +21        +23         +24
+ * +-----------------+------------+----------------+----------+-----------+
+ * |date/time(time_t)| 0x20 fixed |header level(=3)|file CRC16|  creator  |
+ * +-----------------+------------+----------------+----------+-----------+
+ * *--------------------------------(*1)----------------------------------*
+ *
+ * +24             +28              +32                 +32+(*3)
+ * +---------------+----------------+-------------------+-----------------+
+ * |header size(*1)|next header size|extended header(*3)| compressed data |
+ * +---------------+----------------+-------------------+-----------------+
+ * *------------------------(*1)-----------------------> <------(*2)----->
+ *
+ */
+#define H3_FIELD_LEN_OFFSET	0
+#define H3_COMP_SIZE_OFFSET	7
+#define H3_ORIG_SIZE_OFFSET	11
+#define H3_TIME_OFFSET		15
+#define H3_CRC_OFFSET		21
+#define H3_HEADER_SIZE_OFFSET	24
+#define H3_FIXED_SIZE		28
+static int
+lha_read_file_header_3(struct archive_read *a, struct lha *lha)
+{
+	const unsigned char *p;
+	size_t extdsize;
+	int err;
+	uint16_t header_crc;
+
+	if ((p = __archive_read_ahead(a, H3_FIXED_SIZE, NULL)) == NULL)
+		return (truncated_error(a));
+
+	if (archive_le16dec(p + H3_FIELD_LEN_OFFSET) != 4)
+		goto invalid;
+	lha->header_size =archive_le32dec(p + H3_HEADER_SIZE_OFFSET);
+	lha->compsize = archive_le32dec(p + H3_COMP_SIZE_OFFSET);
+	lha->origsize = archive_le32dec(p + H3_ORIG_SIZE_OFFSET);
+	lha->mtime = archive_le32dec(p + H3_TIME_OFFSET);
+	lha->crc = archive_le16dec(p + H3_CRC_OFFSET);
+	lha->setflag |= CRC_IS_SET;
+
+	if (lha->header_size < H3_FIXED_SIZE + 4)
+		goto invalid;
+	header_crc = lha_crc16(0, p, H3_FIXED_SIZE);
+	__archive_read_consume(a, H3_FIXED_SIZE);
+
+	/* Read extended headers */
+	err = lha_read_file_extended_header(a, lha, &header_crc, 4,
+		  lha->header_size - H3_FIXED_SIZE, &extdsize);
+	if (err < ARCHIVE_WARN)
+		return (err);
+
+	if (header_crc != lha->header_crc) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "LHa header CRC error");
+		return (ARCHIVE_FATAL);
+	}
+	return (err);
+invalid:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Invalid LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+/*
+ * Extended header format
+ *
+ * +0             +2        +3  -- used in header 1 and 2
+ * +0             +4        +5  -- used in header 3
+ * +--------------+---------+-------------------+--------------+--
+ * |ex-header size|header id|        data       |ex-header size| .......
+ * +--------------+---------+-------------------+--------------+--
+ *  <-------------( ex-header size)------------> <-- next extended header --*
+ *
+ * If the ex-header size is zero, it is the make of the end of extended
+ * headers.
+ *
  */
 static int
-zip_read_data_none(struct archive_read *a, const void **_buff,
-    size_t *size, int64_t *offset)
+lha_read_file_extended_header(struct archive_read *a, struct lha *lha,
+    uint16_t *crc, int sizefield_length, size_t limitsize, size_t *total_size)
 {
-	struct zip *zip;
-	const char *buff;
-	ssize_t bytes_avail;
+	const void *h;
+	const unsigned char *extdheader;
+	size_t	extdsize;
+	size_t	datasize;
+	unsigned int i;
+	unsigned char extdtype;
+
+#define EXT_HEADER_CRC		0x00		/* Header CRC and information*/
+#define EXT_FILENAME		0x01		/* Filename 		    */
+#define EXT_DIRECTORY		0x02		/* Directory name	    */
+#define EXT_DOS_ATTR		0x40		/* MS-DOS attribute	    */
+#define EXT_TIMESTAMP		0x41		/* Windows time stamp	    */
+#define EXT_FILESIZE		0x42		/* Large file size	    */
+#define EXT_TIMEZONE		0x43		/* Time zone		    */
+#define EXT_UTF16_FILENAME	0x44		/* UTF-16 filename 	    */
+#define EXT_UTF16_DIRECTORY	0x45		/* UTF-16 directory name    */
+#define EXT_CODEPAGE		0x46		/* Codepage		    */
+#define EXT_UNIX_MODE		0x50		/* File permission	    */
+#define EXT_UNIX_GID_UID	0x51		/* gid,uid		    */
+#define EXT_UNIX_GNAME		0x52		/* Group name		    */
+#define EXT_UNIX_UNAME		0x53		/* User name		    */
+#define EXT_UNIX_MTIME		0x54		/* Modified time	    */
+#define EXT_OS2_NEW_ATTR	0x7f		/* new attribute(OS/2 only) */
+#define EXT_NEW_ATTR		0xff		/* new attribute	    */
+
+	*total_size = sizefield_length;
+
+	for (;;) {
+		/* Read an extended header size. */
+		if ((h =
+		    __archive_read_ahead(a, sizefield_length, NULL)) == NULL)
+			return (truncated_error(a));
+		/* Check if the size is the zero indicates the end of the
+		 * extended header. */
+		if (sizefield_length == sizeof(uint16_t))
+			extdsize = archive_le16dec(h);
+		else
+			extdsize = archive_le32dec(h);
+		if (extdsize == 0) {
+			/* End of extended header */
+			if (crc != NULL)
+				*crc = lha_crc16(*crc, h, sizefield_length);
+			__archive_read_consume(a, sizefield_length);
+			return (ARCHIVE_OK);
+		}
+
+		/* Sanity check to the extended header size. */
+		if (((uint64_t)*total_size + extdsize) >
+				    (uint64_t)limitsize ||
+		    extdsize <= (size_t)sizefield_length)
+			goto invalid;
+
+		/* Read the extended header. */
+		if ((h = __archive_read_ahead(a, extdsize, NULL)) == NULL)
+			return (truncated_error(a));
+		*total_size += extdsize;
+
+		extdheader = (const unsigned char *)h;
+		/* Get the extended header type. */
+		extdtype = extdheader[sizefield_length];
+		/* Calculate an extended data size. */
+		datasize = extdsize - (1 + sizefield_length);
+		/* Skip an extended header size field and type field. */
+		extdheader += sizefield_length + 1;
+
+		if (crc != NULL && extdtype != EXT_HEADER_CRC)
+			*crc = lha_crc16(*crc, h, extdsize);
+		switch (extdtype) {
+		case EXT_HEADER_CRC:
+			/* We only use a header CRC. Following data will not
+			 * be used. */
+			if (datasize >= 2) {
+				lha->header_crc = archive_le16dec(extdheader);
+				if (crc != NULL) {
+					static const char zeros[2] = {0, 0};
+					*crc = lha_crc16(*crc, h,
+					    extdsize - datasize);
+					/* CRC value itself as zero */
+					*crc = lha_crc16(*crc, zeros, 2);
+					*crc = lha_crc16(*crc,
+					    extdheader+2, datasize - 2);
+				}
+			}
+			break;
+		case EXT_FILENAME:
+			if (datasize == 0) {
+				/* maybe directory header */
+				archive_string_empty(&lha->filename);
+				break;
+			}
+			if (extdheader[0] == '\0')
+				goto invalid;
+			archive_strncpy(&lha->filename,
+			    (const char *)extdheader, datasize);
+			break;
+		case EXT_DIRECTORY:
+			if (datasize == 0 || extdheader[0] == '\0')
+				/* no directory name data. exit this case. */
+				goto invalid;
+
+			archive_strncpy(&lha->dirname,
+		  	    (const char *)extdheader, datasize);
+			/*
+			 * Convert directory delimiter from 0xFF
+			 * to '/' for local system.
+	 		 */
+			for (i = 0; i < lha->dirname.length; i++) {
+				if ((unsigned char)lha->dirname.s[i] == 0xFF)
+					lha->dirname.s[i] = '/';
+			}
+			/* Is last character directory separator? */
+			if (lha->dirname.s[lha->dirname.length-1] != '/')
+				/* invalid directory data */
+				goto invalid;
+			break;
+		case EXT_DOS_ATTR:
+			if (datasize == 2)
+				lha->dos_attr = (unsigned char)
+				    (archive_le16dec(extdheader) & 0xff);
+			break;
+		case EXT_TIMESTAMP:
+			if (datasize == (sizeof(uint64_t) * 3)) {
+				lha->birthtime = lha_win_time(
+				    archive_le64dec(extdheader),
+				    &lha->birthtime_tv_nsec);
+				extdheader += sizeof(uint64_t);
+				lha->mtime = lha_win_time(
+				    archive_le64dec(extdheader),
+				    &lha->mtime_tv_nsec);
+				extdheader += sizeof(uint64_t);
+				lha->atime = lha_win_time(
+				    archive_le64dec(extdheader),
+				    &lha->atime_tv_nsec);
+				lha->setflag |= BIRTHTIME_IS_SET |
+				    ATIME_IS_SET;
+			}
+			break;
+		case EXT_FILESIZE:
+			if (datasize == sizeof(uint64_t) * 2) {
+				lha->compsize = archive_le64dec(extdheader);
+				extdheader += sizeof(uint64_t);
+				lha->origsize = archive_le64dec(extdheader);
+			}
+			break;
+		case EXT_CODEPAGE:
+			/* Get an archived filename charset from codepage.
+			 * This overwrites the charset specified by
+			 * hdrcharset option. */
+			if (datasize == sizeof(uint32_t)) {
+				struct archive_string cp;
+				const char *charset;
+
+				archive_string_init(&cp);
+				switch (archive_le32dec(extdheader)) {
+				case 65001: /* UTF-8 */
+					charset = "UTF-8";
+					break;
+				default:
+					archive_string_sprintf(&cp, "CP%d",
+					    (int)archive_le32dec(extdheader));
+					charset = cp.s;
+					break;
+				}
+				lha->sconv =
+				    archive_string_conversion_from_charset(
+					&(a->archive), charset, 1);
+				archive_string_free(&cp);
+				if (lha->sconv == NULL)
+					return (ARCHIVE_FATAL);
+			}
+			break;
+		case EXT_UNIX_MODE:
+			if (datasize == sizeof(uint16_t)) {
+				lha->mode = archive_le16dec(extdheader);
+				lha->setflag |= UNIX_MODE_IS_SET;
+			}
+			break;
+		case EXT_UNIX_GID_UID:
+			if (datasize == (sizeof(uint16_t) * 2)) {
+				lha->gid = archive_le16dec(extdheader);
+				lha->uid = archive_le16dec(extdheader+2);
+			}
+			break;
+		case EXT_UNIX_GNAME:
+			if (datasize > 0)
+				archive_strncpy(&lha->gname,
+				    (const char *)extdheader, datasize);
+			break;
+		case EXT_UNIX_UNAME:
+			if (datasize > 0)
+				archive_strncpy(&lha->uname,
+				    (const char *)extdheader, datasize);
+			break;
+		case EXT_UNIX_MTIME:
+			if (datasize == sizeof(uint32_t))
+				lha->mtime = archive_le32dec(extdheader);
+			break;
+		case EXT_OS2_NEW_ATTR:
+			/* This extended header is OS/2 depend. */
+			if (datasize == 16) {
+				lha->dos_attr = (unsigned char)
+				    (archive_le16dec(extdheader) & 0xff);
+				lha->mode = archive_le16dec(extdheader+2);
+				lha->gid = archive_le16dec(extdheader+4);
+				lha->uid = archive_le16dec(extdheader+6);
+				lha->birthtime = archive_le32dec(extdheader+8);
+				lha->atime = archive_le32dec(extdheader+12);
+				lha->setflag |= UNIX_MODE_IS_SET
+				    | BIRTHTIME_IS_SET | ATIME_IS_SET;
+			}
+			break;
+		case EXT_NEW_ATTR:
+			if (datasize == 20) {
+				lha->mode = (mode_t)archive_le32dec(extdheader);
+				lha->gid = archive_le32dec(extdheader+4);
+				lha->uid = archive_le32dec(extdheader+8);
+				lha->birthtime = archive_le32dec(extdheader+12);
+				lha->atime = archive_le32dec(extdheader+16);
+				lha->setflag |= UNIX_MODE_IS_SET
+				    | BIRTHTIME_IS_SET | ATIME_IS_SET;
+			}
+			break;
+		case EXT_TIMEZONE:		/* Not supported */
+		case EXT_UTF16_FILENAME:	/* Not supported */
+		case EXT_UTF16_DIRECTORY:	/* Not supported */
+		default:
+			break;
+		}
+
+		__archive_read_consume(a, extdsize);
+	}
+invalid:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Invalid extended LHa header");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+lha_end_of_entry(struct archive_read *a)
+{
+	struct lha *lha = (struct lha *)(a->format->data);
+	int r = ARCHIVE_EOF;
+
+	if (!lha->end_of_entry_cleanup) {
+		if ((lha->setflag & CRC_IS_SET) &&
+		    lha->crc != lha->entry_crc_calculated) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "LHa data CRC error");
+			r = ARCHIVE_WARN;
+		}
+
+		/* End-of-entry cleanup done. */
+		lha->end_of_entry_cleanup = 1;
+	}
+	return (r);
+}
+
+static int
+archive_read_format_lha_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
+{
+	struct lha *lha = (struct lha *)(a->format->data);
 	int r;
 
-	(void)offset; /* UNUSED */
-
-	zip = (struct zip *)(a->format->data);
-
-	if (zip->entry->zip_flags & ZIP_LENGTH_AT_END) {
-		const char *p;
-		ssize_t grabbing_bytes = 24;
-
-		if (zip->hctx_valid)
-			grabbing_bytes += AUTH_CODE_SIZE;
-		/* Grab at least 24 bytes. */
-		buff = __archive_read_ahead(a, grabbing_bytes, &bytes_avail);
-		if (bytes_avail < grabbing_bytes) {
-			/* Zip archives have end-of-archive markers
-			   that are longer than this, so a failure to get at
-			   least 24 bytes really does indicate a truncated
-			   file. */
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		/* Check for a complete PK\007\010 signature, followed
-		 * by the correct 4-byte CRC. */
-		p = buff;
-		if (zip->hctx_valid)
-			p += AUTH_CODE_SIZE;
-		if (p[0] == 'P' && p[1] == 'K'
-		    && p[2] == '\007' && p[3] == '\010'
-		    && (archive_le32dec(p + 4) == zip->entry_crc32
-			|| zip->ignore_crc32
-			|| (zip->hctx_valid
-			 && zip->entry->aes_extra.vendor == AES_VENDOR_AE_2))) {
-			if (zip->entry->flags & LA_USED_ZIP64) {
-				zip->entry->crc32 = archive_le32dec(p + 4);
-				zip->entry->compressed_size =
-					archive_le64dec(p + 8);
-				zip->entry->uncompressed_size =
-					archive_le64dec(p + 16);
-				zip->unconsumed = 24;
-			} else {
-				zip->entry->crc32 = archive_le32dec(p + 4);
-				zip->entry->compressed_size =
-					archive_le32dec(p + 8);
-				zip->entry->uncompressed_size =
-					archive_le32dec(p + 12);
-				zip->unconsumed = 16;
-			}
-			if (zip->hctx_valid) {
-				r = check_authentication_code(a, buff);
-				if (r != ARCHIVE_OK)
-					return (r);
-			}
-			zip->end_of_entry = 1;
-			return (ARCHIVE_OK);
-		}
-		/* If not at EOF, ensure we consume at least one byte. */
-		++p;
-
-		/* Scan forward until we see where a PK\007\010 signature
-		 * might be. */
-		/* Return bytes up until that point.  On the next call,
-		 * the code above will verify the data descriptor. */
-		while (p < buff + bytes_avail - 4) {
-			if (p[3] == 'P') { p += 3; }
-			else if (p[3] == 'K') { p += 2; }
-			else if (p[3] == '\007') { p += 1; }
-			else if (p[3] == '\010' && p[2] == '\007'
-			    && p[1] == 'K' && p[0] == 'P') {
-				if (zip->hctx_valid)
-					p -= AUTH_CODE_SIZE;
-				break;
-			} else { p += 4; }
-		}
-		bytes_avail = p - buff;
-	} else {
-		if (zip->entry_bytes_remaining == 0) {
-			zip->end_of_entry = 1;
-			if (zip->hctx_valid) {
-				r = check_authentication_code(a, NULL);
-				if (r != ARCHIVE_OK)
-					return (r);
-			}
-			return (ARCHIVE_OK);
-		}
-		/* Grab a bunch of bytes. */
-		buff = __archive_read_ahead(a, 1, &bytes_avail);
-		if (bytes_avail <= 0) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file data");
-			return (ARCHIVE_FATAL);
-		}
-		if (bytes_avail > zip->entry_bytes_remaining)
-			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	if (lha->entry_unconsumed) {
+		/* Consume as much as the decompressor actually used. */
+		__archive_read_consume(a, lha->entry_unconsumed);
+		lha->entry_unconsumed = 0;
 	}
-	if (zip->tctx_valid || zip->cctx_valid) {
-		size_t dec_size = bytes_avail;
-
-		if (dec_size > zip->decrypted_buffer_size)
-			dec_size = zip->decrypted_buffer_size;
-		if (zip->tctx_valid) {
-			trad_enc_decrypt_update(&zip->tctx,
-			    (const uint8_t *)buff, dec_size,
-			    zip->decrypted_buffer, dec_size);
-		} else {
-			size_t dsize = dec_size;
-			archive_hmac_sha1_update(&zip->hctx,
-			    (const uint8_t *)buff, dec_size);
-			archive_decrypto_aes_ctr_update(&zip->cctx,
-			    (const uint8_t *)buff, dec_size,
-			    zip->decrypted_buffer, &dsize);
-		}
-		bytes_avail = dec_size;
-		buff = (const char *)zip->decrypted_buffer;
+	if (lha->end_of_entry) {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+		return (lha_end_of_entry(a));
 	}
+
+	if (lha->entry_is_compressed)
+		r =  lha_read_data_lzh(a, buff, size, offset);
+	else
+		/* No compression. */
+		r =  lha_read_data_none(a, buff, size, offset);
+	return (r);
+}
+
+/*
+ * Read a file content in no compression.
+ *
+ * Returns ARCHIVE_OK if successful, ARCHIVE_FATAL otherwise, sets
+ * lha->end_of_entry if it consumes all of the data.
+ */
+static int
+lha_read_data_none(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
+{
+	struct lha *lha = (struct lha *)(a->format->data);
+	ssize_t bytes_avail;
+
+	if (lha->entry_bytes_remaining == 0) {
+		*buff = NULL;
+		*size = 0;
+		*offset = lha->entry_offset;
+		lha->end_of_entry = 1;
+		return (ARCHIVE_OK);
+	}
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	*buff = __archive_read_ahead(a, 1, &bytes_avail);
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated LHa file data");
+		return (ARCHIVE_FATAL);
+	}
+	if (bytes_avail > lha->entry_bytes_remaining)
+		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
+	lha->entry_crc_calculated =
+	    lha_crc16(lha->entry_crc_calculated, *buff, bytes_avail);
 	*size = bytes_avail;
-	zip->entry_bytes_remaining -= bytes_avail;
-	zip->entry_uncompressed_bytes_read += bytes_avail;
-	zip->entry_compressed_bytes_read += bytes_avail;
-	zip->unconsumed += bytes_avail;
-	*_buff = buff;
+	*offset = lha->entry_offset;
+	lha->entry_offset += bytes_avail;
+	lha->entry_bytes_remaining -= bytes_avail;
+	if (lha->entry_bytes_remaining == 0)
+		lha->end_of_entry = 1;
+	lha->entry_unconsumed = bytes_avail;
 	return (ARCHIVE_OK);
 }
 
-#ifdef HAVE_ZLIB_H
+/*
+ * Read a file content in LZHUFF encoding.
+ *
+ * Returns ARCHIVE_OK if successful, returns ARCHIVE_WARN if compression is
+ * unsupported, ARCHIVE_FATAL otherwise, sets lha->end_of_entry if it consumes
+ * all of the data.
+ */
 static int
-zip_deflate_init(struct archive_read *a, struct zip *zip)
+lha_read_data_lzh(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
 {
+	struct lha *lha = (struct lha *)(a->format->data);
+	ssize_t bytes_avail;
 	int r;
 
 	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!zip->decompress_init) {
-		if (zip->stream_valid)
-			r = inflateReset(&zip->stream);
-		else
-			r = inflateInit2(&zip->stream,
-			    -15 /* Don't check for zlib header */);
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't initialize ZIP decompression.");
-			return (ARCHIVE_FATAL);
-		}
-		/* Stream structure has been set up. */
-		zip->stream_valid = 1;
-		/* We've initialized decompression for this stream. */
-		zip->decompress_init = 1;
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-zip_read_data_deflate(struct archive_read *a, const void **buff,
-    size_t *size, int64_t *offset)
-{
-	struct zip *zip;
-	ssize_t bytes_avail;
-	const void *compressed_buff, *sp;
-	int r;
-
-	(void)offset; /* UNUSED */
-
-	zip = (struct zip *)(a->format->data);
-
-	/* If the buffer hasn't been allocated, allocate it now. */
-	if (zip->uncompressed_buffer == NULL) {
-		zip->uncompressed_buffer_size = 256 * 1024;
-		zip->uncompressed_buffer
-		    = (unsigned char *)malloc(zip->uncompressed_buffer_size);
-		if (zip->uncompressed_buffer == NULL) {
+	if (!lha->decompress_init) {
+		r = lzh_decode_init(&(lha->strm), lha->method);
+		switch (r) {
+		case ARCHIVE_OK:
+			break;
+		case ARCHIVE_FAILED:
+        		/* Unsupported compression. */
+			*buff = NULL;
+			*size = 0;
+			*offset = 0;
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unsupported lzh compression method -%c%c%c-",
+			    lha->method[0], lha->method[1], lha->method[2]);
+			/* We know compressed size; just skip it. */
+			archive_read_format_lha_read_data_skip(a);
+			return (ARCHIVE_WARN);
+		default:
 			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for ZIP decompression");
+			    "Couldn't allocate memory "
+			    "for lzh decompression");
 			return (ARCHIVE_FATAL);
 		}
+		/* We've initialized decompression for this stream. */
+		lha->decompress_init = 1;
+		lha->strm.avail_out = 0;
+		lha->strm.total_out = 0;
 	}
-
-	r = zip_deflate_init(a, zip);
-	if (r != ARCHIVE_OK)
-		return (r);
 
 	/*
 	 * Note: '1' here is a performance optimization.
@@ -1288,1775 +1485,1326 @@ zip_read_data_deflate(struct archive_read *a, const void **buff,
 	 * available bytes; asking for more than that forces the
 	 * decompressor to combine reads by copying data.
 	 */
-	compressed_buff = sp = __archive_read_ahead(a, 1, &bytes_avail);
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && bytes_avail > zip->entry_bytes_remaining) {
-		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
-	}
+	lha->strm.next_in = __archive_read_ahead(a, 1, &bytes_avail);
 	if (bytes_avail <= 0) {
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file body");
+		    "Truncated LHa file body");
 		return (ARCHIVE_FATAL);
 	}
+	if (bytes_avail > lha->entry_bytes_remaining)
+		bytes_avail = (ssize_t)lha->entry_bytes_remaining;
 
-	if (zip->tctx_valid || zip->cctx_valid) {
-		if (zip->decrypted_bytes_remaining < (size_t)bytes_avail) {
-			size_t buff_remaining =
-			    (zip->decrypted_buffer + zip->decrypted_buffer_size)
-			    - (zip->decrypted_ptr + zip->decrypted_bytes_remaining);
+	lha->strm.avail_in = (int)bytes_avail;
+	lha->strm.total_in = 0;
+	lha->strm.avail_out = 0;
 
-			if (buff_remaining > (size_t)bytes_avail)
-				buff_remaining = (size_t)bytes_avail;
-
-			if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END) &&
-			      zip->entry_bytes_remaining > 0) {
-				if ((int64_t)(zip->decrypted_bytes_remaining
-				    + buff_remaining)
-				      > zip->entry_bytes_remaining) {
-					if (zip->entry_bytes_remaining <
-					      (int64_t)zip->decrypted_bytes_remaining)
-						buff_remaining = 0;
-					else
-						buff_remaining =
-						    (size_t)zip->entry_bytes_remaining
-						      - zip->decrypted_bytes_remaining;
-				}
-			}
-			if (buff_remaining > 0) {
-				if (zip->tctx_valid) {
-					trad_enc_decrypt_update(&zip->tctx,
-					    compressed_buff, buff_remaining,
-					    zip->decrypted_ptr
-					      + zip->decrypted_bytes_remaining,
-					    buff_remaining);
-				} else {
-					size_t dsize = buff_remaining;
-					archive_decrypto_aes_ctr_update(
-					    &zip->cctx,
-					    compressed_buff, buff_remaining,
-					    zip->decrypted_ptr
-					      + zip->decrypted_bytes_remaining,
-					    &dsize);
-				}
-				zip->decrypted_bytes_remaining += buff_remaining;
-			}
-		}
-		bytes_avail = zip->decrypted_bytes_remaining;
-		compressed_buff = (const char *)zip->decrypted_ptr;
-	}
-
-	/*
-	 * A bug in zlib.h: stream.next_in should be marked 'const'
-	 * but isn't (the library never alters data through the
-	 * next_in pointer, only reads it).  The result: this ugly
-	 * cast to remove 'const'.
-	 */
-	zip->stream.next_in = (Bytef *)(uintptr_t)(const void *)compressed_buff;
-	zip->stream.avail_in = (uInt)bytes_avail;
-	zip->stream.total_in = 0;
-	zip->stream.next_out = zip->uncompressed_buffer;
-	zip->stream.avail_out = (uInt)zip->uncompressed_buffer_size;
-	zip->stream.total_out = 0;
-
-	r = inflate(&zip->stream, 0);
+	r = lzh_decode(&(lha->strm), bytes_avail == lha->entry_bytes_remaining);
 	switch (r) {
-	case Z_OK:
+	case ARCHIVE_OK:
 		break;
-	case Z_STREAM_END:
-		zip->end_of_entry = 1;
+	case ARCHIVE_EOF:
+		lha->end_of_entry = 1;
 		break;
-	case Z_MEM_ERROR:
-		archive_set_error(&a->archive, ENOMEM,
-		    "Out of memory for ZIP decompression");
-		return (ARCHIVE_FATAL);
 	default:
 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "ZIP decompression failed (%d)", r);
-		return (ARCHIVE_FATAL);
-	}
-
-	/* Consume as much as the compressor actually used. */
-	bytes_avail = zip->stream.total_in;
-	if (zip->tctx_valid || zip->cctx_valid) {
-		zip->decrypted_bytes_remaining -= bytes_avail;
-		if (zip->decrypted_bytes_remaining == 0)
-			zip->decrypted_ptr = zip->decrypted_buffer;
-		else
-			zip->decrypted_ptr += bytes_avail;
-	}
-	/* Calculate compressed data as much as we used.*/
-	if (zip->hctx_valid)
-		archive_hmac_sha1_update(&zip->hctx, sp, bytes_avail);
-	__archive_read_consume(a, bytes_avail);
-	zip->entry_bytes_remaining -= bytes_avail;
-	zip->entry_compressed_bytes_read += bytes_avail;
-
-	*size = zip->stream.total_out;
-	zip->entry_uncompressed_bytes_read += zip->stream.total_out;
-	*buff = zip->uncompressed_buffer;
-
-	if (zip->end_of_entry && zip->hctx_valid) {
-		r = check_authentication_code(a, NULL);
-		if (r != ARCHIVE_OK)
-			return (r);
-	}
-
-	if (zip->end_of_entry && (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
-		const char *p;
-
-		if (NULL == (p = __archive_read_ahead(a, 24, NULL))) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP end-of-file record");
-			return (ARCHIVE_FATAL);
-		}
-		/* Consume the optional PK\007\010 marker. */
-		if (p[0] == 'P' && p[1] == 'K' &&
-		    p[2] == '\007' && p[3] == '\010') {
-			p += 4;
-			zip->unconsumed = 4;
-		}
-		if (zip->entry->flags & LA_USED_ZIP64) {
-			zip->entry->crc32 = archive_le32dec(p);
-			zip->entry->compressed_size = archive_le64dec(p + 4);
-			zip->entry->uncompressed_size = archive_le64dec(p + 12);
-			zip->unconsumed += 20;
-		} else {
-			zip->entry->crc32 = archive_le32dec(p);
-			zip->entry->compressed_size = archive_le32dec(p + 4);
-			zip->entry->uncompressed_size = archive_le32dec(p + 8);
-			zip->unconsumed += 12;
-		}
-	}
-
-	return (ARCHIVE_OK);
-}
-#endif
-
-static int
-read_decryption_header(struct archive_read *a)
-{
-	struct zip *zip = (struct zip *)(a->format->data);
-	const char *p;
-	unsigned int remaining_size;
-	unsigned int ts;
-
-	/*
-	 * Read an initialization vector data field.
-	 */
-	p = __archive_read_ahead(a, 2, NULL);
-	if (p == NULL)
-		goto truncated;
-	ts = zip->iv_size;
-	zip->iv_size = archive_le16dec(p);
-	__archive_read_consume(a, 2);
-	if (ts < zip->iv_size) {
-		free(zip->iv);
-		zip->iv = NULL;
-	}
-	p = __archive_read_ahead(a, zip->iv_size, NULL);
-	if (p == NULL)
-		goto truncated;
-	if (zip->iv == NULL) {
-		zip->iv = malloc(zip->iv_size);
-		if (zip->iv == NULL)
-			goto nomem;
-	}
-	memcpy(zip->iv, p, zip->iv_size);
-	__archive_read_consume(a, zip->iv_size);
-
-	/*
-	 * Read a size of remaining decryption header field.
-	 */
-	p = __archive_read_ahead(a, 14, NULL);
-	if (p == NULL)
-		goto truncated;
-	remaining_size = archive_le32dec(p);
-	if (remaining_size < 16 || remaining_size > (1 << 18))
-		goto corrupted;
-
-	/* Check if format version is supported. */
-	if (archive_le16dec(p+4) != 3) {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported encryption format version: %u",
-		    archive_le16dec(p+4));
+		    "Bad lzh data");
 		return (ARCHIVE_FAILED);
 	}
+	lha->entry_unconsumed = lha->strm.total_in;
+	lha->entry_bytes_remaining -= lha->strm.total_in;
 
-	/*
-	 * Read an encryption algorithm field.
-	 */
-	zip->alg_id = archive_le16dec(p+6);
-	switch (zip->alg_id) {
-	case 0x6601:/* DES */
-	case 0x6602:/* RC2 */
-	case 0x6603:/* 3DES 168 */
-	case 0x6609:/* 3DES 112 */
-	case 0x660E:/* AES 128 */
-	case 0x660F:/* AES 192 */
-	case 0x6610:/* AES 256 */
-	case 0x6702:/* RC2 (version >= 5.2) */
-	case 0x6720:/* Blowfish */
-	case 0x6721:/* Twofish */
-	case 0x6801:/* RC4 */
-		/* Suuported encryption algorithm. */
-		break;
-	default:
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unknown encryption algorithm: %u", zip->alg_id);
-		return (ARCHIVE_FAILED);
+	if (lha->strm.avail_out) {
+		*offset = lha->entry_offset;
+		*size = lha->strm.avail_out;
+		*buff = lha->strm.ref_ptr;
+		lha->entry_crc_calculated =
+		    lha_crc16(lha->entry_crc_calculated, *buff, *size);
+		lha->entry_offset += *size;
+	} else {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+		if (lha->end_of_entry)
+			return (lha_end_of_entry(a));
 	}
-
-	/*
-	 * Read a bit length field.
-	 */
-	zip->bit_len = archive_le16dec(p+8);
-
-	/*
-	 * Read a flags field.
-	 */
-	zip->flags = archive_le16dec(p+10);
-	switch (zip->flags & 0xf000) {
-	case 0x0001: /* Password is required to decrypt. */
-	case 0x0002: /* Certificates only. */
-	case 0x0003: /* Password or certificate required to decrypt. */
-		break;
-	default:
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unknown encryption flag: %u", zip->flags);
-		return (ARCHIVE_FAILED);
-	}
-	if ((zip->flags & 0xf000) == 0 ||
-	    (zip->flags & 0xf000) == 0x4000) {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unknown encryption flag: %u", zip->flags);
-		return (ARCHIVE_FAILED);
-	}
-
-	/*
-	 * Read an encrypted random data field.
-	 */
-	ts = zip->erd_size;
-	zip->erd_size = archive_le16dec(p+12);
-	__archive_read_consume(a, 14);
-	if ((zip->erd_size & 0xf) != 0 ||
-	    (zip->erd_size + 16) > remaining_size ||
-	    (zip->erd_size + 16) < zip->erd_size)
-		goto corrupted;
-
-	if (ts < zip->erd_size) {
-		free(zip->erd);
-		zip->erd = NULL;
-	}
-	p = __archive_read_ahead(a, zip->erd_size, NULL);
-	if (p == NULL)
-		goto truncated;
-	if (zip->erd == NULL) {
-		zip->erd = malloc(zip->erd_size);
-		if (zip->erd == NULL)
-			goto nomem;
-	}
-	memcpy(zip->erd, p, zip->erd_size);
-	__archive_read_consume(a, zip->erd_size);
-
-	/*
-	 * Read a reserved data field.
-	 */
-	p = __archive_read_ahead(a, 4, NULL);
-	if (p == NULL)
-		goto truncated;
-	/* Reserved data size should be zero. */
-	if (archive_le32dec(p) != 0)
-		goto corrupted;
-	__archive_read_consume(a, 4);
-
-	/*
-	 * Read a password validation data field.
-	 */
-	p = __archive_read_ahead(a, 2, NULL);
-	if (p == NULL)
-		goto truncated;
-	ts = zip->v_size;
-	zip->v_size = archive_le16dec(p);
-	__archive_read_consume(a, 2);
-	if ((zip->v_size & 0x0f) != 0 ||
-	    (zip->erd_size + zip->v_size + 16) > remaining_size ||
-	    (zip->erd_size + zip->v_size + 16) < (zip->erd_size + zip->v_size))
-		goto corrupted;
-	if (ts < zip->v_size) {
-		free(zip->v_data);
-		zip->v_data = NULL;
-	}
-	p = __archive_read_ahead(a, zip->v_size, NULL);
-	if (p == NULL)
-		goto truncated;
-	if (zip->v_data == NULL) {
-		zip->v_data = malloc(zip->v_size);
-		if (zip->v_data == NULL)
-			goto nomem;
-	}
-	memcpy(zip->v_data, p, zip->v_size);
-	__archive_read_consume(a, zip->v_size);
-
-	p = __archive_read_ahead(a, 4, NULL);
-	if (p == NULL)
-		goto truncated;
-	zip->v_crc32 = archive_le32dec(p);
-	__archive_read_consume(a, 4);
-
-	/*return (ARCHIVE_OK);
-	 * This is not fully implemnted yet.*/
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Encrypted file is unsupported");
-	return (ARCHIVE_FAILED);
-truncated:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Truncated ZIP file data");
-	return (ARCHIVE_FATAL);
-corrupted:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Corrupted ZIP file data");
-	return (ARCHIVE_FATAL);
-nomem:
-	archive_set_error(&a->archive, ENOMEM,
-	    "No memory for ZIP decryption");
-	return (ARCHIVE_FATAL);
-}
-
-static int
-zip_alloc_decryption_buffer(struct archive_read *a)
-{
-	struct zip *zip = (struct zip *)(a->format->data);
-	size_t bs = 256 * 1024;
-
-	if (zip->decrypted_buffer == NULL) {
-		zip->decrypted_buffer_size = bs;
-		zip->decrypted_buffer = malloc(bs);
-		if (zip->decrypted_buffer == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "No memory for ZIP decryption");
-			return (ARCHIVE_FATAL);
-		}
-	}
-	zip->decrypted_ptr = zip->decrypted_buffer;
 	return (ARCHIVE_OK);
 }
 
+/*
+ * Skip a file content.
+ */
 static int
-init_traditional_PKWARE_decryption(struct archive_read *a)
+archive_read_format_lha_read_data_skip(struct archive_read *a)
 {
-	struct zip *zip = (struct zip *)(a->format->data);
-	const void *p;
-	int retry;
-	int r;
+	struct lha *lha;
+	int64_t bytes_skipped;
 
-	if (zip->tctx_valid)
+	lha = (struct lha *)(a->format->data);
+
+	if (lha->entry_unconsumed) {
+		/* Consume as much as the decompressor actually used. */
+		__archive_read_consume(a, lha->entry_unconsumed);
+		lha->entry_unconsumed = 0;
+	}
+
+	/* if we've already read to end of data, we're done. */
+	if (lha->end_of_entry_cleanup)
 		return (ARCHIVE_OK);
 
 	/*
-	   Read the 12 bytes encryption header stored at
-	   the start of the data area.
+	 * If the length is at the beginning, we can skip the
+	 * compressed data much more quickly.
 	 */
-#define ENC_HEADER_SIZE	12
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < ENC_HEADER_SIZE) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated Zip encrypted body: only %jd bytes available",
-		    (intmax_t)zip->entry_bytes_remaining);
+	bytes_skipped = __archive_read_consume(a, lha->entry_bytes_remaining);
+	if (bytes_skipped < 0)
 		return (ARCHIVE_FATAL);
-	}
 
-	p = __archive_read_ahead(a, ENC_HEADER_SIZE, NULL);
-	if (p == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file data");
-		return (ARCHIVE_FATAL);
-	}
-
-	for (retry = 0;; retry++) {
-		const char *passphrase;
-		uint8_t crcchk;
-
-		passphrase = __archive_read_next_passphrase(a);
-		if (passphrase == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    (retry > 0)?
-				"Incorrect passphrase":
-				"Passphrase required for this entry");
-			return (ARCHIVE_FAILED);
-		}
-
-		/*
-		 * Initialize ctx for Traditional PKWARE Decyption.
-		 */
-		r = trad_enc_init(&zip->tctx, passphrase, strlen(passphrase),
-			p, ENC_HEADER_SIZE, &crcchk);
-		if (r == 0 && crcchk == zip->entry->decdat)
-			break;/* The passphrase is OK. */
-		if (retry > 10000) {
-			/* Avoid infinity loop. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Too many incorrect passphrases");
-			return (ARCHIVE_FAILED);
-		}
-	}
-
-	__archive_read_consume(a, ENC_HEADER_SIZE);
-	zip->tctx_valid = 1;
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
-	    zip->entry_bytes_remaining -= ENC_HEADER_SIZE;
-	}
-	/*zip->entry_uncompressed_bytes_read += ENC_HEADER_SIZE;*/
-	zip->entry_compressed_bytes_read += ENC_HEADER_SIZE;
-	zip->decrypted_bytes_remaining = 0;
-
-	return (zip_alloc_decryption_buffer(a));
-#undef ENC_HEADER_SIZE
-}
-
-static int
-init_WinZip_AES_decryption(struct archive_read *a)
-{
-	struct zip *zip = (struct zip *)(a->format->data);
-	const void *p;
-	const uint8_t *pv;
-	size_t key_len, salt_len;
-	uint8_t derived_key[MAX_DERIVED_KEY_BUF_SIZE];
-	int retry;
-	int r;
-
-	if (zip->cctx_valid || zip->hctx_valid)
-		return (ARCHIVE_OK);
-
-	switch (zip->entry->aes_extra.strength) {
-	case 1: salt_len = 8;  key_len = 16; break;
-	case 2: salt_len = 12; key_len = 24; break;
-	case 3: salt_len = 16; key_len = 32; break;
-	default: goto corrupted;
-	}
-	p = __archive_read_ahead(a, salt_len + 2, NULL);
-	if (p == NULL)
-		goto truncated;
-
-	for (retry = 0;; retry++) {
-		const char *passphrase;
-
-		passphrase = __archive_read_next_passphrase(a);
-		if (passphrase == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    (retry > 0)?
-				"Incorrect passphrase":
-				"Passphrase required for this entry");
-			return (ARCHIVE_FAILED);
-		}
-		memset(derived_key, 0, sizeof(derived_key));
-		r = archive_pbkdf2_sha1(passphrase, strlen(passphrase),
-		    p, salt_len, 1000, derived_key, key_len * 2 + 2);
-		if (r != 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Decryption is unsupported due to lack of "
-			    "crypto library");
-			return (ARCHIVE_FAILED);
-		}
-
-		/* Check password verification value. */
-		pv = ((const uint8_t *)p) + salt_len;
-		if (derived_key[key_len * 2] == pv[0] &&
-		    derived_key[key_len * 2 + 1] == pv[1])
-			break;/* The passphrase is OK. */
-		if (retry > 10000) {
-			/* Avoid infinity loop. */
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Too many incorrect passphrases");
-			return (ARCHIVE_FAILED);
-		}
-	}
-
-	r = archive_decrypto_aes_ctr_init(&zip->cctx, derived_key, key_len);
-	if (r != 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Decryption is unsupported due to lack of crypto library");
-		return (ARCHIVE_FAILED);
-	}
-	r = archive_hmac_sha1_init(&zip->hctx, derived_key + key_len, key_len);
-	if (r != 0) {
-		archive_decrypto_aes_ctr_release(&zip->cctx);
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Failed to initialize HMAC-SHA1");
-		return (ARCHIVE_FAILED);
-	}
-	zip->cctx_valid = zip->hctx_valid = 1;
-	__archive_read_consume(a, salt_len + 2);
-	zip->entry_bytes_remaining -= salt_len + 2 + AUTH_CODE_SIZE;
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    && zip->entry_bytes_remaining < 0)
-		goto corrupted;
-	zip->entry_compressed_bytes_read += salt_len + 2 + AUTH_CODE_SIZE;
-	zip->decrypted_bytes_remaining = 0;
-
-	zip->entry->compression = zip->entry->aes_extra.compression;
-	return (zip_alloc_decryption_buffer(a));
-
-truncated:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Truncated ZIP file data");
-	return (ARCHIVE_FATAL);
-corrupted:
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Corrupted ZIP file data");
-	return (ARCHIVE_FATAL);
-}
-
-static int
-archive_read_format_zip_read_data(struct archive_read *a,
-    const void **buff, size_t *size, int64_t *offset)
-{
-	int r;
-	struct zip *zip = (struct zip *)(a->format->data);
-
-	if (zip->has_encrypted_entries ==
-			ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-		zip->has_encrypted_entries = 0;
-	}
-
-	*offset = zip->entry_uncompressed_bytes_read;
-	*size = 0;
-	*buff = NULL;
-
-	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
-	if (zip->end_of_entry)
-		return (ARCHIVE_EOF);
-
-	/* Return EOF immediately if this is a non-regular file. */
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
-
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-
-	if (zip->init_decryption) {
-		zip->has_encrypted_entries = 1;
-		if (zip->entry->zip_flags & ZIP_STRONG_ENCRYPTED)
-			r = read_decryption_header(a);
-		else if (zip->entry->compression == WINZIP_AES_ENCRYPTION)
-			r = init_WinZip_AES_decryption(a);
-		else
-			r = init_traditional_PKWARE_decryption(a);
-		if (r != ARCHIVE_OK)
-			return (r);
-		zip->init_decryption = 0;
-	}
-
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
-		break;
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-		r =  zip_read_data_deflate(a, buff, size, offset);
-		break;
-#endif
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(zip->entry->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_FAILED);
-		break;
-	}
-	if (r != ARCHIVE_OK)
-		return (r);
-	/* Update checksum */
-	if (*size)
-		zip->entry_crc32 = zip->crc32func(zip->entry_crc32, *buff,
-		    (unsigned)*size);
-	/* If we hit the end, swallow any end-of-data marker. */
-	if (zip->end_of_entry) {
-		/* Check file size, CRC against these values. */
-		if (zip->entry->compressed_size !=
-		    zip->entry_compressed_bytes_read) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP compressed data is wrong size "
-			    "(read %jd, expected %jd)",
-			    (intmax_t)zip->entry_compressed_bytes_read,
-			    (intmax_t)zip->entry->compressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Size field only stores the lower 32 bits of the actual
-		 * size. */
-		if ((zip->entry->uncompressed_size & UINT32_MAX)
-		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP uncompressed data is wrong size "
-			    "(read %jd, expected %jd)\n",
-			    (intmax_t)zip->entry_uncompressed_bytes_read,
-			    (intmax_t)zip->entry->uncompressed_size);
-			return (ARCHIVE_WARN);
-		}
-		/* Check computed CRC against header */
-		if ((!zip->hctx_valid ||
-		      zip->entry->aes_extra.vendor != AES_VENDOR_AE_2) &&
-		   zip->entry->crc32 != zip->entry_crc32
-		    && !zip->ignore_crc32) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP bad CRC: 0x%lx should be 0x%lx",
-			    (unsigned long)zip->entry_crc32,
-			    (unsigned long)zip->entry->crc32);
-			return (ARCHIVE_WARN);
-		}
-	}
-
+	/* This entry is finished and done. */
+	lha->end_of_entry_cleanup = lha->end_of_entry = 1;
 	return (ARCHIVE_OK);
 }
 
 static int
-archive_read_format_zip_cleanup(struct archive_read *a)
+archive_read_format_lha_cleanup(struct archive_read *a)
 {
-	struct zip *zip;
-	struct zip_entry *zip_entry, *next_zip_entry;
+	struct lha *lha = (struct lha *)(a->format->data);
 
-	zip = (struct zip *)(a->format->data);
-#ifdef HAVE_ZLIB_H
-	if (zip->stream_valid)
-		inflateEnd(&zip->stream);
-	free(zip->uncompressed_buffer);
-#endif
-	if (zip->zip_entries) {
-		zip_entry = zip->zip_entries;
-		while (zip_entry != NULL) {
-			next_zip_entry = zip_entry->next;
-			archive_string_free(&zip_entry->rsrcname);
-			free(zip_entry);
-			zip_entry = next_zip_entry;
-		}
-	}
-	free(zip->decrypted_buffer);
-	if (zip->cctx_valid)
-		archive_decrypto_aes_ctr_release(&zip->cctx);
-	if (zip->hctx_valid)
-		archive_hmac_sha1_cleanup(&zip->hctx);
-	free(zip->iv);
-	free(zip->erd);
-	free(zip->v_data);
-	archive_string_free(&zip->format_name);
-	free(zip);
+	lzh_decode_free(&(lha->strm));
+	archive_string_free(&(lha->dirname));
+	archive_string_free(&(lha->filename));
+	archive_string_free(&(lha->uname));
+	archive_string_free(&(lha->gname));
+	archive_wstring_free(&(lha->ws));
+	free(lha);
 	(a->format->data) = NULL;
 	return (ARCHIVE_OK);
 }
 
-static int
-archive_read_format_zip_has_encrypted_entries(struct archive_read *_a)
-{
-	if (_a && _a->format) {
-		struct zip * zip = (struct zip *)_a->format->data;
-		if (zip) {
-			return zip->has_encrypted_entries;
-		}
-	}
-	return ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-}
-
-static int
-archive_read_format_zip_options(struct archive_read *a,
-    const char *key, const char *val)
-{
-	struct zip *zip;
-	int ret = ARCHIVE_FAILED;
-
-	zip = (struct zip *)(a->format->data);
-	if (strcmp(key, "compat-2x")  == 0) {
-		/* Handle filenames as libarchive 2.x */
-		zip->init_default_conversion = (val != NULL) ? 1 : 0;
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "hdrcharset")  == 0) {
-		if (val == NULL || val[0] == 0)
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "zip: hdrcharset option needs a character-set name"
-			);
-		else {
-			zip->sconv = archive_string_conversion_from_charset(
-			    &a->archive, val, 0);
-			if (zip->sconv != NULL) {
-				if (strcmp(val, "UTF-8") == 0)
-					zip->sconv_utf8 = zip->sconv;
-				ret = ARCHIVE_OK;
-			} else
-				ret = ARCHIVE_FATAL;
-		}
-		return (ret);
-	} else if (strcmp(key, "ignorecrc32") == 0) {
-		/* Mostly useful for testing. */
-		if (val == NULL || val[0] == 0) {
-			zip->crc32func = real_crc32;
-			zip->ignore_crc32 = 0;
-		} else {
-			zip->crc32func = fake_crc32;
-			zip->ignore_crc32 = 1;
-		}
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "mac-ext") == 0) {
-		zip->process_mac_extensions = (val != NULL && val[0] != 0);
-		return (ARCHIVE_OK);
-	}
-
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
-
-int
-archive_read_support_format_zip(struct archive *a)
-{
-	int r;
-	r = archive_read_support_format_zip_streamable(a);
-	if (r != ARCHIVE_OK)
-		return r;
-	return (archive_read_support_format_zip_seekable(a));
-}
-
-/* ------------------------------------------------------------------------ */
-
 /*
- * Streaming-mode support
+ * 'LHa for UNIX' utility has archived a symbolic-link name after
+ * a pathname with '|' character.
+ * This function extracts the symbolic-link name from the pathname.
+ *
+ * example.
+ *   1. a symbolic-name is 'aaa/bb/cc'
+ *   2. a filename is 'xxx/bbb'
+ *  then a archived pathname is 'xxx/bbb|aaa/bb/cc'
  */
-
-
 static int
-archive_read_support_format_zip_capabilities_streamable(struct archive_read * a)
+lha_parse_linkname(struct archive_string *linkname,
+    struct archive_string *pathname)
 {
-	(void)a; /* UNUSED */
-	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA |
-		ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
-}
+	char *	linkptr;
+	size_t 	symlen;
 
-static int
-archive_read_format_zip_streamable_bid(struct archive_read *a, int best_bid)
-{
-	const char *p;
+	linkptr = strchr(pathname->s, '|');
+	if (linkptr != NULL) {
+		symlen = strlen(linkptr + 1);
+		archive_strncpy(linkname, linkptr+1, symlen);
 
-	(void)best_bid; /* UNUSED */
+		*linkptr = 0;
+		pathname->length = strlen(pathname->s);
 
-	if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
-		return (-1);
-
-	/*
-	 * Bid of 29 here comes from:
-	 *  + 16 bits for "PK",
-	 *  + next 16-bit field has 6 options so contributes
-	 *    about 16 - log_2(6) ~= 16 - 2.6 ~= 13 bits
-	 *
-	 * So we've effectively verified ~29 total bits of check data.
-	 */
-	if (p[0] == 'P' && p[1] == 'K') {
-		if ((p[2] == '\001' && p[3] == '\002')
-		    || (p[2] == '\003' && p[3] == '\004')
-		    || (p[2] == '\005' && p[3] == '\006')
-		    || (p[2] == '\006' && p[3] == '\006')
-		    || (p[2] == '\007' && p[3] == '\010')
-		    || (p[2] == '0' && p[3] == '0'))
-			return (29);
+		return (1);
 	}
-
-	/* TODO: It's worth looking ahead a little bit for a valid
-	 * PK signature.  In particular, that would make it possible
-	 * to read some UUEncoded SFX files or SFX files coming from
-	 * a network socket. */
-
 	return (0);
 }
 
-static int
-archive_read_format_zip_streamable_read_header(struct archive_read *a,
-    struct archive_entry *entry)
+/* Convert an MSDOS-style date/time into Unix-style time. */
+static time_t
+lha_dos_time(const unsigned char *p)
 {
-	struct zip *zip;
+	int msTime, msDate;
+	struct tm ts;
 
-	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
-	if (a->archive.archive_format_name == NULL)
-		a->archive.archive_format_name = "ZIP";
+	msTime = archive_le16dec(p);
+	msDate = archive_le16dec(p+2);
 
-	zip = (struct zip *)(a->format->data);
+	memset(&ts, 0, sizeof(ts));
+	ts.tm_year = ((msDate >> 9) & 0x7f) + 80;   /* Years since 1900. */
+	ts.tm_mon = ((msDate >> 5) & 0x0f) - 1;     /* Month number.     */
+	ts.tm_mday = msDate & 0x1f;		    /* Day of month.     */
+	ts.tm_hour = (msTime >> 11) & 0x1f;
+	ts.tm_min = (msTime >> 5) & 0x3f;
+	ts.tm_sec = (msTime << 1) & 0x3e;
+	ts.tm_isdst = -1;
+	return (mktime(&ts));
+}
 
-	/*
-	 * It should be sufficient to call archive_read_next_header() for
-	 * a reader to determine if an entry is encrypted or not. If the
-	 * encryption of an entry is only detectable when calling
-	 * archive_read_data(), so be it. We'll do the same check there
-	 * as well.
-	 */
-	if (zip->has_encrypted_entries ==
-			ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW)
-		zip->has_encrypted_entries = 0;
+/* Convert an MS-Windows-style date/time into Unix-style time. */
+static time_t
+lha_win_time(uint64_t wintime, long *ns)
+{
+#define EPOC_TIME ARCHIVE_LITERAL_ULL(116444736000000000)
 
-	/* Make sure we have a zip_entry structure to use. */
-	if (zip->zip_entries == NULL) {
-		zip->zip_entries = malloc(sizeof(struct zip_entry));
-		if (zip->zip_entries == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Out  of memory");
-			return ARCHIVE_FATAL;
-		}
-	}
-	zip->entry = zip->zip_entries;
-	memset(zip->entry, 0, sizeof(struct zip_entry));
-
-	if (zip->cctx_valid)
-		archive_decrypto_aes_ctr_release(&zip->cctx);
-	if (zip->hctx_valid)
-		archive_hmac_sha1_cleanup(&zip->hctx);
-	zip->tctx_valid = zip->cctx_valid = zip->hctx_valid = 0;
-	__archive_read_reset_passphrase(a);
-
-	/* Search ahead for the next local file header. */
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-	for (;;) {
-		int64_t skipped = 0;
-		const char *p, *end;
-		ssize_t bytes;
-
-		p = __archive_read_ahead(a, 4, &bytes);
-		if (p == NULL)
-			return (ARCHIVE_FATAL);
-		end = p + bytes;
-
-		while (p + 4 <= end) {
-			if (p[0] == 'P' && p[1] == 'K') {
-				if (p[2] == '\003' && p[3] == '\004') {
-					/* Regular file entry. */
-					__archive_read_consume(a, skipped);
-					return zip_read_local_file_header(a,
-					    entry, zip);
-				}
-
-                              /*
-                               * TODO: We cannot restore permissions
-                               * based only on the local file headers.
-                               * Consider scanning the central
-                               * directory and returning additional
-                               * entries for at least directories.
-                               * This would allow us to properly set
-                               * directory permissions.
-			       *
-			       * This won't help us fix symlinks
-			       * and may not help with regular file
-			       * permissions, either.  <sigh>
-                               */
-                              if (p[2] == '\001' && p[3] == '\002') {
-                                      return (ARCHIVE_EOF);
-                              }
-
-                              /* End of central directory?  Must be an
-                               * empty archive. */
-                              if ((p[2] == '\005' && p[3] == '\006')
-                                  || (p[2] == '\006' && p[3] == '\006'))
-                                      return (ARCHIVE_EOF);
-			}
-			++p;
-			++skipped;
-		}
-		__archive_read_consume(a, skipped);
+	if (wintime >= EPOC_TIME) {
+		wintime -= EPOC_TIME;	/* 1970-01-01 00:00:00 (UTC) */
+		if (ns != NULL)
+			*ns = (long)(wintime % 10000000) * 100;
+		return (wintime / 10000000);
+	} else {
+		if (ns != NULL)
+			*ns = 0;
+		return (0);
 	}
 }
 
-static int
-archive_read_format_zip_read_data_skip_streamable(struct archive_read *a)
+static unsigned char
+lha_calcsum(unsigned char sum, const void *pp, int offset, size_t size)
 {
-	struct zip *zip;
-	int64_t bytes_skipped;
+	unsigned char const *p = (unsigned char const *)pp;
 
-	zip = (struct zip *)(a->format->data);
-	bytes_skipped = __archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-	if (bytes_skipped < 0)
-		return (ARCHIVE_FATAL);
+	p += offset;
+	for (;size > 0; --size)
+		sum += *p++;
+	return (sum);
+}
 
-	/* If we've already read to end of data, we're done. */
-	if (zip->end_of_entry)
-		return (ARCHIVE_OK);
+static uint16_t crc16tbl[2][256];
+static void
+lha_crc16_init(void)
+{
+	unsigned int i;
+	static int crc16init = 0;
 
-	/* So we know we're streaming... */
-	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
-	    || zip->entry->compressed_size > 0) {
-		/* We know the compressed length, so we can just skip. */
-		bytes_skipped = __archive_read_consume(a,
-					zip->entry_bytes_remaining);
-		if (bytes_skipped < 0)
-			return (ARCHIVE_FATAL);
-		return (ARCHIVE_OK);
+	if (crc16init)
+		return;
+	crc16init = 1;
+
+	for (i = 0; i < 256; i++) {
+		unsigned int j;
+		uint16_t crc = (uint16_t)i;
+		for (j = 8; j; j--)
+			crc = (crc >> 1) ^ ((crc & 1) * 0xA001);
+		crc16tbl[0][i] = crc;
 	}
 
-	if (zip->init_decryption) {
-		int r;
-
-		zip->has_encrypted_entries = 1;
-		if (zip->entry->zip_flags & ZIP_STRONG_ENCRYPTED)
-			r = read_decryption_header(a);
-		else if (zip->entry->compression == WINZIP_AES_ENCRYPTION)
-			r = init_WinZip_AES_decryption(a);
-		else
-			r = init_traditional_PKWARE_decryption(a);
-		if (r != ARCHIVE_OK)
-			return (r);
-		zip->init_decryption = 0;
+	for (i = 0; i < 256; i++) {
+		crc16tbl[1][i] = (crc16tbl[0][i] >> 8)
+			^ crc16tbl[0][crc16tbl[0][i] & 0xff];
 	}
+}
 
-	/* We're streaming and we don't know the length. */
-	/* If the body is compressed and we know the format, we can
-	 * find an exact end-of-entry by decompressing it. */
-	switch (zip->entry->compression) {
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-		while (!zip->end_of_entry) {
-			int64_t offset = 0;
-			const void *buff = NULL;
-			size_t size = 0;
-			int r;
-			r =  zip_read_data_deflate(a, &buff, &size, &offset);
-			if (r != ARCHIVE_OK)
-				return (r);
-		}
-		return ARCHIVE_OK;
+static uint16_t
+lha_crc16(uint16_t crc, const void *pp, size_t len)
+{
+	const unsigned char *p = (const unsigned char *)pp;
+	const uint16_t *buff;
+	const union {
+		uint32_t i;
+		char c[4];
+	} u = { 0x01020304 };
+
+	if (len == 0)
+		return crc;
+
+	/* Process unaligned address. */
+	if (((uintptr_t)p) & (uintptr_t)0x1) {
+		crc = (crc >> 8) ^ crc16tbl[0][(crc ^ *p++) & 0xff];
+		len--;
+	}
+	buff = (const uint16_t *)p;
+	/*
+	 * Modern C compiler such as GCC does not unroll automatically yet
+	 * without unrolling pragma, and Clang is so. So we should
+	 * unroll this loop for its performance.
+	 */
+	for (;len >= 8; len -= 8) {
+		/* This if statement expects compiler optimization will
+		 * remove the stament which will not be executed. */
+#ifndef __has_builtin
+#  define __has_builtin(x) 0
 #endif
-	default: /* Uncompressed or unknown. */
-		/* Scan for a PK\007\010 signature. */
-		for (;;) {
-			const char *p, *buff;
-			ssize_t bytes_avail;
-			buff = __archive_read_ahead(a, 16, &bytes_avail);
-			if (bytes_avail < 16) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Truncated ZIP file data");
-				return (ARCHIVE_FATAL);
-			}
-			p = buff;
-			while (p <= buff + bytes_avail - 16) {
-				if (p[3] == 'P') { p += 3; }
-				else if (p[3] == 'K') { p += 2; }
-				else if (p[3] == '\007') { p += 1; }
-				else if (p[3] == '\010' && p[2] == '\007'
-				    && p[1] == 'K' && p[0] == 'P') {
-					if (zip->entry->flags & LA_USED_ZIP64)
-						__archive_read_consume(a,
-						    p - buff + 24);
-					else
-						__archive_read_consume(a,
-						    p - buff + 16);
-					return ARCHIVE_OK;
-				} else { p += 4; }
-			}
-			__archive_read_consume(a, p - buff);
-		}
+#if defined(_MSC_VER) && _MSC_VER >= 1400  /* Visual Studio */
+#  define bswap16(x) _byteswap_ushort(x)
+#elif (defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 8) \
+      || (defined(__clang__) && __has_builtin(__builtin_bswap16))
+#  define bswap16(x) __builtin_bswap16(x)
+#else
+#  define bswap16(x) ((((x) >> 8) & 0xff) | ((x) << 8))
+#endif
+#define CRC16W	do { 	\
+		if(u.c[0] == 1) { /* Big endian */		\
+			crc ^= bswap16(*buff); buff++;		\
+		} else						\
+			crc ^= *buff++;				\
+		crc = crc16tbl[1][crc & 0xff] ^ crc16tbl[0][crc >> 8];\
+} while (0)
+		CRC16W;
+		CRC16W;
+		CRC16W;
+		CRC16W;
+#undef CRC16W
+#undef bswap16
 	}
+
+	p = (const unsigned char *)buff;
+	for (;len; len--) {
+		crc = (crc >> 8) ^ crc16tbl[0][(crc ^ *p++) & 0xff];
+	}
+	return crc;
 }
 
-int
-archive_read_support_format_zip_streamable(struct archive *_a)
+/*
+ * Initialize LZHUF decoder.
+ *
+ * Returns ARCHIVE_OK if initialization was successful.
+ * Returns ARCHIVE_FAILED if method is unsupported.
+ * Returns ARCHIVE_FATAL if initialization failed; memory allocation
+ * error occurred.
+ */
+static int
+lzh_decode_init(struct lzh_stream *strm, const char *method)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	struct zip *zip;
-	int r;
+	struct lzh_dec *ds;
+	int w_bits, w_size;
 
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip");
-
-	zip = (struct zip *)calloc(1, sizeof(*zip));
-	if (zip == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip data");
-		return (ARCHIVE_FATAL);
+	if (strm->ds == NULL) {
+		strm->ds = calloc(1, sizeof(*strm->ds));
+		if (strm->ds == NULL)
+			return (ARCHIVE_FATAL);
 	}
+	ds = strm->ds;
+	ds->error = ARCHIVE_FAILED;
+	if (method == NULL || method[0] != 'l' || method[1] != 'h')
+		return (ARCHIVE_FAILED);
+	switch (method[2]) {
+	case '5':
+		w_bits = 13;/* 8KiB for window */
+		break;
+	case '6':
+		w_bits = 15;/* 32KiB for window */
+		break;
+	case '7':
+		w_bits = 16;/* 64KiB for window */
+		break;
+	default:
+		return (ARCHIVE_FAILED);/* Not supported. */
+	}
+	ds->error = ARCHIVE_FATAL;
+	/* Expand a window size up to 128 KiB for decompressing process
+	 * performance whatever its original window size is. */
+	ds->w_size = 1U << 17;
+	ds->w_mask = ds->w_size -1;
+	if (ds->w_buff == NULL) {
+		ds->w_buff = malloc(ds->w_size);
+		if (ds->w_buff == NULL)
+			return (ARCHIVE_FATAL);
+	}
+	w_size = 1U << w_bits;
+	memset(ds->w_buff + ds->w_size - w_size, 0x20, w_size);
+	ds->w_pos = 0;
+	ds->state = 0;
+	ds->pos_pt_len_size = w_bits + 1;
+	ds->pos_pt_len_bits = (w_bits == 15 || w_bits == 16)? 5: 4;
+	ds->literal_pt_len_size = PT_BITLEN_SIZE;
+	ds->literal_pt_len_bits = 5;
+	ds->br.cache_buffer = 0;
+	ds->br.cache_avail = 0;
 
-	/* Streamable reader doesn't support mac extensions. */
-	zip->process_mac_extensions = 0;
+	if (lzh_huffman_init(&(ds->lt), LT_BITLEN_SIZE, 16)
+	    != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	ds->lt.len_bits = 9;
+	if (lzh_huffman_init(&(ds->pt), PT_BITLEN_SIZE, 16)
+	    != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	ds->error = 0;
 
-	/*
-	 * Until enough data has been read, we cannot tell about
-	 * any encrypted entries yet.
-	 */
-	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-	zip->crc32func = real_crc32;
-
-	r = __archive_read_register_format(a,
-	    zip,
-	    "zip",
-	    archive_read_format_zip_streamable_bid,
-	    archive_read_format_zip_options,
-	    archive_read_format_zip_streamable_read_header,
-	    archive_read_format_zip_read_data,
-	    archive_read_format_zip_read_data_skip_streamable,
-	    NULL,
-	    archive_read_format_zip_cleanup,
-	    archive_read_support_format_zip_capabilities_streamable,
-	    archive_read_format_zip_has_encrypted_entries);
-
-	if (r != ARCHIVE_OK)
-		free(zip);
 	return (ARCHIVE_OK);
 }
 
-/* ------------------------------------------------------------------------ */
-
 /*
- * Seeking-mode support
- */
-
-static int
-archive_read_support_format_zip_capabilities_seekable(struct archive_read * a)
-{
-	(void)a; /* UNUSED */
-	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA |
-		ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
-}
-
-/*
- * TODO: This is a performance sink because it forces the read core to
- * drop buffered data from the start of file, which will then have to
- * be re-read again if this bidder loses.
- *
- * We workaround this a little by passing in the best bid so far so
- * that later bidders can do nothing if they know they'll never
- * outbid.  But we can certainly do better...
- */
-static int
-read_eocd(struct zip *zip, const char *p, int64_t current_offset)
-{
-	/* Sanity-check the EOCD we've found. */
-
-	/* This must be the first volume. */
-	if (archive_le16dec(p + 4) != 0)
-		return 0;
-	/* Central directory must be on this volume. */
-	if (archive_le16dec(p + 4) != archive_le16dec(p + 6))
-		return 0;
-	/* All central directory entries must be on this volume. */
-	if (archive_le16dec(p + 10) != archive_le16dec(p + 8))
-		return 0;
-	/* Central directory can't extend beyond start of EOCD record. */
-	if (archive_le32dec(p + 16) + archive_le32dec(p + 12)
-	    > current_offset)
-		return 0;
-
-	/* Save the central directory location for later use. */
-	zip->central_directory_offset = archive_le32dec(p + 16);
-
-	/* This is just a tiny bit higher than the maximum
-	   returned by the streaming Zip bidder.  This ensures
-	   that the more accurate seeking Zip parser wins
-	   whenever seek is available. */
-	return 32;
-}
-
-/*
- * Examine Zip64 EOCD locator:  If it's valid, store the information
- * from it.
+ * Release LZHUF decoder.
  */
 static void
-read_zip64_eocd(struct archive_read *a, struct zip *zip, const char *p)
+lzh_decode_free(struct lzh_stream *strm)
 {
-	int64_t eocd64_offset;
-	int64_t eocd64_size;
 
-	/* Sanity-check the locator record. */
-
-	/* Central dir must be on first volume. */
-	if (archive_le32dec(p + 4) != 0)
+	if (strm->ds == NULL)
 		return;
-	/* Must be only a single volume. */
-	if (archive_le32dec(p + 16) != 1)
-		return;
-
-	/* Find the Zip64 EOCD record. */
-	eocd64_offset = archive_le64dec(p + 8);
-	if (__archive_read_seek(a, eocd64_offset, SEEK_SET) < 0)
-		return;
-	if ((p = __archive_read_ahead(a, 56, NULL)) == NULL)
-		return;
-	/* Make sure we can read all of it. */
-	eocd64_size = archive_le64dec(p + 4) + 12;
-	if (eocd64_size < 56 || eocd64_size > 16384)
-		return;
-	if ((p = __archive_read_ahead(a, (size_t)eocd64_size, NULL)) == NULL)
-		return;
-
-	/* Sanity-check the EOCD64 */
-	if (archive_le32dec(p + 16) != 0) /* Must be disk #0 */
-		return;
-	if (archive_le32dec(p + 20) != 0) /* CD must be on disk #0 */
-		return;
-	/* CD can't be split. */
-	if (archive_le64dec(p + 24) != archive_le64dec(p + 32))
-		return;
-
-	/* Save the central directory offset for later use. */
-	zip->central_directory_offset = archive_le64dec(p + 48);
+	free(strm->ds->w_buff);
+	lzh_huffman_free(&(strm->ds->lt));
+	lzh_huffman_free(&(strm->ds->pt));
+	free(strm->ds);
+	strm->ds = NULL;
 }
 
-static int
-archive_read_format_zip_seekable_bid(struct archive_read *a, int best_bid)
-{
-	struct zip *zip = (struct zip *)a->format->data;
-	int64_t file_size, current_offset;
-	const char *p;
-	int i, tail;
+/*
+ * Bit stream reader.
+ */
+/* Check that the cache buffer has enough bits. */
+#define lzh_br_has(br, n)	((br)->cache_avail >= n)
+/* Get compressed data by bit. */
+#define lzh_br_bits(br, n)				\
+	(((uint16_t)((br)->cache_buffer >>		\
+		((br)->cache_avail - (n)))) & cache_masks[n])
+#define lzh_br_bits_forced(br, n)			\
+	(((uint16_t)((br)->cache_buffer <<		\
+		((n) - (br)->cache_avail))) & cache_masks[n])
+/* Read ahead to make sure the cache buffer has enough compressed data we
+ * will use.
+ *  True  : completed, there is enough data in the cache buffer.
+ *  False : we met that strm->next_in is empty, we have to get following
+ *          bytes. */
+#define lzh_br_read_ahead_0(strm, br, n)	\
+	(lzh_br_has(br, (n)) || lzh_br_fillup(strm, br))
+/*  True  : the cache buffer has some bits as much as we need.
+ *  False : there are no enough bits in the cache buffer to be used,
+ *          we have to get following bytes if we could. */
+#define lzh_br_read_ahead(strm, br, n)	\
+	(lzh_br_read_ahead_0((strm), (br), (n)) || lzh_br_has((br), (n)))
 
-	/* If someone has already bid more than 32, then avoid
-	   trashing the look-ahead buffers with a seek. */
-	if (best_bid > 32)
-		return (-1);
+/* Notify how many bits we consumed. */
+#define lzh_br_consume(br, n)	((br)->cache_avail -= (n))
+#define lzh_br_unconsume(br, n)	((br)->cache_avail += (n))
 
-	file_size = __archive_read_seek(a, 0, SEEK_END);
-	if (file_size <= 0)
-		return 0;
-
-	/* Search last 16k of file for end-of-central-directory
-	 * record (which starts with PK\005\006) */
-	tail = (int)zipmin(1024 * 16, file_size);
-	current_offset = __archive_read_seek(a, -tail, SEEK_END);
-	if (current_offset < 0)
-		return 0;
-	if ((p = __archive_read_ahead(a, (size_t)tail, NULL)) == NULL)
-		return 0;
-	/* Boyer-Moore search backwards from the end, since we want
-	 * to match the last EOCD in the file (there can be more than
-	 * one if there is an uncompressed Zip archive as a member
-	 * within this Zip archive). */
-	for (i = tail - 22; i > 0;) {
-		switch (p[i]) {
-		case 'P':
-			if (memcmp(p + i, "PK\005\006", 4) == 0) {
-				int ret = read_eocd(zip, p + i,
-				    current_offset + i);
-				if (ret > 0) {
-					/* Zip64 EOCD locator precedes
-					 * regular EOCD if present. */
-					if (i >= 20
-					    && memcmp(p + i - 20, "PK\006\007", 4) == 0) {
-						read_zip64_eocd(a, zip, p + i - 20);
-					}
-					return (ret);
-				}
-			}
-			i -= 4;
-			break;
-		case 'K': i -= 1; break;
-		case 005: i -= 2; break;
-		case 006: i -= 3; break;
-		default: i -= 4; break;
-		}
-	}
-	return 0;
-}
-
-/* The red-black trees are only used in seeking mode to manage
- * the in-memory copy of the central directory. */
-
-static int
-cmp_node(const struct archive_rb_node *n1, const struct archive_rb_node *n2)
-{
-	const struct zip_entry *e1 = (const struct zip_entry *)n1;
-	const struct zip_entry *e2 = (const struct zip_entry *)n2;
-
-	if (e1->local_header_offset > e2->local_header_offset)
-		return -1;
-	if (e1->local_header_offset < e2->local_header_offset)
-		return 1;
-	return 0;
-}
-
-static int
-cmp_key(const struct archive_rb_node *n, const void *key)
-{
-	/* This function won't be called */
-	(void)n; /* UNUSED */
-	(void)key; /* UNUSED */
-	return 1;
-}
-
-static const struct archive_rb_tree_ops rb_ops = {
-	&cmp_node, &cmp_key
+static const uint16_t cache_masks[] = {
+	0x0000, 0x0001, 0x0003, 0x0007,
+	0x000F, 0x001F, 0x003F, 0x007F,
+	0x00FF, 0x01FF, 0x03FF, 0x07FF,
+	0x0FFF, 0x1FFF, 0x3FFF, 0x7FFF,
+	0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF
 };
 
+/*
+ * Shift away used bits in the cache data and fill it up with following bits.
+ * Call this when cache buffer does not have enough bits you need.
+ *
+ * Returns 1 if the cache buffer is full.
+ * Returns 0 if the cache buffer is not full; input buffer is empty.
+ */
 static int
-rsrc_cmp_node(const struct archive_rb_node *n1,
-    const struct archive_rb_node *n2)
+lzh_br_fillup(struct lzh_stream *strm, struct lzh_br *br)
 {
-	const struct zip_entry *e1 = (const struct zip_entry *)n1;
-	const struct zip_entry *e2 = (const struct zip_entry *)n2;
+	int n = CACHE_BITS - br->cache_avail;
 
-	return (strcmp(e2->rsrcname.s, e1->rsrcname.s));
-}
-
-static int
-rsrc_cmp_key(const struct archive_rb_node *n, const void *key)
-{
-	const struct zip_entry *e = (const struct zip_entry *)n;
-	return (strcmp((const char *)key, e->rsrcname.s));
-}
-
-static const struct archive_rb_tree_ops rb_rsrc_ops = {
-	&rsrc_cmp_node, &rsrc_cmp_key
-};
-
-static const char *
-rsrc_basename(const char *name, size_t name_length)
-{
-	const char *s, *r;
-
-	r = s = name;
 	for (;;) {
-		s = memchr(s, '/', name_length - (s - name));
-		if (s == NULL)
-			break;
-		r = ++s;
+		const int x = n >> 3;
+		if (strm->avail_in >= x) {
+			switch (x) {
+			case 8:
+				br->cache_buffer =
+				    ((uint64_t)strm->next_in[0]) << 56 |
+				    ((uint64_t)strm->next_in[1]) << 48 |
+				    ((uint64_t)strm->next_in[2]) << 40 |
+				    ((uint64_t)strm->next_in[3]) << 32 |
+				    ((uint32_t)strm->next_in[4]) << 24 |
+				    ((uint32_t)strm->next_in[5]) << 16 |
+				    ((uint32_t)strm->next_in[6]) << 8 |
+				     (uint32_t)strm->next_in[7];
+				strm->next_in += 8;
+				strm->avail_in -= 8;
+				br->cache_avail += 8 * 8;
+				return (1);
+			case 7:
+				br->cache_buffer =
+		 		   (br->cache_buffer << 56) |
+				    ((uint64_t)strm->next_in[0]) << 48 |
+				    ((uint64_t)strm->next_in[1]) << 40 |
+				    ((uint64_t)strm->next_in[2]) << 32 |
+				    ((uint32_t)strm->next_in[3]) << 24 |
+				    ((uint32_t)strm->next_in[4]) << 16 |
+				    ((uint32_t)strm->next_in[5]) << 8 |
+				     (uint32_t)strm->next_in[6];
+				strm->next_in += 7;
+				strm->avail_in -= 7;
+				br->cache_avail += 7 * 8;
+				return (1);
+			case 6:
+				br->cache_buffer =
+		 		   (br->cache_buffer << 48) |
+				    ((uint64_t)strm->next_in[0]) << 40 |
+				    ((uint64_t)strm->next_in[1]) << 32 |
+				    ((uint32_t)strm->next_in[2]) << 24 |
+				    ((uint32_t)strm->next_in[3]) << 16 |
+				    ((uint32_t)strm->next_in[4]) << 8 |
+				     (uint32_t)strm->next_in[5];
+				strm->next_in += 6;
+				strm->avail_in -= 6;
+				br->cache_avail += 6 * 8;
+				return (1);
+			case 0:
+				/* We have enough compressed data in
+				 * the cache buffer.*/
+				return (1);
+			default:
+				break;
+			}
+		}
+		if (strm->avail_in == 0) {
+			/* There is not enough compressed data to fill up the
+			 * cache buffer. */
+			return (0);
+		}
+		br->cache_buffer =
+		   (br->cache_buffer << 8) | *strm->next_in++;
+		strm->avail_in--;
+		br->cache_avail += 8;
+		n -= 8;
 	}
+}
+
+/*
+ * Decode LZHUF.
+ *
+ * 1. Returns ARCHIVE_OK if output buffer or input buffer are empty.
+ *    Please set available buffer and call this function again.
+ * 2. Returns ARCHIVE_EOF if decompression has been completed.
+ * 3. Returns ARCHIVE_FAILED if an error occurred; compressed data
+ *    is broken or you do not set 'last' flag properly.
+ * 4. 'last' flag is very important, you must set 1 to the flag if there
+ *    is no input data. The lha compressed data format does not provide how
+ *    to know the compressed data is really finished.
+ *    Note: lha command utility check if the total size of output bytes is
+ *    reached the uncompressed size recorded in its header. it does not mind
+ *    that the decoding process is properly finished.
+ *    GNU ZIP can decompress another compressed file made by SCO LZH compress.
+ *    it handles EOF as null to fill read buffer with zero until the decoding
+ *    process meet 2 bytes of zeros at reading a size of a next chunk, so the
+ *    zeros are treated as the mark of the end of the data although the zeros
+ *    is dummy, not the file data.
+ */
+static int	lzh_read_blocks(struct lzh_stream *, int);
+static int	lzh_decode_blocks(struct lzh_stream *, int);
+#define ST_RD_BLOCK		0
+#define ST_RD_PT_1		1
+#define ST_RD_PT_2		2
+#define ST_RD_PT_3		3
+#define ST_RD_PT_4		4
+#define ST_RD_LITERAL_1		5
+#define ST_RD_LITERAL_2		6
+#define ST_RD_LITERAL_3		7
+#define ST_RD_POS_DATA_1	8
+#define ST_GET_LITERAL		9
+#define ST_GET_POS_1		10
+#define ST_GET_POS_2		11
+#define ST_COPY_DATA		12
+
+static int
+lzh_decode(struct lzh_stream *strm, int last)
+{
+	struct lzh_dec *ds = strm->ds;
+	int avail_in;
+	int r;
+
+	if (ds->error)
+		return (ds->error);
+
+	avail_in = strm->avail_in;
+	do {
+		if (ds->state < ST_GET_LITERAL)
+			r = lzh_read_blocks(strm, last);
+		else
+			r = lzh_decode_blocks(strm, last);
+	} while (r == 100);
+	strm->total_in += avail_in - strm->avail_in;
 	return (r);
 }
 
 static void
-expose_parent_dirs(struct zip *zip, const char *name, size_t name_length)
+lzh_emit_window(struct lzh_stream *strm, size_t s)
 {
-	struct archive_string str;
-	struct zip_entry *dir;
-	char *s;
+	strm->ref_ptr = strm->ds->w_buff;
+	strm->avail_out = (int)s;
+	strm->total_out += s;
+}
 
-	archive_string_init(&str);
-	archive_strncpy(&str, name, name_length);
+static int
+lzh_read_blocks(struct lzh_stream *strm, int last)
+{
+	struct lzh_dec *ds = strm->ds;
+	struct lzh_br *br = &(ds->br);
+	int c = 0, i;
+	unsigned rbits;
+
 	for (;;) {
-		s = strrchr(str.s, '/');
-		if (s == NULL)
-			break;
-		*s = '\0';
-		/* Transfer the parent directory from zip->tree_rsrc RB
-		 * tree to zip->tree RB tree to expose. */
-		dir = (struct zip_entry *)
-		    __archive_rb_tree_find_node(&zip->tree_rsrc, str.s);
-		if (dir == NULL)
-			break;
-		__archive_rb_tree_remove_node(&zip->tree_rsrc, &dir->node);
-		archive_string_free(&dir->rsrcname);
-		__archive_rb_tree_insert_node(&zip->tree, &dir->node);
-	}
-	archive_string_free(&str);
-}
-
-static int
-slurp_central_directory(struct archive_read *a, struct zip *zip)
-{
-	ssize_t i;
-	unsigned found;
-	int64_t correction;
-	ssize_t bytes_avail;
-	const char *p;
-
-	/*
-	 * Find the start of the central directory.  The end-of-CD
-	 * record has our starting point, but there are lots of
-	 * Zip archives which have had other data prepended to the
-	 * file, which makes the recorded offsets all too small.
-	 * So we search forward from the specified offset until we
-	 * find the real start of the central directory.  Then we
-	 * know the correction we need to apply to account for leading
-	 * padding.
-	 */
-	if (__archive_read_seek(a, zip->central_directory_offset, SEEK_SET) < 0)
-		return ARCHIVE_FATAL;
-
-	found = 0;
-	while (!found) {
-		if ((p = __archive_read_ahead(a, 20, &bytes_avail)) == NULL)
-			return ARCHIVE_FATAL;
-		for (found = 0, i = 0; !found && i < bytes_avail - 4;) {
-			switch (p[i + 3]) {
-			case 'P': i += 3; break;
-			case 'K': i += 2; break;
-			case 001: i += 1; break;
-			case 002:
-				if (memcmp(p + i, "PK\001\002", 4) == 0) {
-					p += i;
-					found = 1;
-				} else
-					i += 4;
-				break;
-			case 005: i += 1; break;
-			case 006:
-				if (memcmp(p + i, "PK\005\006", 4) == 0) {
-					p += i;
-					found = 1;
-				} else if (memcmp(p + i, "PK\006\006", 4) == 0) {
-					p += i;
-					found = 1;
-				} else
-					i += 1;
-				break;
-			default: i += 4; break;
-			}
-		}
-		__archive_read_consume(a, i);
-	}
-	correction = archive_filter_bytes(&a->archive, 0)
-			- zip->central_directory_offset;
-
-	__archive_rb_tree_init(&zip->tree, &rb_ops);
-	__archive_rb_tree_init(&zip->tree_rsrc, &rb_rsrc_ops);
-
-	zip->central_directory_entries_total = 0;
-	while (1) {
-		struct zip_entry *zip_entry;
-		size_t filename_length, extra_length, comment_length;
-		uint32_t external_attributes;
-		const char *name, *r;
-
-		if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
-			return ARCHIVE_FATAL;
-		if (memcmp(p, "PK\006\006", 4) == 0
-		    || memcmp(p, "PK\005\006", 4) == 0) {
-			break;
-		} else if (memcmp(p, "PK\001\002", 4) != 0) {
-			archive_set_error(&a->archive,
-			    -1, "Invalid central directory signature");
-			return ARCHIVE_FATAL;
-		}
-		if ((p = __archive_read_ahead(a, 46, NULL)) == NULL)
-			return ARCHIVE_FATAL;
-
-		zip_entry = calloc(1, sizeof(struct zip_entry));
-		zip_entry->next = zip->zip_entries;
-		zip_entry->flags |= LA_FROM_CENTRAL_DIRECTORY;
-		zip->zip_entries = zip_entry;
-		zip->central_directory_entries_total++;
-
-		/* version = p[4]; */
-		zip_entry->system = p[5];
-		/* version_required = archive_le16dec(p + 6); */
-		zip_entry->zip_flags = archive_le16dec(p + 8);
-		if (zip_entry->zip_flags
-		      & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)){
-			zip->has_encrypted_entries = 1;
-		}
-		zip_entry->compression = (char)archive_le16dec(p + 10);
-		zip_entry->mtime = zip_time(p + 12);
-		zip_entry->crc32 = archive_le32dec(p + 16);
-		if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
-			zip_entry->decdat = p[13];
-		else
-			zip_entry->decdat = p[19];
-		zip_entry->compressed_size = archive_le32dec(p + 20);
-		zip_entry->uncompressed_size = archive_le32dec(p + 24);
-		filename_length = archive_le16dec(p + 28);
-		extra_length = archive_le16dec(p + 30);
-		comment_length = archive_le16dec(p + 32);
-		/* disk_start = archive_le16dec(p + 34); */ /* Better be zero. */
-		/* internal_attributes = archive_le16dec(p + 36); */ /* text bit */
-		external_attributes = archive_le32dec(p + 38);
-		zip_entry->local_header_offset =
-		    archive_le32dec(p + 42) + correction;
-
-		/* If we can't guess the mode, leave it zero here;
-		   when we read the local file header we might get
-		   more information. */
-		if (zip_entry->system == 3) {
-			zip_entry->mode = external_attributes >> 16;
-		} else if (zip_entry->system == 0) {
-			// Interpret MSDOS directory bit
-			if (0x10 == (external_attributes & 0x10)) {
-				zip_entry->mode = AE_IFDIR | 0775;
-			} else {
-				zip_entry->mode = AE_IFREG | 0664;
-			}
-			if (0x01 == (external_attributes & 0x01)) {
-				// Read-only bit; strip write permissions
-				zip_entry->mode &= 0555;
-			}
-		} else {
-			zip_entry->mode = 0;
-		}
-
-		/* We're done with the regular data; get the filename and
-		 * extra data. */
-		__archive_read_consume(a, 46);
-		p = __archive_read_ahead(a, filename_length + extra_length,
-			NULL);
-		if (p == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			return ARCHIVE_FATAL;
-		}
-		process_extra(p + filename_length, extra_length, zip_entry);
-
-		/*
-		 * Mac resource fork files are stored under the
-		 * "__MACOSX/" directory, so we should check if
-		 * it is.
-		 */
-		if (!zip->process_mac_extensions) {
-			/* Treat every entry as a regular entry. */
-			__archive_rb_tree_insert_node(&zip->tree,
-			    &zip_entry->node);
-		} else {
-			name = p;
-			r = rsrc_basename(name, filename_length);
-			if (filename_length >= 9 &&
-			    strncmp("__MACOSX/", name, 9) == 0) {
-				/* If this file is not a resource fork nor
-				 * a directory. We should treat it as a non
-				 * resource fork file to expose it. */
-				if (name[filename_length-1] != '/' &&
-				    (r - name < 3 || r[0] != '.' || r[1] != '_')) {
-					__archive_rb_tree_insert_node(
-					    &zip->tree, &zip_entry->node);
-					/* Expose its parent directories. */
-					expose_parent_dirs(zip, name,
-					    filename_length);
-				} else {
-					/* This file is a resource fork file or
-					 * a directory. */
-					archive_strncpy(&(zip_entry->rsrcname),
-					     name, filename_length);
-					__archive_rb_tree_insert_node(
-					    &zip->tree_rsrc, &zip_entry->node);
+		switch (ds->state) {
+		case ST_RD_BLOCK:
+			/*
+			 * Read a block number indicates how many blocks
+			 * we will handle. The block is composed of a
+			 * literal and a match, sometimes a literal only
+			 * in particular, there are no reference data at
+			 * the beginning of the decompression.
+			 */
+			if (!lzh_br_read_ahead_0(strm, br, 16)) {
+				if (!last)
+					/* We need following data. */
+					return (ARCHIVE_OK);
+				if (lzh_br_has(br, 8)) {
+					/*
+					 * It seems there are extra bits.
+					 *  1. Compressed data is broken.
+					 *  2. `last' flag does not properly
+					 *     set.
+					 */
+					goto failed;
 				}
+				if (ds->w_pos > 0) {
+					lzh_emit_window(strm, ds->w_pos);
+					ds->w_pos = 0;
+					return (ARCHIVE_OK);
+				}
+				/* End of compressed data; we have completely
+				 * handled all compressed data. */
+				return (ARCHIVE_EOF);
+			}
+			ds->blocks_avail = lzh_br_bits(br, 16);
+			if (ds->blocks_avail == 0)
+				goto failed;
+			lzh_br_consume(br, 16);
+			/*
+			 * Read a literal table compressed in huffman
+			 * coding.
+			 */
+			ds->pt.len_size = ds->literal_pt_len_size;
+			ds->pt.len_bits = ds->literal_pt_len_bits;
+			ds->reading_position = 0;
+			/* FALL THROUGH */
+		case ST_RD_PT_1:
+			/* Note: ST_RD_PT_1, ST_RD_PT_2 and ST_RD_PT_4 are
+			 * used in reading both a literal table and a
+			 * position table. */
+			if (!lzh_br_read_ahead(strm, br, ds->pt.len_bits)) {
+				if (last)
+					goto failed;/* Truncated data. */
+				ds->state = ST_RD_PT_1;
+				return (ARCHIVE_OK);
+			}
+			ds->pt.len_avail = lzh_br_bits(br, ds->pt.len_bits);
+			lzh_br_consume(br, ds->pt.len_bits);
+			/* FALL THROUGH */
+		case ST_RD_PT_2:
+			if (ds->pt.len_avail == 0) {
+				/* There is no bitlen. */
+				if (!lzh_br_read_ahead(strm, br,
+				    ds->pt.len_bits)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					ds->state = ST_RD_PT_2;
+					return (ARCHIVE_OK);
+				}
+				if (!lzh_make_fake_table(&(ds->pt),
+				    lzh_br_bits(br, ds->pt.len_bits)))
+					goto failed;/* Invalid data. */
+				lzh_br_consume(br, ds->pt.len_bits);
+				if (ds->reading_position)
+					ds->state = ST_GET_LITERAL;
+				else
+					ds->state = ST_RD_LITERAL_1;
+				break;
+			} else if (ds->pt.len_avail > ds->pt.len_size)
+				goto failed;/* Invalid data. */
+			ds->loop = 0;
+			memset(ds->pt.freq, 0, sizeof(ds->pt.freq));
+			if (ds->pt.len_avail < 3 ||
+			    ds->pt.len_size == ds->pos_pt_len_size) {
+				ds->state = ST_RD_PT_4;
+				break;
+			}
+			/* FALL THROUGH */
+		case ST_RD_PT_3:
+			ds->loop = lzh_read_pt_bitlen(strm, ds->loop, 3);
+			if (ds->loop < 3) {
+				if (ds->loop < 0 || last)
+					goto failed;/* Invalid data. */
+				/* Not completed, get following data. */
+				ds->state = ST_RD_PT_3;
+				return (ARCHIVE_OK);
+			}
+			/* There are some null in bitlen of the literal. */
+			if (!lzh_br_read_ahead(strm, br, 2)) {
+				if (last)
+					goto failed;/* Truncated data. */
+				ds->state = ST_RD_PT_3;
+				return (ARCHIVE_OK);
+			}
+			c = lzh_br_bits(br, 2);
+			lzh_br_consume(br, 2);
+			if (c > ds->pt.len_avail - 3)
+				goto failed;/* Invalid data. */
+			for (i = 3; c-- > 0 ;)
+				ds->pt.bitlen[i++] = 0;
+			ds->loop = i;
+			/* FALL THROUGH */
+		case ST_RD_PT_4:
+			ds->loop = lzh_read_pt_bitlen(strm, ds->loop,
+			    ds->pt.len_avail);
+			if (ds->loop < ds->pt.len_avail) {
+				if (ds->loop < 0 || last)
+					goto failed;/* Invalid data. */
+				/* Not completed, get following data. */
+				ds->state = ST_RD_PT_4;
+				return (ARCHIVE_OK);
+			}
+			if (!lzh_make_huffman_table(&(ds->pt)))
+				goto failed;/* Invalid data */
+			if (ds->reading_position) {
+				ds->state = ST_GET_LITERAL;
+				break;
+			}
+			/* FALL THROUGH */
+		case ST_RD_LITERAL_1:
+			if (!lzh_br_read_ahead(strm, br, ds->lt.len_bits)) {
+				if (last)
+					goto failed;/* Truncated data. */
+				ds->state = ST_RD_LITERAL_1;
+				return (ARCHIVE_OK);
+			}
+			ds->lt.len_avail = lzh_br_bits(br, ds->lt.len_bits);
+			lzh_br_consume(br, ds->lt.len_bits);
+			/* FALL THROUGH */
+		case ST_RD_LITERAL_2:
+			if (ds->lt.len_avail == 0) {
+				/* There is no bitlen. */
+				if (!lzh_br_read_ahead(strm, br,
+				    ds->lt.len_bits)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					ds->state = ST_RD_LITERAL_2;
+					return (ARCHIVE_OK);
+				}
+				if (!lzh_make_fake_table(&(ds->lt),
+				    lzh_br_bits(br, ds->lt.len_bits)))
+					goto failed;/* Invalid data */
+				lzh_br_consume(br, ds->lt.len_bits);
+				ds->state = ST_RD_POS_DATA_1;
+				break;
+			} else if (ds->lt.len_avail > ds->lt.len_size)
+				goto failed;/* Invalid data */
+			ds->loop = 0;
+			memset(ds->lt.freq, 0, sizeof(ds->lt.freq));
+			/* FALL THROUGH */
+		case ST_RD_LITERAL_3:
+			i = ds->loop;
+			while (i < ds->lt.len_avail) {
+				if (!lzh_br_read_ahead(strm, br,
+				    ds->pt.max_bits)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					ds->loop = i;
+					ds->state = ST_RD_LITERAL_3;
+					return (ARCHIVE_OK);
+				}
+				rbits = lzh_br_bits(br, ds->pt.max_bits);
+				c = lzh_decode_huffman(&(ds->pt), rbits);
+				if (c > 2) {
+					/* Note: 'c' will never be more than
+					 * eighteen since it's limited by
+					 * PT_BITLEN_SIZE, which is being set
+					 * to ds->pt.len_size through
+					 * ds->literal_pt_len_size. */
+					lzh_br_consume(br, ds->pt.bitlen[c]);
+					c -= 2;
+					ds->lt.freq[c]++;
+					ds->lt.bitlen[i++] = c;
+				} else if (c == 0) {
+					lzh_br_consume(br, ds->pt.bitlen[c]);
+					ds->lt.bitlen[i++] = 0;
+				} else {
+					/* c == 1 or c == 2 */
+					int n = (c == 1)?4:9;
+					if (!lzh_br_read_ahead(strm, br,
+					     ds->pt.bitlen[c] + n)) {
+						if (last) /* Truncated data. */
+							goto failed;
+						ds->loop = i;
+						ds->state = ST_RD_LITERAL_3;
+						return (ARCHIVE_OK);
+					}
+					lzh_br_consume(br, ds->pt.bitlen[c]);
+					c = lzh_br_bits(br, n);
+					lzh_br_consume(br, n);
+					c += (n == 4)?3:20;
+					if (i + c > ds->lt.len_avail)
+						goto failed;/* Invalid data */
+					memset(&(ds->lt.bitlen[i]), 0, c);
+					i += c;
+				}
+			}
+			if (i > ds->lt.len_avail ||
+			    !lzh_make_huffman_table(&(ds->lt)))
+				goto failed;/* Invalid data */
+			/* FALL THROUGH */
+		case ST_RD_POS_DATA_1:
+			/*
+			 * Read a position table compressed in huffman
+			 * coding.
+			 */
+			ds->pt.len_size = ds->pos_pt_len_size;
+			ds->pt.len_bits = ds->pos_pt_len_bits;
+			ds->reading_position = 1;
+			ds->state = ST_RD_PT_1;
+			break;
+		case ST_GET_LITERAL:
+			return (100);
+		}
+	}
+failed:
+	return (ds->error = ARCHIVE_FAILED);
+}
+
+static int
+lzh_decode_blocks(struct lzh_stream *strm, int last)
+{
+	struct lzh_dec *ds = strm->ds;
+	struct lzh_br bre = ds->br;
+	struct huffman *lt = &(ds->lt);
+	struct huffman *pt = &(ds->pt);
+	unsigned char *w_buff = ds->w_buff;
+	unsigned char *lt_bitlen = lt->bitlen;
+	unsigned char *pt_bitlen = pt->bitlen;
+	int blocks_avail = ds->blocks_avail, c = 0;
+	int copy_len = ds->copy_len, copy_pos = ds->copy_pos;
+	int w_pos = ds->w_pos, w_mask = ds->w_mask, w_size = ds->w_size;
+	int lt_max_bits = lt->max_bits, pt_max_bits = pt->max_bits;
+	int state = ds->state;
+
+	for (;;) {
+		switch (state) {
+		case ST_GET_LITERAL:
+			for (;;) {
+				if (blocks_avail == 0) {
+					/* We have decoded all blocks.
+					 * Let's handle next blocks. */
+					ds->state = ST_RD_BLOCK;
+					ds->br = bre;
+					ds->blocks_avail = 0;
+					ds->w_pos = w_pos;
+					ds->copy_pos = 0;
+					return (100);
+				}
+
+				/* lzh_br_read_ahead() always try to fill the
+				 * cache buffer up. In specific situation we
+				 * are close to the end of the data, the cache
+				 * buffer will not be full and thus we have to
+				 * determine if the cache buffer has some bits
+				 * as much as we need after lzh_br_read_ahead()
+				 * failed. */
+				if (!lzh_br_read_ahead(strm, &bre,
+				    lt_max_bits)) {
+					if (!last)
+						goto next_data;
+					/* Remaining bits are less than
+					 * maximum bits(lt.max_bits) but maybe
+					 * it still remains as much as we need,
+					 * so we should try to use it with
+					 * dummy bits. */
+					c = lzh_decode_huffman(lt,
+					      lzh_br_bits_forced(&bre,
+					        lt_max_bits));
+					lzh_br_consume(&bre, lt_bitlen[c]);
+					if (!lzh_br_has(&bre, 0))
+						goto failed;/* Over read. */
+				} else {
+					c = lzh_decode_huffman(lt,
+					      lzh_br_bits(&bre, lt_max_bits));
+					lzh_br_consume(&bre, lt_bitlen[c]);
+				}
+				blocks_avail--;
+				if (c > UCHAR_MAX)
+					/* Current block is a match data. */
+					break;
+				/*
+				 * 'c' is exactly a literal code.
+				 */
+				/* Save a decoded code to reference it
+				 * afterward. */
+				w_buff[w_pos] = c;
+				if (++w_pos >= w_size) {
+					w_pos = 0;
+					lzh_emit_window(strm, w_size);
+					goto next_data;
+				}
+			}
+			/* 'c' is the length of a match pattern we have
+			 * already extracted, which has be stored in
+			 * window(ds->w_buff). */
+			copy_len = c - (UCHAR_MAX + 1) + MINMATCH;
+			/* FALL THROUGH */
+		case ST_GET_POS_1:
+			/*
+			 * Get a reference position. 
+			 */
+			if (!lzh_br_read_ahead(strm, &bre, pt_max_bits)) {
+				if (!last) {
+					state = ST_GET_POS_1;
+					ds->copy_len = copy_len;
+					goto next_data;
+				}
+				copy_pos = lzh_decode_huffman(pt,
+				    lzh_br_bits_forced(&bre, pt_max_bits));
+				lzh_br_consume(&bre, pt_bitlen[copy_pos]);
+				if (!lzh_br_has(&bre, 0))
+					goto failed;/* Over read. */
 			} else {
-				/* Generate resource fork name to find its
-				 * resource file at zip->tree_rsrc. */
-				archive_strcpy(&(zip_entry->rsrcname),
-				    "__MACOSX/");
-				archive_strncat(&(zip_entry->rsrcname),
-				    name, r - name);
-				archive_strcat(&(zip_entry->rsrcname), "._");
-				archive_strncat(&(zip_entry->rsrcname),
-				    name + (r - name),
-				    filename_length - (r - name));
-				/* Register an entry to RB tree to sort it by
-				 * file offset. */
-				__archive_rb_tree_insert_node(&zip->tree,
-				    &zip_entry->node);
+				copy_pos = lzh_decode_huffman(pt,
+				    lzh_br_bits(&bre, pt_max_bits));
+				lzh_br_consume(&bre, pt_bitlen[copy_pos]);
 			}
+			/* FALL THROUGH */
+		case ST_GET_POS_2:
+			if (copy_pos > 1) {
+				/* We need an additional adjustment number to
+				 * the position. */
+				int p = copy_pos - 1;
+				if (!lzh_br_read_ahead(strm, &bre, p)) {
+					if (last)
+						goto failed;/* Truncated data.*/
+					state = ST_GET_POS_2;
+					ds->copy_len = copy_len;
+					ds->copy_pos = copy_pos;
+					goto next_data;
+				}
+				copy_pos = (1 << p) + lzh_br_bits(&bre, p);
+				lzh_br_consume(&bre, p);
+			}
+			/* The position is actually a distance from the last
+			 * code we had extracted and thus we have to convert
+			 * it to a position of the window. */
+			copy_pos = (w_pos - copy_pos - 1) & w_mask;
+			/* FALL THROUGH */
+		case ST_COPY_DATA:
+			/*
+			 * Copy `copy_len' bytes as extracted data from
+			 * the window into the output buffer.
+			 */
+			for (;;) {
+				int l;
+
+				l = copy_len;
+				if (copy_pos > w_pos) {
+					if (l > w_size - copy_pos)
+						l = w_size - copy_pos;
+				} else {
+					if (l > w_size - w_pos)
+						l = w_size - w_pos;
+				}
+				if ((copy_pos + l < w_pos)
+				    || (w_pos + l < copy_pos)) {
+					/* No overlap. */
+					memcpy(w_buff + w_pos,
+					    w_buff + copy_pos, l);
+				} else {
+					const unsigned char *s;
+					unsigned char *d;
+					int li;
+
+					d = w_buff + w_pos;
+					s = w_buff + copy_pos;
+					for (li = 0; li < l-1;) {
+						d[li] = s[li];li++;
+						d[li] = s[li];li++;
+					}
+					if (li < l)
+						d[li] = s[li];
+				}
+				w_pos += l;
+				if (w_pos == w_size) {
+					w_pos = 0;
+					lzh_emit_window(strm, w_size);
+					if (copy_len <= l)
+						state = ST_GET_LITERAL;
+					else {
+						state = ST_COPY_DATA;
+						ds->copy_len = copy_len - l;
+						ds->copy_pos =
+						    (copy_pos + l) & w_mask;
+					}
+					goto next_data;
+				}
+				if (copy_len <= l)
+					/* A copy of current pattern ended. */
+					break;
+				copy_len -= l;
+				copy_pos = (copy_pos + l) & w_mask;
+			}
+			state = ST_GET_LITERAL;
+			break;
 		}
-
-		/* Skip the comment too ... */
-		__archive_read_consume(a,
-		    filename_length + extra_length + comment_length);
 	}
-
-	return ARCHIVE_OK;
-}
-
-static ssize_t
-zip_get_local_file_header_size(struct archive_read *a, size_t extra)
-{
-	const char *p;
-	ssize_t filename_length, extra_length;
-
-	if ((p = __archive_read_ahead(a, extra + 30, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_WARN);
-	}
-	p += extra;
-
-	if (memcmp(p, "PK\003\004", 4) != 0) {
-		archive_set_error(&a->archive, -1, "Damaged Zip archive");
-		return ARCHIVE_WARN;
-	}
-	filename_length = archive_le16dec(p + 26);
-	extra_length = archive_le16dec(p + 28);
-
-	return (30 + filename_length + extra_length);
+failed:
+	return (ds->error = ARCHIVE_FAILED);
+next_data:
+	ds->br = bre;
+	ds->blocks_avail = blocks_avail;
+	ds->state = state;
+	ds->w_pos = w_pos;
+	return (ARCHIVE_OK);
 }
 
 static int
-zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
-    struct zip_entry *rsrc)
+lzh_huffman_init(struct huffman *hf, size_t len_size, int tbl_bits)
 {
-	struct zip *zip = (struct zip *)a->format->data;
-	unsigned char *metadata, *mp;
-	int64_t offset = archive_filter_bytes(&a->archive, 0);
-	size_t remaining_bytes, metadata_bytes;
-	ssize_t hsize;
-	int ret = ARCHIVE_OK, eof;
+	int bits;
 
-	switch(rsrc->compression) {
-	case 0:  /* No compression. */
-		if (rsrc->uncompressed_size != rsrc->compressed_size) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Malformed OS X metadata entry: inconsistent size");
+	if (hf->bitlen == NULL) {
+		hf->bitlen = malloc(len_size * sizeof(hf->bitlen[0]));
+		if (hf->bitlen == NULL)
 			return (ARCHIVE_FATAL);
-		}
-#ifdef HAVE_ZLIB_H
-	case 8: /* Deflate compression. */
-#endif
-		break;
-	default: /* Unsupported compression. */
-		/* Return a warning. */
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported ZIP compression method (%s)",
-		    compression_name(rsrc->compression));
-		/* We can't decompress this entry, but we will
-		 * be able to skip() it and try the next entry. */
-		return (ARCHIVE_WARN);
 	}
-
-	if (rsrc->uncompressed_size > (4 * 1024 * 1024)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 4M bytes",
-		    (intmax_t)rsrc->uncompressed_size);
-		return (ARCHIVE_WARN);
+	if (hf->tbl == NULL) {
+		if (tbl_bits < HTBL_BITS)
+			bits = tbl_bits;
+		else
+			bits = HTBL_BITS;
+		hf->tbl = malloc(((size_t)1 << bits) * sizeof(hf->tbl[0]));
+		if (hf->tbl == NULL)
+			return (ARCHIVE_FATAL);
 	}
-	if (rsrc->compressed_size > (4 * 1024 * 1024)) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Mac metadata is too large: %jd > 4M bytes",
-		    (intmax_t)rsrc->compressed_size);
-		return (ARCHIVE_WARN);
+	if (hf->tree == NULL && tbl_bits > HTBL_BITS) {
+		hf->tree_avail = 1 << (tbl_bits - HTBL_BITS + 4);
+		hf->tree = malloc(hf->tree_avail * sizeof(hf->tree[0]));
+		if (hf->tree == NULL)
+			return (ARCHIVE_FATAL);
 	}
+	hf->len_size = (int)len_size;
+	hf->tbl_bits = tbl_bits;
+	return (ARCHIVE_OK);
+}
 
-	metadata = malloc((size_t)rsrc->uncompressed_size);
-	if (metadata == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate memory for Mac metadata");
-		return (ARCHIVE_FATAL);
+static void
+lzh_huffman_free(struct huffman *hf)
+{
+	free(hf->bitlen);
+	free(hf->tbl);
+	free(hf->tree);
+}
+
+static char bitlen_tbl[0x400] = {
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	 9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+	11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+	11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+	12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+	13, 13, 13, 13, 13, 13, 13, 13, 14, 14, 14, 14, 15, 15, 16,  0
+};
+static int
+lzh_read_pt_bitlen(struct lzh_stream *strm, int start, int end)
+{
+	struct lzh_dec *ds = strm->ds;
+	struct lzh_br *br = &(ds->br);
+	int c, i;
+
+	for (i = start; i < end; ) {
+		/*
+		 *  bit pattern     the number we need
+		 *     000           ->  0
+		 *     001           ->  1
+		 *     010           ->  2
+		 *     ...
+		 *     110           ->  6
+		 *     1110          ->  7
+		 *     11110         ->  8
+		 *     ...
+		 *     1111111111110 ->  16
+		 */
+		if (!lzh_br_read_ahead(strm, br, 3))
+			return (i);
+		if ((c = lzh_br_bits(br, 3)) == 7) {
+			if (!lzh_br_read_ahead(strm, br, 13))
+				return (i);
+			c = bitlen_tbl[lzh_br_bits(br, 13) & 0x3FF];
+			if (c)
+				lzh_br_consume(br, c - 3);
+			else
+				return (-1);/* Invalid data. */
+		} else
+			lzh_br_consume(br, 3);
+		ds->pt.bitlen[i++] = c;
+		ds->pt.freq[c]++;
 	}
-
-	if (offset < rsrc->local_header_offset)
-		__archive_read_consume(a, rsrc->local_header_offset - offset);
-	else if (offset != rsrc->local_header_offset) {
-		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
-	}
-
-	hsize = zip_get_local_file_header_size(a, 0);
-	__archive_read_consume(a, hsize);
-
-	remaining_bytes = (size_t)rsrc->compressed_size;
-	metadata_bytes = (size_t)rsrc->uncompressed_size;
-	mp = metadata;
-	eof = 0;
-	while (!eof && remaining_bytes) {
-		const unsigned char *p;
-		ssize_t bytes_avail;
-		size_t bytes_used;
-
-		p = __archive_read_ahead(a, 1, &bytes_avail);
-		if (p == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			ret = ARCHIVE_WARN;
-			goto exit_mac_metadata;
-		}
-		if ((size_t)bytes_avail > remaining_bytes)
-			bytes_avail = remaining_bytes;
-		switch(rsrc->compression) {
-		case 0:  /* No compression. */
-			if ((size_t)bytes_avail > metadata_bytes)
-				bytes_avail = metadata_bytes;
-			memcpy(mp, p, bytes_avail);
-			bytes_used = (size_t)bytes_avail;
-			metadata_bytes -= bytes_used;
-			mp += bytes_used;
-			if (metadata_bytes == 0)
-				eof = 1;
-			break;
-#ifdef HAVE_ZLIB_H
-		case 8: /* Deflate compression. */
-		{
-			int r;
-
-			ret = zip_deflate_init(a, zip);
-			if (ret != ARCHIVE_OK)
-				goto exit_mac_metadata;
-			zip->stream.next_in =
-			    (Bytef *)(uintptr_t)(const void *)p;
-			zip->stream.avail_in = (uInt)bytes_avail;
-			zip->stream.total_in = 0;
-			zip->stream.next_out = mp;
-			zip->stream.avail_out = (uInt)metadata_bytes;
-			zip->stream.total_out = 0;
-
-			r = inflate(&zip->stream, 0);
-			switch (r) {
-			case Z_OK:
-				break;
-			case Z_STREAM_END:
-				eof = 1;
-				break;
-			case Z_MEM_ERROR:
-				archive_set_error(&a->archive, ENOMEM,
-				    "Out of memory for ZIP decompression");
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "ZIP decompression failed (%d)", r);
-				ret = ARCHIVE_FATAL;
-				goto exit_mac_metadata;
-			}
-			bytes_used = zip->stream.total_in;
-			metadata_bytes -= zip->stream.total_out;
-			mp += zip->stream.total_out;
-			break;
-		}
-#endif
-		default:
-			bytes_used = 0;
-			break;
-		}
-		__archive_read_consume(a, bytes_used);
-		remaining_bytes -= bytes_used;
-	}
-	archive_entry_copy_mac_metadata(entry, metadata,
-	    (size_t)rsrc->uncompressed_size - metadata_bytes);
-
-exit_mac_metadata:
-	__archive_read_seek(a, offset, SEEK_SET);
-	zip->decompress_init = 0;
-	free(metadata);
-	return (ret);
+	return (i);
 }
 
 static int
-archive_read_format_zip_seekable_read_header(struct archive_read *a,
-	struct archive_entry *entry)
+lzh_make_fake_table(struct huffman *hf, uint16_t c)
 {
-	struct zip *zip = (struct zip *)a->format->data;
-	struct zip_entry *rsrc;
-	int64_t offset;
-	int r, ret = ARCHIVE_OK;
-
-	/*
-	 * It should be sufficient to call archive_read_next_header() for
-	 * a reader to determine if an entry is encrypted or not. If the
-	 * encryption of an entry is only detectable when calling
-	 * archive_read_data(), so be it. We'll do the same check there
-	 * as well.
-	 */
-	if (zip->has_encrypted_entries ==
-			ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW)
-		zip->has_encrypted_entries = 0;
-
-	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
-	if (a->archive.archive_format_name == NULL)
-		a->archive.archive_format_name = "ZIP";
-
-	if (zip->zip_entries == NULL) {
-		r = slurp_central_directory(a, zip);
-		if (r != ARCHIVE_OK)
-			return r;
-		/* Get first entry whose local header offset is lower than
-		 * other entries in the archive file. */
-		zip->entry =
-		    (struct zip_entry *)ARCHIVE_RB_TREE_MIN(&zip->tree);
-	} else if (zip->entry != NULL) {
-		/* Get next entry in local header offset order. */
-		zip->entry = (struct zip_entry *)__archive_rb_tree_iterate(
-		    &zip->tree, &zip->entry->node, ARCHIVE_RB_DIR_RIGHT);
-	}
-
-	if (zip->entry == NULL)
-		return ARCHIVE_EOF;
-
-	if (zip->entry->rsrcname.s)
-		rsrc = (struct zip_entry *)__archive_rb_tree_find_node(
-		    &zip->tree_rsrc, zip->entry->rsrcname.s);
-	else
-		rsrc = NULL;
-
-	if (zip->cctx_valid)
-		archive_decrypto_aes_ctr_release(&zip->cctx);
-	if (zip->hctx_valid)
-		archive_hmac_sha1_cleanup(&zip->hctx);
-	zip->tctx_valid = zip->cctx_valid = zip->hctx_valid = 0;
-	__archive_read_reset_passphrase(a);
-
-	/* File entries are sorted by the header offset, we should mostly
-	 * use __archive_read_consume to advance a read point to avoid redundant
-	 * data reading.  */
-	offset = archive_filter_bytes(&a->archive, 0);
-	if (offset < zip->entry->local_header_offset)
-		__archive_read_consume(a,
-		    zip->entry->local_header_offset - offset);
-	else if (offset != zip->entry->local_header_offset) {
-		__archive_read_seek(a, zip->entry->local_header_offset,
-		    SEEK_SET);
-	}
-	zip->unconsumed = 0;
-	r = zip_read_local_file_header(a, entry, zip);
-	if (r != ARCHIVE_OK)
-		return r;
-	if (rsrc) {
-		int ret2 = zip_read_mac_metadata(a, entry, rsrc);
-		if (ret2 < ret)
-			ret = ret2;
-	}
-	return (ret);
+	if (c >= hf->len_size)
+		return (0);
+	hf->tbl[0] = c;
+	hf->max_bits = 0;
+	hf->shift_bits = 0;
+	hf->bitlen[hf->tbl[0]] = 0;
+	return (1);
 }
 
 /*
- * We're going to seek for the next header anyway, so we don't
- * need to bother doing anything here.
+ * Make a huffman coding table.
  */
 static int
-archive_read_format_zip_read_data_skip_seekable(struct archive_read *a)
+lzh_make_huffman_table(struct huffman *hf)
 {
-	struct zip *zip;
-	zip = (struct zip *)(a->format->data);
-
-	zip->unconsumed = 0;
-	return (ARCHIVE_OK);
-}
-
-int
-archive_read_support_format_zip_seekable(struct archive *_a)
-{
-	struct archive_read *a = (struct archive_read *)_a;
-	struct zip *zip;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip_seekable");
-
-	zip = (struct zip *)calloc(1, sizeof(*zip));
-	if (zip == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip data");
-		return (ARCHIVE_FATAL);
-	}
-
-#ifdef HAVE_COPYFILE_H
-	/* Set this by default on Mac OS. */
-	zip->process_mac_extensions = 1;
-#endif
+	uint16_t *tbl;
+	const unsigned char *bitlen;
+	int bitptn[17], weight[17];
+	int i, maxbits = 0, ptn, tbl_size, w;
+	int diffbits, len_avail;
 
 	/*
-	 * Until enough data has been read, we cannot tell about
-	 * any encrypted entries yet.
+	 * Initialize bit patterns.
 	 */
-	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-	zip->crc32func = real_crc32;
+	ptn = 0;
+	for (i = 1, w = 1 << 15; i <= 16; i++, w >>= 1) {
+		bitptn[i] = ptn;
+		weight[i] = w;
+		if (hf->freq[i]) {
+			ptn += hf->freq[i] * w;
+			maxbits = i;
+		}
+	}
+	if (ptn != 0x10000 || maxbits > hf->tbl_bits)
+		return (0);/* Invalid */
 
-	r = __archive_read_register_format(a,
-	    zip,
-	    "zip",
-	    archive_read_format_zip_seekable_bid,
-	    archive_read_format_zip_options,
-	    archive_read_format_zip_seekable_read_header,
-	    archive_read_format_zip_read_data,
-	    archive_read_format_zip_read_data_skip_seekable,
-	    NULL,
-	    archive_read_format_zip_cleanup,
-	    archive_read_support_format_zip_capabilities_seekable,
-	    archive_read_format_zip_has_encrypted_entries);
+	hf->max_bits = maxbits;
 
-	if (r != ARCHIVE_OK)
-		free(zip);
-	return (ARCHIVE_OK);
+	/*
+	 * Cut out extra bits which we won't house in the table.
+	 * This preparation reduces the same calculation in the for-loop
+	 * making the table.
+	 */
+	if (maxbits < 16) {
+		int ebits = 16 - maxbits;
+		for (i = 1; i <= maxbits; i++) {
+			bitptn[i] >>= ebits;
+			weight[i] >>= ebits;
+		}
+	}
+	if (maxbits > HTBL_BITS) {
+		unsigned htbl_max;
+		uint16_t *p;
+
+		diffbits = maxbits - HTBL_BITS;
+		for (i = 1; i <= HTBL_BITS; i++) {
+			bitptn[i] >>= diffbits;
+			weight[i] >>= diffbits;
+		}
+		htbl_max = bitptn[HTBL_BITS] +
+		    weight[HTBL_BITS] * hf->freq[HTBL_BITS];
+		p = &(hf->tbl[htbl_max]);
+		while (p < &hf->tbl[1U<<HTBL_BITS])
+			*p++ = 0;
+	} else
+		diffbits = 0;
+	hf->shift_bits = diffbits;
+
+	/*
+	 * Make the table.
+	 */
+	tbl_size = 1 << HTBL_BITS;
+	tbl = hf->tbl;
+	bitlen = hf->bitlen;
+	len_avail = hf->len_avail;
+	hf->tree_used = 0;
+	for (i = 0; i < len_avail; i++) {
+		uint16_t *p;
+		int len, cnt;
+		uint16_t bit;
+		int extlen;
+		struct htree_t *ht;
+
+		if (bitlen[i] == 0)
+			continue;
+		/* Get a bit pattern */
+		len = bitlen[i];
+		ptn = bitptn[len];
+		cnt = weight[len];
+		if (len <= HTBL_BITS) {
+			/* Calculate next bit pattern */
+			if ((bitptn[len] = ptn + cnt) > tbl_size)
+				return (0);/* Invalid */
+			/* Update the table */
+			p = &(tbl[ptn]);
+			if (cnt > 7) {
+				uint16_t *pc;
+
+				cnt -= 8;
+				pc = &p[cnt];
+				pc[0] = (uint16_t)i;
+				pc[1] = (uint16_t)i;
+				pc[2] = (uint16_t)i;
+				pc[3] = (uint16_t)i;
+				pc[4] = (uint16_t)i;
+				pc[5] = (uint16_t)i;
+				pc[6] = (uint16_t)i;
+				pc[7] = (uint16_t)i;
+				if (cnt > 7) {
+					cnt -= 8;
+					memcpy(&p[cnt], pc,
+						8 * sizeof(uint16_t));
+					pc = &p[cnt];
+					while (cnt > 15) {
+						cnt -= 16;
+						memcpy(&p[cnt], pc,
+							16 * sizeof(uint16_t));
+					}
+				}
+				if (cnt)
+					memcpy(p, pc, cnt * sizeof(uint16_t));
+			} else {
+				while (cnt > 1) {
+					p[--cnt] = (uint16_t)i;
+					p[--cnt] = (uint16_t)i;
+				}
+				if (cnt)
+					p[--cnt] = (uint16_t)i;
+			}
+			continue;
+		}
+
+		/*
+		 * A bit length is too big to be housed to a direct table,
+		 * so we use a tree model for its extra bits.
+		 */
+		bitptn[len] = ptn + cnt;
+		bit = 1U << (diffbits -1);
+		extlen = len - HTBL_BITS;
+		
+		p = &(tbl[ptn >> diffbits]);
+		if (*p == 0) {
+			*p = len_avail + hf->tree_used;
+			ht = &(hf->tree[hf->tree_used++]);
+			if (hf->tree_used > hf->tree_avail)
+				return (0);/* Invalid */
+			ht->left = 0;
+			ht->right = 0;
+		} else {
+			if (*p < len_avail ||
+			    *p >= (len_avail + hf->tree_used))
+				return (0);/* Invalid */
+			ht = &(hf->tree[*p - len_avail]);
+		}
+		while (--extlen > 0) {
+			if (ptn & bit) {
+				if (ht->left < len_avail) {
+					ht->left = len_avail + hf->tree_used;
+					ht = &(hf->tree[hf->tree_used++]);
+					if (hf->tree_used > hf->tree_avail)
+						return (0);/* Invalid */
+					ht->left = 0;
+					ht->right = 0;
+				} else {
+					ht = &(hf->tree[ht->left - len_avail]);
+				}
+			} else {
+				if (ht->right < len_avail) {
+					ht->right = len_avail + hf->tree_used;
+					ht = &(hf->tree[hf->tree_used++]);
+					if (hf->tree_used > hf->tree_avail)
+						return (0);/* Invalid */
+					ht->left = 0;
+					ht->right = 0;
+				} else {
+					ht = &(hf->tree[ht->right - len_avail]);
+				}
+			}
+			bit >>= 1;
+		}
+		if (ptn & bit) {
+			if (ht->left != 0)
+				return (0);/* Invalid */
+			ht->left = (uint16_t)i;
+		} else {
+			if (ht->right != 0)
+				return (0);/* Invalid */
+			ht->right = (uint16_t)i;
+		}
+	}
+	return (1);
 }
+
+static int
+lzh_decode_huffman_tree(struct huffman *hf, unsigned rbits, int c)
+{
+	struct htree_t *ht;
+	int extlen;
+
+	ht = hf->tree;
+	extlen = hf->shift_bits;
+	while (c >= hf->len_avail) {
+		c -= hf->len_avail;
+		if (extlen-- <= 0 || c >= hf->tree_used)
+			return (0);
+		if (rbits & (1U << extlen))
+			c = ht[c].left;
+		else
+			c = ht[c].right;
+	}
+	return (c);
+}
+
+static inline int
+lzh_decode_huffman(struct huffman *hf, unsigned rbits)
+{
+	int c;
+	/*
+	 * At first search an index table for a bit pattern.
+	 * If it fails, search a huffman tree for.
+	 */
+	c = hf->tbl[rbits >> hf->shift_bits];
+	if (c < hf->len_avail || hf->len_avail == 0)
+		return (c);
+	/* This bit pattern needs to be found out at a huffman tree. */
+	return (lzh_decode_huffman_tree(hf, rbits, c));
+}
+

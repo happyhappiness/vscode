@@ -24,18 +24,74 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+/* This is the tree-walking code for POSIX systems. */
+#if !defined(_WIN32) || defined(__CYGWIN__)
+
 #include "archive_platform.h"
 __FBSDID("$FreeBSD$");
 
-#if defined(_WIN32) && !defined(__CYGWIN__)
-
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+#ifdef HAVE_SYS_MOUNT_H
+#include <sys/mount.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_SYS_STATFS_H
+#include <sys/statfs.h>
+#endif
+#ifdef HAVE_SYS_STATVFS_H
+#include <sys/statvfs.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#ifdef HAVE_LINUX_MAGIC_H
+#include <linux/magic.h>
+#endif
+#ifdef HAVE_LINUX_FS_H
+#include <linux/fs.h>
+#endif
+/*
+ * Some Linux distributions have both linux/ext2_fs.h and ext2fs/ext2_fs.h.
+ * As the include guards don't agree, the order of include is important.
+ */
+#ifdef HAVE_LINUX_EXT2_FS_H
+#include <linux/ext2_fs.h>      /* for Linux file flags */
+#endif
+#if defined(HAVE_EXT2FS_EXT2_FS_H) && !defined(__CYGWIN__)
+#include <ext2fs/ext2_fs.h>     /* Linux file flags, broken on Cygwin */
+#endif
+#ifdef HAVE_DIRECT_H
+#include <direct.h>
+#endif
+#ifdef HAVE_DIRENT_H
+#include <dirent.h>
+#endif
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
 #endif
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
-#include <winioctl.h>
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
 
 #include "archive.h"
 #include "archive_string.h"
@@ -43,12 +99,14 @@ __FBSDID("$FreeBSD$");
 #include "archive_private.h"
 #include "archive_read_disk_private.h"
 
+#ifndef HAVE_FCHDIR
+#error fchdir function required.
+#endif
 #ifndef O_BINARY
 #define O_BINARY	0
 #endif
-#ifndef IO_REPARSE_TAG_SYMLINK
-/* Old SDKs do not provide IO_REPARSE_TAG_SYMLINK */
-#define	IO_REPARSE_TAG_SYMLINK 0xA000000CL
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	0
 #endif
 
 /*-
@@ -70,26 +128,34 @@ __FBSDID("$FreeBSD$");
  * indicating how to get back to the parent (via chdir("..") for a
  * regular dir or via fchdir(2) for a symlink).
  */
+/*
+ * TODO:
+ *    1) Loop checking.
+ *    3) Arbitrary logical traversals by closing/reopening intermediate fds.
+ */
 
 struct restore_time {
-	const wchar_t		*full_path;
-	FILETIME		 lastWriteTime;
-	FILETIME		 lastAccessTime;
+	const char		*name;
+	time_t			 mtime;
+	long			 mtime_nsec;
+	time_t			 atime;
+	long			 atime_nsec;
 	mode_t			 filetype;
+	int			 noatime;
 };
 
 struct tree_entry {
 	int			 depth;
 	struct tree_entry	*next;
 	struct tree_entry	*parent;
-	size_t			 full_path_dir_length;
-	struct archive_wstring	 name;
-	struct archive_wstring	 full_path;
+	struct archive_string	 name;
 	size_t			 dirname_length;
 	int64_t			 dev;
 	int64_t			 ino;
 	int			 flags;
 	int			 filesystem_id;
+	/* How to return back to the parent of a symlink. */
+	int			 symlink_parent_fd;
 	/* How to restore time of a directory. */
 	struct restore_time	 restore_time;
 };
@@ -98,7 +164,23 @@ struct filesystem {
 	int64_t		dev;
 	int		synthetic;
 	int		remote;
-	DWORD		bytesPerSector;
+	int		noatime;
+#if defined(USE_READDIR_R)
+	size_t		name_max;
+#endif
+	long		incr_xfer_size;
+	long		max_xfer_size;
+	long		min_xfer_size;
+	long		xfer_align;
+
+	/*
+	 * Buffer used for reading file contents.
+	 */
+	/* Exactly allocated memory pointer. */
+	unsigned char	*allocation_ptr;
+	/* Pointer adjusted to the filesystem alignment . */
+	unsigned char	*buff;
+	size_t		 buff_size;
 };
 
 /* Definitions for tree_entry.flags bitmap. */
@@ -110,49 +192,43 @@ struct filesystem {
 #define	needsAscent	32 /* This entry needs to be postvisited. */
 
 /*
- * On Windows, "first visit" is handled as a pattern to be handed to
- * _findfirst().  This is consistent with Windows conventions that
- * file patterns are handled within the application.  On Posix,
- * "first visit" is just returned to the client.
- */
-
-#define MAX_OVERLAPPED	8
-#define BUFFER_SIZE	(1024 * 8)
-#define DIRECT_IO	0/* Disabled */
-#define ASYNC_IO	1/* Enabled */
-
-/*
  * Local data for this package.
  */
 struct tree {
 	struct tree_entry	*stack;
 	struct tree_entry	*current;
-	HANDLE d;
-	WIN32_FIND_DATAW	_findData;
-	WIN32_FIND_DATAW	*findData;
+	DIR			*d;
+#define	INVALID_DIR_HANDLE NULL
+	struct dirent		*de;
+#if defined(USE_READDIR_R)
+	struct dirent		*dirent;
+	size_t			 dirent_allocated;
+#endif
 	int			 flags;
 	int			 visit_type;
 	/* Error code from last failed operation. */
 	int			 tree_errno;
 
-	/* A full path with "\\?\" prefix. */
-	struct archive_wstring	 full_path;
-	size_t			 full_path_dir_length;
 	/* Dynamically-sized buffer for holding path */
-	struct archive_wstring	 path;
+	struct archive_string	 path;
 
 	/* Last path element */
-	const wchar_t		*basename;
+	const char		*basename;
 	/* Leading dir length */
 	size_t			 dirname_length;
 
-	int	 depth;
+	int			 depth;
+	int			 openCount;
+	int			 maxOpenCount;
+	int			 initial_dir_fd;
+	int			 working_dir_fd;
 
-	BY_HANDLE_FILE_INFORMATION	lst;
-	BY_HANDLE_FILE_INFORMATION	st;
+	struct stat		 lst;
+	struct stat		 st;
 	int			 descend;
+	int			 nlink;
 	/* How to restore time of a file. */
-	struct restore_time	restore_time;
+	struct restore_time	 restore_time;
 
 	struct entry_sparse {
 		int64_t		 length;
@@ -168,54 +244,44 @@ struct tree {
 	int			 initial_filesystem_id;
 	int			 current_filesystem_id;
 	int			 max_filesystem_id;
-	int			 allocated_filesytem;
+	int			 allocated_filesystem;
 
-	HANDLE			 entry_fh;
+	int			 entry_fd;
 	int			 entry_eof;
 	int64_t			 entry_remaining_bytes;
 	int64_t			 entry_total;
-
-	int			 ol_idx_doing;
-	int			 ol_idx_done;
-	int			 ol_num_doing;
-	int			 ol_num_done;
-	int64_t			 ol_remaining_bytes;
-	int64_t			 ol_total;
-	struct la_overlapped {
-		OVERLAPPED	 ol;
-		struct archive * _a;
-		unsigned char	*buff;
-		size_t		 buff_size;
-		int64_t		 offset;
-		size_t		 bytes_expected;
-		size_t		 bytes_transferred;
-	}			 ol[MAX_OVERLAPPED];
-	int			 direct_io;
-	int			 async_io;
+	unsigned char		*entry_buff;
+	size_t			 entry_buff_size;
 };
-
-#define bhfi_dev(bhfi)	((bhfi)->dwVolumeSerialNumber)
-/* Treat FileIndex as i-node. We should remove a sequence number
- * which is high-16-bits of nFileIndexHigh. */
-#define bhfi_ino(bhfi)	\
-	((((int64_t)((bhfi)->nFileIndexHigh & 0x0000FFFFUL)) << 32) \
-    + (bhfi)->nFileIndexLow)
 
 /* Definitions for tree.flags bitmap. */
 #define	hasStat		16 /* The st entry is valid. */
 #define	hasLstat	32 /* The lst entry is valid. */
+#define	onWorkingDir	64 /* We are on the working dir where we are
+			    * reading directory entry at this time. */
 #define	needsRestoreTimes 128
+#define	onInitialDir	256 /* We are on the initial dir. */
 
 static int
-tree_dir_next_windows(struct tree *t, const wchar_t *pattern);
+tree_dir_next_posix(struct tree *t);
+
+#ifdef HAVE_DIRENT_D_NAMLEN
+/* BSD extension; avoids need for a strlen() call. */
+#define	D_NAMELEN(dp)	(dp)->d_namlen
+#else
+#define	D_NAMELEN(dp)	(strlen((dp)->d_name))
+#endif
 
 /* Initiate/terminate a tree traversal. */
-static struct tree *tree_open(const wchar_t *, int, int);
-static struct tree *tree_reopen(struct tree *, const wchar_t *, int);
+static struct tree *tree_open(const char *, int, int);
+static struct tree *tree_reopen(struct tree *, const char *, int);
 static void tree_close(struct tree *);
 static void tree_free(struct tree *);
-static void tree_push(struct tree *, const wchar_t *, const wchar_t *,
-		int, int64_t, int64_t, struct restore_time *);
+static void tree_push(struct tree *, const char *, int, int64_t, int64_t,
+		struct restore_time *);
+static int tree_enter_initial_dir(struct tree *);
+static int tree_enter_working_dir(struct tree *);
+static int tree_current_dir_fd(struct tree *);
 
 /*
  * tree_next() returns Zero if there is no next entry, non-zero if
@@ -253,9 +319,16 @@ static int tree_next(struct tree *);
  * extensively, the access path is almost never the same as the full
  * current path.
  *
+ * TODO: On platforms that support it, use openat()-style operations
+ * to eliminate the chdir() operations entirely while still supporting
+ * arbitrarily deep traversals.  This makes access_path troublesome to
+ * support, of course, which means we'll need a rich enough interface
+ * that clients can function without it.  (In particular, we'll need
+ * tree_current_open() that returns an open file descriptor.)
+ *
  */
-static const wchar_t *tree_current_path(struct tree *);
-static const wchar_t *tree_current_access_path(struct tree *);
+static const char *tree_current_path(struct tree *);
+static const char *tree_current_access_path(struct tree *);
 
 /*
  * Request the lstat() or stat() data for the current path.  Since the
@@ -263,27 +336,22 @@ static const wchar_t *tree_current_access_path(struct tree *);
  * results, you should take advantage of it here if you need it rather
  * than make a redundant stat() or lstat() call of your own.
  */
-static const BY_HANDLE_FILE_INFORMATION *tree_current_stat(struct tree *);
-static const BY_HANDLE_FILE_INFORMATION *tree_current_lstat(struct tree *);
+static const struct stat *tree_current_stat(struct tree *);
+static const struct stat *tree_current_lstat(struct tree *);
+static int	tree_current_is_symblic_link_target(struct tree *);
 
 /* The following functions use tricks to avoid a certain number of
  * stat()/lstat() calls. */
 /* "is_physical_dir" is equivalent to S_ISDIR(tree_current_lstat()->st_mode) */
 static int tree_current_is_physical_dir(struct tree *);
-/* "is_physical_link" is equivalent to S_ISLNK(tree_current_lstat()->st_mode) */
-static int tree_current_is_physical_link(struct tree *);
-/* Instead of archive_entry_copy_stat for BY_HANDLE_FILE_INFORMATION */
-static void tree_archive_entry_copy_bhfi(struct archive_entry *,
-		    struct tree *, const BY_HANDLE_FILE_INFORMATION *);
 /* "is_dir" is equivalent to S_ISDIR(tree_current_stat()->st_mode) */
 static int tree_current_is_dir(struct tree *);
 static int update_current_filesystem(struct archive_read_disk *a,
 		    int64_t dev);
 static int setup_current_filesystem(struct archive_read_disk *);
-static int tree_target_is_same_as_parent(struct tree *,
-		    const BY_HANDLE_FILE_INFORMATION *);
+static int tree_target_is_same_as_parent(struct tree *, const struct stat *);
 
-static int	_archive_read_disk_open_w(struct archive *, const wchar_t *);
+static int	_archive_read_disk_open(struct archive *, const char *);
 static int	_archive_read_free(struct archive *);
 static int	_archive_read_close(struct archive *);
 static int	_archive_read_data_block(struct archive *,
@@ -295,11 +363,10 @@ static int	_archive_read_next_header2(struct archive *,
 static const char *trivial_lookup_gname(void *, int64_t gid);
 static const char *trivial_lookup_uname(void *, int64_t uid);
 static int	setup_sparse(struct archive_read_disk *, struct archive_entry *);
-static int	close_and_restore_time(HANDLE, struct tree *,
+static int	close_and_restore_time(int fd, struct tree *,
 		    struct restore_time *);
-static int	setup_sparse_from_disk(struct archive_read_disk *,
-		    struct archive_entry *, HANDLE);
-
+static int	open_on_current_dir(struct tree *, const char *, int);
+static int	tree_dup(int);
 
 
 static struct archive_vtable *
@@ -389,10 +456,9 @@ archive_read_disk_new(void)
 {
 	struct archive_read_disk *a;
 
-	a = (struct archive_read_disk *)malloc(sizeof(*a));
+	a = (struct archive_read_disk *)calloc(1, sizeof(*a));
 	if (a == NULL)
 		return (NULL);
-	memset(a, 0, sizeof(*a));
 	a->archive.magic = ARCHIVE_READ_DISK_MAGIC;
 	a->archive.state = ARCHIVE_STATE_NEW;
 	a->archive.vtable = archive_read_disk_vtable();
@@ -401,6 +467,9 @@ archive_read_disk_new(void)
 	a->lookup_gname = trivial_lookup_gname;
 	a->enable_copyfile = 1;
 	a->traverse_mount_points = 1;
+	a->open_on_current_dir = open_on_current_dir;
+	a->tree_current_dir_fd = tree_current_dir_fd;
+	a->tree_enter_working_dir = tree_enter_working_dir;
 	return (&a->archive);
 }
 
@@ -428,6 +497,7 @@ _archive_read_free(struct archive *_a)
 	archive_string_free(&a->archive.error_string);
 	archive_entry_free(a->entry);
 	a->archive.magic = 0;
+	__archive_clean(&a->archive);
 	free(a);
 	return (r);
 }
@@ -449,7 +519,7 @@ _archive_read_close(struct archive *_a)
 }
 
 static void
-setup_symlink_mode(struct archive_read_disk *a, char symlink_mode, 
+setup_symlink_mode(struct archive_read_disk *a, char symlink_mode,
     int follow_symlinks)
 {
 	a->symlink_mode = symlink_mode;
@@ -493,13 +563,27 @@ archive_read_disk_set_symlink_hybrid(struct archive *_a)
 int
 archive_read_disk_set_atime_restored(struct archive *_a)
 {
+#ifndef HAVE_UTIMES
+	static int warning_done = 0;
+#endif
 	struct archive_read_disk *a = (struct archive_read_disk *)_a;
 	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
 	    ARCHIVE_STATE_ANY, "archive_read_disk_restore_atime");
+#ifdef HAVE_UTIMES
 	a->restore_time = 1;
 	if (a->tree != NULL)
 		a->tree->flags |= needsRestoreTimes;
 	return (ARCHIVE_OK);
+#else
+	if (warning_done)
+		/* Warning was already emitted; suppress further warnings. */
+		return (ARCHIVE_OK);
+
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Cannot restore access time on this system");
+	warning_done = 1;
+	return (ARCHIVE_WARN);
+#endif
 }
 
 int
@@ -530,6 +614,10 @@ archive_read_disk_set_behavior(struct archive *_a, int flags)
 		a->traverse_mount_points = 0;
 	else
 		a->traverse_mount_points = 1;
+	if (flags & ARCHIVE_READDISK_NO_XATTR)
+		a->suppress_xattr = 1;
+	else
+		a->suppress_xattr = 0;
 	return (r);
 }
 
@@ -554,116 +642,70 @@ trivial_lookup_uname(void *private_data, int64_t uid)
 	return (NULL);
 }
 
-static int64_t
-align_num_per_sector(struct tree *t, int64_t size)
-{
-	int64_t surplus;
-
-	size += t->current_filesystem->bytesPerSector -1;
-	surplus = size % t->current_filesystem->bytesPerSector;
-	size -= surplus;
-	return (size);
-}
-
+/*
+ * Allocate memory for the reading buffer adjusted to the filesystem
+ * alignment.
+ */
 static int
-start_next_async_read(struct archive_read_disk *a, struct tree *t)
+setup_suitable_read_buffer(struct archive_read_disk *a)
 {
-	struct la_overlapped *olp;
-	DWORD buffbytes, rbytes;
+	struct tree *t = a->tree;
+	struct filesystem *cf = t->current_filesystem;
+	size_t asize;
+	size_t s;
 
-	if (t->ol_remaining_bytes == 0)
-		return (ARCHIVE_EOF);
+	if (cf->allocation_ptr == NULL) {
+		/* If we couldn't get a filesystem alignment,
+		 * we use 4096 as default value but we won't use
+		 * O_DIRECT to open() and openat() operations. */
+		long xfer_align = (cf->xfer_align == -1)?4096:cf->xfer_align;
 
-	olp = &(t->ol[t->ol_idx_doing]);
-	t->ol_idx_doing = (t->ol_idx_doing + 1) % MAX_OVERLAPPED;
+		if (cf->max_xfer_size != -1)
+			asize = cf->max_xfer_size + xfer_align;
+		else {
+			long incr = cf->incr_xfer_size;
+			/* Some platform does not set a proper value to
+			 * incr_xfer_size.*/
+			if (incr < 0)
+				incr = cf->min_xfer_size;
+			if (cf->min_xfer_size < 0) {
+				incr = xfer_align;
+				asize = xfer_align;
+			} else
+				asize = cf->min_xfer_size;
 
-	/* Allocate read buffer. */
-	if (olp->buff == NULL) {
-		void *p;
-		size_t s = (size_t)align_num_per_sector(t, BUFFER_SIZE);
-		p = VirtualAlloc(NULL, s, MEM_COMMIT, PAGE_READWRITE);
-		if (p == NULL) {
+			/* Increase a buffer size up to 64K bytes in
+			 * a proper increment size. */
+			while (asize < 1024*64)
+				asize += incr;
+			/* Take a margin to adjust to the filesystem
+			 * alignment. */
+			asize += xfer_align;
+		}
+		cf->allocation_ptr = malloc(asize);
+		if (cf->allocation_ptr == NULL) {
 			archive_set_error(&a->archive, ENOMEM,
 			    "Couldn't allocate memory");
 			a->archive.state = ARCHIVE_STATE_FATAL;
 			return (ARCHIVE_FATAL);
 		}
-		olp->buff = p;
-		olp->buff_size = s;
-		olp->_a = &a->archive;
-		olp->ol.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-		if (olp->ol.hEvent == NULL) {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "CreateEvent failed");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
-	} else
-		ResetEvent(olp->ol.hEvent);
 
-	buffbytes = (DWORD)olp->buff_size;
-	if (buffbytes > t->current_sparse->length)
-		buffbytes = (DWORD)t->current_sparse->length;
+		/*
+		 * Calculate proper address for the filesystem.
+		 */
+		s = (uintptr_t)cf->allocation_ptr;
+		s %= xfer_align;
+		if (s > 0)
+			s = xfer_align - s;
 
-	/* Skip hole. */
-	if (t->current_sparse->offset > t->ol_total) {
-		t->ol_remaining_bytes -=
-			t->current_sparse->offset - t->ol_total;
+		/*
+		 * Set a read buffer pointer in the proper alignment of
+		 * the current filesystem.
+		 */
+		cf->buff = cf->allocation_ptr + s;
+		cf->buff_size = asize - xfer_align;
 	}
-
-	olp->offset = t->current_sparse->offset;
-	olp->ol.Offset = (DWORD)(olp->offset & 0xffffffff);
-	olp->ol.OffsetHigh = (DWORD)(olp->offset >> 32);
-
-	if (t->ol_remaining_bytes > buffbytes) {
-		olp->bytes_expected = buffbytes;
-		t->ol_remaining_bytes -= buffbytes;
-	} else {
-		olp->bytes_expected = (size_t)t->ol_remaining_bytes;
-		t->ol_remaining_bytes = 0;
-	}
-	olp->bytes_transferred = 0;
-	t->current_sparse->offset += buffbytes;
-	t->current_sparse->length -= buffbytes;
-	t->ol_total = t->current_sparse->offset;
-	if (t->current_sparse->length == 0 && t->ol_remaining_bytes > 0)
-		t->current_sparse++;
-
-	if (!ReadFile(t->entry_fh, olp->buff, buffbytes, &rbytes, &(olp->ol))) {
-		DWORD lasterr;
-
-		lasterr = GetLastError();
-		if (lasterr == ERROR_HANDLE_EOF) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Reading file truncated");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		} else if (lasterr != ERROR_IO_PENDING) {
-			if (lasterr == ERROR_NO_DATA)
-				errno = EAGAIN;
-			else if (lasterr == ERROR_ACCESS_DENIED)
-				errno = EBADF;
-			else
-				la_dosmaperr(lasterr);
-			archive_set_error(&a->archive, errno, "Read error");
-			a->archive.state = ARCHIVE_STATE_FATAL;
-			return (ARCHIVE_FATAL);
-		}
-	} else
-		olp->bytes_transferred = rbytes;
-	t->ol_num_doing++;
-
-	return (t->ol_remaining_bytes == 0)? ARCHIVE_EOF: ARCHIVE_OK;
-}
-
-static void
-cancel_async(struct tree *t)
-{
-	if (t->ol_num_doing != t->ol_num_done) {
-		CancelIo(t->entry_fh);
-		t->ol_num_doing = t->ol_num_done = 0;
-	}
+	return (ARCHIVE_OK);
 }
 
 static int
@@ -672,9 +714,10 @@ _archive_read_data_block(struct archive *_a, const void **buff,
 {
 	struct archive_read_disk *a = (struct archive_read_disk *)_a;
 	struct tree *t = a->tree;
-	struct la_overlapped *olp;
-	DWORD bytes_transferred;
-	int r = ARCHIVE_FATAL;
+	int r;
+	ssize_t bytes;
+	size_t buffbytes;
+	int empty_sparse_region = 0;
 
 	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
 	    "archive_read_data_block");
@@ -685,69 +728,145 @@ _archive_read_data_block(struct archive *_a, const void **buff,
 	}
 
 	/*
-	 * Make a request to read the file in asynchronous.
+	 * Open the current file.
 	 */
-	if (t->ol_num_doing == 0) {
+	if (t->entry_fd < 0) {
+		int flags = O_RDONLY | O_BINARY | O_CLOEXEC;
+
+		/*
+		 * Eliminate or reduce cache effects if we can.
+		 *
+		 * Carefully consider this to be enabled.
+		 */
+#if defined(O_DIRECT) && 0/* Disabled for now */
+		if (t->current_filesystem->xfer_align != -1 &&
+		    t->nlink == 1)
+			flags |= O_DIRECT;
+#endif
+#if defined(O_NOATIME)
+		/*
+		 * Linux has O_NOATIME flag; use it if we need.
+		 */
+		if ((t->flags & needsRestoreTimes) != 0 &&
+		    t->restore_time.noatime == 0)
+			flags |= O_NOATIME;
 		do {
-			r = start_next_async_read(a, t);
-			if (r == ARCHIVE_FATAL)
-				goto abort_read_data;
-			if (!t->async_io)
-				break;
-		} while (r == ARCHIVE_OK && t->ol_num_doing < MAX_OVERLAPPED);
-	} else {
-		if (start_next_async_read(a, t) == ARCHIVE_FATAL)
+#endif
+			t->entry_fd = open_on_current_dir(t,
+			    tree_current_access_path(t), flags);
+			__archive_ensure_cloexec_flag(t->entry_fd);
+#if defined(O_NOATIME)
+			/*
+			 * When we did open the file with O_NOATIME flag,
+			 * if successful, set 1 to t->restore_time.noatime
+			 * not to restore an atime of the file later.
+			 * if failed by EPERM, retry it without O_NOATIME flag.
+			 */
+			if (flags & O_NOATIME) {
+				if (t->entry_fd >= 0)
+					t->restore_time.noatime = 1;
+				else if (errno == EPERM) {
+					flags &= ~O_NOATIME;
+					continue;
+				}
+			}
+		} while (0);
+#endif
+		if (t->entry_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't open %s", tree_current_path(t));
+			r = ARCHIVE_FAILED;
+			tree_enter_initial_dir(t);
 			goto abort_read_data;
+		}
+		tree_enter_initial_dir(t);
 	}
 
-	olp = &(t->ol[t->ol_idx_done]);
-	t->ol_idx_done = (t->ol_idx_done + 1) % MAX_OVERLAPPED;
-	if (olp->bytes_transferred)
-		bytes_transferred = (DWORD)olp->bytes_transferred;
-	else if (!GetOverlappedResult(t->entry_fh, &(olp->ol),
-	    &bytes_transferred, TRUE)) {
-		la_dosmaperr(GetLastError());
-		archive_set_error(&a->archive, errno,
-		    "GetOverlappedResult failed");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		r = ARCHIVE_FATAL;
+	/*
+	 * Allocate read buffer if not allocated.
+	 */
+	if (t->current_filesystem->allocation_ptr == NULL) {
+		r = setup_suitable_read_buffer(a);
+		if (r != ARCHIVE_OK) {
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+	}
+	t->entry_buff = t->current_filesystem->buff;
+	t->entry_buff_size = t->current_filesystem->buff_size;
+
+	buffbytes = t->entry_buff_size;
+	if ((int64_t)buffbytes > t->current_sparse->length)
+		buffbytes = t->current_sparse->length;
+
+	if (t->current_sparse->length == 0)
+		empty_sparse_region = 1;
+
+	/*
+	 * Skip hole.
+	 * TODO: Should we consider t->current_filesystem->xfer_align?
+	 */
+	if (t->current_sparse->offset > t->entry_total) {
+		if (lseek(t->entry_fd,
+		    (off_t)t->current_sparse->offset, SEEK_SET) < 0) {
+			archive_set_error(&a->archive, errno, "Seek error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		bytes = t->current_sparse->offset - t->entry_total;
+		t->entry_remaining_bytes -= bytes;
+		t->entry_total += bytes;
+	}
+
+	/*
+	 * Read file contents.
+	 */
+	if (buffbytes > 0) {
+		bytes = read(t->entry_fd, t->entry_buff, buffbytes);
+		if (bytes < 0) {
+			archive_set_error(&a->archive, errno, "Read error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+	} else
+		bytes = 0;
+	/*
+	 * Return an EOF unless we've read a leading empty sparse region, which
+	 * is used to represent fully-sparse files.
+	*/
+	if (bytes == 0 && !empty_sparse_region) {
+		/* Get EOF */
+		t->entry_eof = 1;
+		r = ARCHIVE_EOF;
 		goto abort_read_data;
 	}
-	t->ol_num_done++;
-
-	if (bytes_transferred == 0 ||
-	    olp->bytes_expected != bytes_transferred) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Reading file truncated");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		r = ARCHIVE_FATAL;
-		goto abort_read_data;
-	}
-
-	*buff = olp->buff;
-	*size = bytes_transferred;
-	*offset = olp->offset;
-	if (olp->offset > t->entry_total)
-		t->entry_remaining_bytes -= olp->offset - t->entry_total;
-	t->entry_total = olp->offset + *size;
-	t->entry_remaining_bytes -= *size;
+	*buff = t->entry_buff;
+	*size = bytes;
+	*offset = t->entry_total;
+	t->entry_total += bytes;
+	t->entry_remaining_bytes -= bytes;
 	if (t->entry_remaining_bytes == 0) {
 		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
+		close_and_restore_time(t->entry_fd, t, &t->restore_time);
+		t->entry_fd = -1;
 		t->entry_eof = 1;
 	}
+	t->current_sparse->offset += bytes;
+	t->current_sparse->length -= bytes;
+	if (t->current_sparse->length == 0 && !t->entry_eof)
+		t->current_sparse++;
 	return (ARCHIVE_OK);
 
 abort_read_data:
 	*buff = NULL;
 	*size = 0;
 	*offset = t->entry_total;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		cancel_async(t);
+	if (t->entry_fd >= 0) {
 		/* Close the current file descriptor */
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
+		close_and_restore_time(t->entry_fd, t, &t->restore_time);
+		t->entry_fd = -1;
 	}
 	return (r);
 }
@@ -756,9 +875,9 @@ static int
 next_entry(struct archive_read_disk *a, struct tree *t,
     struct archive_entry *entry)
 {
-	const BY_HANDLE_FILE_INFORMATION *st;
-	const BY_HANDLE_FILE_INFORMATION *lst;
-	const char*name;
+	const struct stat *st; /* info to use for this entry */
+	const struct stat *lst;/* lstat() information */
+	const char *name;
 	int descend, r;
 
 	st = NULL;
@@ -768,16 +887,19 @@ next_entry(struct archive_read_disk *a, struct tree *t,
 		switch (tree_next(t)) {
 		case TREE_ERROR_FATAL:
 			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Unable to continue traversing directory tree",
+			    "%s: Unable to continue traversing directory tree",
 			    tree_current_path(t));
 			a->archive.state = ARCHIVE_STATE_FATAL;
+			tree_enter_initial_dir(t);
 			return (ARCHIVE_FATAL);
 		case TREE_ERROR_DIR:
-			archive_set_error(&a->archive, t->tree_errno,
-			    "%ls: Couldn't visit directory",
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: Couldn't visit directory",
 			    tree_current_path(t));
+			tree_enter_initial_dir(t);
 			return (ARCHIVE_FAILED);
 		case 0:
+			tree_enter_initial_dir(t);
 			return (ARCHIVE_EOF);
 		case TREE_POSTDESCENT:
 		case TREE_POSTASCENT:
@@ -785,17 +907,30 @@ next_entry(struct archive_read_disk *a, struct tree *t,
 		case TREE_REGULAR:
 			lst = tree_current_lstat(t);
 			if (lst == NULL) {
-				archive_set_error(&a->archive, t->tree_errno,
-				    "%ls: Cannot stat",
+				archive_set_error(&a->archive, errno,
+				    "%s: Cannot stat",
 				    tree_current_path(t));
+				tree_enter_initial_dir(t);
 				return (ARCHIVE_FAILED);
 			}
 			break;
 		}	
 	} while (lst == NULL);
 
-	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+#ifdef __APPLE__
+	if (a->enable_copyfile) {
+		/* If we're using copyfile(), ignore "._XXX" files. */
+		const char *bname = strrchr(tree_current_path(t), '/');
+		if (bname == NULL)
+			bname = tree_current_path(t);
+		else
+			++bname;
+		if (bname[0] == '.' && bname[1] == '_')
+			return (ARCHIVE_RETRY);
+	}
+#endif
 
+	archive_entry_copy_pathname(entry, tree_current_path(t));
 	/*
 	 * Perform path matching.
 	 */
@@ -803,7 +938,7 @@ next_entry(struct archive_read_disk *a, struct tree *t,
 		r = archive_match_path_excluded(a->matching, entry);
 		if (r < 0) {
 			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
+			    "Failed : %s", archive_error_string(a->matching));
 			return (r);
 		}
 		if (r) {
@@ -847,26 +982,57 @@ next_entry(struct archive_read_disk *a, struct tree *t,
 		break;
 	}
 
-	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
+	if (update_current_filesystem(a, st->st_dev) != ARCHIVE_OK) {
 		a->archive.state = ARCHIVE_STATE_FATAL;
+		tree_enter_initial_dir(t);
 		return (ARCHIVE_FATAL);
 	}
 	if (t->initial_filesystem_id == -1)
 		t->initial_filesystem_id = t->current_filesystem_id;
 	if (!a->traverse_mount_points) {
 		if (t->initial_filesystem_id != t->current_filesystem_id)
-			return (ARCHIVE_RETRY);
+			descend = 0;
 	}
 	t->descend = descend;
 
-	tree_archive_entry_copy_bhfi(entry, t, st);
+	/*
+	 * Honor nodump flag.
+	 * If the file is marked with nodump flag, do not return this entry.
+	 */
+	if (a->honor_nodump) {
+#if defined(HAVE_STRUCT_STAT_ST_FLAGS) && defined(UF_NODUMP)
+		if (st->st_flags & UF_NODUMP)
+			return (ARCHIVE_RETRY);
+#elif defined(EXT2_IOC_GETFLAGS) && defined(EXT2_NODUMP_FL) &&\
+      defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
+		if (S_ISREG(st->st_mode) || S_ISDIR(st->st_mode)) {
+			int stflags;
+
+			t->entry_fd = open_on_current_dir(t,
+			    tree_current_access_path(t),
+			    O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+			__archive_ensure_cloexec_flag(t->entry_fd);
+			if (t->entry_fd >= 0) {
+				r = ioctl(t->entry_fd, EXT2_IOC_GETFLAGS,
+					&stflags);
+				if (r == 0 && (stflags & EXT2_NODUMP_FL) != 0)
+					return (ARCHIVE_RETRY);
+			}
+		}
+#endif
+	}
+
+	archive_entry_copy_stat(entry, st);
 
 	/* Save the times to be restored. This must be in before
 	 * calling archive_read_disk_descend() or any chance of it,
-	 * especially, invokng a callback. */
-	t->restore_time.lastWriteTime = st->ftLastWriteTime;
-	t->restore_time.lastAccessTime = st->ftLastAccessTime;
+	 * especially, invoking a callback. */
+	t->restore_time.mtime = archive_entry_mtime(entry);
+	t->restore_time.mtime_nsec = archive_entry_mtime_nsec(entry);
+	t->restore_time.atime = archive_entry_atime(entry);
+	t->restore_time.atime_nsec = archive_entry_atime_nsec(entry);
 	t->restore_time.filetype = archive_entry_filetype(entry);
+	t->restore_time.noatime = t->current_filesystem->noatime;
 
 	/*
 	 * Perform time matching.
@@ -875,7 +1041,7 @@ next_entry(struct archive_read_disk *a, struct tree *t,
 		r = archive_match_time_excluded(a->matching, entry);
 		if (r < 0) {
 			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
+			    "Failed : %s", archive_error_string(a->matching));
 			return (r);
 		}
 		if (r) {
@@ -901,7 +1067,7 @@ next_entry(struct archive_read_disk *a, struct tree *t,
 		r = archive_match_owner_excluded(a->matching, entry);
 		if (r < 0) {
 			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
+			    "Failed : %s", archive_error_string(a->matching));
 			return (r);
 		}
 		if (r) {
@@ -921,43 +1087,25 @@ next_entry(struct archive_read_disk *a, struct tree *t,
 			return (ARCHIVE_RETRY);
 	}
 
-	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+	/*
+	 * Populate the archive_entry with metadata from the disk.
+	 */
+	archive_entry_copy_sourcepath(entry, tree_current_access_path(t));
+	r = archive_read_disk_entry_from_file(&(a->archive), entry,
+		t->entry_fd, st);
 
-	r = ARCHIVE_OK;
-	if (archive_entry_filetype(entry) == AE_IFREG &&
-	    archive_entry_size(entry) > 0) {
-		DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
-		if (t->async_io)
-			flags |= FILE_FLAG_OVERLAPPED;
-		if (t->direct_io)
-			flags |= FILE_FLAG_NO_BUFFERING;
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
-			return (ARCHIVE_FAILED);
-		}
-
-		/* Find sparse data from the disk. */
-		if (archive_entry_hardlink(entry) == NULL &&
-		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
-			r = setup_sparse_from_disk(a, entry, t->entry_fh);
-	}
 	return (r);
 }
 
 static int
 _archive_read_next_header(struct archive *_a, struct archive_entry **entryp)
 {
-       int ret;
-       struct archive_read_disk *a = (struct archive_read_disk *)_a;
-       *entryp = NULL;
-       ret = _archive_read_next_header2(_a, a->entry);
-       *entryp = a->entry;
-       return ret;
+	int ret;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	*entryp = NULL;
+	ret = _archive_read_next_header2(_a, a->entry);
+	*entryp = a->entry;
+	return ret;
 }
 
 static int
@@ -972,14 +1120,27 @@ _archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
 	    "archive_read_next_header2");
 
 	t = a->tree;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		cancel_async(t);
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
+	if (t->entry_fd >= 0) {
+		close_and_restore_time(t->entry_fd, t, &t->restore_time);
+		t->entry_fd = -1;
 	}
 
-	while ((r = next_entry(a, t, entry)) == ARCHIVE_RETRY)
-		archive_entry_clear(entry);
+	for (;;) {
+		r = next_entry(a, t, entry);
+		if (t->entry_fd >= 0) {
+			close(t->entry_fd);
+			t->entry_fd = -1;
+		}
+
+		if (r == ARCHIVE_RETRY) {
+			archive_entry_clear(entry);
+			continue;
+		}
+		break;
+	}
+
+	/* Return to the initial directory. */
+	tree_enter_initial_dir(t);
 
 	/*
 	 * EOF and FATAL are persistent at this layer.  By
@@ -992,8 +1153,11 @@ _archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
 		break;
 	case ARCHIVE_OK:
 	case ARCHIVE_WARN:
+		/* Overwrite the sourcepath based on the initial directory. */
+		archive_entry_copy_sourcepath(entry, tree_current_path(t));
 		t->entry_total = 0;
 		if (archive_entry_filetype(entry) == AE_IFREG) {
+			t->nlink = archive_entry_nlink(entry);
 			t->entry_remaining_bytes = archive_entry_size(entry);
 			t->entry_eof = (t->entry_remaining_bytes == 0)? 1: 0;
 			if (!t->entry_eof &&
@@ -1003,10 +1167,6 @@ _archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
 			t->entry_remaining_bytes = 0;
 			t->entry_eof = 1;
 		}
-		t->ol_idx_doing = t->ol_idx_done = 0;
-		t->ol_num_doing = t->ol_num_done = 0;
-		t->ol_remaining_bytes = t->entry_remaining_bytes;
-		t->ol_total = 0;
 		a->archive.state = ARCHIVE_STATE_DATA;
 		break;
 	case ARCHIVE_RETRY:
@@ -1024,7 +1184,7 @@ static int
 setup_sparse(struct archive_read_disk *a, struct archive_entry *entry)
 {
 	struct tree *t = a->tree;
-	int64_t aligned, length, offset;
+	int64_t length, offset;
 	int i;
 
 	t->sparse_count = archive_entry_sparse_reset(entry);
@@ -1041,53 +1201,17 @@ setup_sparse(struct archive_read_disk *a, struct archive_entry *entry)
 			return (ARCHIVE_FATAL);
 		}
 	}
-	/*
-	 * Get sparse list and make sure those offsets and lengths are
-	 * aligned by a sector size.
-	 */
 	for (i = 0; i < t->sparse_count; i++) {
 		archive_entry_sparse_next(entry, &offset, &length);
-		aligned = align_num_per_sector(t, offset);
-		if (aligned != offset) {
-			aligned -= t->current_filesystem->bytesPerSector;
-			length += offset - aligned;
-		}
-		t->sparse_list[i].offset = aligned;
-		aligned = align_num_per_sector(t, length);
-		t->sparse_list[i].length = aligned;
+		t->sparse_list[i].offset = offset;
+		t->sparse_list[i].length = length;
 	}
-
-	aligned = align_num_per_sector(t, archive_entry_size(entry));
 	if (i == 0) {
 		t->sparse_list[i].offset = 0;
-		t->sparse_list[i].length = aligned;
+		t->sparse_list[i].length = archive_entry_size(entry);
 	} else {
-		int j, last = i;
-
-		t->sparse_list[i].offset = aligned;
+		t->sparse_list[i].offset = archive_entry_size(entry);
 		t->sparse_list[i].length = 0;
-		for (i = 0; i < last; i++) {
-			if ((t->sparse_list[i].offset +
-			       t->sparse_list[i].length) <= 
-					t->sparse_list[i+1].offset)
-				continue;
-			/*
-			 * Now sparse_list[i+1] is overlapped by sparse_list[i].
-			 * Merge those two.
-			 */
-			length = t->sparse_list[i+1].offset -
-					t->sparse_list[i].offset;
-			t->sparse_list[i+1].offset = t->sparse_list[i].offset;
-			t->sparse_list[i+1].length += length;
-			/* Remove sparse_list[i]. */
-			for (j = i; j < last; j++) {
-				t->sparse_list[j].offset =
-				    t->sparse_list[j+1].offset;
-				t->sparse_list[j].length =
-				    t->sparse_list[j+1].length;
-			}
-			last--;
-		}
 	}
 	t->current_sparse = t->sparse_list;
 
@@ -1154,16 +1278,12 @@ archive_read_disk_descend(struct archive *_a)
 		return (ARCHIVE_OK);
 
 	if (tree_current_is_physical_dir(t)) {
-		tree_push(t, t->basename, t->full_path.s,
-		    t->current_filesystem_id,
-		    bhfi_dev(&(t->lst)), bhfi_ino(&(t->lst)),
-		    &t->restore_time);
+		tree_push(t, t->basename, t->current_filesystem_id,
+		    t->lst.st_dev, t->lst.st_ino, &t->restore_time);
 		t->stack->flags |= isDir;
 	} else if (tree_current_is_dir(t)) {
-		tree_push(t, t->basename, t->full_path.s,
-		    t->current_filesystem_id,
-		    bhfi_dev(&(t->st)), bhfi_ino(&(t->st)),
-		    &t->restore_time);
+		tree_push(t, t->basename, t->current_filesystem_id,
+		    t->st.st_dev, t->st.st_ino, &t->restore_time);
 		t->stack->flags |= isDirLink;
 	}
 	t->descend = 0;
@@ -1174,58 +1294,59 @@ int
 archive_read_disk_open(struct archive *_a, const char *pathname)
 {
 	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	struct archive_wstring wpath;
-	int ret;
 
 	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
 	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
 	    "archive_read_disk_open");
 	archive_clear_error(&a->archive);
 
-	/* Make a wchar_t string from a char string. */
-	archive_string_init(&wpath);
-	if (archive_wstring_append_from_mbs(&wpath, pathname,
-	    strlen(pathname)) != 0) {
-		if (errno == ENOMEM)
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory");
-		else
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Can't convert a path to a wchar_t string");
-		a->archive.state = ARCHIVE_STATE_FATAL;
-		ret = ARCHIVE_FATAL;
-	} else
-		ret = _archive_read_disk_open_w(_a, wpath.s);
-
-	archive_wstring_free(&wpath);
-	return (ret);
+	return (_archive_read_disk_open(_a, pathname));
 }
 
 int
 archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
 {
 	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct archive_string path;
+	int ret;
 
 	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
 	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
 	    "archive_read_disk_open_w");
 	archive_clear_error(&a->archive);
 
-	return (_archive_read_disk_open_w(_a, pathname));
+	/* Make a char string from a wchar_t string. */
+	archive_string_init(&path);
+	if (archive_string_append_from_wcs(&path, pathname,
+	    wcslen(pathname)) != 0) {
+		if (errno == ENOMEM)
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+		else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't convert a path to a char string");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		ret = ARCHIVE_FATAL;
+	} else
+		ret = _archive_read_disk_open(_a, path.s);
+
+	archive_string_free(&path);
+	return (ret);
 }
 
 static int
-_archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
+_archive_read_disk_open(struct archive *_a, const char *pathname)
 {
 	struct archive_read_disk *a = (struct archive_read_disk *)_a;
 
 	if (a->tree != NULL)
 		a->tree = tree_reopen(a->tree, pathname, a->restore_time);
 	else
-		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
+		a->tree = tree_open(pathname, a->symlink_mode,
+		    a->restore_time);
 	if (a->tree == NULL) {
 		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate directory traversal data");
+		    "Can't allocate tar data");
 		a->archive.state = ARCHIVE_STATE_FATAL;
 		return (ARCHIVE_FATAL);
 	}
@@ -1261,7 +1382,7 @@ update_current_filesystem(struct archive_read_disk *a, int64_t dev)
 
 	for (i = 0; i < t->max_filesystem_id; i++) {
 		if (t->filesystem_table[i].dev == dev) {
-			/* There is the filesytem ID we've already generated. */
+			/* There is the filesystem ID we've already generated. */
 			t->current_filesystem_id = i;
 			t->current_filesystem = &(t->filesystem_table[i]);
 			return (ARCHIVE_OK);
@@ -1269,28 +1390,32 @@ update_current_filesystem(struct archive_read_disk *a, int64_t dev)
 	}
 
 	/*
-	 * There is a new filesytem, we generate a new ID for.
+	 * This is the new filesystem which we have to generate a new ID for.
 	 */
 	fid = t->max_filesystem_id++;
-	if (t->max_filesystem_id > t->allocated_filesytem) {
+	if (t->max_filesystem_id > t->allocated_filesystem) {
 		size_t s;
 		void *p;
 
 		s = t->max_filesystem_id * 2;
 		p = realloc(t->filesystem_table,
-			s * sizeof(*t->filesystem_table));
+		        s * sizeof(*t->filesystem_table));
 		if (p == NULL) {
 			archive_set_error(&a->archive, ENOMEM,
 			    "Can't allocate tar data");
 			return (ARCHIVE_FATAL);
 		}
 		t->filesystem_table = (struct filesystem *)p;
-		t->allocated_filesytem = (int)s;
+		t->allocated_filesystem = s;
 	}
 	t->current_filesystem_id = fid;
 	t->current_filesystem = &(t->filesystem_table[fid]);
 	t->current_filesystem->dev = dev;
+	t->current_filesystem->allocation_ptr = NULL;
+	t->current_filesystem->buff = NULL;
 
+	/* Setup the current filesystem properties which depend on
+	 * platform specific. */
 	return (setup_current_filesystem(a));
 }
 
@@ -1324,141 +1449,642 @@ archive_read_disk_current_filesystem_is_remote(struct archive *_a)
 	return (a->tree->current_filesystem->remote);
 }
 
-/*
- * If symlink is broken, statfs or statvfs will fail.
- * Use its directory path instead.
- */
-static wchar_t *
-safe_path_for_statfs(struct tree *t)
+#if defined(_PC_REC_INCR_XFER_SIZE) && defined(_PC_REC_MAX_XFER_SIZE) &&\
+	defined(_PC_REC_MIN_XFER_SIZE) && defined(_PC_REC_XFER_ALIGN)
+static int
+get_xfer_size(struct tree *t, int fd, const char *path)
 {
-	const wchar_t *path;
-	wchar_t *cp, *p = NULL;
-
-	path = tree_current_access_path(t);
-	if (tree_current_stat(t) == NULL) {
-		p = _wcsdup(path);
-		cp = wcsrchr(p, '/');
-		if (cp != NULL && wcslen(cp) >= 2) {
-			cp[1] = '.';
-			cp[2] = '\0';
-			path = p;
-		}
-	} else
-		p = _wcsdup(path);
-	return (p);
+	t->current_filesystem->xfer_align = -1;
+	errno = 0;
+	if (fd >= 0) {
+		t->current_filesystem->incr_xfer_size =
+		    fpathconf(fd, _PC_REC_INCR_XFER_SIZE);
+		t->current_filesystem->max_xfer_size =
+		    fpathconf(fd, _PC_REC_MAX_XFER_SIZE);
+		t->current_filesystem->min_xfer_size =
+		    fpathconf(fd, _PC_REC_MIN_XFER_SIZE);
+		t->current_filesystem->xfer_align =
+		    fpathconf(fd, _PC_REC_XFER_ALIGN);
+	} else if (path != NULL) {
+		t->current_filesystem->incr_xfer_size =
+		    pathconf(path, _PC_REC_INCR_XFER_SIZE);
+		t->current_filesystem->max_xfer_size =
+		    pathconf(path, _PC_REC_MAX_XFER_SIZE);
+		t->current_filesystem->min_xfer_size =
+		    pathconf(path, _PC_REC_MIN_XFER_SIZE);
+		t->current_filesystem->xfer_align =
+		    pathconf(path, _PC_REC_XFER_ALIGN);
+	}
+	/* At least we need an alignment size. */
+	if (t->current_filesystem->xfer_align == -1)
+		return ((errno == EINVAL)?1:-1);
+	else
+		return (0);
 }
+#else
+static int
+get_xfer_size(struct tree *t, int fd, const char *path)
+{
+	(void)t; /* UNUSED */
+	(void)fd; /* UNUSED */
+	(void)path; /* UNUSED */
+	return (1);/* Not supported */
+}
+#endif
+
+#if defined(HAVE_STATFS) && defined(HAVE_FSTATFS) && defined(MNT_LOCAL) \
+	&& !defined(ST_LOCAL)
 
 /*
- * Get conditions of synthetic and remote on Windows
+ * Gather current filesystem properties on FreeBSD, OpenBSD and Mac OS X.
  */
 static int
 setup_current_filesystem(struct archive_read_disk *a)
 {
 	struct tree *t = a->tree;
-	wchar_t vol[256];
-	wchar_t *path;
+	struct statfs sfs;
+#if defined(HAVE_GETVFSBYNAME) && defined(VFCF_SYNTHETIC)
+/* TODO: configure should set GETVFSBYNAME_ARG_TYPE to make
+ * this accurate; some platforms have both and we need the one that's
+ * used by getvfsbyname()
+ *
+ * Then the following would become:
+ *  #if defined(GETVFSBYNAME_ARG_TYPE)
+ *   GETVFSBYNAME_ARG_TYPE vfc;
+ *  #endif
+ */
+#  if defined(HAVE_STRUCT_XVFSCONF)
+	struct xvfsconf vfc;
+#  else
+	struct vfsconf vfc;
+#  endif
+#endif
+	int r, xr = 0;
+#if !defined(HAVE_STRUCT_STATFS_F_NAMEMAX)
+	long nm;
+#endif
 
-	t->current_filesystem->synthetic = -1;/* Not supported */
-	path = safe_path_for_statfs(t);
-	if (!GetVolumePathNameW(path, vol, sizeof(vol)/sizeof(vol[0]))) {
-		free(path);
-		t->current_filesystem->remote = -1;
-		t->current_filesystem->bytesPerSector = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetVolumePathName failed: %d", (int)GetLastError());
-		return (ARCHIVE_FAILED);
+	t->current_filesystem->synthetic = -1;
+	t->current_filesystem->remote = -1;
+	if (tree_current_is_symblic_link_target(t)) {
+#if defined(HAVE_OPENAT)
+		/*
+		 * Get file system statistics on any directory
+		 * where current is.
+		 */
+		int fd = openat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
+		__archive_ensure_cloexec_flag(fd);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
+		}
+		r = fstatfs(fd, &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, fd, NULL);
+		close(fd);
+#else
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		r = statfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+#endif
+	} else {
+		r = fstatfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
 	}
-	free(path);
-	switch (GetDriveTypeW(vol)) {
-	case DRIVE_UNKNOWN:
-	case DRIVE_NO_ROOT_DIR:
-		t->current_filesystem->remote = -1;
-		break;
-	case DRIVE_REMOTE:
-		t->current_filesystem->remote = 1;
-		break;
-	default:
+	if (r == -1 || xr == -1) {
+		archive_set_error(&a->archive, errno, "statfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* pathconf(_PC_REX_*) operations are not supported. */
+		t->current_filesystem->xfer_align = sfs.f_bsize;
+		t->current_filesystem->max_xfer_size = -1;
+		t->current_filesystem->min_xfer_size = sfs.f_iosize;
+		t->current_filesystem->incr_xfer_size = sfs.f_iosize;
+	}
+	if (sfs.f_flags & MNT_LOCAL)
 		t->current_filesystem->remote = 0;
-		break;
-	}
+	else
+		t->current_filesystem->remote = 1;
 
-	if (!GetDiskFreeSpaceW(vol, NULL,
-	    &(t->current_filesystem->bytesPerSector), NULL, NULL)) {
-		t->current_filesystem->bytesPerSector = 0;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "GetDiskFreeSpace failed: %d", (int)GetLastError());
+#if defined(HAVE_GETVFSBYNAME) && defined(VFCF_SYNTHETIC)
+	r = getvfsbyname(sfs.f_fstypename, &vfc);
+	if (r == -1) {
+		archive_set_error(&a->archive, errno, "getvfsbyname failed");
 		return (ARCHIVE_FAILED);
 	}
+	if (vfc.vfc_flags & VFCF_SYNTHETIC)
+		t->current_filesystem->synthetic = 1;
+	else
+		t->current_filesystem->synthetic = 0;
+#endif
 
+#if defined(MNT_NOATIME)
+	if (sfs.f_flags & MNT_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
+
+#if defined(USE_READDIR_R)
+	/* Set maximum filename length. */
+#if defined(HAVE_STRUCT_STATFS_F_NAMEMAX)
+	t->current_filesystem->name_max = sfs.f_namemax;
+#else
+# if defined(_PC_NAME_MAX)
+	/* Mac OS X does not have f_namemax in struct statfs. */
+	if (tree_current_is_symblic_link_target(t)) {
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		nm = pathconf(tree_current_access_path(t), _PC_NAME_MAX);
+	} else
+		nm = fpathconf(tree_current_dir_fd(t), _PC_NAME_MAX);
+# else
+	nm = -1;
+# endif
+	if (nm == -1)
+		t->current_filesystem->name_max = NAME_MAX;
+	else
+		t->current_filesystem->name_max = nm;
+#endif
+#endif /* USE_READDIR_R */
 	return (ARCHIVE_OK);
 }
 
+#elif (defined(HAVE_STATVFS) || defined(HAVE_FSTATVFS)) && defined(ST_LOCAL)
+
+/*
+ * Gather current filesystem properties on NetBSD
+ */
 static int
-close_and_restore_time(HANDLE h, struct tree *t, struct restore_time *rt)
+setup_current_filesystem(struct archive_read_disk *a)
 {
-	HANDLE handle;
-	int r = 0;
+	struct tree *t = a->tree;
+	struct statvfs sfs;
+	int r, xr = 0;
 
-	if (h == INVALID_HANDLE_VALUE && AE_IFLNK == rt->filetype)
-		return (0);
+	t->current_filesystem->synthetic = -1;
+	if (tree_enter_working_dir(t) != 0) {
+		archive_set_error(&a->archive, errno, "fchdir failed");
+		return (ARCHIVE_FAILED);
+	}
+	if (tree_current_is_symblic_link_target(t)) {
+		r = statvfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+	} else {
+#ifdef HAVE_FSTATVFS
+		r = fstatvfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#else
+		r = statvfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
+#endif
+	}
+	if (r == -1 || xr == -1) {
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statvfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* Usually come here unless NetBSD supports _PC_REC_XFER_ALIGN
+		 * for pathconf() function. */
+		t->current_filesystem->xfer_align = sfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+#if defined(HAVE_STRUCT_STATVFS_F_IOSIZE)
+		t->current_filesystem->min_xfer_size = sfs.f_iosize;
+		t->current_filesystem->incr_xfer_size = sfs.f_iosize;
+#else
+		t->current_filesystem->min_xfer_size = sfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
+#endif
+	}
+	if (sfs.f_flag & ST_LOCAL)
+		t->current_filesystem->remote = 0;
+	else
+		t->current_filesystem->remote = 1;
 
-	/* Close a file descritor.
-	 * It will not be used for SetFileTime() because it has been opened
-	 * by a read only mode.
-	 */
-	if (h != INVALID_HANDLE_VALUE)
-		CloseHandle(h);
-	if ((t->flags & needsRestoreTimes) == 0)
-		return (r);
+#if defined(ST_NOATIME)
+	if (sfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
 
-	handle = CreateFileW(rt->full_path, FILE_WRITE_ATTRIBUTES,
-		    0, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-	if (handle == INVALID_HANDLE_VALUE) {
-		errno = EINVAL;
-		return (-1);
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namemax;
+	return (ARCHIVE_OK);
+}
+
+#elif defined(HAVE_SYS_STATFS_H) && defined(HAVE_LINUX_MAGIC_H) &&\
+	defined(HAVE_STATFS) && defined(HAVE_FSTATFS)
+/*
+ * Note: statfs is deprecated since LSB 3.2
+ */
+
+#ifndef CIFS_SUPER_MAGIC
+#define CIFS_SUPER_MAGIC 0xFF534D42
+#endif
+#ifndef DEVFS_SUPER_MAGIC
+#define DEVFS_SUPER_MAGIC 0x1373
+#endif
+
+/*
+ * Gather current filesystem properties on Linux
+ */
+static int
+setup_current_filesystem(struct archive_read_disk *a)
+{
+	struct tree *t = a->tree;
+	struct statfs sfs;
+#if defined(HAVE_STATVFS)
+	struct statvfs svfs;
+#endif
+	int r, vr = 0, xr = 0;
+
+	if (tree_current_is_symblic_link_target(t)) {
+#if defined(HAVE_OPENAT)
+		/*
+		 * Get file system statistics on any directory
+		 * where current is.
+		 */
+		int fd = openat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
+		__archive_ensure_cloexec_flag(fd);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
+		}
+#if defined(HAVE_FSTATVFS)
+		vr = fstatvfs(fd, &svfs);/* for f_flag, mount flags */
+#endif
+		r = fstatfs(fd, &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, fd, NULL);
+		close(fd);
+#else
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+#if defined(HAVE_STATVFS)
+		vr = statvfs(tree_current_access_path(t), &svfs);
+#endif
+		r = statfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+#endif
+	} else {
+#ifdef HAVE_FSTATFS
+#if defined(HAVE_FSTATVFS)
+		vr = fstatvfs(tree_current_dir_fd(t), &svfs);
+#endif
+		r = fstatfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#else
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+#if defined(HAVE_STATVFS)
+		vr = statvfs(".", &svfs);
+#endif
+		r = statfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
+#endif
+	}
+	if (r == -1 || xr == -1 || vr == -1) {
+		t->current_filesystem->synthetic = -1;
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* pathconf(_PC_REX_*) operations are not supported. */
+#if defined(HAVE_STATVFS)
+		t->current_filesystem->xfer_align = svfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+		t->current_filesystem->min_xfer_size = svfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = svfs.f_bsize;
+#else
+		t->current_filesystem->xfer_align = sfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+		t->current_filesystem->min_xfer_size = sfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
+#endif
+	}
+	switch (sfs.f_type) {
+	case AFS_SUPER_MAGIC:
+	case CIFS_SUPER_MAGIC:
+	case CODA_SUPER_MAGIC:
+	case NCP_SUPER_MAGIC:/* NetWare */
+	case NFS_SUPER_MAGIC:
+	case SMB_SUPER_MAGIC:
+		t->current_filesystem->remote = 1;
+		t->current_filesystem->synthetic = 0;
+		break;
+	case DEVFS_SUPER_MAGIC:
+	case PROC_SUPER_MAGIC:
+	case USBDEVICE_SUPER_MAGIC:
+		t->current_filesystem->remote = 0;
+		t->current_filesystem->synthetic = 1;
+		break;
+	default:
+		t->current_filesystem->remote = 0;
+		t->current_filesystem->synthetic = 0;
+		break;
 	}
 
-	if (SetFileTime(handle, NULL, &rt->lastAccessTime,
-	    &rt->lastWriteTime) == 0) {
-		errno = EINVAL;
-		r = -1;
+#if defined(ST_NOATIME)
+#if defined(HAVE_STATVFS)
+	if (svfs.f_flag & ST_NOATIME)
+#else
+	if (sfs.f_flag & ST_NOATIME)
+#endif
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
+
+#if defined(USE_READDIR_R)
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namelen;
+#endif
+	return (ARCHIVE_OK);
+}
+
+#elif defined(HAVE_SYS_STATVFS_H) &&\
+	(defined(HAVE_STATVFS) || defined(HAVE_FSTATVFS))
+
+/*
+ * Gather current filesystem properties on other posix platform.
+ */
+static int
+setup_current_filesystem(struct archive_read_disk *a)
+{
+	struct tree *t = a->tree;
+	struct statvfs sfs;
+	int r, xr = 0;
+
+	t->current_filesystem->synthetic = -1;/* Not supported */
+	t->current_filesystem->remote = -1;/* Not supported */
+	if (tree_current_is_symblic_link_target(t)) {
+#if defined(HAVE_OPENAT)
+		/*
+		 * Get file system statistics on any directory
+		 * where current is.
+		 */
+		int fd = openat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), O_RDONLY | O_CLOEXEC);
+		__archive_ensure_cloexec_flag(fd);
+		if (fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "openat failed");
+			return (ARCHIVE_FAILED);
+		}
+		r = fstatvfs(fd, &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, fd, NULL);
+		close(fd);
+#else
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		r = statvfs(tree_current_access_path(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, tree_current_access_path(t));
+#endif
+	} else {
+#ifdef HAVE_FSTATVFS
+		r = fstatvfs(tree_current_dir_fd(t), &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+#else
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		r = statvfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");
+#endif
+	}
+	if (r == -1 || xr == -1) {
+		t->current_filesystem->synthetic = -1;
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, errno, "statvfs failed");
+		return (ARCHIVE_FAILED);
+	} else if (xr == 1) {
+		/* pathconf(_PC_REX_*) operations are not supported. */
+		t->current_filesystem->xfer_align = sfs.f_frsize;
+		t->current_filesystem->max_xfer_size = -1;
+		t->current_filesystem->min_xfer_size = sfs.f_bsize;
+		t->current_filesystem->incr_xfer_size = sfs.f_bsize;
+	}
+
+#if defined(ST_NOATIME)
+	if (sfs.f_flag & ST_NOATIME)
+		t->current_filesystem->noatime = 1;
+	else
+#endif
+		t->current_filesystem->noatime = 0;
+
+#if defined(USE_READDIR_R)
+	/* Set maximum filename length. */
+	t->current_filesystem->name_max = sfs.f_namemax;
+#endif
+	return (ARCHIVE_OK);
+}
+
+#else
+
+/*
+ * Generic: Gather current filesystem properties.
+ * TODO: Is this generic function really needed?
+ */
+static int
+setup_current_filesystem(struct archive_read_disk *a)
+{
+	struct tree *t = a->tree;
+#if defined(_PC_NAME_MAX) && defined(USE_READDIR_R)
+	long nm;
+#endif
+	t->current_filesystem->synthetic = -1;/* Not supported */
+	t->current_filesystem->remote = -1;/* Not supported */
+	t->current_filesystem->noatime = 0;
+	(void)get_xfer_size(t, -1, ".");/* Dummy call to avoid build error. */
+	t->current_filesystem->xfer_align = -1;/* Unknown */
+	t->current_filesystem->max_xfer_size = -1;
+	t->current_filesystem->min_xfer_size = -1;
+	t->current_filesystem->incr_xfer_size = -1;
+
+#if defined(USE_READDIR_R)
+	/* Set maximum filename length. */
+#  if defined(_PC_NAME_MAX)
+	if (tree_current_is_symblic_link_target(t)) {
+		if (tree_enter_working_dir(t) != 0) {
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		nm = pathconf(tree_current_access_path(t), _PC_NAME_MAX);
 	} else
-		r = 0;
-	CloseHandle(handle);
-	return (r);
+		nm = fpathconf(tree_current_dir_fd(t), _PC_NAME_MAX);
+	if (nm == -1)
+#  endif /* _PC_NAME_MAX */
+		/*
+		 * Some systems (HP-UX or others?) incorrectly defined
+		 * NAME_MAX macro to be a smaller value.
+		 */
+#  if defined(NAME_MAX) && NAME_MAX >= 255
+		t->current_filesystem->name_max = NAME_MAX;
+#  else
+		/* No way to get a trusted value of maximum filename
+		 * length. */
+		t->current_filesystem->name_max = PATH_MAX;
+#  endif /* NAME_MAX */
+#  if defined(_PC_NAME_MAX)
+	else
+		t->current_filesystem->name_max = nm;
+#  endif /* _PC_NAME_MAX */
+#endif /* USE_READDIR_R */
+	return (ARCHIVE_OK);
+}
+
+#endif
+
+static int
+close_and_restore_time(int fd, struct tree *t, struct restore_time *rt)
+{
+#ifndef HAVE_UTIMES
+	(void)t; /* UNUSED */
+	(void)rt; /* UNUSED */
+	return (close(fd));
+#else
+#if defined(HAVE_FUTIMENS) && !defined(__CYGWIN__)
+	struct timespec timespecs[2];
+#endif
+	struct timeval times[2];
+
+	if ((t->flags & needsRestoreTimes) == 0 || rt->noatime) {
+		if (fd >= 0)
+			return (close(fd));
+		else
+			return (0);
+	}
+
+#if defined(HAVE_FUTIMENS) && !defined(__CYGWIN__)
+	timespecs[1].tv_sec = rt->mtime;
+	timespecs[1].tv_nsec = rt->mtime_nsec;
+
+	timespecs[0].tv_sec = rt->atime;
+	timespecs[0].tv_nsec = rt->atime_nsec;
+	/* futimens() is defined in POSIX.1-2008. */
+	if (futimens(fd, timespecs) == 0)
+		return (close(fd));
+#endif
+
+	times[1].tv_sec = rt->mtime;
+	times[1].tv_usec = rt->mtime_nsec / 1000;
+
+	times[0].tv_sec = rt->atime;
+	times[0].tv_usec = rt->atime_nsec / 1000;
+
+#if !defined(HAVE_FUTIMENS) && defined(HAVE_FUTIMES) && !defined(__CYGWIN__)
+	if (futimes(fd, times) == 0)
+		return (close(fd));
+#endif
+	close(fd);
+#if defined(HAVE_FUTIMESAT)
+	if (futimesat(tree_current_dir_fd(t), rt->name, times) == 0)
+		return (0);
+#endif
+#ifdef HAVE_LUTIMES
+	if (lutimes(rt->name, times) != 0)
+#else
+	if (AE_IFLNK != rt->filetype && utimes(rt->name, times) != 0)
+#endif
+		return (-1);
+#endif
+	return (0);
+}
+
+static int
+open_on_current_dir(struct tree *t, const char *path, int flags)
+{
+#ifdef HAVE_OPENAT
+	return (openat(tree_current_dir_fd(t), path, flags));
+#else
+	if (tree_enter_working_dir(t) != 0)
+		return (-1);
+	return (open(path, flags));
+#endif
+}
+
+static int
+tree_dup(int fd)
+{
+	int new_fd;
+#ifdef F_DUPFD_CLOEXEC
+	static volatile int can_dupfd_cloexec = 1;
+
+	if (can_dupfd_cloexec) {
+		new_fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+		if (new_fd != -1)
+			return (new_fd);
+		/* Linux 2.6.18 - 2.6.23 declare F_DUPFD_CLOEXEC,
+		 * but it cannot be used. So we have to try dup(). */
+		/* We won't try F_DUPFD_CLOEXEC. */
+		can_dupfd_cloexec = 0;
+	}
+#endif /* F_DUPFD_CLOEXEC */
+	new_fd = dup(fd);
+	__archive_ensure_cloexec_flag(new_fd);
+	return (new_fd);
 }
 
 /*
  * Add a directory path to the current stack.
  */
 static void
-tree_push(struct tree *t, const wchar_t *path, const wchar_t *full_path,
-    int filesystem_id, int64_t dev, int64_t ino, struct restore_time *rt)
+tree_push(struct tree *t, const char *path, int filesystem_id,
+    int64_t dev, int64_t ino, struct restore_time *rt)
 {
 	struct tree_entry *te;
 
-	te = malloc(sizeof(*te));
-	memset(te, 0, sizeof(*te));
+	te = calloc(1, sizeof(*te));
 	te->next = t->stack;
 	te->parent = t->current;
 	if (te->parent)
 		te->depth = te->parent->depth + 1;
 	t->stack = te;
 	archive_string_init(&te->name);
-	archive_wstrcpy(&te->name, path);
-	archive_string_init(&te->full_path);
-	archive_wstrcpy(&te->full_path, full_path);
+	te->symlink_parent_fd = -1;
+	archive_strcpy(&te->name, path);
 	te->flags = needsDescent | needsOpen | needsAscent;
 	te->filesystem_id = filesystem_id;
 	te->dev = dev;
 	te->ino = ino;
 	te->dirname_length = t->dirname_length;
-	te->full_path_dir_length = t->full_path_dir_length;
-	te->restore_time.full_path = te->full_path.s;
+	te->restore_time.name = te->name.s;
 	if (rt != NULL) {
-		te->restore_time.lastWriteTime = rt->lastWriteTime;
-		te->restore_time.lastAccessTime = rt->lastAccessTime;
+		te->restore_time.mtime = rt->mtime;
+		te->restore_time.mtime_nsec = rt->mtime_nsec;
+		te->restore_time.atime = rt->atime;
+		te->restore_time.atime_nsec = rt->atime_nsec;
 		te->restore_time.filetype = rt->filetype;
+		te->restore_time.noatime = rt->noatime;
 	}
 }
 
@@ -1466,164 +2092,102 @@ tree_push(struct tree *t, const wchar_t *path, const wchar_t *full_path,
  * Append a name to the current dir path.
  */
 static void
-tree_append(struct tree *t, const wchar_t *name, size_t name_length)
+tree_append(struct tree *t, const char *name, size_t name_length)
 {
 	size_t size_needed;
 
-	t->path.s[t->dirname_length] = L'\0';
+	t->path.s[t->dirname_length] = '\0';
 	t->path.length = t->dirname_length;
 	/* Strip trailing '/' from name, unless entire name is "/". */
-	while (name_length > 1 && name[name_length - 1] == L'/')
+	while (name_length > 1 && name[name_length - 1] == '/')
 		name_length--;
 
 	/* Resize pathname buffer as needed. */
 	size_needed = name_length + t->dirname_length + 2;
-	archive_wstring_ensure(&t->path, size_needed);
+	archive_string_ensure(&t->path, size_needed);
 	/* Add a separating '/' if it's needed. */
-	if (t->dirname_length > 0 &&
-	    t->path.s[archive_strlen(&t->path)-1] != L'/')
-		archive_wstrappend_wchar(&t->path, L'/');
+	if (t->dirname_length > 0 && t->path.s[archive_strlen(&t->path)-1] != '/')
+		archive_strappend_char(&t->path, '/');
 	t->basename = t->path.s + archive_strlen(&t->path);
-	archive_wstrncat(&t->path, name, name_length);
-	t->restore_time.full_path = t->basename;
-	if (t->full_path_dir_length > 0) {
-		t->full_path.s[t->full_path_dir_length] = L'\0';
-		t->full_path.length = t->full_path_dir_length;
-		size_needed = name_length + t->full_path_dir_length + 2;
-		archive_wstring_ensure(&t->full_path, size_needed);
-		/* Add a separating '\' if it's needed. */
-		if (t->full_path.s[archive_strlen(&t->full_path)-1] != L'\\')
-			archive_wstrappend_wchar(&t->full_path, L'\\');
-		archive_wstrncat(&t->full_path, name, name_length);
-		t->restore_time.full_path = t->full_path.s;
-	}
+	archive_strncat(&t->path, name, name_length);
+	t->restore_time.name = t->basename;
 }
 
 /*
  * Open a directory tree for traversal.
  */
 static struct tree *
-tree_open(const wchar_t *path, int symlink_mode, int restore_time)
+tree_open(const char *path, int symlink_mode, int restore_time)
 {
 	struct tree *t;
 
-	t = malloc(sizeof(*t));
-	memset(t, 0, sizeof(*t));
-	archive_string_init(&(t->full_path));
+	if ((t = calloc(1, sizeof(*t))) == NULL)
+		return (NULL);
 	archive_string_init(&t->path);
-	archive_wstring_ensure(&t->path, 15);
+	archive_string_ensure(&t->path, 31);
 	t->initial_symlink_mode = symlink_mode;
 	return (tree_reopen(t, path, restore_time));
 }
 
 static struct tree *
-tree_reopen(struct tree *t, const wchar_t *path, int restore_time)
+tree_reopen(struct tree *t, const char *path, int restore_time)
 {
-	struct archive_wstring ws;
-	wchar_t *pathname, *p, *base;
-
 	t->flags = (restore_time)?needsRestoreTimes:0;
+	t->flags |= onInitialDir;
 	t->visit_type = 0;
 	t->tree_errno = 0;
-	t->full_path_dir_length = 0;
 	t->dirname_length = 0;
 	t->depth = 0;
 	t->descend = 0;
 	t->current = NULL;
-	t->d = INVALID_HANDLE_VALUE;
+	t->d = INVALID_DIR_HANDLE;
 	t->symlink_mode = t->initial_symlink_mode;
-	archive_string_empty(&(t->full_path));
 	archive_string_empty(&t->path);
-	t->entry_fh = INVALID_HANDLE_VALUE;
+	t->entry_fd = -1;
 	t->entry_eof = 0;
 	t->entry_remaining_bytes = 0;
 	t->initial_filesystem_id = -1;
 
-	/* Get wchar_t strings from char strings. */
-	archive_string_init(&ws);
-	archive_wstrcpy(&ws, path);
-	pathname = ws.s;
-	/* Get a full-path-name. */
-	p = __la_win_permissive_name_w(pathname);
-	if (p == NULL)
-		goto failed;
-	archive_wstrcpy(&(t->full_path), p);
-	free(p);
-
-	/* Convert path separators from '\' to '/' */
-	for (p = pathname; *p != L'\0'; ++p) {
-		if (*p == L'\\')
-			*p = L'/';
-	}
-	base = pathname;
-
 	/* First item is set up a lot like a symlink traversal. */
-	/* printf("Looking for wildcard in %s\n", path); */
-	if ((base[0] == L'/' && base[1] == L'/' &&
-	     base[2] == L'?' && base[3] == L'/' &&
-	     (wcschr(base+4, L'*') || wcschr(base+4, L'?'))) ||
-	    (!(base[0] == L'/' && base[1] == L'/' &&
-	       base[2] == L'?' && base[3] == L'/') &&
-	       (wcschr(base, L'*') || wcschr(base, L'?')))) {
-		// It has a wildcard in it...
-		// Separate the last element.
-		p = wcsrchr(base, L'/');
-		if (p != NULL) {
-			*p = L'\0';
-			tree_append(t, base, p - base);
-			t->dirname_length = archive_strlen(&t->path);
-			base = p + 1;
-		}
-		p = wcsrchr(t->full_path.s, L'\\');
-		if (p != NULL) {
-			*p = L'\0';
-			t->full_path.length = wcslen(t->full_path.s);
-			t->full_path_dir_length = archive_strlen(&t->full_path);
-		}
-	}
-	tree_push(t, base, t->full_path.s, 0, 0, 0, NULL);
-	archive_wstring_free(&ws);
+	tree_push(t, path, 0, 0, 0, NULL);
 	t->stack->flags = needsFirstVisit;
-	/*
-	 * Debug flag for Direct IO(No buffering) or Async IO.
-	 * Those dependent on environment variable switches
-	 * will be removed until next release.
-	 */
-	{
-		const char *e;
-		if ((e = getenv("LIBARCHIVE_DIRECT_IO")) != NULL) {
-			if (e[0] == '0')
-				t->direct_io = 0;
-			else
-				t->direct_io = 1;
-			fprintf(stderr, "LIBARCHIVE_DIRECT_IO=%s\n",
-				(t->direct_io)?"Enabled":"Disabled");
-		} else
-			t->direct_io = DIRECT_IO;
-		if ((e = getenv("LIBARCHIVE_ASYNC_IO")) != NULL) {
-			if (e[0] == '0')
-				t->async_io = 0;
-			else
-				t->async_io = 1;
-			fprintf(stderr, "LIBARCHIVE_ASYNC_IO=%s\n",
-			    (t->async_io)?"Enabled":"Disabled");
-		} else
-			t->async_io = ASYNC_IO;
-	}
+	t->maxOpenCount = t->openCount = 1;
+	t->initial_dir_fd = open(".", O_RDONLY | O_CLOEXEC);
+	__archive_ensure_cloexec_flag(t->initial_dir_fd);
+	t->working_dir_fd = tree_dup(t->initial_dir_fd);
 	return (t);
-failed:
-	archive_wstring_free(&ws);
-	tree_free(t);
-	return (NULL);
 }
 
 static int
 tree_descent(struct tree *t)
 {
+	int flag, new_fd, r = 0;
+
 	t->dirname_length = archive_strlen(&t->path);
-	t->full_path_dir_length = archive_strlen(&t->full_path);
-	t->depth++;
-	return (0);
+	flag = O_RDONLY | O_CLOEXEC;
+#if defined(O_DIRECTORY)
+	flag |= O_DIRECTORY;
+#endif
+	new_fd = open_on_current_dir(t, t->stack->name.s, flag);
+	__archive_ensure_cloexec_flag(new_fd);
+	if (new_fd < 0) {
+		t->tree_errno = errno;
+		r = TREE_ERROR_DIR;
+	} else {
+		t->depth++;
+		/* If it is a link, set up fd for the ascent. */
+		if (t->stack->flags & isDirLink) {
+			t->stack->symlink_parent_fd = t->working_dir_fd;
+			t->openCount++;
+			if (t->openCount > t->maxOpenCount)
+				t->maxOpenCount = t->openCount;
+		} else
+			close(t->working_dir_fd);
+		/* Renew the current working directory. */
+		t->working_dir_fd = new_fd;
+		t->flags &= ~onWorkingDir;
+	}
+	return (r);
 }
 
 /*
@@ -1633,11 +2197,80 @@ static int
 tree_ascend(struct tree *t)
 {
 	struct tree_entry *te;
+	int new_fd, r = 0, prev_dir_fd;
 
 	te = t->stack;
-	t->depth--;
-	close_and_restore_time(INVALID_HANDLE_VALUE, t, &te->restore_time);
-	return (0);
+	prev_dir_fd = t->working_dir_fd;
+	if (te->flags & isDirLink)
+		new_fd = te->symlink_parent_fd;
+	else {
+		new_fd = open_on_current_dir(t, "..", O_RDONLY | O_CLOEXEC);
+		__archive_ensure_cloexec_flag(new_fd);
+	}
+	if (new_fd < 0) {
+		t->tree_errno = errno;
+		r = TREE_ERROR_FATAL;
+	} else {
+		/* Renew the current working directory. */
+		t->working_dir_fd = new_fd;
+		t->flags &= ~onWorkingDir;
+		/* Current directory has been changed, we should
+		 * close an fd of previous working directory. */
+		close_and_restore_time(prev_dir_fd, t, &te->restore_time);
+		if (te->flags & isDirLink) {
+			t->openCount--;
+			te->symlink_parent_fd = -1;
+		}
+		t->depth--;
+	}
+	return (r);
+}
+
+/*
+ * Return to the initial directory where tree_open() was performed.
+ */
+static int
+tree_enter_initial_dir(struct tree *t)
+{
+	int r = 0;
+
+	if ((t->flags & onInitialDir) == 0) {
+		r = fchdir(t->initial_dir_fd);
+		if (r == 0) {
+			t->flags &= ~onWorkingDir;
+			t->flags |= onInitialDir;
+		}
+	}
+	return (r);
+}
+
+/*
+ * Restore working directory of directory traversals.
+ */
+static int
+tree_enter_working_dir(struct tree *t)
+{
+	int r = 0;
+
+	/*
+	 * Change the current directory if really needed.
+	 * Sometimes this is unneeded when we did not do
+	 * descent.
+	 */
+	if (t->depth > 0 && (t->flags & onWorkingDir) == 0) {
+		r = fchdir(t->working_dir_fd);
+		if (r == 0) {
+			t->flags &= ~onInitialDir;
+			t->flags |= onWorkingDir;
+		}
+	}
+	return (r);
+}
+
+static int
+tree_current_dir_fd(struct tree *t)
+{
+	return (t->working_dir_fd);
 }
 
 /*
@@ -1648,9 +2281,7 @@ tree_pop(struct tree *t)
 {
 	struct tree_entry *te;
 
-	t->full_path.s[t->full_path_dir_length] = L'\0';
-	t->full_path.length = t->full_path_dir_length;
-	t->path.s[t->dirname_length] = L'\0';
+	t->path.s[t->dirname_length] = '\0';
 	t->path.length = t->dirname_length;
 	if (t->stack == t->current && t->current != NULL)
 		t->current = t->current->parent;
@@ -1658,11 +2289,9 @@ tree_pop(struct tree *t)
 	t->stack = te->next;
 	t->dirname_length = te->dirname_length;
 	t->basename = t->path.s + t->dirname_length;
-	t->full_path_dir_length = te->full_path_dir_length;
-	while (t->basename[0] == L'/')
+	while (t->basename[0] == '/')
 		t->basename++;
-	archive_wstring_free(&te->name);
-	archive_wstring_free(&te->full_path);
+	archive_string_free(&te->name);
 	free(te);
 }
 
@@ -1676,40 +2305,20 @@ tree_next(struct tree *t)
 
 	while (t->stack != NULL) {
 		/* If there's an open dir, get the next entry from there. */
-		if (t->d != INVALID_HANDLE_VALUE) {
-			r = tree_dir_next_windows(t, NULL);
+		if (t->d != INVALID_DIR_HANDLE) {
+			r = tree_dir_next_posix(t);
 			if (r == 0)
 				continue;
 			return (r);
 		}
 
 		if (t->stack->flags & needsFirstVisit) {
-			wchar_t *d = t->stack->name.s;
-			t->stack->flags &= ~needsFirstVisit;
-			if (!(d[0] == L'/' && d[1] == L'/' &&
-			      d[2] == L'?' && d[3] == L'/') &&
-			    (wcschr(d, L'*') || wcschr(d, L'?'))) {
-				r = tree_dir_next_windows(t, d);
-				if (r == 0)
-					continue;
-				return (r);
-			} else {
-				HANDLE h = FindFirstFileW(d, &t->_findData);
-				if (h == INVALID_HANDLE_VALUE) {
-					la_dosmaperr(GetLastError());
-					t->tree_errno = errno;
-					t->visit_type = TREE_ERROR_DIR;
-					return (t->visit_type);
-				}
-				t->findData = &t->_findData;
-				FindClose(h);
-			}
 			/* Top stack item needs a regular visit. */
 			t->current = t->stack;
 			tree_append(t, t->stack->name.s,
 			    archive_strlen(&(t->stack->name)));
-			//t->dirname_length = t->path_length;
-			//tree_pop(t);
+			/* t->dirname_length = t->path_length; */
+			/* tree_pop(t); */
 			t->stack->flags &= ~needsFirstVisit;
 			return (t->visit_type = TREE_REGULAR);
 		} else if (t->stack->flags & needsDescent) {
@@ -1727,7 +2336,7 @@ tree_next(struct tree *t)
 			return (t->visit_type);
 		} else if (t->stack->flags & needsOpen) {
 			t->stack->flags &= ~needsOpen;
-			r = tree_dir_next_windows(t, L"*");
+			r = tree_dir_next_posix(t);
 			if (r == 0)
 				continue;
 			return (r);
@@ -1748,179 +2357,111 @@ tree_next(struct tree *t)
 }
 
 static int
-tree_dir_next_windows(struct tree *t, const wchar_t *pattern)
+tree_dir_next_posix(struct tree *t)
 {
-	const wchar_t *name;
-	size_t namelen;
 	int r;
+	const char *name;
+	size_t namelen;
 
-	for (;;) {
-		if (pattern != NULL) {
-			struct archive_wstring pt;
+	if (t->d == NULL) {
+#if defined(USE_READDIR_R)
+		size_t dirent_size;
+#endif
 
-			archive_string_init(&pt);
-			archive_wstring_ensure(&pt,
-			    archive_strlen(&(t->full_path))
-			      + 2 + wcslen(pattern));
-			archive_wstring_copy(&pt, &(t->full_path));
-			archive_wstrappend_wchar(&pt, L'\\');
-			archive_wstrcat(&pt, pattern);
-			t->d = FindFirstFileW(pt.s, &t->_findData);
-			archive_wstring_free(&pt);
-			if (t->d == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				t->tree_errno = errno;
-				r = tree_ascend(t); /* Undo "chdir" */
+#if defined(HAVE_FDOPENDIR)
+		t->d = fdopendir(tree_dup(t->working_dir_fd));
+#else /* HAVE_FDOPENDIR */
+		if (tree_enter_working_dir(t) == 0) {
+			t->d = opendir(".");
+#if HAVE_DIRFD || defined(dirfd)
+			__archive_ensure_cloexec_flag(dirfd(t->d));
+#endif
+		}
+#endif /* HAVE_FDOPENDIR */
+		if (t->d == NULL) {
+			r = tree_ascend(t); /* Undo "chdir" */
+			tree_pop(t);
+			t->tree_errno = errno;
+			t->visit_type = r != 0 ? r : TREE_ERROR_DIR;
+			return (t->visit_type);
+		}
+#if defined(USE_READDIR_R)
+		dirent_size = offsetof(struct dirent, d_name) +
+		  t->filesystem_table[t->current->filesystem_id].name_max + 1;
+		if (t->dirent == NULL || t->dirent_allocated < dirent_size) {
+			free(t->dirent);
+			t->dirent = malloc(dirent_size);
+			if (t->dirent == NULL) {
+				closedir(t->d);
+				t->d = INVALID_DIR_HANDLE;
+				(void)tree_ascend(t);
 				tree_pop(t);
-				t->visit_type = r != 0 ? r : TREE_ERROR_DIR;
+				t->tree_errno = ENOMEM;
+				t->visit_type = TREE_ERROR_DIR;
 				return (t->visit_type);
 			}
-			t->findData = &t->_findData;
-			pattern = NULL;
-		} else if (!FindNextFileW(t->d, &t->_findData)) {
-			FindClose(t->d);
-			t->d = INVALID_HANDLE_VALUE;
-			t->findData = NULL;
-			return (0);
+			t->dirent_allocated = dirent_size;
 		}
-		name = t->findData->cFileName;
-		namelen = wcslen(name);
+#endif /* USE_READDIR_R */
+	}
+	for (;;) {
+		errno = 0;
+#if defined(USE_READDIR_R)
+		r = readdir_r(t->d, t->dirent, &t->de);
+#ifdef _AIX
+		/* Note: According to the man page, return value 9 indicates
+		 * that the readdir_r was not successful and the error code
+		 * is set to the global errno variable. And then if the end
+		 * of directory entries was reached, the return value is 9
+		 * and the third parameter is set to NULL and errno is
+		 * unchanged. */
+		if (r == 9)
+			r = errno;
+#endif /* _AIX */
+		if (r != 0 || t->de == NULL) {
+#else
+		t->de = readdir(t->d);
+		if (t->de == NULL) {
+			r = errno;
+#endif
+			closedir(t->d);
+			t->d = INVALID_DIR_HANDLE;
+			if (r != 0) {
+				t->tree_errno = r;
+				t->visit_type = TREE_ERROR_DIR;
+				return (t->visit_type);
+			} else
+				return (0);
+		}
+		name = t->de->d_name;
+		namelen = D_NAMELEN(t->de);
 		t->flags &= ~hasLstat;
 		t->flags &= ~hasStat;
-		if (name[0] == L'.' && name[1] == L'\0')
+		if (name[0] == '.' && name[1] == '\0')
 			continue;
-		if (name[0] == L'.' && name[1] == L'.' && name[2] == L'\0')
+		if (name[0] == '.' && name[1] == '.' && name[2] == '\0')
 			continue;
 		tree_append(t, name, namelen);
 		return (t->visit_type = TREE_REGULAR);
 	}
 }
 
-#define EPOC_TIME ARCHIVE_LITERAL_ULL(116444736000000000)
-static void
-fileTimeToUtc(const FILETIME *filetime, time_t *t, long *ns)
-{
-	ULARGE_INTEGER utc;
-
-	utc.HighPart = filetime->dwHighDateTime;
-	utc.LowPart  = filetime->dwLowDateTime;
-	if (utc.QuadPart >= EPOC_TIME) {
-		utc.QuadPart -= EPOC_TIME;
-		/* milli seconds base */
-		*t = (time_t)(utc.QuadPart / 10000000);
-		/* nano seconds base */
-		*ns = (long)(utc.QuadPart % 10000000) * 100;
-	} else {
-		*t = 0;
-		*ns = 0;
-	}
-}
-
-static void
-entry_copy_bhfi(struct archive_entry *entry, const wchar_t *path,
-	const WIN32_FIND_DATAW *findData,
-	const BY_HANDLE_FILE_INFORMATION *bhfi)
-{
-	time_t secs;
-	long nsecs;
-	mode_t mode;
-
-	fileTimeToUtc(&bhfi->ftLastAccessTime, &secs, &nsecs);
-	archive_entry_set_atime(entry, secs, nsecs);
-	fileTimeToUtc(&bhfi->ftLastWriteTime, &secs, &nsecs);
-	archive_entry_set_mtime(entry, secs, nsecs);
-	fileTimeToUtc(&bhfi->ftCreationTime, &secs, &nsecs);
-	archive_entry_set_birthtime(entry, secs, nsecs);
-	archive_entry_set_ctime(entry, secs, nsecs);
-	archive_entry_set_dev(entry, bhfi_dev(bhfi));
-	archive_entry_set_ino64(entry, bhfi_ino(bhfi));
-	if (bhfi->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-		archive_entry_set_nlink(entry, bhfi->nNumberOfLinks + 1);
-	else
-		archive_entry_set_nlink(entry, bhfi->nNumberOfLinks);
-	archive_entry_set_size(entry,
-	    (((int64_t)bhfi->nFileSizeHigh) << 32)
-	    + bhfi->nFileSizeLow);
-	archive_entry_set_uid(entry, 0);
-	archive_entry_set_gid(entry, 0);
-	archive_entry_set_rdev(entry, 0);
-
-	mode = S_IRUSR | S_IRGRP | S_IROTH;
-	if ((bhfi->dwFileAttributes & FILE_ATTRIBUTE_READONLY) == 0)
-		mode |= S_IWUSR | S_IWGRP | S_IWOTH;
-	if ((bhfi->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
-	    findData != NULL &&
-	    findData->dwReserved0 == IO_REPARSE_TAG_SYMLINK)
-		mode |= S_IFLNK;
-	else if (bhfi->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-		mode |= S_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
-	else {
-		const wchar_t *p;
-
-		mode |= S_IFREG;
-		p = wcsrchr(path, L'.');
-		if (p != NULL && wcslen(p) == 4) {
-			switch (p[1]) {
-			case L'B': case L'b':
-				if ((p[2] == L'A' || p[2] == L'a' ) &&
-				    (p[3] == L'T' || p[3] == L't' ))
-					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-				break;
-			case L'C': case L'c':
-				if (((p[2] == L'M' || p[2] == L'm' ) &&
-				    (p[3] == L'D' || p[3] == L'd' )))
-					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-				break;
-			case L'E': case L'e':
-				if ((p[2] == L'X' || p[2] == L'x' ) &&
-				    (p[3] == L'E' || p[3] == L'e' ))
-					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-				break;
-			default:
-				break;
-			}
-		}
-	}
-	archive_entry_set_mode(entry, mode);
-}
-
-static void
-tree_archive_entry_copy_bhfi(struct archive_entry *entry, struct tree *t,
-	const BY_HANDLE_FILE_INFORMATION *bhfi)
-{
-	entry_copy_bhfi(entry, tree_current_path(t), t->findData, bhfi);
-}
-
-static int
-tree_current_file_information(struct tree *t, BY_HANDLE_FILE_INFORMATION *st,
- int sim_lstat)
-{
-	HANDLE h;
-	int r;
-	DWORD flag = FILE_FLAG_BACKUP_SEMANTICS;
-	
-	if (sim_lstat && tree_current_is_physical_link(t))
-		flag |= FILE_FLAG_OPEN_REPARSE_POINT;
-	h = CreateFileW(tree_current_access_path(t), 0, FILE_SHARE_READ, NULL,
-	    OPEN_EXISTING, flag, NULL);
-	if (h == INVALID_HANDLE_VALUE) {
-		la_dosmaperr(GetLastError());
-		t->tree_errno = errno;
-		return (0);
-	}
-	r = GetFileInformationByHandle(h, st);
-	CloseHandle(h);
-	return (r);
-}
 
 /*
  * Get the stat() data for the entry just returned from tree_next().
  */
-static const BY_HANDLE_FILE_INFORMATION *
+static const struct stat *
 tree_current_stat(struct tree *t)
 {
 	if (!(t->flags & hasStat)) {
-		if (!tree_current_file_information(t, &t->st, 0))
+#ifdef HAVE_FSTATAT
+		if (fstatat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), &t->st, 0) != 0)
+#else
+		if (tree_enter_working_dir(t) != 0)
+			return NULL;
+		if (stat(tree_current_access_path(t), &t->st) != 0)
+#endif
 			return NULL;
 		t->flags |= hasStat;
 	}
@@ -1930,11 +2471,19 @@ tree_current_stat(struct tree *t)
 /*
  * Get the lstat() data for the entry just returned from tree_next().
  */
-static const BY_HANDLE_FILE_INFORMATION *
+static const struct stat *
 tree_current_lstat(struct tree *t)
 {
 	if (!(t->flags & hasLstat)) {
-		if (!tree_current_file_information(t, &t->lst, 1))
+#ifdef HAVE_FSTATAT
+		if (fstatat(tree_current_dir_fd(t),
+		    tree_current_access_path(t), &t->lst,
+		    AT_SYMLINK_NOFOLLOW) != 0)
+#else
+		if (tree_enter_working_dir(t) != 0)
+			return NULL;
+		if (lstat(tree_current_access_path(t), &t->lst) != 0)
+#endif
 			return NULL;
 		t->flags |= hasLstat;
 	}
@@ -1947,10 +2496,34 @@ tree_current_lstat(struct tree *t)
 static int
 tree_current_is_dir(struct tree *t)
 {
-	if (t->findData)
-		return (t->findData->dwFileAttributes
-		    & FILE_ATTRIBUTE_DIRECTORY);
-	return (0);
+	const struct stat *st;
+	/*
+	 * If we already have lstat() info, then try some
+	 * cheap tests to determine if this is a dir.
+	 */
+	if (t->flags & hasLstat) {
+		/* If lstat() says it's a dir, it must be a dir. */
+		st = tree_current_lstat(t);
+		if (st == NULL)
+			return 0;
+		if (S_ISDIR(st->st_mode))
+			return 1;
+		/* Not a dir; might be a link to a dir. */
+		/* If it's not a link, then it's not a link to a dir. */
+		if (!S_ISLNK(st->st_mode))
+			return 0;
+		/*
+		 * It's a link, but we don't know what it's a link to,
+		 * so we'll have to use stat().
+		 */
+	}
+
+	st = tree_current_stat(t);
+	/* If we can't stat it, it's not a dir. */
+	if (st == NULL)
+		return 0;
+	/* Use the definitive test.  Hopefully this is cached. */
+	return (S_ISDIR(st->st_mode));
 }
 
 /*
@@ -1961,56 +2534,80 @@ tree_current_is_dir(struct tree *t)
 static int
 tree_current_is_physical_dir(struct tree *t)
 {
-	if (tree_current_is_physical_link(t))
-		return (0);
-	return (tree_current_is_dir(t));
-}
+	const struct stat *st;
 
-/*
- * Test whether current entry is a symbolic link.
- */
-static int
-tree_current_is_physical_link(struct tree *t)
-{
-	if (t->findData)
-		return ((t->findData->dwFileAttributes
-			        & FILE_ATTRIBUTE_REPARSE_POINT) &&
-			(t->findData->dwReserved0
-			    == IO_REPARSE_TAG_SYMLINK));
-	return (0);
+	/*
+	 * If stat() says it isn't a dir, then it's not a dir.
+	 * If stat() data is cached, this check is free, so do it first.
+	 */
+	if (t->flags & hasStat) {
+		st = tree_current_stat(t);
+		if (st == NULL)
+			return (0);
+		if (!S_ISDIR(st->st_mode))
+			return (0);
+	}
+
+	/*
+	 * Either stat() said it was a dir (in which case, we have
+	 * to determine whether it's really a link to a dir) or
+	 * stat() info wasn't available.  So we use lstat(), which
+	 * hopefully is already cached.
+	 */
+
+	st = tree_current_lstat(t);
+	/* If we can't stat it, it's not a dir. */
+	if (st == NULL)
+		return 0;
+	/* Use the definitive test.  Hopefully this is cached. */
+	return (S_ISDIR(st->st_mode));
 }
 
 /*
  * Test whether the same file has been in the tree as its parent.
  */
 static int
-tree_target_is_same_as_parent(struct tree *t,
-    const BY_HANDLE_FILE_INFORMATION *st)
+tree_target_is_same_as_parent(struct tree *t, const struct stat *st)
 {
 	struct tree_entry *te;
-	int64_t dev = bhfi_dev(st);
-	int64_t ino = bhfi_ino(st);
 
 	for (te = t->current->parent; te != NULL; te = te->parent) {
-		if (te->dev == dev && te->ino == ino)
+		if (te->dev == (int64_t)st->st_dev &&
+		    te->ino == (int64_t)st->st_ino)
 			return (1);
 	}
 	return (0);
 }
 
 /*
+ * Test whether the current file is symbolic link target and
+ * on the other filesystem.
+ */
+static int
+tree_current_is_symblic_link_target(struct tree *t)
+{
+	static const struct stat *lst, *st;
+
+	lst = tree_current_lstat(t);
+	st = tree_current_stat(t);
+	return (st != NULL && lst != NULL &&
+	    (int64_t)st->st_dev == t->current_filesystem->dev &&
+	    st->st_dev != lst->st_dev);
+}
+
+/*
  * Return the access path for the entry just returned from tree_next().
  */
-static const wchar_t *
+static const char *
 tree_current_access_path(struct tree *t)
 {
-	return (t->full_path.s);
+	return (t->basename);
 }
 
 /*
  * Return the full path for the entry just returned from tree_next().
  */
-static const wchar_t *
+static const char *
 tree_current_path(struct tree *t)
 {
 	return (t->path.s);
@@ -2025,20 +2622,29 @@ tree_close(struct tree *t)
 
 	if (t == NULL)
 		return;
-	if (t->entry_fh != INVALID_HANDLE_VALUE) {
-		cancel_async(t);
-		close_and_restore_time(t->entry_fh, t, &t->restore_time);
-		t->entry_fh = INVALID_HANDLE_VALUE;
+	if (t->entry_fd >= 0) {
+		close_and_restore_time(t->entry_fd, t, &t->restore_time);
+		t->entry_fd = -1;
 	}
-	/* Close the handle of FindFirstFileW */
-	if (t->d != INVALID_HANDLE_VALUE) {
-		FindClose(t->d);
-		t->d = INVALID_HANDLE_VALUE;
-		t->findData = NULL;
+	/* Close the handle of readdir(). */
+	if (t->d != INVALID_DIR_HANDLE) {
+		closedir(t->d);
+		t->d = INVALID_DIR_HANDLE;
 	}
 	/* Release anything remaining in the stack. */
-	while (t->stack != NULL)
+	while (t->stack != NULL) {
+		if (t->stack->flags & isDirLink)
+			close(t->stack->symlink_parent_fd);
 		tree_pop(t);
+	}
+	if (t->working_dir_fd >= 0) {
+		close(t->working_dir_fd);
+		t->working_dir_fd = -1;
+	}
+	if (t->initial_dir_fd >= 0) {
+		close(t->initial_dir_fd);
+		t->initial_dir_fd = -1;
+	}
 }
 
 /*
@@ -2051,261 +2657,15 @@ tree_free(struct tree *t)
 
 	if (t == NULL)
 		return;
-	archive_wstring_free(&t->path);
-	archive_wstring_free(&t->full_path);
-	free(t->sparse_list);
-	free(t->filesystem_table);
-	for (i = 0; i < MAX_OVERLAPPED; i++) {
-		if (t->ol[i].buff)
-			VirtualFree(t->ol[i].buff, 0, MEM_RELEASE);
-		CloseHandle(t->ol[i].ol.hEvent);
-	}
-	free(t);
-}
-
-
-/*
- * Populate the archive_entry with metadata from the disk.
- */
-int
-archive_read_disk_entry_from_file(struct archive *_a,
-    struct archive_entry *entry, int fd, const struct stat *st)
-{
-	struct archive_read_disk *a = (struct archive_read_disk *)_a;
-	const wchar_t *path;
-	const wchar_t *wname;
-	const char *name;
-	HANDLE h;
-	BY_HANDLE_FILE_INFORMATION bhfi;
-	DWORD fileAttributes = 0;
-	int r;
-
-	archive_clear_error(_a);
-	wname = archive_entry_sourcepath_w(entry);
-	if (wname == NULL)
-		wname = archive_entry_pathname_w(entry);
-	if (wname == NULL) {
-		archive_set_error(&a->archive, EINVAL,
-		    "Can't get a wide character version of the path");
-		return (ARCHIVE_FAILED);
-	}
-	path = __la_win_permissive_name_w(wname);
-
-	if (st == NULL) {
-		/*
-		 * Get metadata through GetFileInformationByHandle().
-		 */
-		if (fd >= 0) {
-			h = (HANDLE)_get_osfhandle(fd);
-			r = GetFileInformationByHandle(h, &bhfi);
-			if (r == 0) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't GetFileInformationByHandle");
-				return (ARCHIVE_FAILED);
-			}
-			entry_copy_bhfi(entry, path, NULL, &bhfi);
-		} else {
-			WIN32_FIND_DATAW findData;
-			DWORD flag, desiredAccess;
-	
-			h = FindFirstFileW(path, &findData);
-			if (h == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't FindFirstFileW");
-				return (ARCHIVE_FAILED);
-			}
-			FindClose(h);
-
-			flag = FILE_FLAG_BACKUP_SEMANTICS;
-			if (!a->follow_symlinks &&
-			    (findData.dwFileAttributes
-			      & FILE_ATTRIBUTE_REPARSE_POINT) &&
-				  (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
-				flag |= FILE_FLAG_OPEN_REPARSE_POINT;
-				desiredAccess = 0;
-			} else if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-				desiredAccess = 0;
-			} else
-				desiredAccess = GENERIC_READ;
-
-			h = CreateFileW(path, desiredAccess, FILE_SHARE_READ, NULL,
-			    OPEN_EXISTING, flag, NULL);
-			if (h == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
-			r = GetFileInformationByHandle(h, &bhfi);
-			if (r == 0) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't GetFileInformationByHandle");
-				CloseHandle(h);
-				return (ARCHIVE_FAILED);
-			}
-			entry_copy_bhfi(entry, path, &findData, &bhfi);
-		}
-		fileAttributes = bhfi.dwFileAttributes;
-	} else {
-		archive_entry_copy_stat(entry, st);
-		h = INVALID_HANDLE_VALUE;
-	}
-
-	/* Lookup uname/gname */
-	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
-	if (name != NULL)
-		archive_entry_copy_uname(entry, name);
-	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
-	if (name != NULL)
-		archive_entry_copy_gname(entry, name);
-
-	/*
-	 * Can this file be sparse file ?
-	 */
-	if (archive_entry_filetype(entry) != AE_IFREG
-	    || archive_entry_size(entry) <= 0
-		|| archive_entry_hardlink(entry) != NULL) {
-		if (h != INVALID_HANDLE_VALUE && fd < 0)
-			CloseHandle(h);
-		return (ARCHIVE_OK);
-	}
-
-	if (h == INVALID_HANDLE_VALUE) {
-		if (fd >= 0) {
-			h = (HANDLE)_get_osfhandle(fd);
-		} else {
-			h = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
-			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-			if (h == INVALID_HANDLE_VALUE) {
-				la_dosmaperr(GetLastError());
-				archive_set_error(&a->archive, errno,
-				    "Can't CreateFileW");
-				return (ARCHIVE_FAILED);
-			}
-		}
-		r = GetFileInformationByHandle(h, &bhfi);
-		if (r == 0) {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "Can't GetFileInformationByHandle");
-			if (h != INVALID_HANDLE_VALUE && fd < 0)
-				CloseHandle(h);
-			return (ARCHIVE_FAILED);
-		}
-		fileAttributes = bhfi.dwFileAttributes;
-	}
-
-	/* Sparse file must be set a mark, FILE_ATTRIBUTE_SPARSE_FILE */
-	if ((fileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) == 0) {
-		if (fd < 0)
-			CloseHandle(h);
-		return (ARCHIVE_OK);
-	}
-
-	r = setup_sparse_from_disk(a, entry, h);
-	if (fd < 0)
-		CloseHandle(h);
-
-	return (r);
-}
-
-/*
- * Windows sparse interface.
- */
-#if defined(__MINGW32__) && !defined(FSCTL_QUERY_ALLOCATED_RANGES)
-#define FSCTL_QUERY_ALLOCATED_RANGES 0x940CF
-typedef struct {
-	LARGE_INTEGER FileOffset;
-	LARGE_INTEGER Length;
-} FILE_ALLOCATED_RANGE_BUFFER;
+	archive_string_free(&t->path);
+#if defined(USE_READDIR_R)
+	free(t->dirent);
 #endif
-
-static int
-setup_sparse_from_disk(struct archive_read_disk *a,
-    struct archive_entry *entry, HANDLE handle)
-{
-	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
-	size_t outranges_size;
-	int64_t entry_size = archive_entry_size(entry);
-	int exit_sts = ARCHIVE_OK;
-
-	range.FileOffset.QuadPart = 0;
-	range.Length.QuadPart = entry_size;
-	outranges_size = 2048;
-	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
-	if (outranges == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-			"Couldn't allocate memory");
-		exit_sts = ARCHIVE_FATAL;
-		goto exit_setup_sparse;
-	}
-
-	for (;;) {
-		DWORD retbytes;
-		BOOL ret;
-
-		for (;;) {
-			ret = DeviceIoControl(handle,
-			    FSCTL_QUERY_ALLOCATED_RANGES,
-			    &range, sizeof(range), outranges,
-			    (DWORD)outranges_size, &retbytes, NULL);
-			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
-				free(outranges);
-				outranges_size *= 2;
-				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
-				    malloc(outranges_size);
-				if (outranges == NULL) {
-					archive_set_error(&a->archive, ENOMEM,
-					    "Couldn't allocate memory");
-					exit_sts = ARCHIVE_FATAL;
-					goto exit_setup_sparse;
-				}
-				continue;
-			} else
-				break;
-		}
-		if (ret != 0) {
-			if (retbytes > 0) {
-				DWORD i, n;
-
-				n = retbytes / sizeof(outranges[0]);
-				if (n == 1 &&
-				    outranges[0].FileOffset.QuadPart == 0 &&
-				    outranges[0].Length.QuadPart == entry_size)
-					break;/* This is not sparse. */
-				for (i = 0; i < n; i++)
-					archive_entry_sparse_add_entry(entry,
-					    outranges[i].FileOffset.QuadPart,
-						outranges[i].Length.QuadPart);
-				range.FileOffset.QuadPart =
-				    outranges[n-1].FileOffset.QuadPart
-				    + outranges[n-1].Length.QuadPart;
-				range.Length.QuadPart =
-				    entry_size - range.FileOffset.QuadPart;
-				if (range.Length.QuadPart > 0)
-					continue;
-			} else {
-				/* The remaining data is hole. */
-				archive_entry_sparse_add_entry(entry,
-				    range.FileOffset.QuadPart,
-				    range.Length.QuadPart);
-			}
-			break;
-		} else {
-			la_dosmaperr(GetLastError());
-			archive_set_error(&a->archive, errno,
-			    "DeviceIoControl Failed: %lu", GetLastError());
-			exit_sts = ARCHIVE_FAILED;
-			goto exit_setup_sparse;
-		}
-	}
-exit_setup_sparse:
-	free(outranges);
-
-	return (exit_sts);
+	free(t->sparse_list);
+	for (i = 0; i < t->max_filesystem_id; i++)
+		free(t->filesystem_table[i].allocation_ptr);
+	free(t->filesystem_table);
+	free(t);
 }
 
 #endif

@@ -1,11 +1,7 @@
-    struct mtree_option **global, const char *line, ssize_t line_len,
-    struct mtree_entry **last_entry, int is_form_d)
-{
-	struct mtree_entry *entry;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t name_len, len;
-	int r, i;
 
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
+size_t Curl_cyassl_version(char *buffer, size_t size)
+{
+#ifdef WOLFSSL_VERSION
+  return snprintf(buffer, size, "wolfSSL/%s", WOLFSSL_VERSION);
+#elif defined(CYASSL_VERSION)
+  return snprintf(buffer, size, "CyaSSL/%s", CYASSL_VERSION);
