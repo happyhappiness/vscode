@@ -19,6 +19,7 @@ GUMTREE_DIR = 'second/download/' + REPOS + '/' + REPOS + '-gumtree/'
 
 DOWNLOAD_OLD_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_file_'
 DOWNLOAD_NEW_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_new_file_'
+DOWNLOAD_PATCH_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_patch_'
 DOWNLOAD_OLD_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_old_hunk_'
 DOWNLOAD_NEW_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_new_hunk_'
 SAVE_REPOS_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_'
@@ -39,6 +40,7 @@ file name
 """
 LOG_CALL_FILE_NAME = 'data/fetch/' + REPOS + '_logging_statement.csv'
 FUNC_SIMILAIRTY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_func_similarity.csv'
+FETCH_PATCH_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_patch_fetch.csv'
 FETCH_HUNK_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_hunk_fetch.csv'
 FETCH_LOG_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_log_fetch.csv'
 ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_gumtree_analyze.csv'
@@ -54,9 +56,16 @@ REPOS_SIMILARITY_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_simila
 NODE_DICT_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_node_dict.csv'
 
 """
+fetch patch file title and index
+"""
+FETCH_PATCH_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'patch_file']
+FETCH_PATCH_PATCH_FILE = FETCH_PATCH_TITLE.index('patch_file')
+
+
+"""
 fetch hunk file title and index
 """
-FETCH_HUNK_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc', \
+FETCH_HUNK_TITLE = FETCH_PATCH_TITLE + ['old_hunk_file', 'new_hunk_file', 'old_hunk_loc', 'new_hunk_loc', \
 'old_log_loc', 'new_log_loc']
 FETCH_HUNK_OLD_HUNK_LOC = FETCH_HUNK_TITLE.index('old_hunk_loc')
 FETCH_HUNK_NEW_HUNK_LOC = FETCH_HUNK_TITLE.index('new_hunk_loc')
@@ -68,7 +77,7 @@ FETCH_HUNK_NEW_HUNK_FILE = FETCH_HUNK_TITLE.index('new_hunk_file')
 """
 fetch log file title and index
 """
-FETCH_LOG_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
+FETCH_LOG_TITLE = FETCH_PATCH_TITLE + ['old_hunk_file', 'new_hunk_file', 'old_hunk_loc', 'new_hunk_loc',\
  'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type']
 FETCH_LOG_SHA = FETCH_LOG_TITLE.index('sha')
 FETCH_LOG_ISSUE = FETCH_LOG_TITLE.index('issue')
@@ -84,8 +93,7 @@ FETCH_LOG_ACTION_TYPE = FETCH_LOG_TITLE.index('action_type')
 """
 analyze old new title and index
 """
-ANALYZE_OLD_NEW_GUMTREE_TITLE = ['sha', 'message', 'issue', 'file_name', 'old_file', 'new_file', 'old_hunk_file', 'new_hunk_file', 'old_hunk', 'new_hunk', 'old_hunk_loc', 'new_hunk_loc',\
- 'old_loc', 'new_loc', 'old_log', 'new_log', 'action_type', 'old_log_file', 'new_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_function_file', 'old_fucntion_loc']
+ANALYZE_OLD_NEW_GUMTREE_TITLE = FETCH_LOG_TITLE + ['old_log_file', 'new_log_file', 'old_block', 'old_block_file', 'old_block_feature', 'old_function_file', 'old_fucntion_loc']
 ANALYZE_OLD_NEW_OLD_FUNCTION_FILE = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_function_file')
 ANALYZE_OLD_NEW_OLD_FUNCTION_LOC = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('old_fucntion_loc')
 # ANALYZE_OLD_NEW_SHA = ANALYZE_OLD_NEW_GUMTREE_TITLE.index('sha')
@@ -171,6 +179,9 @@ LOG_OTHER_LOG_MODIFY = 2
 LOG_NO_MODIFY = 0
 LOG_LOG_MODIFY = 3
 LOG_LOG_FEATURE_MODIFY = 7
+
+HUNK_LOGS_MODIFY = 2
+HUNK_FEATURE_MODIFY = 4
 
 LOG_OVER_MODIFY = -1
 LOG_NO_MODIFY = 0
