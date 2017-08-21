@@ -1,34 +1,24 @@
-  return snprintf(p, len, " nghttp2/%s", h2->version_str);
-}
+    if(result)
+      return result;
 
-/* HTTP/2 error code to name based on the Error Code Registry.
-https://tools.ietf.org/html/rfc7540#page-77
-nghttp2_error_code enums are identical.
-*/
-const char *Curl_http2_strerror(uint32_t err) {
-#ifndef NGHTTP2_HAS_HTTP2_STRERROR
-  const char *str[] = {
-    "NO_ERROR",             /* 0x0 */
-    "PROTOCOL_ERROR",       /* 0x1 */
-    "INTERNAL_ERROR",       /* 0x2 */
-    "FLOW_CONTROL_ERROR",   /* 0x3 */
-    "SETTINGS_TIMEOUT",     /* 0x4 */
-    "STREAM_CLOSED",        /* 0x5 */
-    "FRAME_SIZE_ERROR",     /* 0x6 */
-    "REFUSED_STREAM",       /* 0x7 */
-    "CANCEL",               /* 0x8 */
-    "COMPRESSION_ERROR",    /* 0x9 */
-    "CONNECT_ERROR",        /* 0xA */
-    "ENHANCE_YOUR_CALM",    /* 0xB */
-    "INADEQUATE_SECURITY",  /* 0xC */
-    "HTTP_1_1_REQUIRED"     /* 0xD */
-  };
-  return (err < sizeof str / sizeof str[0]) ? str[err] : "unknown";
-#else
-  return nghttp2_http2_strerror(err);
-#endif
-}
+    filetime = (time_t)statbuf.st_mtime;
+    result = Curl_gmtime(filetime, &buffer);
+    if(result)
+      return result;
 
-/*
- * The implementation of nghttp2_send_callback type. Here we write |data| with
- * size |length| to the network and return the number of bytes actually
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+    snprintf(buf, BUFSIZE-1,
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+             tm->tm_mday,
+             Curl_month[tm->tm_mon],
+             tm->tm_year + 1900,
+             tm->tm_hour,
+             tm->tm_min,
+             tm->tm_sec);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(!result)
+      /* set the file size to make it available post transfer */
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }

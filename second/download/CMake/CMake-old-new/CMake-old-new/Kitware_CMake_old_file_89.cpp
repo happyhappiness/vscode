@@ -1,5 +1,6 @@
 /*-
- * Copyright (c) 2014 Sebastian Freundt
+ * Copyright (c) 2003-2007 Tim Kientzle
+ * Copyright (c) 2010-2012 Michihiro NAKAJIMA
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -24,780 +25,1055 @@
  */
 
 #include "archive_platform.h"
-__FBSDID("$FreeBSD$");
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_cpio.c 201163 2009-12-29 05:50:34Z kientzle $");
 
-/**
- * WARC is standardised by ISO TC46/SC4/WG12 and currently available as
- * ISO 28500:2009.
- * For the purposes of this file we used the final draft from:
- * http://bibnum.bnf.fr/warc/WARC_ISO_28500_version1_latestdraft.pdf
- *
- * Todo:
- * [ ] real-world warcs can contain resources at endpoints ending in /
- *     e.g. http://bibnum.bnf.fr/warc/
- *     if you're lucky their response contains a Content-Location: header
- *     pointing to a unix-compliant filename, in the example above it's
- *     Content-Location: http://bibnum.bnf.fr/warc/index.html
- *     however, that's not mandated and github for example doesn't follow
- *     this convention.
- *     We need a set of archive options to control what to do with
- *     entries like these, at the moment care is taken to skip them.
- *
- **/
-
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
+/* #include <stdint.h> */ /* See archive_platform.h */
 #ifdef HAVE_STDLIB_H
 #include <stdlib.h>
 #endif
 #ifdef HAVE_STRING_H
 #include <string.h>
 #endif
-#ifdef HAVE_LIMITS_H
-#include <limits.h>
-#endif
-#ifdef HAVE_CTYPE_H
-#include <ctype.h>
-#endif
-#ifdef HAVE_TIME_H
-#include <time.h>
-#endif
 
 #include "archive.h"
 #include "archive_entry.h"
+#include "archive_entry_locale.h"
 #include "archive_private.h"
 #include "archive_read_private.h"
 
-typedef enum {
-	WT_NONE,
-	/* warcinfo */
-	WT_INFO,
-	/* metadata */
-	WT_META,
-	/* resource */
-	WT_RSRC,
-	/* request, unsupported */
-	WT_REQ,
-	/* response, unsupported */
-	WT_RSP,
-	/* revisit, unsupported */
-	WT_RVIS,
-	/* conversion, unsupported */
-	WT_CONV,
-	/* continutation, unsupported at the moment */
-	WT_CONT,
-	/* invalid type */
-	LAST_WT
-} warc_type_t;
+#define	bin_magic_offset 0
+#define	bin_magic_size 2
+#define	bin_dev_offset 2
+#define	bin_dev_size 2
+#define	bin_ino_offset 4
+#define	bin_ino_size 2
+#define	bin_mode_offset 6
+#define	bin_mode_size 2
+#define	bin_uid_offset 8
+#define	bin_uid_size 2
+#define	bin_gid_offset 10
+#define	bin_gid_size 2
+#define	bin_nlink_offset 12
+#define	bin_nlink_size 2
+#define	bin_rdev_offset 14
+#define	bin_rdev_size 2
+#define	bin_mtime_offset 16
+#define	bin_mtime_size 4
+#define	bin_namesize_offset 20
+#define	bin_namesize_size 2
+#define	bin_filesize_offset 22
+#define	bin_filesize_size 4
+#define	bin_header_size 26
 
-typedef struct {
-	size_t len;
-	const char *str;
-} warc_string_t;
+#define	odc_magic_offset 0
+#define	odc_magic_size 6
+#define	odc_dev_offset 6
+#define	odc_dev_size 6
+#define	odc_ino_offset 12
+#define	odc_ino_size 6
+#define	odc_mode_offset 18
+#define	odc_mode_size 6
+#define	odc_uid_offset 24
+#define	odc_uid_size 6
+#define	odc_gid_offset 30
+#define	odc_gid_size 6
+#define	odc_nlink_offset 36
+#define	odc_nlink_size 6
+#define	odc_rdev_offset 42
+#define	odc_rdev_size 6
+#define	odc_mtime_offset 48
+#define	odc_mtime_size 11
+#define	odc_namesize_offset 59
+#define	odc_namesize_size 6
+#define	odc_filesize_offset 65
+#define	odc_filesize_size 11
+#define	odc_header_size 76
 
-typedef struct {
-	size_t len;
-	char *str;
-} warc_strbuf_t;
+#define	newc_magic_offset 0
+#define	newc_magic_size 6
+#define	newc_ino_offset 6
+#define	newc_ino_size 8
+#define	newc_mode_offset 14
+#define	newc_mode_size 8
+#define	newc_uid_offset 22
+#define	newc_uid_size 8
+#define	newc_gid_offset 30
+#define	newc_gid_size 8
+#define	newc_nlink_offset 38
+#define	newc_nlink_size 8
+#define	newc_mtime_offset 46
+#define	newc_mtime_size 8
+#define	newc_filesize_offset 54
+#define	newc_filesize_size 8
+#define	newc_devmajor_offset 62
+#define	newc_devmajor_size 8
+#define	newc_devminor_offset 70
+#define	newc_devminor_size 8
+#define	newc_rdevmajor_offset 78
+#define	newc_rdevmajor_size 8
+#define	newc_rdevminor_offset 86
+#define	newc_rdevminor_size 8
+#define	newc_namesize_offset 94
+#define	newc_namesize_size 8
+#define	newc_checksum_offset 102
+#define	newc_checksum_size 8
+#define	newc_header_size 110
 
-struct warc_s {
-	/* content length ahead */
-	size_t cntlen;
-	/* and how much we've processed so far */
-	size_t cntoff;
-	/* and how much we need to consume between calls */
-	size_t unconsumed;
+/*
+ * An afio large ASCII header, which they named itself.
+ * afio utility uses this header, if a file size is larger than 2G bytes
+ * or inode/uid/gid is bigger than 65535(0xFFFF) or mtime is bigger than
+ * 0x7fffffff, which we cannot record to odc header because of its limit.
+ * If not, uses odc header.
+ */
+#define	afiol_magic_offset 0
+#define	afiol_magic_size 6
+#define	afiol_dev_offset 6
+#define	afiol_dev_size 8	/* hex */
+#define	afiol_ino_offset 14
+#define	afiol_ino_size 16	/* hex */
+#define	afiol_ino_m_offset 30	/* 'm' */
+#define	afiol_mode_offset 31
+#define	afiol_mode_size 6	/* oct */
+#define	afiol_uid_offset 37
+#define	afiol_uid_size 8	/* hex */
+#define	afiol_gid_offset 45
+#define	afiol_gid_size 8	/* hex */
+#define	afiol_nlink_offset 53
+#define	afiol_nlink_size 8	/* hex */
+#define	afiol_rdev_offset 61
+#define	afiol_rdev_size 8	/* hex */
+#define	afiol_mtime_offset 69
+#define	afiol_mtime_size 16	/* hex */
+#define	afiol_mtime_n_offset 85	/* 'n' */
+#define	afiol_namesize_offset 86
+#define	afiol_namesize_size 4	/* hex */
+#define	afiol_flag_offset 90
+#define	afiol_flag_size 4	/* hex */
+#define	afiol_xsize_offset 94
+#define	afiol_xsize_size 4	/* hex */
+#define	afiol_xsize_s_offset 98	/* 's' */
+#define	afiol_filesize_offset 99
+#define	afiol_filesize_size 16	/* hex */
+#define	afiol_filesize_c_offset 115	/* ':' */
+#define afiol_header_size 116
 
-	/* string pool */
-	warc_strbuf_t pool;
-	/* previous version */
-	unsigned int pver;
-	/* stringified format name */
-	struct archive_string sver;
+
+struct links_entry {
+        struct links_entry      *next;
+        struct links_entry      *previous;
+        int                      links;
+        dev_t                    dev;
+        int64_t                  ino;
+        char                    *name;
 };
 
-static int _warc_bid(struct archive_read *a, int);
-static int _warc_cleanup(struct archive_read *a);
-static int _warc_read(struct archive_read*, const void**, size_t*, int64_t*);
-static int _warc_skip(struct archive_read *a);
-static int _warc_rdhdr(struct archive_read *a, struct archive_entry *e);
+#define	CPIO_MAGIC   0x13141516
+struct cpio {
+	int			  magic;
+	int			(*read_header)(struct archive_read *, struct cpio *,
+				     struct archive_entry *, size_t *, size_t *);
+	struct links_entry	 *links_head;
+	int64_t			  entry_bytes_remaining;
+	int64_t			  entry_bytes_unconsumed;
+	int64_t			  entry_offset;
+	int64_t			  entry_padding;
 
-/* private routines */
-static unsigned int _warc_rdver(const char buf[10], size_t bsz);
-static unsigned int _warc_rdtyp(const char *buf, size_t bsz);
-static warc_string_t _warc_rduri(const char *buf, size_t bsz);
-static ssize_t _warc_rdlen(const char *buf, size_t bsz);
-static time_t _warc_rdrtm(const char *buf, size_t bsz);
-static time_t _warc_rdmtm(const char *buf, size_t bsz);
-static const char *_warc_find_eoh(const char *buf, size_t bsz);
+	struct archive_string_conv *opt_sconv;
+	struct archive_string_conv *sconv_default;
+	int			  init_default_conversion;
+};
 
-
+static int64_t	atol16(const char *, unsigned);
+static int64_t	atol8(const char *, unsigned);
+static int	archive_read_format_cpio_bid(struct archive_read *, int);
+static int	archive_read_format_cpio_options(struct archive_read *,
+		    const char *, const char *);
+static int	archive_read_format_cpio_cleanup(struct archive_read *);
+static int	archive_read_format_cpio_read_data(struct archive_read *,
+		    const void **, size_t *, int64_t *);
+static int	archive_read_format_cpio_read_header(struct archive_read *,
+		    struct archive_entry *);
+static int	archive_read_format_cpio_skip(struct archive_read *);
+static int64_t	be4(const unsigned char *);
+static int	find_odc_header(struct archive_read *);
+static int	find_newc_header(struct archive_read *);
+static int	header_bin_be(struct archive_read *, struct cpio *,
+		    struct archive_entry *, size_t *, size_t *);
+static int	header_bin_le(struct archive_read *, struct cpio *,
+		    struct archive_entry *, size_t *, size_t *);
+static int	header_newc(struct archive_read *, struct cpio *,
+		    struct archive_entry *, size_t *, size_t *);
+static int	header_odc(struct archive_read *, struct cpio *,
+		    struct archive_entry *, size_t *, size_t *);
+static int	header_afiol(struct archive_read *, struct cpio *,
+		    struct archive_entry *, size_t *, size_t *);
+static int	is_octal(const char *, size_t);
+static int	is_hex(const char *, size_t);
+static int64_t	le4(const unsigned char *);
+static int	record_hardlink(struct archive_read *a,
+		    struct cpio *cpio, struct archive_entry *entry);
+
 int
-archive_read_support_format_warc(struct archive *_a)
+archive_read_support_format_cpio(struct archive *_a)
 {
 	struct archive_read *a = (struct archive_read *)_a;
-	struct warc_s *w;
+	struct cpio *cpio;
 	int r;
 
 	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_warc");
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_cpio");
 
-	if ((w = malloc(sizeof(*w))) == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate warc data");
+	cpio = (struct cpio *)calloc(1, sizeof(*cpio));
+	if (cpio == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
 		return (ARCHIVE_FATAL);
 	}
-	memset(w, 0, sizeof(*w));
+	cpio->magic = CPIO_MAGIC;
 
-	r = __archive_read_register_format(
-		a, w, "warc",
-		_warc_bid, NULL, _warc_rdhdr, _warc_read,
-		_warc_skip, NULL, _warc_cleanup, NULL, NULL);
+	r = __archive_read_register_format(a,
+	    cpio,
+	    "cpio",
+	    archive_read_format_cpio_bid,
+	    archive_read_format_cpio_options,
+	    archive_read_format_cpio_read_header,
+	    archive_read_format_cpio_read_data,
+	    archive_read_format_cpio_skip,
+	    NULL,
+	    archive_read_format_cpio_cleanup,
+	    NULL,
+	    NULL);
 
-	if (r != ARCHIVE_OK) {
-		free(w);
-		return (r);
-	}
+	if (r != ARCHIVE_OK)
+		free(cpio);
 	return (ARCHIVE_OK);
 }
 
-static int
-_warc_cleanup(struct archive_read *a)
-{
-	struct warc_s *w = a->format->data;
-
-	if (w->pool.len > 0U) {
-		free(w->pool.str);
-	}
-	archive_string_free(&w->sver);
-	free(w);
-	a->format->data = NULL;
-	return (ARCHIVE_OK);
-}
 
 static int
-_warc_bid(struct archive_read *a, int best_bid)
+archive_read_format_cpio_bid(struct archive_read *a, int best_bid)
 {
-	const char *hdr;
-	ssize_t nrd;
-	unsigned int ver;
+	const unsigned char *p;
+	struct cpio *cpio;
+	int bid;
 
 	(void)best_bid; /* UNUSED */
 
-	/* check first line of file, it should be a record already */
-	if ((hdr = __archive_read_ahead(a, 12U, &nrd)) == NULL) {
-		/* no idea what to do */
-		return -1;
-	} else if (nrd < 12) {
-		/* nah, not for us, our magic cookie is at least 12 bytes */
-		return -1;
-	}
+	cpio = (struct cpio *)(a->format->data);
 
-	/* otherwise snarf the record's version number */
-	ver = _warc_rdver(hdr, nrd);
-	if (ver == 0U || ver > 10000U) {
-		/* oh oh oh, best not to wager ... */
-		return -1;
-	}
+	if ((p = __archive_read_ahead(a, 6, NULL)) == NULL)
+		return (-1);
 
-	/* otherwise be confident */
-	return (64);
+	bid = 0;
+	if (memcmp(p, "070707", 6) == 0) {
+		/* ASCII cpio archive (odc, POSIX.1) */
+		cpio->read_header = header_odc;
+		bid += 48;
+		/*
+		 * XXX TODO:  More verification; Could check that only octal
+		 * digits appear in appropriate header locations. XXX
+		 */
+	} else if (memcmp(p, "070727", 6) == 0) {
+		/* afio large ASCII cpio archive */
+		cpio->read_header = header_odc;
+		bid += 48;
+		/*
+		 * XXX TODO:  More verification; Could check that almost hex
+		 * digits appear in appropriate header locations. XXX
+		 */
+	} else if (memcmp(p, "070701", 6) == 0) {
+		/* ASCII cpio archive (SVR4 without CRC) */
+		cpio->read_header = header_newc;
+		bid += 48;
+		/*
+		 * XXX TODO:  More verification; Could check that only hex
+		 * digits appear in appropriate header locations. XXX
+		 */
+	} else if (memcmp(p, "070702", 6) == 0) {
+		/* ASCII cpio archive (SVR4 with CRC) */
+		/* XXX TODO: Flag that we should check the CRC. XXX */
+		cpio->read_header = header_newc;
+		bid += 48;
+		/*
+		 * XXX TODO:  More verification; Could check that only hex
+		 * digits appear in appropriate header locations. XXX
+		 */
+	} else if (p[0] * 256 + p[1] == 070707) {
+		/* big-endian binary cpio archives */
+		cpio->read_header = header_bin_be;
+		bid += 16;
+		/* Is more verification possible here? */
+	} else if (p[0] + p[1] * 256 == 070707) {
+		/* little-endian binary cpio archives */
+		cpio->read_header = header_bin_le;
+		bid += 16;
+		/* Is more verification possible here? */
+	} else
+		return (ARCHIVE_WARN);
+
+	return (bid);
 }
 
 static int
-_warc_rdhdr(struct archive_read *a, struct archive_entry *entry)
+archive_read_format_cpio_options(struct archive_read *a,
+    const char *key, const char *val)
 {
-#define HDR_PROBE_LEN		(12U)
-	struct warc_s *w = a->format->data;
-	unsigned int ver;
-	const char *buf;
-	ssize_t nrd;
-	const char *eoh;
-	/* for the file name, saves some strndup()'ing */
-	warc_string_t fnam;
-	/* warc record type, not that we really use it a lot */
-	warc_type_t ftyp;
-	/* content-length+error monad */
-	ssize_t cntlen;
-	/* record time is the WARC-Date time we reinterpret it as ctime */
-	time_t rtime;
-	/* mtime is the Last-Modified time which will be the entry's mtime */
-	time_t mtime;
+	struct cpio *cpio;
+	int ret = ARCHIVE_FAILED;
 
-start_over:
-	/* just use read_ahead() they keep track of unconsumed
-	 * bits and bobs for us; no need to put an extra shift in
-	 * and reproduce that functionality here */
-	buf = __archive_read_ahead(a, HDR_PROBE_LEN, &nrd);
-
-	if (nrd < 0) {
-		/* no good */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if (buf == NULL) {
-		/* there should be room for at least WARC/bla\r\n
-		 * must be EOF therefore */
-		return (ARCHIVE_EOF);
-	}
- 	/* looks good so far, try and find the end of the header now */
-	eoh = _warc_find_eoh(buf, nrd);
-	if (eoh == NULL) {
-		/* still no good, the header end might be beyond the
-		 * probe we've requested, but then again who'd cram
-		 * so much stuff into the header *and* be 28500-compliant */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Bad record header");
-		return (ARCHIVE_FATAL);
-	} else if ((ver = _warc_rdver(buf, eoh - buf)) > 10000U) {
-		/* nawww, I wish they promised backward compatibility
-		 * anyhoo, in their infinite wisdom the 28500 guys might
-		 * come up with something we can't possibly handle so
-		 * best end things here */
-		archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Unsupported record version");
-		return (ARCHIVE_FATAL);
-	} else if ((cntlen = _warc_rdlen(buf, eoh - buf)) < 0) {
-		/* nightmare!  the specs say content-length is mandatory
-		 * so I don't feel overly bad stopping the reader here */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad content length");
-		return (ARCHIVE_FATAL);
-	} else if ((rtime = _warc_rdrtm(buf, eoh - buf)) == (time_t)-1) {
-		/* record time is mandatory as per WARC/1.0,
-		 * so just barf here, fast and loud */
-		archive_set_error(
-			&a->archive, EINVAL,
-			"Bad record time");
-		return (ARCHIVE_FATAL);
-	}
-
-	/* let the world know we're a WARC archive */
-	a->archive.archive_format = ARCHIVE_FORMAT_WARC;
-	if (ver != w->pver) {
-		/* stringify this entry's version */
-		archive_string_sprintf(&w->sver,
-			"WARC/%u.%u", ver / 10000, ver % 10000);
-		/* remember the version */
-		w->pver = ver;
-	}
-	/* start off with the type */
-	ftyp = _warc_rdtyp(buf, eoh - buf);
-	/* and let future calls know about the content */
-	w->cntlen = cntlen;
-	w->cntoff = 0U;
-	mtime = 0;/* Avoid compiling error on some platform. */
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		/* only try and read the filename in the cases that are
-		 * guaranteed to have one */
-		fnam = _warc_rduri(buf, eoh - buf);
-		/* check the last character in the URI to avoid creating
-		 * directory endpoints as files, see Todo above */
-		if (fnam.len == 0 || fnam.str[fnam.len - 1] == '/') {
-			/* break here for now */
-			fnam.len = 0U;
-			fnam.str = NULL;
-			break;
+	cpio = (struct cpio *)(a->format->data);
+	if (strcmp(key, "compat-2x")  == 0) {
+		/* Handle filnames as libarchive 2.x */
+		cpio->init_default_conversion = (val != NULL)?1:0;
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "cpio: hdrcharset option needs a character-set name");
+		else {
+			cpio->opt_sconv =
+			    archive_string_conversion_from_charset(
+				&a->archive, val, 0);
+			if (cpio->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
 		}
-		/* bang to our string pool, so we save a
-		 * malloc()+free() roundtrip */
-		if (fnam.len + 1U > w->pool.len) {
-			w->pool.len = ((fnam.len + 64U) / 64U) * 64U;
-			w->pool.str = realloc(w->pool.str, w->pool.len);
-		}
-		memcpy(w->pool.str, fnam.str, fnam.len);
-		w->pool.str[fnam.len] = '\0';
-		/* let noone else know about the pool, it's a secret, shhh */
-		fnam.str = w->pool.str;
-
-		/* snarf mtime or deduce from rtime
-		 * this is a custom header added by our writer, it's quite
-		 * hard to believe anyone else would go through with it
-		 * (apart from being part of some http responses of course) */
-		if ((mtime = _warc_rdmtm(buf, eoh - buf)) == (time_t)-1) {
-			mtime = rtime;
-		}
-		break;
-	default:
-		fnam.len = 0U;
-		fnam.str = NULL;
-		break;
+		return (ret);
 	}
 
-	/* now eat some of those delicious buffer bits */
-	__archive_read_consume(a, eoh - buf);
-
-	switch (ftyp) {
-	case WT_RSRC:
-	case WT_RSP:
-		if (fnam.len > 0U) {
-			/* populate entry object */
-			archive_entry_set_filetype(entry, AE_IFREG);
-			archive_entry_copy_pathname(entry, fnam.str);
-			archive_entry_set_size(entry, cntlen);
-			archive_entry_set_perm(entry, 0644);
-			/* rtime is the new ctime, mtime stays mtime */
-			archive_entry_set_ctime(entry, rtime, 0L);
-			archive_entry_set_mtime(entry, mtime, 0L);
-			break;
-		}
-		/* FALLTHROUGH */
-	default:
-		/* consume the content and start over */
-		_warc_skip(a);
-		goto start_over;
-	}
-	return (ARCHIVE_OK);
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }
 
 static int
-_warc_read(struct archive_read *a, const void **buf, size_t *bsz, int64_t *off)
+archive_read_format_cpio_read_header(struct archive_read *a,
+    struct archive_entry *entry)
 {
-	struct warc_s *w = a->format->data;
-	const char *rab;
-	ssize_t nrd;
+	struct cpio *cpio;
+	const void *h;
+	struct archive_string_conv *sconv;
+	size_t namelength;
+	size_t name_pad;
+	int r;
 
-	if (w->cntoff >= w->cntlen) {
-	eof:
-		/* it's our lucky day, no work, we can leave early */
-		*buf = NULL;
-		*bsz = 0U;
-		*off = w->cntoff + 4U/*for \r\n\r\n separator*/;
-		w->unconsumed = 0U;
-		return (ARCHIVE_EOF);
-	}
-
-	rab = __archive_read_ahead(a, 1U, &nrd);
-	if (nrd < 0) {
-		*bsz = 0U;
-		/* big catastrophe */
-		return (int)nrd;
-	} else if (nrd == 0) {
-		goto eof;
-	} else if ((size_t)nrd > w->cntlen - w->cntoff) {
-		/* clamp to content-length */
-		nrd = w->cntlen - w->cntoff;
-	}
-	*off = w->cntoff;
-	*bsz = nrd;
-	*buf = rab;
-
-	w->cntoff += nrd;
-	w->unconsumed = (size_t)nrd;
-	return (ARCHIVE_OK);
-}
-
-static int
-_warc_skip(struct archive_read *a)
-{
-	struct warc_s *w = a->format->data;
-
-	__archive_read_consume(a, w->cntlen + 4U/*\r\n\r\n separator*/);
-	w->cntlen = 0U;
-	w->cntoff = 0U;
-	return (ARCHIVE_OK);
-}
-
-
-/* private routines */
-static void*
-deconst(const void *c)
-{
-	return (char *)0x1 + (((const char *)c) - (const char *)0x1);
-}
-
-static char*
-xmemmem(const char *hay, const size_t haysize,
-	const char *needle, const size_t needlesize)
-{
-	const char *const eoh = hay + haysize;
-	const char *const eon = needle + needlesize;
-	const char *hp;
-	const char *np;
-	const char *cand;
-	unsigned int hsum;
-	unsigned int nsum;
-	unsigned int eqp;
-
-	/* trivial checks first
-         * a 0-sized needle is defined to be found anywhere in haystack
-         * then run strchr() to find a candidate in HAYSTACK (i.e. a portion
-         * that happens to begin with *NEEDLE) */
-	if (needlesize == 0UL) {
-		return deconst(hay);
-	} else if ((hay = memchr(hay, *needle, haysize)) == NULL) {
-		/* trivial */
-		return NULL;
-	}
-
-	/* First characters of haystack and needle are the same now. Both are
-	 * guaranteed to be at least one character long.  Now computes the sum
-	 * of characters values of needle together with the sum of the first
-	 * needle_len characters of haystack. */
-	for (hp = hay + 1U, np = needle + 1U, hsum = *hay, nsum = *hay, eqp = 1U;
-	     hp < eoh && np < eon;
-	     hsum ^= *hp, nsum ^= *np, eqp &= *hp == *np, hp++, np++);
-
-	/* HP now references the (NEEDLESIZE + 1)-th character. */
-	if (np < eon) {
-		/* haystack is smaller than needle, :O */
-		return NULL;
-	} else if (eqp) {
-		/* found a match */
-		return deconst(hay);
-	}
-
-	/* now loop through the rest of haystack,
-	 * updating the sum iteratively */
-	for (cand = hay; hp < eoh; hp++) {
-		hsum ^= *cand++;
-		hsum ^= *hp;
-
-		/* Since the sum of the characters is already known to be
-		 * equal at that point, it is enough to check just NEEDLESIZE - 1
-		 * characters for equality,
-		 * also CAND is by design < HP, so no need for range checks */
-		if (hsum == nsum && memcmp(cand, needle, needlesize - 1U) == 0) {
-			return deconst(cand);
+	cpio = (struct cpio *)(a->format->data);
+	sconv = cpio->opt_sconv;
+	if (sconv == NULL) {
+		if (!cpio->init_default_conversion) {
+			cpio->sconv_default =
+			    archive_string_default_conversion_for_read(
+			      &(a->archive));
+			cpio->init_default_conversion = 1;
 		}
+		sconv = cpio->sconv_default;
 	}
-	return NULL;
-}
+	
+	r = (cpio->read_header(a, cpio, entry, &namelength, &name_pad));
 
-static int
-strtoi_lim(const char *str, const char **ep, int llim, int ulim)
-{
-	int res = 0;
-	const char *sp;
-	/* we keep track of the number of digits via rulim */
-	int rulim;
+	if (r < ARCHIVE_WARN)
+		return (r);
 
-	for (sp = str, rulim = ulim > 10 ? ulim : 10;
-	     res * 10 <= ulim && rulim && *sp >= '0' && *sp <= '9';
-	     sp++, rulim /= 10) {
-		res *= 10;
-		res += *sp - '0';
+	/* Read name from buffer. */
+	h = __archive_read_ahead(a, namelength + name_pad, NULL);
+	if (h == NULL)
+	    return (ARCHIVE_FATAL);
+	if (archive_entry_copy_pathname_l(entry,
+	    (const char *)h, namelength, sconv) != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname can't be converted from %s to current locale.",
+		    archive_string_conversion_charset_name(sconv));
+		r = ARCHIVE_WARN;
 	}
-	if (sp == str) {
-		res = -1;
-	} else if (res < llim || res > ulim) {
-		res = -2;
-	}
-	*ep = (const char*)sp;
-	return res;
-}
+	cpio->entry_offset = 0;
 
-static time_t
-time_from_tm(struct tm *t)
-{
-#if HAVE_TIMEGM
-        /* Use platform timegm() if available. */
-        return (timegm(t));
-#elif HAVE__MKGMTIME64
-        return (_mkgmtime64(t));
-#else
-        /* Else use direct calculation using POSIX assumptions. */
-        /* First, fix up tm_yday based on the year/month/day. */
-        if (mktime(t) == (time_t)-1)
-                return ((time_t)-1);
-        /* Then we can compute timegm() from first principles. */
-        return (t->tm_sec
-            + t->tm_min * 60
-            + t->tm_hour * 3600
-            + t->tm_yday * 86400
-            + (t->tm_year - 70) * 31536000
-            + ((t->tm_year - 69) / 4) * 86400
-            - ((t->tm_year - 1) / 100) * 86400
-            + ((t->tm_year + 299) / 400) * 86400);
-#endif
-}
+	__archive_read_consume(a, namelength + name_pad);
 
-static time_t
-xstrpisotime(const char *s, char **endptr)
-{
-/** like strptime() but strictly for ISO 8601 Zulu strings */
-	struct tm tm;
-	time_t res = (time_t)-1;
-
-	/* make sure tm is clean */
-	memset(&tm, 0, sizeof(tm));
-
-	/* as a courtesy to our callers, and since this is a non-standard
-	 * routine, we skip leading whitespace */
-	for (; isspace(*s); s++);
-
-	/* read year */
-	if ((tm.tm_year = strtoi_lim(s, &s, 1583, 4095)) < 0 || *s++ != '-') {
-		goto out;
-	}
-	/* read month */
-	if ((tm.tm_mon = strtoi_lim(s, &s, 1, 12)) < 0 || *s++ != '-') {
-		goto out;
-	}
-	/* read day-of-month */
-	if ((tm.tm_mday = strtoi_lim(s, &s, 1, 31)) < 0 || *s++ != 'T') {
-		goto out;
-	}
-	/* read hour */
-	if ((tm.tm_hour = strtoi_lim(s, &s, 0, 23)) < 0 || *s++ != ':') {
-		goto out;
-	}
-	/* read minute */
-	if ((tm.tm_min = strtoi_lim(s, &s, 0, 59)) < 0 || *s++ != ':') {
-		goto out;
-	}
-	/* read second */
-	if ((tm.tm_sec = strtoi_lim(s, &s, 0, 60)) < 0 || *s++ != 'Z') {
-		goto out;
-	}
-
-	/* massage TM to fulfill some of POSIX' contraints */
-	tm.tm_year -= 1900;
-	tm.tm_mon--;
-
-	/* now convert our custom tm struct to a unix stamp using UTC */
-	res = time_from_tm(&tm);
-
-out:
-	if (endptr != NULL) {
-		*endptr = deconst(s);
-	}
-	return res;
-}
-
-static unsigned int
-_warc_rdver(const char buf[10], size_t bsz)
-{
-	static const char magic[] = "WARC/";
-	unsigned int ver;
-
-	(void)bsz; /* UNUSED */
-
-	if (memcmp(buf, magic, sizeof(magic) - 1U) != 0) {
-		/* nope */
-		return 99999U;
-	}
-	/* looks good so far, read the version number for a laugh */
-	buf += sizeof(magic) - 1U;
-	/* most common case gets a quick-check here */
-	if (memcmp(buf, "1.0\r\n", 5U) == 0) {
-		ver = 10000U;
-	} else {
-		switch (*buf) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-			if (buf[1U] == '.') {
-				char *on;
-
-				/* set up major version */
-				ver = (buf[0U] - '0') * 10000U;
-				/* minor version, anyone? */
-				ver += (strtol(buf + 2U, &on, 10)) * 100U;
-				/* don't parse anything else */
-				if (on > buf + 2U) {
-					break;
-				}
+	/* If this is a symlink, read the link contents. */
+	if (archive_entry_filetype(entry) == AE_IFLNK) {
+		if (cpio->entry_bytes_remaining > 1024 * 1024) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Rejecting malformed cpio archive: symlink contents exceed 1 megabyte");
+			return (ARCHIVE_FATAL);
+		}
+		h = __archive_read_ahead(a,
+			(size_t)cpio->entry_bytes_remaining, NULL);
+		if (h == NULL)
+			return (ARCHIVE_FATAL);
+		if (archive_entry_copy_symlink_l(entry, (const char *)h,
+		    (size_t)cpio->entry_bytes_remaining, sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");
+				return (ARCHIVE_FATAL);
 			}
-			/* FALLTHROUGH */
-		case '9':
-		default:
-			/* just make the version ridiculously high */
-			ver = 999999U;
-			break;
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Linkname can't be converted from %s to "
+			    "current locale.",
+			    archive_string_conversion_charset_name(sconv));
+			r = ARCHIVE_WARN;
+		}
+		__archive_read_consume(a, cpio->entry_bytes_remaining);
+		cpio->entry_bytes_remaining = 0;
+	}
+
+	/* XXX TODO: If the full mode is 0160200, then this is a Solaris
+	 * ACL description for the following entry.  Read this body
+	 * and parse it as a Solaris-style ACL, then read the next
+	 * header.  XXX */
+
+	/* Compare name to "TRAILER!!!" to test for end-of-archive. */
+	if (namelength == 11 && strcmp((const char *)h, "TRAILER!!!") == 0) {
+		/* TODO: Store file location of start of block. */
+		archive_clear_error(&a->archive);
+		return (ARCHIVE_EOF);
+	}
+
+	/* Detect and record hardlinks to previously-extracted entries. */
+	if (record_hardlink(a, cpio, entry) != ARCHIVE_OK) {
+		return (ARCHIVE_FATAL);
+	}
+
+	return (r);
+}
+
+static int
+archive_read_format_cpio_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
+{
+	ssize_t bytes_read;
+	struct cpio *cpio;
+
+	cpio = (struct cpio *)(a->format->data);
+
+	if (cpio->entry_bytes_unconsumed) {
+		__archive_read_consume(a, cpio->entry_bytes_unconsumed);
+		cpio->entry_bytes_unconsumed = 0;
+	}
+
+	if (cpio->entry_bytes_remaining > 0) {
+		*buff = __archive_read_ahead(a, 1, &bytes_read);
+		if (bytes_read <= 0)
+			return (ARCHIVE_FATAL);
+		if (bytes_read > cpio->entry_bytes_remaining)
+			bytes_read = (ssize_t)cpio->entry_bytes_remaining;
+		*size = bytes_read;
+		cpio->entry_bytes_unconsumed = bytes_read;
+		*offset = cpio->entry_offset;
+		cpio->entry_offset += bytes_read;
+		cpio->entry_bytes_remaining -= bytes_read;
+		return (ARCHIVE_OK);
+	} else {
+		if (cpio->entry_padding !=
+			__archive_read_consume(a, cpio->entry_padding)) {
+			return (ARCHIVE_FATAL);
+		}
+		cpio->entry_padding = 0;
+		*buff = NULL;
+		*size = 0;
+		*offset = cpio->entry_offset;
+		return (ARCHIVE_EOF);
+	}
+}
+
+static int
+archive_read_format_cpio_skip(struct archive_read *a)
+{
+	struct cpio *cpio = (struct cpio *)(a->format->data);
+	int64_t to_skip = cpio->entry_bytes_remaining + cpio->entry_padding +
+		cpio->entry_bytes_unconsumed;
+
+	if (to_skip != __archive_read_consume(a, to_skip)) {
+		return (ARCHIVE_FATAL);
+	}
+	cpio->entry_bytes_remaining = 0;
+	cpio->entry_padding = 0;
+	cpio->entry_bytes_unconsumed = 0;
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Skip forward to the next cpio newc header by searching for the
+ * 07070[12] string.  This should be generalized and merged with
+ * find_odc_header below.
+ */
+static int
+is_hex(const char *p, size_t len)
+{
+	while (len-- > 0) {
+		if ((*p >= '0' && *p <= '9')
+		    || (*p >= 'a' && *p <= 'f')
+		    || (*p >= 'A' && *p <= 'F'))
+			++p;
+		else
+			return (0);
+	}
+	return (1);
+}
+
+static int
+find_newc_header(struct archive_read *a)
+{
+	const void *h;
+	const char *p, *q;
+	size_t skip, skipped = 0;
+	ssize_t bytes;
+
+	for (;;) {
+		h = __archive_read_ahead(a, newc_header_size, &bytes);
+		if (h == NULL)
+			return (ARCHIVE_FATAL);
+		p = h;
+		q = p + bytes;
+
+		/* Try the typical case first, then go into the slow search.*/
+		if (memcmp("07070", p, 5) == 0
+		    && (p[5] == '1' || p[5] == '2')
+		    && is_hex(p, newc_header_size))
+			return (ARCHIVE_OK);
+
+		/*
+		 * Scan ahead until we find something that looks
+		 * like a newc header.
+		 */
+		while (p + newc_header_size <= q) {
+			switch (p[5]) {
+			case '1':
+			case '2':
+				if (memcmp("07070", p, 5) == 0
+				    && is_hex(p, newc_header_size)) {
+					skip = p - (const char *)h;
+					__archive_read_consume(a, skip);
+					skipped += skip;
+					if (skipped > 0) {
+						archive_set_error(&a->archive,
+						    0,
+						    "Skipped %d bytes before "
+						    "finding valid header",
+						    (int)skipped);
+						return (ARCHIVE_WARN);
+					}
+					return (ARCHIVE_OK);
+				}
+				p += 2;
+				break;
+			case '0':
+				p++;
+				break;
+			default:
+				p += 6;
+				break;
+			}
+		}
+		skip = p - (const char *)h;
+		__archive_read_consume(a, skip);
+		skipped += skip;
+	}
+}
+
+static int
+header_newc(struct archive_read *a, struct cpio *cpio,
+    struct archive_entry *entry, size_t *namelength, size_t *name_pad)
+{
+	const void *h;
+	const char *header;
+	int r;
+
+	r = find_newc_header(a);
+	if (r < ARCHIVE_WARN)
+		return (r);
+
+	/* Read fixed-size portion of header. */
+	h = __archive_read_ahead(a, newc_header_size, NULL);
+	if (h == NULL)
+	    return (ARCHIVE_FATAL);
+
+	/* Parse out hex fields. */
+	header = (const char *)h;
+
+	if (memcmp(header + newc_magic_offset, "070701", 6) == 0) {
+		a->archive.archive_format = ARCHIVE_FORMAT_CPIO_SVR4_NOCRC;
+		a->archive.archive_format_name = "ASCII cpio (SVR4 with no CRC)";
+	} else if (memcmp(header + newc_magic_offset, "070702", 6) == 0) {
+		a->archive.archive_format = ARCHIVE_FORMAT_CPIO_SVR4_CRC;
+		a->archive.archive_format_name = "ASCII cpio (SVR4 with CRC)";
+	} else {
+		/* TODO: Abort here? */
+	}
+
+	archive_entry_set_devmajor(entry,
+		(dev_t)atol16(header + newc_devmajor_offset, newc_devmajor_size));
+	archive_entry_set_devminor(entry, 
+		(dev_t)atol16(header + newc_devminor_offset, newc_devminor_size));
+	archive_entry_set_ino(entry, atol16(header + newc_ino_offset, newc_ino_size));
+	archive_entry_set_mode(entry, 
+		(mode_t)atol16(header + newc_mode_offset, newc_mode_size));
+	archive_entry_set_uid(entry, atol16(header + newc_uid_offset, newc_uid_size));
+	archive_entry_set_gid(entry, atol16(header + newc_gid_offset, newc_gid_size));
+	archive_entry_set_nlink(entry,
+		(unsigned int)atol16(header + newc_nlink_offset, newc_nlink_size));
+	archive_entry_set_rdevmajor(entry,
+		(dev_t)atol16(header + newc_rdevmajor_offset, newc_rdevmajor_size));
+	archive_entry_set_rdevminor(entry,
+		(dev_t)atol16(header + newc_rdevminor_offset, newc_rdevminor_size));
+	archive_entry_set_mtime(entry, atol16(header + newc_mtime_offset, newc_mtime_size), 0);
+	*namelength = (size_t)atol16(header + newc_namesize_offset, newc_namesize_size);
+	/* Pad name to 2 more than a multiple of 4. */
+	*name_pad = (2 - *namelength) & 3;
+
+	/*
+	 * Note: entry_bytes_remaining is at least 64 bits and
+	 * therefore guaranteed to be big enough for a 33-bit file
+	 * size.
+	 */
+	cpio->entry_bytes_remaining =
+	    atol16(header + newc_filesize_offset, newc_filesize_size);
+	archive_entry_set_size(entry, cpio->entry_bytes_remaining);
+	/* Pad file contents to a multiple of 4. */
+	cpio->entry_padding = 3 & -cpio->entry_bytes_remaining;
+	__archive_read_consume(a, newc_header_size);
+	return (r);
+}
+
+/*
+ * Skip forward to the next cpio odc header by searching for the
+ * 070707 string.  This is a hand-optimized search that could
+ * probably be easily generalized to handle all character-based
+ * cpio variants.
+ */
+static int
+is_octal(const char *p, size_t len)
+{
+	while (len-- > 0) {
+		if (*p < '0' || *p > '7')
+			return (0);
+	        ++p;
+	}
+	return (1);
+}
+
+static int
+is_afio_large(const char *h, size_t len)
+{
+	if (len < afiol_header_size)
+		return (0);
+	if (h[afiol_ino_m_offset] != 'm'
+	    || h[afiol_mtime_n_offset] != 'n'
+	    || h[afiol_xsize_s_offset] != 's'
+	    || h[afiol_filesize_c_offset] != ':')
+		return (0);
+	if (!is_hex(h + afiol_dev_offset, afiol_ino_m_offset - afiol_dev_offset))
+		return (0);
+	if (!is_hex(h + afiol_mode_offset, afiol_mtime_n_offset - afiol_mode_offset))
+		return (0);
+	if (!is_hex(h + afiol_namesize_offset, afiol_xsize_s_offset - afiol_namesize_offset))
+		return (0);
+	if (!is_hex(h + afiol_filesize_offset, afiol_filesize_size))
+		return (0);
+	return (1);
+}
+
+static int
+find_odc_header(struct archive_read *a)
+{
+	const void *h;
+	const char *p, *q;
+	size_t skip, skipped = 0;
+	ssize_t bytes;
+
+	for (;;) {
+		h = __archive_read_ahead(a, odc_header_size, &bytes);
+		if (h == NULL)
+			return (ARCHIVE_FATAL);
+		p = h;
+		q = p + bytes;
+
+		/* Try the typical case first, then go into the slow search.*/
+		if (memcmp("070707", p, 6) == 0 && is_octal(p, odc_header_size))
+			return (ARCHIVE_OK);
+		if (memcmp("070727", p, 6) == 0 && is_afio_large(p, bytes)) {
+			a->archive.archive_format = ARCHIVE_FORMAT_CPIO_AFIO_LARGE;
+			return (ARCHIVE_OK);
+		}
+
+		/*
+		 * Scan ahead until we find something that looks
+		 * like an odc header.
+		 */
+		while (p + odc_header_size <= q) {
+			switch (p[5]) {
+			case '7':
+				if ((memcmp("070707", p, 6) == 0
+				    && is_octal(p, odc_header_size))
+				    || (memcmp("070727", p, 6) == 0
+				        && is_afio_large(p, q - p))) {
+					skip = p - (const char *)h;
+					__archive_read_consume(a, skip);
+					skipped += skip;
+					if (p[4] == '2')
+						a->archive.archive_format =
+						    ARCHIVE_FORMAT_CPIO_AFIO_LARGE;
+					if (skipped > 0) {
+						archive_set_error(&a->archive,
+						    0,
+						    "Skipped %d bytes before "
+						    "finding valid header",
+						    (int)skipped);
+						return (ARCHIVE_WARN);
+					}
+					return (ARCHIVE_OK);
+				}
+				p += 2;
+				break;
+			case '0':
+				p++;
+				break;
+			default:
+				p += 6;
+				break;
+			}
+		}
+		skip = p - (const char *)h;
+		__archive_read_consume(a, skip);
+		skipped += skip;
+	}
+}
+
+static int
+header_odc(struct archive_read *a, struct cpio *cpio,
+    struct archive_entry *entry, size_t *namelength, size_t *name_pad)
+{
+	const void *h;
+	int r;
+	const char *header;
+
+	a->archive.archive_format = ARCHIVE_FORMAT_CPIO_POSIX;
+	a->archive.archive_format_name = "POSIX octet-oriented cpio";
+
+	/* Find the start of the next header. */
+	r = find_odc_header(a);
+	if (r < ARCHIVE_WARN)
+		return (r);
+
+	if (a->archive.archive_format == ARCHIVE_FORMAT_CPIO_AFIO_LARGE) {
+		int r2 = (header_afiol(a, cpio, entry, namelength, name_pad));
+		if (r2 == ARCHIVE_OK)
+			return (r);
+		else
+			return (r2);
+	}
+
+	/* Read fixed-size portion of header. */
+	h = __archive_read_ahead(a, odc_header_size, NULL);
+	if (h == NULL)
+	    return (ARCHIVE_FATAL);
+
+	/* Parse out octal fields. */
+	header = (const char *)h;
+
+	archive_entry_set_dev(entry, 
+		(dev_t)atol8(header + odc_dev_offset, odc_dev_size));
+	archive_entry_set_ino(entry, atol8(header + odc_ino_offset, odc_ino_size));
+	archive_entry_set_mode(entry, 
+		(mode_t)atol8(header + odc_mode_offset, odc_mode_size));
+	archive_entry_set_uid(entry, atol8(header + odc_uid_offset, odc_uid_size));
+	archive_entry_set_gid(entry, atol8(header + odc_gid_offset, odc_gid_size));
+	archive_entry_set_nlink(entry, 
+		(unsigned int)atol8(header + odc_nlink_offset, odc_nlink_size));
+	archive_entry_set_rdev(entry,
+		(dev_t)atol8(header + odc_rdev_offset, odc_rdev_size));
+	archive_entry_set_mtime(entry, atol8(header + odc_mtime_offset, odc_mtime_size), 0);
+	*namelength = (size_t)atol8(header + odc_namesize_offset, odc_namesize_size);
+	*name_pad = 0; /* No padding of filename. */
+
+	/*
+	 * Note: entry_bytes_remaining is at least 64 bits and
+	 * therefore guaranteed to be big enough for a 33-bit file
+	 * size.
+	 */
+	cpio->entry_bytes_remaining =
+	    atol8(header + odc_filesize_offset, odc_filesize_size);
+	archive_entry_set_size(entry, cpio->entry_bytes_remaining);
+	cpio->entry_padding = 0;
+	__archive_read_consume(a, odc_header_size);
+	return (r);
+}
+
+/*
+ * NOTE: if a filename suffix is ".z", it is the file gziped by afio.
+ * it would be nice that we can show uncompressed file size and we can
+ * uncompressed file contents automatically, unfortunately we have nothing
+ * to get a uncompressed file size while reading each header. it means
+ * we also cannot uncompressed file contens under the our framework.
+ */
+static int
+header_afiol(struct archive_read *a, struct cpio *cpio,
+    struct archive_entry *entry, size_t *namelength, size_t *name_pad)
+{
+	const void *h;
+	const char *header;
+
+	a->archive.archive_format = ARCHIVE_FORMAT_CPIO_AFIO_LARGE;
+	a->archive.archive_format_name = "afio large ASCII";
+
+	/* Read fixed-size portion of header. */
+	h = __archive_read_ahead(a, afiol_header_size, NULL);
+	if (h == NULL)
+	    return (ARCHIVE_FATAL);
+
+	/* Parse out octal fields. */
+	header = (const char *)h;
+
+	archive_entry_set_dev(entry, 
+		(dev_t)atol16(header + afiol_dev_offset, afiol_dev_size));
+	archive_entry_set_ino(entry, atol16(header + afiol_ino_offset, afiol_ino_size));
+	archive_entry_set_mode(entry,
+		(mode_t)atol8(header + afiol_mode_offset, afiol_mode_size));
+	archive_entry_set_uid(entry, atol16(header + afiol_uid_offset, afiol_uid_size));
+	archive_entry_set_gid(entry, atol16(header + afiol_gid_offset, afiol_gid_size));
+	archive_entry_set_nlink(entry,
+		(unsigned int)atol16(header + afiol_nlink_offset, afiol_nlink_size));
+	archive_entry_set_rdev(entry,
+		(dev_t)atol16(header + afiol_rdev_offset, afiol_rdev_size));
+	archive_entry_set_mtime(entry, atol16(header + afiol_mtime_offset, afiol_mtime_size), 0);
+	*namelength = (size_t)atol16(header + afiol_namesize_offset, afiol_namesize_size);
+	*name_pad = 0; /* No padding of filename. */
+
+	cpio->entry_bytes_remaining =
+	    atol16(header + afiol_filesize_offset, afiol_filesize_size);
+	archive_entry_set_size(entry, cpio->entry_bytes_remaining);
+	cpio->entry_padding = 0;
+	__archive_read_consume(a, afiol_header_size);
+	return (ARCHIVE_OK);
+}
+
+
+static int
+header_bin_le(struct archive_read *a, struct cpio *cpio,
+    struct archive_entry *entry, size_t *namelength, size_t *name_pad)
+{
+	const void *h;
+	const unsigned char *header;
+
+	a->archive.archive_format = ARCHIVE_FORMAT_CPIO_BIN_LE;
+	a->archive.archive_format_name = "cpio (little-endian binary)";
+
+	/* Read fixed-size portion of header. */
+	h = __archive_read_ahead(a, bin_header_size, NULL);
+	if (h == NULL) {
+	    archive_set_error(&a->archive, 0,
+		"End of file trying to read next cpio header");
+	    return (ARCHIVE_FATAL);
+	}
+
+	/* Parse out binary fields. */
+	header = (const unsigned char *)h;
+
+	archive_entry_set_dev(entry, header[bin_dev_offset] + header[bin_dev_offset + 1] * 256);
+	archive_entry_set_ino(entry, header[bin_ino_offset] + header[bin_ino_offset + 1] * 256);
+	archive_entry_set_mode(entry, header[bin_mode_offset] + header[bin_mode_offset + 1] * 256);
+	archive_entry_set_uid(entry, header[bin_uid_offset] + header[bin_uid_offset + 1] * 256);
+	archive_entry_set_gid(entry, header[bin_gid_offset] + header[bin_gid_offset + 1] * 256);
+	archive_entry_set_nlink(entry, header[bin_nlink_offset] + header[bin_nlink_offset + 1] * 256);
+	archive_entry_set_rdev(entry, header[bin_rdev_offset] + header[bin_rdev_offset + 1] * 256);
+	archive_entry_set_mtime(entry, le4(header + bin_mtime_offset), 0);
+	*namelength = header[bin_namesize_offset] + header[bin_namesize_offset + 1] * 256;
+	*name_pad = *namelength & 1; /* Pad to even. */
+
+	cpio->entry_bytes_remaining = le4(header + bin_filesize_offset);
+	archive_entry_set_size(entry, cpio->entry_bytes_remaining);
+	cpio->entry_padding = cpio->entry_bytes_remaining & 1; /* Pad to even. */
+	__archive_read_consume(a, bin_header_size);
+	return (ARCHIVE_OK);
+}
+
+static int
+header_bin_be(struct archive_read *a, struct cpio *cpio,
+    struct archive_entry *entry, size_t *namelength, size_t *name_pad)
+{
+	const void *h;
+	const unsigned char *header;
+
+	a->archive.archive_format = ARCHIVE_FORMAT_CPIO_BIN_BE;
+	a->archive.archive_format_name = "cpio (big-endian binary)";
+
+	/* Read fixed-size portion of header. */
+	h = __archive_read_ahead(a, bin_header_size, NULL);
+	if (h == NULL) {
+	    archive_set_error(&a->archive, 0,
+		"End of file trying to read next cpio header");
+	    return (ARCHIVE_FATAL);
+	}
+
+	/* Parse out binary fields. */
+	header = (const unsigned char *)h;
+
+	archive_entry_set_dev(entry, header[bin_dev_offset] * 256 + header[bin_dev_offset + 1]);
+	archive_entry_set_ino(entry, header[bin_ino_offset] * 256 + header[bin_ino_offset + 1]);
+	archive_entry_set_mode(entry, header[bin_mode_offset] * 256 + header[bin_mode_offset + 1]);
+	archive_entry_set_uid(entry, header[bin_uid_offset] * 256 + header[bin_uid_offset + 1]);
+	archive_entry_set_gid(entry, header[bin_gid_offset] * 256 + header[bin_gid_offset + 1]);
+	archive_entry_set_nlink(entry, header[bin_nlink_offset] * 256 + header[bin_nlink_offset + 1]);
+	archive_entry_set_rdev(entry, header[bin_rdev_offset] * 256 + header[bin_rdev_offset + 1]);
+	archive_entry_set_mtime(entry, be4(header + bin_mtime_offset), 0);
+	*namelength = header[bin_namesize_offset] * 256 + header[bin_namesize_offset + 1];
+	*name_pad = *namelength & 1; /* Pad to even. */
+
+	cpio->entry_bytes_remaining = be4(header + bin_filesize_offset);
+	archive_entry_set_size(entry, cpio->entry_bytes_remaining);
+	cpio->entry_padding = cpio->entry_bytes_remaining & 1; /* Pad to even. */
+	    __archive_read_consume(a, bin_header_size);
+	return (ARCHIVE_OK);
+}
+
+static int
+archive_read_format_cpio_cleanup(struct archive_read *a)
+{
+	struct cpio *cpio;
+
+	cpio = (struct cpio *)(a->format->data);
+        /* Free inode->name map */
+        while (cpio->links_head != NULL) {
+                struct links_entry *lp = cpio->links_head->next;
+
+                if (cpio->links_head->name)
+                        free(cpio->links_head->name);
+                free(cpio->links_head);
+                cpio->links_head = lp;
+        }
+	free(cpio);
+	(a->format->data) = NULL;
+	return (ARCHIVE_OK);
+}
+
+static int64_t
+le4(const unsigned char *p)
+{
+	return ((p[0] << 16) + (((int64_t)p[1]) << 24) + (p[2] << 0) + (p[3] << 8));
+}
+
+
+static int64_t
+be4(const unsigned char *p)
+{
+	return ((((int64_t)p[0]) << 24) + (p[1] << 16) + (p[2] << 8) + (p[3]));
+}
+
+/*
+ * Note that this implementation does not (and should not!) obey
+ * locale settings; you cannot simply substitute strtol here, since
+ * it does obey locale.
+ */
+static int64_t
+atol8(const char *p, unsigned char_cnt)
+{
+	int64_t l;
+	int digit;
+
+	l = 0;
+	while (char_cnt-- > 0) {
+		if (*p >= '0' && *p <= '7')
+			digit = *p - '0';
+		else
+			return (l);
+		p++;
+		l <<= 3;
+		l |= digit;
+	}
+	return (l);
+}
+
+static int64_t
+atol16(const char *p, unsigned char_cnt)
+{
+	int64_t l;
+	int digit;
+
+	l = 0;
+	while (char_cnt-- > 0) {
+		if (*p >= 'a' && *p <= 'f')
+			digit = *p - 'a' + 10;
+		else if (*p >= 'A' && *p <= 'F')
+			digit = *p - 'A' + 10;
+		else if (*p >= '0' && *p <= '9')
+			digit = *p - '0';
+		else
+			return (l);
+		p++;
+		l <<= 4;
+		l |= digit;
+	}
+	return (l);
+}
+
+static int
+record_hardlink(struct archive_read *a,
+    struct cpio *cpio, struct archive_entry *entry)
+{
+	struct links_entry      *le;
+	dev_t dev;
+	int64_t ino;
+
+	if (archive_entry_nlink(entry) <= 1)
+		return (ARCHIVE_OK);
+
+	dev = archive_entry_dev(entry);
+	ino = archive_entry_ino64(entry);
+
+	/*
+	 * First look in the list of multiply-linked files.  If we've
+	 * already dumped it, convert this entry to a hard link entry.
+	 */
+	for (le = cpio->links_head; le; le = le->next) {
+		if (le->dev == dev && le->ino == ino) {
+			archive_entry_copy_hardlink(entry, le->name);
+
+			if (--le->links <= 0) {
+				if (le->previous != NULL)
+					le->previous->next = le->next;
+				if (le->next != NULL)
+					le->next->previous = le->previous;
+				if (cpio->links_head == le)
+					cpio->links_head = le->next;
+				free(le->name);
+				free(le);
+			}
+
+			return (ARCHIVE_OK);
 		}
 	}
-	return ver;
+
+	le = (struct links_entry *)malloc(sizeof(struct links_entry));
+	if (le == NULL) {
+		archive_set_error(&a->archive,
+		    ENOMEM, "Out of memory adding file to list");
+		return (ARCHIVE_FATAL);
+	}
+	if (cpio->links_head != NULL)
+		cpio->links_head->previous = le;
+	le->next = cpio->links_head;
+	le->previous = NULL;
+	cpio->links_head = le;
+	le->dev = dev;
+	le->ino = ino;
+	le->links = archive_entry_nlink(entry) - 1;
+	le->name = strdup(archive_entry_pathname(entry));
+	if (le->name == NULL) {
+		archive_set_error(&a->archive,
+		    ENOMEM, "Out of memory adding file to list");
+		return (ARCHIVE_FATAL);
+	}
+
+	return (ARCHIVE_OK);
 }
-
-static unsigned int
-_warc_rdtyp(const char *buf, size_t bsz)
-{
-	static const char _key[] = "\r\nWARC-Type:";
-	const char *const eob = buf + bsz;
-	const char *val;
-
-	if ((val = xmemmem(buf, bsz, _key, sizeof(_key) - 1U)) == NULL) {
-		/* no bother */
-		return WT_NONE;
-	}
-	/* overread whitespace */
-	for (val += sizeof(_key) - 1U; val < eob && isspace(*val); val++);
-
-	if (val + 8U > eob) {
-		;
-	} else if (memcmp(val, "resource", 8U) == 0) {
-		return WT_RSRC;
-	} else if (memcmp(val, "warcinfo", 8U) == 0) {
-		return WT_INFO;
-	} else if (memcmp(val, "metadata", 8U) == 0) {
-		return WT_META;
-	} else if (memcmp(val, "request", 7U) == 0) {
-		return WT_REQ;
-	} else if (memcmp(val, "response", 8U) == 0) {
-		return WT_RSP;
-	} else if (memcmp(val, "conversi", 8U) == 0) {
-		return WT_CONV;
-	} else if (memcmp(val, "continua", 8U) == 0) {
-		return WT_CONT;
-	}
-	return WT_NONE;
-}
-
-static warc_string_t
-_warc_rduri(const char *buf, size_t bsz)
-{
-	static const char _key[] = "\r\nWARC-Target-URI:";
-	const char *const eob = buf + bsz;
-	const char *val;
-	const char *uri;
-	const char *eol;
-	warc_string_t res = {0U, NULL};
-
-	if ((val = xmemmem(buf, bsz, _key, sizeof(_key) - 1U)) == NULL) {
-		/* no bother */
-		return res;
-	}
-	/* overread whitespace */
-	for (val += sizeof(_key) - 1U; val < eob && isspace(*val); val++);
-
-	/* overread URL designators */
-	if ((uri = xmemmem(val, eob - val, "://", 3U)) == NULL) {
-		/* not touching that! */
-		return res;
-	} else if ((eol = memchr(uri, '\n', eob - uri)) == NULL) {
-		/* no end of line? :O */
-		return res;
-	}
-
-	/* massage uri to point to after :// */
-	uri += 3U;
-	/* also massage eol to point to the first whitespace
-	 * after the last non-whitespace character before
-	 * the end of the line */
-	for (; eol > uri && isspace(eol[-1]); eol--);
-
-	/* now then, inspect the URI */
-	if (memcmp(val, "file", 4U) == 0) {
-		/* perfect, nothing left to do here */
-
-	} else if (memcmp(val, "http", 4U) == 0 ||
-		   memcmp(val, "ftp", 3U) == 0) {
-		/* overread domain, and the first / */
-		while (uri < eol && *uri++ != '/');
-	} else {
-		/* not sure what to do? best to bugger off */
-		return res;
-	}
-	res.str = uri;
-	res.len = eol - uri;
-	return res;
-}
-
-static ssize_t
-_warc_rdlen(const char *buf, size_t bsz)
-{
-	static const char _key[] = "\r\nContent-Length:";
-	const char *val;
-	char *on = NULL;
-	long int len;
-
-	if ((val = xmemmem(buf, bsz, _key, sizeof(_key) - 1U)) == NULL) {
-		/* no bother */
-		return -1;
-	}
-
-	/* strtol kindly overreads whitespace for us, so use that */
-	val += sizeof(_key) - 1U;
-	len = strtol(val, &on, 10);
-	if (on == NULL || !isspace(*on)) {
-		/* hm, can we trust that number?  Best not. */
-		return -1;
-	}
-	return (size_t)len;
-}
-
-static time_t
-_warc_rdrtm(const char *buf, size_t bsz)
-{
-	static const char _key[] = "\r\nWARC-Date:";
-	const char *val;
-	char *on = NULL;
-	time_t res;
-
-	if ((val = xmemmem(buf, bsz, _key, sizeof(_key) - 1U)) == NULL) {
-		/* no bother */
-		return (time_t)-1;
-	}
-
-	/* xstrpisotime() kindly overreads whitespace for us, so use that */
-	val += sizeof(_key) - 1U;
-	res = xstrpisotime(val, &on);
-	if (on == NULL || !isspace(*on)) {
-		/* hm, can we trust that number?  Best not. */
-		return (time_t)-1;
-	}
-	return res;
-}
-
-static time_t
-_warc_rdmtm(const char *buf, size_t bsz)
-{
-	static const char _key[] = "\r\nLast-Modified:";
-	const char *val;
-	char *on = NULL;
-	time_t res;
-
-	if ((val = xmemmem(buf, bsz, _key, sizeof(_key) - 1U)) == NULL) {
-		/* no bother */
-		return (time_t)-1;
-	}
-
-	/* xstrpisotime() kindly overreads whitespace for us, so use that */
-	val += sizeof(_key) - 1U;
-	res = xstrpisotime(val, &on);
-	if (on == NULL || !isspace(*on)) {
-		/* hm, can we trust that number?  Best not. */
-		return (time_t)-1;
-	}
-	return res;
-}
-
-static const char*
-_warc_find_eoh(const char *buf, size_t bsz)
-{
-	static const char _marker[] = "\r\n\r\n";
-	const char *hit = xmemmem(buf, bsz, _marker, sizeof(_marker) - 1U);
-
-	if (hit != NULL) {
-		hit += sizeof(_marker) - 1U;
-	}
-	return hit;
-}
-
-static const char*
-_warc_find_eol(const char *buf, size_t bsz)
-{
-	static const char _marker[] = "\r\n";
-	const char *hit = xmemmem(buf, bsz, _marker, sizeof(_marker) - 1U);
-
-	return hit;
-}
-/* archive_read_support_format_warc.c ends here */

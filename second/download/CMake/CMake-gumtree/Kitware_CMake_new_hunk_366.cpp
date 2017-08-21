@@ -1,8 +1,10 @@
+ *
+ * If you ever want truly portable and good *printf() clones, the project that
+ * took on from here is named 'Trio' and you find more details on the trio web
+ * page at https://daniel.haxx.se/projects/trio/
+ */
 
-CURLcode Curl_sendf(curl_socket_t sockfd, struct connectdata *,
-                    const char *fmt, ...);
-void Curl_infof(struct Curl_easy *, const char *fmt, ...);
-void Curl_failf(struct Curl_easy *, const char *fmt, ...);
+#include "curl_setup.h"
+#include <curl/mprintf.h>
 
-#if defined(CURL_DISABLE_VERBOSE_STRINGS)
-
+#include "curl_memory.h"

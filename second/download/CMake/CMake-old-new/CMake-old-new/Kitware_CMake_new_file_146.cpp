@@ -1,686 +1,255 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-   file Copyright.txt or https://cmake.org/licensing for details.  */
-#include "cmCoreTryCompile.h"
+   file Copyright.txt or https://cmake.org/licensing#kwsys for details.  */
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(Configure.hxx)
 
-#include "cmAlgorithms.h"
-#include "cmExportTryCompileFileGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmOutputConverter.h"
-#include "cmake.h"
-#include <cmsys/Directory.hxx>
+// Include the streams library.
+#include <iostream>
+#include KWSYS_HEADER(IOStream.hxx)
 
-#include <assert.h>
+// Work-around CMake dependency scanning limitation.  This must
+// duplicate the above list of headers.
+#if 0
+#include "Configure.hxx.in"
+#include "IOStream.hxx.in"
+#endif
 
-static std::string const kCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN =
-  "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN";
-static std::string const kCMAKE_C_COMPILER_TARGET = "CMAKE_C_COMPILER_TARGET";
-static std::string const kCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN =
-  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN";
-static std::string const kCMAKE_CXX_COMPILER_TARGET =
-  "CMAKE_CXX_COMPILER_TARGET";
-static std::string const kCMAKE_ENABLE_EXPORTS = "CMAKE_ENABLE_EXPORTS";
-static std::string const kCMAKE_LINK_SEARCH_END_STATIC =
-  "CMAKE_LINK_SEARCH_END_STATIC";
-static std::string const kCMAKE_LINK_SEARCH_START_STATIC =
-  "CMAKE_LINK_SEARCH_START_STATIC";
-static std::string const kCMAKE_OSX_ARCHITECTURES = "CMAKE_OSX_ARCHITECTURES";
-static std::string const kCMAKE_OSX_DEPLOYMENT_TARGET =
-  "CMAKE_OSX_DEPLOYMENT_TARGET";
-static std::string const kCMAKE_OSX_SYSROOT = "CMAKE_OSX_SYSROOT";
-static std::string const kCMAKE_POSITION_INDEPENDENT_CODE =
-  "CMAKE_POSITION_INDEPENDENT_CODE";
-static std::string const kCMAKE_SYSROOT = "CMAKE_SYSROOT";
-static std::string const kCMAKE_TRY_COMPILE_OSX_ARCHITECTURES =
-  "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES";
-static std::string const kCMAKE_TRY_COMPILE_PLATFORM_VARIABLES =
-  "CMAKE_TRY_COMPILE_PLATFORM_VARIABLES";
+// Implement the rest of this file only if it is needed.
+#if KWSYS_IOS_NEED_OPERATORS_LL
 
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv,
-                                     bool isTryRun)
-{
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
+#include <stdio.h>  // sscanf, sprintf
+#include <string.h> // memchr
 
-  cmStateEnums::TargetType targetType = cmStateEnums::EXECUTABLE;
-  const char* tt =
-    this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_TARGET_TYPE");
-  if (!isTryRun && tt && *tt) {
-    if (strcmp(tt, cmState::GetTargetTypeName(cmStateEnums::EXECUTABLE)) ==
-        0) {
-      targetType = cmStateEnums::EXECUTABLE;
-    } else if (strcmp(tt, cmState::GetTargetTypeName(
-                            cmStateEnums::STATIC_LIBRARY)) == 0) {
-      targetType = cmStateEnums::STATIC_LIBRARY;
-    } else {
-      this->Makefile->IssueMessage(
-        cmake::FATAL_ERROR, std::string("Invalid value '") + tt +
-          "' for "
-          "CMAKE_TRY_COMPILE_TARGET_TYPE.  Only "
-          "'" +
-          cmState::GetTargetTypeName(cmStateEnums::EXECUTABLE) + "' and "
-                                                                 "'" +
-          cmState::GetTargetTypeName(cmStateEnums::STATIC_LIBRARY) +
-          "' "
-          "are allowed.");
-      return -1;
-    }
-  }
-
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = CM_NULLPTR;
-  std::string targetName;
-  std::vector<std::string> cmakeFlags(1, "CMAKE_FLAGS"); // fake argv[0]
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::string copyFileError;
-  std::vector<std::string> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool didCopyFileError = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
-
-  enum Doing
-  {
-    DoingNone,
-    DoingCMakeFlags,
-    DoingCompileDefinitions,
-    DoingLinkLibraries,
-    DoingOutputVariable,
-    DoingCopyFile,
-    DoingCopyFileError,
-    DoingSources
-  };
-  Doing doing = useSources ? DoingSources : DoingNone;
-  for (size_t i = 3; i < argv.size(); ++i) {
-    if (argv[i] == "CMAKE_FLAGS") {
-      doing = DoingCMakeFlags;
-    } else if (argv[i] == "COMPILE_DEFINITIONS") {
-      doing = DoingCompileDefinitions;
-    } else if (argv[i] == "LINK_LIBRARIES") {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
-    } else if (argv[i] == "OUTPUT_VARIABLE") {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
-    } else if (argv[i] == "COPY_FILE") {
-      doing = DoingCopyFile;
-      didCopyFile = true;
-    } else if (argv[i] == "COPY_FILE_ERROR") {
-      doing = DoingCopyFileError;
-      didCopyFileError = true;
-    } else if (doing == DoingCMakeFlags) {
-      cmakeFlags.push_back(argv[i]);
-    } else if (doing == DoingCompileDefinitions) {
-      compileDefs.push_back(argv[i]);
-    } else if (doing == DoingLinkLibraries) {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if (cmTarget* tgt = this->Makefile->FindTargetToUse(argv[i])) {
-        switch (tgt->GetType()) {
-          case cmStateEnums::SHARED_LIBRARY:
-          case cmStateEnums::STATIC_LIBRARY:
-          case cmStateEnums::INTERFACE_LIBRARY:
-          case cmStateEnums::UNKNOWN_LIBRARY:
-            break;
-          case cmStateEnums::EXECUTABLE:
-            if (tgt->IsExecutableWithExports()) {
-              break;
-            }
-          default:
-            this->Makefile->IssueMessage(
-              cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile or try_run IMPORTED "
-              "LINK_LIBRARIES.  Got " +
-                std::string(tgt->GetName()) + " of "
-                                              "type " +
-                cmState::GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
-        }
-        if (tgt->IsImported()) {
-          targets.push_back(argv[i]);
-        }
-      }
-    } else if (doing == DoingOutputVariable) {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-    } else if (doing == DoingCopyFile) {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-    } else if (doing == DoingCopyFileError) {
-      copyFileError = argv[i].c_str();
-      doing = DoingNone;
-    } else if (doing == DoingSources) {
-      sources.push_back(argv[i]);
-    } else if (i == 3) {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-    } else if (i == 4 && !this->SrcFileSignature) {
-      targetName = argv[i].c_str();
-    } else {
-      std::ostringstream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
-    }
-  }
-
-  if (didCopyFile && copyFile.empty()) {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                 "COPY_FILE must be followed by a file path");
-    return -1;
-  }
-
-  if (didCopyFileError && copyFileError.empty()) {
-    this->Makefile->IssueMessage(
-      cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR must be followed by a variable name");
-    return -1;
-  }
-
-  if (didCopyFileError && !didCopyFile) {
-    this->Makefile->IssueMessage(
-      cmake::FATAL_ERROR, "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return -1;
-  }
-
-  if (didOutputVariable && outputVariable.empty()) {
-    this->Makefile->IssueMessage(
-      cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-  }
-
-  if (useSources && sources.empty()) {
-    this->Makefile->IssueMessage(
-      cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-  }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature) {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-  } else {
-    // only valid for srcfile signatures
-    if (!compileDefs.empty()) {
-      this->Makefile->IssueMessage(
-        cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-    }
-    if (!copyFile.empty()) {
-      this->Makefile->IssueMessage(
-        cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-    }
-  }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory()) {
-    std::ostringstream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-  }
-
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature) {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile);
-
-    // Choose sources.
-    if (!useSources) {
-      sources.push_back(argv[2]);
-    }
-
-    // Detect languages to enable.
-    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for (std::vector<std::string>::iterator si = sources.begin();
-         si != sources.end(); ++si) {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-      if (!lang.empty()) {
-        testLangs.insert(lang);
-      } else {
-        std::ostringstream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n  ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        err << cmJoin(langs, " ");
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
-      }
-    }
-
-    std::string const tcConfig =
-      this->Makefile->GetSafeDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
-
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
-
-    // now create a CMakeLists.txt file in that directory
-    FILE* fout = cmsys::SystemTools::Fopen(outFileName, "w");
-    if (!fout) {
-      std::ostringstream e;
-      /* clang-format off */
-      e << "Failed to open\n"
-        << "  " << outFileName << "\n"
-        << cmSystemTools::GetLastSystemError();
-      /* clang-format on */
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-    }
-
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if (def) {
-      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
-    }
-
-    std::string projectLangs;
-    for (std::set<std::string>::iterator li = testLangs.begin();
-         li != testLangs.end(); ++li) {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if (const char* rulesOverridePath =
-            this->Makefile->GetDefinition(rulesOverrideLang)) {
-        fprintf(fout, "set(%s \"%s\")\n", rulesOverrideLang.c_str(),
-                rulesOverridePath);
-      } else if (const char* rulesOverridePath2 =
-                   this->Makefile->GetDefinition(rulesOverrideBase)) {
-        fprintf(fout, "set(%s \"%s\")\n", rulesOverrideBase.c_str(),
-                rulesOverridePath2);
-      }
-    }
-    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for (std::set<std::string>::iterator li = testLangs.begin();
-         li != testLangs.end(); ++li) {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              cmOutputConverter::EscapeForCMake(flags ? flags : "").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-                    " ${COMPILE_DEFINITIONS}\")\n",
-              li->c_str(), li->c_str());
-    }
-    switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0066)) {
-      case cmPolicies::WARN:
-        if (this->Makefile->PolicyOptionalWarningEnabled(
-              "CMAKE_POLICY_WARNING_CMP0066")) {
-          std::ostringstream w;
-          /* clang-format off */
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0066) << "\n"
-            "For compatibility with older versions of CMake, try_compile "
-            "is not honoring caller config-specific compiler flags "
-            "(e.g. CMAKE_C_FLAGS_DEBUG) in the test project."
-            ;
-          /* clang-format on */
-          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-        }
-      case cmPolicies::OLD:
-        // OLD behavior is to do nothing.
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        this->Makefile->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0066));
-      case cmPolicies::NEW: {
-        // NEW behavior is to pass config-specific compiler flags.
-        static std::string const cfgDefault = "DEBUG";
-        std::string const cfg =
-          !tcConfig.empty() ? cmSystemTools::UpperCase(tcConfig) : cfgDefault;
-        for (std::set<std::string>::iterator li = testLangs.begin();
-             li != testLangs.end(); ++li) {
-          std::string const langFlagsCfg = "CMAKE_" + *li + "_FLAGS_" + cfg;
-          const char* flagsCfg = this->Makefile->GetDefinition(langFlagsCfg);
-          fprintf(fout, "set(%s %s)\n", langFlagsCfg.c_str(),
-                  cmOutputConverter::EscapeForCMake(flagsCfg ? flagsCfg : "")
-                    .c_str());
-        }
-      } break;
-    }
-    switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0056)) {
-      case cmPolicies::WARN:
-        if (this->Makefile->PolicyOptionalWarningEnabled(
-              "CMAKE_POLICY_WARNING_CMP0056")) {
-          std::ostringstream w;
-          /* clang-format off */
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
-            "For compatibility with older versions of CMake, try_compile "
-            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
-            "in the test project."
-            ;
-          /* clang-format on */
-          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-        }
-      case cmPolicies::OLD:
-        // OLD behavior is to do nothing.
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        this->Makefile->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056));
-      case cmPolicies::NEW:
-        // NEW behavior is to pass linker flags.
-        {
-          const char* exeLinkFlags =
-            this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
-          fprintf(
-            fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
-            cmOutputConverter::EscapeForCMake(exeLinkFlags ? exeLinkFlags : "")
-              .c_str());
-        }
-        break;
-    }
-    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
-                  " ${EXE_LINKER_FLAGS}\")\n");
-    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (!compileDefs.empty()) {
-      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
-    }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTC_%05x", cmSystemTools::RandomSeed() & 0xFFFFF);
-    targetName = targetNameBuf;
-
-    if (!targets.empty()) {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg(gg, targets, this->Makefile);
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetConfig(tcConfig);
-
-      if (!tcfg.GenerateImportFile()) {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-      }
-      fprintf(fout, "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-    }
-
-    // Forward a set of variables to the inner project cache.
-    {
-      std::set<std::string> vars;
-      vars.insert(kCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN);
-      vars.insert(kCMAKE_C_COMPILER_TARGET);
-      vars.insert(kCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN);
-      vars.insert(kCMAKE_CXX_COMPILER_TARGET);
-      vars.insert(kCMAKE_ENABLE_EXPORTS);
-      vars.insert(kCMAKE_LINK_SEARCH_END_STATIC);
-      vars.insert(kCMAKE_LINK_SEARCH_START_STATIC);
-      vars.insert(kCMAKE_OSX_ARCHITECTURES);
-      vars.insert(kCMAKE_OSX_DEPLOYMENT_TARGET);
-      vars.insert(kCMAKE_OSX_SYSROOT);
-      vars.insert(kCMAKE_POSITION_INDEPENDENT_CODE);
-      vars.insert(kCMAKE_SYSROOT);
-
-      if (const char* varListStr = this->Makefile->GetDefinition(
-            kCMAKE_TRY_COMPILE_PLATFORM_VARIABLES)) {
-        std::vector<std::string> varList;
-        cmSystemTools::ExpandListArgument(varListStr, varList);
-        vars.insert(varList.begin(), varList.end());
-      }
-
-      /* for the TRY_COMPILEs we want to be able to specify the architecture.
-         So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
-         CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
-         have the tests run for each specific architecture. Since
-         cmLocalGenerator doesn't allow building for "the other"
-         architecture only via CMAKE_OSX_ARCHITECTURES.
-         */
-      if (const char* tcArchs = this->Makefile->GetDefinition(
-            kCMAKE_TRY_COMPILE_OSX_ARCHITECTURES)) {
-        vars.erase(kCMAKE_OSX_ARCHITECTURES);
-        std::string flag = "-DCMAKE_OSX_ARCHITECTURES=" + std::string(tcArchs);
-        cmakeFlags.push_back(flag);
-      }
-
-      for (std::set<std::string>::iterator vi = vars.begin(); vi != vars.end();
-           ++vi) {
-        std::string const& var = *vi;
-        if (const char* val = this->Makefile->GetDefinition(var)) {
-          std::string flag = "-D" + var + "=" + val;
-          cmakeFlags.push_back(flag);
-        }
-      }
-    }
-
-    /* Set the appropriate policy information for ENABLE_EXPORTS */
-    fprintf(fout, "cmake_policy(SET CMP0065 %s)\n",
-            this->Makefile->GetPolicyStatus(cmPolicies::CMP0065) ==
-                cmPolicies::NEW
-              ? "NEW"
-              : "OLD");
-
-    if (targetType == cmStateEnums::EXECUTABLE) {
-      /* Put the executable at a known location (for COPY_FILE).  */
-      fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
-      /* Create the actual executable.  */
-      fprintf(fout, "add_executable(%s", targetName.c_str());
-    } else // if (targetType == cmStateEnums::STATIC_LIBRARY)
-    {
-      /* Put the static library at a known location (for COPY_FILE).  */
-      fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
-      /* Create the actual static library.  */
-      fprintf(fout, "add_library(%s STATIC", targetName.c_str());
-    }
-    for (std::vector<std::string>::iterator si = sources.begin();
-         si != sources.end(); ++si) {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if (si->find("CMakeTmp") == si->npos) {
-        this->Makefile->AddCMakeDependFile(*si);
-      }
-    }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs) {
-      fprintf(fout, "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
-    } else {
-      fprintf(fout, "target_link_libraries(%s %s)\n", targetName.c_str(),
-              libsToLink.c_str());
-    }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-  }
-
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(
-    sourceDirectory, this->BinaryDirectory, projectName, targetName,
-    this->SrcFileSignature, &cmakeFlags, output);
-  if (erroroc) {
-    cmSystemTools::SetErrorOccured();
-  }
-
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0], (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmState::INTERNAL);
-
-  if (!outputVariable.empty()) {
-    this->Makefile->AddDefinition(outputVariable, output.c_str());
-  }
-
-  if (this->SrcFileSignature) {
-    std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName, targetType);
-
-    if ((res == 0) && !copyFile.empty()) {
-      if (this->OutputFile.empty() ||
-          !cmSystemTools::CopyFileAlways(this->OutputFile, copyFile)) {
-        std::ostringstream emsg;
-        /* clang-format off */
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile << "'\n";
-        /* clang-format on */
-        if (!this->FindErrorMessage.empty()) {
-          emsg << this->FindErrorMessage.c_str();
-        }
-        if (copyFileError.empty()) {
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-          return -1;
-        }
-        copyFileErrorMessage = emsg.str();
-      }
-    }
-
-    if (!copyFileError.empty()) {
-      this->Makefile->AddDefinition(copyFileError,
-                                    copyFileErrorMessage.c_str());
-    }
-  }
-  return res;
-}
-
-void cmCoreTryCompile::CleanupFiles(const char* binDir)
-{
-  if (!binDir) {
-    return;
-  }
-
-  std::string bdir = binDir;
-  if (bdir.find("CMakeTmp") == std::string::npos) {
-    cmSystemTools::Error(
-      "TRY_COMPILE attempt to remove -rf directory that does not contain "
-      "CMakeTmp:",
-      binDir);
-    return;
-  }
-
-  cmsys::Directory dir;
-  dir.Load(binDir);
-  size_t fileNum;
-  std::set<std::string> deletedFiles;
-  for (fileNum = 0; fileNum < dir.GetNumberOfFiles(); ++fileNum) {
-    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)), ".") &&
-        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)), "..")) {
-
-      if (deletedFiles.find(dir.GetFile(
-            static_cast<unsigned long>(fileNum))) == deletedFiles.end()) {
-        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
-        std::string fullPath = binDir;
-        fullPath += "/";
-        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
-        if (cmSystemTools::FileIsDirectory(fullPath)) {
-          this->CleanupFiles(fullPath.c_str());
-          cmSystemTools::RemoveADirectory(fullPath);
-        } else {
-#ifdef _WIN32
-          // Sometimes anti-virus software hangs on to new files so we
-          // cannot delete them immediately.  Try a few times.
-          cmSystemTools::WindowsFileRetry retry =
-            cmSystemTools::GetWindowsFileRetry();
-          while (!cmSystemTools::RemoveFile(fullPath.c_str()) &&
-                 --retry.Count &&
-                 cmSystemTools::FileExists(fullPath.c_str())) {
-            cmSystemTools::Delay(retry.Delay);
-          }
-          if (retry.Count == 0)
+#if defined(_MAX_INT_DIG)
+#define KWSYS_IOS_INT64_MAX_DIG _MAX_INT_DIG
 #else
-          if (!cmSystemTools::RemoveFile(fullPath))
+#define KWSYS_IOS_INT64_MAX_DIG 32
 #endif
-          {
-            std::string m = "Remove failed on file: " + fullPath;
-            cmSystemTools::ReportLastSystemError(m.c_str());
-          }
-        }
-      }
-    }
-  }
-}
 
-void cmCoreTryCompile::FindOutputFile(const std::string& targetName,
-                                      cmStateEnums::TargetType targetType)
+namespace KWSYS_NAMESPACE {
+
+// Scan an input stream for an integer value.
+static int IOStreamScanStream(std::istream& is, char* buffer)
 {
-  this->FindErrorMessage = "";
-  this->OutputFile = "";
-  std::string tmpOutputFile = "/";
-  if (targetType == cmStateEnums::EXECUTABLE) {
-    tmpOutputFile += targetName;
-    tmpOutputFile +=
-      this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
-  } else // if (targetType == cmStateEnums::STATIC_LIBRARY)
-  {
-    tmpOutputFile +=
-      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LIBRARY_PREFIX");
-    tmpOutputFile += targetName;
-    tmpOutputFile +=
-      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LIBRARY_SUFFIX");
+  // Prepare to write to buffer.
+  char* out = buffer;
+  char* end = buffer + KWSYS_IOS_INT64_MAX_DIG - 1;
+
+  // Look for leading sign.
+  if (is.peek() == '+') {
+    *out++ = '+';
+    is.ignore();
+  } else if (is.peek() == '-') {
+    *out++ = '-';
+    is.ignore();
   }
 
-  // a list of directories where to search for the compilation result
-  // at first directly in the binary dir
-  std::vector<std::string> searchDirs;
-  searchDirs.push_back("");
-
-  const char* config =
-    this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
-  // if a config was specified try that first
-  if (config && config[0]) {
-    std::string tmp = "/";
-    tmp += config;
-    searchDirs.push_back(tmp);
+  // Determine the base.  If not specified in the stream, try to
+  // detect it from the input.  A leading 0x means hex, and a leading
+  // 0 alone means octal.
+  int base = 0;
+  int flags = is.flags() & std::ios_base::basefield;
+  if (flags == std::ios_base::oct) {
+    base = 8;
+  } else if (flags == std::ios_base::dec) {
+    base = 10;
+  } else if (flags == std::ios_base::hex) {
+    base = 16;
   }
-  searchDirs.push_back("/Debug");
-#if defined(__APPLE__)
-  std::string app = "/Debug/" + targetName + ".app";
-  searchDirs.push_back(app);
-#endif
-  searchDirs.push_back("/Development");
-
-  for (std::vector<std::string>::const_iterator it = searchDirs.begin();
-       it != searchDirs.end(); ++it) {
-    std::string command = this->BinaryDirectory;
-    command += *it;
-    command += tmpOutputFile;
-    if (cmSystemTools::FileExists(command.c_str())) {
-      this->OutputFile = cmSystemTools::CollapseFullPath(command);
-      return;
+  bool foundDigit = false;
+  bool foundNonZero = false;
+  if (is.peek() == '0') {
+    foundDigit = true;
+    is.ignore();
+    if ((is.peek() == 'x' || is.peek() == 'X') && (base == 0 || base == 16)) {
+      base = 16;
+      foundDigit = false;
+      is.ignore();
+    } else if (base == 0) {
+      base = 8;
     }
   }
 
-  std::ostringstream emsg;
-  emsg << "Unable to find the executable at any of:\n";
-  emsg << cmWrap("  " + this->BinaryDirectory, searchDirs, tmpOutputFile, "\n")
-       << "\n";
-  this->FindErrorMessage = emsg.str();
-  return;
+  // Determine the range of digits allowed for this number.
+  const char* digits = "0123456789abcdefABCDEF";
+  int maxDigitIndex = 10;
+  if (base == 8) {
+    maxDigitIndex = 8;
+  } else if (base == 16) {
+    maxDigitIndex = 10 + 6 + 6;
+  }
+
+  // Scan until an invalid digit is found.
+  for (; is.peek() != EOF; is.ignore()) {
+    if (memchr(digits, *out = (char)is.peek(), maxDigitIndex) != 0) {
+      if ((foundNonZero || *out != '0') && out < end) {
+        ++out;
+        foundNonZero = true;
+      }
+      foundDigit = true;
+    } else {
+      break;
+    }
+  }
+
+  // Correct the buffer contents for degenerate cases.
+  if (foundDigit && !foundNonZero) {
+    *out++ = '0';
+  } else if (!foundDigit) {
+    out = buffer;
+  }
+
+  // Terminate the string in the buffer.
+  *out = '\0';
+
+  return base;
 }
+
+// Read an integer value from an input stream.
+template <class T>
+std::istream& IOStreamScanTemplate(std::istream& is, T& value, char type)
+{
+  int state = std::ios_base::goodbit;
+
+  // Skip leading whitespace.
+  std::istream::sentry okay(is);
+
+  if (okay) {
+    try {
+      // Copy the string to a buffer and construct the format string.
+      char buffer[KWSYS_IOS_INT64_MAX_DIG];
+#if defined(_MSC_VER)
+      char format[] = "%I64_";
+      const int typeIndex = 4;
+#else
+      char format[] = "%ll_";
+      const int typeIndex = 3;
+#endif
+      switch (IOStreamScanStream(is, buffer)) {
+        case 8:
+          format[typeIndex] = 'o';
+          break;
+        case 0: // Default to decimal if not told otherwise.
+        case 10:
+          format[typeIndex] = type;
+          break;
+        case 16:
+          format[typeIndex] = 'x';
+          break;
+      };
+
+      // Use sscanf to parse the number from the buffer.
+      T result;
+      int success = (sscanf(buffer, format, &result) == 1) ? 1 : 0;
+
+      // Set flags for resulting state.
+      if (is.peek() == EOF) {
+        state |= std::ios_base::eofbit;
+      }
+      if (!success) {
+        state |= std::ios_base::failbit;
+      } else {
+        value = result;
+      }
+    } catch (...) {
+      state |= std::ios_base::badbit;
+    }
+  }
+
+  is.setstate(std::ios_base::iostate(state));
+  return is;
+}
+
+// Print an integer value to an output stream.
+template <class T>
+std::ostream& IOStreamPrintTemplate(std::ostream& os, T value, char type)
+{
+  std::ostream::sentry okay(os);
+  if (okay) {
+    try {
+      // Construct the format string.
+      char format[8];
+      char* f = format;
+      *f++ = '%';
+      if (os.flags() & std::ios_base::showpos) {
+        *f++ = '+';
+      }
+      if (os.flags() & std::ios_base::showbase) {
+        *f++ = '#';
+      }
+#if defined(_MSC_VER)
+      *f++ = 'I';
+      *f++ = '6';
+      *f++ = '4';
+#else
+      *f++ = 'l';
+      *f++ = 'l';
+#endif
+      long bflags = os.flags() & std::ios_base::basefield;
+      if (bflags == std::ios_base::oct) {
+        *f++ = 'o';
+      } else if (bflags != std::ios_base::hex) {
+        *f++ = type;
+      } else if (os.flags() & std::ios_base::uppercase) {
+        *f++ = 'X';
+      } else {
+        *f++ = 'x';
+      }
+      *f = '\0';
+
+      // Use sprintf to print to a buffer and then write the
+      // buffer to the stream.
+      char buffer[2 * KWSYS_IOS_INT64_MAX_DIG];
+      sprintf(buffer, format, value);
+      os << buffer;
+    } catch (...) {
+      os.clear(os.rdstate() | std::ios_base::badbit);
+    }
+  }
+  return os;
+}
+
+#if !KWSYS_IOS_HAS_ISTREAM_LONG_LONG
+// Implement input stream operator for IOStreamSLL.
+std::istream& IOStreamScan(std::istream& is, IOStreamSLL& value)
+{
+  return IOStreamScanTemplate(is, value, 'd');
+}
+
+// Implement input stream operator for IOStreamULL.
+std::istream& IOStreamScan(std::istream& is, IOStreamULL& value)
+{
+  return IOStreamScanTemplate(is, value, 'u');
+}
+#endif
+
+#if !KWSYS_IOS_HAS_OSTREAM_LONG_LONG
+// Implement output stream operator for IOStreamSLL.
+std::ostream& IOStreamPrint(std::ostream& os, IOStreamSLL value)
+{
+  return IOStreamPrintTemplate(os, value, 'd');
+}
+
+// Implement output stream operator for IOStreamULL.
+std::ostream& IOStreamPrint(std::ostream& os, IOStreamULL value)
+{
+  return IOStreamPrintTemplate(os, value, 'u');
+}
+#endif
+
+} // namespace KWSYS_NAMESPACE
+
+#else
+
+namespace KWSYS_NAMESPACE {
+
+// Create one public symbol in this object file to avoid warnings from
+// archivers.
+void IOStreamSymbolToAvoidWarning();
+void IOStreamSymbolToAvoidWarning()
+{
+}
+
+} // namespace KWSYS_NAMESPACE
+
+#endif // KWSYS_IOS_NEED_OPERATORS_LL

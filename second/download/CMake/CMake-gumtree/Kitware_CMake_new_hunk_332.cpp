@@ -1,35 +1,8 @@
-               table64[obuf[0]],
-               table64[obuf[1]]);
-      break;
-
-    case 2: /* two bytes read */
-      snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]]);
-      break;
-
-    default:
-      snprintf(output, 5, "%c%c%c%c",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]],
-               table64[obuf[3]]);
-      break;
-    }
-    output += 4;
-  }
-
-  /* Zero terminate */
-  *output = '\0';
-
-  /* Return the pointer to the new data (allocated memory) */
-  *outptr = base64data;
-
-  free(convbuf);
-
-  /* Return the length of the new data */
-  *outlen = strlen(base64data);
-
-  return CURLE_OK;
-}
+#define MAXPOLL 20
+static int test7(int argc, const char* argv[])
+{
+  (void)argc;
+  (void)argv;
+  fprintf(stdout, "Output on stdout before sleep.\n");
+  fprintf(stderr, "Output on stderr before sleep.\n");
+  fflush(stdout);

@@ -1,9 +1,7 @@
-    return CURLE_BAD_CONTENT_ENCODING;
-
-  /* Generate 16 bytes of random data */
-  result = Curl_rand(data, &entropy[0], 4);
-  if(result)
-    return result;
-
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge RE");
+				goto fail;
+			}
+		} else if (parent != NULL && parent->rr_moved)
+			file->rr_moved_has_re_only = 0;

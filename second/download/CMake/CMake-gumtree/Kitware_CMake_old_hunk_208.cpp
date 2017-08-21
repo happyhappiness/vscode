@@ -1,9 +1,7 @@
-    else {
-      CURLcode result;
-      ssl_sessionid =
-        aprintf("%s:%d:%d:%s:%hu", data->set.str[STRING_SSL_CAFILE],
-                data->set.ssl.verifypeer, data->set.ssl.verifyhost,
-                conn->host.name, conn->remote_port);
-      ssl_sessionid_len = strlen(ssl_sessionid);
-
-      err = SSLSetPeerID(connssl->ssl_ctx, ssl_sessionid, ssl_sessionid_len);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL");
+				return (NULL);
+			}
+			/*
+			 * Sanity check: The file type must be a regular file.

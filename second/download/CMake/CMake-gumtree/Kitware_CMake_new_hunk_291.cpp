@@ -1,8 +1,7 @@
+  vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+  va_end(args);
 
-static int test8_grandchild(int argc, const char* argv[])
-{
-  (void)argc;
-  (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
+  if(Curl_ftpsend(conn, print_buffer)) {
+    ftp_code = -1;
+  }
+  else {

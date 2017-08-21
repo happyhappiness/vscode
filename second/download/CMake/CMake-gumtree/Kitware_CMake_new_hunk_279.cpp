@@ -1,29 +1,21 @@
-#endif
-  char* buf;
-  size_t n = name.size();
-  if (*name.rbegin() == '/') {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-  } else {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name.c_str());
-  }
-  struct _wfinddata_t data; // data of current file
+                             curl_off_t *size,
+                             const char *fmt, ...)
+{
+  char *s;
+  CURLcode result;
+  va_list ap;
+  va_start(ap, fmt);
+  s = curl_mvaprintf(fmt, ap);
+  va_end(ap);
 
-  // Now put them into the file array
-  srchHandle =
-    _wfindfirst_func((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete[] buf;
+  if(!s)
+    return CURLE_OUT_OF_MEMORY;
 
-  if (srchHandle == -1) {
-    return 0;
-  }
+  result = AddFormData(formp, FORM_DATAMEM, s, 0, size);
+  if(result)
+    free(s);
 
-  // Loop through names
-  unsigned long count = 0;
-  do {
-    count++;
-  } while (_wfindnext_func(srchHandle, &data) != -1);
-  _findclose(srchHandle);
-  return count;
+  return result;
 }
+
+/*

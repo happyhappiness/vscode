@@ -1,14 +1,7 @@
-	if (a->format_free != NULL)
-		(a->format_free)(a);
-
-	pax = (struct pax *)calloc(1, sizeof(*pax));
-	if (pax == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate pax data");
-		return (ARCHIVE_FATAL);
-	}
-	pax->flags = WRITE_LIBARCHIVE_XATTR | WRITE_SCHILY_XATTR;
-
-	a->format_data = pax;
-	a->format_name = "pax";
-	a->format_options = archive_write_pax_options;
+		archive_entry_set_filetype(entry, AE_IFREG);
+		/* Get the size of the filename table. */
+		number = ar_atol10(h + AR_size_offset, AR_size_size);
+		if (number > SIZE_MAX || number > 1024 * 1024 * 1024) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Filename table too large");
+			return (ARCHIVE_FATAL);

@@ -1,7 +1,7 @@
-    else
-      tls_rt_name = "";
-
-    msg_type = *(char*)buf;
-    msg_name = ssl_msg_type(ssl_ver, msg_type);
-
-    txt_len = snprintf(ssl_buf, sizeof(ssl_buf), "%s (%s), %s, %s (%d):\n",
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Invalid Rockridge CL");
+				return (NULL);
+			}
+			parent->subdirs++;
+			/* Overwrite an offset and a number of this "CL" entry

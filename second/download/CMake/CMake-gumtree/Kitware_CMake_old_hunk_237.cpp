@@ -1,13 +1,10 @@
-                             curl_off_t *size,
-                             const char *fmt, ...)
-{
-  char s[4096];
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, sizeof(s), fmt, ap);
-  va_end(ap);
-
-  return AddFormData(formp, FORM_DATA, s, 0, size);
-}
-
-/*
+			} else if (src[1] == '.') {
+				if (src[2] == '/' || src[2] == '\0') {
+					/* Conditionally warn about '..' */
+					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains '..'");
+						return (ARCHIVE_FAILED);
+					}
+				}

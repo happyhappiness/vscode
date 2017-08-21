@@ -1,8 +1,16 @@
-    return CURLE_FAILED_INIT;
-  }
+/* returns an allocated key to find a bundle for this connection */
+static char *hashkey(struct connectdata *conn)
+{
+  const char *hostname;
 
-  (void)Curl_ipv6works();
+  if(conn->bits.proxy)
+    hostname = conn->proxy.name;
+  else if(conn->bits.conn_to_host)
+    hostname = conn->conn_to_host.name;
+  else
+    hostname = conn->host.name;
 
-#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
-  if(libssh2_init(0)) {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+  return aprintf("%s:%d", hostname, conn->port);
+}
+
+/* Look up the bundle with all the connections to the same host this

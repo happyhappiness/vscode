@@ -1,28 +1,13 @@
-  return CURLE_OK;
-}
+		return (ARCHIVE_FATAL);
+	}
 
-#ifdef USE_LIBIDN
-/*
- * Initialise use of IDNA library.
- * It falls back to ASCII if $CHARSET isn't defined. This doesn't work for
- * idna_to_ascii_lz().
- */
-static void idna_init (void)
-{
-#ifdef WIN32
-  char buf[60];
-  UINT cp = GetACP();
-
-  if(!getenv("CHARSET") && cp > 0) {
-    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
-    putenv(buf);
-  }
-#else
-  /* to do? */
-#endif
-}
-#endif  /* USE_LIBIDN */
-
-/* true globals -- for curl_global_init() and curl_global_cleanup() */
-static unsigned int  initialized;
-static long          init_flags;
+	v7tar = (struct v7tar *)malloc(sizeof(*v7tar));
+	if (v7tar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate v7tar data");
+		return (ARCHIVE_FATAL);
+	}
+	memset(v7tar, 0, sizeof(*v7tar));
+	a->format_data = v7tar;
+	a->format_name = "tar (non-POSIX)";
+	a->format_options = archive_write_v7tar_options;

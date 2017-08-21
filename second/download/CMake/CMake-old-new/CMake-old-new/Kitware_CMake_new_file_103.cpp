@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1999 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -18,1182 +18,1164 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- ***************************************************************************/
+ *
+ * Purpose:
+ *  A merge of Bjorn Reese's format() function and Daniel's dsprintf()
+ *  1.0. A full blooded printf() clone with full support for <num>$
+ *  everywhere (parameters, widths and precisions) including variabled
+ *  sized parameters (like doubles, long longs, long doubles and even
+ *  void * in 64-bit architectures).
+ *
+ * Current restrictions:
+ * - Max 128 parameters
+ * - No 'long double' support.
+ *
+ * If you ever want truly portable and good *printf() clones, the project that
+ * took on from here is named 'Trio' and you find more details on the trio web
+ * page at https://daniel.haxx.se/projects/trio/
+ */
 
 #include "curl_setup.h"
+#include <curl/mprintf.h>
 
-#if defined(USE_GSKIT) || defined(USE_NSS) || defined(USE_GNUTLS) || \
-    defined(USE_CYASSL) || defined(USE_SCHANNEL)
-
-#include <curl/curl.h>
-#include "urldata.h"
-#include "strcase.h"
-#include "hostcheck.h"
-#include "vtls/vtls.h"
-#include "sendf.h"
-#include "inet_pton.h"
-#include "curl_base64.h"
-#include "x509asn1.h"
-
-/* The last 3 #include files should be in this order */
-#include "curl_printf.h"
 #include "curl_memory.h"
+/* The last #include file should be: */
 #include "memdebug.h"
 
-/* For overflow checks. */
-#define CURL_SIZE_T_MAX         ((size_t)-1)
+/*
+ * If SIZEOF_SIZE_T has not been defined, default to the size of long.
+ */
 
+#ifndef SIZEOF_SIZE_T
+#  define SIZEOF_SIZE_T CURL_SIZEOF_LONG
+#endif
 
-/* ASN.1 OIDs. */
-static const char       cnOID[] = "2.5.4.3";    /* Common name. */
-static const char       sanOID[] = "2.5.29.17"; /* Subject alternative name. */
+#ifdef HAVE_LONGLONG
+#  define LONG_LONG_TYPE long long
+#  define HAVE_LONG_LONG_TYPE
+#else
+#  if defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64)
+#    define LONG_LONG_TYPE __int64
+#    define HAVE_LONG_LONG_TYPE
+#  else
+#    undef LONG_LONG_TYPE
+#    undef HAVE_LONG_LONG_TYPE
+#  endif
+#endif
 
-static const curl_OID   OIDtable[] = {
-  { "1.2.840.10040.4.1",        "dsa" },
-  { "1.2.840.10040.4.3",        "dsa-with-sha1" },
-  { "1.2.840.10045.2.1",        "ecPublicKey" },
-  { "1.2.840.10045.3.0.1",      "c2pnb163v1" },
-  { "1.2.840.10045.4.1",        "ecdsa-with-SHA1" },
-  { "1.2.840.10046.2.1",        "dhpublicnumber" },
-  { "1.2.840.113549.1.1.1",     "rsaEncryption" },
-  { "1.2.840.113549.1.1.2",     "md2WithRSAEncryption" },
-  { "1.2.840.113549.1.1.4",     "md5WithRSAEncryption" },
-  { "1.2.840.113549.1.1.5",     "sha1WithRSAEncryption" },
-  { "1.2.840.113549.1.1.10",    "RSASSA-PSS" },
-  { "1.2.840.113549.1.1.14",    "sha224WithRSAEncryption" },
-  { "1.2.840.113549.1.1.11",    "sha256WithRSAEncryption" },
-  { "1.2.840.113549.1.1.12",    "sha384WithRSAEncryption" },
-  { "1.2.840.113549.1.1.13",    "sha512WithRSAEncryption" },
-  { "1.2.840.113549.2.2",       "md2" },
-  { "1.2.840.113549.2.5",       "md5" },
-  { "1.3.14.3.2.26",            "sha1" },
-  { cnOID,                      "CN" },
-  { "2.5.4.4",                  "SN" },
-  { "2.5.4.5",                  "serialNumber" },
-  { "2.5.4.6",                  "C" },
-  { "2.5.4.7",                  "L" },
-  { "2.5.4.8",                  "ST" },
-  { "2.5.4.9",                  "streetAddress" },
-  { "2.5.4.10",                 "O" },
-  { "2.5.4.11",                 "OU" },
-  { "2.5.4.12",                 "title" },
-  { "2.5.4.13",                 "description" },
-  { "2.5.4.17",                 "postalCode" },
-  { "2.5.4.41",                 "name" },
-  { "2.5.4.42",                 "givenName" },
-  { "2.5.4.43",                 "initials" },
-  { "2.5.4.44",                 "generationQualifier" },
-  { "2.5.4.45",                 "X500UniqueIdentifier" },
-  { "2.5.4.46",                 "dnQualifier" },
-  { "2.5.4.65",                 "pseudonym" },
-  { "1.2.840.113549.1.9.1",     "emailAddress" },
-  { "2.5.4.72",                 "role" },
-  { sanOID,                     "subjectAltName" },
-  { "2.5.29.18",                "issuerAltName" },
-  { "2.5.29.19",                "basicConstraints" },
-  { "2.16.840.1.101.3.4.2.4",   "sha224" },
-  { "2.16.840.1.101.3.4.2.1",   "sha256" },
-  { "2.16.840.1.101.3.4.2.2",   "sha384" },
-  { "2.16.840.1.101.3.4.2.3",   "sha512" },
-  { (const char *) NULL,        (const char *) NULL }
+/*
+ * Non-ANSI integer extensions
+ */
+
+#if (defined(__BORLANDC__) && (__BORLANDC__ >= 0x520)) || \
+    (defined(__WATCOMC__) && defined(__386__)) || \
+    (defined(__POCC__) && defined(_MSC_VER)) || \
+    (defined(_WIN32_WCE)) || \
+    (defined(__MINGW32__)) || \
+    (defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64))
+#  define MP_HAVE_INT_EXTENSIONS
+#endif
+
+/*
+ * Max integer data types that mprintf.c is capable
+ */
+
+#ifdef HAVE_LONG_LONG_TYPE
+#  define mp_intmax_t LONG_LONG_TYPE
+#  define mp_uintmax_t unsigned LONG_LONG_TYPE
+#else
+#  define mp_intmax_t long
+#  define mp_uintmax_t unsigned long
+#endif
+
+#define BUFFSIZE 326 /* buffer for long-to-str and float-to-str calcs, should
+                        fit negative DBL_MAX (317 letters) */
+#define MAX_PARAMETERS 128 /* lame static limit */
+
+#ifdef __AMIGA__
+# undef FORMAT_INT
+#endif
+
+/* Lower-case digits.  */
+static const char lower_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+
+/* Upper-case digits.  */
+static const char upper_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+#define OUTCHAR(x) \
+  do{ \
+    if(stream((unsigned char)(x), (FILE *)data) != -1) \
+      done++; \
+    else \
+     return done; /* return immediately on failure */ \
+  } WHILE_FALSE
+
+/* Data type to read from the arglist */
+typedef enum  {
+  FORMAT_UNKNOWN = 0,
+  FORMAT_STRING,
+  FORMAT_PTR,
+  FORMAT_INT,
+  FORMAT_INTPTR,
+  FORMAT_LONG,
+  FORMAT_LONGLONG,
+  FORMAT_DOUBLE,
+  FORMAT_LONGDOUBLE,
+  FORMAT_WIDTH /* For internal use */
+} FormatType;
+
+/* conversion and display flags */
+enum {
+  FLAGS_NEW        = 0,
+  FLAGS_SPACE      = 1<<0,
+  FLAGS_SHOWSIGN   = 1<<1,
+  FLAGS_LEFT       = 1<<2,
+  FLAGS_ALT        = 1<<3,
+  FLAGS_SHORT      = 1<<4,
+  FLAGS_LONG       = 1<<5,
+  FLAGS_LONGLONG   = 1<<6,
+  FLAGS_LONGDOUBLE = 1<<7,
+  FLAGS_PAD_NIL    = 1<<8,
+  FLAGS_UNSIGNED   = 1<<9,
+  FLAGS_OCTAL      = 1<<10,
+  FLAGS_HEX        = 1<<11,
+  FLAGS_UPPER      = 1<<12,
+  FLAGS_WIDTH      = 1<<13, /* '*' or '*<num>$' used */
+  FLAGS_WIDTHPARAM = 1<<14, /* width PARAMETER was specified */
+  FLAGS_PREC       = 1<<15, /* precision was specified */
+  FLAGS_PRECPARAM  = 1<<16, /* precision PARAMETER was specified */
+  FLAGS_CHAR       = 1<<17, /* %c story */
+  FLAGS_FLOATE     = 1<<18, /* %e or %E */
+  FLAGS_FLOATG     = 1<<19  /* %g or %G */
 };
 
-/*
- * Lightweight ASN.1 parser.
- * In particular, it does not check for syntactic/lexical errors.
- * It is intended to support certificate information gathering for SSL backends
- * that offer a mean to get certificates as a whole, but do not supply
- * entry points to get particular certificate sub-fields.
- * Please note there is no pretention here to rewrite a full SSL library.
- */
+typedef struct {
+  FormatType type;
+  int flags;
+  long width;     /* width OR width parameter number */
+  long precision; /* precision OR precision parameter number */
+  union {
+    char *str;
+    void *ptr;
+    union {
+      mp_intmax_t as_signed;
+      mp_uintmax_t as_unsigned;
+    } num;
+    double dnum;
+  } data;
+} va_stack_t;
 
+struct nsprintf {
+  char *buffer;
+  size_t length;
+  size_t max;
+};
 
-const char *Curl_getASN1Element(curl_asn1Element *elem,
-                                const char *beg, const char *end)
+struct asprintf {
+  char *buffer; /* allocated buffer */
+  size_t len;   /* length of string */
+  size_t alloc; /* length of alloc */
+  int fail;     /* (!= 0) if an alloc has failed and thus
+                   the output is not the complete data */
+};
+
+static long dprintf_DollarString(char *input, char **end)
 {
-  unsigned char b;
-  unsigned long len;
-  curl_asn1Element lelem;
-
-  /* Get a single ASN.1 element into `elem', parse ASN.1 string at `beg'
-     ending at `end'.
-     Returns a pointer in source string after the parsed element, or NULL
-     if an error occurs. */
-  if(!beg || !end || beg >= end || !*beg ||
-     (size_t)(end - beg) > CURL_ASN1_MAX)
-    return (const char *) NULL;
-
-  /* Process header byte. */
-  elem->header = beg;
-  b = (unsigned char) *beg++;
-  elem->constructed = (b & 0x20) != 0;
-  elem->class = (b >> 6) & 3;
-  b &= 0x1F;
-  if(b == 0x1F)
-    return (const char *) NULL; /* Long tag values not supported here. */
-  elem->tag = b;
-
-  /* Process length. */
-  if(beg >= end)
-    return (const char *) NULL;
-  b = (unsigned char) *beg++;
-  if(!(b & 0x80))
-    len = b;
-  else if(!(b &= 0x7F)) {
-    /* Unspecified length. Since we have all the data, we can determine the
-       effective length by skipping element until an end element is found. */
-    if(!elem->constructed)
-      return (const char *) NULL;
-    elem->beg = beg;
-    while(beg < end && *beg) {
-      beg = Curl_getASN1Element(&lelem, beg, end);
-      if(!beg)
-        return (const char *) NULL;
-    }
-    if(beg >= end)
-      return (const char *) NULL;
-    elem->end = beg;
-    return beg + 1;
+  int number=0;
+  while(ISDIGIT(*input)) {
+    number *= 10;
+    number += *input-'0';
+    input++;
   }
-  else if((unsigned)b > (size_t)(end - beg))
-    return (const char *) NULL; /* Does not fit in source. */
-  else {
-    /* Get long length. */
-    len = 0;
-    do {
-      if(len & 0xFF000000L)
-        return (const char *) NULL;  /* Lengths > 32 bits are not supported. */
-      len = (len << 8) | (unsigned char) *beg++;
-    } while(--b);
+  if(number && ('$'==*input++)) {
+    *end = input;
+    return number;
   }
-  if(len > (size_t)(end - beg))
-    return (const char *) NULL;  /* Element data does not fit in source. */
-  elem->beg = beg;
-  elem->end = beg + len;
-  return elem->end;
-}
-
-static const curl_OID * searchOID(const char *oid)
-{
-  const curl_OID *op;
-
-  /* Search the null terminated OID or OID identifier in local table.
-     Return the table entry pointer or NULL if not found. */
-
-  for(op = OIDtable; op->numoid; op++)
-    if(!strcmp(op->numoid, oid) || strcasecompare(op->textoid, oid))
-      return op;
-
-  return (const curl_OID *) NULL;
-}
-
-static const char *bool2str(const char *beg, const char *end)
-{
-  /* Convert an ASN.1 Boolean value into its string representation.
-     Return the dynamically allocated string, or NULL if source is not an
-     ASN.1 Boolean value. */
-
-  if(end - beg != 1)
-    return (const char *) NULL;
-  return strdup(*beg? "TRUE": "FALSE");
-}
-
-static const char *octet2str(const char *beg, const char *end)
-{
-  size_t n = end - beg;
-  char *buf = NULL;
-
-  /* Convert an ASN.1 octet string to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  if(n <= (CURL_SIZE_T_MAX - 1) / 3) {
-    buf = malloc(3 * n + 1);
-    if(buf)
-      for(n = 0; beg < end; n += 3)
-        snprintf(buf + n, 4, "%02x:", *(const unsigned char *) beg++);
-  }
-  return buf;
-}
-
-static const char *bit2str(const char *beg, const char *end)
-{
-  /* Convert an ASN.1 bit string to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  if(++beg > end)
-    return (const char *) NULL;
-  return octet2str(beg, end);
-}
-
-static const char *int2str(const char *beg, const char *end)
-{
-  long val = 0;
-  size_t n = end - beg;
-
-  /* Convert an ASN.1 integer value into its string representation.
-     Return the dynamically allocated string, or NULL if source is not an
-     ASN.1 integer value. */
-
-  if(!n)
-    return (const char *) NULL;
-
-  if(n > 4)
-    return octet2str(beg, end);
-
-  /* Represent integers <= 32-bit as a single value. */
-  if(*beg & 0x80)
-    val = ~val;
-
-  do
-    val = (val << 8) | *(const unsigned char *) beg++;
-  while(beg < end);
-  return curl_maprintf("%s%lx", (val < 0 || val >= 10)? "0x": "", val);
-}
-
-static ssize_t
-utf8asn1str(char **to, int type, const char *from, const char *end)
-{
-  size_t inlength = end - from;
-  int size = 1;
-  size_t outlength;
-  int charsize;
-  unsigned int wc;
-  char *buf;
-
-  /* Perform a lazy conversion from an ASN.1 typed string to UTF8. Allocate the
-     destination buffer dynamically. The allocation size will normally be too
-     large: this is to avoid buffer overflows.
-     Terminate the string with a nul byte and return the converted
-     string length. */
-
-  *to = (char *) NULL;
-  switch(type) {
-  case CURL_ASN1_BMP_STRING:
-    size = 2;
-    break;
-  case CURL_ASN1_UNIVERSAL_STRING:
-    size = 4;
-    break;
-  case CURL_ASN1_NUMERIC_STRING:
-  case CURL_ASN1_PRINTABLE_STRING:
-  case CURL_ASN1_TELETEX_STRING:
-  case CURL_ASN1_IA5_STRING:
-  case CURL_ASN1_VISIBLE_STRING:
-  case CURL_ASN1_UTF8_STRING:
-    break;
-  default:
-    return -1;  /* Conversion not supported. */
-  }
-
-  if(inlength % size)
-    return -1;  /* Length inconsistent with character size. */
-  if(inlength / size > (CURL_SIZE_T_MAX - 1) / 4)
-    return -1;  /* Too big. */
-  buf = malloc(4 * (inlength / size) + 1);
-  if(!buf)
-    return -1;  /* Not enough memory. */
-
-  if(type == CURL_ASN1_UTF8_STRING) {
-    /* Just copy. */
-    outlength = inlength;
-    if(outlength)
-      memcpy(buf, from, outlength);
-  }
-  else {
-    for(outlength = 0; from < end;) {
-      wc = 0;
-      switch(size) {
-      case 4:
-        wc = (wc << 8) | *(const unsigned char *) from++;
-        wc = (wc << 8) | *(const unsigned char *) from++;
-        /* fallthrough */
-      case 2:
-        wc = (wc << 8) | *(const unsigned char *) from++;
-        /* fallthrough */
-      default: /* case 1: */
-        wc = (wc << 8) | *(const unsigned char *) from++;
-      }
-      charsize = 1;
-      if(wc >= 0x00000080) {
-        if(wc >= 0x00000800) {
-          if(wc >= 0x00010000) {
-            if(wc >= 0x00200000) {
-              free(buf);
-              return -1;        /* Invalid char. size for target encoding. */
-            }
-            buf[outlength + 3] = (char) (0x80 | (wc & 0x3F));
-            wc = (wc >> 6) | 0x00010000;
-            charsize++;
-          }
-          buf[outlength + 2] = (char) (0x80 | (wc & 0x3F));
-          wc = (wc >> 6) | 0x00000800;
-          charsize++;
-        }
-        buf[outlength + 1] = (char) (0x80 | (wc & 0x3F));
-        wc = (wc >> 6) | 0x000000C0;
-        charsize++;
-      }
-      buf[outlength] = (char) wc;
-      outlength += charsize;
-    }
-  }
-  buf[outlength] = '\0';
-  *to = buf;
-  return outlength;
-}
-
-static const char *string2str(int type, const char *beg, const char *end)
-{
-  char *buf;
-
-  /* Convert an ASN.1 String into its UTF-8 string representation.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  if(utf8asn1str(&buf, type, beg, end) < 0)
-    return (const char *) NULL;
-  return buf;
-}
-
-static int encodeUint(char *buf, int n, unsigned int x)
-{
-  int i = 0;
-  unsigned int y = x / 10;
-
-  /* Decimal ASCII encode unsigned integer `x' in the `n'-byte buffer at `buf'.
-     Return the total number of encoded digits, even if larger than `n'. */
-
-  if(y) {
-    i += encodeUint(buf, n, y);
-    x -= y * 10;
-  }
-  if(i < n)
-    buf[i] = (char) ('0' + x);
-  i++;
-  if(i < n)
-    buf[i] = '\0';      /* Store a terminator if possible. */
-  return i;
-}
-
-static int encodeOID(char *buf, int n, const char *beg, const char *end)
-{
-  int i = 0;
-  unsigned int x;
-  unsigned int y;
-
-  /* Convert an ASN.1 OID into its dotted string representation.
-     Store the result in th `n'-byte buffer at `buf'.
-     Return the converted string length, or -1 if an error occurs. */
-
-  /* Process the first two numbers. */
-  y = *(const unsigned char *) beg++;
-  x = y / 40;
-  y -= x * 40;
-  i += encodeUint(buf + i, n - i, x);
-  if(i < n)
-    buf[i] = '.';
-  i++;
-  i += encodeUint(buf + i, n - i, y);
-
-  /* Process the trailing numbers. */
-  while(beg < end) {
-    if(i < n)
-      buf[i] = '.';
-    i++;
-    x = 0;
-    do {
-      if(x & 0xFF000000)
-        return -1;
-      y = *(const unsigned char *) beg++;
-      x = (x << 7) | (y & 0x7F);
-    } while(y & 0x80);
-    i += encodeUint(buf + i, n - i, x);
-  }
-  if(i < n)
-    buf[i] = '\0';
-  return i;
-}
-
-static const char *OID2str(const char *beg, const char *end, bool symbolic)
-{
-  char *buf = (char *) NULL;
-  const curl_OID * op;
-  int n;
-
-  /* Convert an ASN.1 OID into its dotted or symbolic string representation.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  if(beg < end) {
-    n = encodeOID((char *) NULL, -1, beg, end);
-    if(n >= 0) {
-      buf = malloc(n + 1);
-      if(buf) {
-        encodeOID(buf, n, beg, end);
-        buf[n] = '\0';
-
-        if(symbolic) {
-          op = searchOID(buf);
-          if(op) {
-            free(buf);
-            buf = strdup(op->textoid);
-          }
-        }
-      }
-    }
-  }
-  return buf;
-}
-
-static const char *GTime2str(const char *beg, const char *end)
-{
-  const char *tzp;
-  const char *fracp;
-  char sec1, sec2;
-  size_t fracl;
-  size_t tzl;
-  const char *sep = "";
-
-  /* Convert an ASN.1 Generalized time to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  for(fracp = beg; fracp < end && *fracp >= '0' && *fracp <= '9'; fracp++)
-    ;
-
-  /* Get seconds digits. */
-  sec1 = '0';
-  switch(fracp - beg - 12) {
-  case 0:
-    sec2 = '0';
-    break;
-  case 2:
-    sec1 = fracp[-2];
-  case 1:
-    sec2 = fracp[-1];
-    break;
-  default:
-    return (const char *) NULL;
-  }
-
-  /* Scan for timezone, measure fractional seconds. */
-  tzp = fracp;
-  fracl = 0;
-  if(fracp < end && (*fracp == '.' || *fracp == ',')) {
-    fracp++;
-    do
-      tzp++;
-    while(tzp < end && *tzp >= '0' && *tzp <= '9');
-    /* Strip leading zeroes in fractional seconds. */
-    for(fracl = tzp - fracp - 1; fracl && fracp[fracl - 1] == '0'; fracl--)
-      ;
-  }
-
-  /* Process timezone. */
-  if(tzp >= end)
-    ;           /* Nothing to do. */
-  else if(*tzp == 'Z') {
-    tzp = " GMT";
-    end = tzp + 4;
-  }
-  else {
-    sep = " ";
-    tzp++;
-  }
-
-  tzl = end - tzp;
-  return curl_maprintf("%.4s-%.2s-%.2s %.2s:%.2s:%c%c%s%.*s%s%.*s",
-                       beg, beg + 4, beg + 6,
-                       beg + 8, beg + 10, sec1, sec2,
-                       fracl? ".": "", fracl, fracp,
-                       sep, tzl, tzp);
-}
-
-static const char *UTime2str(const char *beg, const char *end)
-{
-  const char *tzp;
-  size_t tzl;
-  const char *sec;
-
-  /* Convert an ASN.1 UTC time to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  for(tzp = beg; tzp < end && *tzp >= '0' && *tzp <= '9'; tzp++)
-    ;
-  /* Get the seconds. */
-  sec = beg + 10;
-  switch(tzp - sec) {
-  case 0:
-    sec = "00";
-  case 2:
-    break;
-  default:
-    return (const char *) NULL;
-  }
-
-  /* Process timezone. */
-  if(tzp >= end)
-    return (const char *) NULL;
-  if(*tzp == 'Z') {
-    tzp = "GMT";
-    end = tzp + 3;
-  }
-  else
-    tzp++;
-
-  tzl = end - tzp;
-  return curl_maprintf("%u%.2s-%.2s-%.2s %.2s:%.2s:%.2s %.*s",
-                       20 - (*beg >= '5'), beg, beg + 2, beg + 4,
-                       beg + 6, beg + 8, sec,
-                       tzl, tzp);
-}
-
-const char *Curl_ASN1tostr(curl_asn1Element *elem, int type)
-{
-  /* Convert an ASN.1 element to a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  if(elem->constructed)
-    return (const char *) NULL; /* No conversion of structured elements. */
-
-  if(!type)
-    type = elem->tag;   /* Type not forced: use element tag as type. */
-
-  switch(type) {
-  case CURL_ASN1_BOOLEAN:
-    return bool2str(elem->beg, elem->end);
-  case CURL_ASN1_INTEGER:
-  case CURL_ASN1_ENUMERATED:
-    return int2str(elem->beg, elem->end);
-  case CURL_ASN1_BIT_STRING:
-    return bit2str(elem->beg, elem->end);
-  case CURL_ASN1_OCTET_STRING:
-    return octet2str(elem->beg, elem->end);
-  case CURL_ASN1_NULL:
-    return strdup("");
-  case CURL_ASN1_OBJECT_IDENTIFIER:
-    return OID2str(elem->beg, elem->end, TRUE);
-  case CURL_ASN1_UTC_TIME:
-    return UTime2str(elem->beg, elem->end);
-  case CURL_ASN1_GENERALIZED_TIME:
-    return GTime2str(elem->beg, elem->end);
-  case CURL_ASN1_UTF8_STRING:
-  case CURL_ASN1_NUMERIC_STRING:
-  case CURL_ASN1_PRINTABLE_STRING:
-  case CURL_ASN1_TELETEX_STRING:
-  case CURL_ASN1_IA5_STRING:
-  case CURL_ASN1_VISIBLE_STRING:
-  case CURL_ASN1_UNIVERSAL_STRING:
-  case CURL_ASN1_BMP_STRING:
-    return string2str(type, elem->beg, elem->end);
-  }
-
-  return (const char *) NULL;   /* Unsupported. */
-}
-
-static ssize_t encodeDN(char *buf, size_t n, curl_asn1Element *dn)
-{
-  curl_asn1Element rdn;
-  curl_asn1Element atv;
-  curl_asn1Element oid;
-  curl_asn1Element value;
-  size_t l = 0;
-  const char *p1;
-  const char *p2;
-  const char *p3;
-  const char *str;
-
-  /* ASCII encode distinguished name at `dn' into the `n'-byte buffer at `buf'.
-     Return the total string length, even if larger than `n'. */
-
-  for(p1 = dn->beg; p1 < dn->end;) {
-    p1 = Curl_getASN1Element(&rdn, p1, dn->end);
-    for(p2 = rdn.beg; p2 < rdn.end;) {
-      p2 = Curl_getASN1Element(&atv, p2, rdn.end);
-      p3 = Curl_getASN1Element(&oid, atv.beg, atv.end);
-      Curl_getASN1Element(&value, p3, atv.end);
-      str = Curl_ASN1tostr(&oid, 0);
-      if(!str)
-        return -1;
-
-      /* Encode delimiter.
-         If attribute has a short uppercase name, delimiter is ", ". */
-      if(l) {
-        for(p3 = str; isupper(*p3); p3++)
-          ;
-        for(p3 = (*p3 || p3 - str > 2)? "/": ", "; *p3; p3++) {
-          if(l < n)
-            buf[l] = *p3;
-          l++;
-        }
-      }
-
-      /* Encode attribute name. */
-      for(p3 = str; *p3; p3++) {
-        if(l < n)
-          buf[l] = *p3;
-        l++;
-      }
-      free((char *) str);
-
-      /* Generate equal sign. */
-      if(l < n)
-        buf[l] = '=';
-      l++;
-
-      /* Generate value. */
-      str = Curl_ASN1tostr(&value, 0);
-      if(!str)
-        return -1;
-      for(p3 = str; *p3; p3++) {
-        if(l < n)
-          buf[l] = *p3;
-        l++;
-      }
-      free((char *) str);
-    }
-  }
-
-  return l;
-}
-
-const char *Curl_DNtostr(curl_asn1Element *dn)
-{
-  char *buf = (char *) NULL;
-  ssize_t n = encodeDN(buf, 0, dn);
-
-  /* Convert an ASN.1 distinguished name into a printable string.
-     Return the dynamically allocated string, or NULL if an error occurs. */
-
-  if(n >= 0) {
-    buf = malloc(n + 1);
-    if(buf) {
-      encodeDN(buf, n + 1, dn);
-      buf[n] = '\0';
-    }
-  }
-  return (const char *) buf;
-}
-
-/*
- * X509 parser.
- */
-
-int Curl_parseX509(curl_X509certificate *cert,
-                   const char *beg, const char *end)
-{
-  curl_asn1Element elem;
-  curl_asn1Element tbsCertificate;
-  const char *ccp;
-  static const char defaultVersion = 0;  /* v1. */
-
-  /* ASN.1 parse an X509 certificate into structure subfields.
-     Syntax is assumed to have already been checked by the SSL backend.
-     See RFC 5280. */
-
-  cert->certificate.header = NULL;
-  cert->certificate.beg = beg;
-  cert->certificate.end = end;
-
-  /* Get the sequence content. */
-  if(!Curl_getASN1Element(&elem, beg, end))
-    return -1;  /* Invalid bounds/size. */
-  beg = elem.beg;
-  end = elem.end;
-
-  /* Get tbsCertificate. */
-  beg = Curl_getASN1Element(&tbsCertificate, beg, end);
-  /* Skip the signatureAlgorithm. */
-  beg = Curl_getASN1Element(&cert->signatureAlgorithm, beg, end);
-  /* Get the signatureValue. */
-  Curl_getASN1Element(&cert->signature, beg, end);
-
-  /* Parse TBSCertificate. */
-  beg = tbsCertificate.beg;
-  end = tbsCertificate.end;
-  /* Get optional version, get serialNumber. */
-  cert->version.header = NULL;
-  cert->version.beg = &defaultVersion;
-  cert->version.end = &defaultVersion + sizeof defaultVersion;;
-  beg = Curl_getASN1Element(&elem, beg, end);
-  if(elem.tag == 0) {
-    Curl_getASN1Element(&cert->version, elem.beg, elem.end);
-    beg = Curl_getASN1Element(&elem, beg, end);
-  }
-  cert->serialNumber = elem;
-  /* Get signature algorithm. */
-  beg = Curl_getASN1Element(&cert->signatureAlgorithm, beg, end);
-  /* Get issuer. */
-  beg = Curl_getASN1Element(&cert->issuer, beg, end);
-  /* Get notBefore and notAfter. */
-  beg = Curl_getASN1Element(&elem, beg, end);
-  ccp = Curl_getASN1Element(&cert->notBefore, elem.beg, elem.end);
-  Curl_getASN1Element(&cert->notAfter, ccp, elem.end);
-  /* Get subject. */
-  beg = Curl_getASN1Element(&cert->subject, beg, end);
-  /* Get subjectPublicKeyAlgorithm and subjectPublicKey. */
-  beg = Curl_getASN1Element(&cert->subjectPublicKeyInfo, beg, end);
-  ccp = Curl_getASN1Element(&cert->subjectPublicKeyAlgorithm,
-                            cert->subjectPublicKeyInfo.beg,
-                            cert->subjectPublicKeyInfo.end);
-  Curl_getASN1Element(&cert->subjectPublicKey, ccp,
-                      cert->subjectPublicKeyInfo.end);
-  /* Get optional issuerUiqueID, subjectUniqueID and extensions. */
-  cert->issuerUniqueID.tag = cert->subjectUniqueID.tag = 0;
-  cert->extensions.tag = elem.tag = 0;
-  cert->issuerUniqueID.header = cert->subjectUniqueID.header = NULL;
-  cert->issuerUniqueID.beg = cert->issuerUniqueID.end = "";
-  cert->subjectUniqueID.beg = cert->subjectUniqueID.end = "";
-  cert->extensions.header = NULL;
-  cert->extensions.beg = cert->extensions.end = "";
-  if(beg < end)
-    beg = Curl_getASN1Element(&elem, beg, end);
-  if(elem.tag == 1) {
-    cert->issuerUniqueID = elem;
-    if(beg < end)
-      beg = Curl_getASN1Element(&elem, beg, end);
-  }
-  if(elem.tag == 2) {
-    cert->subjectUniqueID = elem;
-    if(beg < end)
-      beg = Curl_getASN1Element(&elem, beg, end);
-  }
-  if(elem.tag == 3)
-    Curl_getASN1Element(&cert->extensions, elem.beg, elem.end);
   return 0;
 }
 
-static size_t copySubstring(char *to, const char *from)
+static bool dprintf_IsQualifierNoDollar(const char *fmt)
 {
-  size_t i;
-
-  /* Copy at most 64-characters, terminate with a newline and returns the
-     effective number of stored characters. */
-
-  for(i = 0; i < 64; i++) {
-    to[i] = *from;
-    if(!*from++)
-      break;
+#if defined(MP_HAVE_INT_EXTENSIONS)
+  if(!strncmp(fmt, "I32", 3) || !strncmp(fmt, "I64", 3)) {
+    return TRUE;
   }
+#endif
 
-  to[i++] = '\n';
-  return i;
-}
+  switch(*fmt) {
+  case '-': case '+': case ' ': case '#': case '.':
+  case '0': case '1': case '2': case '3': case '4':
+  case '5': case '6': case '7': case '8': case '9':
+  case 'h': case 'l': case 'L': case 'z': case 'q':
+  case '*': case 'O':
+#if defined(MP_HAVE_INT_EXTENSIONS)
+  case 'I':
+#endif
+    return TRUE;
 
-static const char *dumpAlgo(curl_asn1Element *param,
-                            const char *beg, const char *end)
-{
-  curl_asn1Element oid;
-
-  /* Get algorithm parameters and return algorithm name. */
-
-  beg = Curl_getASN1Element(&oid, beg, end);
-  param->header = NULL;
-  param->tag = 0;
-  param->beg = param->end = end;
-  if(beg < end)
-    Curl_getASN1Element(param, beg, end);
-  return OID2str(oid.beg, oid.end, TRUE);
-}
-
-static void do_pubkey_field(struct Curl_easy *data, int certnum,
-                            const char *label, curl_asn1Element *elem)
-{
-  const char *output;
-
-  /* Generate a certificate information record for the public key. */
-
-  output = Curl_ASN1tostr(elem, 0);
-  if(output) {
-    if(data->set.ssl.certinfo)
-      Curl_ssl_push_certinfo(data, certnum, label, output);
-    if(!certnum)
-      infof(data, "   %s: %s\n", label, output);
-    free((char *) output);
+  default:
+    return FALSE;
   }
 }
 
-static void do_pubkey(struct Curl_easy *data, int certnum,
-                      const char *algo, curl_asn1Element *param,
-                      curl_asn1Element *pubkey)
+/******************************************************************
+ *
+ * Pass 1:
+ * Create an index with the type of each parameter entry and its
+ * value (may vary in size)
+ *
+ * Returns zero on success.
+ *
+ ******************************************************************/
+
+static int dprintf_Pass1(const char *format, va_stack_t *vto, char **endpos,
+                         va_list arglist)
 {
-  curl_asn1Element elem;
-  curl_asn1Element pk;
-  const char *p;
-  const char *q;
-  unsigned long len;
-  unsigned int i;
+  char *fmt = (char *)format;
+  int param_num = 0;
+  long this_param;
+  long width;
+  long precision;
+  int flags;
+  long max_param=0;
+  long i;
 
-  /* Generate all information records for the public key. */
-
-  /* Get the public key (single element). */
-  Curl_getASN1Element(&pk, pubkey->beg + 1, pubkey->end);
-
-  if(strcasecompare(algo, "rsaEncryption")) {
-    p = Curl_getASN1Element(&elem, pk.beg, pk.end);
-    /* Compute key length. */
-    for(q = elem.beg; !*q && q < elem.end; q++)
-      ;
-    len = (unsigned long)((elem.end - q) * 8);
-    if(len)
-      for(i = *(unsigned char *) q; !(i & 0x80); i <<= 1)
-        len--;
-    if(len > 32)
-      elem.beg = q;     /* Strip leading zero bytes. */
-    if(!certnum)
-      infof(data, "   RSA Public Key (%lu bits)\n", len);
-    if(data->set.ssl.certinfo) {
-      q = curl_maprintf("%lu", len);
-      if(q) {
-        Curl_ssl_push_certinfo(data, certnum, "RSA Public Key", q);
-        free((char *) q);
+  while(*fmt) {
+    if(*fmt++ == '%') {
+      if(*fmt == '%') {
+        fmt++;
+        continue; /* while */
       }
-    }
-    /* Generate coefficients. */
-    do_pubkey_field(data, certnum, "rsa(n)", &elem);
-    Curl_getASN1Element(&elem, p, pk.end);
-    do_pubkey_field(data, certnum, "rsa(e)", &elem);
-  }
-  else if(strcasecompare(algo, "dsa")) {
-    p = Curl_getASN1Element(&elem, param->beg, param->end);
-    do_pubkey_field(data, certnum, "dsa(p)", &elem);
-    p = Curl_getASN1Element(&elem, p, param->end);
-    do_pubkey_field(data, certnum, "dsa(q)", &elem);
-    Curl_getASN1Element(&elem, p, param->end);
-    do_pubkey_field(data, certnum, "dsa(g)", &elem);
-    do_pubkey_field(data, certnum, "dsa(pub_key)", &pk);
-  }
-  else if(strcasecompare(algo, "dhpublicnumber")) {
-    p = Curl_getASN1Element(&elem, param->beg, param->end);
-    do_pubkey_field(data, certnum, "dh(p)", &elem);
-    Curl_getASN1Element(&elem, param->beg, param->end);
-    do_pubkey_field(data, certnum, "dh(g)", &elem);
-    do_pubkey_field(data, certnum, "dh(pub_key)", &pk);
-  }
-#if 0 /* Patent-encumbered. */
-  else if(strcasecompare(algo, "ecPublicKey")) {
-    /* Left TODO. */
-  }
-#endif
-}
 
-CURLcode Curl_extract_certinfo(struct connectdata *conn,
-                               int certnum,
-                               const char *beg,
-                               const char *end)
-{
-  curl_X509certificate cert;
-  struct Curl_easy *data = conn->data;
-  curl_asn1Element param;
-  const char *ccp;
-  char *cp1;
-  size_t cl1;
-  char *cp2;
-  CURLcode result;
-  unsigned long version;
-  size_t i;
-  size_t j;
+      flags = FLAGS_NEW;
 
-  if(!data->set.ssl.certinfo)
-    if(certnum)
-      return CURLE_OK;
+      /* Handle the positional case (N$) */
 
-  /* Prepare the certificate information for curl_easy_getinfo(). */
+      param_num++;
 
-  /* Extract the certificate ASN.1 elements. */
-  if(Curl_parseX509(&cert, beg, end))
-    return CURLE_OUT_OF_MEMORY;
+      this_param = dprintf_DollarString(fmt, &fmt);
+      if(0 == this_param)
+        /* we got no positional, get the next counter */
+        this_param = param_num;
 
-  /* Subject. */
-  ccp = Curl_DNtostr(&cert.subject);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Subject", ccp);
-  if(!certnum)
-    infof(data, "%2d Subject: %s\n", certnum, ccp);
-  free((char *) ccp);
+      if(this_param > max_param)
+        max_param = this_param;
 
-  /* Issuer. */
-  ccp = Curl_DNtostr(&cert.issuer);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Issuer", ccp);
-  if(!certnum)
-    infof(data, "   Issuer: %s\n", ccp);
-  free((char *) ccp);
+      /*
+       * The parameter with number 'i' should be used. Next, we need
+       * to get SIZE and TYPE of the parameter. Add the information
+       * to our array.
+       */
 
-  /* Version (always fits in less than 32 bits). */
-  version = 0;
-  for(ccp = cert.version.beg; ccp < cert.version.end; ccp++)
-    version = (version << 8) | *(const unsigned char *) ccp;
-  if(data->set.ssl.certinfo) {
-    ccp = curl_maprintf("%lx", version);
-    if(!ccp)
-      return CURLE_OUT_OF_MEMORY;
-    Curl_ssl_push_certinfo(data, certnum, "Version", ccp);
-    free((char *) ccp);
-  }
-  if(!certnum)
-    infof(data, "   Version: %lu (0x%lx)\n", version + 1, version);
+      width = 0;
+      precision = 0;
 
-  /* Serial number. */
-  ccp = Curl_ASN1tostr(&cert.serialNumber, 0);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Serial Number", ccp);
-  if(!certnum)
-    infof(data, "   Serial Number: %s\n", ccp);
-  free((char *) ccp);
+      /* Handle the flags */
 
-  /* Signature algorithm .*/
-  ccp = dumpAlgo(&param, cert.signatureAlgorithm.beg,
-                 cert.signatureAlgorithm.end);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Signature Algorithm", ccp);
-  if(!certnum)
-    infof(data, "   Signature Algorithm: %s\n", ccp);
-  free((char *) ccp);
-
-  /* Start Date. */
-  ccp = Curl_ASN1tostr(&cert.notBefore, 0);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Start Date", ccp);
-  if(!certnum)
-    infof(data, "   Start Date: %s\n", ccp);
-  free((char *) ccp);
-
-  /* Expire Date. */
-  ccp = Curl_ASN1tostr(&cert.notAfter, 0);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Expire Date", ccp);
-  if(!certnum)
-    infof(data, "   Expire Date: %s\n", ccp);
-  free((char *) ccp);
-
-  /* Public Key Algorithm. */
-  ccp = dumpAlgo(&param, cert.subjectPublicKeyAlgorithm.beg,
-                 cert.subjectPublicKeyAlgorithm.end);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Public Key Algorithm", ccp);
-  if(!certnum)
-    infof(data, "   Public Key Algorithm: %s\n", ccp);
-  do_pubkey(data, certnum, ccp, &param, &cert.subjectPublicKey);
-  free((char *) ccp);
-
-/* TODO: extensions. */
-
-  /* Signature. */
-  ccp = Curl_ASN1tostr(&cert.signature, 0);
-  if(!ccp)
-    return CURLE_OUT_OF_MEMORY;
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Signature", ccp);
-  if(!certnum)
-    infof(data, "   Signature: %s\n", ccp);
-  free((char *) ccp);
-
-  /* Generate PEM certificate. */
-  result = Curl_base64_encode(data, cert.certificate.beg,
-                              cert.certificate.end - cert.certificate.beg,
-                              &cp1, &cl1);
-  if(result)
-    return result;
-  /* Compute the number of characters in final certificate string. Format is:
-     -----BEGIN CERTIFICATE-----\n
-     <max 64 base64 characters>\n
-     .
-     .
-     .
-     -----END CERTIFICATE-----\n
-   */
-  i = 28 + cl1 + (cl1 + 64 - 1) / 64 + 26;
-  cp2 = malloc(i + 1);
-  if(!cp2) {
-    free(cp1);
-    return CURLE_OUT_OF_MEMORY;
-  }
-  /* Build the certificate string. */
-  i = copySubstring(cp2, "-----BEGIN CERTIFICATE-----");
-  for(j = 0; j < cl1; j += 64)
-    i += copySubstring(cp2 + i, cp1 + j);
-  i += copySubstring(cp2 + i, "-----END CERTIFICATE-----");
-  cp2[i] = '\0';
-  free(cp1);
-  if(data->set.ssl.certinfo)
-    Curl_ssl_push_certinfo(data, certnum, "Cert", cp2);
-  if(!certnum)
-    infof(data, "%s\n", cp2);
-  free(cp2);
-  return CURLE_OK;
-}
-
-#endif /* USE_GSKIT or USE_NSS or USE_GNUTLS or USE_CYASSL or USE_SCHANNEL */
-
-#if defined(USE_GSKIT)
-
-static const char *checkOID(const char *beg, const char *end,
-                            const char *oid)
-{
-  curl_asn1Element e;
-  const char *ccp;
-  const char *p;
-  bool matched;
-
-  /* Check if first ASN.1 element at `beg' is the given OID.
-     Return a pointer in the source after the OID if found, else NULL. */
-
-  ccp = Curl_getASN1Element(&e, beg, end);
-  if(!ccp || e.tag != CURL_ASN1_OBJECT_IDENTIFIER)
-    return (const char *) NULL;
-
-  p = OID2str(e.beg, e.end, FALSE);
-  if(!p)
-    return (const char *) NULL;
-
-  matched = !strcmp(p, oid);
-  free((char *) p);
-  return matched? ccp: (const char *) NULL;
-}
-
-CURLcode Curl_verifyhost(struct connectdata *conn,
-                         const char *beg, const char *end)
-{
-  struct Curl_easy *data = conn->data;
-  curl_X509certificate cert;
-  curl_asn1Element dn;
-  curl_asn1Element elem;
-  curl_asn1Element ext;
-  curl_asn1Element name;
-  const char *p;
-  const char *q;
-  char *dnsname;
-  int matched = -1;
-  size_t addrlen = (size_t) -1;
-  ssize_t len;
-  const char * const hostname = SSL_IS_PROXY()? conn->http_proxy.host.name:
-                                                conn->host.name;
-  const char * const dispname = SSL_IS_PROXY()?
-                                  conn->http_proxy.host.dispname:
-                                  conn->host.dispname;
-#ifdef ENABLE_IPV6
-  struct in6_addr addr;
-#else
-  struct in_addr addr;
+      while(dprintf_IsQualifierNoDollar(fmt)) {
+#if defined(MP_HAVE_INT_EXTENSIONS)
+        if(!strncmp(fmt, "I32", 3)) {
+          flags |= FLAGS_LONG;
+          fmt += 3;
+        }
+        else if(!strncmp(fmt, "I64", 3)) {
+          flags |= FLAGS_LONGLONG;
+          fmt += 3;
+        }
+        else
 #endif
 
-  /* Verify that connection server matches info in X509 certificate at
-     `beg'..`end'. */
-
-  if(!SSL_CONN_CONFIG(verifyhost))
-    return CURLE_OK;
-
-  if(Curl_parseX509(&cert, beg, end))
-    return CURLE_PEER_FAILED_VERIFICATION;
-
-  /* Get the server IP address. */
-#ifdef ENABLE_IPV6
-  if(conn->bits.ipv6_ip && Curl_inet_pton(AF_INET6, hostname, &addr))
-    addrlen = sizeof(struct in6_addr);
-  else
-#endif
-  if(Curl_inet_pton(AF_INET, hostname, &addr))
-    addrlen = sizeof(struct in_addr);
-
-  /* Process extensions. */
-  for(p = cert.extensions.beg; p < cert.extensions.end && matched != 1;) {
-    p = Curl_getASN1Element(&ext, p, cert.extensions.end);
-    /* Check if extension is a subjectAlternativeName. */
-    ext.beg = checkOID(ext.beg, ext.end, sanOID);
-    if(ext.beg) {
-      ext.beg = Curl_getASN1Element(&elem, ext.beg, ext.end);
-      /* Skip critical if present. */
-      if(elem.tag == CURL_ASN1_BOOLEAN)
-        ext.beg = Curl_getASN1Element(&elem, ext.beg, ext.end);
-      /* Parse the octet string contents: is a single sequence. */
-      Curl_getASN1Element(&elem, elem.beg, elem.end);
-      /* Check all GeneralNames. */
-      for(q = elem.beg; matched != 1 && q < elem.end;) {
-        q = Curl_getASN1Element(&name, q, elem.end);
-        switch(name.tag) {
-        case 2: /* DNS name. */
-          len = utf8asn1str(&dnsname, CURL_ASN1_IA5_STRING,
-                            name.beg, name.end);
-          if(len > 0 && (size_t)len == strlen(dnsname))
-            matched = Curl_cert_hostcheck(dnsname, hostname);
-          else
-            matched = 0;
-          free(dnsname);
+        switch(*fmt++) {
+        case ' ':
+          flags |= FLAGS_SPACE;
           break;
+        case '+':
+          flags |= FLAGS_SHOWSIGN;
+          break;
+        case '-':
+          flags |= FLAGS_LEFT;
+          flags &= ~FLAGS_PAD_NIL;
+          break;
+        case '#':
+          flags |= FLAGS_ALT;
+          break;
+        case '.':
+          if('*' == *fmt) {
+            /* The precision is picked from a specified parameter */
 
-        case 7: /* IP address. */
-          matched = (size_t) (name.end - q) == addrlen &&
-                    !memcmp(&addr, q, addrlen);
+            flags |= FLAGS_PRECPARAM;
+            fmt++;
+            param_num++;
+
+            i = dprintf_DollarString(fmt, &fmt);
+            if(i)
+              precision = i;
+            else
+              precision = param_num;
+
+            if(precision > max_param)
+              max_param = precision;
+          }
+          else {
+            flags |= FLAGS_PREC;
+            precision = strtol(fmt, &fmt, 10);
+          }
+          break;
+        case 'h':
+          flags |= FLAGS_SHORT;
+          break;
+#if defined(MP_HAVE_INT_EXTENSIONS)
+        case 'I':
+#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
+          flags |= FLAGS_LONGLONG;
+#else
+          flags |= FLAGS_LONG;
+#endif
+          break;
+#endif
+        case 'l':
+          if(flags & FLAGS_LONG)
+            flags |= FLAGS_LONGLONG;
+          else
+            flags |= FLAGS_LONG;
+          break;
+        case 'L':
+          flags |= FLAGS_LONGDOUBLE;
+          break;
+        case 'q':
+          flags |= FLAGS_LONGLONG;
+          break;
+        case 'z':
+          /* the code below generates a warning if -Wunreachable-code is
+             used */
+#if (SIZEOF_SIZE_T > CURL_SIZEOF_LONG)
+          flags |= FLAGS_LONGLONG;
+#else
+          flags |= FLAGS_LONG;
+#endif
+          break;
+        case 'O':
+#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
+          flags |= FLAGS_LONGLONG;
+#else
+          flags |= FLAGS_LONG;
+#endif
+          break;
+        case '0':
+          if(!(flags & FLAGS_LEFT))
+            flags |= FLAGS_PAD_NIL;
+          /* FALLTHROUGH */
+        case '1': case '2': case '3': case '4':
+        case '5': case '6': case '7': case '8': case '9':
+          flags |= FLAGS_WIDTH;
+          width = strtol(fmt-1, &fmt, 10);
+          break;
+        case '*':  /* Special case */
+          flags |= FLAGS_WIDTHPARAM;
+          param_num++;
+
+          i = dprintf_DollarString(fmt, &fmt);
+          if(i)
+            width = i;
+          else
+            width = param_num;
+          if(width > max_param)
+            max_param=width;
+          break;
+        default:
           break;
         }
+      } /* switch */
+
+      /* Handle the specifier */
+
+      i = this_param - 1;
+
+      if((i < 0) || (i >= MAX_PARAMETERS))
+        /* out of allowed range */
+        return 1;
+
+      switch (*fmt) {
+      case 'S':
+        flags |= FLAGS_ALT;
+        /* FALLTHROUGH */
+      case 's':
+        vto[i].type = FORMAT_STRING;
+        break;
+      case 'n':
+        vto[i].type = FORMAT_INTPTR;
+        break;
+      case 'p':
+        vto[i].type = FORMAT_PTR;
+        break;
+      case 'd': case 'i':
+        vto[i].type = FORMAT_INT;
+        break;
+      case 'u':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_UNSIGNED;
+        break;
+      case 'o':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_OCTAL;
+        break;
+      case 'x':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_HEX|FLAGS_UNSIGNED;
+        break;
+      case 'X':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_HEX|FLAGS_UPPER|FLAGS_UNSIGNED;
+        break;
+      case 'c':
+        vto[i].type = FORMAT_INT;
+        flags |= FLAGS_CHAR;
+        break;
+      case 'f':
+        vto[i].type = FORMAT_DOUBLE;
+        break;
+      case 'e':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATE;
+        break;
+      case 'E':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATE|FLAGS_UPPER;
+        break;
+      case 'g':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATG;
+        break;
+      case 'G':
+        vto[i].type = FORMAT_DOUBLE;
+        flags |= FLAGS_FLOATG|FLAGS_UPPER;
+        break;
+      default:
+        vto[i].type = FORMAT_UNKNOWN;
+        break;
+      } /* switch */
+
+      vto[i].flags = flags;
+      vto[i].width = width;
+      vto[i].precision = precision;
+
+      if(flags & FLAGS_WIDTHPARAM) {
+        /* we have the width specified from a parameter, so we make that
+           parameter's info setup properly */
+        long k = width - 1;
+        vto[i].width = k;
+        vto[k].type = FORMAT_WIDTH;
+        vto[k].flags = FLAGS_NEW;
+        /* can't use width or precision of width! */
+        vto[k].width = 0;
+        vto[k].precision = 0;
       }
+      if(flags & FLAGS_PRECPARAM) {
+        /* we have the precision specified from a parameter, so we make that
+           parameter's info setup properly */
+        long k = precision - 1;
+        vto[i].precision = k;
+        vto[k].type = FORMAT_WIDTH;
+        vto[k].flags = FLAGS_NEW;
+        /* can't use width or precision of width! */
+        vto[k].width = 0;
+        vto[k].precision = 0;
+      }
+      *endpos++ = fmt + 1; /* end of this sequence */
     }
   }
 
-  switch(matched) {
-  case 1:
-    /* an alternative name matched the server hostname */
-    infof(data, "\t subjectAltName: %s matched\n", dispname);
-    return CURLE_OK;
-  case 0:
-    /* an alternative name field existed, but didn't match and then
-       we MUST fail */
-    infof(data, "\t subjectAltName does not match %s\n", dispname);
-    return CURLE_PEER_FAILED_VERIFICATION;
-  }
+  /* Read the arg list parameters into our data list */
+  for(i=0; i<max_param; i++) {
+    /* Width/precision arguments must be read before the main argument
+       they are attached to */
+    if(vto[i].flags & FLAGS_WIDTHPARAM) {
+      vto[vto[i].width].data.num.as_signed =
+        (mp_intmax_t)va_arg(arglist, int);
+    }
+    if(vto[i].flags & FLAGS_PRECPARAM) {
+      vto[vto[i].precision].data.num.as_signed =
+        (mp_intmax_t)va_arg(arglist, int);
+    }
 
-  /* Process subject. */
-  name.header = NULL;
-  name.beg = name.end = "";
-  q = cert.subject.beg;
-  /* we have to look to the last occurrence of a commonName in the
-     distinguished one to get the most significant one. */
-  while(q < cert.subject.end) {
-    q = Curl_getASN1Element(&dn, q, cert.subject.end);
-    for(p = dn.beg; p < dn.end;) {
-      p = Curl_getASN1Element(&elem, p, dn.end);
-      /* We have a DN's AttributeTypeAndValue: check it in case it's a CN. */
-      elem.beg = checkOID(elem.beg, elem.end, cnOID);
-      if(elem.beg)
-        name = elem;    /* Latch CN. */
+    switch(vto[i].type) {
+    case FORMAT_STRING:
+      vto[i].data.str = va_arg(arglist, char *);
+      break;
+
+    case FORMAT_INTPTR:
+    case FORMAT_UNKNOWN:
+    case FORMAT_PTR:
+      vto[i].data.ptr = va_arg(arglist, void *);
+      break;
+
+    case FORMAT_INT:
+#ifdef HAVE_LONG_LONG_TYPE
+      if((vto[i].flags & FLAGS_LONGLONG) && (vto[i].flags & FLAGS_UNSIGNED))
+        vto[i].data.num.as_unsigned =
+          (mp_uintmax_t)va_arg(arglist, mp_uintmax_t);
+      else if(vto[i].flags & FLAGS_LONGLONG)
+        vto[i].data.num.as_signed =
+          (mp_intmax_t)va_arg(arglist, mp_intmax_t);
+      else
+#endif
+      {
+        if((vto[i].flags & FLAGS_LONG) && (vto[i].flags & FLAGS_UNSIGNED))
+          vto[i].data.num.as_unsigned =
+            (mp_uintmax_t)va_arg(arglist, unsigned long);
+        else if(vto[i].flags & FLAGS_LONG)
+          vto[i].data.num.as_signed =
+            (mp_intmax_t)va_arg(arglist, long);
+        else if(vto[i].flags & FLAGS_UNSIGNED)
+          vto[i].data.num.as_unsigned =
+            (mp_uintmax_t)va_arg(arglist, unsigned int);
+        else
+          vto[i].data.num.as_signed =
+            (mp_intmax_t)va_arg(arglist, int);
+      }
+      break;
+
+    case FORMAT_DOUBLE:
+      vto[i].data.dnum = va_arg(arglist, double);
+      break;
+
+    case FORMAT_WIDTH:
+      /* Argument has been read. Silently convert it into an integer
+       * for later use
+       */
+      vto[i].type = FORMAT_INT;
+      break;
+
+    default:
+      break;
     }
   }
 
-  /* Check the CN if found. */
-  if(!Curl_getASN1Element(&elem, name.beg, name.end))
-    failf(data, "SSL: unable to obtain common name from peer certificate");
-  else {
-    len = utf8asn1str(&dnsname, elem.tag, elem.beg, elem.end);
-    if(len < 0) {
-      free(dnsname);
-      return CURLE_OUT_OF_MEMORY;
-    }
-    if(strlen(dnsname) != (size_t) len)         /* Nul byte in string ? */
-      failf(data, "SSL: illegal cert name field");
-    else if(Curl_cert_hostcheck((const char *) dnsname, hostname)) {
-      infof(data, "\t common name: %s (matched)\n", dnsname);
-      free(dnsname);
-      return CURLE_OK;
-    }
-    else
-      failf(data, "SSL: certificate subject name '%s' does not match "
-            "target host name '%s'", dnsname, dispname);
-    free(dnsname);
-  }
+  return 0;
 
-  return CURLE_PEER_FAILED_VERIFICATION;
 }
 
-#endif /* USE_GSKIT */
+static int dprintf_formatf(
+  void *data, /* untouched by format(), just sent to the stream() function in
+                 the second argument */
+  /* function pointer called for each output character */
+  int (*stream)(int, FILE *),
+  const char *format,    /* %-formatted string */
+  va_list ap_save) /* list of parameters */
+{
+  /* Base-36 digits for numbers.  */
+  const char *digits = lower_digits;
+
+  /* Pointer into the format string.  */
+  char *f;
+
+  /* Number of characters written.  */
+  int done = 0;
+
+  long param; /* current parameter to read */
+  long param_num=0; /* parameter counter */
+
+  va_stack_t vto[MAX_PARAMETERS];
+  char *endpos[MAX_PARAMETERS];
+  char **end;
+
+  char work[BUFFSIZE];
+
+  va_stack_t *p;
+
+  /* 'workend' points to the final buffer byte position, but with an extra
+     byte as margin to avoid the (false?) warning Coverity gives us
+     otherwise */
+  char *workend = &work[sizeof(work) - 2];
+
+  /* Do the actual %-code parsing */
+  if(dprintf_Pass1(format, vto, endpos, ap_save))
+    return -1;
+
+  end = &endpos[0]; /* the initial end-position from the list dprintf_Pass1()
+                       created for us */
+
+  f = (char *)format;
+  while(*f != '\0') {
+    /* Format spec modifiers.  */
+    int is_alt;
+
+    /* Width of a field.  */
+    long width;
+
+    /* Precision of a field.  */
+    long prec;
+
+    /* Decimal integer is negative.  */
+    int is_neg;
+
+    /* Base of a number to be written.  */
+    long base;
+
+    /* Integral values to be written.  */
+    mp_uintmax_t num;
+
+    /* Used to convert negative in positive.  */
+    mp_intmax_t signed_num;
+
+    char *w;
+
+    if(*f != '%') {
+      /* This isn't a format spec, so write everything out until the next one
+         OR end of string is reached.  */
+      do {
+        OUTCHAR(*f);
+      } while(*++f && ('%' != *f));
+      continue;
+    }
+
+    ++f;
+
+    /* Check for "%%".  Note that although the ANSI standard lists
+       '%' as a conversion specifier, it says "The complete format
+       specification shall be `%%'," so we can avoid all the width
+       and precision processing.  */
+    if(*f == '%') {
+      ++f;
+      OUTCHAR('%');
+      continue;
+    }
+
+    /* If this is a positional parameter, the position must follow immediately
+       after the %, thus create a %<num>$ sequence */
+    param=dprintf_DollarString(f, &f);
+
+    if(!param)
+      param = param_num;
+    else
+      --param;
+
+    param_num++; /* increase this always to allow "%2$s %1$s %s" and then the
+                    third %s will pick the 3rd argument */
+
+    p = &vto[param];
+
+    /* pick up the specified width */
+    if(p->flags & FLAGS_WIDTHPARAM) {
+      width = (long)vto[p->width].data.num.as_signed;
+      param_num++; /* since the width is extracted from a parameter, we
+                      must skip that to get to the next one properly */
+      if(width < 0) {
+        /* "A negative field width is taken as a '-' flag followed by a
+           positive field width." */
+        width = -width;
+        p->flags |= FLAGS_LEFT;
+        p->flags &= ~FLAGS_PAD_NIL;
+      }
+    }
+    else
+      width = p->width;
+
+    /* pick up the specified precision */
+    if(p->flags & FLAGS_PRECPARAM) {
+      prec = (long)vto[p->precision].data.num.as_signed;
+      param_num++; /* since the precision is extracted from a parameter, we
+                      must skip that to get to the next one properly */
+      if(prec < 0)
+        /* "A negative precision is taken as if the precision were
+           omitted." */
+        prec = -1;
+    }
+    else if(p->flags & FLAGS_PREC)
+      prec = p->precision;
+    else
+      prec = -1;
+
+    is_alt = (p->flags & FLAGS_ALT) ? 1 : 0;
+
+    switch(p->type) {
+    case FORMAT_INT:
+      num = p->data.num.as_unsigned;
+      if(p->flags & FLAGS_CHAR) {
+        /* Character.  */
+        if(!(p->flags & FLAGS_LEFT))
+          while(--width > 0)
+            OUTCHAR(' ');
+        OUTCHAR((char) num);
+        if(p->flags & FLAGS_LEFT)
+          while(--width > 0)
+            OUTCHAR(' ');
+        break;
+      }
+      if(p->flags & FLAGS_OCTAL) {
+        /* Octal unsigned integer.  */
+        base = 8;
+        goto unsigned_number;
+      }
+      else if(p->flags & FLAGS_HEX) {
+        /* Hexadecimal unsigned integer.  */
+
+        digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
+        base = 16;
+        goto unsigned_number;
+      }
+      else if(p->flags & FLAGS_UNSIGNED) {
+        /* Decimal unsigned integer.  */
+        base = 10;
+        goto unsigned_number;
+      }
+
+      /* Decimal integer.  */
+      base = 10;
+
+      is_neg = (p->data.num.as_signed < (mp_intmax_t)0) ? 1 : 0;
+      if(is_neg) {
+        /* signed_num might fail to hold absolute negative minimum by 1 */
+        signed_num = p->data.num.as_signed + (mp_intmax_t)1;
+        signed_num = -signed_num;
+        num = (mp_uintmax_t)signed_num;
+        num += (mp_uintmax_t)1;
+      }
+
+      goto number;
+
+      unsigned_number:
+      /* Unsigned number of base BASE.  */
+      is_neg = 0;
+
+      number:
+      /* Number of base BASE.  */
+
+      /* Supply a default precision if none was given.  */
+      if(prec == -1)
+        prec = 1;
+
+      /* Put the number in WORK.  */
+      w = workend;
+      while(num > 0) {
+        *w-- = digits[num % base];
+        num /= base;
+      }
+      width -= (long)(workend - w);
+      prec -= (long)(workend - w);
+
+      if(is_alt && base == 8 && prec <= 0) {
+        *w-- = '0';
+        --width;
+      }
+
+      if(prec > 0) {
+        width -= prec;
+        while(prec-- > 0)
+          *w-- = '0';
+      }
+
+      if(is_alt && base == 16)
+        width -= 2;
+
+      if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
+        --width;
+
+      if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
+        while(width-- > 0)
+          OUTCHAR(' ');
+
+      if(is_neg)
+        OUTCHAR('-');
+      else if(p->flags & FLAGS_SHOWSIGN)
+        OUTCHAR('+');
+      else if(p->flags & FLAGS_SPACE)
+        OUTCHAR(' ');
+
+      if(is_alt && base == 16) {
+        OUTCHAR('0');
+        if(p->flags & FLAGS_UPPER)
+          OUTCHAR('X');
+        else
+          OUTCHAR('x');
+      }
+
+      if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
+        while(width-- > 0)
+          OUTCHAR('0');
+
+      /* Write the number.  */
+      while(++w <= workend) {
+        OUTCHAR(*w);
+      }
+
+      if(p->flags & FLAGS_LEFT)
+        while(width-- > 0)
+          OUTCHAR(' ');
+      break;
+
+    case FORMAT_STRING:
+            /* String.  */
+      {
+        static const char null[] = "(nil)";
+        const char *str;
+        size_t len;
+
+        str = (char *) p->data.str;
+        if(str == NULL) {
+          /* Write null[] if there's space.  */
+          if(prec == -1 || prec >= (long) sizeof(null) - 1) {
+            str = null;
+            len = sizeof(null) - 1;
+            /* Disable quotes around (nil) */
+            p->flags &= (~FLAGS_ALT);
+          }
+          else {
+            str = "";
+            len = 0;
+          }
+        }
+        else if(prec != -1)
+          len = (size_t)prec;
+        else
+          len = strlen(str);
+
+        width -= (len > LONG_MAX) ? LONG_MAX : (long)len;
+
+        if(p->flags & FLAGS_ALT)
+          OUTCHAR('"');
+
+        if(!(p->flags&FLAGS_LEFT))
+          while(width-- > 0)
+            OUTCHAR(' ');
+
+        while((len-- > 0) && *str)
+          OUTCHAR(*str++);
+        if(p->flags&FLAGS_LEFT)
+          while(width-- > 0)
+            OUTCHAR(' ');
+
+        if(p->flags & FLAGS_ALT)
+          OUTCHAR('"');
+      }
+      break;
+
+    case FORMAT_PTR:
+      /* Generic pointer.  */
+      {
+        void *ptr;
+        ptr = (void *) p->data.ptr;
+        if(ptr != NULL) {
+          /* If the pointer is not NULL, write it as a %#x spec.  */
+          base = 16;
+          digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
+          is_alt = 1;
+          num = (size_t) ptr;
+          is_neg = 0;
+          goto number;
+        }
+        else {
+          /* Write "(nil)" for a nil pointer.  */
+          static const char strnil[] = "(nil)";
+          const char *point;
+
+          width -= (long)(sizeof(strnil) - 1);
+          if(p->flags & FLAGS_LEFT)
+            while(width-- > 0)
+              OUTCHAR(' ');
+          for(point = strnil; *point != '\0'; ++point)
+            OUTCHAR(*point);
+          if(! (p->flags & FLAGS_LEFT))
+            while(width-- > 0)
+              OUTCHAR(' ');
+        }
+      }
+      break;
+
+    case FORMAT_DOUBLE:
+      {
+        char formatbuf[32]="%";
+        char *fptr = &formatbuf[1];
+        size_t left = sizeof(formatbuf)-strlen(formatbuf);
+        int len;
+
+        width = -1;
+        if(p->flags & FLAGS_WIDTH)
+          width = p->width;
+        else if(p->flags & FLAGS_WIDTHPARAM)
+          width = (long)vto[p->width].data.num.as_signed;
+
+        prec = -1;
+        if(p->flags & FLAGS_PREC)
+          prec = p->precision;
+        else if(p->flags & FLAGS_PRECPARAM)
+          prec = (long)vto[p->precision].data.num.as_signed;
+
+        if(p->flags & FLAGS_LEFT)
+          *fptr++ = '-';
+        if(p->flags & FLAGS_SHOWSIGN)
+          *fptr++ = '+';
+        if(p->flags & FLAGS_SPACE)
+          *fptr++ = ' ';
+        if(p->flags & FLAGS_ALT)
+          *fptr++ = '#';
+
+        *fptr = 0;
+
+        if(width >= 0) {
+          if(width >= (long)sizeof(work))
+            width = sizeof(work)-1;
+          /* RECURSIVE USAGE */
+          len = curl_msnprintf(fptr, left, "%ld", width);
+          fptr += len;
+          left -= len;
+        }
+        if(prec >= 0) {
+          /* for each digit in the integer part, we can have one less
+             precision */
+          size_t maxprec = sizeof(work) - 2;
+          double val = p->data.dnum;
+          while(val >= 10.0) {
+            val /= 10;
+            maxprec--;
+          }
+
+          if(prec > (long)maxprec)
+            prec = (long)maxprec-1;
+          /* RECURSIVE USAGE */
+          len = curl_msnprintf(fptr, left, ".%ld", prec);
+          fptr += len;
+        }
+        if(p->flags & FLAGS_LONG)
+          *fptr++ = 'l';
+
+        if(p->flags & FLAGS_FLOATE)
+          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'E':'e');
+        else if(p->flags & FLAGS_FLOATG)
+          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'G' : 'g');
+        else
+          *fptr++ = 'f';
+
+        *fptr = 0; /* and a final zero termination */
+
+        /* NOTE NOTE NOTE!! Not all sprintf implementations return number of
+           output characters */
+        (sprintf)(work, formatbuf, p->data.dnum);
+#ifdef CURLDEBUG
+        assert(strlen(work) <= sizeof(work));
+#endif
+        for(fptr=work; *fptr; fptr++)
+          OUTCHAR(*fptr);
+      }
+      break;
+
+    case FORMAT_INTPTR:
+      /* Answer the count of characters written.  */
+#ifdef HAVE_LONG_LONG_TYPE
+      if(p->flags & FLAGS_LONGLONG)
+        *(LONG_LONG_TYPE *) p->data.ptr = (LONG_LONG_TYPE)done;
+      else
+#endif
+        if(p->flags & FLAGS_LONG)
+          *(long *) p->data.ptr = (long)done;
+      else if(!(p->flags & FLAGS_SHORT))
+        *(int *) p->data.ptr = (int)done;
+      else
+        *(short *) p->data.ptr = (short)done;
+      break;
+
+    default:
+      break;
+    }
+    f = *end++; /* goto end of %-code */
+
+  }
+  return done;
+}
+
+/* fputc() look-alike */
+static int addbyter(int output, FILE *data)
+{
+  struct nsprintf *infop=(struct nsprintf *)data;
+  unsigned char outc = (unsigned char)output;
+
+  if(infop->length < infop->max) {
+    /* only do this if we haven't reached max length yet */
+    infop->buffer[0] = outc; /* store */
+    infop->buffer++; /* increase pointer */
+    infop->length++; /* we are now one byte larger */
+    return outc;     /* fputc() returns like this on success */
+  }
+  return -1;
+}
+
+int curl_mvsnprintf(char *buffer, size_t maxlength, const char *format,
+                    va_list ap_save)
+{
+  int retcode;
+  struct nsprintf info;
+
+  info.buffer = buffer;
+  info.length = 0;
+  info.max = maxlength;
+
+  retcode = dprintf_formatf(&info, addbyter, format, ap_save);
+  if((retcode != -1) && info.max) {
+    /* we terminate this with a zero byte */
+    if(info.max == info.length)
+      /* we're at maximum, scrap the last letter */
+      info.buffer[-1] = 0;
+    else
+      info.buffer[0] = 0;
+  }
+  return retcode;
+}
+
+int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...)
+{
+  int retcode;
+  va_list ap_save; /* argument pointer */
+  va_start(ap_save, format);
+  retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save);
+  va_end(ap_save);
+  return retcode;
+}
+
+/* fputc() look-alike */
+static int alloc_addbyter(int output, FILE *data)
+{
+  struct asprintf *infop=(struct asprintf *)data;
+  unsigned char outc = (unsigned char)output;
+
+  if(!infop->buffer) {
+    infop->buffer = malloc(32);
+    if(!infop->buffer) {
+      infop->fail = 1;
+      return -1; /* fail */
+    }
+    infop->alloc = 32;
+    infop->len =0;
+  }
+  else if(infop->len+1 >= infop->alloc) {
+    char *newptr = NULL;
+    size_t newsize = infop->alloc*2;
+
+    /* detect wrap-around or other overflow problems */
+    if(newsize > infop->alloc)
+      newptr = realloc(infop->buffer, newsize);
+
+    if(!newptr) {
+      infop->fail = 1;
+      return -1; /* fail */
+    }
+    infop->buffer = newptr;
+    infop->alloc = newsize;
+  }
+
+  infop->buffer[ infop->len ] = outc;
+
+  infop->len++;
+
+  return outc; /* fputc() returns like this on success */
+}
+
+char *curl_maprintf(const char *format, ...)
+{
+  va_list ap_save; /* argument pointer */
+  int retcode;
+  struct asprintf info;
+
+  info.buffer = NULL;
+  info.len = 0;
+  info.alloc = 0;
+  info.fail = 0;
+
+  va_start(ap_save, format);
+  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
+  va_end(ap_save);
+  if((-1 == retcode) || info.fail) {
+    if(info.alloc)
+      free(info.buffer);
+    return NULL;
+  }
+  if(info.alloc) {
+    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
+    return info.buffer;
+  }
+  else
+    return strdup("");
+}
+
+char *curl_mvaprintf(const char *format, va_list ap_save)
+{
+  int retcode;
+  struct asprintf info;
+
+  info.buffer = NULL;
+  info.len = 0;
+  info.alloc = 0;
+  info.fail = 0;
+
+  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
+  if((-1 == retcode) || info.fail) {
+    if(info.alloc)
+      free(info.buffer);
+    return NULL;
+  }
+
+  if(info.alloc) {
+    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
+    return info.buffer;
+  }
+  else
+    return strdup("");
+}
+
+static int storebuffer(int output, FILE *data)
+{
+  char **buffer = (char **)data;
+  unsigned char outc = (unsigned char)output;
+  **buffer = outc;
+  (*buffer)++;
+  return outc; /* act like fputc() ! */
+}
+
+int curl_msprintf(char *buffer, const char *format, ...)
+{
+  va_list ap_save; /* argument pointer */
+  int retcode;
+  va_start(ap_save, format);
+  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
+  va_end(ap_save);
+  *buffer=0; /* we terminate this with a zero byte */
+  return retcode;
+}
+
+int curl_mprintf(const char *format, ...)
+{
+  int retcode;
+  va_list ap_save; /* argument pointer */
+  va_start(ap_save, format);
+
+  retcode = dprintf_formatf(stdout, fputc, format, ap_save);
+  va_end(ap_save);
+  return retcode;
+}
+
+int curl_mfprintf(FILE *whereto, const char *format, ...)
+{
+  int retcode;
+  va_list ap_save; /* argument pointer */
+  va_start(ap_save, format);
+  retcode = dprintf_formatf(whereto, fputc, format, ap_save);
+  va_end(ap_save);
+  return retcode;
+}
+
+int curl_mvsprintf(char *buffer, const char *format, va_list ap_save)
+{
+  int retcode;
+  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
+  *buffer=0; /* we terminate this with a zero byte */
+  return retcode;
+}
+
+int curl_mvprintf(const char *format, va_list ap_save)
+{
+  return dprintf_formatf(stdout, fputc, format, ap_save);
+}
+
+int curl_mvfprintf(FILE *whereto, const char *format, va_list ap_save)
+{
+  return dprintf_formatf(whereto, fputc, format, ap_save);
+}

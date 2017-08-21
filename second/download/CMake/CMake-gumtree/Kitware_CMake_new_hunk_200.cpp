@@ -1,11 +1,12 @@
-	if (a->format_free != NULL)
-		(a->format_free)(a);
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
 
-	cpio = (struct cpio *)calloc(1, sizeof(*cpio));
-	if (cpio == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Can't allocate cpio data");
+	ar = (struct ar *)calloc(1, sizeof(*ar));
+	if (ar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ar data");
 		return (ARCHIVE_FATAL);
 	}
-	a->format_data = cpio;
-	a->format_name = "cpio";
-	a->format_options = archive_write_newc_options;
+	ar->strtab = NULL;
+
+	r = __archive_read_register_format(a,

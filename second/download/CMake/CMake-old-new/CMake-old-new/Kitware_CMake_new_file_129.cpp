@@ -18,880 +18,1092 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- * RFC2831 DIGEST-MD5 authentication
- *
  ***************************************************************************/
 
 #include "curl_setup.h"
 
-#if !defined(CURL_DISABLE_CRYPTO_AUTH)
+/*
+ * See comment in curl_memory.h for the explanation of this sanity check.
+ */
 
-#include <curl/curl.h>
+#ifdef CURLX_NO_MEMORY_CALLBACKS
+#error "libcurl shall not ever be built with CURLX_NO_MEMORY_CALLBACKS defined"
+#endif
 
-#include "vauth/vauth.h"
-#include "vauth/digest.h"
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+
 #include "urldata.h"
-#include "curl_base64.h"
-#include "curl_hmac.h"
-#include "curl_md5.h"
+#include <curl/curl.h>
+#include "transfer.h"
 #include "vtls/vtls.h"
+#include "url.h"
+#include "getinfo.h"
+#include "hostip.h"
+#include "share.h"
+#include "strdup.h"
+#include "progress.h"
+#include "easyif.h"
+#include "select.h"
+#include "sendf.h" /* for failf function prototype */
+#include "connect.h" /* for Curl_getconnectinfo */
+#include "slist.h"
+#include "amigaos.h"
+#include "non-ascii.h"
 #include "warnless.h"
-#include "strtok.h"
-#include "strcase.h"
-#include "non-ascii.h" /* included for Curl_convert_... prototypes */
+#include "conncache.h"
+#include "multiif.h"
+#include "sigpipe.h"
+#include "ssh.h"
+/* The last 3 #include files should be in this order */
 #include "curl_printf.h"
-
-/* The last #include files should be: */
 #include "curl_memory.h"
 #include "memdebug.h"
 
-#if !defined(USE_WINDOWS_SSPI)
-#define DIGEST_QOP_VALUE_AUTH             (1 << 0)
-#define DIGEST_QOP_VALUE_AUTH_INT         (1 << 1)
-#define DIGEST_QOP_VALUE_AUTH_CONF        (1 << 2)
+void Curl_version_init(void);
 
-#define DIGEST_QOP_VALUE_STRING_AUTH      "auth"
-#define DIGEST_QOP_VALUE_STRING_AUTH_INT  "auth-int"
-#define DIGEST_QOP_VALUE_STRING_AUTH_CONF "auth-conf"
-
-/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
-   It converts digest text to ASCII so the MD5 will be correct for
-   what ultimately goes over the network.
-*/
-#define CURL_OUTPUT_DIGEST_CONV(a, b) \
-  result = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
-  if(result) { \
-    free(b); \
-    return result; \
-  }
-#endif /* !USE_WINDOWS_SSPI */
-
-bool Curl_auth_digest_get_pair(const char *str, char *value, char *content,
-                               const char **endptr)
+/* win32_cleanup() is for win32 socket cleanup functionality, the opposite
+   of win32_init() */
+static void win32_cleanup(void)
 {
-  int c;
-  bool starts_with_quote = FALSE;
-  bool escape = FALSE;
-
-  for(c = DIGEST_MAX_VALUE_LENGTH - 1; (*str && (*str != '=') && c--);)
-    *value++ = *str++;
-  *value = 0;
-
-  if('=' != *str++)
-    /* eek, no match */
-    return FALSE;
-
-  if('\"' == *str) {
-    /* This starts with a quote so it must end with one as well! */
-    str++;
-    starts_with_quote = TRUE;
-  }
-
-  for(c = DIGEST_MAX_CONTENT_LENGTH - 1; *str && c--; str++) {
-    switch(*str) {
-    case '\\':
-      if(!escape) {
-        /* possibly the start of an escaped quote */
-        escape = TRUE;
-        *content++ = '\\'; /* Even though this is an escape character, we still
-                              store it as-is in the target buffer */
-        continue;
-      }
-      break;
-
-    case ',':
-      if(!starts_with_quote) {
-        /* This signals the end of the content if we didn't get a starting
-           quote and then we do "sloppy" parsing */
-        c = 0; /* the end */
-        continue;
-      }
-      break;
-
-    case '\r':
-    case '\n':
-      /* end of string */
-      c = 0;
-      continue;
-
-    case '\"':
-      if(!escape && starts_with_quote) {
-        /* end of string */
-        c = 0;
-        continue;
-      }
-      break;
-    }
-
-    escape = FALSE;
-    *content++ = *str;
-  }
-
-  *content = 0;
-  *endptr = str;
-
-  return TRUE;
+#ifdef USE_WINSOCK
+  WSACleanup();
+#endif
+#ifdef USE_WINDOWS_SSPI
+  Curl_sspi_global_cleanup();
+#endif
 }
 
-#if !defined(USE_WINDOWS_SSPI)
-/* Convert md5 chunk to RFC2617 (section 3.1.3) -suitable ascii string*/
-static void auth_digest_md5_to_ascii(unsigned char *source, /* 16 bytes */
-                                     unsigned char *dest) /* 33 bytes */
+/* win32_init() performs win32 socket initialization to properly setup the
+   stack to allow networking */
+static CURLcode win32_init(void)
 {
-  int i;
-  for(i = 0; i < 16; i++)
-    snprintf((char *) &dest[i * 2], 3, "%02x", source[i]);
-}
+#ifdef USE_WINSOCK
+  WORD wVersionRequested;
+  WSADATA wsaData;
+  int res;
 
-/* Perform quoted-string escaping as described in RFC2616 and its errata */
-static char *auth_digest_string_quoted(const char *source)
-{
-  char *dest, *d;
-  const char *s = source;
-  size_t n = 1; /* null terminator */
+#if defined(ENABLE_IPV6) && (USE_WINSOCK < 2)
+  Error IPV6_requires_winsock2
+#endif
 
-  /* Calculate size needed */
-  while(*s) {
-    ++n;
-    if(*s == '"' || *s == '\\') {
-      ++n;
-    }
-    ++s;
+  wVersionRequested = MAKEWORD(USE_WINSOCK, USE_WINSOCK);
+
+  res = WSAStartup(wVersionRequested, &wsaData);
+
+  if(res != 0)
+    /* Tell the user that we couldn't find a useable */
+    /* winsock.dll.     */
+    return CURLE_FAILED_INIT;
+
+  /* Confirm that the Windows Sockets DLL supports what we need.*/
+  /* Note that if the DLL supports versions greater */
+  /* than wVersionRequested, it will still return */
+  /* wVersionRequested in wVersion. wHighVersion contains the */
+  /* highest supported version. */
+
+  if(LOBYTE(wsaData.wVersion) != LOBYTE(wVersionRequested) ||
+     HIBYTE(wsaData.wVersion) != HIBYTE(wVersionRequested) ) {
+    /* Tell the user that we couldn't find a useable */
+
+    /* winsock.dll. */
+    WSACleanup();
+    return CURLE_FAILED_INIT;
   }
+  /* The Windows Sockets DLL is acceptable. Proceed. */
+#elif defined(USE_LWIPSOCK)
+  lwip_init();
+#endif
 
-  dest = malloc(n);
-  if(dest) {
-    s = source;
-    d = dest;
-    while(*s) {
-      if(*s == '"' || *s == '\\') {
-        *d++ = '\\';
-      }
-      *d++ = *s++;
-    }
-    *d = 0;
-  }
-
-  return dest;
-}
-
-/* Retrieves the value for a corresponding key from the challenge string
- * returns TRUE if the key could be found, FALSE if it does not exists
- */
-static bool auth_digest_get_key_value(const char *chlg,
-                                      const char *key,
-                                      char *value,
-                                      size_t max_val_len,
-                                      char end_char)
-{
-  char *find_pos;
-  size_t i;
-
-  find_pos = strstr(chlg, key);
-  if(!find_pos)
-    return FALSE;
-
-  find_pos += strlen(key);
-
-  for(i = 0; *find_pos && *find_pos != end_char && i < max_val_len - 1; ++i)
-    value[i] = *find_pos++;
-  value[i] = '\0';
-
-  return TRUE;
-}
-
-static CURLcode auth_digest_get_qop_values(const char *options, int *value)
-{
-  char *tmp;
-  char *token;
-  char *tok_buf;
-
-  /* Initialise the output */
-  *value = 0;
-
-  /* Tokenise the list of qop values. Use a temporary clone of the buffer since
-     strtok_r() ruins it. */
-  tmp = strdup(options);
-  if(!tmp)
-    return CURLE_OUT_OF_MEMORY;
-
-  token = strtok_r(tmp, ",", &tok_buf);
-  while(token != NULL) {
-    if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH))
-      *value |= DIGEST_QOP_VALUE_AUTH;
-    else if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH_INT))
-      *value |= DIGEST_QOP_VALUE_AUTH_INT;
-    else if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH_CONF))
-      *value |= DIGEST_QOP_VALUE_AUTH_CONF;
-
-    token = strtok_r(NULL, ",", &tok_buf);
-  }
-
-  free(tmp);
-
-  return CURLE_OK;
-}
-
-/*
- * auth_decode_digest_md5_message()
- *
- * This is used internally to decode an already encoded DIGEST-MD5 challenge
- * message into the seperate attributes.
- *
- * Parameters:
- *
- * chlg64  [in]     - The base64 encoded challenge message.
- * nonce   [in/out] - The buffer where the nonce will be stored.
- * nlen    [in]     - The length of the nonce buffer.
- * realm   [in/out] - The buffer where the realm will be stored.
- * rlen    [in]     - The length of the realm buffer.
- * alg     [in/out] - The buffer where the algorithm will be stored.
- * alen    [in]     - The length of the algorithm buffer.
- * qop     [in/out] - The buffer where the qop-options will be stored.
- * qlen    [in]     - The length of the qop buffer.
- *
- * Returns CURLE_OK on success.
- */
-static CURLcode auth_decode_digest_md5_message(const char *chlg64,
-                                               char *nonce, size_t nlen,
-                                               char *realm, size_t rlen,
-                                               char *alg, size_t alen,
-                                               char *qop, size_t qlen)
-{
-  CURLcode result = CURLE_OK;
-  unsigned char *chlg = NULL;
-  size_t chlglen = 0;
-  size_t chlg64len = strlen(chlg64);
-
-  /* Decode the base-64 encoded challenge message */
-  if(chlg64len && *chlg64 != '=') {
-    result = Curl_base64_decode(chlg64, &chlg, &chlglen);
+#ifdef USE_WINDOWS_SSPI
+  {
+    CURLcode result = Curl_sspi_global_init();
     if(result)
       return result;
   }
-
-  /* Ensure we have a valid challenge message */
-  if(!chlg)
-    return CURLE_BAD_CONTENT_ENCODING;
-
-  /* Retrieve nonce string from the challenge */
-  if(!auth_digest_get_key_value((char *) chlg, "nonce=\"", nonce, nlen,
-                                '\"')) {
-    free(chlg);
-    return CURLE_BAD_CONTENT_ENCODING;
-  }
-
-  /* Retrieve realm string from the challenge */
-  if(!auth_digest_get_key_value((char *) chlg, "realm=\"", realm, rlen,
-                                '\"')) {
-    /* Challenge does not have a realm, set empty string [RFC2831] page 6 */
-    strcpy(realm, "");
-  }
-
-  /* Retrieve algorithm string from the challenge */
-  if(!auth_digest_get_key_value((char *) chlg, "algorithm=", alg, alen, ',')) {
-    free(chlg);
-    return CURLE_BAD_CONTENT_ENCODING;
-  }
-
-  /* Retrieve qop-options string from the challenge */
-  if(!auth_digest_get_key_value((char *) chlg, "qop=\"", qop, qlen, '\"')) {
-    free(chlg);
-    return CURLE_BAD_CONTENT_ENCODING;
-  }
-
-  free(chlg);
+#endif
 
   return CURLE_OK;
 }
 
+/* true globals -- for curl_global_init() and curl_global_cleanup() */
+static unsigned int  initialized;
+static long          init_flags;
+
 /*
- * Curl_auth_is_digest_supported()
- *
- * This is used to evaluate if DIGEST is supported.
- *
- * Parameters: None
- *
- * Returns TRUE as DIGEST as handled by libcurl.
+ * strdup (and other memory functions) is redefined in complicated
+ * ways, but at this point it must be defined as the system-supplied strdup
+ * so the callback pointer is initialized correctly.
  */
-bool Curl_auth_is_digest_supported(void)
+#if defined(_WIN32_WCE)
+#define system_strdup _strdup
+#elif !defined(HAVE_STRDUP)
+#define system_strdup curlx_strdup
+#else
+#define system_strdup strdup
+#endif
+
+#if defined(_MSC_VER) && defined(_DLL) && !defined(__POCC__)
+#  pragma warning(disable:4232) /* MSVC extension, dllimport identity */
+#endif
+
+#ifndef __SYMBIAN32__
+/*
+ * If a memory-using function (like curl_getenv) is used before
+ * curl_global_init() is called, we need to have these pointers set already.
+ */
+curl_malloc_callback Curl_cmalloc = (curl_malloc_callback)malloc;
+curl_free_callback Curl_cfree = (curl_free_callback)free;
+curl_realloc_callback Curl_crealloc = (curl_realloc_callback)realloc;
+curl_strdup_callback Curl_cstrdup = (curl_strdup_callback)system_strdup;
+curl_calloc_callback Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(WIN32) && defined(UNICODE)
+curl_wcsdup_callback Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
+#endif
+#else
+/*
+ * Symbian OS doesn't support initialization to code in writeable static data.
+ * Initialization will occur in the curl_global_init() call.
+ */
+curl_malloc_callback Curl_cmalloc;
+curl_free_callback Curl_cfree;
+curl_realloc_callback Curl_crealloc;
+curl_strdup_callback Curl_cstrdup;
+curl_calloc_callback Curl_ccalloc;
+#endif
+
+#if defined(_MSC_VER) && defined(_DLL) && !defined(__POCC__)
+#  pragma warning(default:4232) /* MSVC extension, dllimport identity */
+#endif
+
+/**
+ * curl_global_init() globally initializes curl given a bitwise set of the
+ * different features of what to initialize.
+ */
+static CURLcode global_init(long flags, bool memoryfuncs)
 {
-  return TRUE;
+  if(initialized++)
+    return CURLE_OK;
+
+  if(memoryfuncs) {
+    /* Setup the default memory functions here (again) */
+    Curl_cmalloc = (curl_malloc_callback)malloc;
+    Curl_cfree = (curl_free_callback)free;
+    Curl_crealloc = (curl_realloc_callback)realloc;
+    Curl_cstrdup = (curl_strdup_callback)system_strdup;
+    Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(WIN32) && defined(UNICODE)
+    Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
+#endif
+  }
+
+  if(flags & CURL_GLOBAL_SSL)
+    if(!Curl_ssl_init()) {
+      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init()) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+#ifdef __AMIGA__
+  if(!Curl_amiga_init()) {
+    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+#ifdef NETWARE
+  if(netware_init()) {
+    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
+  }
+#endif
+
+  if(Curl_resolver_global_init()) {
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+
+  (void)Curl_ipv6works();
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
+  if(libssh2_init(0)) {
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+  if(flags & CURL_GLOBAL_ACK_EINTR)
+    Curl_ack_eintr = 1;
+
+  init_flags = flags;
+
+  Curl_version_init();
+
+  return CURLE_OK;
+}
+
+
+/**
+ * curl_global_init() globally initializes curl given a bitwise set of the
+ * different features of what to initialize.
+ */
+CURLcode curl_global_init(long flags)
+{
+  return global_init(flags, TRUE);
 }
 
 /*
- * Curl_auth_create_digest_md5_message()
- *
- * This is used to generate an already encoded DIGEST-MD5 response message
- * ready for sending to the recipient.
- *
- * Parameters:
- *
- * data    [in]     - The session handle.
- * chlg64  [in]     - The base64 encoded challenge message.
- * userp   [in]     - The user name.
- * passdwp [in]     - The user's password.
- * service [in]     - The service type such as http, smtp, pop or imap.
- * outptr  [in/out] - The address where a pointer to newly allocated memory
- *                    holding the result will be stored upon completion.
- * outlen  [out]    - The length of the output message.
- *
- * Returns CURLE_OK on success.
+ * curl_global_init_mem() globally initializes curl and also registers the
+ * user provided callback routines.
  */
-CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
-                                             const char *chlg64,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             const char *service,
-                                             char **outptr, size_t *outlen)
+CURLcode curl_global_init_mem(long flags, curl_malloc_callback m,
+                              curl_free_callback f, curl_realloc_callback r,
+                              curl_strdup_callback s, curl_calloc_callback c)
 {
+  /* Invalid input, return immediately */
+  if(!m || !f || !r || !s || !c)
+    return CURLE_FAILED_INIT;
+
+  if(initialized) {
+    /* Already initialized, don't do it again, but bump the variable anyway to
+       work like curl_global_init() and require the same amount of cleanup
+       calls. */
+    initialized++;
+    return CURLE_OK;
+  }
+
+  /* set memory functions before global_init() in case it wants memory
+     functions */
+  Curl_cmalloc = m;
+  Curl_cfree = f;
+  Curl_cstrdup = s;
+  Curl_crealloc = r;
+  Curl_ccalloc = c;
+
+  /* Call the actual init function, but without setting */
+  return global_init(flags, FALSE);
+}
+
+/**
+ * curl_global_cleanup() globally cleanups curl, uses the value of
+ * "init_flags" to determine what needs to be cleaned up and what doesn't.
+ */
+void curl_global_cleanup(void)
+{
+  if(!initialized)
+    return;
+
+  if(--initialized)
+    return;
+
+  Curl_global_host_cache_dtor();
+
+  if(init_flags & CURL_GLOBAL_SSL)
+    Curl_ssl_cleanup();
+
+  Curl_resolver_global_cleanup();
+
+  if(init_flags & CURL_GLOBAL_WIN32)
+    win32_cleanup();
+
+  Curl_amiga_cleanup();
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_EXIT)
+  (void)libssh2_exit();
+#endif
+
+  init_flags  = 0;
+}
+
+/*
+ * curl_easy_init() is the external interface to alloc, setup and init an
+ * easy handle that is returned. If anything goes wrong, NULL is returned.
+ */
+struct Curl_easy *curl_easy_init(void)
+{
+  CURLcode result;
+  struct Curl_easy *data;
+
+  /* Make sure we inited the global SSL stuff */
+  if(!initialized) {
+    result = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if(result) {
+      /* something in the global init failed, return nothing */
+      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
+      return NULL;
+    }
+  }
+
+  /* We use curl_open() with undefined URL so far */
+  result = Curl_open(&data);
+  if(result) {
+    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
+    return NULL;
+  }
+
+  return data;
+}
+
+/*
+ * curl_easy_setopt() is the external interface for setting options on an
+ * easy handle.
+ */
+
+#undef curl_easy_setopt
+CURLcode curl_easy_setopt(struct Curl_easy *data, CURLoption tag, ...)
+{
+  va_list arg;
+  CURLcode result;
+
+  if(!data)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
+  va_start(arg, tag);
+
+  result = Curl_setopt(data, tag, arg);
+
+  va_end(arg);
+  return result;
+}
+
+#ifdef CURLDEBUG
+
+struct socketmonitor {
+  struct socketmonitor *next; /* the next node in the list or NULL */
+  struct pollfd socket; /* socket info of what to monitor */
+};
+
+struct events {
+  long ms;              /* timeout, run the timeout function when reached */
+  bool msbump;          /* set TRUE when timeout is set by callback */
+  int num_sockets;      /* number of nodes in the monitor list */
+  struct socketmonitor *list; /* list of sockets to monitor */
+  int running_handles;  /* store the returned number */
+};
+
+/* events_timer
+ *
+ * Callback that gets called with a new value when the timeout should be
+ * updated.
+ */
+
+static int events_timer(struct Curl_multi *multi,    /* multi handle */
+                        long timeout_ms, /* see above */
+                        void *userp)    /* private callback pointer */
+{
+  struct events *ev = userp;
+  (void)multi;
+  if(timeout_ms == -1)
+    /* timeout removed */
+    timeout_ms = 0;
+  else if(timeout_ms == 0)
+    /* timeout is already reached! */
+    timeout_ms = 1; /* trigger asap */
+
+  ev->ms = timeout_ms;
+  ev->msbump = TRUE;
+  return 0;
+}
+
+
+/* poll2cselect
+ *
+ * convert from poll() bit definitions to libcurl's CURL_CSELECT_* ones
+ */
+static int poll2cselect(int pollmask)
+{
+  int omask=0;
+  if(pollmask & POLLIN)
+    omask |= CURL_CSELECT_IN;
+  if(pollmask & POLLOUT)
+    omask |= CURL_CSELECT_OUT;
+  if(pollmask & POLLERR)
+    omask |= CURL_CSELECT_ERR;
+  return omask;
+}
+
+
+/* socketcb2poll
+ *
+ * convert from libcurl' CURL_POLL_* bit definitions to poll()'s
+ */
+static short socketcb2poll(int pollmask)
+{
+  short omask=0;
+  if(pollmask & CURL_POLL_IN)
+    omask |= POLLIN;
+  if(pollmask & CURL_POLL_OUT)
+    omask |= POLLOUT;
+  return omask;
+}
+
+/* events_socket
+ *
+ * Callback that gets called with information about socket activity to
+ * monitor.
+ */
+static int events_socket(struct Curl_easy *easy,      /* easy handle */
+                         curl_socket_t s, /* socket */
+                         int what,        /* see above */
+                         void *userp,     /* private callback
+                                             pointer */
+                         void *socketp)   /* private socket
+                                             pointer */
+{
+  struct events *ev = userp;
+  struct socketmonitor *m;
+  struct socketmonitor *prev=NULL;
+
+#if defined(CURL_DISABLE_VERBOSE_STRINGS)
+  (void) easy;
+#endif
+  (void)socketp;
+
+  m = ev->list;
+  while(m) {
+    if(m->socket.fd == s) {
+
+      if(what == CURL_POLL_REMOVE) {
+        struct socketmonitor *nxt = m->next;
+        /* remove this node from the list of monitored sockets */
+        if(prev)
+          prev->next = nxt;
+        else
+          ev->list = nxt;
+        free(m);
+        m = nxt;
+        infof(easy, "socket cb: socket %d REMOVED\n", s);
+      }
+      else {
+        /* The socket 's' is already being monitored, update the activity
+           mask. Convert from libcurl bitmask to the poll one. */
+        m->socket.events = socketcb2poll(what);
+        infof(easy, "socket cb: socket %d UPDATED as %s%s\n", s,
+              what&CURL_POLL_IN?"IN":"",
+              what&CURL_POLL_OUT?"OUT":"");
+      }
+      break;
+    }
+    prev = m;
+    m = m->next; /* move to next node */
+  }
+  if(!m) {
+    if(what == CURL_POLL_REMOVE) {
+      /* this happens a bit too often, libcurl fix perhaps? */
+      /* fprintf(stderr,
+         "%s: socket %d asked to be REMOVED but not present!\n",
+                 __func__, s); */
+    }
+    else {
+      m = malloc(sizeof(struct socketmonitor));
+      if(m) {
+        m->next = ev->list;
+        m->socket.fd = s;
+        m->socket.events = socketcb2poll(what);
+        m->socket.revents = 0;
+        ev->list = m;
+        infof(easy, "socket cb: socket %d ADDED as %s%s\n", s,
+              what&CURL_POLL_IN?"IN":"",
+              what&CURL_POLL_OUT?"OUT":"");
+      }
+      else
+        return CURLE_OUT_OF_MEMORY;
+    }
+  }
+
+  return 0;
+}
+
+
+/*
+ * events_setup()
+ *
+ * Do the multi handle setups that only event-based transfers need.
+ */
+static void events_setup(struct Curl_multi *multi, struct events *ev)
+{
+  /* timer callback */
+  curl_multi_setopt(multi, CURLMOPT_TIMERFUNCTION, events_timer);
+  curl_multi_setopt(multi, CURLMOPT_TIMERDATA, ev);
+
+  /* socket callback */
+  curl_multi_setopt(multi, CURLMOPT_SOCKETFUNCTION, events_socket);
+  curl_multi_setopt(multi, CURLMOPT_SOCKETDATA, ev);
+}
+
+
+/* wait_or_timeout()
+ *
+ * waits for activity on any of the given sockets, or the timeout to trigger.
+ */
+
+static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
+{
+  bool done = FALSE;
+  CURLMcode mcode;
   CURLcode result = CURLE_OK;
-  size_t i;
-  MD5_context *ctxt;
-  char *response = NULL;
-  unsigned char digest[MD5_DIGEST_LEN];
-  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
-  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
-  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
-  char nonce[64];
-  char realm[128];
-  char algorithm[64];
-  char qop_options[64];
-  int qop_values;
-  char cnonce[33];
-  unsigned int entropy[4];
-  char nonceCount[] = "00000001";
-  char method[]     = "AUTHENTICATE";
-  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
-  char *spn         = NULL;
 
-  /* Decode the challange message */
-  result = auth_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
-                                          realm, sizeof(realm),
-                                          algorithm, sizeof(algorithm),
-                                          qop_options, sizeof(qop_options));
-  if(result)
-    return result;
+  while(!done) {
+    CURLMsg *msg;
+    struct socketmonitor *m;
+    struct pollfd *f;
+    struct pollfd fds[4];
+    int numfds=0;
+    int pollrc;
+    int i;
+    struct timeval before;
+    struct timeval after;
 
-  /* We only support md5 sessions */
-  if(strcmp(algorithm, "md5-sess") != 0)
-    return CURLE_BAD_CONTENT_ENCODING;
+    /* populate the fds[] array */
+    for(m = ev->list, f=&fds[0]; m; m = m->next) {
+      f->fd = m->socket.fd;
+      f->events = m->socket.events;
+      f->revents = 0;
+      /* fprintf(stderr, "poll() %d check socket %d\n", numfds, f->fd); */
+      f++;
+      numfds++;
+    }
 
-  /* Get the qop-values from the qop-options */
-  result = auth_digest_get_qop_values(qop_options, &qop_values);
-  if(result)
-    return result;
+    /* get the time stamp to use to figure out how long poll takes */
+    before = curlx_tvnow();
 
-  /* We only support auth quality-of-protection */
-  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
-    return CURLE_BAD_CONTENT_ENCODING;
+    /* wait for activity or timeout */
+    pollrc = Curl_poll(fds, numfds, (int)ev->ms);
 
-  /* Generate 16 bytes of random data */
-  entropy[0] = Curl_rand(data);
-  entropy[1] = Curl_rand(data);
-  entropy[2] = Curl_rand(data);
-  entropy[3] = Curl_rand(data);
+    after = curlx_tvnow();
 
-  /* Convert the random data into a 32 byte hex string */
-  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
-           entropy[0], entropy[1], entropy[2], entropy[3]);
+    ev->msbump = FALSE; /* reset here */
 
-  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
+    if(0 == pollrc) {
+      /* timeout! */
+      ev->ms = 0;
+      /* fprintf(stderr, "call curl_multi_socket_action(TIMEOUT)\n"); */
+      mcode = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
+                                       &ev->running_handles);
+    }
+    else if(pollrc > 0) {
+      /* loop over the monitored sockets to see which ones had activity */
+      for(i = 0; i< numfds; i++) {
+        if(fds[i].revents) {
+          /* socket activity, tell libcurl */
+          int act = poll2cselect(fds[i].revents); /* convert */
+          infof(multi->easyp, "call curl_multi_socket_action(socket %d)\n",
+                fds[i].fd);
+          mcode = curl_multi_socket_action(multi, fds[i].fd, act,
+                                           &ev->running_handles);
+        }
+      }
 
-  Curl_MD5_update(ctxt, (const unsigned char *) userp,
-                  curlx_uztoui(strlen(userp)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) realm,
-                  curlx_uztoui(strlen(realm)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
-                  curlx_uztoui(strlen(passwdp)));
-  Curl_MD5_final(ctxt, digest);
+      if(!ev->msbump)
+        /* If nothing updated the timeout, we decrease it by the spent time.
+         * If it was updated, it has the new timeout time stored already.
+         */
+        ev->ms += curlx_tvdiff(after, before);
 
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
+    }
+    else
+      return CURLE_RECV_ERROR;
 
-  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_final(ctxt, digest);
+    if(mcode)
+      return CURLE_URL_MALFORMAT; /* TODO: return a proper error! */
 
-  /* Convert calculated 16 octet hex into 32 bytes string */
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate our SPN */
-  spn = Curl_auth_build_spn(service, realm, NULL);
-  if(!spn)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Calculate H(A2) */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
+    /* we don't really care about the "msgs_in_queue" value returned in the
+       second argument */
+    msg = curl_multi_info_read(multi, &pollrc);
+    if(msg) {
+      result = msg->data.result;
+      done = TRUE;
+    }
   }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) method,
-                  curlx_uztoui(strlen(method)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) spn,
-                  curlx_uztoui(strlen(spn)));
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Now calculate the response hash */
-  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
-  if(!ctxt) {
-    free(spn);
-
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
-                  curlx_uztoui(strlen(nonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
-                  curlx_uztoui(strlen(nonceCount)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
-                  curlx_uztoui(strlen(cnonce)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-  Curl_MD5_update(ctxt, (const unsigned char *) qop,
-                  curlx_uztoui(strlen(qop)));
-  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
-
-  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
-  Curl_MD5_final(ctxt, digest);
-
-  for(i = 0; i < MD5_DIGEST_LEN; i++)
-    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
-
-  /* Generate the response */
-  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
-                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
-                     "qop=%s",
-                     userp, realm, nonce,
-                     cnonce, nonceCount, spn, resp_hash_hex, qop);
-  free(spn);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the response */
-  result = Curl_base64_encode(data, response, 0, outptr, outlen);
-
-  free(response);
 
   return result;
 }
 
-/*
- * Curl_auth_decode_digest_http_message()
+
+/* easy_events()
  *
- * This is used to decode a HTTP DIGEST challenge message into the seperate
- * attributes.
- *
- * Parameters:
- *
- * chlg    [in]     - The challenge message.
- * digest  [in/out] - The digest data struct being used and modified.
- *
- * Returns CURLE_OK on success.
+ * Runs a transfer in a blocking manner using the events-based API
  */
-CURLcode Curl_auth_decode_digest_http_message(const char *chlg,
-                                              struct digestdata *digest)
+static CURLcode easy_events(struct Curl_multi *multi)
 {
-  bool before = FALSE; /* got a nonce before */
-  bool foundAuth = FALSE;
-  bool foundAuthInt = FALSE;
-  char *token = NULL;
-  char *tmp = NULL;
+  struct events evs= {2, FALSE, 0, NULL, 0};
 
-  /* If we already have received a nonce, keep that in mind */
-  if(digest->nonce)
-    before = TRUE;
+  /* if running event-based, do some further multi inits */
+  events_setup(multi, &evs);
 
-  /* Clean up any former leftovers and initialise to defaults */
-  Curl_auth_digest_cleanup(digest);
+  return wait_or_timeout(multi, &evs);
+}
+#else /* CURLDEBUG */
+/* when not built with debug, this function doesn't exist */
+#define easy_events(x) CURLE_NOT_BUILT_IN
+#endif
 
-  for(;;) {
-    char value[DIGEST_MAX_VALUE_LENGTH];
-    char content[DIGEST_MAX_CONTENT_LENGTH];
+static CURLcode easy_transfer(struct Curl_multi *multi)
+{
+  bool done = FALSE;
+  CURLMcode mcode = CURLM_OK;
+  CURLcode result = CURLE_OK;
+  struct timeval before;
+  int without_fds = 0;  /* count number of consecutive returns from
+                           curl_multi_wait() without any filedescriptors */
 
-    /* Pass all additional spaces here */
-    while(*chlg && ISSPACE(*chlg))
-      chlg++;
+  while(!done && !mcode) {
+    int still_running = 0;
+    int rc;
 
-    /* Extract a value=content pair */
-    if(Curl_auth_digest_get_pair(chlg, value, content, &chlg)) {
-      if(strcasecompare(value, "nonce")) {
-        free(digest->nonce);
-        digest->nonce = strdup(content);
-        if(!digest->nonce)
-          return CURLE_OUT_OF_MEMORY;
-      }
-      else if(strcasecompare(value, "stale")) {
-        if(strcasecompare(content, "true")) {
-          digest->stale = TRUE;
-          digest->nc = 1; /* we make a new nonce now */
-        }
-      }
-      else if(strcasecompare(value, "realm")) {
-        free(digest->realm);
-        digest->realm = strdup(content);
-        if(!digest->realm)
-          return CURLE_OUT_OF_MEMORY;
-      }
-      else if(strcasecompare(value, "opaque")) {
-        free(digest->opaque);
-        digest->opaque = strdup(content);
-        if(!digest->opaque)
-          return CURLE_OUT_OF_MEMORY;
-      }
-      else if(strcasecompare(value, "qop")) {
-        char *tok_buf;
-        /* Tokenize the list and choose auth if possible, use a temporary
-           clone of the buffer since strtok_r() ruins it */
-        tmp = strdup(content);
-        if(!tmp)
-          return CURLE_OUT_OF_MEMORY;
+    before = curlx_tvnow();
+    mcode = curl_multi_wait(multi, NULL, 0, 1000, &rc);
 
-        token = strtok_r(tmp, ",", &tok_buf);
-        while(token != NULL) {
-          if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH)) {
-            foundAuth = TRUE;
+    if(!mcode) {
+      if(!rc) {
+        struct timeval after = curlx_tvnow();
+
+        /* If it returns without any filedescriptor instantly, we need to
+           avoid busy-looping during periods where it has nothing particular
+           to wait for */
+        if(curlx_tvdiff(after, before) <= 10) {
+          without_fds++;
+          if(without_fds > 2) {
+            int sleep_ms = without_fds < 10 ? (1 << (without_fds - 1)) : 1000;
+            Curl_wait_ms(sleep_ms);
           }
-          else if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH_INT)) {
-            foundAuthInt = TRUE;
-          }
-          token = strtok_r(NULL, ",", &tok_buf);
         }
-
-        free(tmp);
-
-        /* Select only auth or auth-int. Otherwise, ignore */
-        if(foundAuth) {
-          free(digest->qop);
-          digest->qop = strdup(DIGEST_QOP_VALUE_STRING_AUTH);
-          if(!digest->qop)
-            return CURLE_OUT_OF_MEMORY;
-        }
-        else if(foundAuthInt) {
-          free(digest->qop);
-          digest->qop = strdup(DIGEST_QOP_VALUE_STRING_AUTH_INT);
-          if(!digest->qop)
-            return CURLE_OUT_OF_MEMORY;
-        }
-      }
-      else if(strcasecompare(value, "algorithm")) {
-        free(digest->algorithm);
-        digest->algorithm = strdup(content);
-        if(!digest->algorithm)
-          return CURLE_OUT_OF_MEMORY;
-
-        if(strcasecompare(content, "MD5-sess"))
-          digest->algo = CURLDIGESTALGO_MD5SESS;
-        else if(strcasecompare(content, "MD5"))
-          digest->algo = CURLDIGESTALGO_MD5;
         else
-          return CURLE_BAD_CONTENT_ENCODING;
+          /* it wasn't "instant", restart counter */
+          without_fds = 0;
       }
-      else {
-        /* Unknown specifier, ignore it! */
+      else
+        /* got file descriptor, restart counter */
+        without_fds = 0;
+
+      mcode = curl_multi_perform(multi, &still_running);
+    }
+
+    /* only read 'still_running' if curl_multi_perform() return OK */
+    if(!mcode && !still_running) {
+      CURLMsg *msg = curl_multi_info_read(multi, &rc);
+      if(msg) {
+        result = msg->data.result;
+        done = TRUE;
       }
     }
+  }
+
+  /* Make sure to return some kind of error if there was a multi problem */
+  if(mcode) {
+    result = (mcode == CURLM_OUT_OF_MEMORY) ? CURLE_OUT_OF_MEMORY :
+              /* The other multi errors should never happen, so return
+                 something suitably generic */
+              CURLE_BAD_FUNCTION_ARGUMENT;
+  }
+
+  return result;
+}
+
+
+/*
+ * easy_perform() is the external interface that performs a blocking
+ * transfer as previously setup.
+ *
+ * CONCEPT: This function creates a multi handle, adds the easy handle to it,
+ * runs curl_multi_perform() until the transfer is done, then detaches the
+ * easy handle, destroys the multi handle and returns the easy handle's return
+ * code.
+ *
+ * REALITY: it can't just create and destroy the multi handle that easily. It
+ * needs to keep it around since if this easy handle is used again by this
+ * function, the same multi handle must be re-used so that the same pools and
+ * caches can be used.
+ *
+ * DEBUG: if 'events' is set TRUE, this function will use a replacement engine
+ * instead of curl_multi_perform() and use curl_multi_socket_action().
+ */
+static CURLcode easy_perform(struct Curl_easy *data, bool events)
+{
+  struct Curl_multi *multi;
+  CURLMcode mcode;
+  CURLcode result = CURLE_OK;
+  SIGPIPE_VARIABLE(pipe_st);
+
+  if(!data)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
+  if(data->multi) {
+    failf(data, "easy handle already used in multi handle");
+    return CURLE_FAILED_INIT;
+  }
+
+  if(data->multi_easy)
+    multi = data->multi_easy;
+  else {
+    /* this multi handle will only ever have a single easy handled attached
+       to it, so make it use minimal hashes */
+    multi = Curl_multi_handle(1, 3);
+    if(!multi)
+      return CURLE_OUT_OF_MEMORY;
+    data->multi_easy = multi;
+  }
+
+  /* Copy the MAXCONNECTS option to the multi handle */
+  curl_multi_setopt(multi, CURLMOPT_MAXCONNECTS, data->set.maxconnects);
+
+  mcode = curl_multi_add_handle(multi, data);
+  if(mcode) {
+    curl_multi_cleanup(multi);
+    if(mcode == CURLM_OUT_OF_MEMORY)
+      return CURLE_OUT_OF_MEMORY;
     else
-      break; /* We're done here */
-
-    /* Pass all additional spaces here */
-    while(*chlg && ISSPACE(*chlg))
-      chlg++;
-
-    /* Allow the list to be comma-separated */
-    if(',' == *chlg)
-      chlg++;
+      return CURLE_FAILED_INIT;
   }
 
-  /* We had a nonce since before, and we got another one now without
-     'stale=true'. This means we provided bad credentials in the previous
-     request */
-  if(before && !digest->stale)
-    return CURLE_BAD_CONTENT_ENCODING;
+  sigpipe_ignore(data, &pipe_st);
 
-  /* We got this header without a nonce, that's a bad Digest line! */
-  if(!digest->nonce)
-    return CURLE_BAD_CONTENT_ENCODING;
+  /* assign this after curl_multi_add_handle() since that function checks for
+     it and rejects this handle otherwise */
+  data->multi = multi;
 
-  return CURLE_OK;
+  /* run the transfer */
+  result = events ? easy_events(multi) : easy_transfer(multi);
+
+  /* ignoring the return code isn't nice, but atm we can't really handle
+     a failure here, room for future improvement! */
+  (void)curl_multi_remove_handle(multi, data);
+
+  sigpipe_restore(&pipe_st);
+
+  /* The multi handle is kept alive, owned by the easy handle */
+  return result;
+}
+
+
+/*
+ * curl_easy_perform() is the external interface that performs a blocking
+ * transfer as previously setup.
+ */
+CURLcode curl_easy_perform(struct Curl_easy *data)
+{
+  return easy_perform(data, FALSE);
+}
+
+#ifdef CURLDEBUG
+/*
+ * curl_easy_perform_ev() is the external interface that performs a blocking
+ * transfer using the event-based API internally.
+ */
+CURLcode curl_easy_perform_ev(struct Curl_easy *data)
+{
+  return easy_perform(data, TRUE);
+}
+
+#endif
+
+/*
+ * curl_easy_cleanup() is the external interface to cleaning/freeing the given
+ * easy handle.
+ */
+void curl_easy_cleanup(struct Curl_easy *data)
+{
+  SIGPIPE_VARIABLE(pipe_st);
+
+  if(!data)
+    return;
+
+  sigpipe_ignore(data, &pipe_st);
+  Curl_close(data);
+  sigpipe_restore(&pipe_st);
 }
 
 /*
- * Curl_auth_create_digest_http_message()
- *
- * This is used to generate a HTTP DIGEST response message ready for sending
- * to the recipient.
- *
- * Parameters:
- *
- * data    [in]     - The session handle.
- * userp   [in]     - The user name.
- * passdwp [in]     - The user's password.
- * request [in]     - The HTTP request.
- * uripath [in]     - The path of the HTTP uri.
- * digest  [in/out] - The digest data struct being used and modified.
- * outptr  [in/out] - The address where a pointer to newly allocated memory
- *                    holding the result will be stored upon completion.
- * outlen  [out]    - The length of the output message.
- *
- * Returns CURLE_OK on success.
+ * curl_easy_getinfo() is an external interface that allows an app to retrieve
+ * information from a performed transfer and similar.
  */
-CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+#undef curl_easy_getinfo
+CURLcode curl_easy_getinfo(struct Curl_easy *data, CURLINFO info, ...)
 {
+  va_list arg;
+  void *paramp;
   CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];    /* 32 digits and 1 zero byte */
-  unsigned char ha2[33];    /* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
 
-  if(!digest->nc)
-    digest->nc = 1;
+  va_start(arg, info);
+  paramp = va_arg(arg, void *);
 
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+  result = Curl_getinfo(data, info, paramp);
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
+  va_end(arg);
+  return result;
+}
 
-    digest->cnonce = cnonce;
-  }
+/*
+ * curl_easy_duphandle() is an external interface to allow duplication of a
+ * given input easy handle. The returned handle will be a new working handle
+ * with all options set exactly as the input source handle.
+ */
+struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
+{
+  struct Curl_easy *outcurl = calloc(1, sizeof(struct Curl_easy));
+  if(NULL == outcurl)
+    goto fail;
 
   /*
-    If the algorithm is "MD5" or unspecified (which then defaults to MD5):
+   * We setup a few buffers we need. We should probably make them
+   * get setup on-demand in the code, as that would probably decrease
+   * the likeliness of us forgetting to init a buffer here in the future.
+   */
+  outcurl->state.headerbuff = malloc(HEADERSIZE);
+  if(!outcurl->state.headerbuff)
+    goto fail;
+  outcurl->state.headersize = HEADERSIZE;
 
-      A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+  /* copy all userdefined values */
+  if(Curl_dupset(outcurl, data))
+    goto fail;
 
-    If the algorithm is "MD5-sess" then:
+  /* the connection cache is setup on demand */
+  outcurl->state.conn_cache = NULL;
 
-      A1 = H(unq(username-value) ":" unq(realm-value) ":" passwd) ":"
-           unq(nonce-value) ":" unq(cnonce-value)
-  */
+  outcurl->state.lastconnect = NULL;
 
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
+  outcurl->progress.flags    = data->progress.flags;
+  outcurl->progress.callback = data->progress.callback;
 
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  auth_digest_md5_to_ascii(md5buf, ha1);
-
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* Convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *) tmp);
-    free(tmp);
-    auth_digest_md5_to_ascii(md5buf, ha1);
+  if(data->cookies) {
+    /* If cookies are enabled in the parent handle, we enable them
+       in the clone as well! */
+    outcurl->cookies = Curl_cookie_init(data,
+                                        data->cookies->filename,
+                                        outcurl->cookies,
+                                        data->set.cookiesession);
+    if(!outcurl->cookies)
+      goto fail;
   }
 
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2 = Method ":" digest-uri-value
-
-    If the "qop" value is "auth-int", then A2 is:
-
-      A2 = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  md5this = (unsigned char *) aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && strcasecompare(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
+  /* duplicate all values in 'change' */
+  if(data->change.cookielist) {
+    outcurl->change.cookielist =
+      Curl_slist_duplicate(data->change.cookielist);
+    if(!outcurl->change.cookielist)
+      goto fail;
   }
 
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  auth_digest_md5_to_ascii(md5buf, ha2);
-
-  if(digest->qop) {
-    md5this = (unsigned char *) aprintf("%s:%s:%08x:%s:%s:%s",
-                                        ha1,
-                                        digest->nonce,
-                                        digest->nc,
-                                        digest->cnonce,
-                                        digest->qop,
-                                        ha2);
-  }
-  else {
-    md5this = (unsigned char *) aprintf("%s:%s:%s",
-                                        ha1,
-                                        digest->nonce,
-                                        ha2);
+  if(data->change.url) {
+    outcurl->change.url = strdup(data->change.url);
+    if(!outcurl->change.url)
+      goto fail;
+    outcurl->change.url_alloc = TRUE;
   }
 
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  auth_digest_md5_to_ascii(md5buf, request_digest);
-
-  /* For test case 64 (snooped from a Mozilla 1.3a request)
-
-     Authorization: Digest username="testuser", realm="testrealm", \
-     nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-     Digest parameters are all quoted strings.  Username which is provided by
-     the user will need double quotes and backslashes within it escaped.  For
-     the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-     are copied as is from the server, escapes and all.  cnonce is generated
-     with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-     characters.  algorithm and qop with standard values only contain web-safe
-     characters.
-  */
-  userp_quoted = auth_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(strcasecompare(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
-  }
-  else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
-  }
-  free(userp_quoted);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
+  if(data->change.referer) {
+    outcurl->change.referer = strdup(data->change.referer);
+    if(!outcurl->change.referer)
+      goto fail;
+    outcurl->change.referer_alloc = TRUE;
   }
 
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
+  /* Clone the resolver handle, if present, for the new handle */
+  if(Curl_resolver_duphandle(&outcurl->state.resolver,
+                             data->state.resolver))
+    goto fail;
 
-    response = tmp;
+  Curl_convert_setup(outcurl);
+
+  outcurl->magic = CURLEASY_MAGIC_NUMBER;
+
+  /* we reach this point and thus we are OK */
+
+  return outcurl;
+
+  fail:
+
+  if(outcurl) {
+    curl_slist_free_all(outcurl->change.cookielist);
+    outcurl->change.cookielist = NULL;
+    Curl_safefree(outcurl->state.headerbuff);
+    Curl_safefree(outcurl->change.url);
+    Curl_safefree(outcurl->change.referer);
+    Curl_freeset(outcurl);
+    free(outcurl);
   }
 
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
+  return NULL;
+}
+
+/*
+ * curl_easy_reset() is an external interface that allows an app to re-
+ * initialize a session handle to the default values.
+ */
+void curl_easy_reset(struct Curl_easy *data)
+{
+  Curl_safefree(data->state.pathbuffer);
+
+  data->state.path = NULL;
+
+  Curl_free_request_state(data);
+
+  /* zero out UserDefined data: */
+  Curl_freeset(data);
+  memset(&data->set, 0, sizeof(struct UserDefined));
+  (void)Curl_init_userdefined(&data->set);
+
+  /* zero out Progress data: */
+  memset(&data->progress, 0, sizeof(struct Progress));
+
+  /* zero out PureInfo data: */
+  Curl_initinfo(data);
+
+  data->progress.flags |= PGRS_HIDE;
+  data->state.current_speed = -1; /* init to negative == impossible */
+}
+
+/*
+ * curl_easy_pause() allows an application to pause or unpause a specific
+ * transfer and direction. This function sets the full new state for the
+ * current connection this easy handle operates on.
+ *
+ * NOTE: if you have the receiving paused and you call this function to remove
+ * the pausing, you may get your write callback called at this point.
+ *
+ * Action is a bitmask consisting of CURLPAUSE_* bits in curl/curl.h
+ */
+CURLcode curl_easy_pause(struct Curl_easy *data, int action)
+{
+  struct SingleRequest *k = &data->req;
+  CURLcode result = CURLE_OK;
+
+  /* first switch off both pause bits */
+  int newstate = k->keepon &~ (KEEP_RECV_PAUSE| KEEP_SEND_PAUSE);
+
+  /* set the new desired pause bits */
+  newstate |= ((action & CURLPAUSE_RECV)?KEEP_RECV_PAUSE:0) |
+    ((action & CURLPAUSE_SEND)?KEEP_SEND_PAUSE:0);
+
+  /* put it back in the keepon */
+  k->keepon = newstate;
+
+  if(!(newstate & KEEP_RECV_PAUSE) && data->state.tempwrite) {
+    /* we have a buffer for sending that we now seem to be able to deliver
+       since the receive pausing is lifted! */
+
+    /* get the pointer in local copy since the function may return PAUSE
+       again and then we'll get a new copy allocted and stored in
+       the tempwrite variables */
+    char *tempwrite = data->state.tempwrite;
+
+    data->state.tempwrite = NULL;
+    result = Curl_client_chop_write(data->easy_conn, data->state.tempwritetype,
+                                    tempwrite, data->state.tempwritesize);
+    free(tempwrite);
+  }
+
+  /* if there's no error and we're not pausing both directions, we want
+     to have this handle checked soon */
+  if(!result &&
+     ((newstate&(KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) !=
+      (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) )
+    Curl_expire(data, 0); /* get this handle going again */
+
+  return result;
+}
+
+
+static CURLcode easy_connection(struct Curl_easy *data,
+                                curl_socket_t *sfd,
+                                struct connectdata **connp)
+{
+  if(data == NULL)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
+  /* only allow these to be called on handles with CURLOPT_CONNECT_ONLY */
+  if(!data->set.connect_only) {
+    failf(data, "CONNECT_ONLY is required!");
+    return CURLE_UNSUPPORTED_PROTOCOL;
+  }
+
+  *sfd = Curl_getconnectinfo(data, connp);
+
+  if(*sfd == CURL_SOCKET_BAD) {
+    failf(data, "Failed to get recent socket");
+    return CURLE_UNSUPPORTED_PROTOCOL;
+  }
 
   return CURLE_OK;
 }
 
 /*
- * Curl_auth_digest_cleanup()
- *
- * This is used to clean up the digest specific data.
- *
- * Parameters:
- *
- * digest    [in/out] - The digest data struct being cleaned up.
- *
+ * Receives data from the connected socket. Use after successful
+ * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
+ * Returns CURLE_OK on success, error code on error.
  */
-void Curl_auth_digest_cleanup(struct digestdata *digest)
+CURLcode curl_easy_recv(struct Curl_easy *data, void *buffer, size_t buflen,
+                        size_t *n)
 {
-  Curl_safefree(digest->nonce);
-  Curl_safefree(digest->cnonce);
-  Curl_safefree(digest->realm);
-  Curl_safefree(digest->opaque);
-  Curl_safefree(digest->qop);
-  Curl_safefree(digest->algorithm);
+  curl_socket_t sfd;
+  CURLcode result;
+  ssize_t n1;
+  struct connectdata *c;
 
-  digest->nc = 0;
-  digest->algo = CURLDIGESTALGO_MD5; /* default algorithm */
-  digest->stale = FALSE; /* default means normal, not stale */
+  result = easy_connection(data, &sfd, &c);
+  if(result)
+    return result;
+
+  *n = 0;
+  result = Curl_read(c, sfd, buffer, buflen, &n1);
+
+  if(result)
+    return result;
+
+  *n = (size_t)n1;
+
+  return CURLE_OK;
 }
-#endif  /* !USE_WINDOWS_SSPI */
 
-#endif  /* CURL_DISABLE_CRYPTO_AUTH */
+/*
+ * Sends data over the connected socket. Use after successful
+ * curl_easy_perform() with CURLOPT_CONNECT_ONLY option.
+ */
+CURLcode curl_easy_send(struct Curl_easy *data, const void *buffer,
+                        size_t buflen, size_t *n)
+{
+  curl_socket_t sfd;
+  CURLcode result;
+  ssize_t n1;
+  struct connectdata *c = NULL;
+
+  result = easy_connection(data, &sfd, &c);
+  if(result)
+    return result;
+
+  *n = 0;
+  result = Curl_write(c, sfd, buffer, buflen, &n1);
+
+  if(n1 == -1)
+    return CURLE_SEND_ERROR;
+
+  /* detect EAGAIN */
+  if(!result && !n1)
+    return CURLE_AGAIN;
+
+  *n = (size_t)n1;
+
+  return result;
+}

@@ -1,21 +1,11 @@
-                             curl_off_t *size,
-                             const char *fmt, ...)
-{
-  char *s;
-  CURLcode result;
-  va_list ap;
-  va_start(ap, fmt);
-  s = curl_mvaprintf(fmt, ap);
-  va_end(ap);
-
-  if(!s)
-    return CURLE_OUT_OF_MEMORY;
-
-  result = AddFormData(formp, FORM_DATAMEM, s, 0, size);
-  if(result)
-    free(s);
-
-  return result;
-}
-
-/*
+			} else if (src[1] == '.') {
+				if (src[2] == '/' || src[2] == '\0') {
+					/* Conditionally warn about '..' */
+					if (flags
+					    & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+						fsobj_error(a_eno, a_estr,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains ", "'..'");
+						return (ARCHIVE_FAILED);
+					}
+				}

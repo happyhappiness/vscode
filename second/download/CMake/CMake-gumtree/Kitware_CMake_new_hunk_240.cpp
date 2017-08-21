@@ -1,7 +1,8 @@
-        sshc->acceptfail = TRUE;
-      }
-
-      if(strcasecompare("pwd", cmd)) {
-        /* output debug output if that is requested */
-        char *tmp = aprintf("257 \"%s\" is current directory.\n",
-                            sftp_scp->path);
+				ret = ARCHIVE_WARN;
+			}
+		} else {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");
+			ret = ARCHIVE_WARN;
+		}

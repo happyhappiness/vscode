@@ -1,809 +1,583 @@
-/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-   file Copyright.txt or https://cmake.org/licensing#kwsys for details.  */
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(CommandLineArguments.hxx)
+/* This source code was modified by Martin Hedenfalk <mhe@stacken.kth.se> for
+ * use in Curl. His latest changes were done 2000-09-18.
+ *
+ * It has since been patched and modified a lot by Daniel Stenberg
+ * <daniel@haxx.se> to make it better applied to curl conditions, and to make
+ * it not use globals, pollute name space and more. This source code awaits a
+ * rewrite to work around the paragraph 2 in the BSD licenses as explained
+ * below.
+ *
+ * Copyright (c) 1998, 1999 Kungliga Tekniska Högskolan
+ * (Royal Institute of Technology, Stockholm, Sweden).
+ *
+ * Copyright (C) 2001 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ *
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * 3. Neither the name of the Institute nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.  */
 
-#include KWSYS_HEADER(Configure.hxx)
-#include KWSYS_HEADER(String.hxx)
+#include "curl_setup.h"
 
-// Work-around CMake dependency scanning limitation.  This must
-// duplicate the above list of headers.
-#if 0
-#include "CommandLineArguments.hxx.in"
-#include "Configure.hxx.in"
-#include "String.hxx.in"
+#ifndef CURL_DISABLE_FTP
+#ifdef HAVE_GSSAPI
+
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
 #endif
 
-#include <iostream>
-#include <map>
-#include <set>
-#include <sstream>
-#include <vector>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifdef _MSC_VER
-#pragma warning(disable : 4786)
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
 #endif
 
-#if defined(__sgi) && !defined(__GNUC__)
-#pragma set woff 1375 /* base class destructor not virtual */
-#endif
+#include "urldata.h"
+#include "curl_base64.h"
+#include "curl_memory.h"
+#include "curl_sec.h"
+#include "ftp.h"
+#include "sendf.h"
+#include "strcase.h"
+#include "warnless.h"
 
-#if 0
-#define CommandLineArguments_DEBUG(x)                                         \
-  std::cout << __LINE__ << " CLA: " << x << std::endl
-#else
-#define CommandLineArguments_DEBUG(x)
-#endif
+/* The last #include file should be: */
+#include "memdebug.h"
 
-namespace KWSYS_NAMESPACE {
-
-//----------------------------------------------------------------------------
-//============================================================================
-struct CommandLineArgumentsCallbackStructure
-{
-  const char* Argument;
-  int ArgumentType;
-  CommandLineArguments::CallbackType Callback;
-  void* CallData;
-  void* Variable;
-  int VariableType;
-  const char* Help;
+static const struct {
+  enum protection_level level;
+  const char *name;
+} level_names[] = {
+  { PROT_CLEAR, "clear" },
+  { PROT_SAFE, "safe" },
+  { PROT_CONFIDENTIAL, "confidential" },
+  { PROT_PRIVATE, "private" }
 };
 
-class CommandLineArgumentsVectorOfStrings : public std::vector<kwsys::String>
+static enum protection_level
+name_to_level(const char *name)
 {
-};
-class CommandLineArgumentsSetOfStrings : public std::set<kwsys::String>
-{
-};
-class CommandLineArgumentsMapOfStrucs
-  : public std::map<kwsys::String, CommandLineArgumentsCallbackStructure>
-{
-};
+  int i;
+  for(i = 0; i < (int)sizeof(level_names)/(int)sizeof(level_names[0]); i++)
+    if(checkprefix(name, level_names[i].name))
+      return level_names[i].level;
+  return PROT_NONE;
+}
 
-class CommandLineArgumentsInternal
+/* Convert a protocol |level| to its char representation.
+   We take an int to catch programming mistakes. */
+static char level_to_char(int level) {
+  switch(level) {
+  case PROT_CLEAR:
+    return 'C';
+  case PROT_SAFE:
+    return 'S';
+  case PROT_CONFIDENTIAL:
+    return 'E';
+  case PROT_PRIVATE:
+    return 'P';
+  case PROT_CMD:
+    /* Fall through */
+  default:
+    /* Those 2 cases should not be reached! */
+    break;
+  }
+  DEBUGASSERT(0);
+  /* Default to the most secure alternative. */
+  return 'P';
+}
+
+/* Send an FTP command defined by |message| and the optional arguments. The
+   function returns the ftp_code. If an error occurs, -1 is returned. */
+static int ftp_send_command(struct connectdata *conn, const char *message, ...)
 {
-public:
-  CommandLineArgumentsInternal()
-  {
-    this->UnknownArgumentCallback = 0;
-    this->ClientData = 0;
-    this->LastArgument = 0;
+  int ftp_code;
+  ssize_t nread=0;
+  va_list args;
+  char print_buffer[50];
+
+  va_start(args, message);
+  vsnprintf(print_buffer, sizeof(print_buffer), message, args);
+  va_end(args);
+
+  if(Curl_ftpsend(conn, print_buffer)) {
+    ftp_code = -1;
+  }
+  else {
+    if(Curl_GetFTPResponse(&nread, conn, &ftp_code))
+      ftp_code = -1;
   }
 
-  typedef CommandLineArgumentsVectorOfStrings VectorOfStrings;
-  typedef CommandLineArgumentsMapOfStrucs CallbacksMap;
-  typedef kwsys::String String;
-  typedef CommandLineArgumentsSetOfStrings SetOfStrings;
-
-  VectorOfStrings Argv;
-  String Argv0;
-  CallbacksMap Callbacks;
-
-  CommandLineArguments::ErrorCallbackType UnknownArgumentCallback;
-  void* ClientData;
-
-  VectorOfStrings::size_type LastArgument;
-
-  VectorOfStrings UnusedArguments;
-};
-//============================================================================
-//----------------------------------------------------------------------------
-
-//----------------------------------------------------------------------------
-CommandLineArguments::CommandLineArguments()
-{
-  this->Internals = new CommandLineArguments::Internal;
-  this->Help = "";
-  this->LineLength = 80;
-  this->StoreUnusedArgumentsFlag = false;
+  (void)nread; /* Unused */
+  return ftp_code;
 }
 
-//----------------------------------------------------------------------------
-CommandLineArguments::~CommandLineArguments()
+/* Read |len| from the socket |fd| and store it in |to|. Return a CURLcode
+   saying whether an error occurred or CURLE_OK if |len| was read. */
+static CURLcode
+socket_read(curl_socket_t fd, void *to, size_t len)
 {
-  delete this->Internals;
-}
+  char *to_p = to;
+  CURLcode result;
+  ssize_t nread;
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize(int argc, const char* const argv[])
-{
-  int cc;
-
-  this->Initialize();
-  this->Internals->Argv0 = argv[0];
-  for (cc = 1; cc < argc; cc++) {
-    this->ProcessArgument(argv[cc]);
-  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize(int argc, char* argv[])
-{
-  this->Initialize(argc, static_cast<const char* const*>(argv));
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize()
-{
-  this->Internals->Argv.clear();
-  this->Internals->LastArgument = 0;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::ProcessArgument(const char* arg)
-{
-  this->Internals->Argv.push_back(arg);
-}
-
-//----------------------------------------------------------------------------
-bool CommandLineArguments::GetMatchedArguments(
-  std::vector<std::string>* matches, const std::string& arg)
-{
-  matches->clear();
-  CommandLineArguments::Internal::CallbacksMap::iterator it;
-
-  // Does the argument match to any we know about?
-  for (it = this->Internals->Callbacks.begin();
-       it != this->Internals->Callbacks.end(); it++) {
-    const CommandLineArguments::Internal::String& parg = it->first;
-    CommandLineArgumentsCallbackStructure* cs = &it->second;
-    if (cs->ArgumentType == CommandLineArguments::NO_ARGUMENT ||
-        cs->ArgumentType == CommandLineArguments::SPACE_ARGUMENT) {
-      if (arg == parg) {
-        matches->push_back(parg);
-      }
-    } else if (arg.find(parg) == 0) {
-      matches->push_back(parg);
+  while(len > 0) {
+    result = Curl_read_plain(fd, to_p, len, &nread);
+    if(!result) {
+      len -= nread;
+      to_p += nread;
+    }
+    else {
+      /* FIXME: We are doing a busy wait */
+      if(result == CURLE_AGAIN)
+        continue;
+      return result;
     }
   }
-  return !matches->empty();
+  return CURLE_OK;
 }
 
-//----------------------------------------------------------------------------
-int CommandLineArguments::Parse()
+
+/* Write |len| bytes from the buffer |to| to the socket |fd|. Return a
+   CURLcode saying whether an error occurred or CURLE_OK if |len| was
+   written. */
+static CURLcode
+socket_write(struct connectdata *conn, curl_socket_t fd, const void *to,
+             size_t len)
 {
-  std::vector<std::string>::size_type cc;
-  std::vector<std::string> matches;
-  if (this->StoreUnusedArgumentsFlag) {
-    this->Internals->UnusedArguments.clear();
-  }
-  for (cc = 0; cc < this->Internals->Argv.size(); cc++) {
-    const std::string& arg = this->Internals->Argv[cc];
-    CommandLineArguments_DEBUG("Process argument: " << arg);
-    this->Internals->LastArgument = cc;
-    if (this->GetMatchedArguments(&matches, arg)) {
-      // Ok, we found one or more arguments that match what user specified.
-      // Let's find the longest one.
-      CommandLineArguments::Internal::VectorOfStrings::size_type kk;
-      CommandLineArguments::Internal::VectorOfStrings::size_type maxidx = 0;
-      CommandLineArguments::Internal::String::size_type maxlen = 0;
-      for (kk = 0; kk < matches.size(); kk++) {
-        if (matches[kk].size() > maxlen) {
-          maxlen = matches[kk].size();
-          maxidx = kk;
-        }
-      }
-      // So, the longest one is probably the right one. Now see if it has any
-      // additional value
-      CommandLineArgumentsCallbackStructure* cs =
-        &this->Internals->Callbacks[matches[maxidx]];
-      const std::string& sarg = matches[maxidx];
-      if (cs->Argument != sarg) {
-        abort();
-      }
-      switch (cs->ArgumentType) {
-        case NO_ARGUMENT:
-          // No value
-          if (!this->PopulateVariable(cs, 0)) {
-            return 0;
-          }
-          break;
-        case SPACE_ARGUMENT:
-          if (cc == this->Internals->Argv.size() - 1) {
-            this->Internals->LastArgument--;
-            return 0;
-          }
-          CommandLineArguments_DEBUG("This is a space argument: "
-                                     << arg << " value: "
-                                     << this->Internals->Argv[cc + 1]);
-          // Value is the next argument
-          if (!this->PopulateVariable(cs,
-                                      this->Internals->Argv[cc + 1].c_str())) {
-            return 0;
-          }
-          cc++;
-          break;
-        case EQUAL_ARGUMENT:
-          if (arg.size() == sarg.size() || arg.at(sarg.size()) != '=') {
-            this->Internals->LastArgument--;
-            return 0;
-          }
-          // Value is everythng followed the '=' sign
-          if (!this->PopulateVariable(cs, arg.c_str() + sarg.size() + 1)) {
-            return 0;
-          }
-          break;
-        case CONCAT_ARGUMENT:
-          // Value is whatever follows the argument
-          if (!this->PopulateVariable(cs, arg.c_str() + sarg.size())) {
-            return 0;
-          }
-          break;
-        case MULTI_ARGUMENT:
-          // Suck in all the rest of the arguments
-          CommandLineArguments_DEBUG("This is a multi argument: " << arg);
-          for (cc++; cc < this->Internals->Argv.size(); ++cc) {
-            const std::string& marg = this->Internals->Argv[cc];
-            CommandLineArguments_DEBUG(
-              " check multi argument value: " << marg);
-            if (this->GetMatchedArguments(&matches, marg)) {
-              CommandLineArguments_DEBUG("End of multi argument "
-                                         << arg << " with value: " << marg);
-              break;
-            }
-            CommandLineArguments_DEBUG(
-              " populate multi argument value: " << marg);
-            if (!this->PopulateVariable(cs, marg.c_str())) {
-              return 0;
-            }
-          }
-          if (cc != this->Internals->Argv.size()) {
-            CommandLineArguments_DEBUG("Again End of multi argument " << arg);
-            cc--;
-            continue;
-          }
-          break;
-        default:
-          std::cerr << "Got unknown argument type: \"" << cs->ArgumentType
-                    << "\"" << std::endl;
-          this->Internals->LastArgument--;
-          return 0;
-      }
-    } else {
-      // Handle unknown arguments
-      if (this->Internals->UnknownArgumentCallback) {
-        if (!this->Internals->UnknownArgumentCallback(
-              arg.c_str(), this->Internals->ClientData)) {
-          this->Internals->LastArgument--;
-          return 0;
-        }
-        return 1;
-      } else if (this->StoreUnusedArgumentsFlag) {
-        CommandLineArguments_DEBUG("Store unused argument " << arg);
-        this->Internals->UnusedArguments.push_back(arg);
-      } else {
-        std::cerr << "Got unknown argument: \"" << arg << "\"" << std::endl;
-        this->Internals->LastArgument--;
-        return 0;
-      }
+  const char *to_p = to;
+  CURLcode result;
+  ssize_t written;
+
+  while(len > 0) {
+    result = Curl_write_plain(conn, fd, to_p, len, &written);
+    if(!result) {
+      len -= written;
+      to_p += written;
+    }
+    else {
+      /* FIXME: We are doing a busy wait */
+      if(result == CURLE_AGAIN)
+        continue;
+      return result;
     }
   }
-  return 1;
+  return CURLE_OK;
 }
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::GetRemainingArguments(int* argc, char*** argv)
+static CURLcode read_data(struct connectdata *conn,
+                          curl_socket_t fd,
+                          struct krb5buffer *buf)
 {
-  CommandLineArguments::Internal::VectorOfStrings::size_type size =
-    this->Internals->Argv.size() - this->Internals->LastArgument + 1;
-  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
+  int len;
+  void *tmp = NULL;
+  CURLcode result;
 
-  // Copy Argv0 as the first argument
-  char** args = new char*[size];
-  args[0] = new char[this->Internals->Argv0.size() + 1];
-  strcpy(args[0], this->Internals->Argv0.c_str());
-  int cnt = 1;
+  result = socket_read(fd, &len, sizeof(len));
+  if(result)
+    return result;
 
-  // Copy everything after the LastArgument, since that was not parsed.
-  for (cc = this->Internals->LastArgument + 1;
-       cc < this->Internals->Argv.size(); cc++) {
-    args[cnt] = new char[this->Internals->Argv[cc].size() + 1];
-    strcpy(args[cnt], this->Internals->Argv[cc].c_str());
-    cnt++;
+  if(len) {
+    /* only realloc if there was a length */
+    len = ntohl(len);
+    tmp = realloc(buf->data, len);
   }
-  *argc = cnt;
-  *argv = args;
+  if(tmp == NULL)
+    return CURLE_OUT_OF_MEMORY;
+
+  buf->data = tmp;
+  result = socket_read(fd, buf->data, len);
+  if(result)
+    return result;
+  buf->size = conn->mech->decode(conn->app_data, buf->data, len,
+                                 conn->data_prot, conn);
+  buf->index = 0;
+  return CURLE_OK;
 }
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::GetUnusedArguments(int* argc, char*** argv)
+static size_t
+buffer_read(struct krb5buffer *buf, void *data, size_t len)
 {
-  CommandLineArguments::Internal::VectorOfStrings::size_type size =
-    this->Internals->UnusedArguments.size() + 1;
-  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
-
-  // Copy Argv0 as the first argument
-  char** args = new char*[size];
-  args[0] = new char[this->Internals->Argv0.size() + 1];
-  strcpy(args[0], this->Internals->Argv0.c_str());
-  int cnt = 1;
-
-  // Copy everything after the LastArgument, since that was not parsed.
-  for (cc = 0; cc < this->Internals->UnusedArguments.size(); cc++) {
-    kwsys::String& str = this->Internals->UnusedArguments[cc];
-    args[cnt] = new char[str.size() + 1];
-    strcpy(args[cnt], str.c_str());
-    cnt++;
-  }
-  *argc = cnt;
-  *argv = args;
+  if(buf->size - buf->index < len)
+    len = buf->size - buf->index;
+  memcpy(data, (char*)buf->data + buf->index, len);
+  buf->index += len;
+  return len;
 }
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::DeleteRemainingArguments(int argc, char*** argv)
+/* Matches Curl_recv signature */
+static ssize_t sec_recv(struct connectdata *conn, int sockindex,
+                        char *buffer, size_t len, CURLcode *err)
 {
-  int cc;
-  for (cc = 0; cc < argc; ++cc) {
-    delete[](*argv)[cc];
-  }
-  delete[] * argv;
-}
+  size_t bytes_read;
+  size_t total_read = 0;
+  curl_socket_t fd = conn->sock[sockindex];
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::AddCallback(const char* argument,
-                                       ArgumentTypeEnum type,
-                                       CallbackType callback, void* call_data,
-                                       const char* help)
-{
-  CommandLineArgumentsCallbackStructure s;
-  s.Argument = argument;
-  s.ArgumentType = type;
-  s.Callback = callback;
-  s.CallData = call_data;
-  s.VariableType = CommandLineArguments::NO_VARIABLE_TYPE;
-  s.Variable = 0;
-  s.Help = help;
+  *err = CURLE_OK;
 
-  this->Internals->Callbacks[argument] = s;
-  this->GenerateHelp();
-}
+  /* Handle clear text response. */
+  if(conn->sec_complete == 0 || conn->data_prot == PROT_CLEAR)
+      return read(fd, buffer, len);
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::AddArgument(const char* argument,
-                                       ArgumentTypeEnum type,
-                                       VariableTypeEnum vtype, void* variable,
-                                       const char* help)
-{
-  CommandLineArgumentsCallbackStructure s;
-  s.Argument = argument;
-  s.ArgumentType = type;
-  s.Callback = 0;
-  s.CallData = 0;
-  s.VariableType = vtype;
-  s.Variable = variable;
-  s.Help = help;
-
-  this->Internals->Callbacks[argument] = s;
-  this->GenerateHelp();
-}
-
-//----------------------------------------------------------------------------
-#define CommandLineArgumentsAddArgumentMacro(type, ctype)                     \
-  void CommandLineArguments::AddArgument(const char* argument,                \
-                                         ArgumentTypeEnum type,               \
-                                         ctype* variable, const char* help)   \
-  {                                                                           \
-    this->AddArgument(argument, type, CommandLineArguments::type##_TYPE,      \
-                      variable, help);                                        \
-  }
-
-CommandLineArgumentsAddArgumentMacro(BOOL, bool)
-  CommandLineArgumentsAddArgumentMacro(INT, int)
-    CommandLineArgumentsAddArgumentMacro(DOUBLE, double)
-      CommandLineArgumentsAddArgumentMacro(STRING, char*)
-        CommandLineArgumentsAddArgumentMacro(STL_STRING, std::string)
-
-          CommandLineArgumentsAddArgumentMacro(VECTOR_BOOL, std::vector<bool>)
-            CommandLineArgumentsAddArgumentMacro(VECTOR_INT, std::vector<int>)
-              CommandLineArgumentsAddArgumentMacro(VECTOR_DOUBLE,
-                                                   std::vector<double>)
-                CommandLineArgumentsAddArgumentMacro(VECTOR_STRING,
-                                                     std::vector<char*>)
-                  CommandLineArgumentsAddArgumentMacro(
-                    VECTOR_STL_STRING, std::vector<std::string>)
-
-//----------------------------------------------------------------------------
-#define CommandLineArgumentsAddBooleanArgumentMacro(type, ctype)              \
-  void CommandLineArguments::AddBooleanArgument(                              \
-    const char* argument, ctype* variable, const char* help)                  \
-  {                                                                           \
-    this->AddArgument(argument, CommandLineArguments::NO_ARGUMENT,            \
-                      CommandLineArguments::type##_TYPE, variable, help);     \
-  }
-
-                    CommandLineArgumentsAddBooleanArgumentMacro(BOOL, bool)
-                      CommandLineArgumentsAddBooleanArgumentMacro(INT, int)
-                        CommandLineArgumentsAddBooleanArgumentMacro(DOUBLE,
-                                                                    double)
-                          CommandLineArgumentsAddBooleanArgumentMacro(STRING,
-                                                                      char*)
-                            CommandLineArgumentsAddBooleanArgumentMacro(
-                              STL_STRING, std::string)
-
-  //----------------------------------------------------------------------------
-  void CommandLineArguments::SetClientData(void* client_data)
-{
-  this->Internals->ClientData = client_data;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetUnknownArgumentCallback(
-  CommandLineArguments::ErrorCallbackType callback)
-{
-  this->Internals->UnknownArgumentCallback = callback;
-}
-
-//----------------------------------------------------------------------------
-const char* CommandLineArguments::GetHelp(const char* arg)
-{
-  CommandLineArguments::Internal::CallbacksMap::iterator it =
-    this->Internals->Callbacks.find(arg);
-  if (it == this->Internals->Callbacks.end()) {
+  if(conn->in_buffer.eof_flag) {
+    conn->in_buffer.eof_flag = 0;
     return 0;
   }
 
-  // Since several arguments may point to the same argument, find the one this
-  // one point to if this one is pointing to another argument.
-  CommandLineArgumentsCallbackStructure* cs = &(it->second);
-  for (;;) {
-    CommandLineArguments::Internal::CallbacksMap::iterator hit =
-      this->Internals->Callbacks.find(cs->Help);
-    if (hit == this->Internals->Callbacks.end()) {
+  bytes_read = buffer_read(&conn->in_buffer, buffer, len);
+  len -= bytes_read;
+  total_read += bytes_read;
+  buffer += bytes_read;
+
+  while(len > 0) {
+    if(read_data(conn, fd, &conn->in_buffer))
+      return -1;
+    if(conn->in_buffer.size == 0) {
+      if(bytes_read > 0)
+        conn->in_buffer.eof_flag = 1;
+      return bytes_read;
+    }
+    bytes_read = buffer_read(&conn->in_buffer, buffer, len);
+    len -= bytes_read;
+    total_read += bytes_read;
+    buffer += bytes_read;
+  }
+  /* FIXME: Check for overflow */
+  return total_read;
+}
+
+/* Send |length| bytes from |from| to the |fd| socket taking care of encoding
+   and negociating with the server. |from| can be NULL. */
+/* FIXME: We don't check for errors nor report any! */
+static void do_sec_send(struct connectdata *conn, curl_socket_t fd,
+                        const char *from, int length)
+{
+  int bytes, htonl_bytes; /* 32-bit integers for htonl */
+  char *buffer = NULL;
+  char *cmd_buffer;
+  size_t cmd_size = 0;
+  CURLcode error;
+  enum protection_level prot_level = conn->data_prot;
+  bool iscmd = (prot_level == PROT_CMD)?TRUE:FALSE;
+
+  DEBUGASSERT(prot_level > PROT_NONE && prot_level < PROT_LAST);
+
+  if(iscmd) {
+    if(!strncmp(from, "PASS ", 5) || !strncmp(from, "ACCT ", 5))
+      prot_level = PROT_PRIVATE;
+    else
+      prot_level = conn->command_prot;
+  }
+  bytes = conn->mech->encode(conn->app_data, from, length, prot_level,
+                             (void**)&buffer);
+  if(!buffer || bytes <= 0)
+    return; /* error */
+
+  if(iscmd) {
+    error = Curl_base64_encode(conn->data, buffer, curlx_sitouz(bytes),
+                               &cmd_buffer, &cmd_size);
+    if(error) {
+      free(buffer);
+      return; /* error */
+    }
+    if(cmd_size > 0) {
+      static const char *enc = "ENC ";
+      static const char *mic = "MIC ";
+      if(prot_level == PROT_PRIVATE)
+        socket_write(conn, fd, enc, 4);
+      else
+        socket_write(conn, fd, mic, 4);
+
+      socket_write(conn, fd, cmd_buffer, cmd_size);
+      socket_write(conn, fd, "\r\n", 2);
+      infof(conn->data, "Send: %s%s\n", prot_level == PROT_PRIVATE?enc:mic,
+            cmd_buffer);
+      free(cmd_buffer);
+    }
+  }
+  else {
+    htonl_bytes = htonl(bytes);
+    socket_write(conn, fd, &htonl_bytes, sizeof(htonl_bytes));
+    socket_write(conn, fd, buffer, curlx_sitouz(bytes));
+  }
+  free(buffer);
+}
+
+static ssize_t sec_write(struct connectdata *conn, curl_socket_t fd,
+                         const char *buffer, size_t length)
+{
+  ssize_t tx = 0, len = conn->buffer_size;
+
+  len -= conn->mech->overhead(conn->app_data, conn->data_prot,
+                              curlx_sztosi(len));
+  if(len <= 0)
+    len = length;
+  while(length) {
+    if(length < (size_t)len)
+      len = length;
+
+    do_sec_send(conn, fd, buffer, curlx_sztosi(len));
+    length -= len;
+    buffer += len;
+    tx += len;
+  }
+  return tx;
+}
+
+/* Matches Curl_send signature */
+static ssize_t sec_send(struct connectdata *conn, int sockindex,
+                        const void *buffer, size_t len, CURLcode *err)
+{
+  curl_socket_t fd = conn->sock[sockindex];
+  *err = CURLE_OK;
+  return sec_write(conn, fd, buffer, len);
+}
+
+int Curl_sec_read_msg(struct connectdata *conn, char *buffer,
+                      enum protection_level level)
+{
+  /* decoded_len should be size_t or ssize_t but conn->mech->decode returns an
+     int */
+  int decoded_len;
+  char *buf;
+  int ret_code = 0;
+  size_t decoded_sz = 0;
+  CURLcode error;
+
+  DEBUGASSERT(level > PROT_NONE && level < PROT_LAST);
+
+  error = Curl_base64_decode(buffer + 4, (unsigned char **)&buf, &decoded_sz);
+  if(error || decoded_sz == 0)
+    return -1;
+
+  if(decoded_sz > (size_t)INT_MAX) {
+    free(buf);
+    return -1;
+  }
+  decoded_len = curlx_uztosi(decoded_sz);
+
+  decoded_len = conn->mech->decode(conn->app_data, buf, decoded_len,
+                                   level, conn);
+  if(decoded_len <= 0) {
+    free(buf);
+    return -1;
+  }
+
+  if(conn->data->set.verbose) {
+    buf[decoded_len] = '\n';
+    Curl_debug(conn->data, CURLINFO_HEADER_IN, buf, decoded_len + 1, conn);
+  }
+
+  buf[decoded_len] = '\0';
+  if(decoded_len <= 3)
+    /* suspiciously short */
+    return 0;
+
+  if(buf[3] != '-')
+    /* safe to ignore return code */
+    (void)sscanf(buf, "%d", &ret_code);
+
+  if(buf[decoded_len - 1] == '\n')
+    buf[decoded_len - 1] = '\0';
+  /* FIXME: Is |buffer| length always greater than |decoded_len|? */
+  strcpy(buffer, buf);
+  free(buf);
+  return ret_code;
+}
+
+/* FIXME: The error code returned here is never checked. */
+static int sec_set_protection_level(struct connectdata *conn)
+{
+  int code;
+  char* pbsz;
+  static unsigned int buffer_size = 1 << 20; /* 1048576 */
+  enum protection_level level = conn->request_data_prot;
+
+  DEBUGASSERT(level > PROT_NONE && level < PROT_LAST);
+
+  if(!conn->sec_complete) {
+    infof(conn->data, "Trying to change the protection level after the"
+                      "completion of the data exchange.\n");
+    return -1;
+  }
+
+  /* Bail out if we try to set up the same level */
+  if(conn->data_prot == level)
+    return 0;
+
+  if(level) {
+    code = ftp_send_command(conn, "PBSZ %u", buffer_size);
+    if(code < 0)
+      return -1;
+
+    if(code/100 != 2) {
+      failf(conn->data, "Failed to set the protection's buffer size.");
+      return -1;
+    }
+    conn->buffer_size = buffer_size;
+
+    pbsz = strstr(conn->data->state.buffer, "PBSZ=");
+    if(pbsz) {
+      /* ignore return code, use default value if it fails */
+      (void)sscanf(pbsz, "PBSZ=%u", &buffer_size);
+      if(buffer_size < conn->buffer_size)
+        conn->buffer_size = buffer_size;
+    }
+  }
+
+  /* Now try to negiociate the protection level. */
+  code = ftp_send_command(conn, "PROT %c", level_to_char(level));
+
+  if(code < 0)
+    return -1;
+
+  if(code/100 != 2) {
+    failf(conn->data, "Failed to set the protection level.");
+    return -1;
+  }
+
+  conn->data_prot = level;
+  if(level == PROT_PRIVATE)
+    conn->command_prot = level;
+
+  return 0;
+}
+
+int
+Curl_sec_request_prot(struct connectdata *conn, const char *level)
+{
+  enum protection_level l = name_to_level(level);
+  if(l == PROT_NONE)
+    return -1;
+  DEBUGASSERT(l > PROT_NONE && l < PROT_LAST);
+  conn->request_data_prot = l;
+  return 0;
+}
+
+static CURLcode choose_mech(struct connectdata *conn)
+{
+  int ret;
+  struct Curl_easy *data = conn->data;
+  void *tmp_allocation;
+  const struct Curl_sec_client_mech *mech = &Curl_krb5_client_mech;
+
+  tmp_allocation = realloc(conn->app_data, mech->size);
+  if(tmp_allocation == NULL) {
+    failf(data, "Failed realloc of size %u", mech->size);
+    mech = NULL;
+    return CURLE_OUT_OF_MEMORY;
+  }
+  conn->app_data = tmp_allocation;
+
+  if(mech->init) {
+    ret = mech->init(conn->app_data);
+    if(ret) {
+      infof(data, "Failed initialization for %s. Skipping it.\n",
+            mech->name);
+      return CURLE_FAILED_INIT;
+    }
+  }
+
+  infof(data, "Trying mechanism %s...\n", mech->name);
+  ret = ftp_send_command(conn, "AUTH %s", mech->name);
+  if(ret < 0)
+    /* FIXME: This error is too generic but it is OK for now. */
+    return CURLE_COULDNT_CONNECT;
+
+  if(ret/100 != 3) {
+    switch(ret) {
+    case 504:
+      infof(data, "Mechanism %s is not supported by the server (server "
+            "returned ftp code: 504).\n", mech->name);
+      break;
+    case 534:
+      infof(data, "Mechanism %s was rejected by the server (server returned "
+            "ftp code: 534).\n", mech->name);
+      break;
+    default:
+      if(ret/100 == 5) {
+        infof(data, "server does not support the security extensions\n");
+        return CURLE_USE_SSL_FAILED;
+      }
       break;
     }
-    cs = &(hit->second);
+    return CURLE_LOGIN_DENIED;
   }
-  return cs->Help;
-}
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetLineLength(unsigned int ll)
-{
-  if (ll < 9 || ll > 1000) {
-    return;
-  }
-  this->LineLength = ll;
-  this->GenerateHelp();
-}
+  /* Authenticate */
+  ret = mech->auth(conn->app_data, conn);
 
-//----------------------------------------------------------------------------
-const char* CommandLineArguments::GetArgv0()
-{
-  return this->Internals->Argv0.c_str();
-}
-
-//----------------------------------------------------------------------------
-unsigned int CommandLineArguments::GetLastArgument()
-{
-  return static_cast<unsigned int>(this->Internals->LastArgument + 1);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::GenerateHelp()
-{
-  std::ostringstream str;
-
-  // Collapse all arguments into the map of vectors of all arguments that do
-  // the same thing.
-  CommandLineArguments::Internal::CallbacksMap::iterator it;
-  typedef std::map<CommandLineArguments::Internal::String,
-                   CommandLineArguments::Internal::SetOfStrings>
-    MapArgs;
-  MapArgs mp;
-  MapArgs::iterator mpit, smpit;
-  for (it = this->Internals->Callbacks.begin();
-       it != this->Internals->Callbacks.end(); it++) {
-    CommandLineArgumentsCallbackStructure* cs = &(it->second);
-    mpit = mp.find(cs->Help);
-    if (mpit != mp.end()) {
-      mpit->second.insert(it->first);
-      mp[it->first].insert(it->first);
-    } else {
-      mp[it->first].insert(it->first);
+  if(ret != AUTH_CONTINUE) {
+    if(ret != AUTH_OK) {
+      /* Mechanism has dumped the error to stderr, don't error here. */
+      return -1;
     }
-  }
-  for (it = this->Internals->Callbacks.begin();
-       it != this->Internals->Callbacks.end(); it++) {
-    CommandLineArgumentsCallbackStructure* cs = &(it->second);
-    mpit = mp.find(cs->Help);
-    if (mpit != mp.end()) {
-      mpit->second.insert(it->first);
-      smpit = mp.find(it->first);
-      CommandLineArguments::Internal::SetOfStrings::iterator sit;
-      for (sit = smpit->second.begin(); sit != smpit->second.end(); sit++) {
-        mpit->second.insert(*sit);
-      }
-      mp.erase(smpit);
-    } else {
-      mp[it->first].insert(it->first);
-    }
+    DEBUGASSERT(ret == AUTH_OK);
+
+    conn->mech = mech;
+    conn->sec_complete = 1;
+    conn->recv[FIRSTSOCKET] = sec_recv;
+    conn->send[FIRSTSOCKET] = sec_send;
+    conn->recv[SECONDARYSOCKET] = sec_recv;
+    conn->send[SECONDARYSOCKET] = sec_send;
+    conn->command_prot = PROT_SAFE;
+    /* Set the requested protection level */
+    /* BLOCKING */
+    (void)sec_set_protection_level(conn);
   }
 
-  // Find the length of the longest string
-  CommandLineArguments::Internal::String::size_type maxlen = 0;
-  for (mpit = mp.begin(); mpit != mp.end(); mpit++) {
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for (sit = mpit->second.begin(); sit != mpit->second.end(); sit++) {
-      CommandLineArguments::Internal::String::size_type clen = sit->size();
-      switch (this->Internals->Callbacks[*sit].ArgumentType) {
-        case CommandLineArguments::NO_ARGUMENT:
-          clen += 0;
-          break;
-        case CommandLineArguments::CONCAT_ARGUMENT:
-          clen += 3;
-          break;
-        case CommandLineArguments::SPACE_ARGUMENT:
-          clen += 4;
-          break;
-        case CommandLineArguments::EQUAL_ARGUMENT:
-          clen += 4;
-          break;
-      }
-      if (clen > maxlen) {
-        maxlen = clen;
-      }
-    }
+  return CURLE_OK;
+}
+
+CURLcode
+Curl_sec_login(struct connectdata *conn)
+{
+  return choose_mech(conn);
+}
+
+
+void
+Curl_sec_end(struct connectdata *conn)
+{
+  if(conn->mech != NULL && conn->mech->end)
+    conn->mech->end(conn->app_data);
+  free(conn->app_data);
+  conn->app_data = NULL;
+  if(conn->in_buffer.data) {
+    free(conn->in_buffer.data);
+    conn->in_buffer.data = NULL;
+    conn->in_buffer.size = 0;
+    conn->in_buffer.index = 0;
+    /* FIXME: Is this really needed? */
+    conn->in_buffer.eof_flag = 0;
   }
-
-  // Create format for that string
-  char format[80];
-  sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));
-
-  maxlen += 4; // For the space before and after the option
-
-  // Print help for each option
-  for (mpit = mp.begin(); mpit != mp.end(); mpit++) {
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for (sit = mpit->second.begin(); sit != mpit->second.end(); sit++) {
-      str << std::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch (this->Internals->Callbacks[*sit].ArgumentType) {
-        case CommandLineArguments::NO_ARGUMENT:
-          break;
-        case CommandLineArguments::CONCAT_ARGUMENT:
-          strcat(argument, "opt");
-          break;
-        case CommandLineArguments::SPACE_ARGUMENT:
-          strcat(argument, " opt");
-          break;
-        case CommandLineArguments::EQUAL_ARGUMENT:
-          strcat(argument, "=opt");
-          break;
-        case CommandLineArguments::MULTI_ARGUMENT:
-          strcat(argument, " opt opt ...");
-          break;
-      }
-      char buffer[80];
-      sprintf(buffer, format, argument);
-      str << buffer;
-    }
-    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
-    size_t len = strlen(ptr);
-    int cnt = 0;
-    while (len > 0) {
-      // If argument with help is longer than line length, split it on previous
-      // space (or tab) and continue on the next line
-      CommandLineArguments::Internal::String::size_type cc;
-      for (cc = 0; ptr[cc]; cc++) {
-        if (*ptr == ' ' || *ptr == '\t') {
-          ptr++;
-          len--;
-        }
-      }
-      if (cnt > 0) {
-        for (cc = 0; cc < maxlen; cc++) {
-          str << " ";
-        }
-      }
-      CommandLineArguments::Internal::String::size_type skip = len;
-      if (skip > this->LineLength - maxlen) {
-        skip = this->LineLength - maxlen;
-        for (cc = skip - 1; cc > 0; cc--) {
-          if (ptr[cc] == ' ' || ptr[cc] == '\t') {
-            break;
-          }
-        }
-        if (cc != 0) {
-          skip = cc;
-        }
-      }
-      str.write(ptr, static_cast<std::streamsize>(skip));
-      str << std::endl;
-      ptr += skip;
-      len -= skip;
-      cnt++;
-    }
-  }
-  /*
-  // This can help debugging help string
-  str << endl;
-  unsigned int cc;
-  for ( cc = 0; cc < this->LineLength; cc ++ )
-    {
-    str << cc % 10;
-    }
-  str << endl;
-  */
-  this->Help = str.str();
+  conn->sec_complete = 0;
+  conn->data_prot = PROT_CLEAR;
+  conn->mech = NULL;
 }
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(bool* variable,
-                                            const std::string& value)
-{
-  if (value == "1" || value == "ON" || value == "on" || value == "On" ||
-      value == "TRUE" || value == "true" || value == "True" ||
-      value == "yes" || value == "Yes" || value == "YES") {
-    *variable = true;
-  } else {
-    *variable = false;
-  }
-}
+#endif /* HAVE_GSSAPI */
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(int* variable,
-                                            const std::string& value)
-{
-  char* res = 0;
-  *variable = static_cast<int>(strtol(value.c_str(), &res, 10));
-  // if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(double* variable,
-                                            const std::string& value)
-{
-  char* res = 0;
-  *variable = strtod(value.c_str(), &res);
-  // if ( res && *res )
-  //  {
-  //  Can handle non-double
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(char** variable,
-                                            const std::string& value)
-{
-  if (*variable) {
-    delete[] * variable;
-    *variable = 0;
-  }
-  *variable = new char[value.size() + 1];
-  strcpy(*variable, value.c_str());
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(std::string* variable,
-                                            const std::string& value)
-{
-  *variable = value;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(std::vector<bool>* variable,
-                                            const std::string& value)
-{
-  bool val = false;
-  if (value == "1" || value == "ON" || value == "on" || value == "On" ||
-      value == "TRUE" || value == "true" || value == "True" ||
-      value == "yes" || value == "Yes" || value == "YES") {
-    val = true;
-  }
-  variable->push_back(val);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(std::vector<int>* variable,
-                                            const std::string& value)
-{
-  char* res = 0;
-  variable->push_back(static_cast<int>(strtol(value.c_str(), &res, 10)));
-  // if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(std::vector<double>* variable,
-                                            const std::string& value)
-{
-  char* res = 0;
-  variable->push_back(strtod(value.c_str(), &res));
-  // if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(std::vector<char*>* variable,
-                                            const std::string& value)
-{
-  char* var = new char[value.size() + 1];
-  strcpy(var, value.c_str());
-  variable->push_back(var);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(std::vector<std::string>* variable,
-                                            const std::string& value)
-{
-  variable->push_back(value);
-}
-
-//----------------------------------------------------------------------------
-bool CommandLineArguments::PopulateVariable(
-  CommandLineArgumentsCallbackStructure* cs, const char* value)
-{
-  // Call the callback
-  if (cs->Callback) {
-    if (!cs->Callback(cs->Argument, value, cs->CallData)) {
-      this->Internals->LastArgument--;
-      return 0;
-    }
-  }
-  CommandLineArguments_DEBUG("Set argument: " << cs->Argument << " to "
-                                              << value);
-  if (cs->Variable) {
-    std::string var = "1";
-    if (value) {
-      var = value;
-    }
-    switch (cs->VariableType) {
-      case CommandLineArguments::INT_TYPE:
-        this->PopulateVariable(static_cast<int*>(cs->Variable), var);
-        break;
-      case CommandLineArguments::DOUBLE_TYPE:
-        this->PopulateVariable(static_cast<double*>(cs->Variable), var);
-        break;
-      case CommandLineArguments::STRING_TYPE:
-        this->PopulateVariable(static_cast<char**>(cs->Variable), var);
-        break;
-      case CommandLineArguments::STL_STRING_TYPE:
-        this->PopulateVariable(static_cast<std::string*>(cs->Variable), var);
-        break;
-      case CommandLineArguments::BOOL_TYPE:
-        this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
-        break;
-      case CommandLineArguments::VECTOR_BOOL_TYPE:
-        this->PopulateVariable(static_cast<std::vector<bool>*>(cs->Variable),
-                               var);
-        break;
-      case CommandLineArguments::VECTOR_INT_TYPE:
-        this->PopulateVariable(static_cast<std::vector<int>*>(cs->Variable),
-                               var);
-        break;
-      case CommandLineArguments::VECTOR_DOUBLE_TYPE:
-        this->PopulateVariable(static_cast<std::vector<double>*>(cs->Variable),
-                               var);
-        break;
-      case CommandLineArguments::VECTOR_STRING_TYPE:
-        this->PopulateVariable(static_cast<std::vector<char*>*>(cs->Variable),
-                               var);
-        break;
-      case CommandLineArguments::VECTOR_STL_STRING_TYPE:
-        this->PopulateVariable(
-          static_cast<std::vector<std::string>*>(cs->Variable), var);
-        break;
-      default:
-        std::cerr << "Got unknown variable type: \"" << cs->VariableType
-                  << "\"" << std::endl;
-        this->Internals->LastArgument--;
-        return 0;
-    }
-  }
-  return 1;
-}
-
-} // namespace KWSYS_NAMESPACE
+#endif /* CURL_DISABLE_FTP */

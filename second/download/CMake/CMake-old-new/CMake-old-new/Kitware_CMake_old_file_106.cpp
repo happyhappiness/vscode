@@ -18,1659 +18,880 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
+ * RFC2831 DIGEST-MD5 authentication
+ *
  ***************************************************************************/
 
 #include "curl_setup.h"
 
-#ifndef CURL_DISABLE_TELNET
+#if !defined(CURL_DISABLE_CRYPTO_AUTH)
 
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-#ifdef HAVE_NET_IF_H
-#include <net/if.h>
-#endif
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-
-#include "urldata.h"
 #include <curl/curl.h>
-#include "transfer.h"
-#include "sendf.h"
-#include "telnet.h"
-#include "connect.h"
-#include "progress.h"
-#include "system_win32.h"
 
-#define  TELOPTS
-#define  TELCMDS
-
-#include "arpa_telnet.h"
-#include "select.h"
-#include "strcase.h"
+#include "vauth/vauth.h"
+#include "vauth/digest.h"
+#include "urldata.h"
+#include "curl_base64.h"
+#include "curl_hmac.h"
+#include "curl_md5.h"
+#include "vtls/vtls.h"
 #include "warnless.h"
-
-/* The last 3 #include files should be in this order */
+#include "strtok.h"
+#include "strcase.h"
+#include "non-ascii.h" /* included for Curl_convert_... prototypes */
 #include "curl_printf.h"
+
+/* The last #include files should be: */
 #include "curl_memory.h"
 #include "memdebug.h"
 
-#define SUBBUFSIZE 512
+#if !defined(USE_WINDOWS_SSPI)
+#define DIGEST_QOP_VALUE_AUTH             (1 << 0)
+#define DIGEST_QOP_VALUE_AUTH_INT         (1 << 1)
+#define DIGEST_QOP_VALUE_AUTH_CONF        (1 << 2)
 
-#define CURL_SB_CLEAR(x)  x->subpointer = x->subbuffer
-#define CURL_SB_TERM(x)                                 \
-  do {                                                  \
-    x->subend = x->subpointer;                          \
-    CURL_SB_CLEAR(x);                                   \
-  } WHILE_FALSE
-#define CURL_SB_ACCUM(x,c)                                   \
-  do {                                                       \
-    if(x->subpointer < (x->subbuffer+sizeof x->subbuffer))   \
-      *x->subpointer++ = (c);                                \
-  } WHILE_FALSE
+#define DIGEST_QOP_VALUE_STRING_AUTH      "auth"
+#define DIGEST_QOP_VALUE_STRING_AUTH_INT  "auth-int"
+#define DIGEST_QOP_VALUE_STRING_AUTH_CONF "auth-conf"
 
-#define  CURL_SB_GET(x) ((*x->subpointer++)&0xff)
-#define  CURL_SB_PEEK(x)   ((*x->subpointer)&0xff)
-#define  CURL_SB_EOF(x) (x->subpointer >= x->subend)
-#define  CURL_SB_LEN(x) (x->subend - x->subpointer)
+/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
+   It converts digest text to ASCII so the MD5 will be correct for
+   what ultimately goes over the network.
+*/
+#define CURL_OUTPUT_DIGEST_CONV(a, b) \
+  result = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
+  if(result) { \
+    free(b); \
+    return result; \
+  }
+#endif /* !USE_WINDOWS_SSPI */
 
-#ifdef CURL_DISABLE_VERBOSE_STRINGS
-#define printoption(a,b,c,d)  Curl_nop_stmt
-#endif
-
-#ifdef USE_WINSOCK
-typedef FARPROC WSOCK2_FUNC;
-static CURLcode check_wsock2 (struct Curl_easy *data);
-#endif
-
-static
-CURLcode telrcv(struct connectdata *,
-                const unsigned char *inbuf, /* Data received from socket */
-                ssize_t count);             /* Number of bytes received */
-
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
-static void printoption(struct Curl_easy *data,
-                        const char *direction,
-                        int cmd, int option);
-#endif
-
-static void negotiate(struct connectdata *);
-static void send_negotiation(struct connectdata *, int cmd, int option);
-static void set_local_option(struct connectdata *, int cmd, int option);
-static void set_remote_option(struct connectdata *, int cmd, int option);
-
-static void printsub(struct Curl_easy *data,
-                     int direction, unsigned char *pointer,
-                     size_t length);
-static void suboption(struct connectdata *);
-static void sendsuboption(struct connectdata *conn, int option);
-
-static CURLcode telnet_do(struct connectdata *conn, bool *done);
-static CURLcode telnet_done(struct connectdata *conn,
-                                 CURLcode, bool premature);
-static CURLcode send_telnet_data(struct connectdata *conn,
-                                 char *buffer, ssize_t nread);
-
-/* For negotiation compliant to RFC 1143 */
-#define CURL_NO          0
-#define CURL_YES         1
-#define CURL_WANTYES     2
-#define CURL_WANTNO      3
-
-#define CURL_EMPTY       0
-#define CURL_OPPOSITE    1
-
-/*
- * Telnet receiver states for fsm
- */
-typedef enum
+bool Curl_auth_digest_get_pair(const char *str, char *value, char *content,
+                               const char **endptr)
 {
-   CURL_TS_DATA = 0,
-   CURL_TS_IAC,
-   CURL_TS_WILL,
-   CURL_TS_WONT,
-   CURL_TS_DO,
-   CURL_TS_DONT,
-   CURL_TS_CR,
-   CURL_TS_SB,   /* sub-option collection */
-   CURL_TS_SE   /* looking for sub-option end */
-} TelnetReceive;
+  int c;
+  bool starts_with_quote = FALSE;
+  bool escape = FALSE;
 
-struct TELNET {
-  int please_negotiate;
-  int already_negotiated;
-  int us[256];
-  int usq[256];
-  int us_preferred[256];
-  int him[256];
-  int himq[256];
-  int him_preferred[256];
-  int subnegotiation[256];
-  char subopt_ttype[32];             /* Set with suboption TTYPE */
-  char subopt_xdisploc[128];         /* Set with suboption XDISPLOC */
-  unsigned short subopt_wsx;         /* Set with suboption NAWS */
-  unsigned short subopt_wsy;         /* Set with suboption NAWS */
-  struct curl_slist *telnet_vars;    /* Environment variables */
+  for(c = DIGEST_MAX_VALUE_LENGTH - 1; (*str && (*str != '=') && c--);)
+    *value++ = *str++;
+  *value = 0;
 
-  /* suboptions */
-  unsigned char subbuffer[SUBBUFSIZE];
-  unsigned char *subpointer, *subend;      /* buffer for sub-options */
+  if('=' != *str++)
+    /* eek, no match */
+    return FALSE;
 
-  TelnetReceive telrcv_state;
-};
-
-
-/*
- * TELNET protocol handler.
- */
-
-const struct Curl_handler Curl_handler_telnet = {
-  "TELNET",                             /* scheme */
-  ZERO_NULL,                            /* setup_connection */
-  telnet_do,                            /* do_it */
-  telnet_done,                          /* done */
-  ZERO_NULL,                            /* do_more */
-  ZERO_NULL,                            /* connect_it */
-  ZERO_NULL,                            /* connecting */
-  ZERO_NULL,                            /* doing */
-  ZERO_NULL,                            /* proto_getsock */
-  ZERO_NULL,                            /* doing_getsock */
-  ZERO_NULL,                            /* domore_getsock */
-  ZERO_NULL,                            /* perform_getsock */
-  ZERO_NULL,                            /* disconnect */
-  ZERO_NULL,                            /* readwrite */
-  PORT_TELNET,                          /* defport */
-  CURLPROTO_TELNET,                     /* protocol */
-  PROTOPT_NONE | PROTOPT_NOURLQUERY     /* flags */
-};
-
-
-#ifdef USE_WINSOCK
-static CURLcode
-check_wsock2(struct Curl_easy *data)
-{
-  int err;
-  WORD wVersionRequested;
-  WSADATA wsaData;
-
-  DEBUGASSERT(data);
-
-  /* telnet requires at least WinSock 2.0 so ask for it. */
-  wVersionRequested = MAKEWORD(2, 0);
-
-  err = WSAStartup(wVersionRequested, &wsaData);
-
-  /* We must've called this once already, so this call */
-  /* should always succeed.  But, just in case... */
-  if(err != 0) {
-    failf(data,"WSAStartup failed (%d)",err);
-    return CURLE_FAILED_INIT;
+  if('\"' == *str) {
+    /* This starts with a quote so it must end with one as well! */
+    str++;
+    starts_with_quote = TRUE;
   }
 
-  /* We have to have a WSACleanup call for every successful */
-  /* WSAStartup call. */
-  WSACleanup();
+  for(c = DIGEST_MAX_CONTENT_LENGTH - 1; *str && c--; str++) {
+    switch(*str) {
+    case '\\':
+      if(!escape) {
+        /* possibly the start of an escaped quote */
+        escape = TRUE;
+        *content++ = '\\'; /* Even though this is an escape character, we still
+                              store it as-is in the target buffer */
+        continue;
+      }
+      break;
 
-  /* Check that our version is supported */
-  if(LOBYTE(wsaData.wVersion) != LOBYTE(wVersionRequested) ||
-      HIBYTE(wsaData.wVersion) != HIBYTE(wVersionRequested)) {
-      /* Our version isn't supported */
-    failf(data, "insufficient winsock version to support "
-          "telnet");
-    return CURLE_FAILED_INIT;
+    case ',':
+      if(!starts_with_quote) {
+        /* This signals the end of the content if we didn't get a starting
+           quote and then we do "sloppy" parsing */
+        c = 0; /* the end */
+        continue;
+      }
+      break;
+
+    case '\r':
+    case '\n':
+      /* end of string */
+      c = 0;
+      continue;
+
+    case '\"':
+      if(!escape && starts_with_quote) {
+        /* end of string */
+        c = 0;
+        continue;
+      }
+      break;
+    }
+
+    escape = FALSE;
+    *content++ = *str;
   }
 
-  /* Our version is supported */
-  return CURLE_OK;
-}
-#endif
+  *content = 0;
+  *endptr = str;
 
-static
-CURLcode init_telnet(struct connectdata *conn)
-{
-  struct TELNET *tn;
-
-  tn = calloc(1, sizeof(struct TELNET));
-  if(!tn)
-    return CURLE_OUT_OF_MEMORY;
-
-  conn->data->req.protop = tn; /* make us known */
-
-  tn->telrcv_state = CURL_TS_DATA;
-
-  /* Init suboptions */
-  CURL_SB_CLEAR(tn);
-
-  /* Set the options we want by default */
-  tn->us_preferred[CURL_TELOPT_SGA] = CURL_YES;
-  tn->him_preferred[CURL_TELOPT_SGA] = CURL_YES;
-
-  /* To be compliant with previous releases of libcurl
-     we enable this option by default. This behaviour
-         can be changed thanks to the "BINARY" option in
-         CURLOPT_TELNETOPTIONS
-  */
-  tn->us_preferred[CURL_TELOPT_BINARY] = CURL_YES;
-  tn->him_preferred[CURL_TELOPT_BINARY] = CURL_YES;
-
-  /* We must allow the server to echo what we sent
-         but it is not necessary to request the server
-         to do so (it might forces the server to close
-         the connection). Hence, we ignore ECHO in the
-         negotiate function
-  */
-  tn->him_preferred[CURL_TELOPT_ECHO] = CURL_YES;
-
-  /* Set the subnegotiation fields to send information
-    just after negotiation passed (do/will)
-
-     Default values are (0,0) initialized by calloc.
-     According to the RFC1013 it is valid:
-     A value equal to zero is acceptable for the width (or height),
-         and means that no character width (or height) is being sent.
-         In this case, the width (or height) that will be assumed by the
-         Telnet server is operating system specific (it will probably be
-         based upon the terminal type information that may have been sent
-         using the TERMINAL TYPE Telnet option). */
-  tn->subnegotiation[CURL_TELOPT_NAWS] = CURL_YES;
-  return CURLE_OK;
+  return TRUE;
 }
 
-static void negotiate(struct connectdata *conn)
+#if !defined(USE_WINDOWS_SSPI)
+/* Convert md5 chunk to RFC2617 (section 3.1.3) -suitable ascii string*/
+static void auth_digest_md5_to_ascii(unsigned char *source, /* 16 bytes */
+                                     unsigned char *dest) /* 33 bytes */
 {
   int i;
-  struct TELNET *tn = (struct TELNET *) conn->data->req.protop;
-
-  for(i = 0;i < CURL_NTELOPTS;i++) {
-    if(i==CURL_TELOPT_ECHO)
-      continue;
-
-    if(tn->us_preferred[i] == CURL_YES)
-      set_local_option(conn, i, CURL_YES);
-
-    if(tn->him_preferred[i] == CURL_YES)
-      set_remote_option(conn, i, CURL_YES);
-  }
+  for(i = 0; i < 16; i++)
+    snprintf((char *) &dest[i * 2], 3, "%02x", source[i]);
 }
 
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
-static void printoption(struct Curl_easy *data,
-                        const char *direction, int cmd, int option)
+/* Perform quoted-string escaping as described in RFC2616 and its errata */
+static char *auth_digest_string_quoted(const char *source)
 {
-  const char *fmt;
-  const char *opt;
+  char *dest, *d;
+  const char *s = source;
+  size_t n = 1; /* null terminator */
 
-  if(data->set.verbose) {
-    if(cmd == CURL_IAC) {
-      if(CURL_TELCMD_OK(option))
-        infof(data, "%s IAC %s\n", direction, CURL_TELCMD(option));
-      else
-        infof(data, "%s IAC %d\n", direction, option);
+  /* Calculate size needed */
+  while(*s) {
+    ++n;
+    if(*s == '"' || *s == '\\') {
+      ++n;
     }
-    else {
-      fmt = (cmd == CURL_WILL) ? "WILL" : (cmd == CURL_WONT) ? "WONT" :
-        (cmd == CURL_DO) ? "DO" : (cmd == CURL_DONT) ? "DONT" : 0;
-      if(fmt) {
-        if(CURL_TELOPT_OK(option))
-          opt = CURL_TELOPT(option);
-        else if(option == CURL_TELOPT_EXOPL)
-          opt = "EXOPL";
-        else
-          opt = NULL;
-
-        if(opt)
-          infof(data, "%s %s %s\n", direction, fmt, opt);
-        else
-          infof(data, "%s %s %d\n", direction, fmt, option);
-      }
-      else
-        infof(data, "%s %d %d\n", direction, cmd, option);
-    }
+    ++s;
   }
-}
-#endif
 
-static void send_negotiation(struct connectdata *conn, int cmd, int option)
-{
-   unsigned char buf[3];
-   ssize_t bytes_written;
-   int err;
-   struct Curl_easy *data = conn->data;
+  dest = malloc(n);
+  if(dest) {
+    s = source;
+    d = dest;
+    while(*s) {
+      if(*s == '"' || *s == '\\') {
+        *d++ = '\\';
+      }
+      *d++ = *s++;
+    }
+    *d = 0;
+  }
 
-   buf[0] = CURL_IAC;
-   buf[1] = (unsigned char)cmd;
-   buf[2] = (unsigned char)option;
-
-   bytes_written = swrite(conn->sock[FIRSTSOCKET], buf, 3);
-   if(bytes_written < 0) {
-     err = SOCKERRNO;
-     failf(data,"Sending data failed (%d)",err);
-   }
-
-   printoption(conn->data, "SENT", cmd, option);
+  return dest;
 }
 
-static
-void set_remote_option(struct connectdata *conn, int option, int newstate)
+/* Retrieves the value for a corresponding key from the challenge string
+ * returns TRUE if the key could be found, FALSE if it does not exists
+ */
+static bool auth_digest_get_key_value(const char *chlg,
+                                      const char *key,
+                                      char *value,
+                                      size_t max_val_len,
+                                      char end_char)
 {
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
-  if(newstate == CURL_YES) {
-    switch(tn->him[option]) {
-    case CURL_NO:
-      tn->him[option] = CURL_WANTYES;
-      send_negotiation(conn, CURL_DO, option);
-      break;
+  char *find_pos;
+  size_t i;
 
-    case CURL_YES:
-      /* Already enabled */
-      break;
+  find_pos = strstr(chlg, key);
+  if(!find_pos)
+    return FALSE;
 
-    case CURL_WANTNO:
-      switch(tn->himq[option]) {
-      case CURL_EMPTY:
-        /* Already negotiating for CURL_YES, queue the request */
-        tn->himq[option] = CURL_OPPOSITE;
-        break;
-      case CURL_OPPOSITE:
-        /* Error: already queued an enable request */
-        break;
-      }
-      break;
+  find_pos += strlen(key);
 
-    case CURL_WANTYES:
-      switch(tn->himq[option]) {
-      case CURL_EMPTY:
-        /* Error: already negotiating for enable */
-        break;
-      case CURL_OPPOSITE:
-        tn->himq[option] = CURL_EMPTY;
-        break;
-      }
-      break;
-    }
-  }
-  else { /* NO */
-    switch(tn->him[option]) {
-    case CURL_NO:
-      /* Already disabled */
-      break;
+  for(i = 0; *find_pos && *find_pos != end_char && i < max_val_len - 1; ++i)
+    value[i] = *find_pos++;
+  value[i] = '\0';
 
-    case CURL_YES:
-      tn->him[option] = CURL_WANTNO;
-      send_negotiation(conn, CURL_DONT, option);
-      break;
-
-    case CURL_WANTNO:
-      switch(tn->himq[option]) {
-      case CURL_EMPTY:
-        /* Already negotiating for NO */
-        break;
-      case CURL_OPPOSITE:
-        tn->himq[option] = CURL_EMPTY;
-        break;
-      }
-      break;
-
-    case CURL_WANTYES:
-      switch(tn->himq[option]) {
-      case CURL_EMPTY:
-        tn->himq[option] = CURL_OPPOSITE;
-        break;
-      case CURL_OPPOSITE:
-        break;
-      }
-      break;
-    }
-  }
+  return TRUE;
 }
 
-static
-void rec_will(struct connectdata *conn, int option)
+static CURLcode auth_digest_get_qop_values(const char *options, int *value)
 {
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
-  switch(tn->him[option]) {
-  case CURL_NO:
-    if(tn->him_preferred[option] == CURL_YES) {
-      tn->him[option] = CURL_YES;
-      send_negotiation(conn, CURL_DO, option);
-    }
-    else
-      send_negotiation(conn, CURL_DONT, option);
+  char *tmp;
+  char *token;
+  char *tok_buf;
 
-    break;
+  /* Initialise the output */
+  *value = 0;
 
-  case CURL_YES:
-    /* Already enabled */
-    break;
+  /* Tokenise the list of qop values. Use a temporary clone of the buffer since
+     strtok_r() ruins it. */
+  tmp = strdup(options);
+  if(!tmp)
+    return CURLE_OUT_OF_MEMORY;
 
-  case CURL_WANTNO:
-    switch(tn->himq[option]) {
-    case CURL_EMPTY:
-      /* Error: DONT answered by WILL */
-      tn->him[option] = CURL_NO;
-      break;
-    case CURL_OPPOSITE:
-      /* Error: DONT answered by WILL */
-      tn->him[option] = CURL_YES;
-      tn->himq[option] = CURL_EMPTY;
-      break;
-    }
-    break;
+  token = strtok_r(tmp, ",", &tok_buf);
+  while(token != NULL) {
+    if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH))
+      *value |= DIGEST_QOP_VALUE_AUTH;
+    else if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH_INT))
+      *value |= DIGEST_QOP_VALUE_AUTH_INT;
+    else if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH_CONF))
+      *value |= DIGEST_QOP_VALUE_AUTH_CONF;
 
-  case CURL_WANTYES:
-    switch(tn->himq[option]) {
-    case CURL_EMPTY:
-      tn->him[option] = CURL_YES;
-      break;
-    case CURL_OPPOSITE:
-      tn->him[option] = CURL_WANTNO;
-      tn->himq[option] = CURL_EMPTY;
-      send_negotiation(conn, CURL_DONT, option);
-      break;
-    }
-    break;
+    token = strtok_r(NULL, ",", &tok_buf);
   }
+
+  free(tmp);
+
+  return CURLE_OK;
 }
 
-static
-void rec_wont(struct connectdata *conn, int option)
+/*
+ * auth_decode_digest_md5_message()
+ *
+ * This is used internally to decode an already encoded DIGEST-MD5 challenge
+ * message into the seperate attributes.
+ *
+ * Parameters:
+ *
+ * chlg64  [in]     - The base64 encoded challenge message.
+ * nonce   [in/out] - The buffer where the nonce will be stored.
+ * nlen    [in]     - The length of the nonce buffer.
+ * realm   [in/out] - The buffer where the realm will be stored.
+ * rlen    [in]     - The length of the realm buffer.
+ * alg     [in/out] - The buffer where the algorithm will be stored.
+ * alen    [in]     - The length of the algorithm buffer.
+ * qop     [in/out] - The buffer where the qop-options will be stored.
+ * qlen    [in]     - The length of the qop buffer.
+ *
+ * Returns CURLE_OK on success.
+ */
+static CURLcode auth_decode_digest_md5_message(const char *chlg64,
+                                               char *nonce, size_t nlen,
+                                               char *realm, size_t rlen,
+                                               char *alg, size_t alen,
+                                               char *qop, size_t qlen)
 {
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
-  switch(tn->him[option]) {
-  case CURL_NO:
-    /* Already disabled */
-    break;
-
-  case CURL_YES:
-    tn->him[option] = CURL_NO;
-    send_negotiation(conn, CURL_DONT, option);
-    break;
-
-  case CURL_WANTNO:
-    switch(tn->himq[option]) {
-    case CURL_EMPTY:
-      tn->him[option] = CURL_NO;
-      break;
-
-    case CURL_OPPOSITE:
-      tn->him[option] = CURL_WANTYES;
-      tn->himq[option] = CURL_EMPTY;
-      send_negotiation(conn, CURL_DO, option);
-      break;
-    }
-    break;
-
-  case CURL_WANTYES:
-    switch(tn->himq[option]) {
-    case CURL_EMPTY:
-      tn->him[option] = CURL_NO;
-      break;
-    case CURL_OPPOSITE:
-      tn->him[option] = CURL_NO;
-      tn->himq[option] = CURL_EMPTY;
-      break;
-    }
-    break;
-  }
-}
-
-static void
-set_local_option(struct connectdata *conn, int option, int newstate)
-{
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
-  if(newstate == CURL_YES) {
-    switch(tn->us[option]) {
-    case CURL_NO:
-      tn->us[option] = CURL_WANTYES;
-      send_negotiation(conn, CURL_WILL, option);
-      break;
-
-    case CURL_YES:
-      /* Already enabled */
-      break;
-
-    case CURL_WANTNO:
-      switch(tn->usq[option]) {
-      case CURL_EMPTY:
-        /* Already negotiating for CURL_YES, queue the request */
-        tn->usq[option] = CURL_OPPOSITE;
-        break;
-      case CURL_OPPOSITE:
-        /* Error: already queued an enable request */
-        break;
-      }
-      break;
-
-    case CURL_WANTYES:
-      switch(tn->usq[option]) {
-      case CURL_EMPTY:
-        /* Error: already negotiating for enable */
-        break;
-      case CURL_OPPOSITE:
-        tn->usq[option] = CURL_EMPTY;
-        break;
-      }
-      break;
-    }
-  }
-  else { /* NO */
-    switch(tn->us[option]) {
-    case CURL_NO:
-      /* Already disabled */
-      break;
-
-    case CURL_YES:
-      tn->us[option] = CURL_WANTNO;
-      send_negotiation(conn, CURL_WONT, option);
-      break;
-
-    case CURL_WANTNO:
-      switch(tn->usq[option]) {
-      case CURL_EMPTY:
-        /* Already negotiating for NO */
-        break;
-      case CURL_OPPOSITE:
-        tn->usq[option] = CURL_EMPTY;
-        break;
-      }
-      break;
-
-    case CURL_WANTYES:
-      switch(tn->usq[option]) {
-      case CURL_EMPTY:
-        tn->usq[option] = CURL_OPPOSITE;
-        break;
-      case CURL_OPPOSITE:
-        break;
-      }
-      break;
-    }
-  }
-}
-
-static
-void rec_do(struct connectdata *conn, int option)
-{
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
-  switch(tn->us[option]) {
-  case CURL_NO:
-    if(tn->us_preferred[option] == CURL_YES) {
-      tn->us[option] = CURL_YES;
-      send_negotiation(conn, CURL_WILL, option);
-      if(tn->subnegotiation[option] == CURL_YES)
-        /* transmission of data option */
-        sendsuboption(conn, option);
-    }
-    else if(tn->subnegotiation[option] == CURL_YES) {
-      /* send information to achieve this option*/
-      tn->us[option] = CURL_YES;
-      send_negotiation(conn, CURL_WILL, option);
-      sendsuboption(conn, option);
-    }
-    else
-      send_negotiation(conn, CURL_WONT, option);
-    break;
-
-  case CURL_YES:
-    /* Already enabled */
-    break;
-
-  case CURL_WANTNO:
-    switch(tn->usq[option]) {
-    case CURL_EMPTY:
-      /* Error: DONT answered by WILL */
-      tn->us[option] = CURL_NO;
-      break;
-    case CURL_OPPOSITE:
-      /* Error: DONT answered by WILL */
-      tn->us[option] = CURL_YES;
-      tn->usq[option] = CURL_EMPTY;
-      break;
-    }
-    break;
-
-  case CURL_WANTYES:
-    switch(tn->usq[option]) {
-    case CURL_EMPTY:
-      tn->us[option] = CURL_YES;
-      if(tn->subnegotiation[option] == CURL_YES) {
-        /* transmission of data option */
-        sendsuboption(conn, option);
-      }
-      break;
-    case CURL_OPPOSITE:
-      tn->us[option] = CURL_WANTNO;
-      tn->himq[option] = CURL_EMPTY;
-      send_negotiation(conn, CURL_WONT, option);
-      break;
-    }
-    break;
-  }
-}
-
-static
-void rec_dont(struct connectdata *conn, int option)
-{
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
-  switch(tn->us[option]) {
-  case CURL_NO:
-    /* Already disabled */
-    break;
-
-  case CURL_YES:
-    tn->us[option] = CURL_NO;
-    send_negotiation(conn, CURL_WONT, option);
-    break;
-
-  case CURL_WANTNO:
-    switch(tn->usq[option]) {
-    case CURL_EMPTY:
-      tn->us[option] = CURL_NO;
-      break;
-
-    case CURL_OPPOSITE:
-      tn->us[option] = CURL_WANTYES;
-      tn->usq[option] = CURL_EMPTY;
-      send_negotiation(conn, CURL_WILL, option);
-      break;
-    }
-    break;
-
-  case CURL_WANTYES:
-    switch(tn->usq[option]) {
-    case CURL_EMPTY:
-      tn->us[option] = CURL_NO;
-      break;
-    case CURL_OPPOSITE:
-      tn->us[option] = CURL_NO;
-      tn->usq[option] = CURL_EMPTY;
-      break;
-    }
-    break;
-  }
-}
-
-
-static void printsub(struct Curl_easy *data,
-                     int direction,             /* '<' or '>' */
-                     unsigned char *pointer,    /* where suboption data is */
-                     size_t length)             /* length of suboption data */
-{
-  unsigned int i = 0;
-
-  if(data->set.verbose) {
-    if(direction) {
-      infof(data, "%s IAC SB ", (direction == '<')? "RCVD":"SENT");
-      if(length >= 3) {
-        int j;
-
-        i = pointer[length-2];
-        j = pointer[length-1];
-
-        if(i != CURL_IAC || j != CURL_SE) {
-          infof(data, "(terminated by ");
-          if(CURL_TELOPT_OK(i))
-            infof(data, "%s ", CURL_TELOPT(i));
-          else if(CURL_TELCMD_OK(i))
-            infof(data, "%s ", CURL_TELCMD(i));
-          else
-            infof(data, "%u ", i);
-          if(CURL_TELOPT_OK(j))
-            infof(data, "%s", CURL_TELOPT(j));
-          else if(CURL_TELCMD_OK(j))
-            infof(data, "%s", CURL_TELCMD(j));
-          else
-            infof(data, "%d", j);
-          infof(data, ", not IAC SE!) ");
-        }
-      }
-      length -= 2;
-    }
-    if(length < 1) {
-      infof(data, "(Empty suboption?)");
-      return;
-    }
-
-    if(CURL_TELOPT_OK(pointer[0])) {
-      switch(pointer[0]) {
-      case CURL_TELOPT_TTYPE:
-      case CURL_TELOPT_XDISPLOC:
-      case CURL_TELOPT_NEW_ENVIRON:
-      case CURL_TELOPT_NAWS:
-        infof(data, "%s", CURL_TELOPT(pointer[0]));
-        break;
-      default:
-        infof(data, "%s (unsupported)", CURL_TELOPT(pointer[0]));
-        break;
-      }
-    }
-    else
-      infof(data, "%d (unknown)", pointer[i]);
-
-    switch(pointer[0]) {
-    case CURL_TELOPT_NAWS:
-      if(length > 4)
-        infof(data, "Width: %hu ; Height: %hu", (pointer[1]<<8) | pointer[2],
-              (pointer[3]<<8) | pointer[4]);
-      break;
-    default:
-      switch(pointer[1]) {
-      case CURL_TELQUAL_IS:
-        infof(data, " IS");
-        break;
-      case CURL_TELQUAL_SEND:
-        infof(data, " SEND");
-        break;
-      case CURL_TELQUAL_INFO:
-        infof(data, " INFO/REPLY");
-        break;
-      case CURL_TELQUAL_NAME:
-        infof(data, " NAME");
-        break;
-      }
-
-      switch(pointer[0]) {
-      case CURL_TELOPT_TTYPE:
-      case CURL_TELOPT_XDISPLOC:
-        pointer[length] = 0;
-        infof(data, " \"%s\"", &pointer[2]);
-        break;
-      case CURL_TELOPT_NEW_ENVIRON:
-        if(pointer[1] == CURL_TELQUAL_IS) {
-          infof(data, " ");
-          for(i = 3;i < length;i++) {
-            switch(pointer[i]) {
-            case CURL_NEW_ENV_VAR:
-              infof(data, ", ");
-              break;
-            case CURL_NEW_ENV_VALUE:
-              infof(data, " = ");
-              break;
-            default:
-              infof(data, "%c", pointer[i]);
-              break;
-            }
-          }
-        }
-        break;
-      default:
-        for(i = 2; i < length; i++)
-          infof(data, " %.2x", pointer[i]);
-        break;
-      }
-    }
-    if(direction)
-      infof(data, "\n");
-  }
-}
-
-static CURLcode check_telnet_options(struct connectdata *conn)
-{
-  struct curl_slist *head;
-  struct curl_slist *beg;
-  char option_keyword[128] = "";
-  char option_arg[256] = "";
-  struct Curl_easy *data = conn->data;
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
   CURLcode result = CURLE_OK;
-  int binary_option;
+  unsigned char *chlg = NULL;
+  size_t chlglen = 0;
+  size_t chlg64len = strlen(chlg64);
 
-  /* Add the user name as an environment variable if it
-     was given on the command line */
-  if(conn->bits.user_passwd) {
-    snprintf(option_arg, sizeof(option_arg), "USER,%s", conn->user);
-    beg = curl_slist_append(tn->telnet_vars, option_arg);
-    if(!beg) {
-      curl_slist_free_all(tn->telnet_vars);
-      tn->telnet_vars = NULL;
-      return CURLE_OUT_OF_MEMORY;
-    }
-    tn->telnet_vars = beg;
-    tn->us_preferred[CURL_TELOPT_NEW_ENVIRON] = CURL_YES;
+  /* Decode the base-64 encoded challenge message */
+  if(chlg64len && *chlg64 != '=') {
+    result = Curl_base64_decode(chlg64, &chlg, &chlglen);
+    if(result)
+      return result;
   }
 
-  for(head = data->set.telnet_options; head; head=head->next) {
-    if(sscanf(head->data, "%127[^= ]%*[ =]%255s",
-              option_keyword, option_arg) == 2) {
+  /* Ensure we have a valid challenge message */
+  if(!chlg)
+    return CURLE_BAD_CONTENT_ENCODING;
 
-      /* Terminal type */
-      if(strcasecompare(option_keyword, "TTYPE")) {
-        strncpy(tn->subopt_ttype, option_arg, 31);
-        tn->subopt_ttype[31] = 0; /* String termination */
-        tn->us_preferred[CURL_TELOPT_TTYPE] = CURL_YES;
-        continue;
-      }
-
-      /* Display variable */
-      if(strcasecompare(option_keyword, "XDISPLOC")) {
-        strncpy(tn->subopt_xdisploc, option_arg, 127);
-        tn->subopt_xdisploc[127] = 0; /* String termination */
-        tn->us_preferred[CURL_TELOPT_XDISPLOC] = CURL_YES;
-        continue;
-      }
-
-      /* Environment variable */
-      if(strcasecompare(option_keyword, "NEW_ENV")) {
-        beg = curl_slist_append(tn->telnet_vars, option_arg);
-        if(!beg) {
-          result = CURLE_OUT_OF_MEMORY;
-          break;
-        }
-        tn->telnet_vars = beg;
-        tn->us_preferred[CURL_TELOPT_NEW_ENVIRON] = CURL_YES;
-        continue;
-      }
-
-          /* Window Size */
-      if(strcasecompare(option_keyword, "WS")) {
-        if(sscanf(option_arg, "%hu%*[xX]%hu",
-                  &tn->subopt_wsx, &tn->subopt_wsy) == 2)
-          tn->us_preferred[CURL_TELOPT_NAWS] = CURL_YES;
-        else {
-          failf(data, "Syntax error in telnet option: %s", head->data);
-          result = CURLE_TELNET_OPTION_SYNTAX;
-          break;
-        }
-        continue;
-      }
-
-      /* To take care or not of the 8th bit in data exchange */
-      if(strcasecompare(option_keyword, "BINARY")) {
-        binary_option=atoi(option_arg);
-        if(binary_option!=1) {
-          tn->us_preferred[CURL_TELOPT_BINARY] = CURL_NO;
-          tn->him_preferred[CURL_TELOPT_BINARY] = CURL_NO;
-        }
-        continue;
-      }
-
-      failf(data, "Unknown telnet option %s", head->data);
-      result = CURLE_UNKNOWN_TELNET_OPTION;
-      break;
-    }
-    else {
-      failf(data, "Syntax error in telnet option: %s", head->data);
-      result = CURLE_TELNET_OPTION_SYNTAX;
-      break;
-    }
+  /* Retrieve nonce string from the challenge */
+  if(!auth_digest_get_key_value((char *) chlg, "nonce=\"", nonce, nlen,
+                                '\"')) {
+    free(chlg);
+    return CURLE_BAD_CONTENT_ENCODING;
   }
 
-  if(result) {
-    curl_slist_free_all(tn->telnet_vars);
-    tn->telnet_vars = NULL;
+  /* Retrieve realm string from the challenge */
+  if(!auth_digest_get_key_value((char *) chlg, "realm=\"", realm, rlen,
+                                '\"')) {
+    /* Challenge does not have a realm, set empty string [RFC2831] page 6 */
+    strcpy(realm, "");
   }
+
+  /* Retrieve algorithm string from the challenge */
+  if(!auth_digest_get_key_value((char *) chlg, "algorithm=", alg, alen, ',')) {
+    free(chlg);
+    return CURLE_BAD_CONTENT_ENCODING;
+  }
+
+  /* Retrieve qop-options string from the challenge */
+  if(!auth_digest_get_key_value((char *) chlg, "qop=\"", qop, qlen, '\"')) {
+    free(chlg);
+    return CURLE_BAD_CONTENT_ENCODING;
+  }
+
+  free(chlg);
+
+  return CURLE_OK;
+}
+
+/*
+ * Curl_auth_is_digest_supported()
+ *
+ * This is used to evaluate if DIGEST is supported.
+ *
+ * Parameters: None
+ *
+ * Returns TRUE as DIGEST as handled by libcurl.
+ */
+bool Curl_auth_is_digest_supported(void)
+{
+  return TRUE;
+}
+
+/*
+ * Curl_auth_create_digest_md5_message()
+ *
+ * This is used to generate an already encoded DIGEST-MD5 response message
+ * ready for sending to the recipient.
+ *
+ * Parameters:
+ *
+ * data    [in]     - The session handle.
+ * chlg64  [in]     - The base64 encoded challenge message.
+ * userp   [in]     - The user name.
+ * passdwp [in]     - The user's password.
+ * service [in]     - The service type such as http, smtp, pop or imap.
+ * outptr  [in/out] - The address where a pointer to newly allocated memory
+ *                    holding the result will be stored upon completion.
+ * outlen  [out]    - The length of the output message.
+ *
+ * Returns CURLE_OK on success.
+ */
+CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
+                                             const char *chlg64,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             const char *service,
+                                             char **outptr, size_t *outlen)
+{
+  CURLcode result = CURLE_OK;
+  size_t i;
+  MD5_context *ctxt;
+  char *response = NULL;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
+  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
+  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
+  char nonce[64];
+  char realm[128];
+  char algorithm[64];
+  char qop_options[64];
+  int qop_values;
+  char cnonce[33];
+  unsigned int entropy[4];
+  char nonceCount[] = "00000001";
+  char method[]     = "AUTHENTICATE";
+  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
+  char *spn         = NULL;
+
+  /* Decode the challange message */
+  result = auth_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
+                                          realm, sizeof(realm),
+                                          algorithm, sizeof(algorithm),
+                                          qop_options, sizeof(qop_options));
+  if(result)
+    return result;
+
+  /* We only support md5 sessions */
+  if(strcmp(algorithm, "md5-sess") != 0)
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Get the qop-values from the qop-options */
+  result = auth_digest_get_qop_values(qop_options, &qop_values);
+  if(result)
+    return result;
+
+  /* We only support auth quality-of-protection */
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Generate 16 bytes of random data */
+  entropy[0] = Curl_rand(data);
+  entropy[1] = Curl_rand(data);
+  entropy[2] = Curl_rand(data);
+  entropy[3] = Curl_rand(data);
+
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
+
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) userp,
+                  curlx_uztoui(strlen(userp)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) realm,
+                  curlx_uztoui(strlen(realm)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
+                  curlx_uztoui(strlen(passwdp)));
+  Curl_MD5_final(ctxt, digest);
+
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_final(ctxt, digest);
+
+  /* Convert calculated 16 octet hex into 32 bytes string */
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate our SPN */
+  spn = Curl_auth_build_spn(service, realm, NULL);
+  if(!spn)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Calculate H(A2) */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) method,
+                  curlx_uztoui(strlen(method)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) spn,
+                  curlx_uztoui(strlen(spn)));
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Now calculate the response hash */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
+                  curlx_uztoui(strlen(nonceCount)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) qop,
+                  curlx_uztoui(strlen(qop)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate the response */
+  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);
+  free(spn);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
+
+  free(response);
 
   return result;
 }
 
 /*
- * suboption()
+ * Curl_auth_decode_digest_http_message()
  *
- * Look at the sub-option buffer, and try to be helpful to the other
- * side.
- */
-
-static void suboption(struct connectdata *conn)
-{
-  struct curl_slist *v;
-  unsigned char temp[2048];
-  ssize_t bytes_written;
-  size_t len;
-  size_t tmplen;
-  int err;
-  char varname[128] = "";
-  char varval[128] = "";
-  struct Curl_easy *data = conn->data;
-  struct TELNET *tn = (struct TELNET *)data->req.protop;
-
-  printsub(data, '<', (unsigned char *)tn->subbuffer, CURL_SB_LEN(tn)+2);
-  switch (CURL_SB_GET(tn)) {
-    case CURL_TELOPT_TTYPE:
-      len = strlen(tn->subopt_ttype) + 4 + 2;
-      snprintf((char *)temp, sizeof(temp),
-               "%c%c%c%c%s%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_TTYPE,
-               CURL_TELQUAL_IS, tn->subopt_ttype, CURL_IAC, CURL_SE);
-      bytes_written = swrite(conn->sock[FIRSTSOCKET], temp, len);
-      if(bytes_written < 0) {
-        err = SOCKERRNO;
-        failf(data,"Sending data failed (%d)",err);
-      }
-      printsub(data, '>', &temp[2], len-2);
-      break;
-    case CURL_TELOPT_XDISPLOC:
-      len = strlen(tn->subopt_xdisploc) + 4 + 2;
-      snprintf((char *)temp, sizeof(temp),
-               "%c%c%c%c%s%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_XDISPLOC,
-               CURL_TELQUAL_IS, tn->subopt_xdisploc, CURL_IAC, CURL_SE);
-      bytes_written = swrite(conn->sock[FIRSTSOCKET], temp, len);
-      if(bytes_written < 0) {
-        err = SOCKERRNO;
-        failf(data,"Sending data failed (%d)",err);
-      }
-      printsub(data, '>', &temp[2], len-2);
-      break;
-    case CURL_TELOPT_NEW_ENVIRON:
-      snprintf((char *)temp, sizeof(temp),
-               "%c%c%c%c", CURL_IAC, CURL_SB, CURL_TELOPT_NEW_ENVIRON,
-               CURL_TELQUAL_IS);
-      len = 4;
-
-      for(v = tn->telnet_vars;v;v = v->next) {
-        tmplen = (strlen(v->data) + 1);
-        /* Add the variable only if it fits */
-        if(len + tmplen < (int)sizeof(temp)-6) {
-          if(sscanf(v->data, "%127[^,],%127s", varname, varval)) {
-            snprintf((char *)&temp[len], sizeof(temp) - len,
-                     "%c%s%c%s", CURL_NEW_ENV_VAR, varname,
-                     CURL_NEW_ENV_VALUE, varval);
-            len += tmplen;
-          }
-        }
-      }
-      snprintf((char *)&temp[len], sizeof(temp) - len,
-               "%c%c", CURL_IAC, CURL_SE);
-      len += 2;
-      bytes_written = swrite(conn->sock[FIRSTSOCKET], temp, len);
-      if(bytes_written < 0) {
-        err = SOCKERRNO;
-        failf(data,"Sending data failed (%d)",err);
-      }
-      printsub(data, '>', &temp[2], len-2);
-      break;
-  }
-  return;
-}
-
-
-/*
- * sendsuboption()
+ * This is used to decode a HTTP DIGEST challenge message into the seperate
+ * attributes.
  *
- * Send suboption information to the server side.
+ * Parameters:
+ *
+ * chlg    [in]     - The challenge message.
+ * digest  [in/out] - The digest data struct being used and modified.
+ *
+ * Returns CURLE_OK on success.
  */
-
-static void sendsuboption(struct connectdata *conn, int option)
+CURLcode Curl_auth_decode_digest_http_message(const char *chlg,
+                                              struct digestdata *digest)
 {
-  ssize_t bytes_written;
-  int err;
-  unsigned short x, y;
-  unsigned char*uc1, *uc2;
+  bool before = FALSE; /* got a nonce before */
+  bool foundAuth = FALSE;
+  bool foundAuthInt = FALSE;
+  char *token = NULL;
+  char *tmp = NULL;
 
-  struct Curl_easy *data = conn->data;
-  struct TELNET *tn = (struct TELNET *)data->req.protop;
+  /* If we already have received a nonce, keep that in mind */
+  if(digest->nonce)
+    before = TRUE;
 
-  switch (option) {
-  case CURL_TELOPT_NAWS:
-    /* We prepare data to be sent */
-    CURL_SB_CLEAR(tn);
-    CURL_SB_ACCUM(tn, CURL_IAC);
-    CURL_SB_ACCUM(tn, CURL_SB);
-    CURL_SB_ACCUM(tn, CURL_TELOPT_NAWS);
-    /* We must deal either with litte or big endien processors */
-    /* Window size must be sent according to the 'network order' */
-    x=htons(tn->subopt_wsx);
-    y=htons(tn->subopt_wsy);
-    uc1 = (unsigned char*)&x;
-    uc2 = (unsigned char*)&y;
-    CURL_SB_ACCUM(tn, uc1[0]);
-    CURL_SB_ACCUM(tn, uc1[1]);
-    CURL_SB_ACCUM(tn, uc2[0]);
-    CURL_SB_ACCUM(tn, uc2[1]);
+  /* Clean up any former leftovers and initialise to defaults */
+  Curl_auth_digest_cleanup(digest);
 
-    CURL_SB_ACCUM(tn, CURL_IAC);
-    CURL_SB_ACCUM(tn, CURL_SE);
-    CURL_SB_TERM(tn);
-    /* data suboption is now ready */
+  for(;;) {
+    char value[DIGEST_MAX_VALUE_LENGTH];
+    char content[DIGEST_MAX_CONTENT_LENGTH];
 
-    printsub(data, '>', (unsigned char *)tn->subbuffer+2,
-             CURL_SB_LEN(tn)-2);
+    /* Pass all additional spaces here */
+    while(*chlg && ISSPACE(*chlg))
+      chlg++;
 
-    /* we send the header of the suboption... */
-    bytes_written = swrite(conn->sock[FIRSTSOCKET], tn->subbuffer, 3);
-    if(bytes_written < 0) {
-      err = SOCKERRNO;
-      failf(data, "Sending data failed (%d)", err);
-    }
-    /* ... then the window size with the send_telnet_data() function
-       to deal with 0xFF cases ... */
-    send_telnet_data(conn, (char *)tn->subbuffer+3, 4);
-    /* ... and the footer */
-    bytes_written = swrite(conn->sock[FIRSTSOCKET], tn->subbuffer+7, 2);
-    if(bytes_written < 0) {
-      err = SOCKERRNO;
-      failf(data, "Sending data failed (%d)", err);
-    }
-    break;
-  }
-}
-
-
-static
-CURLcode telrcv(struct connectdata *conn,
-                const unsigned char *inbuf, /* Data received from socket */
-                ssize_t count)              /* Number of bytes received */
-{
-  unsigned char c;
-  CURLcode result;
-  int in = 0;
-  int startwrite=-1;
-  struct Curl_easy *data = conn->data;
-  struct TELNET *tn = (struct TELNET *)data->req.protop;
-
-#define startskipping()                                       \
-  if(startwrite >= 0) {                                       \
-    result = Curl_client_write(conn,                          \
-                               CLIENTWRITE_BODY,              \
-                               (char *)&inbuf[startwrite],    \
-                               in-startwrite);                \
-    if(result)                                                \
-      return result;                                          \
-  }                                                           \
-  startwrite = -1
-
-#define writebyte() \
-    if(startwrite < 0) \
-      startwrite = in
-
-#define bufferflush() startskipping()
-
-  while(count--) {
-    c = inbuf[in];
-
-    switch (tn->telrcv_state) {
-    case CURL_TS_CR:
-      tn->telrcv_state = CURL_TS_DATA;
-      if(c == '\0') {
-        startskipping();
-        break;   /* Ignore \0 after CR */
+    /* Extract a value=content pair */
+    if(Curl_auth_digest_get_pair(chlg, value, content, &chlg)) {
+      if(strcasecompare(value, "nonce")) {
+        free(digest->nonce);
+        digest->nonce = strdup(content);
+        if(!digest->nonce)
+          return CURLE_OUT_OF_MEMORY;
       }
-      writebyte();
-      break;
-
-    case CURL_TS_DATA:
-      if(c == CURL_IAC) {
-        tn->telrcv_state = CURL_TS_IAC;
-        startskipping();
-        break;
+      else if(strcasecompare(value, "stale")) {
+        if(strcasecompare(content, "true")) {
+          digest->stale = TRUE;
+          digest->nc = 1; /* we make a new nonce now */
+        }
       }
-      else if(c == '\r')
-        tn->telrcv_state = CURL_TS_CR;
-      writebyte();
-      break;
-
-    case CURL_TS_IAC:
-    process_iac:
-      DEBUGASSERT(startwrite < 0);
-      switch (c) {
-      case CURL_WILL:
-        tn->telrcv_state = CURL_TS_WILL;
-        break;
-      case CURL_WONT:
-        tn->telrcv_state = CURL_TS_WONT;
-        break;
-      case CURL_DO:
-        tn->telrcv_state = CURL_TS_DO;
-        break;
-      case CURL_DONT:
-        tn->telrcv_state = CURL_TS_DONT;
-        break;
-      case CURL_SB:
-        CURL_SB_CLEAR(tn);
-        tn->telrcv_state = CURL_TS_SB;
-        break;
-      case CURL_IAC:
-        tn->telrcv_state = CURL_TS_DATA;
-        writebyte();
-        break;
-      case CURL_DM:
-      case CURL_NOP:
-      case CURL_GA:
-      default:
-        tn->telrcv_state = CURL_TS_DATA;
-        printoption(data, "RCVD", CURL_IAC, c);
-        break;
+      else if(strcasecompare(value, "realm")) {
+        free(digest->realm);
+        digest->realm = strdup(content);
+        if(!digest->realm)
+          return CURLE_OUT_OF_MEMORY;
       }
-      break;
+      else if(strcasecompare(value, "opaque")) {
+        free(digest->opaque);
+        digest->opaque = strdup(content);
+        if(!digest->opaque)
+          return CURLE_OUT_OF_MEMORY;
+      }
+      else if(strcasecompare(value, "qop")) {
+        char *tok_buf;
+        /* Tokenize the list and choose auth if possible, use a temporary
+           clone of the buffer since strtok_r() ruins it */
+        tmp = strdup(content);
+        if(!tmp)
+          return CURLE_OUT_OF_MEMORY;
 
-      case CURL_TS_WILL:
-        printoption(data, "RCVD", CURL_WILL, c);
-        tn->please_negotiate = 1;
-        rec_will(conn, c);
-        tn->telrcv_state = CURL_TS_DATA;
-        break;
+        token = strtok_r(tmp, ",", &tok_buf);
+        while(token != NULL) {
+          if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH)) {
+            foundAuth = TRUE;
+          }
+          else if(strcasecompare(token, DIGEST_QOP_VALUE_STRING_AUTH_INT)) {
+            foundAuthInt = TRUE;
+          }
+          token = strtok_r(NULL, ",", &tok_buf);
+        }
 
-      case CURL_TS_WONT:
-        printoption(data, "RCVD", CURL_WONT, c);
-        tn->please_negotiate = 1;
-        rec_wont(conn, c);
-        tn->telrcv_state = CURL_TS_DATA;
-        break;
+        free(tmp);
 
-      case CURL_TS_DO:
-        printoption(data, "RCVD", CURL_DO, c);
-        tn->please_negotiate = 1;
-        rec_do(conn, c);
-        tn->telrcv_state = CURL_TS_DATA;
-        break;
+        /* Select only auth or auth-int. Otherwise, ignore */
+        if(foundAuth) {
+          free(digest->qop);
+          digest->qop = strdup(DIGEST_QOP_VALUE_STRING_AUTH);
+          if(!digest->qop)
+            return CURLE_OUT_OF_MEMORY;
+        }
+        else if(foundAuthInt) {
+          free(digest->qop);
+          digest->qop = strdup(DIGEST_QOP_VALUE_STRING_AUTH_INT);
+          if(!digest->qop)
+            return CURLE_OUT_OF_MEMORY;
+        }
+      }
+      else if(strcasecompare(value, "algorithm")) {
+        free(digest->algorithm);
+        digest->algorithm = strdup(content);
+        if(!digest->algorithm)
+          return CURLE_OUT_OF_MEMORY;
 
-      case CURL_TS_DONT:
-        printoption(data, "RCVD", CURL_DONT, c);
-        tn->please_negotiate = 1;
-        rec_dont(conn, c);
-        tn->telrcv_state = CURL_TS_DATA;
-        break;
-
-      case CURL_TS_SB:
-        if(c == CURL_IAC)
-          tn->telrcv_state = CURL_TS_SE;
+        if(strcasecompare(content, "MD5-sess"))
+          digest->algo = CURLDIGESTALGO_MD5SESS;
+        else if(strcasecompare(content, "MD5"))
+          digest->algo = CURLDIGESTALGO_MD5;
         else
-          CURL_SB_ACCUM(tn, c);
-        break;
-
-      case CURL_TS_SE:
-        if(c != CURL_SE) {
-          if(c != CURL_IAC) {
-            /*
-             * This is an error.  We only expect to get "IAC IAC" or "IAC SE".
-             * Several things may have happened.  An IAC was not doubled, the
-             * IAC SE was left off, or another option got inserted into the
-             * suboption are all possibilities.  If we assume that the IAC was
-             * not doubled, and really the IAC SE was left off, we could get
-             * into an infinate loop here.  So, instead, we terminate the
-             * suboption, and process the partial suboption if we can.
-             */
-            CURL_SB_ACCUM(tn, CURL_IAC);
-            CURL_SB_ACCUM(tn, c);
-            tn->subpointer -= 2;
-            CURL_SB_TERM(tn);
-
-            printoption(data, "In SUBOPTION processing, RCVD", CURL_IAC, c);
-            suboption(conn);   /* handle sub-option */
-            tn->telrcv_state = CURL_TS_IAC;
-            goto process_iac;
-          }
-          CURL_SB_ACCUM(tn, c);
-          tn->telrcv_state = CURL_TS_SB;
-        }
-        else
-        {
-          CURL_SB_ACCUM(tn, CURL_IAC);
-          CURL_SB_ACCUM(tn, CURL_SE);
-          tn->subpointer -= 2;
-          CURL_SB_TERM(tn);
-          suboption(conn);   /* handle sub-option */
-          tn->telrcv_state = CURL_TS_DATA;
-        }
-        break;
-    }
-    ++in;
-  }
-  bufferflush();
-  return CURLE_OK;
-}
-
-/* Escape and send a telnet data block */
-/* TODO: write large chunks of data instead of one byte at a time */
-static CURLcode send_telnet_data(struct connectdata *conn,
-                                 char *buffer, ssize_t nread)
-{
-  unsigned char outbuf[2];
-  ssize_t bytes_written, total_written;
-  int out_count;
-  CURLcode result = CURLE_OK;
-
-  while(!result && nread--) {
-    outbuf[0] = *buffer++;
-    out_count = 1;
-    if(outbuf[0] == CURL_IAC)
-      outbuf[out_count++] = CURL_IAC;
-
-    total_written = 0;
-    do {
-      /* Make sure socket is writable to avoid EWOULDBLOCK condition */
-      struct pollfd pfd[1];
-      pfd[0].fd = conn->sock[FIRSTSOCKET];
-      pfd[0].events = POLLOUT;
-      switch (Curl_poll(pfd, 1, -1)) {
-        case -1:                    /* error, abort writing */
-        case 0:                     /* timeout (will never happen) */
-          result = CURLE_SEND_ERROR;
-          break;
-        default:                    /* write! */
-          bytes_written = 0;
-          result = Curl_write(conn, conn->sock[FIRSTSOCKET],
-                              outbuf+total_written, out_count-total_written,
-                              &bytes_written);
-          total_written += bytes_written;
-          break;
-      }
-      /* handle partial write */
-    } while(!result && total_written < out_count);
-  }
-  return result;
-}
-
-static CURLcode telnet_done(struct connectdata *conn,
-                                 CURLcode status, bool premature)
-{
-  struct TELNET *tn = (struct TELNET *)conn->data->req.protop;
-  (void)status; /* unused */
-  (void)premature; /* not used */
-
-  if(!tn)
-    return CURLE_OK;
-
-  curl_slist_free_all(tn->telnet_vars);
-  tn->telnet_vars = NULL;
-
-  Curl_safefree(conn->data->req.protop);
-
-  return CURLE_OK;
-}
-
-static CURLcode telnet_do(struct connectdata *conn, bool *done)
-{
-  CURLcode result;
-  struct Curl_easy *data = conn->data;
-  curl_socket_t sockfd = conn->sock[FIRSTSOCKET];
-#ifdef USE_WINSOCK
-  HMODULE wsock2;
-  WSOCK2_FUNC close_event_func;
-  WSOCK2_FUNC create_event_func;
-  WSOCK2_FUNC event_select_func;
-  WSOCK2_FUNC enum_netevents_func;
-  WSAEVENT event_handle;
-  WSANETWORKEVENTS events;
-  HANDLE stdin_handle;
-  HANDLE objs[2];
-  DWORD  obj_count;
-  DWORD  wait_timeout;
-  DWORD waitret;
-  DWORD readfile_read;
-  int err;
-#else
-  int interval_ms;
-  struct pollfd pfd[2];
-  int poll_cnt;
-  curl_off_t total_dl = 0;
-  curl_off_t total_ul = 0;
-#endif
-  ssize_t nread;
-  struct timeval now;
-  bool keepon = TRUE;
-  char *buf = data->state.buffer;
-  struct TELNET *tn;
-
-  *done = TRUE; /* unconditionally */
-
-  result = init_telnet(conn);
-  if(result)
-    return result;
-
-  tn = (struct TELNET *)data->req.protop;
-
-  result = check_telnet_options(conn);
-  if(result)
-    return result;
-
-#ifdef USE_WINSOCK
-  /*
-  ** This functionality only works with WinSock >= 2.0.  So,
-  ** make sure have it.
-  */
-  result = check_wsock2(data);
-  if(result)
-    return result;
-
-  /* OK, so we have WinSock 2.0.  We need to dynamically */
-  /* load ws2_32.dll and get the function pointers we need. */
-  wsock2 = Curl_load_library(TEXT("WS2_32.DLL"));
-  if(wsock2 == NULL) {
-    failf(data, "failed to load WS2_32.DLL (%d)", ERRNO);
-    return CURLE_FAILED_INIT;
-  }
-
-  /* Grab a pointer to WSACreateEvent */
-  create_event_func = GetProcAddress(wsock2, "WSACreateEvent");
-  if(create_event_func == NULL) {
-    failf(data, "failed to find WSACreateEvent function (%d)", ERRNO);
-    FreeLibrary(wsock2);
-    return CURLE_FAILED_INIT;
-  }
-
-  /* And WSACloseEvent */
-  close_event_func = GetProcAddress(wsock2, "WSACloseEvent");
-  if(close_event_func == NULL) {
-    failf(data, "failed to find WSACloseEvent function (%d)", ERRNO);
-    FreeLibrary(wsock2);
-    return CURLE_FAILED_INIT;
-  }
-
-  /* And WSAEventSelect */
-  event_select_func = GetProcAddress(wsock2, "WSAEventSelect");
-  if(event_select_func == NULL) {
-    failf(data, "failed to find WSAEventSelect function (%d)", ERRNO);
-    FreeLibrary(wsock2);
-    return CURLE_FAILED_INIT;
-  }
-
-  /* And WSAEnumNetworkEvents */
-  enum_netevents_func = GetProcAddress(wsock2, "WSAEnumNetworkEvents");
-  if(enum_netevents_func == NULL) {
-    failf(data, "failed to find WSAEnumNetworkEvents function (%d)", ERRNO);
-    FreeLibrary(wsock2);
-    return CURLE_FAILED_INIT;
-  }
-
-  /* We want to wait for both stdin and the socket. Since
-  ** the select() function in winsock only works on sockets
-  ** we have to use the WaitForMultipleObjects() call.
-  */
-
-  /* First, create a sockets event object */
-  event_handle = (WSAEVENT)create_event_func();
-  if(event_handle == WSA_INVALID_EVENT) {
-    failf(data, "WSACreateEvent failed (%d)", SOCKERRNO);
-    FreeLibrary(wsock2);
-    return CURLE_FAILED_INIT;
-  }
-
-  /* Tell winsock what events we want to listen to */
-  if(event_select_func(sockfd, event_handle, FD_READ|FD_CLOSE) ==
-     SOCKET_ERROR) {
-    close_event_func(event_handle);
-    FreeLibrary(wsock2);
-    return CURLE_OK;
-  }
-
-  /* The get the Windows file handle for stdin */
-  stdin_handle = GetStdHandle(STD_INPUT_HANDLE);
-
-  /* Create the list of objects to wait for */
-  objs[0] = event_handle;
-  objs[1] = stdin_handle;
-
-  /* If stdin_handle is a pipe, use PeekNamedPipe() method to check it,
-     else use the old WaitForMultipleObjects() way */
-  if(GetFileType(stdin_handle) == FILE_TYPE_PIPE ||
-     data->set.is_fread_set) {
-    /* Don't wait for stdin_handle, just wait for event_handle */
-    obj_count = 1;
-    /* Check stdin_handle per 100 milliseconds */
-    wait_timeout = 100;
-  }
-  else {
-    obj_count = 2;
-    wait_timeout = 1000;
-  }
-
-  /* Keep on listening and act on events */
-  while(keepon) {
-    waitret = WaitForMultipleObjects(obj_count, objs, FALSE, wait_timeout);
-    switch(waitret) {
-    case WAIT_TIMEOUT:
-    {
-      for(;;) {
-        if(data->set.is_fread_set) {
-          /* read from user-supplied method */
-          result = (int)data->state.fread_func(buf, 1, BUFSIZE - 1,
-                                               data->state.in);
-          if(result == CURL_READFUNC_ABORT) {
-            keepon = FALSE;
-            result = CURLE_READ_ERROR;
-            break;
-          }
-
-          if(result == CURL_READFUNC_PAUSE)
-            break;
-
-          if(result == 0)                        /* no bytes */
-            break;
-
-          readfile_read = result; /* fall thru with number of bytes read */
-        }
-        else {
-          /* read from stdin */
-          if(!PeekNamedPipe(stdin_handle, NULL, 0, NULL,
-                            &readfile_read, NULL)) {
-            keepon = FALSE;
-            result = CURLE_READ_ERROR;
-            break;
-          }
-
-          if(!readfile_read)
-            break;
-
-          if(!ReadFile(stdin_handle, buf, sizeof(data->state.buffer),
-                       &readfile_read, NULL)) {
-            keepon = FALSE;
-            result = CURLE_READ_ERROR;
-            break;
-          }
-        }
-
-        result = send_telnet_data(conn, buf, readfile_read);
-        if(result) {
-          keepon = FALSE;
-          break;
-        }
-      }
-    }
-    break;
-
-    case WAIT_OBJECT_0 + 1:
-    {
-      if(!ReadFile(stdin_handle, buf, sizeof(data->state.buffer),
-                   &readfile_read, NULL)) {
-        keepon = FALSE;
-        result = CURLE_READ_ERROR;
-        break;
-      }
-
-      result = send_telnet_data(conn, buf, readfile_read);
-      if(result) {
-        keepon = FALSE;
-        break;
-      }
-    }
-    break;
-
-    case WAIT_OBJECT_0:
-
-      events.lNetworkEvents = 0;
-      if(SOCKET_ERROR == enum_netevents_func(sockfd, event_handle, &events)) {
-        if((err = SOCKERRNO) != EINPROGRESS) {
-          infof(data, "WSAEnumNetworkEvents failed (%d)", err);
-          keepon = FALSE;
-          result = CURLE_READ_ERROR;
-        }
-        break;
-      }
-      if(events.lNetworkEvents & FD_READ) {
-        /* read data from network */
-        result = Curl_read(conn, sockfd, buf, BUFSIZE - 1, &nread);
-        /* read would've blocked. Loop again */
-        if(result == CURLE_AGAIN)
-          break;
-        /* returned not-zero, this an error */
-        else if(result) {
-          keepon = FALSE;
-          break;
-        }
-        /* returned zero but actually received 0 or less here,
-           the server closed the connection and we bail out */
-        else if(nread <= 0) {
-          keepon = FALSE;
-          break;
-        }
-
-        result = telrcv(conn, (unsigned char *) buf, nread);
-        if(result) {
-          keepon = FALSE;
-          break;
-        }
-
-        /* Negotiate if the peer has started negotiating,
-           otherwise don't. We don't want to speak telnet with
-           non-telnet servers, like POP or SMTP. */
-        if(tn->please_negotiate && !tn->already_negotiated) {
-          negotiate(conn);
-          tn->already_negotiated = 1;
-        }
-      }
-      if(events.lNetworkEvents & FD_CLOSE) {
-        keepon = FALSE;
-      }
-      break;
-
-    }
-
-    if(data->set.timeout) {
-      now = Curl_tvnow();
-      if(Curl_tvdiff(now, conn->created) >= data->set.timeout) {
-        failf(data, "Time-out");
-        result = CURLE_OPERATION_TIMEDOUT;
-        keepon = FALSE;
-      }
-    }
-  }
-
-  /* We called WSACreateEvent, so call WSACloseEvent */
-  if(!close_event_func(event_handle)) {
-    infof(data, "WSACloseEvent failed (%d)", SOCKERRNO);
-  }
-
-  /* "Forget" pointers into the library we're about to free */
-  create_event_func = NULL;
-  close_event_func = NULL;
-  event_select_func = NULL;
-  enum_netevents_func = NULL;
-
-  /* We called LoadLibrary, so call FreeLibrary */
-  if(!FreeLibrary(wsock2))
-    infof(data, "FreeLibrary(wsock2) failed (%d)", ERRNO);
-#else
-  pfd[0].fd = sockfd;
-  pfd[0].events = POLLIN;
-
-  if(data->set.is_fread_set) {
-    poll_cnt = 1;
-    interval_ms = 100; /* poll user-supplied read function */
-  }
-  else {
-    /* really using fread, so infile is a FILE* */
-    pfd[1].fd = fileno((FILE *)data->state.in);
-    pfd[1].events = POLLIN;
-    poll_cnt = 2;
-    interval_ms = 1 * 1000;
-  }
-
-  while(keepon) {
-    switch (Curl_poll(pfd, poll_cnt, interval_ms)) {
-    case -1:                    /* error, stop reading */
-      keepon = FALSE;
-      continue;
-    case 0:                     /* timeout */
-      pfd[0].revents = 0;
-      pfd[1].revents = 0;
-      /* fall through */
-    default:                    /* read! */
-      if(pfd[0].revents & POLLIN) {
-        /* read data from network */
-        result = Curl_read(conn, sockfd, buf, BUFSIZE - 1, &nread);
-        /* read would've blocked. Loop again */
-        if(result == CURLE_AGAIN)
-          break;
-        /* returned not-zero, this an error */
-        else if(result) {
-          keepon = FALSE;
-          break;
-        }
-        /* returned zero but actually received 0 or less here,
-           the server closed the connection and we bail out */
-        else if(nread <= 0) {
-          keepon = FALSE;
-          break;
-        }
-
-        total_dl += nread;
-        Curl_pgrsSetDownloadCounter(data, total_dl);
-        result = telrcv(conn, (unsigned char *)buf, nread);
-        if(result) {
-          keepon = FALSE;
-          break;
-        }
-
-        /* Negotiate if the peer has started negotiating,
-           otherwise don't. We don't want to speak telnet with
-           non-telnet servers, like POP or SMTP. */
-        if(tn->please_negotiate && !tn->already_negotiated) {
-          negotiate(conn);
-          tn->already_negotiated = 1;
-        }
-      }
-
-      nread = 0;
-      if(poll_cnt == 2) {
-        if(pfd[1].revents & POLLIN) { /* read from in file */
-          nread = read(pfd[1].fd, buf, BUFSIZE - 1);
-        }
+          return CURLE_BAD_CONTENT_ENCODING;
       }
       else {
-        /* read from user-supplied method */
-        nread = (int)data->state.fread_func(buf, 1, BUFSIZE - 1,
-                                            data->state.in);
-        if(nread == CURL_READFUNC_ABORT) {
-          keepon = FALSE;
-          break;
-        }
-        if(nread == CURL_READFUNC_PAUSE)
-          break;
-      }
-
-      if(nread > 0) {
-        result = send_telnet_data(conn, buf, nread);
-        if(result) {
-          keepon = FALSE;
-          break;
-        }
-        total_ul += nread;
-        Curl_pgrsSetUploadCounter(data, total_ul);
-      }
-      else if(nread < 0)
-        keepon = FALSE;
-
-      break;
-    } /* poll switch statement */
-
-    if(data->set.timeout) {
-      now = Curl_tvnow();
-      if(Curl_tvdiff(now, conn->created) >= data->set.timeout) {
-        failf(data, "Time-out");
-        result = CURLE_OPERATION_TIMEDOUT;
-        keepon = FALSE;
+        /* Unknown specifier, ignore it! */
       }
     }
+    else
+      break; /* We're done here */
 
-    if(Curl_pgrsUpdate(conn)) {
-      result = CURLE_ABORTED_BY_CALLBACK;
-      break;
-    }
+    /* Pass all additional spaces here */
+    while(*chlg && ISSPACE(*chlg))
+      chlg++;
+
+    /* Allow the list to be comma-separated */
+    if(',' == *chlg)
+      chlg++;
   }
-#endif
-  /* mark this as "no further transfer wanted" */
-  Curl_setup_transfer(conn, -1, -1, FALSE, NULL, -1, NULL);
 
-  return result;
+  /* We had a nonce since before, and we got another one now without
+     'stale=true'. This means we provided bad credentials in the previous
+     request */
+  if(before && !digest->stale)
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* We got this header without a nonce, that's a bad Digest line! */
+  if(!digest->nonce)
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  return CURLE_OK;
 }
-#endif
+
+/*
+ * Curl_auth_create_digest_http_message()
+ *
+ * This is used to generate a HTTP DIGEST response message ready for sending
+ * to the recipient.
+ *
+ * Parameters:
+ *
+ * data    [in]     - The session handle.
+ * userp   [in]     - The user name.
+ * passdwp [in]     - The user's password.
+ * request [in]     - The HTTP request.
+ * uripath [in]     - The path of the HTTP uri.
+ * digest  [in/out] - The digest data struct being used and modified.
+ * outptr  [in/out] - The address where a pointer to newly allocated memory
+ *                    holding the result will be stored upon completion.
+ * outlen  [out]    - The length of the output message.
+ *
+ * Returns CURLE_OK on success.
+ */
+CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
+                                              const char *userp,
+                                              const char *passwdp,
+                                              const unsigned char *request,
+                                              const unsigned char *uripath,
+                                              struct digestdata *digest,
+                                              char **outptr, size_t *outlen)
+{
+  CURLcode result;
+  unsigned char md5buf[16]; /* 16 bytes/128 bits */
+  unsigned char request_digest[33];
+  unsigned char *md5this;
+  unsigned char ha1[33];    /* 32 digits and 1 zero byte */
+  unsigned char ha2[33];    /* 32 digits and 1 zero byte */
+  char cnoncebuf[33];
+  char *cnonce = NULL;
+  size_t cnonce_sz = 0;
+  char *userp_quoted;
+  char *response = NULL;
+  char *tmp = NULL;
+
+  if(!digest->nc)
+    digest->nc = 1;
+
+  if(!digest->cnonce) {
+    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
+             Curl_rand(data), Curl_rand(data),
+             Curl_rand(data), Curl_rand(data));
+
+    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
+                                &cnonce, &cnonce_sz);
+    if(result)
+      return result;
+
+    digest->cnonce = cnonce;
+  }
+
+  /*
+    If the algorithm is "MD5" or unspecified (which then defaults to MD5):
+
+      A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+
+    If the algorithm is "MD5-sess" then:
+
+      A1 = H(unq(username-value) ":" unq(realm-value) ":" passwd) ":"
+           unq(nonce-value) ":" unq(cnonce-value)
+  */
+
+  md5this = (unsigned char *)
+    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  auth_digest_md5_to_ascii(md5buf, ha1);
+
+  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* Convert on non-ASCII machines */
+    Curl_md5it(md5buf, (unsigned char *) tmp);
+    free(tmp);
+    auth_digest_md5_to_ascii(md5buf, ha1);
+  }
+
+  /*
+    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
+
+      A2 = Method ":" digest-uri-value
+
+    If the "qop" value is "auth-int", then A2 is:
+
+      A2 = Method ":" digest-uri-value ":" H(entity-body)
+
+    (The "Method" value is the HTTP request method as specified in section
+    5.1.1 of RFC 2616)
+  */
+
+  md5this = (unsigned char *) aprintf("%s:%s", request, uripath);
+
+  if(digest->qop && strcasecompare(digest->qop, "auth-int")) {
+    /* We don't support auth-int for PUT or POST at the moment.
+       TODO: replace md5 of empty string with entity-body for PUT/POST */
+    unsigned char *md5this2 = (unsigned char *)
+      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
+    free(md5this);
+    md5this = md5this2;
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  auth_digest_md5_to_ascii(md5buf, ha2);
+
+  if(digest->qop) {
+    md5this = (unsigned char *) aprintf("%s:%s:%08x:%s:%s:%s",
+                                        ha1,
+                                        digest->nonce,
+                                        digest->nc,
+                                        digest->cnonce,
+                                        digest->qop,
+                                        ha2);
+  }
+  else {
+    md5this = (unsigned char *) aprintf("%s:%s:%s",
+                                        ha1,
+                                        digest->nonce,
+                                        ha2);
+  }
+
+  if(!md5this)
+    return CURLE_OUT_OF_MEMORY;
+
+  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+  Curl_md5it(md5buf, md5this);
+  free(md5this);
+  auth_digest_md5_to_ascii(md5buf, request_digest);
+
+  /* For test case 64 (snooped from a Mozilla 1.3a request)
+
+     Authorization: Digest username="testuser", realm="testrealm", \
+     nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
+
+     Digest parameters are all quoted strings.  Username which is provided by
+     the user will need double quotes and backslashes within it escaped.  For
+     the other fields, this shouldn't be an issue.  realm, nonce, and opaque
+     are copied as is from the server, escapes and all.  cnonce is generated
+     with web-safe characters.  uri is already percent encoded.  nc is 8 hex
+     characters.  algorithm and qop with standard values only contain web-safe
+     characters.
+  */
+  userp_quoted = auth_digest_string_quoted(userp);
+  if(!userp_quoted)
+    return CURLE_OUT_OF_MEMORY;
+
+  if(digest->qop) {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "cnonce=\"%s\", "
+                       "nc=%08x, "
+                       "qop=%s, "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       digest->cnonce,
+                       digest->nc,
+                       digest->qop,
+                       request_digest);
+
+    if(strcasecompare(digest->qop, "auth"))
+      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
+                       padded which tells to the server how many times you are
+                       using the same nonce in the qop=auth mode */
+  }
+  else {
+    response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);
+  }
+  free(userp_quoted);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Add the optional fields */
+  if(digest->opaque) {
+    /* Append the opaque */
+    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  if(digest->algorithm) {
+    /* Append the algorithm */
+    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
+    free(response);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+
+    response = tmp;
+  }
+
+  /* Return the output */
+  *outptr = response;
+  *outlen = strlen(response);
+
+  return CURLE_OK;
+}
+
+/*
+ * Curl_auth_digest_cleanup()
+ *
+ * This is used to clean up the digest specific data.
+ *
+ * Parameters:
+ *
+ * digest    [in/out] - The digest data struct being cleaned up.
+ *
+ */
+void Curl_auth_digest_cleanup(struct digestdata *digest)
+{
+  Curl_safefree(digest->nonce);
+  Curl_safefree(digest->cnonce);
+  Curl_safefree(digest->realm);
+  Curl_safefree(digest->opaque);
+  Curl_safefree(digest->qop);
+  Curl_safefree(digest->algorithm);
+
+  digest->nc = 0;
+  digest->algo = CURLDIGESTALGO_MD5; /* default algorithm */
+  digest->stale = FALSE; /* default means normal, not stale */
+}
+#endif  /* !USE_WINDOWS_SSPI */
+
+#endif  /* CURL_DISABLE_CRYPTO_AUTH */

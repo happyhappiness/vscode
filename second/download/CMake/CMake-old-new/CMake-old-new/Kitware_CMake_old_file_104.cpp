@@ -5,7 +5,8 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1999 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 2009, 2011, Markus Moeller, <markus_moeller@compuserve.com>
+ * Copyright (C) 2012 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -18,1153 +19,506 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
- *
- * Purpose:
- *  A merge of Bjorn Reese's format() function and Daniel's dsprintf()
- *  1.0. A full blooded printf() clone with full support for <num>$
- *  everywhere (parameters, widths and precisions) including variabled
- *  sized parameters (like doubles, long longs, long doubles and even
- *  void * in 64-bit architectures).
- *
- * Current restrictions:
- * - Max 128 parameters
- * - No 'long double' support.
- *
- * If you ever want truly portable and good *printf() clones, the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at https://daniel.haxx.se/projects/trio/
- */
+ ***************************************************************************/
 
 #include "curl_setup.h"
-#include <curl/mprintf.h>
 
+#if defined(HAVE_GSSAPI) && !defined(CURL_DISABLE_PROXY)
+
+#include "curl_gssapi.h"
+#include "urldata.h"
+#include "sendf.h"
+#include "connect.h"
+#include "timeval.h"
+#include "socks.h"
+#include "warnless.h"
+
+/* The last 3 #include files should be in this order */
+#include "curl_printf.h"
 #include "curl_memory.h"
-/* The last #include file should be: */
 #include "memdebug.h"
 
-#ifndef SIZEOF_LONG_DOUBLE
-#define SIZEOF_LONG_DOUBLE 0
-#endif
+static gss_ctx_id_t gss_context = GSS_C_NO_CONTEXT;
 
 /*
- * If SIZEOF_SIZE_T has not been defined, default to the size of long.
+ * Helper GSS-API error functions.
  */
-
-#ifndef SIZEOF_SIZE_T
-#  define SIZEOF_SIZE_T CURL_SIZEOF_LONG
-#endif
-
-#ifdef HAVE_LONGLONG
-#  define LONG_LONG_TYPE long long
-#  define HAVE_LONG_LONG_TYPE
-#else
-#  if defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64)
-#    define LONG_LONG_TYPE __int64
-#    define HAVE_LONG_LONG_TYPE
-#  else
-#    undef LONG_LONG_TYPE
-#    undef HAVE_LONG_LONG_TYPE
-#  endif
-#endif
-
-/*
- * Non-ANSI integer extensions
- */
-
-#if (defined(__BORLANDC__) && (__BORLANDC__ >= 0x520)) || \
-    (defined(__WATCOMC__) && defined(__386__)) || \
-    (defined(__POCC__) && defined(_MSC_VER)) || \
-    (defined(_WIN32_WCE)) || \
-    (defined(__MINGW32__)) || \
-    (defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64))
-#  define MP_HAVE_INT_EXTENSIONS
-#endif
-
-/*
- * Max integer data types that mprintf.c is capable
- */
-
-#ifdef HAVE_LONG_LONG_TYPE
-#  define mp_intmax_t LONG_LONG_TYPE
-#  define mp_uintmax_t unsigned LONG_LONG_TYPE
-#else
-#  define mp_intmax_t long
-#  define mp_uintmax_t unsigned long
-#endif
-
-#define BUFFSIZE 256 /* buffer for long-to-str and float-to-str calcs */
-#define MAX_PARAMETERS 128 /* lame static limit */
-
-#ifdef __AMIGA__
-# undef FORMAT_INT
-#endif
-
-/* Lower-case digits.  */
-static const char lower_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
-
-/* Upper-case digits.  */
-static const char upper_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-#define OUTCHAR(x) \
-  do{ \
-    if(stream((unsigned char)(x), (FILE *)data) != -1) \
-      done++; \
-    else \
-     return done; /* return immediately on failure */ \
-  } WHILE_FALSE
-
-/* Data type to read from the arglist */
-typedef enum  {
-  FORMAT_UNKNOWN = 0,
-  FORMAT_STRING,
-  FORMAT_PTR,
-  FORMAT_INT,
-  FORMAT_INTPTR,
-  FORMAT_LONG,
-  FORMAT_LONGLONG,
-  FORMAT_DOUBLE,
-  FORMAT_LONGDOUBLE,
-  FORMAT_WIDTH /* For internal use */
-} FormatType;
-
-/* conversion and display flags */
-enum {
-  FLAGS_NEW        = 0,
-  FLAGS_SPACE      = 1<<0,
-  FLAGS_SHOWSIGN   = 1<<1,
-  FLAGS_LEFT       = 1<<2,
-  FLAGS_ALT        = 1<<3,
-  FLAGS_SHORT      = 1<<4,
-  FLAGS_LONG       = 1<<5,
-  FLAGS_LONGLONG   = 1<<6,
-  FLAGS_LONGDOUBLE = 1<<7,
-  FLAGS_PAD_NIL    = 1<<8,
-  FLAGS_UNSIGNED   = 1<<9,
-  FLAGS_OCTAL      = 1<<10,
-  FLAGS_HEX        = 1<<11,
-  FLAGS_UPPER      = 1<<12,
-  FLAGS_WIDTH      = 1<<13, /* '*' or '*<num>$' used */
-  FLAGS_WIDTHPARAM = 1<<14, /* width PARAMETER was specified */
-  FLAGS_PREC       = 1<<15, /* precision was specified */
-  FLAGS_PRECPARAM  = 1<<16, /* precision PARAMETER was specified */
-  FLAGS_CHAR       = 1<<17, /* %c story */
-  FLAGS_FLOATE     = 1<<18, /* %e or %E */
-  FLAGS_FLOATG     = 1<<19  /* %g or %G */
-};
-
-typedef struct {
-  FormatType type;
-  int flags;
-  long width;     /* width OR width parameter number */
-  long precision; /* precision OR precision parameter number */
-  union {
-    char *str;
-    void *ptr;
-    union {
-      mp_intmax_t as_signed;
-      mp_uintmax_t as_unsigned;
-    } num;
-    double dnum;
-  } data;
-} va_stack_t;
-
-struct nsprintf {
-  char *buffer;
-  size_t length;
-  size_t max;
-};
-
-struct asprintf {
-  char *buffer; /* allocated buffer */
-  size_t len;   /* length of string */
-  size_t alloc; /* length of alloc */
-  int fail;     /* (!= 0) if an alloc has failed and thus
-                   the output is not the complete data */
-};
-
-static long dprintf_DollarString(char *input, char **end)
+static int check_gss_err(struct Curl_easy *data,
+                         OM_uint32 major_status,
+                         OM_uint32 minor_status,
+                         const char* function)
 {
-  int number=0;
-  while(ISDIGIT(*input)) {
-    number *= 10;
-    number += *input-'0';
-    input++;
+  if(GSS_ERROR(major_status)) {
+    OM_uint32 maj_stat, min_stat;
+    OM_uint32 msg_ctx = 0;
+    gss_buffer_desc status_string;
+    char buf[1024];
+    size_t len;
+
+    len = 0;
+    msg_ctx = 0;
+    while(!msg_ctx) {
+      /* convert major status code (GSS-API error) to text */
+      maj_stat = gss_display_status(&min_stat, major_status,
+                                    GSS_C_GSS_CODE,
+                                    GSS_C_NULL_OID,
+                                    &msg_ctx, &status_string);
+      if(maj_stat == GSS_S_COMPLETE) {
+        if(sizeof(buf) > len + status_string.length + 1) {
+          strcpy(buf+len, (char*) status_string.value);
+          len += status_string.length;
+        }
+        gss_release_buffer(&min_stat, &status_string);
+        break;
+      }
+      gss_release_buffer(&min_stat, &status_string);
+    }
+    if(sizeof(buf) > len + 3) {
+      strcpy(buf+len, ".\n");
+      len += 2;
+    }
+    msg_ctx = 0;
+    while(!msg_ctx) {
+      /* convert minor status code (underlying routine error) to text */
+      maj_stat = gss_display_status(&min_stat, minor_status,
+                                    GSS_C_MECH_CODE,
+                                    GSS_C_NULL_OID,
+                                    &msg_ctx, &status_string);
+      if(maj_stat == GSS_S_COMPLETE) {
+        if(sizeof(buf) > len + status_string.length)
+          strcpy(buf+len, (char*) status_string.value);
+        gss_release_buffer(&min_stat, &status_string);
+        break;
+      }
+      gss_release_buffer(&min_stat, &status_string);
+    }
+    failf(data, "GSS-API error: %s failed:\n%s", function, buf);
+    return 1;
   }
-  if(number && ('$'==*input++)) {
-    *end = input;
-    return number;
-  }
+
   return 0;
 }
 
-static bool dprintf_IsQualifierNoDollar(const char *fmt)
+CURLcode Curl_SOCKS5_gssapi_negotiate(int sockindex,
+                                      struct connectdata *conn)
 {
-#if defined(MP_HAVE_INT_EXTENSIONS)
-  if(!strncmp(fmt, "I32", 3) || !strncmp(fmt, "I64", 3)) {
-    return TRUE;
+  struct Curl_easy *data = conn->data;
+  curl_socket_t sock = conn->sock[sockindex];
+  CURLcode code;
+  ssize_t actualread;
+  ssize_t written;
+  int result;
+  OM_uint32 gss_major_status, gss_minor_status, gss_status;
+  OM_uint32 gss_ret_flags;
+  int gss_conf_state, gss_enc;
+  gss_buffer_desc  service = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc  gss_send_token = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc  gss_recv_token = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc  gss_w_token = GSS_C_EMPTY_BUFFER;
+  gss_buffer_desc* gss_token = GSS_C_NO_BUFFER;
+  gss_name_t       server = GSS_C_NO_NAME;
+  gss_name_t       gss_client_name = GSS_C_NO_NAME;
+  unsigned short   us_length;
+  char             *user=NULL;
+  unsigned char socksreq[4]; /* room for GSS-API exchange header only */
+  const char *serviceptr = data->set.str[STRING_PROXY_SERVICE_NAME] ?
+                           data->set.str[STRING_PROXY_SERVICE_NAME] : "rcmd";
+
+  /*   GSS-API request looks like
+   * +----+------+-----+----------------+
+   * |VER | MTYP | LEN |     TOKEN      |
+   * +----+------+----------------------+
+   * | 1  |  1   |  2  | up to 2^16 - 1 |
+   * +----+------+-----+----------------+
+   */
+
+  /* prepare service name */
+  if(strchr(serviceptr, '/')) {
+    service.value = malloc(strlen(serviceptr));
+    if(!service.value)
+      return CURLE_OUT_OF_MEMORY;
+    service.length = strlen(serviceptr);
+    memcpy(service.value, serviceptr, service.length);
+
+    gss_major_status = gss_import_name(&gss_minor_status, &service,
+                                       (gss_OID) GSS_C_NULL_OID, &server);
   }
-#endif
+  else {
+    service.value = malloc(strlen(serviceptr) +strlen(conn->proxy.name)+2);
+    if(!service.value)
+      return CURLE_OUT_OF_MEMORY;
+    service.length = strlen(serviceptr) +strlen(conn->proxy.name)+1;
+    snprintf(service.value, service.length+1, "%s@%s",
+             serviceptr, conn->proxy.name);
 
-  switch(*fmt) {
-  case '-': case '+': case ' ': case '#': case '.':
-  case '0': case '1': case '2': case '3': case '4':
-  case '5': case '6': case '7': case '8': case '9':
-  case 'h': case 'l': case 'L': case 'z': case 'q':
-  case '*': case 'O':
-#if defined(MP_HAVE_INT_EXTENSIONS)
-  case 'I':
-#endif
-    return TRUE;
-
-  default:
-    return FALSE;
-  }
-}
-
-/******************************************************************
- *
- * Pass 1:
- * Create an index with the type of each parameter entry and its
- * value (may vary in size)
- *
- * Returns zero on success.
- *
- ******************************************************************/
-
-static int dprintf_Pass1(const char *format, va_stack_t *vto, char **endpos,
-                         va_list arglist)
-{
-  char *fmt = (char *)format;
-  int param_num = 0;
-  long this_param;
-  long width;
-  long precision;
-  int flags;
-  long max_param=0;
-  long i;
-
-  while(*fmt) {
-    if(*fmt++ == '%') {
-      if(*fmt == '%') {
-        fmt++;
-        continue; /* while */
-      }
-
-      flags = FLAGS_NEW;
-
-      /* Handle the positional case (N$) */
-
-      param_num++;
-
-      this_param = dprintf_DollarString(fmt, &fmt);
-      if(0 == this_param)
-        /* we got no positional, get the next counter */
-        this_param = param_num;
-
-      if(this_param > max_param)
-        max_param = this_param;
-
-      /*
-       * The parameter with number 'i' should be used. Next, we need
-       * to get SIZE and TYPE of the parameter. Add the information
-       * to our array.
-       */
-
-      width = 0;
-      precision = 0;
-
-      /* Handle the flags */
-
-      while(dprintf_IsQualifierNoDollar(fmt)) {
-#if defined(MP_HAVE_INT_EXTENSIONS)
-        if(!strncmp(fmt, "I32", 3)) {
-          flags |= FLAGS_LONG;
-          fmt += 3;
-        }
-        else if(!strncmp(fmt, "I64", 3)) {
-          flags |= FLAGS_LONGLONG;
-          fmt += 3;
-        }
-        else
-#endif
-
-        switch(*fmt++) {
-        case ' ':
-          flags |= FLAGS_SPACE;
-          break;
-        case '+':
-          flags |= FLAGS_SHOWSIGN;
-          break;
-        case '-':
-          flags |= FLAGS_LEFT;
-          flags &= ~FLAGS_PAD_NIL;
-          break;
-        case '#':
-          flags |= FLAGS_ALT;
-          break;
-        case '.':
-          flags |= FLAGS_PREC;
-          if('*' == *fmt) {
-            /* The precision is picked from a specified parameter */
-
-            flags |= FLAGS_PRECPARAM;
-            fmt++;
-            param_num++;
-
-            i = dprintf_DollarString(fmt, &fmt);
-            if(i)
-              precision = i;
-            else
-              precision = param_num;
-
-            if(precision > max_param)
-              max_param = precision;
-          }
-          else {
-            flags |= FLAGS_PREC;
-            precision = strtol(fmt, &fmt, 10);
-          }
-          break;
-        case 'h':
-          flags |= FLAGS_SHORT;
-          break;
-#if defined(MP_HAVE_INT_EXTENSIONS)
-        case 'I':
-#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-#endif
-        case 'l':
-          if(flags & FLAGS_LONG)
-            flags |= FLAGS_LONGLONG;
-          else
-            flags |= FLAGS_LONG;
-          break;
-        case 'L':
-          flags |= FLAGS_LONGDOUBLE;
-          break;
-        case 'q':
-          flags |= FLAGS_LONGLONG;
-          break;
-        case 'z':
-          /* the code below generates a warning if -Wunreachable-code is
-             used */
-#if (SIZEOF_SIZE_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-        case 'O':
-#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-        case '0':
-          if(!(flags & FLAGS_LEFT))
-            flags |= FLAGS_PAD_NIL;
-          /* FALLTHROUGH */
-        case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9':
-          flags |= FLAGS_WIDTH;
-          width = strtol(fmt-1, &fmt, 10);
-          break;
-        case '*':  /* Special case */
-          flags |= FLAGS_WIDTHPARAM;
-          param_num++;
-
-          i = dprintf_DollarString(fmt, &fmt);
-          if(i)
-            width = i;
-          else
-            width = param_num;
-          if(width > max_param)
-            max_param=width;
-          break;
-        default:
-          break;
-        }
-      } /* switch */
-
-      /* Handle the specifier */
-
-      i = this_param - 1;
-
-      if((i < 0) || (i >= MAX_PARAMETERS))
-        /* out of allowed range */
-        return 1;
-
-      switch (*fmt) {
-      case 'S':
-        flags |= FLAGS_ALT;
-        /* FALLTHROUGH */
-      case 's':
-        vto[i].type = FORMAT_STRING;
-        break;
-      case 'n':
-        vto[i].type = FORMAT_INTPTR;
-        break;
-      case 'p':
-        vto[i].type = FORMAT_PTR;
-        break;
-      case 'd': case 'i':
-        vto[i].type = FORMAT_INT;
-        break;
-      case 'u':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_UNSIGNED;
-        break;
-      case 'o':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_OCTAL;
-        break;
-      case 'x':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_HEX|FLAGS_UNSIGNED;
-        break;
-      case 'X':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_HEX|FLAGS_UPPER|FLAGS_UNSIGNED;
-        break;
-      case 'c':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_CHAR;
-        break;
-      case 'f':
-        vto[i].type = FORMAT_DOUBLE;
-        break;
-      case 'e':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATE;
-        break;
-      case 'E':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATE|FLAGS_UPPER;
-        break;
-      case 'g':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATG;
-        break;
-      case 'G':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATG|FLAGS_UPPER;
-        break;
-      default:
-        vto[i].type = FORMAT_UNKNOWN;
-        break;
-      } /* switch */
-
-      vto[i].flags = flags;
-      vto[i].width = width;
-      vto[i].precision = precision;
-
-      if(flags & FLAGS_WIDTHPARAM) {
-        /* we have the width specified from a parameter, so we make that
-           parameter's info setup properly */
-        long k = width - 1;
-        vto[i].width = k;
-        vto[k].type = FORMAT_WIDTH;
-        vto[k].flags = FLAGS_NEW;
-        /* can't use width or precision of width! */
-        vto[k].width = 0;
-        vto[k].precision = 0;
-      }
-      if(flags & FLAGS_PRECPARAM) {
-        /* we have the precision specified from a parameter, so we make that
-           parameter's info setup properly */
-        long k = precision - 1;
-        vto[i].precision = k;
-        vto[k].type = FORMAT_WIDTH;
-        vto[k].flags = FLAGS_NEW;
-        /* can't use width or precision of width! */
-        vto[k].width = 0;
-        vto[k].precision = 0;
-      }
-      *endpos++ = fmt + 1; /* end of this sequence */
-    }
+    gss_major_status = gss_import_name(&gss_minor_status, &service,
+                                       GSS_C_NT_HOSTBASED_SERVICE, &server);
   }
 
-  /* Read the arg list parameters into our data list */
-  for(i=0; i<max_param; i++) {
-    /* Width/precision arguments must be read before the main argument
-       they are attached to */
-    if(vto[i].flags & FLAGS_WIDTHPARAM) {
-      vto[vto[i].width].data.num.as_signed =
-        (mp_intmax_t)va_arg(arglist, int);
-    }
-    if(vto[i].flags & FLAGS_PRECPARAM) {
-      vto[vto[i].precision].data.num.as_signed =
-        (mp_intmax_t)va_arg(arglist, int);
+  gss_release_buffer(&gss_status, &service); /* clear allocated memory */
+
+  if(check_gss_err(data, gss_major_status,
+                   gss_minor_status, "gss_import_name()")) {
+    failf(data, "Failed to create service name.");
+    gss_release_name(&gss_status, &server);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  /* As long as we need to keep sending some context info, and there's no  */
+  /* errors, keep sending it...                                            */
+  for(;;) {
+    gss_major_status = Curl_gss_init_sec_context(data,
+                                                 &gss_minor_status,
+                                                 &gss_context,
+                                                 server,
+                                                 &Curl_krb5_mech_oid,
+                                                 NULL,
+                                                 gss_token,
+                                                 &gss_send_token,
+                                                 TRUE,
+                                                 &gss_ret_flags);
+
+    if(gss_token != GSS_C_NO_BUFFER)
+      gss_release_buffer(&gss_status, &gss_recv_token);
+    if(check_gss_err(data, gss_major_status,
+                     gss_minor_status, "gss_init_sec_context")) {
+      gss_release_name(&gss_status, &server);
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_release_buffer(&gss_status, &gss_send_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      failf(data, "Failed to initial GSS-API token.");
+      return CURLE_COULDNT_CONNECT;
     }
 
-    switch (vto[i].type) {
-    case FORMAT_STRING:
-      vto[i].data.str = va_arg(arglist, char *);
-      break;
+    if(gss_send_token.length != 0) {
+      socksreq[0] = 1;    /* GSS-API subnegotiation version */
+      socksreq[1] = 1;    /* authentication message type */
+      us_length = htons((short)gss_send_token.length);
+      memcpy(socksreq+2, &us_length, sizeof(short));
 
-    case FORMAT_INTPTR:
-    case FORMAT_UNKNOWN:
-    case FORMAT_PTR:
-      vto[i].data.ptr = va_arg(arglist, void *);
-      break;
-
-    case FORMAT_INT:
-#ifdef HAVE_LONG_LONG_TYPE
-      if((vto[i].flags & FLAGS_LONGLONG) && (vto[i].flags & FLAGS_UNSIGNED))
-        vto[i].data.num.as_unsigned =
-          (mp_uintmax_t)va_arg(arglist, mp_uintmax_t);
-      else if(vto[i].flags & FLAGS_LONGLONG)
-        vto[i].data.num.as_signed =
-          (mp_intmax_t)va_arg(arglist, mp_intmax_t);
-      else
-#endif
-      {
-        if((vto[i].flags & FLAGS_LONG) && (vto[i].flags & FLAGS_UNSIGNED))
-          vto[i].data.num.as_unsigned =
-            (mp_uintmax_t)va_arg(arglist, unsigned long);
-        else if(vto[i].flags & FLAGS_LONG)
-          vto[i].data.num.as_signed =
-            (mp_intmax_t)va_arg(arglist, long);
-        else if(vto[i].flags & FLAGS_UNSIGNED)
-          vto[i].data.num.as_unsigned =
-            (mp_uintmax_t)va_arg(arglist, unsigned int);
-        else
-          vto[i].data.num.as_signed =
-            (mp_intmax_t)va_arg(arglist, int);
+      code = Curl_write_plain(conn, sock, (char *)socksreq, 4, &written);
+      if(code || (4 != written)) {
+        failf(data, "Failed to send GSS-API authentication request.");
+        gss_release_name(&gss_status, &server);
+        gss_release_buffer(&gss_status, &gss_recv_token);
+        gss_release_buffer(&gss_status, &gss_send_token);
+        gss_delete_sec_context(&gss_status, &gss_context, NULL);
+        return CURLE_COULDNT_CONNECT;
       }
-      break;
 
-    case FORMAT_DOUBLE:
-      vto[i].data.dnum = va_arg(arglist, double);
-      break;
+      code = Curl_write_plain(conn, sock, (char *)gss_send_token.value,
+                              gss_send_token.length, &written);
 
-    case FORMAT_WIDTH:
-      /* Argument has been read. Silently convert it into an integer
-       * for later use
-       */
-      vto[i].type = FORMAT_INT;
-      break;
+      if(code || ((ssize_t)gss_send_token.length != written)) {
+        failf(data, "Failed to send GSS-API authentication token.");
+        gss_release_name(&gss_status, &server);
+        gss_release_buffer(&gss_status, &gss_recv_token);
+        gss_release_buffer(&gss_status, &gss_send_token);
+        gss_delete_sec_context(&gss_status, &gss_context, NULL);
+        return CURLE_COULDNT_CONNECT;
+      }
 
-    default:
-      break;
-    }
-  }
-
-  return 0;
-
-}
-
-static int dprintf_formatf(
-  void *data, /* untouched by format(), just sent to the stream() function in
-                 the second argument */
-  /* function pointer called for each output character */
-  int (*stream)(int, FILE *),
-  const char *format,    /* %-formatted string */
-  va_list ap_save) /* list of parameters */
-{
-  /* Base-36 digits for numbers.  */
-  const char *digits = lower_digits;
-
-  /* Pointer into the format string.  */
-  char *f;
-
-  /* Number of characters written.  */
-  int done = 0;
-
-  long param; /* current parameter to read */
-  long param_num=0; /* parameter counter */
-
-  va_stack_t vto[MAX_PARAMETERS];
-  char *endpos[MAX_PARAMETERS];
-  char **end;
-
-  char work[BUFFSIZE];
-
-  va_stack_t *p;
-
-  /* 'workend' points to the final buffer byte position, but with an extra
-     byte as margin to avoid the (false?) warning Coverity gives us
-     otherwise */
-  char *workend = &work[sizeof(work) - 2];
-
-  /* Do the actual %-code parsing */
-  if(dprintf_Pass1(format, vto, endpos, ap_save))
-    return -1;
-
-  end = &endpos[0]; /* the initial end-position from the list dprintf_Pass1()
-                       created for us */
-
-  f = (char *)format;
-  while(*f != '\0') {
-    /* Format spec modifiers.  */
-    int is_alt;
-
-    /* Width of a field.  */
-    long width;
-
-    /* Precision of a field.  */
-    long prec;
-
-    /* Decimal integer is negative.  */
-    int is_neg;
-
-    /* Base of a number to be written.  */
-    long base;
-
-    /* Integral values to be written.  */
-    mp_uintmax_t num;
-
-    /* Used to convert negative in positive.  */
-    mp_intmax_t signed_num;
-
-    char *w;
-
-    if(*f != '%') {
-      /* This isn't a format spec, so write everything out until the next one
-         OR end of string is reached.  */
-      do {
-        OUTCHAR(*f);
-      } while(*++f && ('%' != *f));
-      continue;
     }
 
-    ++f;
+    gss_release_buffer(&gss_status, &gss_send_token);
+    gss_release_buffer(&gss_status, &gss_recv_token);
+    if(gss_major_status != GSS_S_CONTINUE_NEEDED) break;
 
-    /* Check for "%%".  Note that although the ANSI standard lists
-       '%' as a conversion specifier, it says "The complete format
-       specification shall be `%%'," so we can avoid all the width
-       and precision processing.  */
-    if(*f == '%') {
-      ++f;
-      OUTCHAR('%');
-      continue;
+    /* analyse response */
+
+    /*   GSS-API response looks like
+     * +----+------+-----+----------------+
+     * |VER | MTYP | LEN |     TOKEN      |
+     * +----+------+----------------------+
+     * | 1  |  1   |  2  | up to 2^16 - 1 |
+     * +----+------+-----+----------------+
+     */
+
+    result=Curl_blockread_all(conn, sock, (char *)socksreq, 4, &actualread);
+    if(result || (actualread != 4)) {
+      failf(data, "Failed to receive GSS-API authentication response.");
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
     }
 
-    /* If this is a positional parameter, the position must follow immediately
-       after the %, thus create a %<num>$ sequence */
-    param=dprintf_DollarString(f, &f);
-
-    if(!param)
-      param = param_num;
-    else
-      --param;
-
-    param_num++; /* increase this always to allow "%2$s %1$s %s" and then the
-                    third %s will pick the 3rd argument */
-
-    p = &vto[param];
-
-    /* pick up the specified width */
-    if(p->flags & FLAGS_WIDTHPARAM) {
-      width = (long)vto[p->width].data.num.as_signed;
-      param_num++; /* since the width is extracted from a parameter, we
-                      must skip that to get to the next one properly */
-      if(width < 0) {
-        /* "A negative field width is taken as a '-' flag followed by a
-           positive field width." */
-        width = -width;
-        p->flags |= FLAGS_LEFT;
-        p->flags &= ~FLAGS_PAD_NIL;
-      }
+    /* ignore the first (VER) byte */
+    if(socksreq[1] == 255) { /* status / message type */
+      failf(data, "User was rejected by the SOCKS5 server (%d %d).",
+            socksreq[0], socksreq[1]);
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
     }
-    else
-      width = p->width;
 
-    /* pick up the specified precision */
-    if(p->flags & FLAGS_PRECPARAM) {
-      prec = (long)vto[p->precision].data.num.as_signed;
-      param_num++; /* since the precision is extracted from a parameter, we
-                      must skip that to get to the next one properly */
-      if(prec < 0)
-        /* "A negative precision is taken as if the precision were
-           omitted." */
-        prec = -1;
+    if(socksreq[1] != 1) { /* status / messgae type */
+      failf(data, "Invalid GSS-API authentication response type (%d %d).",
+            socksreq[0], socksreq[1]);
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
     }
-    else if(p->flags & FLAGS_PREC)
-      prec = p->precision;
-    else
-      prec = -1;
 
-    is_alt = (p->flags & FLAGS_ALT) ? 1 : 0;
+    memcpy(&us_length, socksreq+2, sizeof(short));
+    us_length = ntohs(us_length);
 
-    switch (p->type) {
-    case FORMAT_INT:
-      num = p->data.num.as_unsigned;
-      if(p->flags & FLAGS_CHAR) {
-        /* Character.  */
-        if(!(p->flags & FLAGS_LEFT))
-          while(--width > 0)
-            OUTCHAR(' ');
-        OUTCHAR((char) num);
-        if(p->flags & FLAGS_LEFT)
-          while(--width > 0)
-            OUTCHAR(' ');
-        break;
-      }
-      if(p->flags & FLAGS_OCTAL) {
-        /* Octal unsigned integer.  */
-        base = 8;
-        goto unsigned_number;
-      }
-      else if(p->flags & FLAGS_HEX) {
-        /* Hexadecimal unsigned integer.  */
-
-        digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
-        base = 16;
-        goto unsigned_number;
-      }
-      else if(p->flags & FLAGS_UNSIGNED) {
-        /* Decimal unsigned integer.  */
-        base = 10;
-        goto unsigned_number;
-      }
-
-      /* Decimal integer.  */
-      base = 10;
-
-      is_neg = (p->data.num.as_signed < (mp_intmax_t)0) ? 1 : 0;
-      if(is_neg) {
-        /* signed_num might fail to hold absolute negative minimum by 1 */
-        signed_num = p->data.num.as_signed + (mp_intmax_t)1;
-        signed_num = -signed_num;
-        num = (mp_uintmax_t)signed_num;
-        num += (mp_uintmax_t)1;
-      }
-
-      goto number;
-
-      unsigned_number:
-      /* Unsigned number of base BASE.  */
-      is_neg = 0;
-
-      number:
-      /* Number of base BASE.  */
-
-      /* Supply a default precision if none was given.  */
-      if(prec == -1)
-        prec = 1;
-
-      /* Put the number in WORK.  */
-      w = workend;
-      while(num > 0) {
-        *w-- = digits[num % base];
-        num /= base;
-      }
-      width -= (long)(workend - w);
-      prec -= (long)(workend - w);
-
-      if(is_alt && base == 8 && prec <= 0) {
-        *w-- = '0';
-        --width;
-      }
-
-      if(prec > 0) {
-        width -= prec;
-        while(prec-- > 0)
-          *w-- = '0';
-      }
-
-      if(is_alt && base == 16)
-        width -= 2;
-
-      if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
-        --width;
-
-      if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
-        while(width-- > 0)
-          OUTCHAR(' ');
-
-      if(is_neg)
-        OUTCHAR('-');
-      else if(p->flags & FLAGS_SHOWSIGN)
-        OUTCHAR('+');
-      else if(p->flags & FLAGS_SPACE)
-        OUTCHAR(' ');
-
-      if(is_alt && base == 16) {
-        OUTCHAR('0');
-        if(p->flags & FLAGS_UPPER)
-          OUTCHAR('X');
-        else
-          OUTCHAR('x');
-      }
-
-      if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
-        while(width-- > 0)
-          OUTCHAR('0');
-
-      /* Write the number.  */
-      while(++w <= workend) {
-        OUTCHAR(*w);
-      }
-
-      if(p->flags & FLAGS_LEFT)
-        while(width-- > 0)
-          OUTCHAR(' ');
-      break;
-
-    case FORMAT_STRING:
-            /* String.  */
-      {
-        static const char null[] = "(nil)";
-        const char *str;
-        size_t len;
-
-        str = (char *) p->data.str;
-        if(str == NULL) {
-          /* Write null[] if there's space.  */
-          if(prec == -1 || prec >= (long) sizeof(null) - 1) {
-            str = null;
-            len = sizeof(null) - 1;
-            /* Disable quotes around (nil) */
-            p->flags &= (~FLAGS_ALT);
-          }
-          else {
-            str = "";
-            len = 0;
-          }
-        }
-        else if(prec != -1)
-          len = (size_t)prec;
-        else
-          len = strlen(str);
-
-        width -= (len > LONG_MAX) ? LONG_MAX : (long)len;
-
-        if(p->flags & FLAGS_ALT)
-          OUTCHAR('"');
-
-        if(!(p->flags&FLAGS_LEFT))
-          while(width-- > 0)
-            OUTCHAR(' ');
-
-        while((len-- > 0) && *str)
-          OUTCHAR(*str++);
-        if(p->flags&FLAGS_LEFT)
-          while(width-- > 0)
-            OUTCHAR(' ');
-
-        if(p->flags & FLAGS_ALT)
-          OUTCHAR('"');
-      }
-      break;
-
-    case FORMAT_PTR:
-      /* Generic pointer.  */
-      {
-        void *ptr;
-        ptr = (void *) p->data.ptr;
-        if(ptr != NULL) {
-          /* If the pointer is not NULL, write it as a %#x spec.  */
-          base = 16;
-          digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
-          is_alt = 1;
-          num = (size_t) ptr;
-          is_neg = 0;
-          goto number;
-        }
-        else {
-          /* Write "(nil)" for a nil pointer.  */
-          static const char strnil[] = "(nil)";
-          const char *point;
-
-          width -= (long)(sizeof(strnil) - 1);
-          if(p->flags & FLAGS_LEFT)
-            while(width-- > 0)
-              OUTCHAR(' ');
-          for(point = strnil; *point != '\0'; ++point)
-            OUTCHAR(*point);
-          if(! (p->flags & FLAGS_LEFT))
-            while(width-- > 0)
-              OUTCHAR(' ');
-        }
-      }
-      break;
-
-    case FORMAT_DOUBLE:
-      {
-        char formatbuf[32]="%";
-        char *fptr = &formatbuf[1];
-        size_t left = sizeof(formatbuf)-strlen(formatbuf);
-        int len;
-
-        width = -1;
-        if(p->flags & FLAGS_WIDTH)
-          width = p->width;
-        else if(p->flags & FLAGS_WIDTHPARAM)
-          width = (long)vto[p->width].data.num.as_signed;
-
-        prec = -1;
-        if(p->flags & FLAGS_PREC)
-          prec = p->precision;
-        else if(p->flags & FLAGS_PRECPARAM)
-          prec = (long)vto[p->precision].data.num.as_signed;
-
-        if(p->flags & FLAGS_LEFT)
-          *fptr++ = '-';
-        if(p->flags & FLAGS_SHOWSIGN)
-          *fptr++ = '+';
-        if(p->flags & FLAGS_SPACE)
-          *fptr++ = ' ';
-        if(p->flags & FLAGS_ALT)
-          *fptr++ = '#';
-
-        *fptr = 0;
-
-        if(width >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, "%ld", width);
-          fptr += len;
-          left -= len;
-        }
-        if(prec >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, ".%ld", prec);
-          fptr += len;
-        }
-        if(p->flags & FLAGS_LONG)
-          *fptr++ = 'l';
-
-        if(p->flags & FLAGS_FLOATE)
-          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'E':'e');
-        else if(p->flags & FLAGS_FLOATG)
-          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'G' : 'g');
-        else
-          *fptr++ = 'f';
-
-        *fptr = 0; /* and a final zero termination */
-
-        /* NOTE NOTE NOTE!! Not all sprintf implementations return number of
-           output characters */
-        (sprintf)(work, formatbuf, p->data.dnum);
-
-        for(fptr=work; *fptr; fptr++)
-          OUTCHAR(*fptr);
-      }
-      break;
-
-    case FORMAT_INTPTR:
-      /* Answer the count of characters written.  */
-#ifdef HAVE_LONG_LONG_TYPE
-      if(p->flags & FLAGS_LONGLONG)
-        *(LONG_LONG_TYPE *) p->data.ptr = (LONG_LONG_TYPE)done;
-      else
-#endif
-        if(p->flags & FLAGS_LONG)
-          *(long *) p->data.ptr = (long)done;
-      else if(!(p->flags & FLAGS_SHORT))
-        *(int *) p->data.ptr = (int)done;
-      else
-        *(short *) p->data.ptr = (short)done;
-      break;
-
-    default:
-      break;
+    gss_recv_token.length=us_length;
+    gss_recv_token.value=malloc(us_length);
+    if(!gss_recv_token.value) {
+      failf(data,
+            "Could not allocate memory for GSS-API authentication "
+            "response token.");
+      gss_release_name(&gss_status, &server);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_OUT_OF_MEMORY;
     }
-    f = *end++; /* goto end of %-code */
 
-  }
-  return done;
-}
+    result=Curl_blockread_all(conn, sock, (char *)gss_recv_token.value,
+                              gss_recv_token.length, &actualread);
 
-/* fputc() look-alike */
-static int addbyter(int output, FILE *data)
-{
-  struct nsprintf *infop=(struct nsprintf *)data;
-  unsigned char outc = (unsigned char)output;
-
-  if(infop->length < infop->max) {
-    /* only do this if we haven't reached max length yet */
-    infop->buffer[0] = outc; /* store */
-    infop->buffer++; /* increase pointer */
-    infop->length++; /* we are now one byte larger */
-    return outc;     /* fputc() returns like this on success */
-  }
-  return -1;
-}
-
-int curl_mvsnprintf(char *buffer, size_t maxlength, const char *format,
-                    va_list ap_save)
-{
-  int retcode;
-  struct nsprintf info;
-
-  info.buffer = buffer;
-  info.length = 0;
-  info.max = maxlength;
-
-  retcode = dprintf_formatf(&info, addbyter, format, ap_save);
-  if((retcode != -1) && info.max) {
-    /* we terminate this with a zero byte */
-    if(info.max == info.length)
-      /* we're at maximum, scrap the last letter */
-      info.buffer[-1] = 0;
-    else
-      info.buffer[0] = 0;
-  }
-  return retcode;
-}
-
-int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-  retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
-
-/* fputc() look-alike */
-static int alloc_addbyter(int output, FILE *data)
-{
-  struct asprintf *infop=(struct asprintf *)data;
-  unsigned char outc = (unsigned char)output;
-
-  if(!infop->buffer) {
-    infop->buffer = malloc(32);
-    if(!infop->buffer) {
-      infop->fail = 1;
-      return -1; /* fail */
+    if(result || (actualread != us_length)) {
+      failf(data, "Failed to receive GSS-API authentication token.");
+      gss_release_name(&gss_status, &server);
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
     }
-    infop->alloc = 32;
-    infop->len =0;
+
+    gss_token = &gss_recv_token;
   }
-  else if(infop->len+1 >= infop->alloc) {
-    char *newptr = NULL;
-    size_t newsize = infop->alloc*2;
 
-    /* detect wrap-around or other overflow problems */
-    if(newsize > infop->alloc)
-      newptr = realloc(infop->buffer, newsize);
+  gss_release_name(&gss_status, &server);
 
-    if(!newptr) {
-      infop->fail = 1;
-      return -1; /* fail */
+  /* Everything is good so far, user was authenticated! */
+  gss_major_status = gss_inquire_context (&gss_minor_status, gss_context,
+                                          &gss_client_name, NULL, NULL, NULL,
+                                          NULL, NULL, NULL);
+  if(check_gss_err(data, gss_major_status,
+                   gss_minor_status, "gss_inquire_context")) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    gss_release_name(&gss_status, &gss_client_name);
+    failf(data, "Failed to determine user name.");
+    return CURLE_COULDNT_CONNECT;
+  }
+  gss_major_status = gss_display_name(&gss_minor_status, gss_client_name,
+                                      &gss_send_token, NULL);
+  if(check_gss_err(data, gss_major_status,
+                   gss_minor_status, "gss_display_name")) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    gss_release_name(&gss_status, &gss_client_name);
+    gss_release_buffer(&gss_status, &gss_send_token);
+    failf(data, "Failed to determine user name.");
+    return CURLE_COULDNT_CONNECT;
+  }
+  user=malloc(gss_send_token.length+1);
+  if(!user) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    gss_release_name(&gss_status, &gss_client_name);
+    gss_release_buffer(&gss_status, &gss_send_token);
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  memcpy(user, gss_send_token.value, gss_send_token.length);
+  user[gss_send_token.length] = '\0';
+  gss_release_name(&gss_status, &gss_client_name);
+  gss_release_buffer(&gss_status, &gss_send_token);
+  infof(data, "SOCKS5 server authencticated user %s with GSS-API.\n",user);
+  free(user);
+  user=NULL;
+
+  /* Do encryption */
+  socksreq[0] = 1;    /* GSS-API subnegotiation version */
+  socksreq[1] = 2;    /* encryption message type */
+
+  gss_enc = 0; /* no data protection */
+  /* do confidentiality protection if supported */
+  if(gss_ret_flags & GSS_C_CONF_FLAG)
+    gss_enc = 2;
+  /* else do integrity protection */
+  else if(gss_ret_flags & GSS_C_INTEG_FLAG)
+    gss_enc = 1;
+
+  infof(data, "SOCKS5 server supports GSS-API %s data protection.\n",
+        (gss_enc==0)?"no":((gss_enc==1)?"integrity":"confidentiality"));
+  /* force for the moment to no data protection */
+  gss_enc = 0;
+  /*
+   * Sending the encryption type in clear seems wrong. It should be
+   * protected with gss_seal()/gss_wrap(). See RFC1961 extract below
+   * The NEC reference implementations on which this is based is
+   * therefore at fault
+   *
+   *  +------+------+------+.......................+
+   *  + ver  | mtyp | len  |   token               |
+   *  +------+------+------+.......................+
+   *  + 0x01 | 0x02 | 0x02 | up to 2^16 - 1 octets |
+   *  +------+------+------+.......................+
+   *
+   *   Where:
+   *
+   *  - "ver" is the protocol version number, here 1 to represent the
+   *    first version of the SOCKS/GSS-API protocol
+   *
+   *  - "mtyp" is the message type, here 2 to represent a protection
+   *    -level negotiation message
+   *
+   *  - "len" is the length of the "token" field in octets
+   *
+   *  - "token" is the GSS-API encapsulated protection level
+   *
+   * The token is produced by encapsulating an octet containing the
+   * required protection level using gss_seal()/gss_wrap() with conf_req
+   * set to FALSE.  The token is verified using gss_unseal()/
+   * gss_unwrap().
+   *
+   */
+  if(data->set.socks5_gssapi_nec) {
+    us_length = htons((short)1);
+    memcpy(socksreq+2, &us_length, sizeof(short));
+  }
+  else {
+    gss_send_token.length = 1;
+    gss_send_token.value = malloc(1);
+    if(!gss_send_token.value) {
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_OUT_OF_MEMORY;
     }
-    infop->buffer = newptr;
-    infop->alloc = newsize;
+    memcpy(gss_send_token.value, &gss_enc, 1);
+
+    gss_major_status = gss_wrap(&gss_minor_status, gss_context, 0,
+                                GSS_C_QOP_DEFAULT, &gss_send_token,
+                                &gss_conf_state, &gss_w_token);
+
+    if(check_gss_err(data, gss_major_status, gss_minor_status, "gss_wrap")) {
+      gss_release_buffer(&gss_status, &gss_send_token);
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      failf(data, "Failed to wrap GSS-API encryption value into token.");
+      return CURLE_COULDNT_CONNECT;
+    }
+    gss_release_buffer(&gss_status, &gss_send_token);
+
+    us_length = htons((short)gss_w_token.length);
+    memcpy(socksreq+2, &us_length, sizeof(short));
   }
 
-  infop->buffer[ infop->len ] = outc;
-
-  infop->len++;
-
-  return outc; /* fputc() returns like this on success */
-}
-
-char *curl_maprintf(const char *format, ...)
-{
-  va_list ap_save; /* argument pointer */
-  int retcode;
-  struct asprintf info;
-
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-  info.fail = 0;
-
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  va_end(ap_save);
-  if((-1 == retcode) || info.fail) {
-    if(info.alloc)
-      free(info.buffer);
-    return NULL;
-  }
-  if(info.alloc) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  else
-    return strdup("");
-}
-
-char *curl_mvaprintf(const char *format, va_list ap_save)
-{
-  int retcode;
-  struct asprintf info;
-
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-  info.fail = 0;
-
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  if((-1 == retcode) || info.fail) {
-    if(info.alloc)
-      free(info.buffer);
-    return NULL;
+  code = Curl_write_plain(conn, sock, (char *)socksreq, 4, &written);
+  if(code  || (4 != written)) {
+    failf(data, "Failed to send GSS-API encryption request.");
+    gss_release_buffer(&gss_status, &gss_w_token);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
   }
 
-  if(info.alloc) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
+  if(data->set.socks5_gssapi_nec) {
+    memcpy(socksreq, &gss_enc, 1);
+    code = Curl_write_plain(conn, sock, socksreq, 1, &written);
+    if(code || ( 1 != written)) {
+      failf(data, "Failed to send GSS-API encryption type.");
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
   }
-  else
-    return strdup("");
+  else {
+    code = Curl_write_plain(conn, sock, (char *)gss_w_token.value,
+                            gss_w_token.length, &written);
+    if(code || ((ssize_t)gss_w_token.length != written)) {
+      failf(data, "Failed to send GSS-API encryption type.");
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+    gss_release_buffer(&gss_status, &gss_w_token);
+  }
+
+  result=Curl_blockread_all(conn, sock, (char *)socksreq, 4, &actualread);
+  if(result || (actualread != 4)) {
+    failf(data, "Failed to receive GSS-API encryption response.");
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  /* ignore the first (VER) byte */
+  if(socksreq[1] == 255) { /* status / message type */
+    failf(data, "User was rejected by the SOCKS5 server (%d %d).",
+          socksreq[0], socksreq[1]);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  if(socksreq[1] != 2) { /* status / messgae type */
+    failf(data, "Invalid GSS-API encryption response type (%d %d).",
+          socksreq[0], socksreq[1]);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  memcpy(&us_length, socksreq+2, sizeof(short));
+  us_length = ntohs(us_length);
+
+  gss_recv_token.length= us_length;
+  gss_recv_token.value=malloc(gss_recv_token.length);
+  if(!gss_recv_token.value) {
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_OUT_OF_MEMORY;
+  }
+  result=Curl_blockread_all(conn, sock, (char *)gss_recv_token.value,
+                            gss_recv_token.length, &actualread);
+
+  if(result || (actualread != us_length)) {
+    failf(data, "Failed to receive GSS-API encryptrion type.");
+    gss_release_buffer(&gss_status, &gss_recv_token);
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+    return CURLE_COULDNT_CONNECT;
+  }
+
+  if(!data->set.socks5_gssapi_nec) {
+    gss_major_status = gss_unwrap(&gss_minor_status, gss_context,
+                                  &gss_recv_token, &gss_w_token,
+                                  0, GSS_C_QOP_DEFAULT);
+
+    if(check_gss_err(data, gss_major_status, gss_minor_status, "gss_unwrap")) {
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      failf(data, "Failed to unwrap GSS-API encryption value into token.");
+      return CURLE_COULDNT_CONNECT;
+    }
+    gss_release_buffer(&gss_status, &gss_recv_token);
+
+    if(gss_w_token.length != 1) {
+      failf(data, "Invalid GSS-API encryption response length (%d).",
+            gss_w_token.length);
+      gss_release_buffer(&gss_status, &gss_w_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    memcpy(socksreq, gss_w_token.value, gss_w_token.length);
+    gss_release_buffer(&gss_status, &gss_w_token);
+  }
+  else {
+    if(gss_recv_token.length != 1) {
+      failf(data, "Invalid GSS-API encryption response length (%d).",
+            gss_recv_token.length);
+      gss_release_buffer(&gss_status, &gss_recv_token);
+      gss_delete_sec_context(&gss_status, &gss_context, NULL);
+      return CURLE_COULDNT_CONNECT;
+    }
+
+    memcpy(socksreq, gss_recv_token.value, gss_recv_token.length);
+    gss_release_buffer(&gss_status, &gss_recv_token);
+  }
+
+  infof(data, "SOCKS5 access with%s protection granted.\n",
+        (socksreq[0]==0)?"out GSS-API data":
+        ((socksreq[0]==1)?" GSS-API integrity":" GSS-API confidentiality"));
+
+  conn->socks5_gssapi_enctype = socksreq[0];
+  if(socksreq[0] == 0)
+    gss_delete_sec_context(&gss_status, &gss_context, NULL);
+
+  return CURLE_OK;
 }
 
-static int storebuffer(int output, FILE *data)
-{
-  char **buffer = (char **)data;
-  unsigned char outc = (unsigned char)output;
-  **buffer = outc;
-  (*buffer)++;
-  return outc; /* act like fputc() ! */
-}
-
-int curl_msprintf(char *buffer, const char *format, ...)
-{
-  va_list ap_save; /* argument pointer */
-  int retcode;
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  va_end(ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
-}
-
-int curl_mprintf(const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-
-  retcode = dprintf_formatf(stdout, fputc, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
-
-int curl_mfprintf(FILE *whereto, const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(whereto, fputc, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
-
-int curl_mvsprintf(char *buffer, const char *format, va_list ap_save)
-{
-  int retcode;
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
-}
-
-int curl_mvprintf(const char *format, va_list ap_save)
-{
-  return dprintf_formatf(stdout, fputc, format, ap_save);
-}
-
-int curl_mvfprintf(FILE *whereto, const char *format, va_list ap_save)
-{
-  return dprintf_formatf(whereto, fputc, format, ap_save);
-}
+#endif /* HAVE_GSSAPI && !CURL_DISABLE_PROXY */
