@@ -1,0 +1,3 @@
+{
+    printf("%p CC: %d\n", args, cc);
+  }

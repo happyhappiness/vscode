@@ -1,14 +1,23 @@
-                            sizeof(rar->reserved2));
-      }
+    // package has been requested.
+    std::string ver = this->Name;
+    ver += "_FIND_VERSION";
+    this->AddFindDefinition(ver, this->Version.c_str());
+    char buf[64];
+    sprintf(buf, "%u", this->VersionMajor);
+    this->AddFindDefinition(ver+"_MAJOR", buf);
+    sprintf(buf, "%u", this->VersionMinor);
+    this->AddFindDefinition(ver+"_MINOR", buf);
+    sprintf(buf, "%u", this->VersionPatch);
+    this->AddFindDefinition(ver+"_PATCH", buf);
+    sprintf(buf, "%u", this->VersionTweak);
+    this->AddFindDefinition(ver+"_TWEAK", buf);
+    sprintf(buf, "%u", this->VersionCount);
+    this->AddFindDefinition(ver+"_COUNT", buf);
 
-      /* Main header is password encrytped, so we cannot read any
-         file names or any other info about files from the header. */
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_entry_set_is_metadata_encrypted(entry, 1);
-        archive_entry_set_is_data_encrypted(entry, 1);
-        rar->has_encrypted_entries = 1;
-         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
+    // Tell the module whether an exact version has been requested.
+    std::string exact = this->Name;
+    exact += "_FIND_VERSION_EXACT";
+    this->AddFindDefinition(exact, this->VersionExact? "1":"0");
+   }
+}
+

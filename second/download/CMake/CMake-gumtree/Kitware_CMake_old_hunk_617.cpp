@@ -1,162 +1,186 @@
-			mtree->current_dir.length = n;
-	}
-
-	/*
-	 * Try to open and stat the file to get the real size
-	 * and other file info.  It would be nice to avoid
-	 * this here so that getting a listing of an mtree
-	 * wouldn't require opening every referenced contents
-	 * file.  But then we wouldn't know the actual
-	 * contents size, so I don't see a really viable way
-	 * around this.  (Also, we may want to someday pull
-	 * other unspecified info from the contents file on
-	 * disk.)
-	 */
-	mtree->fd = -1;
-	if (archive_strlen(&mtree->contents_name) > 0)
-		path = mtree->contents_name.s;
-	else
-		path = archive_entry_pathname(entry);
-
-	if (archive_entry_filetype(entry) == AE_IFREG ||
-	    archive_entry_filetype(entry) == AE_IFDIR) {
-		mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
-		__archive_ensure_cloexec_flag(mtree->fd);
-		if (mtree->fd == -1 &&
-		    (errno != ENOENT ||
-		     archive_strlen(&mtree->contents_name) > 0)) {
-			archive_set_error(&a->archive, errno,
-			    "Can't open %s", path);
-			r = ARCHIVE_WARN;
+			ret2 = ARCHIVE_WARN;
 		}
-	}
+		if (len > 0)
+			archive_entry_set_pathname(l->entry, p);
 
-	st = &st_storage;
-	if (mtree->fd >= 0) {
-		if (fstat(mtree->fd, st) == -1) {
-			archive_set_error(&a->archive, errno,
-			    "Could not fstat %s", path);
-			r = ARCHIVE_WARN;
-			/* If we can't stat it, don't keep it open. */
-			close(mtree->fd);
-			mtree->fd = -1;
-			st = NULL;
-		}
-	} else if (lstat(path, st) == -1) {
-		st = NULL;
-	}
-
-	/*
-	 * Check for a mismatch between the type in the specification and
-	 * the type of the contents object on disk.
-	 */
-	if (st != NULL) {
-		if (
-		    ((st->st_mode & S_IFMT) == S_IFREG &&
-		     archive_entry_filetype(entry) == AE_IFREG)
-#ifdef S_IFLNK
-		    || ((st->st_mode & S_IFMT) == S_IFLNK &&
-			archive_entry_filetype(entry) == AE_IFLNK)
-#endif
-#ifdef S_IFSOCK
-		    || ((st->st_mode & S_IFSOCK) == S_IFSOCK &&
-			archive_entry_filetype(entry) == AE_IFSOCK)
-#endif
-#ifdef S_IFCHR
-		    || ((st->st_mode & S_IFMT) == S_IFCHR &&
-			archive_entry_filetype(entry) == AE_IFCHR)
-#endif
-#ifdef S_IFBLK
-		    || ((st->st_mode & S_IFMT) == S_IFBLK &&
-			archive_entry_filetype(entry) == AE_IFBLK)
-#endif
-		    || ((st->st_mode & S_IFMT) == S_IFDIR &&
-			archive_entry_filetype(entry) == AE_IFDIR)
-#ifdef S_IFIFO
-		    || ((st->st_mode & S_IFMT) == S_IFIFO &&
-			archive_entry_filetype(entry) == AE_IFIFO)
-#endif
-		    ) {
-			/* Types match. */
-		} else {
-			/* Types don't match; bail out gracefully. */
-			if (mtree->fd >= 0)
-				close(mtree->fd);
-			mtree->fd = -1;
-			if (parsed_kws & MTREE_HAS_OPTIONAL) {
-				/* It's not an error for an optional entry
-				   to not match disk. */
-				*use_next = 1;
-			} else if (r == ARCHIVE_OK) {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "mtree specification has different type for %s",
-				    archive_entry_pathname(entry));
-				r = ARCHIVE_WARN;
-			}
-			return r;
-		}
-	}
-
-	/*
-	 * If there is a contents file on disk, pick some of the metadata
-	 * from that file.  For most of these, we only set it from the contents
-	 * if it wasn't already parsed from the specification.
-	 */
-	if (st != NULL) {
-		if (((parsed_kws & MTREE_HAS_DEVICE) == 0 ||
-		     (parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
-		    (archive_entry_filetype(entry) == AE_IFCHR ||
-		     archive_entry_filetype(entry) == AE_IFBLK))
-			archive_entry_set_rdev(entry, st->st_rdev);
-		if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME)) == 0 ||
-		    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-			archive_entry_set_gid(entry, st->st_gid);
-		if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME)) == 0 ||
-		    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-			archive_entry_set_uid(entry, st->st_uid);
-		if ((parsed_kws & MTREE_HAS_MTIME) == 0 ||
-		    (parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
-#if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
-			archive_entry_set_mtime(entry, st->st_mtime,
-			    st->st_mtimespec.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
-			archive_entry_set_mtime(entry, st->st_mtime,
-			    st->st_mtim.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIME_N
-			archive_entry_set_mtime(entry, st->st_mtime,
-			    st->st_mtime_n);
-#elif HAVE_STRUCT_STAT_ST_UMTIME
-			archive_entry_set_mtime(entry, st->st_mtime,
-			    st->st_umtime*1000);
-#elif HAVE_STRUCT_STAT_ST_MTIME_USEC
-			archive_entry_set_mtime(entry, st->st_mtime,
-			    st->st_mtime_usec*1000);
-#else
-			archive_entry_set_mtime(entry, st->st_mtime, 0);
-#endif
-		}
-		if ((parsed_kws & MTREE_HAS_NLINK) == 0 ||
-		    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-			archive_entry_set_nlink(entry, st->st_nlink);
-		if ((parsed_kws & MTREE_HAS_PERM) == 0 ||
-		    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-			archive_entry_set_perm(entry, st->st_mode);
-		if ((parsed_kws & MTREE_HAS_SIZE) == 0 ||
-		    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-			archive_entry_set_size(entry, st->st_size);
-		archive_entry_set_ino(entry, st->st_ino);
-		archive_entry_set_dev(entry, st->st_dev);
-
-		archive_entry_linkify(mtree->resolver, &entry, &sparse_entry);
-	} else if (parsed_kws & MTREE_HAS_OPTIONAL) {
 		/*
-		 * Couldn't open the entry, stat it or the on-disk type
-		 * didn't match.  If this entry is optional, just ignore it
-		 * and read the next header entry.
+		 * Although there is no character-set regulation for Symlink,
+		 * it is suitable to convert a character-set of Symlinke to
+		 * what those of the Pathname has been converted to.
 		 */
-		*use_next = 1;
-		return ARCHIVE_OK;
+		if (type == AE_IFLNK) {
+			if (archive_entry_symlink_l(entry, &p, &len, sconv)) {
+				if (errno == ENOMEM) {
+					archive_entry_free(l->entry);
+					free(l);
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory "
+					    " for Symlink");
+					return (ARCHIVE_FATAL);
+				}
+				/*
+				 * Even if the strng conversion failed,
+				 * we should not report the error since
+				 * thre is no regulation for.
+				 */
+			} else if (len > 0)
+				archive_entry_set_symlink(l->entry, p);
+		}
+	}
+	/* If all characters in a filename are ASCII, Reset UTF-8 Name flag. */
+	if ((l->flags & ZIP_FLAGS_UTF8_NAME) != 0 &&
+	    is_all_ascii(archive_entry_pathname(l->entry)))
+		l->flags &= ~ZIP_FLAGS_UTF8_NAME;
+
+	/* Initialize the CRC variable and potentially the local crc32(). */
+	l->crc32 = crc32(0, NULL, 0);
+	if (type == AE_IFLNK) {
+		const char *p = archive_entry_symlink(l->entry);
+		if (p != NULL)
+			size = strlen(p);
+		else
+			size = 0;
+		zip->remaining_data_bytes = 0;
+		archive_entry_set_size(l->entry, size);
+		l->compression = COMPRESSION_STORE;
+		l->compressed_size = size;
+	} else {
+		l->compression = zip->compression;
+		l->compressed_size = 0;
+	}
+	l->next = NULL;
+	if (zip->central_directory == NULL) {
+		zip->central_directory = l;
+	} else {
+		zip->central_directory_end->next = l;
+	}
+	zip->central_directory_end = l;
+
+	/* Store the offset of this header for later use in central
+	 * directory. */
+	l->offset = zip->written_bytes;
+
+	memset(h, 0, sizeof(h));
+	archive_le32enc(&h[LOCAL_FILE_HEADER_SIGNATURE],
+		ZIP_SIGNATURE_LOCAL_FILE_HEADER);
+	archive_le16enc(&h[LOCAL_FILE_HEADER_VERSION], ZIP_VERSION_EXTRACT);
+	archive_le16enc(&h[LOCAL_FILE_HEADER_FLAGS], l->flags);
+	archive_le16enc(&h[LOCAL_FILE_HEADER_COMPRESSION], l->compression);
+	archive_le32enc(&h[LOCAL_FILE_HEADER_TIMEDATE],
+		dos_time(archive_entry_mtime(entry)));
+	archive_le16enc(&h[LOCAL_FILE_HEADER_FILENAME_LENGTH],
+		(uint16_t)path_length(l->entry));
+
+	switch (l->compression) {
+	case COMPRESSION_STORE:
+		/* Setting compressed and uncompressed sizes even when
+		 * specification says to set to zero when using data
+		 * descriptors. Otherwise the end of the data for an
+		 * entry is rather difficult to find. */
+		archive_le32enc(&h[LOCAL_FILE_HEADER_COMPRESSED_SIZE],
+		    (uint32_t)size);
+		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
+		    (uint32_t)size);
+		break;
+#ifdef HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		archive_le32enc(&h[LOCAL_FILE_HEADER_UNCOMPRESSED_SIZE],
+		    (uint32_t)size);
+
+		zip->stream.zalloc = Z_NULL;
+		zip->stream.zfree = Z_NULL;
+		zip->stream.opaque = Z_NULL;
+		zip->stream.next_out = zip->buf;
+		zip->stream.avail_out = (uInt)zip->len_buf;
+		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION,
+		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't init deflate compressor");
+			return (ARCHIVE_FATAL);
+		}
+		break;
+#endif
 	}
 
-	mtree->cur_size = archive_entry_size(entry);
+	/* Formatting extra data. */
+	archive_le16enc(&h[LOCAL_FILE_HEADER_EXTRA_LENGTH], sizeof(e));
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_ID],
+		ZIP_SIGNATURE_EXTRA_TIMESTAMP);
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_TIME_SIZE], 1 + 4 * 3);
+	e[EXTRA_DATA_LOCAL_TIME_FLAG] = 0x07;
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_MTIME],
+	    (uint32_t)archive_entry_mtime(entry));
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_ATIME],
+	    (uint32_t)archive_entry_atime(entry));
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_CTIME],
+	    (uint32_t)archive_entry_ctime(entry));
+
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_ID],
+		ZIP_SIGNATURE_EXTRA_NEW_UNIX);
+	archive_le16enc(&e[EXTRA_DATA_LOCAL_UNIX_SIZE], 1 + (1 + 4) * 2);
+	e[EXTRA_DATA_LOCAL_UNIX_VERSION] = 1;
+	e[EXTRA_DATA_LOCAL_UNIX_UID_SIZE] = 4;
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_UID],
+		(uint32_t)archive_entry_uid(entry));
+	e[EXTRA_DATA_LOCAL_UNIX_GID_SIZE] = 4;
+	archive_le32enc(&e[EXTRA_DATA_LOCAL_UNIX_GID],
+		(uint32_t)archive_entry_gid(entry));
+
+	archive_le32enc(&d[DATA_DESCRIPTOR_UNCOMPRESSED_SIZE],
+	    (uint32_t)size);
+
+	ret = __archive_write_output(a, h, sizeof(h));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += sizeof(h);
+
+	ret = write_path(l->entry, a);
+	if (ret <= ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += ret;
+
+	ret = __archive_write_output(a, e, sizeof(e));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += sizeof(e);
+
+	if (type == AE_IFLNK) {
+		const unsigned char *p;
+
+		p = (const unsigned char *)archive_entry_symlink(l->entry);
+		ret = __archive_write_output(a, p, (size_t)size);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		zip->written_bytes += size;
+		l->crc32 = crc32(l->crc32, p, (unsigned)size);
+	}
+
+	if (ret2 != ARCHIVE_OK)
+		return (ret2);
+	return (ARCHIVE_OK);
+}
+
+static ssize_t
+archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
+{
+	int ret;
+	struct zip *zip = a->format_data;
+	struct zip_file_header_link *l = zip->central_directory_end;
+
+	if ((int64_t)s > zip->remaining_data_bytes)
+		s = (size_t)zip->remaining_data_bytes;
+
+	if (s == 0) return 0;
+
+	switch (l->compression) {
+	case COMPRESSION_STORE:
+		ret = __archive_write_output(a, buff, s);
+		if (ret != ARCHIVE_OK) return (ret);
+		zip->written_bytes += s;
+		zip->remaining_data_bytes -= s;
+		l->compressed_size += s;
+		l->crc32 = crc32(l->crc32, buff, (unsigned)s);
+		return (s);
+#if HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;

@@ -1,596 +1,673 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+/*============================================================================
+  CMake - Cross Platform Makefile Generator
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
-#include "curl_setup.h"
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
-#if !defined(CURL_DISABLE_PROXY) && !defined(CURL_DISABLE_HTTP)
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#include "cmComputeTargetDepends.h"
 
-#include "urldata.h"
-#include <curl/curl.h>
-#include "http_proxy.h"
-#include "sendf.h"
-#include "http.h"
-#include "url.h"
-#include "select.h"
-#include "rawstr.h"
-#include "progress.h"
-#include "non-ascii.h"
-#include "connect.h"
-#include "curl_printf.h"
-#include "curlx.h"
+#include "cmComputeComponentGraph.h"
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmake.h"
 
-#include "curl_memory.h"
-/* The last #include file should be: */
-#include "memdebug.h"
+#include <algorithm>
 
-CURLcode Curl_proxy_connect(struct connectdata *conn)
-{
-  if(conn->bits.tunnel_proxy && conn->bits.httpproxy) {
-#ifndef CURL_DISABLE_PROXY
-    /* for [protocol] tunneled through HTTP proxy */
-    struct HTTP http_proxy;
-    void *prot_save;
-    CURLcode result;
-
-    /* BLOCKING */
-    /* We want "seamless" operations through HTTP proxy tunnel */
-
-    /* Curl_proxyCONNECT is based on a pointer to a struct HTTP at the
-     * member conn->proto.http; we want [protocol] through HTTP and we have
-     * to change the member temporarily for connecting to the HTTP
-     * proxy. After Curl_proxyCONNECT we have to set back the member to the
-     * original pointer
-     *
-     * This function might be called several times in the multi interface case
-     * if the proxy's CONNTECT response is not instant.
-     */
-    prot_save = conn->data->req.protop;
-    memset(&http_proxy, 0, sizeof(http_proxy));
-    conn->data->req.protop = &http_proxy;
-    connkeep(conn, "HTTP proxy CONNECT");
-    result = Curl_proxyCONNECT(conn, FIRSTSOCKET,
-                               conn->host.name, conn->remote_port, FALSE);
-    conn->data->req.protop = prot_save;
-    if(CURLE_OK != result)
-      return result;
-    Curl_safefree(conn->allocptr.proxyuserpwd);
-#else
-    return CURLE_NOT_BUILT_IN;
-#endif
-  }
-  /* no HTTP tunnel proxy, just return */
-  return CURLE_OK;
-}
+#include <assert.h>
 
 /*
- * Curl_proxyCONNECT() requires that we're connected to a HTTP proxy. This
- * function will issue the necessary commands to get a seamless tunnel through
- * this proxy. After that, the socket can be used just as a normal socket.
- *
- * 'blocking' set to TRUE means that this function will do the entire CONNECT
- * + response in a blocking fashion. Should be avoided!
- */
 
-CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-                           int sockindex,
-                           const char *hostname,
-                           int remote_port,
-                           bool blocking)
+This class is meant to analyze inter-target dependencies globally
+during the generation step.  The goal is to produce a set of direct
+dependencies for each target such that no cycles are left and the
+build order is safe.
+
+For most target types cyclic dependencies are not allowed.  However
+STATIC libraries may depend on each other in a cyclic fashion.  In
+general the directed dependency graph forms a directed-acyclic-graph
+of strongly connected components.  All strongly connected components
+should consist of only STATIC_LIBRARY targets.
+
+In order to safely break dependency cycles we must preserve all other
+dependencies passing through the corresponding strongly connected component.
+The approach taken by this class is as follows:
+
+  - Collect all targets and form the original dependency graph
+  - Run Tarjan's algorithm to extract the strongly connected components
+    (error if any member of a non-trivial component is not STATIC)
+  - The original dependencies imply a DAG on the components.
+    Use the implied DAG to construct a final safe set of dependencies.
+
+The final dependency set is constructed as follows:
+
+  - For each connected component targets are placed in an arbitrary
+    order.  Each target depends on the target following it in the order.
+    The first target is designated the head and the last target the tail.
+    (most components will be just 1 target anyway)
+
+  - Original dependencies between targets in different components are
+    converted to connect the depender's component tail to the
+    dependee's component head.
+
+In most cases this will reproduce the original dependencies.  However
+when there are cycles of static libraries they will be broken in a
+safe manner.
+
+For example, consider targets A0, A1, A2, B0, B1, B2, and C with these
+dependencies:
+
+  A0 -> A1 -> A2 -> A0  ,  B0 -> B1 -> B2 -> B0 -> A0  ,  C -> B0
+
+Components may be identified as
+
+  Component 0: A0, A1, A2
+  Component 1: B0, B1, B2
+  Component 2: C
+
+Intra-component dependencies are:
+
+  0: A0 -> A1 -> A2   , head=A0, tail=A2
+  1: B0 -> B1 -> B2   , head=B0, tail=B2
+  2: head=C, tail=C
+
+The inter-component dependencies are converted as:
+
+  B0 -> A0  is component 1->0 and becomes  B2 -> A0
+  C  -> B0  is component 2->1 and becomes  C  -> B0
+
+This leads to the final target dependencies:
+
+  C -> B0 -> B1 -> B2 -> A0 -> A1 -> A2
+
+These produce a safe build order since C depends directly or
+transitively on all the static libraries it links.
+
+*/
+
+//----------------------------------------------------------------------------
+cmComputeTargetDepends::cmComputeTargetDepends(cmGlobalGenerator* gg)
 {
-  int subversion=0;
-  struct SessionHandle *data=conn->data;
-  struct SingleRequest *k = &data->req;
-  CURLcode result;
-  curl_socket_t tunnelsocket = conn->sock[sockindex];
-  curl_off_t cl=0;
-  bool closeConnection = FALSE;
-  bool chunked_encoding = FALSE;
-  long check;
+  this->GlobalGenerator = gg;
+  cmake* cm = this->GlobalGenerator->GetCMakeInstance();
+  this->DebugMode = cm->GetPropertyAsBool("GLOBAL_DEPENDS_DEBUG_MODE");
+  this->NoCycles = cm->GetPropertyAsBool("GLOBAL_DEPENDS_NO_CYCLES");
+}
 
-#define SELECT_OK      0
-#define SELECT_ERROR   1
-#define SELECT_TIMEOUT 2
-  int error = SELECT_OK;
+//----------------------------------------------------------------------------
+cmComputeTargetDepends::~cmComputeTargetDepends()
+{
+}
 
-  if(conn->tunnel_state[sockindex] == TUNNEL_COMPLETE)
-    return CURLE_OK; /* CONNECT is already completed */
+//----------------------------------------------------------------------------
+bool cmComputeTargetDepends::Compute()
+{
+  // Build the original graph.
+  this->CollectTargets();
+  this->CollectDepends();
+  if(this->DebugMode)
+    {
+    this->DisplayGraph(this->InitialGraph, "initial");
+    }
 
-  conn->bits.proxy_connect_closed = FALSE;
+  // Identify components.
+  cmComputeComponentGraph ccg(this->InitialGraph);
+  if(this->DebugMode)
+    {
+    this->DisplayComponents(ccg);
+    }
+  if(!this->CheckComponents(ccg))
+    {
+    return false;
+    }
 
-  do {
-    if(TUNNEL_INIT == conn->tunnel_state[sockindex]) {
-      /* BEGIN CONNECT PHASE */
-      char *host_port;
-      Curl_send_buffer *req_buffer;
+  // Compute the final dependency graph.
+  if(!this->ComputeFinalDepends(ccg))
+    {
+    return false;
+    }
+  if(this->DebugMode)
+    {
+    this->DisplayGraph(this->FinalGraph, "final");
+    }
 
-      infof(data, "Establish HTTP proxy tunnel to %s:%hu\n",
-            hostname, remote_port);
+  return true;
+}
 
-        /* This only happens if we've looped here due to authentication
-           reasons, and we don't really use the newly cloned URL here
-           then. Just free() it. */
-      free(data->req.newurl);
-      data->req.newurl = NULL;
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends::GetTargetDirectDepends(cmTarget const* t,
+                                               cmTargetDependSet& deps)
+{
+  // Lookup the index for this target.  All targets should be known by
+  // this point.
+  std::map<cmTarget const*, int>::const_iterator tii
+                                                  = this->TargetIndex.find(t);
+  assert(tii != this->TargetIndex.end());
+  int i = tii->second;
 
-      /* initialize a dynamic send-buffer */
-      req_buffer = Curl_add_buffer_init();
+  // Get its final dependencies.
+  EdgeList const& nl = this->FinalGraph[i];
+  for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    {
+    cmTarget const* dep = this->Targets[*ni];
+    cmTargetDependSet::iterator di = deps.insert(dep).first;
+    di->SetType(ni->IsStrong());
+    }
+}
 
-      if(!req_buffer)
-        return CURLE_OUT_OF_MEMORY;
-
-      host_port = aprintf("%s:%hu", hostname, remote_port);
-      if(!host_port) {
-        Curl_add_buffer_free(req_buffer);
-        return CURLE_OUT_OF_MEMORY;
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectTargets()
+{
+  // Collect all targets from all generators.
+  std::vector<cmLocalGenerator*> const& lgens =
+    this->GlobalGenerator->GetLocalGenerators();
+  for(unsigned int i = 0; i < lgens.size(); ++i)
+    {
+    const cmTargets& targets = lgens[i]->GetMakefile()->GetTargets();
+    for(cmTargets::const_iterator ti = targets.begin();
+        ti != targets.end(); ++ti)
+      {
+      cmTarget const* target = &ti->second;
+      int index = static_cast<int>(this->Targets.size());
+      this->TargetIndex[target] = index;
+      this->Targets.push_back(target);
       }
+    }
+}
 
-      /* Setup the proxy-authorization header, if any */
-      result = Curl_http_output_auth(conn, "CONNECT", host_port, TRUE);
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectDepends()
+{
+  // Allocate the dependency graph adjacency lists.
+  this->InitialGraph.resize(this->Targets.size());
 
-      free(host_port);
+  // Compute each dependency list.
+  for(unsigned int i=0; i < this->Targets.size(); ++i)
+    {
+    this->CollectTargetDepends(i);
+    }
+}
 
-      if(!result) {
-        char *host=(char *)"";
-        const char *proxyconn="";
-        const char *useragent="";
-        const char *http = (conn->proxytype == CURLPROXY_HTTP_1_0) ?
-          "1.0" : "1.1";
-        char *hostheader= /* host:port with IPv6 support */
-          aprintf("%s%s%s:%hu", conn->bits.ipv6_ip?"[":"",
-                  hostname, conn->bits.ipv6_ip?"]":"",
-                  remote_port);
-        if(!hostheader) {
-          Curl_add_buffer_free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectTargetDepends(int depender_index)
+{
+  // Get the depender.
+  cmTarget const* depender = this->Targets[depender_index];
+  if (depender->GetType() == cmTarget::INTERFACE_LIBRARY)
+    {
+    return;
+    }
+
+  // Loop over all targets linked directly in all configs.
+  // We need to make targets depend on the union of all config-specific
+  // dependencies in all targets, because the generated build-systems can't
+  // deal with config-specific dependencies.
+  {
+  std::set<std::string> emitted;
+  {
+  std::vector<std::string> tlibs;
+  depender->GetDirectLinkLibraries("", tlibs, depender);
+  // A target should not depend on itself.
+  emitted.insert(depender->GetName());
+  for(std::vector<std::string>::const_iterator lib = tlibs.begin();
+      lib != tlibs.end(); ++lib)
+    {
+    // Don't emit the same library twice for this target.
+    if(emitted.insert(*lib).second)
+      {
+      this->AddTargetDepend(depender_index, *lib, true);
+      this->AddInterfaceDepends(depender_index, *lib,
+                                true, emitted);
+      }
+    }
+  }
+  std::vector<std::string> configs;
+  depender->GetMakefile()->GetConfigurations(configs);
+  for (std::vector<std::string>::const_iterator it = configs.begin();
+    it != configs.end(); ++it)
+    {
+    std::vector<std::string> tlibs;
+    depender->GetDirectLinkLibraries(*it, tlibs, depender);
+
+    // A target should not depend on itself.
+    emitted.insert(depender->GetName());
+    for(std::vector<std::string>::const_iterator lib = tlibs.begin();
+        lib != tlibs.end(); ++lib)
+      {
+      // Don't emit the same library twice for this target.
+      if(emitted.insert(*lib).second)
+        {
+        this->AddTargetDepend(depender_index, *lib, true);
+        this->AddInterfaceDepends(depender_index, *lib,
+                                  true, emitted);
         }
-
-        if(!Curl_checkProxyheaders(conn, "Host:")) {
-          host = aprintf("Host: %s\r\n", hostheader);
-          if(!host) {
-            free(hostheader);
-            Curl_add_buffer_free(req_buffer);
-            return CURLE_OUT_OF_MEMORY;
-          }
-        }
-        if(!Curl_checkProxyheaders(conn, "Proxy-Connection:"))
-          proxyconn = "Proxy-Connection: Keep-Alive\r\n";
-
-        if(!Curl_checkProxyheaders(conn, "User-Agent:") &&
-           data->set.str[STRING_USERAGENT])
-          useragent = conn->allocptr.uagent;
-
-        result =
-          Curl_add_bufferf(req_buffer,
-                           "CONNECT %s HTTP/%s\r\n"
-                           "%s"  /* Host: */
-                           "%s"  /* Proxy-Authorization */
-                           "%s"  /* User-Agent */
-                           "%s", /* Proxy-Connection */
-                           hostheader,
-                           http,
-                           host,
-                           conn->allocptr.proxyuserpwd?
-                           conn->allocptr.proxyuserpwd:"",
-                           useragent,
-                           proxyconn);
-
-        if(host && *host)
-          free(host);
-        free(hostheader);
-
-        if(!result)
-          result = Curl_add_custom_headers(conn, TRUE, req_buffer);
-
-        if(!result)
-          /* CRLF terminate the request */
-          result = Curl_add_bufferf(req_buffer, "\r\n");
-
-        if(!result) {
-          /* Send the connect request to the proxy */
-          /* BLOCKING */
-          result =
-            Curl_add_buffer_send(req_buffer, conn,
-                                 &data->info.request_size, 0, sockindex);
-        }
-        req_buffer = NULL;
-        if(result)
-          failf(data, "Failed sending CONNECT to proxy");
       }
-
-      Curl_add_buffer_free(req_buffer);
-      if(result)
-        return result;
-
-      conn->tunnel_state[sockindex] = TUNNEL_CONNECT;
-    } /* END CONNECT PHASE */
-
-    check = Curl_timeleft(data, NULL, TRUE);
-    if(check <= 0) {
-      failf(data, "Proxy CONNECT aborted due to timeout");
-      return CURLE_RECV_ERROR;
-    }
-
-    if(!blocking) {
-      if(0 == Curl_socket_ready(tunnelsocket, CURL_SOCKET_BAD, 0))
-        /* return so we'll be called again polling-style */
-        return CURLE_OK;
-      else {
-        DEBUGF(infof(data,
-               "Read response immediately from proxy CONNECT\n"));
-      }
-    }
-
-    /* at this point, the tunnel_connecting phase is over. */
-
-    { /* READING RESPONSE PHASE */
-      size_t nread;   /* total size read */
-      int perline; /* count bytes per line */
-      int keepon=TRUE;
-      ssize_t gotbytes;
-      char *ptr;
-      char *line_start;
-
-      ptr=data->state.buffer;
-      line_start = ptr;
-
-      nread=0;
-      perline=0;
-
-      while((nread<BUFSIZE) && (keepon && !error)) {
-
-        check = Curl_timeleft(data, NULL, TRUE);
-        if(check <= 0) {
-          failf(data, "Proxy CONNECT aborted due to timeout");
-          error = SELECT_TIMEOUT; /* already too little time */
-          break;
-        }
-
-        /* loop every second at least, less if the timeout is near */
-        switch (Curl_socket_ready(tunnelsocket, CURL_SOCKET_BAD,
-                                  check<1000L?check:1000)) {
-        case -1: /* select() error, stop reading */
-          error = SELECT_ERROR;
-          failf(data, "Proxy CONNECT aborted due to select/poll error");
-          break;
-        case 0: /* timeout */
-          break;
-        default:
-          DEBUGASSERT(ptr+BUFSIZE-nread <= data->state.buffer+BUFSIZE+1);
-          result = Curl_read(conn, tunnelsocket, ptr, BUFSIZE-nread,
-                             &gotbytes);
-          if(result==CURLE_AGAIN)
-            continue; /* go loop yourself */
-          else if(result)
-            keepon = FALSE;
-          else if(gotbytes <= 0) {
-            keepon = FALSE;
-            if(data->set.proxyauth && data->state.authproxy.avail) {
-              /* proxy auth was requested and there was proxy auth available,
-                 then deem this as "mere" proxy disconnect */
-              conn->bits.proxy_connect_closed = TRUE;
-              infof(data, "Proxy CONNECT connection closed\n");
-            }
-            else {
-              error = SELECT_ERROR;
-              failf(data, "Proxy CONNECT aborted");
-            }
-          }
-          else {
-            /*
-             * We got a whole chunk of data, which can be anything from one
-             * byte to a set of lines and possibly just a piece of the last
-             * line.
-             */
-            int i;
-
-            nread += gotbytes;
-
-            if(keepon > TRUE) {
-              /* This means we are currently ignoring a response-body */
-
-              nread = 0; /* make next read start over in the read buffer */
-              ptr=data->state.buffer;
-              if(cl) {
-                /* A Content-Length based body: simply count down the counter
-                   and make sure to break out of the loop when we're done! */
-                cl -= gotbytes;
-                if(cl<=0) {
-                  keepon = FALSE;
-                  break;
-                }
-              }
-              else {
-                /* chunked-encoded body, so we need to do the chunked dance
-                   properly to know when the end of the body is reached */
-                CHUNKcode r;
-                ssize_t tookcareof=0;
-
-                /* now parse the chunked piece of data so that we can
-                   properly tell when the stream ends */
-                r = Curl_httpchunk_read(conn, ptr, gotbytes, &tookcareof);
-                if(r == CHUNKE_STOP) {
-                  /* we're done reading chunks! */
-                  infof(data, "chunk reading DONE\n");
-                  keepon = FALSE;
-                  /* we did the full CONNECT treatment, go COMPLETE */
-                  conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
-                }
-                else
-                  infof(data, "Read %zd bytes of chunk, continue\n",
-                        tookcareof);
-              }
-            }
-            else
-              for(i = 0; i < gotbytes; ptr++, i++) {
-                perline++; /* amount of bytes in this line so far */
-                if(*ptr == 0x0a) {
-                  char letter;
-                  int writetype;
-
-                  /* convert from the network encoding */
-                  result = Curl_convert_from_network(data, line_start,
-                                                     perline);
-                  /* Curl_convert_from_network calls failf if unsuccessful */
-                  if(result)
-                    return result;
-
-                  /* output debug if that is requested */
-                  if(data->set.verbose)
-                    Curl_debug(data, CURLINFO_HEADER_IN,
-                               line_start, (size_t)perline, conn);
-
-                  /* send the header to the callback */
-                  writetype = CLIENTWRITE_HEADER;
-                  if(data->set.include_header)
-                    writetype |= CLIENTWRITE_BODY;
-
-                  result = Curl_client_write(conn, writetype, line_start,
-                                             perline);
-
-                  data->info.header_size += (long)perline;
-                  data->req.headerbytecount += (long)perline;
-
-                  if(result)
-                    return result;
-
-                  /* Newlines are CRLF, so the CR is ignored as the line isn't
-                     really terminated until the LF comes. Treat a following CR
-                     as end-of-headers as well.*/
-
-                  if(('\r' == line_start[0]) ||
-                     ('\n' == line_start[0])) {
-                    /* end of response-headers from the proxy */
-                    nread = 0; /* make next read start over in the read
-                                  buffer */
-                    ptr=data->state.buffer;
-                    if((407 == k->httpcode) && !data->state.authproblem) {
-                      /* If we get a 407 response code with content length
-                         when we have no auth problem, we must ignore the
-                         whole response-body */
-                      keepon = 2;
-
-                      if(cl) {
-                        infof(data, "Ignore %" CURL_FORMAT_CURL_OFF_T
-                              " bytes of response-body\n", cl);
-
-                        /* remove the remaining chunk of what we already
-                           read */
-                        cl -= (gotbytes - i);
-
-                        if(cl<=0)
-                          /* if the whole thing was already read, we are done!
-                           */
-                          keepon=FALSE;
-                      }
-                      else if(chunked_encoding) {
-                        CHUNKcode r;
-                        /* We set ignorebody true here since the chunked
-                           decoder function will acknowledge that. Pay
-                           attention so that this is cleared again when this
-                           function returns! */
-                        k->ignorebody = TRUE;
-                        infof(data, "%zd bytes of chunk left\n", gotbytes-i);
-
-                        if(line_start[1] == '\n') {
-                          /* this can only be a LF if the letter at index 0
-                             was a CR */
-                          line_start++;
-                          i++;
-                        }
-
-                        /* now parse the chunked piece of data so that we can
-                           properly tell when the stream ends */
-                        r = Curl_httpchunk_read(conn, line_start+1,
-                                                  gotbytes -i, &gotbytes);
-                        if(r == CHUNKE_STOP) {
-                          /* we're done reading chunks! */
-                          infof(data, "chunk reading DONE\n");
-                          keepon = FALSE;
-                          /* we did the full CONNECT treatment, go to
-                             COMPLETE */
-                          conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
-                        }
-                        else
-                          infof(data, "Read %zd bytes of chunk, continue\n",
-                                gotbytes);
-                      }
-                      else {
-                        /* without content-length or chunked encoding, we
-                           can't keep the connection alive since the close is
-                           the end signal so we bail out at once instead */
-                        keepon=FALSE;
-                      }
-                    }
-                    else {
-                      keepon = FALSE;
-                      if(200 == data->info.httpproxycode) {
-                        if(gotbytes - (i+1))
-                          failf(data, "Proxy CONNECT followed by %zd bytes "
-                                "of opaque data. Data ignored (known bug #39)",
-                                gotbytes - (i+1));
-                      }
-                    }
-                    /* we did the full CONNECT treatment, go to COMPLETE */
-                    conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
-                    break; /* breaks out of for-loop, not switch() */
-                  }
-
-                  /* keep a backup of the position we are about to blank */
-                  letter = line_start[perline];
-                  line_start[perline]=0; /* zero terminate the buffer */
-                  if((checkprefix("WWW-Authenticate:", line_start) &&
-                      (401 == k->httpcode)) ||
-                     (checkprefix("Proxy-authenticate:", line_start) &&
-                      (407 == k->httpcode))) {
-
-                    bool proxy = (k->httpcode == 407) ? TRUE : FALSE;
-                    char *auth = Curl_copy_header_value(line_start);
-                    if(!auth)
-                      return CURLE_OUT_OF_MEMORY;
-
-                    result = Curl_http_input_auth(conn, proxy, auth);
-
-                    free(auth);
-
-                    if(result)
-                      return result;
-                  }
-                  else if(checkprefix("Content-Length:", line_start)) {
-                    cl = curlx_strtoofft(line_start +
-                                         strlen("Content-Length:"), NULL, 10);
-                  }
-                  else if(Curl_compareheader(line_start,
-                                             "Connection:", "close"))
-                    closeConnection = TRUE;
-                  else if(Curl_compareheader(line_start,
-                                             "Transfer-Encoding:",
-                                             "chunked")) {
-                    infof(data, "CONNECT responded chunked\n");
-                    chunked_encoding = TRUE;
-                    /* init our chunky engine */
-                    Curl_httpchunk_init(conn);
-                  }
-                  else if(Curl_compareheader(line_start,
-                                             "Proxy-Connection:", "close"))
-                    closeConnection = TRUE;
-                  else if(2 == sscanf(line_start, "HTTP/1.%d %d",
-                                      &subversion,
-                                      &k->httpcode)) {
-                    /* store the HTTP code from the proxy */
-                    data->info.httpproxycode = k->httpcode;
-                  }
-                  /* put back the letter we blanked out before */
-                  line_start[perline]= letter;
-
-                  perline=0; /* line starts over here */
-                  line_start = ptr+1; /* this skips the zero byte we wrote */
-                }
-              }
-          }
-          break;
-        } /* switch */
-        if(Curl_pgrsUpdate(conn))
-          return CURLE_ABORTED_BY_CALLBACK;
-      } /* while there's buffer left and loop is requested */
-
-      if(error)
-        return CURLE_RECV_ERROR;
-
-      if(data->info.httpproxycode != 200) {
-        /* Deal with the possibly already received authenticate
-           headers. 'newurl' is set to a new URL if we must loop. */
-        result = Curl_http_auth_act(conn);
-        if(result)
-          return result;
-
-        if(conn->bits.close)
-          /* the connection has been marked for closure, most likely in the
-             Curl_http_auth_act() function and thus we can kill it at once
-             below
-          */
-          closeConnection = TRUE;
-      }
-
-      if(closeConnection && data->req.newurl) {
-        /* Connection closed by server. Don't use it anymore */
-        Curl_closesocket(conn, conn->sock[sockindex]);
-        conn->sock[sockindex] = CURL_SOCKET_BAD;
-        break;
-      }
-    } /* END READING RESPONSE PHASE */
-
-    /* If we are supposed to continue and request a new URL, which basically
-     * means the HTTP authentication is still going on so if the tunnel
-     * is complete we start over in INIT state */
-    if(data->req.newurl &&
-       (TUNNEL_COMPLETE == conn->tunnel_state[sockindex])) {
-      conn->tunnel_state[sockindex] = TUNNEL_INIT;
-      infof(data, "TUNNEL_STATE switched to: %d\n",
-            conn->tunnel_state[sockindex]);
-    }
-
-  } while(data->req.newurl);
-
-  if(200 != data->req.httpcode) {
-    if(closeConnection && data->req.newurl) {
-      conn->bits.proxy_connect_closed = TRUE;
-      infof(data, "Connect me again please\n");
-    }
-    else {
-      free(data->req.newurl);
-      data->req.newurl = NULL;
-      /* failure, close this connection to avoid re-use */
-      connclose(conn, "proxy CONNECT failure");
-      Curl_closesocket(conn, conn->sock[sockindex]);
-      conn->sock[sockindex] = CURL_SOCKET_BAD;
-    }
-
-    /* to back to init state */
-    conn->tunnel_state[sockindex] = TUNNEL_INIT;
-
-    if(conn->bits.proxy_connect_closed)
-      /* this is not an error, just part of the connection negotiation */
-      return CURLE_OK;
-    else {
-      failf(data, "Received HTTP code %d from proxy after CONNECT",
-            data->req.httpcode);
-      return CURLE_RECV_ERROR;
     }
   }
 
-  conn->tunnel_state[sockindex] = TUNNEL_COMPLETE;
-
-  /* If a proxy-authorization header was used for the proxy, then we should
-     make sure that it isn't accidentally used for the document request
-     after we've connected. So let's free and clear it here. */
-  Curl_safefree(conn->allocptr.proxyuserpwd);
-  conn->allocptr.proxyuserpwd = NULL;
-
-  data->state.authproxy.done = TRUE;
-
-  infof (data, "Proxy replied OK to CONNECT request\n");
-  data->req.ignorebody = FALSE; /* put it (back) to non-ignore state */
-  conn->bits.rewindaftersend = FALSE; /* make sure this isn't set for the
-                                         document request  */
-  return CURLE_OK;
+  // Loop over all utility dependencies.
+  {
+  std::set<std::string> const& tutils = depender->GetUtilities();
+  std::set<std::string> emitted;
+  // A target should not depend on itself.
+  emitted.insert(depender->GetName());
+  for(std::set<std::string>::const_iterator util = tutils.begin();
+      util != tutils.end(); ++util)
+    {
+    // Don't emit the same utility twice for this target.
+    if(emitted.insert(*util).second)
+      {
+      this->AddTargetDepend(depender_index, *util, false);
+      }
+    }
+  }
 }
-#endif /* CURL_DISABLE_PROXY */
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddInterfaceDepends(int depender_index,
+                                                 cmTarget const* dependee,
+                                                 const std::string& config,
+                                               std::set<std::string> &emitted)
+{
+  cmTarget const* depender = this->Targets[depender_index];
+  if(cmTarget::LinkInterface const* iface =
+                                dependee->GetLinkInterface(config, depender))
+    {
+    for(std::vector<std::string>::const_iterator
+        lib = iface->Libraries.begin();
+        lib != iface->Libraries.end(); ++lib)
+      {
+      // Don't emit the same library twice for this target.
+      if(emitted.insert(*lib).second)
+        {
+        this->AddTargetDepend(depender_index, *lib, true);
+        this->AddInterfaceDepends(depender_index, *lib,
+                                  true, emitted);
+        }
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddInterfaceDepends(int depender_index,
+                                             const std::string& dependee_name,
+                                             bool linking,
+                                             std::set<std::string> &emitted)
+{
+  cmTarget const* depender = this->Targets[depender_index];
+  cmTarget const* dependee =
+    depender->GetMakefile()->FindTargetToUse(dependee_name);
+  // Skip targets that will not really be linked.  This is probably a
+  // name conflict between an external library and an executable
+  // within the project.
+  if(linking && dependee &&
+     dependee->GetType() == cmTarget::EXECUTABLE &&
+     !dependee->IsExecutableWithExports())
+    {
+    dependee = 0;
+    }
+
+  if(dependee)
+    {
+    this->AddInterfaceDepends(depender_index, dependee, "", emitted);
+    std::vector<std::string> configs;
+    depender->GetMakefile()->GetConfigurations(configs);
+    for (std::vector<std::string>::const_iterator it = configs.begin();
+      it != configs.end(); ++it)
+      {
+      // A target should not depend on itself.
+      emitted.insert(depender->GetName());
+      this->AddInterfaceDepends(depender_index, dependee,
+                                *it, emitted);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddTargetDepend(int depender_index,
+                                             const std::string& dependee_name,
+                                             bool linking)
+{
+  // Get the depender.
+  cmTarget const* depender = this->Targets[depender_index];
+
+  // Check the target's makefile first.
+  cmTarget const* dependee =
+    depender->GetMakefile()->FindTargetToUse(dependee_name);
+
+  if(!dependee && !linking &&
+    (depender->GetType() != cmTarget::GLOBAL_TARGET))
+    {
+    cmMakefile *makefile = depender->GetMakefile();
+    cmake::MessageType messageType = cmake::AUTHOR_WARNING;
+    bool issueMessage = false;
+    cmOStringStream e;
+    switch(depender->GetPolicyStatusCMP0046())
+      {
+      case cmPolicies::WARN:
+        e << (makefile->GetPolicies()
+          ->GetPolicyWarning(cmPolicies::CMP0046)) << "\n";
+        issueMessage = true;
+      case cmPolicies::OLD:
+        break;
+      case cmPolicies::NEW:
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        issueMessage = true;
+        messageType = cmake::FATAL_ERROR;
+      }
+    if(issueMessage)
+      {
+      cmake* cm = this->GlobalGenerator->GetCMakeInstance();
+
+      e << "The dependency target \"" <<  dependee_name
+        << "\" of target \"" << depender->GetName() << "\" does not exist.";
+
+      cmListFileBacktrace nullBacktrace;
+      cmListFileBacktrace const* backtrace =
+        depender->GetUtilityBacktrace(dependee_name);
+      if(!backtrace)
+        {
+        backtrace = &nullBacktrace;
+        }
+
+      cm->IssueMessage(messageType, e.str(), *backtrace);
+      }
+    }
+
+  // Skip targets that will not really be linked.  This is probably a
+  // name conflict between an external library and an executable
+  // within the project.
+  if(linking && dependee &&
+     dependee->GetType() == cmTarget::EXECUTABLE &&
+     !dependee->IsExecutableWithExports())
+    {
+    dependee = 0;
+    }
+
+  if(dependee)
+    {
+    this->AddTargetDepend(depender_index, dependee, linking);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddTargetDepend(int depender_index,
+                                             cmTarget const* dependee,
+                                             bool linking)
+{
+  if(dependee->IsImported())
+    {
+    // Skip imported targets but follow their utility dependencies.
+    std::set<std::string> const& utils = dependee->GetUtilities();
+    for(std::set<std::string>::const_iterator i = utils.begin();
+        i != utils.end(); ++i)
+      {
+      if(cmTarget const* transitive_dependee =
+         dependee->GetMakefile()->FindTargetToUse(*i))
+        {
+        this->AddTargetDepend(depender_index, transitive_dependee, false);
+        }
+      }
+    }
+  else
+    {
+    // Lookup the index for this target.  All targets should be known by
+    // this point.
+    std::map<cmTarget const*, int>::const_iterator tii =
+      this->TargetIndex.find(dependee);
+    assert(tii != this->TargetIndex.end());
+    int dependee_index = tii->second;
+
+    // Add this entry to the dependency graph.
+    this->InitialGraph[depender_index].push_back(
+      cmGraphEdge(dependee_index, !linking));
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph,
+                                     const std::string& name)
+{
+  fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
+    {
+    EdgeList const& nl = graph[depender_index];
+    cmTarget const* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName().c_str());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget const* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+      }
+    }
+  fprintf(stderr, "\n");
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends
+::DisplayComponents(cmComputeComponentGraph const& ccg)
+{
+  fprintf(stderr, "The strongly connected components are:\n");
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  int n = static_cast<int>(components.size());
+  for(int c = 0; c < n; ++c)
+    {
+    NodeList const& nl = components[c];
+    fprintf(stderr, "Component (%d):\n", c);
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int i = *ni;
+      fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName().c_str());
+      }
+    }
+  fprintf(stderr, "\n");
+}
+
+//----------------------------------------------------------------------------
+bool
+cmComputeTargetDepends
+::CheckComponents(cmComputeComponentGraph const& ccg)
+{
+  // All non-trivial components should consist only of static
+  // libraries.
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  int nc = static_cast<int>(components.size());
+  for(int c=0; c < nc; ++c)
+    {
+    // Get the current component.
+    NodeList const& nl = components[c];
+
+    // Skip trivial components.
+    if(nl.size() < 2)
+      {
+      continue;
+      }
+
+    // Immediately complain if no cycles are allowed at all.
+    if(this->NoCycles)
+      {
+      this->ComplainAboutBadComponent(ccg, c);
+      return false;
+      }
+
+    // Make sure the component is all STATIC_LIBRARY targets.
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      if(this->Targets[*ni]->GetType() != cmTarget::STATIC_LIBRARY)
+        {
+        this->ComplainAboutBadComponent(ccg, c);
+        return false;
+        }
+      }
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends
+::ComplainAboutBadComponent(cmComputeComponentGraph const& ccg, int c,
+                            bool strong)
+{
+  // Construct the error message.
+  cmOStringStream e;
+  e << "The inter-target dependency graph contains the following "
+    << "strongly connected component (cycle):\n";
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  std::vector<int> const& cmap = ccg.GetComponentMap();
+  NodeList const& cl = components[c];
+  for(NodeList::const_iterator ci = cl.begin(); ci != cl.end(); ++ci)
+    {
+    // Get the depender.
+    int i = *ci;
+    cmTarget const* depender = this->Targets[i];
+
+    // Describe the depender.
+    e << "  \"" << depender->GetName() << "\" of type "
+      << cmTarget::GetTargetTypeName(depender->GetType()) << "\n";
+
+    // List its dependencies that are inside the component.
+    EdgeList const& nl = this->InitialGraph[i];
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int j = *ni;
+      if(cmap[j] == c)
+        {
+        cmTarget const* dependee = this->Targets[j];
+        e << "    depends on \"" << dependee->GetName() << "\""
+          << " (" << (ni->IsStrong()? "strong" : "weak") << ")\n";
+        }
+      }
+    }
+  if(strong)
+    {
+    // Custom command executable dependencies cannot occur within a
+    // component of static libraries.  The cycle must appear in calls
+    // to add_dependencies.
+    e << "The component contains at least one cycle consisting of strong "
+      << "dependencies (created by add_dependencies) that cannot be broken.";
+    }
+  else if(this->NoCycles)
+    {
+    e << "The GLOBAL_DEPENDS_NO_CYCLES global property is enabled, so "
+      << "cyclic dependencies are not allowed even among static libraries.";
+    }
+  else
+    {
+    e << "At least one of these targets is not a STATIC_LIBRARY.  "
+      << "Cyclic dependencies are allowed only among static libraries.";
+    }
+  cmSystemTools::Error(e.str().c_str());
+}
+
+//----------------------------------------------------------------------------
+bool
+cmComputeTargetDepends
+::IntraComponent(std::vector<int> const& cmap, int c, int i, int* head,
+                 std::set<int>& emitted, std::set<int>& visited)
+{
+  if(!visited.insert(i).second)
+    {
+    // Cycle in utility depends!
+    return false;
+    }
+  if(emitted.insert(i).second)
+    {
+    // Honor strong intra-component edges in the final order.
+    EdgeList const& el = this->InitialGraph[i];
+    for(EdgeList::const_iterator ei = el.begin(); ei != el.end(); ++ei)
+      {
+      int j = *ei;
+      if(cmap[j] == c && ei->IsStrong())
+        {
+        this->FinalGraph[i].push_back(cmGraphEdge(j, true));
+        if(!this->IntraComponent(cmap, c, j, head, emitted, visited))
+          {
+          return false;
+          }
+        }
+      }
+
+    // Prepend to a linear linked-list of intra-component edges.
+    if(*head >= 0)
+      {
+      this->FinalGraph[i].push_back(cmGraphEdge(*head, false));
+      }
+    else
+      {
+      this->ComponentTail[c] = i;
+      }
+    *head = i;
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool
+cmComputeTargetDepends
+::ComputeFinalDepends(cmComputeComponentGraph const& ccg)
+{
+  // Get the component graph information.
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  Graph const& cgraph = ccg.GetComponentGraph();
+
+  // Allocate the final graph.
+  this->FinalGraph.resize(0);
+  this->FinalGraph.resize(this->InitialGraph.size());
+
+  // Choose intra-component edges to linearize dependencies.
+  std::vector<int> const& cmap = ccg.GetComponentMap();
+  this->ComponentHead.resize(components.size());
+  this->ComponentTail.resize(components.size());
+  int nc = static_cast<int>(components.size());
+  for(int c=0; c < nc; ++c)
+    {
+    int head = -1;
+    std::set<int> emitted;
+    NodeList const& nl = components[c];
+    for(NodeList::const_reverse_iterator ni = nl.rbegin();
+        ni != nl.rend(); ++ni)
+      {
+      std::set<int> visited;
+      if(!this->IntraComponent(cmap, c, *ni, &head, emitted, visited))
+        {
+        // Cycle in add_dependencies within component!
+        this->ComplainAboutBadComponent(ccg, c, true);
+        return false;
+        }
+      }
+    this->ComponentHead[c] = head;
+    }
+
+  // Convert inter-component edges to connect component tails to heads.
+  int n = static_cast<int>(cgraph.size());
+  for(int depender_component=0; depender_component < n; ++depender_component)
+    {
+    int depender_component_tail = this->ComponentTail[depender_component];
+    EdgeList const& nl = cgraph[depender_component];
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_component = *ni;
+      int dependee_component_head = this->ComponentHead[dependee_component];
+      this->FinalGraph[depender_component_tail]
+        .push_back(cmGraphEdge(dependee_component_head, ni->IsStrong()));
+      }
+    }
+  return true;
+}

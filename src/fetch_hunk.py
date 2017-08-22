@@ -282,7 +282,7 @@ if __name__ == "__main__":
 
     # sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
     # with function to retieve all the commits of given path
-    fetch_commit(False, '038e3a4f718bcf6936065beecf886f7c1fc178cc', 14070, 7078, 156, 352)
+    fetch_commit(False, 'f69606d3354701c2e4ef4ed0718802e1fa6b7fd5', 44160, 21334, 309, 654)
     # fetch_commit()
     # fetch_patch()
 

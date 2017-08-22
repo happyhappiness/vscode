@@ -1,239 +1,253 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+/*============================================================================
+  KWSys - Kitware System Library
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
-#include "curl_setup.h"
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
-#if !defined(CURL_DISABLE_HTTP) && defined(USE_NTLM)
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(Directory.hxx)
 
-/*
- * NTLM details:
- *
- * http://davenport.sourceforge.net/ntlm.html
- * http://www.innovation.ch/java/ntlm.html
- */
+#include KWSYS_HEADER(Configure.hxx)
 
-#define DEBUG_ME 0
+#include KWSYS_HEADER(Encoding.hxx)
 
-#include "urldata.h"
-#include "sendf.h"
-#include "rawstr.h"
-#include "curl_ntlm.h"
-#include "curl_ntlm_msgs.h"
-#include "curl_ntlm_wb.h"
-#include "curl_sasl.h"
-#include "url.h"
-#include "curl_printf.h"
+#include KWSYS_HEADER(stl/string)
+#include KWSYS_HEADER(stl/vector)
 
-#if defined(USE_NSS)
-#include "vtls/nssg.h"
-#elif defined(USE_WINDOWS_SSPI)
-#include "curl_sspi.h"
+// Work-around CMake dependency scanning limitation.  This must
+// duplicate the above list of headers.
+#if 0
+# include "Directory.hxx.in"
+# include "Configure.hxx.in"
+# include "Encoding.hxx.in"
+# include "kwsys_stl.hxx.in"
+# include "kwsys_stl_string.hxx.in"
+# include "kwsys_stl_vector.hxx.in"
 #endif
 
-/* The last #include files should be: */
-#include "curl_memory.h"
-#include "memdebug.h"
+namespace KWSYS_NAMESPACE
+{
 
-#if DEBUG_ME
-# define DEBUG_OUT(x) x
+//----------------------------------------------------------------------------
+class DirectoryInternals
+{
+public:
+  // Array of Files
+  kwsys_stl::vector<kwsys_stl::string> Files;
+
+  // Path to Open'ed directory
+  kwsys_stl::string Path;
+};
+
+//----------------------------------------------------------------------------
+Directory::Directory()
+{
+  this->Internal = new DirectoryInternals;
+}
+
+//----------------------------------------------------------------------------
+Directory::~Directory()
+{
+  delete this->Internal;
+}
+
+//----------------------------------------------------------------------------
+unsigned long Directory::GetNumberOfFiles() const
+{
+  return static_cast<unsigned long>(this->Internal->Files.size());
+}
+
+//----------------------------------------------------------------------------
+const char* Directory::GetFile(unsigned long dindex) const
+{
+  if ( dindex >= this->Internal->Files.size() )
+    {
+    return 0;
+    }
+  return this->Internal->Files[dindex].c_str();
+}
+
+//----------------------------------------------------------------------------
+const char* Directory::GetPath() const
+{
+  return this->Internal->Path.c_str();
+}
+
+//----------------------------------------------------------------------------
+void Directory::Clear()
+{
+  this->Internal->Path.resize(0);
+  this->Internal->Files.clear();
+}
+
+} // namespace KWSYS_NAMESPACE
+
+// First microsoft compilers
+
+#if defined(_MSC_VER) || defined(__WATCOMC__)
+#include <windows.h>
+#include <io.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+namespace KWSYS_NAMESPACE
+{
+
+bool Directory::Load(const kwsys_stl::string& name)
+{
+  this->Clear();
+#if _MSC_VER < 1300
+  long srchHandle;
 #else
-# define DEBUG_OUT(x) Curl_nop_stmt
+  intptr_t srchHandle;
 #endif
-
-CURLcode Curl_input_ntlm(struct connectdata *conn,
-                         bool proxy,         /* if proxy or not */
-                         const char *header) /* rest of the www-authenticate:
-                                                header */
-{
-  /* point to the correct struct with this */
-  struct ntlmdata *ntlm;
-  CURLcode result = CURLE_OK;
-
-  ntlm = proxy ? &conn->proxyntlm : &conn->ntlm;
-
-  if(checkprefix("NTLM", header)) {
-    header += strlen("NTLM");
-
-    while(*header && ISSPACE(*header))
-      header++;
-
-    if(*header) {
-      result = Curl_sasl_decode_ntlm_type2_message(conn->data, header, ntlm);
-      if(result)
-        return result;
-
-      ntlm->state = NTLMSTATE_TYPE2; /* We got a type-2 message */
+  char* buf;
+  size_t n = name.size();
+  if ( *name.rbegin() == '/' || *name.rbegin() == '\\' )
+    {
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name.c_str());
     }
-    else {
-      if(ntlm->state == NTLMSTATE_LAST) {
-        infof(conn->data, "NTLM auth restarted\n");
-        Curl_http_ntlm_cleanup(conn);
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( name.find('\\') != name.npos )
+      {
+      sprintf(buf, "%s\\*", name.c_str());
       }
-      else if(ntlm->state == NTLMSTATE_TYPE3) {
-        infof(conn->data, "NTLM handshake rejected\n");
-        Curl_http_ntlm_cleanup(conn);
-        ntlm->state = NTLMSTATE_NONE;
-        return CURLE_REMOTE_ACCESS_DENIED;
+    else
+      {
+      sprintf(buf, "%s/*", name.c_str());
       }
-      else if(ntlm->state >= NTLMSTATE_TYPE1) {
-        infof(conn->data, "NTLM handshake failure (internal error)\n");
-        return CURLE_REMOTE_ACCESS_DENIED;
-      }
-
-      ntlm->state = NTLMSTATE_TYPE1; /* We should send away a type-1 */
     }
-  }
+  struct _wfinddata_t data;      // data of current file
 
-  return result;
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
+
+  // Loop through names
+  do
+    {
+    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  this->Internal->Path = name;
+  return _findclose(srchHandle) != -1;
 }
 
-/*
- * This is for creating ntlm header output
- */
-CURLcode Curl_output_ntlm(struct connectdata *conn, bool proxy)
+unsigned long Directory::GetNumberOfFilesInDirectory(const kwsys_stl::string& name)
 {
-  char *base64 = NULL;
-  size_t len = 0;
-  CURLcode result;
-
-  /* point to the address of the pointer that holds the string to send to the
-     server, which is for a plain host or for a HTTP proxy */
-  char **allocuserpwd;
-
-  /* point to the name and password for this */
-  const char *userp;
-  const char *passwdp;
-
-  /* point to the correct struct with this */
-  struct ntlmdata *ntlm;
-  struct auth *authp;
-
-  DEBUGASSERT(conn);
-  DEBUGASSERT(conn->data);
-
-#ifdef USE_NSS
-  if(CURLE_OK != Curl_nss_force_init(conn->data))
-    return CURLE_OUT_OF_MEMORY;
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
 #endif
-
-  if(proxy) {
-    allocuserpwd = &conn->allocptr.proxyuserpwd;
-    userp = conn->proxyuser;
-    passwdp = conn->proxypasswd;
-    ntlm = &conn->proxyntlm;
-    authp = &conn->data->state.authproxy;
-  }
-  else {
-    allocuserpwd = &conn->allocptr.userpwd;
-    userp = conn->user;
-    passwdp = conn->passwd;
-    ntlm = &conn->ntlm;
-    authp = &conn->data->state.authhost;
-  }
-  authp->done = FALSE;
-
-  /* not set means empty */
-  if(!userp)
-    userp = "";
-
-  if(!passwdp)
-    passwdp = "";
-
-#ifdef USE_WINDOWS_SSPI
-  if(s_hSecDll == NULL) {
-    /* not thread safe and leaks - use curl_global_init() to avoid */
-    CURLcode err = Curl_sspi_global_init();
-    if(s_hSecDll == NULL)
-      return err;
-  }
-#endif
-
-  switch(ntlm->state) {
-  case NTLMSTATE_TYPE1:
-  default: /* for the weird cases we (re)start here */
-    /* Create a type-1 message */
-    result = Curl_sasl_create_ntlm_type1_message(userp, passwdp, ntlm, &base64,
-                                                 &len);
-    if(result)
-      return result;
-
-    if(base64) {
-      free(*allocuserpwd);
-      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy ? "Proxy-" : "",
-                              base64);
-      free(base64);
-      if(!*allocuserpwd)
-        return CURLE_OUT_OF_MEMORY;
-
-      DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+  char* buf;
+  size_t n = name.size();
+  if ( *name.rbegin() == '/' )
+    {
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name.c_str());
     }
-    break;
-
-  case NTLMSTATE_TYPE2:
-    /* We already received the type-2 message, create a type-3 message */
-    result = Curl_sasl_create_ntlm_type3_message(conn->data, userp, passwdp,
-                                                 ntlm, &base64, &len);
-    if(result)
-      return result;
-
-    if(base64) {
-      free(*allocuserpwd);
-      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy ? "Proxy-" : "",
-                              base64);
-      free(base64);
-      if(!*allocuserpwd)
-        return CURLE_OUT_OF_MEMORY;
-
-      DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
-
-      ntlm->state = NTLMSTATE_TYPE3; /* we send a type-3 */
-      authp->done = TRUE;
+  else
+    {
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name.c_str());
     }
-    break;
+  struct _wfinddata_t data;      // data of current file
 
-  case NTLMSTATE_TYPE3:
-    /* connection is already authenticated,
-     * don't send a header in future requests */
-    ntlm->state = NTLMSTATE_LAST;
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
 
-  case NTLMSTATE_LAST:
-    Curl_safefree(*allocuserpwd);
-    authp->done = TRUE;
-    break;
-  }
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
 
-  return CURLE_OK;
+  // Loop through names
+  unsigned long count = 0;
+  do
+    {
+    count++;
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  _findclose(srchHandle);
+  return count;
 }
 
-void Curl_http_ntlm_cleanup(struct connectdata *conn)
-{
-  Curl_sasl_ntlm_cleanup(&conn->ntlm);
-  Curl_sasl_ntlm_cleanup(&conn->proxyntlm);
+} // namespace KWSYS_NAMESPACE
 
-#if defined(NTLM_WB_ENABLED)
-  Curl_ntlm_wb_cleanup(conn);
+#else
+
+// Now the POSIX style directory access
+
+#include <sys/types.h>
+#include <dirent.h>
+
+/* There is a problem with the Portland compiler, large file
+support and glibc/Linux system headers: 
+http://www.pgroup.com/userforum/viewtopic.php?
+p=1992&sid=f16167f51964f1a68fe5041b8eb213b6
+*/
+#if defined(__PGI) && defined(__USE_FILE_OFFSET64)
+# define dirent dirent64
 #endif
+
+namespace KWSYS_NAMESPACE
+{
+
+bool Directory::Load(const kwsys_stl::string& name)
+{
+  this->Clear();
+   
+  DIR* dir = opendir(name.c_str());
+
+  if (!dir)
+    {
+    return 0;
+    }
+
+  for (dirent* d = readdir(dir); d; d = readdir(dir) )
+    {
+    this->Internal->Files.push_back(d->d_name);
+    }
+  this->Internal->Path = name;
+  closedir(dir);
+  return 1;
 }
 
-#endif /* !CURL_DISABLE_HTTP && USE_NTLM */
+unsigned long Directory::GetNumberOfFilesInDirectory(const kwsys_stl::string& name)
+{
+  DIR* dir = opendir(name.c_str());
+
+  unsigned long count = 0;
+  for (dirent* d = readdir(dir); d; d = readdir(dir) )
+    {
+    count++;
+    }
+  closedir(dir);
+  return count;
+}
+
+} // namespace KWSYS_NAMESPACE
+
+#endif

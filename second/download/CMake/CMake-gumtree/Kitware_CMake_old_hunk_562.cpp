@@ -1,7 +1,12 @@
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-  
-  if(result)
+    fprintf(stderr, "[%s]\n", i->c_str());
+    }
+#endif
+
+  // Short-circuit if there is nothing to do.
+  if(this->FindRootPathMode == RootPathModeNever)
     {
-    if(exception != kwsysProcess_GetExitException(kp))
+    return;
+    }
+  const char* sysroot =
+    this->Makefile->GetDefinition("CMAKE_SYSROOT");
+  const char* rootPath =

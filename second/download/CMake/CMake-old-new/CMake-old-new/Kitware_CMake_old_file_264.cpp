@@ -1,729 +1,783 @@
-/*============================================================================
-  KWSys - Kitware System Library
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2006, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ * $Id$
+ ***************************************************************************/
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "setup.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(Process.h)
-#include KWSYS_HEADER(Encoding.h)
-
-/* Work-around CMake dependency scanning limitation.  This must
-   duplicate the above list of headers.  */
-#if 0
-# include "Process.h.in"
-# include "Encoding.h.in"
+#ifndef WIN32
+/* headers for non-win32 */
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h> /* <netinet/tcp.h> may need it */
+#endif
+#ifdef HAVE_NETINET_TCP_H
+#include <netinet/tcp.h> /* for TCP_NODELAY */
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h> /* required for free() prototype, without it, this crashes
+                       on macos 68K */
+#endif
+#if (defined(HAVE_FIONBIO) && defined(__NOVELL_LIBC__))
+#include <sys/filio.h>
+#endif
+#if (defined(NETWARE) && defined(__NOVELL_LIBC__))
+#undef in_addr_t
+#define in_addr_t unsigned long
+#endif
+#ifdef VMS
+#include <in.h>
+#include <inet.h>
 #endif
 
-#include <assert.h>
+#endif
 #include <stdio.h>
-#include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 
-#if defined(_WIN32)
-# include <windows.h>
+#ifndef TRUE
+#define TRUE 1
+#define FALSE 0
+#endif
+
+#ifdef USE_WINSOCK
+#define EINPROGRESS WSAEINPROGRESS
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EISCONN     WSAEISCONN
+#define ENOTSOCK    WSAENOTSOCK
+#define ECONNREFUSED WSAECONNREFUSED
+#endif
+
+#include "urldata.h"
+#include "sendf.h"
+#include "if2ip.h"
+#include "strerror.h"
+#include "connect.h"
+#include "memory.h"
+#include "select.h"
+#include "url.h" /* for Curl_safefree() */
+#include "multiif.h"
+#include "sockaddr.h" /* required for Curl_sockaddr_storage */
+#include "inet_ntop.h"
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+static bool verifyconnect(curl_socket_t sockfd, int *error);
+
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                const Curl_addrinfo *ai, /* start connecting to this */
+                long timeout_ms,
+                bool *connected);
+
+/*
+ * Curl_sockerrno() returns the *socket-related* errno (or equivalent) on this
+ * platform to hide platform specific for the function that calls this.
+ */
+int Curl_sockerrno(void)
+{
+#ifdef USE_WINSOCK
+  return (int)WSAGetLastError();
 #else
-# include <unistd.h>
-# include <signal.h>
+  return errno;
+#endif
+}
+
+/*
+ * Curl_nonblock() set the given socket to either blocking or non-blocking
+ * mode based on the 'nonblock' boolean argument. This function is highly
+ * portable.
+ */
+int Curl_nonblock(curl_socket_t sockfd,    /* operate on this */
+                  int nonblock   /* TRUE or FALSE */)
+{
+#undef SETBLOCK
+#define SETBLOCK 0
+#ifdef HAVE_O_NONBLOCK
+  /* most recent unix versions */
+  int flags;
+
+  flags = fcntl(sockfd, F_GETFL, 0);
+  if (TRUE == nonblock)
+    return fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+  else
+    return fcntl(sockfd, F_SETFL, flags & (~O_NONBLOCK));
+#undef SETBLOCK
+#define SETBLOCK 1
 #endif
 
-#if defined(__BORLANDC__)
-# pragma warn -8060 /* possibly incorrect assignment */
+#if defined(HAVE_FIONBIO) && (SETBLOCK == 0)
+  /* older unix versions */
+  int flags;
+
+  flags = nonblock;
+  return ioctl(sockfd, FIONBIO, &flags);
+#undef SETBLOCK
+#define SETBLOCK 2
 #endif
 
-/* Platform-specific sleep functions. */
+#if defined(HAVE_IOCTLSOCKET) && (SETBLOCK == 0)
+  /* Windows? */
+  unsigned long flags;
+  flags = nonblock;
 
-#if defined(__BEOS__) && !defined(__ZETA__)
-/* BeOS 5 doesn't have usleep(), but it has snooze(), which is identical. */
-# include <be/kernel/OS.h>
-static inline void testProcess_usleep(unsigned int usec)
-{
-  snooze(usec);
-}
-#elif defined(_WIN32)
-/* Windows can only sleep in millisecond intervals. */
-static void testProcess_usleep(unsigned int usec)
-{
-  Sleep(usec / 1000);
-}
-#else
-# define testProcess_usleep usleep
+  return ioctlsocket(sockfd, FIONBIO, &flags);
+#undef SETBLOCK
+#define SETBLOCK 3
 #endif
 
-#if defined(_WIN32)
-static void testProcess_sleep(unsigned int sec)
-{
-  Sleep(sec*1000);
-}
-#else
-static void testProcess_sleep(unsigned int sec)
-{
-  sleep(sec);
-}
+#if defined(HAVE_IOCTLSOCKET_CASE) && (SETBLOCK == 0)
+  /* presumably for Amiga */
+  return IoctlSocket(sockfd, FIONBIO, (long)nonblock);
+#undef SETBLOCK
+#define SETBLOCK 4
 #endif
 
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout, int poll,
-             int repeat, int disown, int createNewGroup,
-             unsigned int interruptDelay);
-
-static int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
-}
-
-static int test2(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
-}
-
-static int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  testProcess_sleep(15);
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
-}
-
-static int test4(int argc, const char* argv[])
-{
-  /* Prepare a pointer to an invalid address.  Don't use null, because
-  dereferencing null is undefined behaviour and compilers are free to
-  do whatever they want. ex: Clang will warn at compile time, or even
-  optimize away the write. We hope to 'outsmart' them by using
-  'volatile' and a slightly larger address, based on a runtime value. */
-  volatile int* invalidAddress = 0;
-  invalidAddress += argc?1:2;
-
-#if defined(_WIN32)
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-#elif defined(__BEOS__) || defined(__HAIKU__)
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  disable_debugger(1);
+#if defined(HAVE_SO_NONBLOCK) && (SETBLOCK == 0)
+  /* BeOS */
+  long b = nonblock ? 1 : 0;
+  return setsockopt(sockfd, SOL_SOCKET, SO_NONBLOCK, &b, sizeof(b));
+#undef SETBLOCK
+#define SETBLOCK 5
 #endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  assert(invalidAddress); /* Quiet Clang scan-build. */
-  /* Provoke deliberate crash by writing to the invalid address. */
-  *invalidAddress = 0;
-  fprintf(stdout, "Output after crash on stdout from crash test.\n");
-  fprintf(stderr, "Output after crash on stderr from crash test.\n");
-  return 0;
+
+#ifdef HAVE_DISABLED_NONBLOCKING
+  return 0; /* returns success */
+#undef SETBLOCK
+#define SETBLOCK 6
+#endif
+
+#if (SETBLOCK == 0)
+#error "no non-blocking method was found/used/set"
+#endif
 }
 
-static int test5(int argc, const char* argv[])
+/*
+ * waitconnect() waits for a TCP connect on the given socket for the specified
+ * number if milliseconds. It returns:
+ * 0    fine connect
+ * -1   select() error
+ * 1    select() timeout
+ * 2    select() returned with an error condition fd_set
+ */
+
+#define WAITCONN_CONNECTED     0
+#define WAITCONN_SELECT_ERROR -1
+#define WAITCONN_TIMEOUT       1
+#define WAITCONN_FDSET_ERROR   2
+
+static
+int waitconnect(curl_socket_t sockfd, /* socket */
+                long timeout_msec)
 {
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "4";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before recursive test.\n");
-  fprintf(stderr, "Output on stderr before recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
+  int rc;
+#ifdef mpeix
+  /* Call this function once now, and ignore the results. We do this to
+     "clear" the error state on the socket so that we can later read it
+     reliably. This is reported necessary on the MPE/iX operating system. */
+  (void)verifyconnect(sockfd, NULL);
+#endif
+
+  /* now select() until we get connect or timeout */
+  rc = Curl_select(CURL_SOCKET_BAD, sockfd, (int)timeout_msec);
+  if(-1 == rc)
+    /* error, no connect here, try next */
+    return WAITCONN_SELECT_ERROR;
+
+  else if(0 == rc)
+    /* timeout, no connect today */
+    return WAITCONN_TIMEOUT;
+
+  if(rc & CSELECT_ERR)
+    /* error condition caught */
+    return WAITCONN_FDSET_ERROR;
+
+  /* we have a connect! */
+  return WAITCONN_CONNECTED;
 }
 
-#define TEST6_SIZE (4096*2)
-static void test6(int argc, const char* argv[])
+static CURLcode bindlocal(struct connectdata *conn,
+                          curl_socket_t sockfd)
 {
-  int i;
-  char runaway[TEST6_SIZE+1];
-  (void)argc; (void)argv;
-  for(i=0;i < TEST6_SIZE;++i)
-    {
-    runaway[i] = '.';
+  struct SessionHandle *data = conn->data;
+  struct sockaddr_in me;
+  struct sockaddr *sock = NULL;  /* bind to this address */
+  socklen_t socksize; /* size of the data sock points to */
+  unsigned short port = data->set.localport; /* use this port number, 0 for
+                                                "random" */
+  /* how many port numbers to try to bind to, increasing one at a time */
+  int portnum = data->set.localportrange;
+
+  /*************************************************************
+   * Select device to bind socket to
+   *************************************************************/
+  if (data->set.device && (strlen(data->set.device)<255) ) {
+    struct Curl_dns_entry *h=NULL;
+    char myhost[256] = "";
+    in_addr_t in;
+    int rc;
+    bool was_iface = FALSE;
+
+    /* First check if the given name is an IP address */
+    in=inet_addr(data->set.device);
+
+    if((in == CURL_INADDR_NONE) &&
+       Curl_if2ip(data->set.device, myhost, sizeof(myhost))) {
+      /*
+       * We now have the numerical IPv4-style x.y.z.w in the 'myhost' buffer
+       */
+      rc = Curl_resolv(conn, myhost, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
+
+      if(h) {
+        was_iface = TRUE;
+        Curl_resolv_unlock(data, h);
+      }
     }
-  runaway[TEST6_SIZE] = '\n';
 
-  /* Generate huge amounts of output to test killing.  */
-  for(;;)
-    {
-    fwrite(runaway, 1, TEST6_SIZE+1, stdout);
-    fflush(stdout);
+    if(!was_iface) {
+      /*
+       * This was not an interface, resolve the name as a host name
+       * or IP number
+       */
+      rc = Curl_resolv(conn, data->set.device, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
+
+      if(h) {
+        if(in == CURL_INADDR_NONE)
+          /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
+          Curl_inet_ntop(h->addr->ai_addr->sa_family,
+                         &((struct sockaddr_in*)h->addr->ai_addr)->sin_addr,
+                         myhost, sizeof myhost);
+        else
+          /* we know data->set.device is shorter than the myhost array */
+          strcpy(myhost, data->set.device);
+        Curl_resolv_unlock(data, h);
+      }
     }
+
+    if(! *myhost) {
+      /* need to fix this
+         h=Curl_gethost(data,
+         getmyhost(*myhost,sizeof(myhost)),
+         hostent_buf,
+         sizeof(hostent_buf));
+      */
+      failf(data, "Couldn't bind to '%s'", data->set.device);
+      return CURLE_HTTP_PORT_FAILED;
+    }
+
+    infof(data, "Bind local address to %s\n", myhost);
+
+#ifdef SO_BINDTODEVICE
+    /* I am not sure any other OSs than Linux that provide this feature, and
+     * at the least I cannot test. --Ben
+     *
+     * This feature allows one to tightly bind the local socket to a
+     * particular interface.  This will force even requests to other local
+     * interfaces to go out the external interface.
+     *
+     */
+    if (was_iface) {
+      /* Only bind to the interface when specified as interface, not just as a
+       * hostname or ip address.
+       */
+      if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE,
+                     data->set.device, strlen(data->set.device)+1) != 0) {
+        /* printf("Failed to BINDTODEVICE, socket: %d  device: %s error: %s\n",
+           sockfd, data->set.device, Curl_strerror(Curl_sockerrno())); */
+        infof(data, "SO_BINDTODEVICE %s failed\n",
+              data->set.device);
+        /* This is typically "errno 1, error: Operation not permitted" if
+           you're not running as root or another suitable privileged user */
+      }
+    }
+#endif
+
+    in=inet_addr(myhost);
+    if (CURL_INADDR_NONE == in) {
+      failf(data,"couldn't find my own IP address (%s)", myhost);
+      return CURLE_HTTP_PORT_FAILED;
+    } /* end of inet_addr */
+
+    if ( h ) {
+      Curl_addrinfo *addr = h->addr;
+      sock = addr->ai_addr;
+      socksize = addr->ai_addrlen;
+    }
+    else
+      return CURLE_HTTP_PORT_FAILED;
+
+  }
+  else if(port) {
+    /* if a local port number is requested but no local IP, extract the
+       address from the socket */
+    memset(&me, 0, sizeof(struct sockaddr));
+    me.sin_family = AF_INET;
+    me.sin_addr.s_addr = INADDR_ANY;
+
+    sock = (struct sockaddr *)&me;
+    socksize = sizeof(struct sockaddr);
+
+  }
+  else
+    /* no local kind of binding was requested */
+    return CURLE_OK;
+
+  do {
+
+    /* Set port number to bind to, 0 makes the system pick one */
+    if(sock->sa_family == AF_INET)
+      ((struct sockaddr_in *)sock)->sin_port = htons(port);
+#ifdef ENABLE_IPV6
+    else
+      ((struct sockaddr_in6 *)sock)->sin6_port = htons(port);
+#endif
+
+    if( bind(sockfd, sock, socksize) >= 0) {
+      /* we succeeded to bind */
+      struct Curl_sockaddr_storage add;
+      socklen_t size;
+
+      size = sizeof(add);
+      if(getsockname(sockfd, (struct sockaddr *) &add, &size) < 0) {
+        failf(data, "getsockname() failed");
+        return CURLE_HTTP_PORT_FAILED;
+      }
+      /* We re-use/clobber the port variable here below */
+      if(((struct sockaddr *)&add)->sa_family == AF_INET)
+        port = ntohs(((struct sockaddr_in *)&add)->sin_port);
+#ifdef ENABLE_IPV6
+      else
+        port = ntohs(((struct sockaddr_in6 *)&add)->sin6_port);
+#endif
+      infof(data, "Local port: %d\n", port);
+      return CURLE_OK;
+    }
+    if(--portnum > 0) {
+      infof(data, "Bind to local port %d failed, trying next\n", port);
+      port++; /* try next port */
+    }
+    else
+      break;
+  } while(1);
+
+  data->state.os_errno = Curl_sockerrno();
+  failf(data, "bind failure: %s",
+        Curl_strerror(conn, data->state.os_errno));
+  return CURLE_HTTP_PORT_FAILED;
+
 }
 
-/* Define MINPOLL to be one more than the number of times output is
-   written.  Define MAXPOLL to be the largest number of times a loop
-   delaying 1/10th of a second should ever have to poll.  */
-#define MINPOLL 5
-#define MAXPOLL 20
-static int test7(int argc, const char* argv[])
+/*
+ * verifyconnect() returns TRUE if the connect really has happened.
+ */
+static bool verifyconnect(curl_socket_t sockfd, int *error)
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
+  bool rc = TRUE;
+#ifdef SO_ERROR
+  int err = 0;
+  socklen_t errSize = sizeof(err);
+
+#ifdef WIN32
+  /*
+   * In October 2003 we effectively nullified this function on Windows due to
+   * problems with it using all CPU in multi-threaded cases.
+   *
+   * In May 2004, we bring it back to offer more info back on connect failures.
+   * Gisle Vanem could reproduce the former problems with this function, but
+   * could avoid them by adding this SleepEx() call below:
+   *
+   *    "I don't have Rational Quantify, but the hint from his post was
+   *    ntdll::NtRemoveIoCompletion(). So I'd assume the SleepEx (or maybe
+   *    just Sleep(0) would be enough?) would release whatever
+   *    mutex/critical-section the ntdll call is waiting on.
+   *
+   *    Someone got to verify this on Win-NT 4.0, 2000."
+   */
+
+#ifdef _WIN32_WCE
+  Sleep(0);
+#else
+  SleepEx(0, FALSE);
+#endif
+
+#endif
+
+  if( -1 == getsockopt(sockfd, SOL_SOCKET, SO_ERROR,
+                       (void *)&err, &errSize))
+    err = Curl_sockerrno();
+
+#ifdef _WIN32_WCE
+  /* Always returns this error, bug in CE? */
+  if(WSAENOPROTOOPT==err)
+    err=0;
+#endif
+
+  if ((0 == err) || (EISCONN == err))
+    /* we are connected, awesome! */
+    rc = TRUE;
+  else
+    /* This wasn't a successful connect */
+    rc = FALSE;
+  if (error)
+    *error = err;
+#else
+  (void)sockfd;
+  if (error)
+    *error = Curl_sockerrno();
+#endif
+  return rc;
 }
 
-static int test8(int argc, const char* argv[])
+CURLcode Curl_store_ip_addr(struct connectdata *conn)
 {
-  /* Create a disowned grandchild to test handling of processes
-     that exit before their children.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "108";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
-               1, 1, 1, 0, 10, 0, 1, 1, 0, 0);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
+  char addrbuf[256];
+  Curl_printable_address(conn->ip_addr, addrbuf, sizeof(addrbuf));
+
+  /* save the string */
+  Curl_safefree(conn->ip_addr_str);
+  conn->ip_addr_str = strdup(addrbuf);
+  if(!conn->ip_addr_str)
+    return CURLE_OUT_OF_MEMORY; /* FAIL */
+
+#ifdef PF_INET6
+  if(conn->ip_addr->ai_family == PF_INET6)
+    conn->bits.ipv6 = TRUE;
+#endif
+
+  return CURLE_OK;
 }
 
-static int test8_grandchild(int argc, const char* argv[])
+/* Used within the multi interface. Try next IP address, return TRUE if no
+   more address exists */
+static bool trynextip(struct connectdata *conn,
+                      int sockindex,
+                      bool *connected)
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* TODO: Instead of closing pipes here leave them open to make sure
-     the grandparent can stop listening when the parent exits.  This
-     part of the test cannot be enabled until the feature is
-     implemented.  */
-  fclose(stdout);
-  fclose(stderr);
-  testProcess_sleep(15);
-  return 0;
-}
+  curl_socket_t sockfd;
+  Curl_addrinfo *ai;
 
-static int test9(int argc, const char* argv[])
-{
-  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
-     process.  Here, we start a child process that sleeps for a long time
-     while ignoring signals.  The test is successful if this process waits
-     for the child to return before exiting from the Ctrl+C handler.
+  /* first close the failed socket */
+  sclose(conn->sock[sockindex]);
+  conn->sock[sockindex] = CURL_SOCKET_BAD;
+  *connected = FALSE;
 
-     WARNING:  This test will falsely pass if the share parameter of runChild
-     was set to 0 when invoking the test9 process.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "109";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exited,
-               kwsysProcess_Exception_None,
-               0, 1, 1, 0, 30, 0, 1, 0, 0, 0);
-  /* This sleep will avoid a race condition between this function exiting
-     normally and our Ctrl+C handler exiting abnormally after the process
-     exits.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
+  if(sockindex != FIRSTSOCKET)
+    return TRUE; /* no next */
 
-#if defined(_WIN32)
-static BOOL WINAPI test9_grandchild_handler(DWORD dwCtrlType)
-{
-  /* Ignore all Ctrl+C/Break signals.  We must use an actual handler function
-     instead of using SetConsoleCtrlHandler(NULL, TRUE) so that we can also
-     ignore Ctrl+Break in addition to Ctrl+C.  */
-  (void)dwCtrlType;
+  /* try the next address */
+  ai = conn->ip_addr->ai_next;
+
+  while (ai) {
+    sockfd = singleipconnect(conn, ai, 0L, connected);
+    if(sockfd != CURL_SOCKET_BAD) {
+      /* store the new socket descriptor */
+      conn->sock[sockindex] = sockfd;
+      conn->ip_addr = ai;
+
+      Curl_store_ip_addr(conn);
+      return FALSE;
+    }
+    ai = ai->ai_next;
+  }
   return TRUE;
 }
-#endif
 
-static int test9_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds while ignoring signals.  */
-  (void)argc; (void)argv;
-#if defined(_WIN32)
-  if(!SetConsoleCtrlHandler(test9_grandchild_handler, TRUE))
-    {
-    return 1;
-    }
-#else
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = SIG_IGN;
-  sigemptyset(&sa.sa_mask);
-  if(sigaction(SIGINT, &sa, 0) < 0)
-    {
-    return 1;
-    }
-#endif
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 9 seconds.  */
-  testProcess_sleep(9);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-static int test10(int argc, const char* argv[])
-{
-  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
-     process.  Here, we start a child process that sleeps for a long time and
-     processes signals normally.  However, this grandchild is created in a new
-     process group - ensuring that Ctrl+C we receive is sent to our process
-     groups.  We make sure it exits anyway.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "110";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Interrupt,
-               0, 1, 1, 0, 30, 0, 1, 0, 1, 0);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-static int test10_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds and handles signals.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 6 seconds.  */
-  testProcess_sleep(6);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-static int runChild2(kwsysProcess* kp,
-              const char* cmd[], int state, int exception, int value,
-              int share, int output, int delay, double timeout,
-              int poll, int disown, int createNewGroup,
-              unsigned int interruptDelay)
-{
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  if(disown)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_Detach, 1);
-    }
-  if(createNewGroup)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_CreateProcessGroup, 1);
-    }
-  kwsysProcess_Execute(kp);
-
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
-    }
-
-  if(interruptDelay)
-    {
-    testProcess_sleep(interruptDelay);
-    kwsysProcess_Interrupt(kp);
-    }
-
-  if(!share && !disown)
-    {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
-      {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
-
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
-            {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
-            }
-          }
-        else
-          {
-          fwrite(data, 1, (size_t) length, stdout);
-          fflush(stdout);
-          }
-        }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-        testProcess_usleep(100000);
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        testProcess_usleep(100000);
-#endif
-        }
-      }
-    }
-
-  if(disown)
-    {
-    kwsysProcess_Disown(kp);
-    }
-  else
-    {
-    kwsysProcess_WaitForExit(kp, 0);
-    }
-
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Disowned:
-      printf("Child was disowned.\n"); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
-
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
-
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
-    {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
-    }
-
-  return result;
-}
-
-/**
- * Runs a child process and blocks until it returns.  Arguments as follows:
- *
- * cmd            = Command line to run.
- * state          = Expected return value of kwsysProcess_GetState after exit.
- * exception      = Expected return value of kwsysProcess_GetExitException.
- * value          = Expected return value of kwsysProcess_GetExitValue.
- * share          = Whether to share stdout/stderr child pipes with our pipes
- *                  by way of kwsysProcess_SetPipeShared.  If false, new pipes
- *                  are created.
- * output         = If !share && !disown, whether to write the child's stdout
- *                  and stderr output to our stdout.
- * delay          = If !share && !disown, adds an additional short delay to
- *                  the pipe loop to allow the pipes to fill up; Windows only.
- * timeout        = Non-zero to sets a timeout in seconds via
- *                  kwsysProcess_SetTimeout.
- * poll           = If !share && !disown, we count the number of 0.1 second
- *                  intervals where the child pipes had no new data.  We fail
- *                  if not in the bounds of MINPOLL/MAXPOLL.
- * repeat         = Number of times to run the process.
- * disown         = If set, the process is disowned.
- * createNewGroup = If set, the process is created in a new process group.
- * interruptDelay = If non-zero, number of seconds to delay before
- *                  interrupting the process.  Note that this delay will occur
- *                  BEFORE any reading/polling of pipes occurs and before any
- *                  detachment occurs.
+/*
+ * Curl_is_connected() is used from the multi interface to check if the
+ * firstsocket has connected.
  */
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout,
-             int poll, int repeat, int disown, int createNewGroup,
-             unsigned int interruptDelay)
+
+CURLcode Curl_is_connected(struct connectdata *conn,
+                           int sockindex,
+                           bool *connected)
 {
-  int result = 1;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  while(repeat-- > 0)
-    {
-    result = runChild2(kp, cmd, state, exception, value, share,
-                       output, delay, timeout, poll, disown, createNewGroup,
-                       interruptDelay);
-    }
-  kwsysProcess_Delete(kp);
-  return result;
-}
+  int rc;
+  struct SessionHandle *data = conn->data;
+  CURLcode code = CURLE_OK;
+  curl_socket_t sockfd = conn->sock[sockindex];
+  long allow = DEFAULT_CONNECT_TIMEOUT;
+  long allow_total = 0;
+  long has_passed;
 
-int main(int argc, const char* argv[])
-{
-  int n = 0;
+  curlassert(sockindex >= FIRSTSOCKET && sockindex <= SECONDARYSOCKET);
 
-#ifdef _WIN32
-  int i;
-  char new_args[10][_MAX_PATH];
-  LPWSTR* w_av = CommandLineToArgvW(GetCommandLineW(), &argc);
-  for(i=0; i<argc; i++)
-  {
-    kwsysEncoding_wcstombs(new_args[i], w_av[i], _MAX_PATH);
-    argv[i] = new_args[i];
-  }
-  LocalFree(w_av);
-#endif
+  *connected = FALSE; /* a very negative world view is best */
 
-#if 0
-    {
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_OUTPUT_HANDLE, out);
-    }
-    {
-    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_ERROR_HANDLE, out);
-    }
-#endif
-  if(argc == 2)
-    {
-    n = atoi(argv[1]);
-    }
-  else if(argc == 3 && strcmp(argv[1], "run") == 0)
-    {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(((n >= 1 && n <= 10) || n == 108 || n == 109 || n == 110) && argc == 3)
-    {
-    /* This is the child process for a requested test number.  */
-    switch (n)
-      {
-      case 1: return test1(argc, argv);
-      case 2: return test2(argc, argv);
-      case 3: return test3(argc, argv);
-      case 4: return test4(argc, argv);
-      case 5: return test5(argc, argv);
-      case 6: test6(argc, argv); return 0;
-      case 7: return test7(argc, argv);
-      case 8: return test8(argc, argv);
-      case 9: return test9(argc, argv);
-      case 10: return test10(argc, argv);
-      case 108: return test8_grandchild(argc, argv);
-      case 109: return test9_grandchild(argc, argv);
-      case 110: return test10_grandchild(argc, argv);
-      }
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
-    }
-  else if(n >= 1 && n <= 10)
-    {
-    /* This is the parent process for a requested test number.  */
-    int states[10] =
-    {
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exception,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired, /* Ctrl+C handler test */
-      kwsysProcess_State_Exception /* Process group test */
-    };
-    int exceptions[10] =
-    {
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Fault,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Interrupt
-    };
-    int values[10] = {0, 123, 1, 1, 0, 0, 0, 0, 1, 1};
-    int shares[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
-    int outputs[10] = {1, 1, 1, 1, 1, 0, 1, 1, 1, 1};
-    int delays[10] = {0, 0, 0, 0, 0, 1, 0, 0, 0, 0};
-    double timeouts[10] = {10, 10, 10, 30, 30, 10, -1, 10, 6, 4};
-    int polls[10] = {0, 0, 0, 0, 0, 0, 1, 0, 0, 0};
-    int repeat[10] = {2, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    int createNewGroups[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
-    unsigned int interruptDelays[10] = {0, 0, 0, 0, 0, 0, 0, 0, 3, 2};
-    int r;
-    const char* cmd[4];
-#ifdef _WIN32
-    char* argv0 = 0;
-    if(n == 0 && (argv0 = strdup(argv[0])))
-      {
-      /* Try converting to forward slashes to see if it works.  */
-      char* c;
-      for(c=argv0; *c; ++c)
-        {
-        if(*c == '\\')
-          {
-          *c = '/';
-          }
-        }
-      cmd[0] = argv0;
-      }
+  /* Evaluate in milliseconds how much time that has passed */
+  has_passed = Curl_tvdiff(Curl_tvnow(), data->progress.t_startsingle);
+
+  /* subtract the most strict timeout of the ones */
+  if(data->set.timeout && data->set.connecttimeout) {
+    if (data->set.timeout < data->set.connecttimeout)
+      allow_total = allow = data->set.timeout*1000;
     else
-      {
-      cmd[0] = argv[0];
-      }
-#else
-    cmd[0] = argv[0];
-#endif
-    cmd[1] = "run";
-    cmd[2] = argv[1];
-    cmd[3] = 0;
-    fprintf(stdout, "Output on stdout before test %d.\n", n);
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], shares[n-1],
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1], 0, createNewGroups[n-1],
-                 interruptDelays[n-1]);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-#if defined(_WIN32)
-    if(argv0) { free(argv0); }
-#endif
-    return r;
+      allow = data->set.connecttimeout*1000;
+  }
+  else if(data->set.timeout) {
+    allow_total = allow = data->set.timeout*1000;
+  }
+  else if(data->set.connecttimeout) {
+    allow = data->set.connecttimeout*1000;
+  }
+
+  if(has_passed > allow ) {
+    /* time-out, bail out, go home */
+    failf(data, "Connection time-out after %ld ms", has_passed);
+    return CURLE_OPERATION_TIMEOUTED;
+  }
+  if(conn->bits.tcpconnect) {
+    /* we are connected already! */
+    Curl_expire(data, allow_total);
+    *connected = TRUE;
+    return CURLE_OK;
+  }
+
+  Curl_expire(data, allow);
+
+  /* check for connect without timeout as we want to return immediately */
+  rc = waitconnect(sockfd, 0);
+
+  if(WAITCONN_CONNECTED == rc) {
+    int error;
+    if (verifyconnect(sockfd, &error)) {
+      /* we are connected, awesome! */
+      *connected = TRUE;
+      return CURLE_OK;
     }
-  else if(argc > 2 && strcmp(argv[1], "0") == 0)
-    {
-    /* This is the special debugging test to run a given command
-       line.  */
-    const char** cmd = argv+2;
-    int state = kwsysProcess_State_Exited;
-    int exception = kwsysProcess_Exception_None;
-    int value = 0;
-    double timeout = 0;
-    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout,
-      0, 1, 0, 0, 0);
-    return r;
+    /* nope, not connected for real */
+    data->state.os_errno = error;
+    infof(data, "Connection failed\n");
+    if(trynextip(conn, sockindex, connected)) {
+      code = CURLE_COULDNT_CONNECT;
     }
-  else
-    {
-    /* Improper usage.  */
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
+  }
+  else if(WAITCONN_TIMEOUT != rc) {
+    int error = 0;
+
+    /* nope, not connected  */
+    if (WAITCONN_FDSET_ERROR == rc) {
+      (void)verifyconnect(sockfd, &error);
+      data->state.os_errno = error;
+      infof(data, "%s\n",Curl_strerror(conn,error));
     }
+    else
+      infof(data, "Connection failed\n");
+
+    if(trynextip(conn, sockindex, connected)) {
+      error = Curl_sockerrno();
+      data->state.os_errno = error;
+      failf(data, "Failed connect to %s:%d; %s",
+            conn->host.name, conn->port, Curl_strerror(conn,error));
+      code = CURLE_COULDNT_CONNECT;
+    }
+  }
+  /*
+   * If the connection failed here, we should attempt to connect to the "next
+   * address" for the given host.
+   */
+
+  return code;
 }
+
+static void tcpnodelay(struct connectdata *conn,
+                       curl_socket_t sockfd)
+{
+#ifdef TCP_NODELAY
+  struct SessionHandle *data= conn->data;
+  socklen_t onoff = (socklen_t) data->set.tcp_nodelay;
+  int proto = IPPROTO_TCP;
+
+#ifdef HAVE_GETPROTOBYNAME
+  struct protoent *pe = getprotobyname("tcp");
+  if (pe)
+    proto = pe->p_proto;
+#endif
+
+  if(setsockopt(sockfd, proto, TCP_NODELAY, (void *)&onoff,
+                sizeof(onoff)) < 0)
+    infof(data, "Could not set TCP_NODELAY: %s\n",
+          Curl_strerror(conn, Curl_sockerrno()));
+  else
+    infof(data,"TCP_NODELAY set\n");
+#else
+  (void)conn;
+  (void)sockfd;
+#endif
+}
+
+#ifdef SO_NOSIGPIPE
+/* The preferred method on Mac OS X (10.2 and later) to prevent SIGPIPEs when
+   sending data to a dead peer (instead of relying on the 4th argument to send
+   being MSG_NOSIGNAL). Possibly also existing and in use on other BSD
+   systems? */
+static void nosigpipe(struct connectdata *conn,
+                      curl_socket_t sockfd)
+{
+  struct SessionHandle *data= conn->data;
+  int onoff = 1;
+  if(setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&onoff,
+                sizeof(onoff)) < 0)
+    infof(data, "Could not set SO_NOSIGPIPE: %s\n",
+          Curl_strerror(conn, Curl_sockerrno()));
+}
+#else
+#define nosigpipe(x,y)
+#endif
+
+/* singleipconnect() connects to the given IP only, and it may return without
+   having connected if used from the multi interface. */
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                const Curl_addrinfo *ai,
+                long timeout_ms,
+                bool *connected)
+{
+  char addr_buf[128];
+  int rc;
+  int error;
+  bool isconnected;
+  struct SessionHandle *data = conn->data;
+  curl_socket_t sockfd;
+  CURLcode res;
+
+  sockfd = socket(ai->ai_family, conn->socktype, ai->ai_protocol);
+  if (sockfd == CURL_SOCKET_BAD)
+    return CURL_SOCKET_BAD;
+
+  *connected = FALSE; /* default is not connected */
+
+  Curl_printable_address(ai, addr_buf, sizeof(addr_buf));
+  infof(data, "  Trying %s... ", addr_buf);
+
+  if(data->set.tcp_nodelay)
+    tcpnodelay(conn, sockfd);
+
+  nosigpipe(conn, sockfd);
+
+  if(data->set.fsockopt) {
+    /* activate callback for setting socket options */
+    error = data->set.fsockopt(data->set.sockopt_client,
+                               sockfd,
+                               CURLSOCKTYPE_IPCXN);
+    if (error) {
+      sclose(sockfd); /* close the socket and bail out */
+      return CURL_SOCKET_BAD;
+    }
+  }
+
+  /* possibly bind the local end to an IP, interface or port */
+  res = bindlocal(conn, sockfd);
+  if(res) {
+    sclose(sockfd); /* close socket and bail out */
+    return CURL_SOCKET_BAD;
+  }
+
+  /* set socket non-blocking */
+  Curl_nonblock(sockfd, TRUE);
+
+  /* Connect TCP sockets, bind UDP */
+  if(conn->socktype == SOCK_STREAM)
+    rc = connect(sockfd, ai->ai_addr, ai->ai_addrlen);
+  else
+    rc = 0;
+
+  if(-1 == rc) {
+    error = Curl_sockerrno();
+
+    switch (error) {
+    case EINPROGRESS:
+    case EWOULDBLOCK:
+#if defined(EAGAIN) && EAGAIN != EWOULDBLOCK
+      /* On some platforms EAGAIN and EWOULDBLOCK are the
+       * same value, and on others they are different, hence
+       * the odd #if
+       */
+    case EAGAIN:
+#endif
+      rc = waitconnect(sockfd, timeout_ms);
+      break;
+    default:
+      /* unknown error, fallthrough and try another address! */
+      failf(data, "Failed to connect to %s: %s",
+            addr_buf, Curl_strerror(conn,error));
+      data->state.os_errno = error;
+      break;
+    }
+  }
+
+  /* The 'WAITCONN_TIMEOUT == rc' comes from the waitconnect(), and not from
+     connect(). We can be sure of this since connect() cannot return 1. */
+  if((WAITCONN_TIMEOUT == rc) &&
+     (data->state.used_interface == Curl_if_multi)) {
+    /* Timeout when running the multi interface */
+    return sockfd;
+  }
+
+  isconnected = verifyconnect(sockfd, &error);
+
+  if(!rc && isconnected) {
+    /* we are connected, awesome! */
+    *connected = TRUE; /* this is a true connect */
+    infof(data, "connected\n");
+    return sockfd;
+  }
+  else if(WAITCONN_TIMEOUT == rc)
+    infof(data, "Timeout\n");
+  else {
+    data->state.os_errno = error;
+    infof(data, "%s\n", Curl_strerror(conn, error));
+  }
+
+  /* connect failed or timed out */
+  sclose(sockfd);
+
+  return CURL_SOCKET_BAD;

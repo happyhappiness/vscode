@@ -1,6 +1,7 @@
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_tar");
+  char buffer[1024];
+  sprintf(buffer, "%d", static_cast<int>(length));
 
-	tar = (struct tar *)calloc(1, sizeof(*tar));
-	if (tar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate tar data");
+  this->Makefile->AddDefinition(variableName.c_str(), buffer);
+  return true;
+}
+

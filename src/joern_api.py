@@ -75,7 +75,7 @@ class Joern_api:
             for condition in cdg_list:
                 control_node_id = str(condition[my_constant.JOERN_ID])
                 label = self.__get_label_for_control(node_id, control_node_id)
-                condition_info.append([control_node_id, label])
+                condition_info.append((control_node_id, label))
         return condition_info
 
     """

@@ -1,9 +1,13 @@
+      {
+      char indexString[32];
+      sprintf(indexString, "%d", index);
+      this->Makefile->AddDefinition(variableName.c_str(), indexString);
+      return true;
+      }
+    index++;
+    }
 
-  if (rar->file_flags & FHD_PASSWORD)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR encryption support unavailable.");
-    return (ARCHIVE_FATAL);
-  }
+  this->Makefile->AddDefinition(variableName.c_str(), "-1");
+  return true;
+}
 
-  if (rar->file_flags & FHD_LARGE)

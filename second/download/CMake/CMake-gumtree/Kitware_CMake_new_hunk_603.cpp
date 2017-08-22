@@ -1,24 +1,17 @@
-  return _findclose(srchHandle) != -1;
-}
-
-unsigned long Directory::GetNumberOfFilesInDirectory(const kwsys_stl::string& name)
-{
-#if _MSC_VER < 1300
-  long srchHandle;
-#else
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = name.size();
-  if ( *name.rbegin() == '/' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-    }
-  else
-    {
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name.c_str());
-    }
-  struct _wfinddata_t data;      // data of current file
-
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unexpected codec ID: %lX", zip->codec);
+		return (ARCHIVE_FAILED);
+	case _7Z_CRYPTO_MAIN_ZIP:
+	case _7Z_CRYPTO_RAR_29:
+	case _7Z_CRYPTO_AES_256_SHA_256:
+		if (a->entry) {
+			archive_entry_set_is_metadata_encrypted(a->entry, 1);
+			archive_entry_set_is_data_encrypted(a->entry, 1);
+			zip->has_encrypted_entries = 1;
+		}
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Crypto codec not supported yet (ID: 0x%lX)", zip->codec);
+		return (ARCHIVE_FAILED);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown codec ID: %lX", zip->codec);

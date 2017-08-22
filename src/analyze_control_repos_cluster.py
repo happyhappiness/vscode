@@ -145,7 +145,7 @@ def cluster_record(feature_lists, z3_api):
 def cluster():
 
     # initialize read file
-    analyze_file = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
+    analyze_file = file(my_constant.ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME, 'rb')
     # analyze_file = file('temp.csv', 'rb')
     records = csv.reader(analyze_file)
     # initialize write file
@@ -164,7 +164,7 @@ def cluster():
     index = 0
     for record in islice(records, 1, None):  # remove the table title
         # get cdg z3 feature
-        cdg_feature = json.loads(record[my_constant.ANALYZE_REPOS_CDG_FEATURE])
+        cdg_feature = json.loads(record[my_constant.ANALYZE_REPOS_BASIC_BLOCK_NORMALIZED_CONDITION])
         # cdg_feature = json.loads(record[0])
         cdg_z3_feature = z3_api.get_infix_for_postfix(cdg_feature)
         print 'have processed record %d' %(index)
@@ -177,7 +177,7 @@ def cluster():
     analyze_file.close()
 
     # write result back
-    analyze_file = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
+    analyze_file = file(my_constant.ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME, 'rb')
     # analyze_file = file('temp.csv', 'rb')
     records = csv.reader(analyze_file)
     index = 0

@@ -228,6 +228,17 @@ def rebuild_joern_index(index_dir, code_dir):
     print output
 
 """
+@ param list of tuple
+@ return tuple
+@ involve switch list of tuple to tuple
+"""
+def get_tuple_from_list(tuple_list):
+    tuple_tuple = ()
+    for tuple_element in tuple_list:
+        tuple_tuple += tuple_element
+    return tuple_tuple
+
+"""
 @ param  cond_list of a and b to compute, func_similarity_dic
 @ return lenth of common substring / min length
 @ involve compute the longgest common string (continuous) of two cond_list

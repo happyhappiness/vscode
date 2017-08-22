@@ -1,7 +1,9 @@
-    }
-  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
-  fprintf(out, " %s ", tmp);
-  fprintf(out, "%s", archive_entry_pathname(entry));
+                            sizeof(rar->reserved2));
+      }
 
-  /* Extra information for links. */
-  if (archive_entry_hardlink(entry)) /* Hard link */
+      if (rar->main_flags & MHD_PASSWORD)
+      {
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }
