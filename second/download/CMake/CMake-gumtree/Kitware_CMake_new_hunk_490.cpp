@@ -1,7 +1,16 @@
-			archive_le64enc(z, zip->entry_offset);
-			z += 8;
-		}
-		archive_le16enc(zip64 + 2, (uint16_t)(z - (zip64 + 4)));
-		zd = cd_alloc(zip, z - zip64);
-		if (zd == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
+
+  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+
+  result = Curl_base64_encode(data,
+                              data->state.buffer, strlen(data->state.buffer),
+                              &authorization, &size);
+  if(result)
+    return result;
+
+  if(!authorization)
+    return CURLE_REMOTE_ACCESS_DENIED;
+
+  free(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy?"Proxy-":"",
+                   authorization);

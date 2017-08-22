@@ -1,7 +1,7 @@
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-			return (ARCHIVE_FATAL);
+			archive_le64enc(z, zip->entry_offset);
+			z += 8;
 		}
-
-		r = archive_entry_copy_pathname_l(entry,
+		archive_le16enc(zip64 + 2, (uint16_t)(z - (zip64 + 4)));
+		zd = cd_alloc(zip, z - zip64);
+		if (zd == NULL) {
+			archive_set_error(&a->archive, ENOMEM,

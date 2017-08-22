@@ -1,6 +1,10 @@
-{
-	struct unknown_tag *tag;
+		lha->entry_unconsumed = 0;
+	}
+	if (lha->end_of_entry) {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+		return (lha_end_of_entry(a));
+	}
 
-	tag = malloc(sizeof(*tag));
-	if (tag == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+	if (lha->entry_is_compressed)

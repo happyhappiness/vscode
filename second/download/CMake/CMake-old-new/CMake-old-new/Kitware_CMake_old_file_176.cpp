@@ -1,174 +1,412 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
+/*-
+ * Copyright (c) 2007 Joerg Sonnenberger
+ * Copyright (c) 2012 Michihiro NAKAJIMA
+ * All rights reserved.
  *
- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-#include "curl_setup.h"
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_compression_program.c 201104 2009-12-28 03:14:30Z kientzle $");
 
-#if defined(HAVE_GSSAPI) && !defined(CURL_DISABLE_HTTP) && defined(USE_SPNEGO)
+#ifdef HAVE_SYS_WAIT_H
+#  include <sys/wait.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#  include <errno.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#  include <fcntl.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#  include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#  include <string.h>
+#endif
 
-#include "urldata.h"
-#include "sendf.h"
-#include "curl_gssapi.h"
-#include "rawstr.h"
-#include "curl_base64.h"
-#include "http_negotiate.h"
-#include "curl_sasl.h"
-#include "url.h"
-#include "curl_printf.h"
+#include "archive.h"
+#include "archive_private.h"
+#include "archive_string.h"
+#include "archive_write_private.h"
+#include "filter_fork.h"
 
-/* The last #include files should be: */
-#include "curl_memory.h"
-#include "memdebug.h"
-
-CURLcode Curl_input_negotiate(struct connectdata *conn, bool proxy,
-                              const char *header)
+#if ARCHIVE_VERSION_NUMBER < 4000000
+int
+archive_write_set_compression_program(struct archive *a, const char *cmd)
 {
-  struct SessionHandle *data = conn->data;
-  struct negotiatedata *neg_ctx = proxy?&data->state.proxyneg:
-    &data->state.negotiate;
-  OM_uint32 major_status, minor_status, discard_st;
-  gss_buffer_desc spn_token = GSS_C_EMPTY_BUFFER;
-  gss_buffer_desc input_token = GSS_C_EMPTY_BUFFER;
-  gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
-  size_t len;
-  size_t rawlen = 0;
-  CURLcode result;
+	__archive_write_filters_free(a);
+	return (archive_write_add_filter_program(a, cmd));
+}
+#endif
 
-  if(neg_ctx->context && neg_ctx->status == GSS_S_COMPLETE) {
-    /* We finished successfully our part of authentication, but server
-     * rejected it (since we're again here). Exit with an error since we
-     * can't invent anything better */
-    Curl_cleanup_negotiate(data);
-    return CURLE_LOGIN_DENIED;
-  }
+struct archive_write_program_data {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	HANDLE		 child;
+#else
+	pid_t		 child;
+#endif
+	int		 child_stdin, child_stdout;
 
-  if(!neg_ctx->server_name) {
-    /* Generate our SPN */
-    char *spn = Curl_sasl_build_gssapi_spn(
-      proxy ? data->set.str[STRING_PROXY_SERVICE_NAME] :
-      data->set.str[STRING_SERVICE_NAME],
-      proxy ? conn->proxy.name : conn->host.name);
-    if(!spn)
-      return CURLE_OUT_OF_MEMORY;
+	char		*child_buf;
+	size_t		 child_buf_len, child_buf_avail;
+};
 
-    /* Populate the SPN structure */
-    spn_token.value = spn;
-    spn_token.length = strlen(spn);
+struct private_data {
+	struct archive_write_program_data *pdata;
+	struct archive_string description;
+	char		*cmd;
+};
 
-    /* Import the SPN */
-    major_status = gss_import_name(&minor_status, &spn_token,
-                                   GSS_C_NT_HOSTBASED_SERVICE,
-                                   &neg_ctx->server_name);
-    if(GSS_ERROR(major_status)) {
-      Curl_gss_log_error(data, minor_status, "gss_import_name() failed: ");
+static int archive_compressor_program_open(struct archive_write_filter *);
+static int archive_compressor_program_write(struct archive_write_filter *,
+		    const void *, size_t);
+static int archive_compressor_program_close(struct archive_write_filter *);
+static int archive_compressor_program_free(struct archive_write_filter *);
 
-      free(spn);
+/*
+ * Add a filter to this write handle that passes all data through an
+ * external program.
+ */
+int
+archive_write_add_filter_program(struct archive *_a, const char *cmd)
+{
+	struct archive_write_filter *f = __archive_write_allocate_filter(_a);
+	struct private_data *data;
+	static const char *prefix = "Program: ";
 
-      return CURLE_OUT_OF_MEMORY;
-    }
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_add_filter_program");
 
-    free(spn);
-  }
+	f->data = calloc(1, sizeof(*data));
+	if (f->data == NULL)
+		goto memerr;
+	data = (struct private_data *)f->data;
 
-  header += strlen("Negotiate");
-  while(*header && ISSPACE(*header))
-    header++;
+	data->cmd = strdup(cmd);
+	if (data->cmd == NULL)
+		goto memerr;
 
-  len = strlen(header);
-  if(len > 0) {
-    result = Curl_base64_decode(header, (unsigned char **)&input_token.value,
-                                &rawlen);
-    if(result)
-      return result;
+	data->pdata = __archive_write_program_allocate();
+	if (data->pdata == NULL)
+		goto memerr;
 
-    if(!rawlen) {
-      infof(data, "Negotiate handshake failure (empty challenge message)\n");
+	/* Make up a description string. */
+	if (archive_string_ensure(&data->description,
+	    strlen(prefix) + strlen(cmd) + 1) == NULL)
+		goto memerr;
+	archive_strcpy(&data->description, prefix);
+	archive_strcat(&data->description, cmd);
 
-      return CURLE_BAD_CONTENT_ENCODING;
-    }
-
-    input_token.length = rawlen;
-
-    DEBUGASSERT(input_token.value != NULL);
-  }
-
-  major_status = Curl_gss_init_sec_context(data,
-                                           &minor_status,
-                                           &neg_ctx->context,
-                                           neg_ctx->server_name,
-                                           &Curl_spnego_mech_oid,
-                                           GSS_C_NO_CHANNEL_BINDINGS,
-                                           &input_token,
-                                           &output_token,
-                                           TRUE,
-                                           NULL);
-  Curl_safefree(input_token.value);
-
-  neg_ctx->status = major_status;
-  if(GSS_ERROR(major_status)) {
-    if(output_token.value)
-      gss_release_buffer(&discard_st, &output_token);
-    Curl_gss_log_error(conn->data, minor_status,
-                       "gss_init_sec_context() failed: ");
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  if(!output_token.value || !output_token.length) {
-    if(output_token.value)
-      gss_release_buffer(&discard_st, &output_token);
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  neg_ctx->output_token = output_token;
-
-  return CURLE_OK;
+	f->name = data->description.s;
+	f->code = ARCHIVE_FILTER_PROGRAM;
+	f->open = archive_compressor_program_open;
+	f->write = archive_compressor_program_write;
+	f->close = archive_compressor_program_close;
+	f->free = archive_compressor_program_free;
+	return (ARCHIVE_OK);
+memerr:
+	archive_compressor_program_free(f);
+	archive_set_error(_a, ENOMEM,
+	    "Can't allocate memory for filter program");
+	return (ARCHIVE_FATAL);
 }
 
-CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+static int
+archive_compressor_program_open(struct archive_write_filter *f)
 {
-  struct negotiatedata *neg_ctx = proxy?&conn->data->state.proxyneg:
-    &conn->data->state.negotiate;
-  char *encoded = NULL;
-  size_t len = 0;
-  char *userp;
-  CURLcode result;
-  OM_uint32 discard_st;
+	struct private_data *data = (struct private_data *)f->data;
 
-  result = Curl_base64_encode(conn->data,
-                              neg_ctx->output_token.value,
-                              neg_ctx->output_token.length,
-                              &encoded, &len);
-  if(result) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return result;
-  }
+	return __archive_write_program_open(f, data->pdata, data->cmd);
+}
 
-  if(!encoded || !len) {
-    gss_release_buffer(&discard_st, &neg_ctx->output_token);
-    neg_ctx->output_token.value = NULL;
-    neg_ctx->output_token.length = 0;
-    return CURLE_REMOTE_ACCESS_DENIED;
-  }
+static int
+archive_compressor_program_write(struct archive_write_filter *f,
+    const void *buff, size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
 
-  userp = aprintf("%sAuthorization: Negotiate %s\r\n", proxy ? "Proxy-" : "",
-                  encoded);
+	return __archive_write_program_write(f, data->pdata, buff, length);
+}
+
+static int
+archive_compressor_program_close(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	return __archive_write_program_close(f, data->pdata);
+}
+
+static int
+archive_compressor_program_free(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	if (data) {
+		free(data->cmd);
+		archive_string_free(&data->description);
+		__archive_write_program_free(data->pdata);
+		free(data);
+		f->data = NULL;
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Allocate resources for executing an external program.
+ */
+struct archive_write_program_data *
+__archive_write_program_allocate(void)
+{
+	struct archive_write_program_data *data;
+
+	data = calloc(1, sizeof(struct archive_write_program_data));
+	if (data == NULL)
+		return (data);
+	data->child_stdin = -1;
+	data->child_stdout = -1;
+	return (data);
+}
+
+/*
+ * Release the resources.
+ */
+int
+__archive_write_program_free(struct archive_write_program_data *data)
+{
+
+	if (data) {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+		if (data->child)
+			CloseHandle(data->child);
+#endif
+		free(data->child_buf);
+		free(data);
+	}
+	return (ARCHIVE_OK);
+}
+
+int
+__archive_write_program_open(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const char *cmd)
+{
+	pid_t child;
+	int ret;
+
+	ret = __archive_write_open_filter(f->next_filter);
+	if (ret != ARCHIVE_OK)
+		return (ret);
+
+	if (data->child_buf == NULL) {
+		data->child_buf_len = 65536;
+		data->child_buf_avail = 0;
+		data->child_buf = malloc(data->child_buf_len);
+
+		if (data->child_buf == NULL) {
+			archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate compression buffer");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	child = __archive_create_child(cmd, &data->child_stdin,
+		    &data->child_stdout);
+	if (child == -1) {
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
+	if (data->child == NULL) {
+		close(data->child_stdin);
+		data->child_stdin = -1;
+		close(data->child_stdout);
+		data->child_stdout = -1;
+		archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");
+		return (ARCHIVE_FATAL);
+	}
+#else
+	data->child = child;
+#endif
+	return (ARCHIVE_OK);
+}
+
+static ssize_t
+child_write(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const char *buf, size_t buf_len)
+{
+	ssize_t ret;
+
+	if (data->child_stdin == -1)
+		return (-1);
+
+	if (buf_len == 0)
+		return (-1);
+
+	for (;;) {
+		do {
+			ret = write(data->child_stdin, buf, buf_len);
+		} while (ret == -1 && errno == EINTR);
+
+		if (ret > 0)
+			return (ret);
+		if (ret == 0) {
+			close(data->child_stdin);
+			data->child_stdin = -1;
+			fcntl(data->child_stdout, F_SETFL, 0);
+			return (0);
+		}
+		if (ret == -1 && errno != EAGAIN)
+			return (-1);
+
+		if (data->child_stdout == -1) {
+			fcntl(data->child_stdin, F_SETFL, 0);
+			__archive_check_child(data->child_stdin,
+				data->child_stdout);
+			continue;
+		}
+
+		do {
+			ret = read(data->child_stdout,
+			    data->child_buf + data->child_buf_avail,
+			    data->child_buf_len - data->child_buf_avail);
+		} while (ret == -1 && errno == EINTR);
+
+		if (ret == 0 || (ret == -1 && errno == EPIPE)) {
+			close(data->child_stdout);
+			data->child_stdout = -1;
+			fcntl(data->child_stdin, F_SETFL, 0);
+			continue;
+		}
+		if (ret == -1 && errno == EAGAIN) {
+			__archive_check_child(data->child_stdin,
+				data->child_stdout);
+			continue;
+		}
+		if (ret == -1)
+			return (-1);
+
+		data->child_buf_avail += ret;
+
+		ret = __archive_write_filter(f->next_filter,
+		    data->child_buf, data->child_buf_avail);
+		if (ret != ARCHIVE_OK)
+			return (-1);
+		data->child_buf_avail = 0;
+	}
+}
+
+/*
+ * Write data to the filter stream.
+ */
+int
+__archive_write_program_write(struct archive_write_filter *f,
+    struct archive_write_program_data *data, const void *buff, size_t length)
+{
+	ssize_t ret;
+	const char *buf;
+
+	if (data->child == 0)
+		return (ARCHIVE_OK);
+
+	buf = buff;
+	while (length > 0) {
+		ret = child_write(f, data, buf, length);
+		if (ret == -1 || ret == 0) {
+			archive_set_error(f->archive, EIO,
+			    "Can't write to filter");
+			return (ARCHIVE_FATAL);
+		}
+		length -= ret;
+		buf += ret;
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Finish the filtering...
+ */
+int
+__archive_write_program_close(struct archive_write_filter *f,
+    struct archive_write_program_data *data)
+{
+	int ret, r1, status;
+	ssize_t bytes_read;
+
+	if (data->child == 0)
+		return __archive_write_close_filter(f->next_filter);
+
+	ret = 0;
+	close(data->child_stdin);
+	data->child_stdin = -1;
+	fcntl(data->child_stdout, F_SETFL, 0);
+
+	for (;;) {
+		do {
+			bytes_read = read(data->child_stdout,
+			    data->child_buf + data->child_buf_avail,
+			    data->child_buf_len - data->child_buf_avail);
+		} while (bytes_read == -1 && errno == EINTR);
+
+		if (bytes_read == 0 || (bytes_read == -1 && errno == EPIPE))
+			break;
+
+		if (bytes_read == -1) {
+			archive_set_error(f->archive, errno,
+			    "Read from filter failed unexpectedly.");
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail += bytes_read;
+
+		ret = __archive_write_filter(f->next_filter,
+		    data->child_buf, data->child_buf_avail);
+		if (ret != ARCHIVE_OK) {
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
+		}
+		data->child_buf_avail = 0;
+	}
+
+cleanup:
+	/* Shut down the child. */
+	if (data->child_stdin != -1)
+		close(data->child_stdin);
+	if (data->child_stdout != -1)
+		close(data->child_stdout);
+	while (waitpid(data->child, &status, 0) == -1 && errno == EINTR)
+		continue;
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	CloseHandle(data->child);
+#endif
+	data->child = 0;
+
+	if (status != 0) {
+		archive_set_error(f->archive, EIO,
+		    "Filter exited with failure.");
+		ret = ARCHIVE_FATAL;
+	}
+	r1 = __archive_write_close_filter(f->next_filter);
+	return (r1 < ret ? r1 : ret);
+}
+

@@ -1,22 +1,38 @@
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
-
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
-
-	if (zip->init_decryption) {
-		zip->has_encrypted_entries = 1;
-		if (zip->entry->zip_flags & ZIP_STRONG_ENCRYPTED)
-			r = read_decryption_header(a);
-		else if (zip->entry->compression == WINZIP_AES_ENCRYPTION)
-			r = init_WinZip_AES_decryption(a);
-		else
-			r = init_traditional_PKWARE_decryption(a);
-		if (r != ARCHIVE_OK)
-			return (r);
-		zip->init_decryption = 0;
-	}
-
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
+				}
+			case 'c':
+				if (strcmp(val, "char") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFCHR);
+					break;
+				}
+			case 'd':
+				if (strcmp(val, "dir") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFDIR);
+					break;
+				}
+			case 'f':
+				if (strcmp(val, "fifo") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFIFO);
+					break;
+				}
+				if (strcmp(val, "file") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFREG);
+					break;
+				}
+			case 'l':
+				if (strcmp(val, "link") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFLNK);
+					break;
+				}
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; "
+				    "assuming \"file\"", val);
+				archive_entry_set_filetype(entry, AE_IFREG);
+				return (ARCHIVE_WARN);
+			}

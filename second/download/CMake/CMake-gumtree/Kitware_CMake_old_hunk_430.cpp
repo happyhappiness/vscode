@@ -1,7 +1,10 @@
-
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);
-
-    yycolumn = column_no;
+		return (r);
+	if ((size_t)r < size) {
+		archive_set_error(&a->archive, 0,
+		    "Write request too large");
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
 }
+
+static ssize_t

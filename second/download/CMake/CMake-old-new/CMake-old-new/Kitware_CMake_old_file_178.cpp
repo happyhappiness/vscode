@@ -1,1138 +1,704 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1999 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- *
- * Purpose:
- *  A merge of Bjorn Reese's format() function and Daniel's dsprintf()
- *  1.0. A full blooded printf() clone with full support for <num>$
- *  everywhere (parameters, widths and precisions) including variabled
- *  sized parameters (like doubles, long longs, long doubles and even
- *  void * in 64-bit architectures).
- *
- * Current restrictions:
- * - Max 128 parameters
- * - No 'long double' support.
- *
- * If you ever want truly portable and good *printf() clones, the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at http://daniel.haxx.se/trio/
- */
+/*============================================================================
+  CMake - Cross Platform Makefile Generator
+  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
 
-#include "curl_setup.h"
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
-#if defined(DJGPP) && (DJGPP_MINOR < 4)
-#undef _MPRINTF_REPLACE /* don't use x_was_used() here */
-#endif
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#include "cmCoreTryCompile.h"
+#include "cmake.h"
+#include "cmOutputConverter.h"
+#include "cmGlobalGenerator.h"
+#include "cmAlgorithms.h"
+#include "cmExportTryCompileFileGenerator.h"
+#include <cmsys/Directory.hxx>
 
-#include <curl/mprintf.h>
+#include <assert.h>
 
-#include "curl_memory.h"
-/* The last #include file should be: */
-#include "memdebug.h"
-
-/*
- * If SIZEOF_SIZE_T has not been defined, default to the size of long.
- */
-
-#ifndef SIZEOF_SIZE_T
-#  define SIZEOF_SIZE_T CURL_SIZEOF_LONG
-#endif
-
-#ifdef HAVE_LONGLONG
-#  define LONG_LONG_TYPE long long
-#  define HAVE_LONG_LONG_TYPE
-#else
-#  if defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64)
-#    define LONG_LONG_TYPE __int64
-#    define HAVE_LONG_LONG_TYPE
-#  else
-#    undef LONG_LONG_TYPE
-#    undef HAVE_LONG_LONG_TYPE
-#  endif
-#endif
-
-/*
- * Non-ANSI integer extensions
- */
-
-#if (defined(__BORLANDC__) && (__BORLANDC__ >= 0x520)) || \
-    (defined(__WATCOMC__) && defined(__386__)) || \
-    (defined(__POCC__) && defined(_MSC_VER)) || \
-    (defined(_WIN32_WCE)) || \
-    (defined(__MINGW32__)) || \
-    (defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64))
-#  define MP_HAVE_INT_EXTENSIONS
-#endif
-
-/*
- * Max integer data types that mprintf.c is capable
- */
-
-#ifdef HAVE_LONG_LONG_TYPE
-#  define mp_intmax_t LONG_LONG_TYPE
-#  define mp_uintmax_t unsigned LONG_LONG_TYPE
-#else
-#  define mp_intmax_t long
-#  define mp_uintmax_t unsigned long
-#endif
-
-#define BUFFSIZE 256 /* buffer for long-to-str and float-to-str calcs */
-#define MAX_PARAMETERS 128 /* lame static limit */
-
-#ifdef __AMIGA__
-# undef FORMAT_INT
-#endif
-
-/* Lower-case digits.  */
-static const char lower_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
-
-/* Upper-case digits.  */
-static const char upper_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-#define OUTCHAR(x) \
-  do{ \
-    if(stream((unsigned char)(x), (FILE *)data) != -1) \
-      done++; \
-    else \
-     return done; /* return immediately on failure */ \
-  } WHILE_FALSE
-
-/* Data type to read from the arglist */
-typedef enum  {
-  FORMAT_UNKNOWN = 0,
-  FORMAT_STRING,
-  FORMAT_PTR,
-  FORMAT_INT,
-  FORMAT_INTPTR,
-  FORMAT_LONG,
-  FORMAT_LONGLONG,
-  FORMAT_DOUBLE,
-  FORMAT_LONGDOUBLE,
-  FORMAT_WIDTH /* For internal use */
-} FormatType;
-
-/* conversion and display flags */
-enum {
-  FLAGS_NEW        = 0,
-  FLAGS_SPACE      = 1<<0,
-  FLAGS_SHOWSIGN   = 1<<1,
-  FLAGS_LEFT       = 1<<2,
-  FLAGS_ALT        = 1<<3,
-  FLAGS_SHORT      = 1<<4,
-  FLAGS_LONG       = 1<<5,
-  FLAGS_LONGLONG   = 1<<6,
-  FLAGS_LONGDOUBLE = 1<<7,
-  FLAGS_PAD_NIL    = 1<<8,
-  FLAGS_UNSIGNED   = 1<<9,
-  FLAGS_OCTAL      = 1<<10,
-  FLAGS_HEX        = 1<<11,
-  FLAGS_UPPER      = 1<<12,
-  FLAGS_WIDTH      = 1<<13, /* '*' or '*<num>$' used */
-  FLAGS_WIDTHPARAM = 1<<14, /* width PARAMETER was specified */
-  FLAGS_PREC       = 1<<15, /* precision was specified */
-  FLAGS_PRECPARAM  = 1<<16, /* precision PARAMETER was specified */
-  FLAGS_CHAR       = 1<<17, /* %c story */
-  FLAGS_FLOATE     = 1<<18, /* %e or %E */
-  FLAGS_FLOATG     = 1<<19  /* %g or %G */
-};
-
-typedef struct {
-  FormatType type;
-  int flags;
-  long width;     /* width OR width parameter number */
-  long precision; /* precision OR precision parameter number */
-  union {
-    char *str;
-    void *ptr;
-    union {
-      mp_intmax_t as_signed;
-      mp_uintmax_t as_unsigned;
-    } num;
-    double dnum;
-  } data;
-} va_stack_t;
-
-struct nsprintf {
-  char *buffer;
-  size_t length;
-  size_t max;
-};
-
-struct asprintf {
-  char *buffer; /* allocated buffer */
-  size_t len;   /* length of string */
-  size_t alloc; /* length of alloc */
-  int fail;     /* (!= 0) if an alloc has failed and thus
-                   the output is not the complete data */
-};
-
-static long dprintf_DollarString(char *input, char **end)
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
 {
-  int number=0;
-  while(ISDIGIT(*input)) {
-    number *= 10;
-    number += *input-'0';
-    input++;
-  }
-  if(number && ('$'==*input++)) {
-    *end = input;
-    return number;
-  }
-  return 0;
-}
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
 
-static bool dprintf_IsQualifierNoDollar(const char *fmt)
-{
-#if defined(MP_HAVE_INT_EXTENSIONS)
-  if(!strncmp(fmt, "I32", 3) || !strncmp(fmt, "I64", 3)) {
-    return TRUE;
-  }
-#endif
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  std::string targetName;
+  std::vector<std::string> cmakeFlags(1, "CMAKE_FLAGS"); // fake argv[0]
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::string copyFileError;
+  std::vector<std::string> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+  bool didCopyFileError = false;
+  bool useSources = argv[2] == "SOURCES";
+  std::vector<std::string> sources;
 
-  switch(*fmt) {
-  case '-': case '+': case ' ': case '#': case '.':
-  case '0': case '1': case '2': case '3': case '4':
-  case '5': case '6': case '7': case '8': case '9':
-  case 'h': case 'l': case 'L': case 'z': case 'q':
-  case '*': case 'O':
-#if defined(MP_HAVE_INT_EXTENSIONS)
-  case 'I':
-#endif
-    return TRUE;
-
-  default:
-    return FALSE;
-  }
-}
-
-/******************************************************************
- *
- * Pass 1:
- * Create an index with the type of each parameter entry and its
- * value (may vary in size)
- *
- ******************************************************************/
-
-static long dprintf_Pass1(const char *format, va_stack_t *vto, char **endpos,
-                          va_list arglist)
-{
-  char *fmt = (char *)format;
-  int param_num = 0;
-  long this_param;
-  long width;
-  long precision;
-  int flags;
-  long max_param=0;
-  long i;
-
-  while(*fmt) {
-    if(*fmt++ == '%') {
-      if(*fmt == '%') {
-        fmt++;
-        continue; /* while */
-      }
-
-      flags = FLAGS_NEW;
-
-      /* Handle the positional case (N$) */
-
-      param_num++;
-
-      this_param = dprintf_DollarString(fmt, &fmt);
-      if(0 == this_param)
-        /* we got no positional, get the next counter */
-        this_param = param_num;
-
-      if(this_param > max_param)
-        max_param = this_param;
-
-      /*
-       * The parameter with number 'i' should be used. Next, we need
-       * to get SIZE and TYPE of the parameter. Add the information
-       * to our array.
-       */
-
-      width = 0;
-      precision = 0;
-
-      /* Handle the flags */
-
-      while(dprintf_IsQualifierNoDollar(fmt)) {
-#if defined(MP_HAVE_INT_EXTENSIONS)
-        if(!strncmp(fmt, "I32", 3)) {
-          flags |= FLAGS_LONG;
-          fmt += 3;
-        }
-        else if(!strncmp(fmt, "I64", 3)) {
-          flags |= FLAGS_LONGLONG;
-          fmt += 3;
-        }
-        else
-#endif
-
-        switch(*fmt++) {
-        case ' ':
-          flags |= FLAGS_SPACE;
-          break;
-        case '+':
-          flags |= FLAGS_SHOWSIGN;
-          break;
-        case '-':
-          flags |= FLAGS_LEFT;
-          flags &= ~FLAGS_PAD_NIL;
-          break;
-        case '#':
-          flags |= FLAGS_ALT;
-          break;
-        case '.':
-          flags |= FLAGS_PREC;
-          if('*' == *fmt) {
-            /* The precision is picked from a specified parameter */
-
-            flags |= FLAGS_PRECPARAM;
-            fmt++;
-            param_num++;
-
-            i = dprintf_DollarString(fmt, &fmt);
-            if(i)
-              precision = i;
-            else
-              precision = param_num;
-
-            if(precision > max_param)
-              max_param = precision;
-          }
-          else {
-            flags |= FLAGS_PREC;
-            precision = strtol(fmt, &fmt, 10);
-          }
-          break;
-        case 'h':
-          flags |= FLAGS_SHORT;
-          break;
-#if defined(MP_HAVE_INT_EXTENSIONS)
-        case 'I':
-#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-#endif
-        case 'l':
-          if(flags & FLAGS_LONG)
-            flags |= FLAGS_LONGLONG;
-          else
-            flags |= FLAGS_LONG;
-          break;
-        case 'L':
-          flags |= FLAGS_LONGDOUBLE;
-          break;
-        case 'q':
-          flags |= FLAGS_LONGLONG;
-          break;
-        case 'z':
-          /* the code below generates a warning if -Wunreachable-code is
-             used */
-#if (SIZEOF_SIZE_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-        case 'O':
-#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-        case '0':
-          if(!(flags & FLAGS_LEFT))
-            flags |= FLAGS_PAD_NIL;
-          /* FALLTHROUGH */
-        case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9':
-          flags |= FLAGS_WIDTH;
-          width = strtol(fmt-1, &fmt, 10);
-          break;
-        case '*':  /* Special case */
-          flags |= FLAGS_WIDTHPARAM;
-          param_num++;
-
-          i = dprintf_DollarString(fmt, &fmt);
-          if(i)
-            width = i;
-          else
-            width = param_num;
-          if(width > max_param)
-            max_param=width;
-          break;
-        default:
-          break;
-        }
-      } /* switch */
-
-      /* Handle the specifier */
-
-      i = this_param - 1;
-
-      switch (*fmt) {
-      case 'S':
-        flags |= FLAGS_ALT;
-        /* FALLTHROUGH */
-      case 's':
-        vto[i].type = FORMAT_STRING;
-        break;
-      case 'n':
-        vto[i].type = FORMAT_INTPTR;
-        break;
-      case 'p':
-        vto[i].type = FORMAT_PTR;
-        break;
-      case 'd': case 'i':
-        vto[i].type = FORMAT_INT;
-        break;
-      case 'u':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_UNSIGNED;
-        break;
-      case 'o':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_OCTAL;
-        break;
-      case 'x':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_HEX|FLAGS_UNSIGNED;
-        break;
-      case 'X':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_HEX|FLAGS_UPPER|FLAGS_UNSIGNED;
-        break;
-      case 'c':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_CHAR;
-        break;
-      case 'f':
-        vto[i].type = FORMAT_DOUBLE;
-        break;
-      case 'e':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATE;
-        break;
-      case 'E':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATE|FLAGS_UPPER;
-        break;
-      case 'g':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATG;
-        break;
-      case 'G':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATG|FLAGS_UPPER;
-        break;
-      default:
-        vto[i].type = FORMAT_UNKNOWN;
-        break;
-      } /* switch */
-
-      vto[i].flags = flags;
-      vto[i].width = width;
-      vto[i].precision = precision;
-
-      if(flags & FLAGS_WIDTHPARAM) {
-        /* we have the width specified from a parameter, so we make that
-           parameter's info setup properly */
-        vto[i].width = width - 1;
-        i = width - 1;
-        vto[i].type = FORMAT_WIDTH;
-        vto[i].flags = FLAGS_NEW;
-        vto[i].precision = vto[i].width = 0; /* can't use width or precision
-                                                of width! */
-      }
-      if(flags & FLAGS_PRECPARAM) {
-        /* we have the precision specified from a parameter, so we make that
-           parameter's info setup properly */
-        vto[i].precision = precision - 1;
-        i = precision - 1;
-        vto[i].type = FORMAT_WIDTH;
-        vto[i].flags = FLAGS_NEW;
-        vto[i].precision = vto[i].width = 0; /* can't use width or precision
-                                                of width! */
-      }
-      *endpos++ = fmt + 1; /* end of this sequence */
-    }
-  }
-
-  /* Read the arg list parameters into our data list */
-  for(i=0; i<max_param; i++) {
-    if((i + 1 < max_param) && (vto[i + 1].type == FORMAT_WIDTH)) {
-      /* Width/precision arguments must be read before the main argument
-       * they are attached to
-       */
-      vto[i + 1].data.num.as_signed = (mp_intmax_t)va_arg(arglist, int);
-    }
-
-    switch (vto[i].type) {
-    case FORMAT_STRING:
-      vto[i].data.str = va_arg(arglist, char *);
-      break;
-
-    case FORMAT_INTPTR:
-    case FORMAT_UNKNOWN:
-    case FORMAT_PTR:
-      vto[i].data.ptr = va_arg(arglist, void *);
-      break;
-
-    case FORMAT_INT:
-#ifdef HAVE_LONG_LONG_TYPE
-      if((vto[i].flags & FLAGS_LONGLONG) && (vto[i].flags & FLAGS_UNSIGNED))
-        vto[i].data.num.as_unsigned =
-          (mp_uintmax_t)va_arg(arglist, mp_uintmax_t);
-      else if(vto[i].flags & FLAGS_LONGLONG)
-        vto[i].data.num.as_signed =
-          (mp_intmax_t)va_arg(arglist, mp_intmax_t);
-      else
-#endif
+  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
+               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
+               DoingCopyFileError, DoingSources };
+  Doing doing = useSources? DoingSources : DoingNone;
+  for(size_t i=3; i < argv.size(); ++i)
+    {
+    if(argv[i] == "CMAKE_FLAGS")
       {
-        if((vto[i].flags & FLAGS_LONG) && (vto[i].flags & FLAGS_UNSIGNED))
-          vto[i].data.num.as_unsigned =
-            (mp_uintmax_t)va_arg(arglist, unsigned long);
-        else if(vto[i].flags & FLAGS_LONG)
-          vto[i].data.num.as_signed =
-            (mp_intmax_t)va_arg(arglist, long);
-        else if(vto[i].flags & FLAGS_UNSIGNED)
-          vto[i].data.num.as_unsigned =
-            (mp_uintmax_t)va_arg(arglist, unsigned int);
-        else
-          vto[i].data.num.as_signed =
-            (mp_intmax_t)va_arg(arglist, int);
+      doing = DoingCMakeFlags;
       }
-      break;
-
-    case FORMAT_DOUBLE:
-      vto[i].data.dnum = va_arg(arglist, double);
-      break;
-
-    case FORMAT_WIDTH:
-      /* Argument has been read. Silently convert it into an integer
-       * for later use
-       */
-      vto[i].type = FORMAT_INT;
-      break;
-
-    default:
-      break;
-    }
-  }
-
-  return max_param;
-
-}
-
-static int dprintf_formatf(
-  void *data, /* untouched by format(), just sent to the stream() function in
-                 the second argument */
-  /* function pointer called for each output character */
-  int (*stream)(int, FILE *),
-  const char *format,    /* %-formatted string */
-  va_list ap_save) /* list of parameters */
-{
-  /* Base-36 digits for numbers.  */
-  const char *digits = lower_digits;
-
-  /* Pointer into the format string.  */
-  char *f;
-
-  /* Number of characters written.  */
-  int done = 0;
-
-  long param; /* current parameter to read */
-  long param_num=0; /* parameter counter */
-
-  va_stack_t vto[MAX_PARAMETERS];
-  char *endpos[MAX_PARAMETERS];
-  char **end;
-
-  char work[BUFFSIZE];
-
-  va_stack_t *p;
-
-  /* Do the actual %-code parsing */
-  dprintf_Pass1(format, vto, endpos, ap_save);
-
-  end = &endpos[0]; /* the initial end-position from the list dprintf_Pass1()
-                       created for us */
-
-  f = (char *)format;
-  while(*f != '\0') {
-    /* Format spec modifiers.  */
-    int is_alt;
-
-    /* Width of a field.  */
-    long width;
-
-    /* Precision of a field.  */
-    long prec;
-
-    /* Decimal integer is negative.  */
-    int is_neg;
-
-    /* Base of a number to be written.  */
-    long base;
-
-    /* Integral values to be written.  */
-    mp_uintmax_t num;
-
-    /* Used to convert negative in positive.  */
-    mp_intmax_t signed_num;
-
-    if(*f != '%') {
-      /* This isn't a format spec, so write everything out until the next one
-         OR end of string is reached.  */
-      do {
-        OUTCHAR(*f);
-      } while(*++f && ('%' != *f));
-      continue;
-    }
-
-    ++f;
-
-    /* Check for "%%".  Note that although the ANSI standard lists
-       '%' as a conversion specifier, it says "The complete format
-       specification shall be `%%'," so we can avoid all the width
-       and precision processing.  */
-    if(*f == '%') {
-      ++f;
-      OUTCHAR('%');
-      continue;
-    }
-
-    /* If this is a positional parameter, the position must follow immediately
-       after the %, thus create a %<num>$ sequence */
-    param=dprintf_DollarString(f, &f);
-
-    if(!param)
-      param = param_num;
-    else
-      --param;
-
-    param_num++; /* increase this always to allow "%2$s %1$s %s" and then the
-                    third %s will pick the 3rd argument */
-
-    p = &vto[param];
-
-    /* pick up the specified width */
-    if(p->flags & FLAGS_WIDTHPARAM)
-      width = (long)vto[p->width].data.num.as_signed;
-    else
-      width = p->width;
-
-    /* pick up the specified precision */
-    if(p->flags & FLAGS_PRECPARAM) {
-      prec = (long)vto[p->precision].data.num.as_signed;
-      param_num++; /* since the precision is extraced from a parameter, we
-                      must skip that to get to the next one properly */
-    }
-    else if(p->flags & FLAGS_PREC)
-      prec = p->precision;
-    else
-      prec = -1;
-
-    is_alt = (p->flags & FLAGS_ALT) ? 1 : 0;
-
-    switch (p->type) {
-    case FORMAT_INT:
-      num = p->data.num.as_unsigned;
-      if(p->flags & FLAGS_CHAR) {
-        /* Character.  */
-        if(!(p->flags & FLAGS_LEFT))
-          while(--width > 0)
-            OUTCHAR(' ');
-        OUTCHAR((char) num);
-        if(p->flags & FLAGS_LEFT)
-          while(--width > 0)
-            OUTCHAR(' ');
-        break;
-      }
-      if(p->flags & FLAGS_OCTAL) {
-        /* Octal unsigned integer.  */
-        base = 8;
-        goto unsigned_number;
-      }
-      else if(p->flags & FLAGS_HEX) {
-        /* Hexadecimal unsigned integer.  */
-
-        digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
-        base = 16;
-        goto unsigned_number;
-      }
-      else if(p->flags & FLAGS_UNSIGNED) {
-        /* Decimal unsigned integer.  */
-        base = 10;
-        goto unsigned_number;
-      }
-
-      /* Decimal integer.  */
-      base = 10;
-
-      is_neg = (p->data.num.as_signed < (mp_intmax_t)0) ? 1 : 0;
-      if(is_neg) {
-        /* signed_num might fail to hold absolute negative minimum by 1 */
-        signed_num = p->data.num.as_signed + (mp_intmax_t)1;
-        signed_num = -signed_num;
-        num = (mp_uintmax_t)signed_num;
-        num += (mp_uintmax_t)1;
-      }
-
-      goto number;
-
-      unsigned_number:
-      /* Unsigned number of base BASE.  */
-      is_neg = 0;
-
-      number:
-      /* Number of base BASE.  */
+    else if(argv[i] == "COMPILE_DEFINITIONS")
       {
-        char *workend = &work[sizeof(work) - 1];
-        char *w;
-
-        /* Supply a default precision if none was given.  */
-        if(prec == -1)
-          prec = 1;
-
-        /* Put the number in WORK.  */
-        w = workend;
-        while(num > 0) {
-          *w-- = digits[num % base];
-          num /= base;
-        }
-        width -= (long)(workend - w);
-        prec -= (long)(workend - w);
-
-        if(is_alt && base == 8 && prec <= 0) {
-          *w-- = '0';
-          --width;
-        }
-
-        if(prec > 0) {
-          width -= prec;
-          while(prec-- > 0)
-            *w-- = '0';
-        }
-
-        if(is_alt && base == 16)
-          width -= 2;
-
-        if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
-          --width;
-
-        if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
-          while(width-- > 0)
-            OUTCHAR(' ');
-
-        if(is_neg)
-          OUTCHAR('-');
-        else if(p->flags & FLAGS_SHOWSIGN)
-          OUTCHAR('+');
-        else if(p->flags & FLAGS_SPACE)
-          OUTCHAR(' ');
-
-        if(is_alt && base == 16) {
-          OUTCHAR('0');
-          if(p->flags & FLAGS_UPPER)
-            OUTCHAR('X');
-          else
-            OUTCHAR('x');
-        }
-
-        if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
-          while(width-- > 0)
-            OUTCHAR('0');
-
-        /* Write the number.  */
-        while(++w <= workend) {
-          OUTCHAR(*w);
-        }
-
-        if(p->flags & FLAGS_LEFT)
-          while(width-- > 0)
-            OUTCHAR(' ');
+      doing = DoingCompileDefinitions;
       }
-      break;
-
-    case FORMAT_STRING:
-            /* String.  */
+    else if(argv[i] == "LINK_LIBRARIES")
       {
-        static const char null[] = "(nil)";
-        const char *str;
-        size_t len;
-
-        str = (char *) p->data.str;
-        if(str == NULL) {
-          /* Write null[] if there's space.  */
-          if(prec == -1 || prec >= (long) sizeof(null) - 1) {
-            str = null;
-            len = sizeof(null) - 1;
-            /* Disable quotes around (nil) */
-            p->flags &= (~FLAGS_ALT);
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+      }
+    else if(argv[i] == "OUTPUT_VARIABLE")
+      {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+      }
+    else if(argv[i] == "COPY_FILE")
+      {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+      }
+    else if(argv[i] == "COPY_FILE_ERROR")
+      {
+      doing = DoingCopyFileError;
+      didCopyFileError = true;
+      }
+    else if(doing == DoingCMakeFlags)
+      {
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(doing == DoingCompileDefinitions)
+      {
+      compileDefs.push_back(argv[i]);
+      }
+    else if(doing == DoingLinkLibraries)
+      {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
+        {
+        switch(tgt->GetType())
+          {
+          case cmState::SHARED_LIBRARY:
+          case cmState::STATIC_LIBRARY:
+          case cmState::INTERFACE_LIBRARY:
+          case cmState::UNKNOWN_LIBRARY:
+            break;
+          case cmState::EXECUTABLE:
+            if (tgt->IsExecutableWithExports())
+              {
+              break;
+              }
+          default:
+            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile or try_run IMPORTED "
+              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
+              "type " + cmState::GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
           }
-          else {
-            str = "";
-            len = 0;
+        if (tgt->IsImported())
+          {
+          targets.push_back(argv[i]);
           }
         }
-        else if(prec != -1)
-          len = (size_t)prec;
-        else
-          len = strlen(str);
-
-        width -= (long)len;
-
-        if(p->flags & FLAGS_ALT)
-          OUTCHAR('"');
-
-        if(!(p->flags&FLAGS_LEFT))
-          while(width-- > 0)
-            OUTCHAR(' ');
-
-        while((len-- > 0) && *str)
-          OUTCHAR(*str++);
-        if(p->flags&FLAGS_LEFT)
-          while(width-- > 0)
-            OUTCHAR(' ');
-
-        if(p->flags & FLAGS_ALT)
-          OUTCHAR('"');
       }
-      break;
-
-    case FORMAT_PTR:
-      /* Generic pointer.  */
+    else if(doing == DoingOutputVariable)
       {
-        void *ptr;
-        ptr = (void *) p->data.ptr;
-        if(ptr != NULL) {
-          /* If the pointer is not NULL, write it as a %#x spec.  */
-          base = 16;
-          digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
-          is_alt = 1;
-          num = (size_t) ptr;
-          is_neg = 0;
-          goto number;
-        }
-        else {
-          /* Write "(nil)" for a nil pointer.  */
-          static const char strnil[] = "(nil)";
-          const char *point;
-
-          width -= (long)(sizeof(strnil) - 1);
-          if(p->flags & FLAGS_LEFT)
-            while(width-- > 0)
-              OUTCHAR(' ');
-          for(point = strnil; *point != '\0'; ++point)
-            OUTCHAR(*point);
-          if(! (p->flags & FLAGS_LEFT))
-            while(width-- > 0)
-              OUTCHAR(' ');
-        }
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
       }
-      break;
-
-    case FORMAT_DOUBLE:
+    else if(doing == DoingCopyFile)
       {
-        char formatbuf[32]="%";
-        char *fptr = &formatbuf[1];
-        size_t left = sizeof(formatbuf)-strlen(formatbuf);
-        int len;
-
-        width = -1;
-        if(p->flags & FLAGS_WIDTH)
-          width = p->width;
-        else if(p->flags & FLAGS_WIDTHPARAM)
-          width = (long)vto[p->width].data.num.as_signed;
-
-        prec = -1;
-        if(p->flags & FLAGS_PREC)
-          prec = p->precision;
-        else if(p->flags & FLAGS_PRECPARAM)
-          prec = (long)vto[p->precision].data.num.as_signed;
-
-        if(p->flags & FLAGS_LEFT)
-          *fptr++ = '-';
-        if(p->flags & FLAGS_SHOWSIGN)
-          *fptr++ = '+';
-        if(p->flags & FLAGS_SPACE)
-          *fptr++ = ' ';
-        if(p->flags & FLAGS_ALT)
-          *fptr++ = '#';
-
-        *fptr = 0;
-
-        if(width >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, "%ld", width);
-          fptr += len;
-          left -= len;
-        }
-        if(prec >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, ".%ld", prec);
-          fptr += len;
-        }
-        if(p->flags & FLAGS_LONG)
-          *fptr++ = 'l';
-
-        if(p->flags & FLAGS_FLOATE)
-          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'E':'e');
-        else if(p->flags & FLAGS_FLOATG)
-          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'G' : 'g');
-        else
-          *fptr++ = 'f';
-
-        *fptr = 0; /* and a final zero termination */
-
-        /* NOTE NOTE NOTE!! Not all sprintf implementations return number of
-           output characters */
-        (sprintf)(work, formatbuf, p->data.dnum);
-
-        for(fptr=work; *fptr; fptr++)
-          OUTCHAR(*fptr);
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
       }
-      break;
-
-    case FORMAT_INTPTR:
-      /* Answer the count of characters written.  */
-#ifdef HAVE_LONG_LONG_TYPE
-      if(p->flags & FLAGS_LONGLONG)
-        *(LONG_LONG_TYPE *) p->data.ptr = (LONG_LONG_TYPE)done;
-      else
-#endif
-        if(p->flags & FLAGS_LONG)
-          *(long *) p->data.ptr = (long)done;
-      else if(!(p->flags & FLAGS_SHORT))
-        *(int *) p->data.ptr = (int)done;
-      else
-        *(short *) p->data.ptr = (short)done;
-      break;
-
-    default:
-      break;
-    }
-    f = *end++; /* goto end of %-code */
-
-  }
-  return done;
-}
-
-/* fputc() look-alike */
-static int addbyter(int output, FILE *data)
-{
-  struct nsprintf *infop=(struct nsprintf *)data;
-  unsigned char outc = (unsigned char)output;
-
-  if(infop->length < infop->max) {
-    /* only do this if we haven't reached max length yet */
-    infop->buffer[0] = outc; /* store */
-    infop->buffer++; /* increase pointer */
-    infop->length++; /* we are now one byte larger */
-    return outc;     /* fputc() returns like this on success */
-  }
-  return -1;
-}
-
-int curl_mvsnprintf(char *buffer, size_t maxlength, const char *format,
-                    va_list ap_save)
-{
-  int retcode;
-  struct nsprintf info;
-
-  info.buffer = buffer;
-  info.length = 0;
-  info.max = maxlength;
-
-  retcode = dprintf_formatf(&info, addbyter, format, ap_save);
-  if(info.max) {
-    /* we terminate this with a zero byte */
-    if(info.max == info.length)
-      /* we're at maximum, scrap the last letter */
-      info.buffer[-1] = 0;
+    else if(doing == DoingCopyFileError)
+      {
+      copyFileError = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingSources)
+      {
+      sources.push_back(argv[i]);
+      }
+    else if(i == 3)
+      {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+      }
+    else if(i == 4 && !this->SrcFileSignature)
+      {
+      targetName = argv[i].c_str();
+      }
     else
-      info.buffer[0] = 0;
-  }
-  return retcode;
-}
-
-int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-  retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
-
-/* fputc() look-alike */
-static int alloc_addbyter(int output, FILE *data)
-{
-  struct asprintf *infop=(struct asprintf *)data;
-  unsigned char outc = (unsigned char)output;
-
-  if(!infop->buffer) {
-    infop->buffer = malloc(32);
-    if(!infop->buffer) {
-      infop->fail = 1;
-      return -1; /* fail */
+      {
+      std::ostringstream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+      }
     }
-    infop->alloc = 32;
-    infop->len =0;
-  }
-  else if(infop->len+1 >= infop->alloc) {
-    char *newptr;
 
-    newptr = realloc(infop->buffer, infop->alloc*2);
-
-    if(!newptr) {
-      infop->fail = 1;
-      return -1; /* fail */
+  if(didCopyFile && copyFile.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE must be followed by a file path");
+    return -1;
     }
-    infop->buffer = newptr;
-    infop->alloc *= 2;
-  }
 
-  infop->buffer[ infop->len ] = outc;
+  if(didCopyFileError && copyFileError.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR must be followed by a variable name");
+    return -1;
+    }
 
-  infop->len++;
+  if(didCopyFileError && !didCopyFile)
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR may be used only with COPY_FILE");
+    return -1;
+    }
 
-  return outc; /* fputc() returns like this on success */
-}
+  if(didOutputVariable && outputVariable.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+    }
 
-char *curl_maprintf(const char *format, ...)
-{
-  va_list ap_save; /* argument pointer */
-  int retcode;
-  struct asprintf info;
+  if(useSources && sources.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "SOURCES must be followed by at least one source file");
+    return -1;
+    }
 
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-  info.fail = 0;
-
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  va_end(ap_save);
-  if((-1 == retcode) || info.fail) {
-    if(info.alloc)
-      free(info.buffer);
-    return NULL;
-  }
-  if(info.alloc) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature)
+    {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
+    }
   else
-    return strdup("");
+    {
+    // only valid for srcfile signatures
+    if (!compileDefs.empty())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    if (!copyFile.empty())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
+    {
+    std::ostringstream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
+    }
+
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature)
+    {
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile);
+
+    // Choose sources.
+    if(!useSources)
+      {
+      sources.push_back(argv[2]);
+      }
+
+    // Detect languages to enable.
+    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
+      if(!lang.empty())
+        {
+        testLangs.insert(lang);
+        }
+      else
+        {
+        std::ostringstream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n  ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        err << cmJoin(langs, " ");
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
+        }
+      }
+
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
+
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = cmsys::SystemTools::Fopen(outFileName,"w");
+    if (!fout)
+      {
+      std::ostringstream e;
+      e << "Failed to open\n"
+        << "  " << outFileName << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+      }
+
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
+      {
+      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
+      }
+
+    std::string projectLangs;
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if(const char* rulesOverridePath =
+         this->Makefile->GetDefinition(rulesOverrideLang))
+        {
+        fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);
+        }
+      else if(const char* rulesOverridePath2 =
+              this->Makefile->GetDefinition(rulesOverrideBase))
+        {
+        fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+        }
+      }
+    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmOutputConverter::EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+      }
+    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0056))
+      {
+      case cmPolicies::WARN:
+        if(this->Makefile->PolicyOptionalWarningEnabled(
+             "CMAKE_POLICY_WARNING_CMP0056"))
+          {
+          std::ostringstream w;
+          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
+            "For compatibility with older versions of CMake, try_compile "
+            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
+            "in the test project."
+            ;
+          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+          }
+      case cmPolicies::OLD:
+        // OLD behavior is to do nothing.
+        break;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        this->Makefile->IssueMessage(
+          cmake::FATAL_ERROR,
+          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056)
+          );
+      case cmPolicies::NEW:
+        // NEW behavior is to pass linker flags.
+        {
+        const char* exeLinkFlags =
+          this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
+        fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+                cmOutputConverter::EscapeForCMake(
+                    exeLinkFlags ? exeLinkFlags : "").c_str());
+        } break;
+      }
+    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
+            " ${EXE_LINKER_FLAGS}\")\n");
+    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (!compileDefs.empty())
+      {
+      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTC_%05x",
+            cmSystemTools::RandomSeed() & 0xFFFFF);
+    targetName = targetNameBuf;
+
+    if (!targets.empty())
+      {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg(gg, targets, this->Makefile);
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+      if(!tcfg.GenerateImportFile())
+        {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+        }
+      fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *cxxDef
+              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
+      {
+      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
+      flag += cxxDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *cDef
+                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
+      {
+      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
+      flag += cDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *tcxxDef = this->Makefile->GetDefinition(
+                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
+      {
+      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcxxDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *tcDef = this->Makefile->GetDefinition(
+                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
+      {
+      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *rootDef
+              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
+      {
+      std::string flag="-DCMAKE_SYSROOT=";
+      flag += rootDef;
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+    if (const char *lssDef = this->Makefile->GetDefinition(
+        "CMAKE_LINK_SEARCH_START_STATIC"))
+      {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);
+      }
+    if (const char *lssDef = this->Makefile->GetDefinition(
+        "CMAKE_LINK_SEARCH_END_STATIC"))
+      {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
+      }
+
+    /* Set the appropriate policy information for ENABLE_EXPORTS */
+    fprintf(fout, "cmake_policy(SET CMP0065 %s)\n",
+       this->Makefile->GetPolicyStatus(cmPolicies::CMP0065) ==
+         cmPolicies::NEW ? "NEW" : "OLD");
+    if(const char *ee = this->Makefile->GetDefinition(
+        "CMAKE_ENABLE_EXPORTS"))
+      {
+      fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);
+      }
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "add_executable(%s", targetName.c_str());
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if(si->find("CMakeTmp") == si->npos)
+        {
+        this->Makefile->AddCMakeDependFile(*si);
+        }
+      }
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());
+      }
+    else
+      {
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName.c_str(),
+              libsToLink.c_str());
+      }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+    }
+
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(sourceDirectory,
+                                       this->BinaryDirectory,
+                                       projectName,
+                                       targetName,
+                                       this->SrcFileSignature,
+                                       &cmakeFlags,
+                                       output);
+  if ( erroroc )
+    {
+    cmSystemTools::SetErrorOccured();
+    }
+
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0],
+                                     (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmState::INTERNAL);
+
+  if (!outputVariable.empty())
+    {
+    this->Makefile->AddDefinition(outputVariable, output.c_str());
+    }
+
+  if (this->SrcFileSignature)
+    {
+    std::string copyFileErrorMessage;
+    this->FindOutputFile(targetName);
+
+    if ((res==0) && !copyFile.empty())
+      {
+      if(this->OutputFile.empty() ||
+         !cmSystemTools::CopyFileAlways(this->OutputFile,
+                                        copyFile))
+        {
+        std::ostringstream emsg;
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile << "'\n";
+        if(!this->FindErrorMessage.empty())
+          {
+          emsg << this->FindErrorMessage.c_str();
+          }
+        if(copyFileError.empty())
+          {
+          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+          return -1;
+          }
+        else
+          {
+          copyFileErrorMessage = emsg.str();
+          }
+        }
+      }
+
+    if(!copyFileError.empty())
+      {
+      this->Makefile->AddDefinition(copyFileError,
+                                    copyFileErrorMessage.c_str());
+      }
+    }
+  return res;
 }
 
-char *curl_mvaprintf(const char *format, va_list ap_save)
+void cmCoreTryCompile::CleanupFiles(const char* binDir)
 {
-  int retcode;
-  struct asprintf info;
+  if ( !binDir )
+    {
+    return;
+    }
 
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-  info.fail = 0;
+  std::string bdir = binDir;
+  if(bdir.find("CMakeTmp") == std::string::npos)
+    {
+    cmSystemTools::Error(
+      "TRY_COMPILE attempt to remove -rf directory that does not contain "
+      "CMakeTmp:", binDir);
+    return;
+    }
 
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  if((-1 == retcode) || info.fail) {
-    if(info.alloc)
-      free(info.buffer);
-    return NULL;
-  }
+  cmsys::Directory dir;
+  dir.Load(binDir);
+  size_t fileNum;
+  std::set<std::string> deletedFiles;
+  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
+    {
+    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
+        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
+      {
 
-  if(info.alloc) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  else
-    return strdup("");
+      if(deletedFiles.find( dir.GetFile(static_cast<unsigned long>(fileNum)))
+         == deletedFiles.end())
+        {
+        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
+        std::string fullPath = binDir;
+        fullPath += "/";
+        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
+        if(cmSystemTools::FileIsDirectory(fullPath))
+          {
+          this->CleanupFiles(fullPath.c_str());
+          cmSystemTools::RemoveADirectory(fullPath);
+          }
+        else
+          {
+#ifdef _WIN32
+          // Sometimes anti-virus software hangs on to new files so we
+          // cannot delete them immediately.  Try a few times.
+          cmSystemTools::WindowsFileRetry retry =
+            cmSystemTools::GetWindowsFileRetry();
+          while(!cmSystemTools::RemoveFile(fullPath.c_str()) &&
+                --retry.Count && cmSystemTools::FileExists(fullPath.c_str()))
+            {
+            cmSystemTools::Delay(retry.Delay);
+            }
+          if(retry.Count == 0)
+#else
+          if(!cmSystemTools::RemoveFile(fullPath))
+#endif
+            {
+            std::string m = "Remove failed on file: " + fullPath;
+            cmSystemTools::ReportLastSystemError(m.c_str());
+            }
+          }
+        }
+      }
+    }
 }
 
-static int storebuffer(int output, FILE *data)
+void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
 {
-  char **buffer = (char **)data;
-  unsigned char outc = (unsigned char)output;
-  **buffer = outc;
-  (*buffer)++;
-  return outc; /* act like fputc() ! */
-}
+  this->FindErrorMessage = "";
+  this->OutputFile = "";
+  std::string tmpOutputFile = "/";
+  tmpOutputFile += targetName;
+  tmpOutputFile +=this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
 
-int curl_msprintf(char *buffer, const char *format, ...)
-{
-  va_list ap_save; /* argument pointer */
-  int retcode;
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  va_end(ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
-}
+  // a list of directories where to search for the compilation result
+  // at first directly in the binary dir
+  std::vector<std::string> searchDirs;
+  searchDirs.push_back("");
 
-int curl_mprintf(const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
+  const char* config = this->Makefile->GetDefinition(
+                                            "CMAKE_TRY_COMPILE_CONFIGURATION");
+  // if a config was specified try that first
+  if (config && config[0])
+    {
+    std::string tmp = "/";
+    tmp += config;
+    searchDirs.push_back(tmp);
+    }
+  searchDirs.push_back("/Debug");
+#if defined(__APPLE__)
+  std::string app = "/Debug/" + targetName + ".app";
+  searchDirs.push_back(app);
+#endif
+  searchDirs.push_back("/Development");
 
-  retcode = dprintf_formatf(stdout, fputc, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
+  for(std::vector<std::string>::const_iterator it = searchDirs.begin();
+      it != searchDirs.end();
+      ++it)
+    {
+    std::string command = this->BinaryDirectory;
+    command += *it;
+    command += tmpOutputFile;
+    if(cmSystemTools::FileExists(command.c_str()))
+      {
+      this->OutputFile = cmSystemTools::CollapseFullPath(command);
+      return;
+      }
+    }
 
-int curl_mfprintf(FILE *whereto, const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(whereto, fputc, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
-
-int curl_mvsprintf(char *buffer, const char *format, va_list ap_save)
-{
-  int retcode;
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
-}
-
-int curl_mvprintf(const char *format, va_list ap_save)
-{
-  return dprintf_formatf(stdout, fputc, format, ap_save);
-}
-
-int curl_mvfprintf(FILE *whereto, const char *format, va_list ap_save)
-{
-  return dprintf_formatf(whereto, fputc, format, ap_save);
+  std::ostringstream emsg;
+  emsg << "Unable to find the executable at any of:\n";
+  emsg << cmWrap("  " + this->BinaryDirectory,
+                 searchDirs,
+                 tmpOutputFile, "\n") << "\n";
+  this->FindErrorMessage = emsg.str();
+  return;
 }

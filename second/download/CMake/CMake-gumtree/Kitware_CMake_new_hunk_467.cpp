@@ -1,7 +1,9 @@
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Pathname is too long");
-			return (ARCHIVE_FATAL);
-		}
-
-		r = archive_entry_copy_pathname_l(entry,
+                        const cmCustomCommand& origCommand)
+{
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
+                           + target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);
+  const char* comment = origCommand.GetComment();
+  if(!comment && origCommand.GetOutputs().empty())

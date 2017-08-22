@@ -1,7 +1,11 @@
-			return (ARCHIVE_WARN);
+			return (0);
+		if (bytes_read < 0)
+			return (ARCHIVE_FATAL);
+		s = t;  /* Start of line? */
+		p = memchr(t, '\n', bytes_read);
+		/* If we found '\n', trim the read. */
+		if (p != NULL) {
+			bytes_read = 1 + ((const char *)p) - s;
 		}
-		/* Check computed CRC against header */
-		if (zip->entry->crc32 != zip->entry_crc32
-		    && !zip->ignore_crc32) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP bad CRC: 0x%lx should be 0x%lx",
+		if (total_size + bytes_read + 1 > limit) {
+			archive_set_error(&a->archive,

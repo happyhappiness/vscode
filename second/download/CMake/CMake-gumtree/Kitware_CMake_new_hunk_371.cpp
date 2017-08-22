@@ -1,10 +1,8 @@
-  }
+	struct mtree_entry *entry;
+	struct mtree_option *iter;
+	const char *next, *eq, *name, *end;
+	size_t name_len, len;
+	int r, i;
 
-  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
-  if(windowoffs + length <= lzss_size(&rar->lzss)) {
-    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
-           length);
-  } else if (length <= lzss_size(&rar->lzss)) {
-    firstpart = lzss_size(&rar->lzss) - windowoffs;
-    if (firstpart < 0) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	if ((entry = malloc(sizeof(*entry))) == NULL) {
+		archive_set_error(&a->archive, errno, "Can't allocate memory");

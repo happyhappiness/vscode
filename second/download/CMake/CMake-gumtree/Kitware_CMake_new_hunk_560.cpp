@@ -1,7 +1,8 @@
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
+    label.resize(maxlen +3, ' ');
+    char buf[1024];
+    sprintf(buf, "%6.2f sec", labelTimes[*i]);
+    cmCTestOptionalLog(this->CTest, HANDLER_OUTPUT, "\n"
+               << label << " = " << buf, this->Quiet );
+    if ( this->LogFile )
+      {
+      *this->LogFile << "\n" << *i << " = "

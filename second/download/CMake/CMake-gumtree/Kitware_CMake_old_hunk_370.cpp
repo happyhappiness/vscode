@@ -1,7 +1,7 @@
-
-    gg->CreateGenerationObjects();
-    cmLocalGenerator* lg = gg->LocalGenerators[0];
-    std::string includeFlags = lg->GetIncludeFlags(includeDirs, 0, language);
-
-    std::string definitions = mf->GetSafeDefinition("PACKAGE_DEFINITIONS");
-    printf("%s %s\n", includeFlags.c_str(), definitions.c_str());
+			archive_set_error(&a->archive, errno, "fchdir failed");
+			return (ARCHIVE_FAILED);
+		}
+		vr = statvfs(".", &svfs);
+		r = statfs(".", &sfs);
+		if (r == 0)
+			xr = get_xfer_size(t, -1, ".");

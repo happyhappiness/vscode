@@ -1,18 +1,31 @@
-			archive_set_error(&a->archive, errno, "fchdir failed");
-			return (ARCHIVE_FAILED);
 		}
-#if defined(HAVE_STATVFS)
-		vr = statvfs(tree_current_access_path(t), &svfs);
-#endif
-		r = statfs(tree_current_access_path(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, tree_current_access_path(t));
-#endif
-	} else {
-#ifdef HAVE_FSTATFS
-#if defined(HAVE_FSTATVFS)
-		vr = fstatvfs(tree_current_dir_fd(t), &svfs);
-#endif
-		r = fstatfs(tree_current_dir_fd(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+	}
+
+	/* Make sure directories end in '/' */
+	if ((zip_entry->mode & AE_IFMT) == AE_IFDIR) {
+		wp = archive_entry_pathname_w(entry);
+		if (wp != NULL) {
+			len = wcslen(wp);
+			if (len > 0 && wp[len - 1] != L'/') {
+				struct archive_wstring s;
+				archive_string_init(&s);
+				archive_wstrcat(&s, wp);
+				archive_wstrappend_wchar(&s, L'/');
+				archive_entry_copy_pathname_w(entry, s.s);
+			}
+		} else {
+			cp = archive_entry_pathname(entry);
+			len = (cp != NULL)?strlen(cp):0;
+			if (len > 0 && cp[len - 1] != '/') {
+				struct archive_string s;
+				archive_string_init(&s);
+				archive_strcat(&s, cp);
+				archive_strappend_char(&s, '/');
+				archive_entry_set_pathname(entry, s.s);
+			}
+		}
+	}
+
+	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
+		/* If this came from the central dir, it's size info
+		 * is definitive, so ignore the length-at-end flag. */

@@ -1,12 +1,12 @@
-    fprintf(stderr, "\n****\n");
-    fprintf(stderr, "**** Header %s\n ", header);
-  });
+    if(res)
+      return res;
 
-  free(type2);
-
-  return result;
-}
-
-/* copy the source to the destination and fill in zeroes in every
-   other destination byte! */
-static void unicodecpy(unsigned char *dest, const char *src, size_t length)
+    free(*allocuserpwd);
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                            proxy ? "Proxy-" : "",
+                            conn->response_header);
+    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+    free(conn->response_header);
+    conn->response_header = NULL;
+    break;
+  case NTLMSTATE_TYPE2:

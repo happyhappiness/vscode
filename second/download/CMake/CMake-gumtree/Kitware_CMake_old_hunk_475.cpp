@@ -1,6 +1,6 @@
-{
-  int i, j, codebits = 0, symbolsleft = numsymbols;
 
-  if (new_node(code) < 0) {
-    archive_set_error(&a->archive, ENOMEM,
-                      "Unable to allocate memory for node data.");
+static int test1(int argc, const char* argv[])
+{
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout from test returning 0.\n");
+  fprintf(stderr, "Output on stderr from test returning 0.\n");

@@ -1,17 +1,7 @@
-    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
-       !Curl_checkheaders(conn, "Range:")) {
-      /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
-                                         data->state.range);
-    }
-    else if((httpreq != HTTPREQ_GET) &&
-            !Curl_checkheaders(conn, "Content-Range:")) {
-
-      /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
-
-      if(data->set.set_resume_from < 0) {
-        /* Upload resume was asked for, but we don't know the size of the
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
+               1, 1, 1, 0, 10, 0, 1, 1);
+  fprintf(stdout, "Output on stdout after grandchild test.\n");
+  fprintf(stderr, "Output on stderr after grandchild test.\n");
+  fflush(stdout);

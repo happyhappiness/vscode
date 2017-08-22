@@ -1,10 +1,9 @@
-  }
+		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
-  if(windowoffs + length <= lzss_size(&rar->lzss)) {
-    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
-           length);
-  } else if (length <= lzss_size(&rar->lzss)) {
-    firstpart = lzss_size(&rar->lzss) - windowoffs;
-    if (firstpart < 0) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		offset += 4;
+		if (offset + datasize > extra_length) {
+			break;
+		}
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);

@@ -1,18 +1,18 @@
-{
-	struct unknown_tag *tag;
+	ssize_t bytes_avail;
+	int r;
 
-#if DEBUG
-	fprintf(stderr, "unknowntag_end:%s\n", name);
-#endif
-	tag = xar->unknowntags;
-	if (tag == NULL || name == NULL)
-		return;
-	if (strcmp(tag->name.s, name) == 0) {
-		xar->unknowntags = tag->next;
-		archive_string_free(&(tag->name));
-		free(tag);
-		if (xar->unknowntags == NULL)
-			xar->xmlsts = xar->xmlsts_unknown;
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (lha->uncompressed_buffer == NULL) {
+		lha->uncompressed_buffer_size = 64 * 1024;
+		lha->uncompressed_buffer
+		    = (unsigned char *)malloc(lha->uncompressed_buffer_size);
+		if (lha->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for lzh decompression");
+			return (ARCHIVE_FATAL);
+		}
 	}
-}
 
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!lha->decompress_init) {
+		r = lzh_decode_init(&(lha->strm), lha->method);

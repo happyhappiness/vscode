@@ -1,10 +1,7 @@
-		lha->entry_unconsumed = 0;
-	}
-	if (lha->end_of_entry) {
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-		return (lha_end_of_entry(a));
-	}
+		}
 
-	if (lha->entry_is_compressed)
+		if (a->read_data_offset < a->read_data_output_offset) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
+		}

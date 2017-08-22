@@ -1,7 +1,7 @@
-				    "Missing number");
-				return ARCHIVE_WARN;
-			}
-			numbers[argc++] = mtree_atol(&p);
-			if (argc > MAX_PACK_ARGS) {
-				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Too many arguments");
+                  symbol.erase(posAt);
+               }
+            }
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (this->ImportFlag) {
+               this->ImportFlag = false;
+               fprintf(this->FileOut,"EXPORTS \n");

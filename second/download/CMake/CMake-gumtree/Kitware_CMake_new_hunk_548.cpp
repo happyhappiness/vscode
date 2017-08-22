@@ -1,7 +1,7 @@
-#endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  assert(invalidAddress); /* Quiet Clang scan-build. */
+            }
+
+            while (isspace(symbol[0])) symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (fImportFlag) {
+               fImportFlag = 0;
+               fprintf(fout,"EXPORTS \n");

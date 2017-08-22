@@ -1,7 +1,12 @@
-			archive_set_error(&a->archive, errno, "fchdir failed");
-			return (ARCHIVE_FAILED);
+		if (entry_size == 0) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Invalid string table");
+			return (ARCHIVE_WARN);
 		}
-		vr = statvfs(".", &svfs);
-		r = statfs(".", &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, ".");
+		if (ar->strtab != NULL) {
+			archive_set_error(&a->archive, EINVAL,
+			    "More than one string tables exist");
+			return (ARCHIVE_WARN);
+		}
+
+		/* Read the filename table into memory. */

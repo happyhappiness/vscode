@@ -1,7 +1,11 @@
-		    &data->child_stdout);
-	if (child == -1) {
-		archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
-		return (ARCHIVE_FATAL);
-	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
+                 SectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
+               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
+                  // Read only (i.e. constants) must be excluded
+                  this->DataSymbols.insert(symbol);
+               } else {
+                  if ( pSymbolTable->Type  ||
+                       !(SectChar & IMAGE_SCN_MEM_READ)) {
+                     this->Symbols.insert(symbol);
+                  } else {
+                     // printf(" strange symbol: %s \n",symbol.c_str());
+                  }

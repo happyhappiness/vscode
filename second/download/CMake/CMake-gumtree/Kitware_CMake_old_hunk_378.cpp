@@ -1,33 +1,33 @@
- */
-#ifndef YY_INPUT
-#define YY_INPUT(buf,result,max_size) \
-        if ( YY_CURRENT_BUFFER_LVALUE->yy_is_interactive ) \
-                { \
-                int c = '*'; \
-                size_t n; \
-                for ( n = 0; n < max_size && \
-                             (c = getc( yyin )) != EOF && c != '\n'; ++n ) \
-                        buf[n] = (char) c; \
-                if ( c == '\n' ) \
-                        buf[n++] = (char) c; \
-                if ( c == EOF && ferror( yyin ) ) \
-                        YY_FATAL_ERROR( "input in flex scanner failed" ); \
-                result = n; \
-                } \
-        else \
-                { \
-                errno=0; \
-                while ( (result = fread(buf, 1, max_size, yyin))==0 && ferror(yyin)) \
-                        { \
-                        if( errno != EINTR) \
-                                { \
-                                YY_FATAL_ERROR( "input in flex scanner failed" ); \
-                                break; \
-                                } \
-                        errno=0; \
-                        clearerr(yyin); \
-                        } \
-                }\
-\
+	struct private_data *data = (struct private_data *)f->data;
+	int outsize;
 
-#endif
+	if (data->compression_level < 3) {
+		if (data->lz4_stream == NULL) {
+			data->lz4_stream = LZ4_createStream();
+			if (data->lz4_stream == NULL) {
+				archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		outsize = LZ4_compress_limitedOutput_continue(
+		    data->lz4_stream, p, data->out + 4, (int)length,
+		    (int)data->block_size);
+	} else {
+		if (data->lz4_stream == NULL) {
+			data->lz4_stream =
+			    LZ4_createHC(data->in_buffer_allocated);
+			if (data->lz4_stream == NULL) {
+				archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		outsize = LZ4_compressHC2_limitedOutput_continue(
+		    data->lz4_stream, p, data->out + 4, (int)length,
+		    (int)data->block_size, data->compression_level);
+	}
+
+	if (outsize) {

@@ -1,16 +1,38 @@
-	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
-		return (ARCHIVE_EOF);
+  case NTLMSTATE_TYPE1:
+  default: /* for the weird cases we (re)start here */
+    /* Create a type-1 message */
+    error = Curl_ntlm_create_type1_message(userp, passwdp, ntlm, &base64,
+                                           &len);
+    if(error)
+      return error;
 
-	if (zip->entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
-		zip->has_encrypted_entries = 1;
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Encrypted file is unsupported");
-		return (ARCHIVE_FAILED);
-	}
+    if(base64) {
+      Curl_safefree(*allocuserpwd);
+      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
+                              proxy ? "Proxy-" : "",
+                              base64);
+      free(base64);
+      if(!*allocuserpwd)
+        return CURLE_OUT_OF_MEMORY;
+      DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+    }
+    break;
 
-	__archive_read_consume(a, zip->unconsumed);
-	zip->unconsumed = 0;
+  case NTLMSTATE_TYPE2:
+    /* We already received the type-2 message, create a type-3 message */
+    error = Curl_ntlm_create_type3_message(conn->data, userp, passwdp,
+                                           ntlm, &base64, &len);
+    if(error)
+      return error;
 
-	switch(zip->entry->compression) {
-	case 0:  /* No compression. */
-		r =  zip_read_data_none(a, buff, size, offset);
+    if(base64) {
+      Curl_safefree(*allocuserpwd);
+      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
+                              proxy ? "Proxy-" : "",
+                              base64);
+      free(base64);
+      if(!*allocuserpwd)
+        return CURLE_OUT_OF_MEMORY;
+      DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
+
+      ntlm->state = NTLMSTATE_TYPE3; /* we send a type-3 */

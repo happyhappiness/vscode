@@ -1,18 +1,7 @@
-{
-	struct unknown_tag *tag;
-
-#if DEBUG
-	fprintf(stderr, "unknowntag_end:%s\n", name);
-#endif
-	tag = xar->unknowntags;
-	if (tag == NULL || name == NULL)
-		return;
-	if (strcmp(tag->name.s, name) == 0) {
-		xar->unknowntags = tag->next;
-		archive_string_free(&(tag->name));
-		free(tag);
-		if (xar->unknowntags == NULL)
-			xar->xmlsts = xar->xmlsts_unknown;
-	}
-}
-
+		ret = child_write(f, data, buf, length);
+		if (ret == -1 || ret == 0) {
+			archive_set_error(f->archive, EIO,
+			    "Can't write to filter");
+			return (ARCHIVE_FATAL);
+		}
+		length -= ret;

@@ -1,7 +1,8 @@
-		}
-
-		if (a->read_data_offset < a->read_data_output_offset) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Encountered out-of-order sparse blocks");
-			return (ARCHIVE_RETRY);
-		}
+			en = create_filesystem_object(a);
+		} else if (!S_ISDIR(a->mode)) {
+			/* A dir is in the way of a non-dir, rmdir it. */
+			if (a->flags & ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS)
+				(void)clear_nochange_fflags(a);
+			if (rmdir(a->name) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't replace existing directory with non-directory");

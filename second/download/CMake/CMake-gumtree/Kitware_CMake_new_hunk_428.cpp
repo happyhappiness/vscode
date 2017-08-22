@@ -1,7 +1,11 @@
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            this->DataSymbols.insert(symbol);
-         }
-      }
-
+		/* We're done with the regular data; get the filename and
+		 * extra data. */
+		__archive_read_consume(a, 46);
+		p = __archive_read_ahead(a, filename_length + extra_length,
+			NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			return ARCHIVE_FATAL;
+		}

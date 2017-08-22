@@ -1,7 +1,11 @@
-		close(data->child_stdout);
-		data->child_stdout = -1;
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
-#else
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!this->ImportFlag) {
+               this->ImportFlag = true;
+               fprintf(this->FileOut,"IMPORTS \n");
+            }
+            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+         }
+      }
+

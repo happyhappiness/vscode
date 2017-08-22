@@ -1,10 +1,7 @@
-			return (0);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		nl = memchr(t, '\n', bytes_read);
-		/* If we found '\n', trim the read to end exactly there. */
-		if (nl != NULL) {
-			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
-		}
-		if (total_size + bytes_read + 1 > limit) {
-			archive_set_error(&a->archive,
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << std::endl;
+      char argument[100];
+      sprintf(argument, "%s", sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )

@@ -1,2641 +1,2172 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/*-
+ * Copyright (c) 2004-2013 Tim Kientzle
+ * Copyright (c) 2011-2012 Michihiro NAKAJIMA
+ * Copyright (c) 2013 Konrad Kleine
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_zip.c 201102 2009-12-28 03:11:36Z kientzle $");
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmSystemTools.h"
+/*
+ * The definitive documentation of the Zip file format is:
+ *   http://www.pkware.com/documents/casestudies/APPNOTE.TXT
+ *
+ * The Info-Zip project has pioneered various extensions to better
+ * support Zip on Unix, including the 0x5455 "UT", 0x5855 "UX", 0x7855
+ * "Ux", and 0x7875 "ux" extensions for time and ownership
+ * information.
+ *
+ * History of this code: The streaming Zip reader was first added to
+ * libarchive in January 2005.  Support for seekable input sources was
+ * added in Nov 2011.
+ */
 
-#include "cmAlgorithms.h"
-#include <assert.h>
-#include <ctype.h>
+#ifdef HAVE_ERRNO_H
 #include <errno.h>
+#endif
+#ifdef HAVE_STDLIB_H
 #include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#ifdef __QNX__
-#include <malloc.h> /* for malloc/free on QNX */
 #endif
-#include <cmsys/Directory.hxx>
-#include <cmsys/Encoding.hxx>
-#include <cmsys/Glob.hxx>
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/System.h>
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-#include "cmArchiveWrite.h"
-#include "cmLocale.h"
-#include <cm_libarchive.h>
-#ifndef __LA_INT64_T
-#define __LA_INT64_T la_int64_t
-#endif
-#endif
-#include <cmsys/FStream.hxx>
-#include <cmsys/Terminal.h>
-
-#if defined(_WIN32)
-#include <windows.h>
-// include wincrypt.h after windows.h
-#include <wincrypt.h>
-#else
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <utime.h>
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
 #endif
 
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
+#include "archive.h"
+#include "archive_endian.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_private.h"
+#include "archive_rb.h"
+#include "archive_read_private.h"
+
+#ifndef HAVE_ZLIB_H
+#include "archive_crc32.h"
 #endif
 
-#include <sys/stat.h>
-
-#if defined(_WIN32) &&                                                        \
-  (defined(_MSC_VER) || defined(__WATCOMC__) || defined(__MINGW32__))
-#include <io.h>
-#endif
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-#include "cmCryptoHash.h"
-#endif
-
-#if defined(CMAKE_USE_ELF_PARSER)
-#include "cmELF.h"
-#endif
-
-#if defined(CMAKE_USE_MACH_PARSER)
-#include "cmMachO.h"
-#endif
-
-static bool cm_isspace(char c)
-{
-  return ((c & 0x80) == 0) && isspace(c);
-}
-
-class cmSystemToolsFileTime
-{
-public:
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  FILETIME timeCreation;
-  FILETIME timeLastAccess;
-  FILETIME timeLastWrite;
-#else
-  struct utimbuf timeBuf;
-#endif
+struct zip_entry {
+	struct archive_rb_node	node;
+	struct zip_entry	*next;
+	int64_t			local_header_offset;
+	int64_t			compressed_size;
+	int64_t			uncompressed_size;
+	int64_t			gid;
+	int64_t			uid;
+	struct archive_string	rsrcname;
+	time_t			mtime;
+	time_t			atime;
+	time_t			ctime;
+	uint32_t		crc32;
+	uint16_t		mode;
+	uint16_t		zip_flags; /* From GP Flags Field */
+	unsigned char		compression;
+	unsigned char		system; /* From "version written by" */
+	unsigned char		flags; /* Our extra markers. */
 };
 
-#if !defined(HAVE_ENVIRON_NOT_REQUIRE_PROTOTYPE)
-// For GetEnvironmentVariables
-#if defined(_WIN32)
-extern __declspec(dllimport) char** environ;
-#else
-extern char** environ;
-#endif
-#endif
+/* Bits used in zip_flags. */
+#define ZIP_ENCRYPTED	(1 << 0)
+#define ZIP_LENGTH_AT_END	(1 << 3)
+#define ZIP_STRONG_ENCRYPTED	(1 << 6)
+#define ZIP_UTF8_NAME	(1 << 11)
+/* See "7.2 Single Password Symmetric Encryption Method"
+   in http://www.pkware.com/documents/casestudies/APPNOTE.TXT */
+#define ZIP_CENTRAL_DIRECTORY_ENCRYPTED	(1 << 13)
 
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-static std::string cm_archive_entry_pathname(struct archive_entry* entry)
-{
-#if cmsys_STL_HAS_WSTRING
-  return cmsys::Encoding::ToNarrow(archive_entry_pathname_w(entry));
-#else
-  return archive_entry_pathname(entry);
-#endif
-}
+/* Bits used in flags. */
+#define LA_USED_ZIP64	(1 << 0)
+#define LA_FROM_CENTRAL_DIRECTORY (1 << 1)
 
-static int cm_archive_read_open_file(struct archive* a, const char* file,
-                                     int block_size)
-{
-#if cmsys_STL_HAS_WSTRING
-  std::wstring wfile = cmsys::Encoding::ToWide(file);
-  return archive_read_open_filename_w(a, wfile.c_str(), block_size);
-#else
-  return archive_read_open_filename(a, file, block_size);
-#endif
-}
-#endif
+struct zip {
+	/* Structural information about the archive. */
+	char			format_name[64];
+	int64_t			central_directory_offset;
+	size_t			central_directory_entries_total;
+	size_t			central_directory_entries_on_this_disk;
+	int			has_encrypted_entries;
 
-#ifdef _WIN32
-class cmSystemToolsWindowsHandle
-{
-public:
-  cmSystemToolsWindowsHandle(HANDLE h)
-    : handle_(h)
-  {
-  }
-  ~cmSystemToolsWindowsHandle()
-  {
-    if (this->handle_ != INVALID_HANDLE_VALUE) {
-      CloseHandle(this->handle_);
-    }
-  }
-  operator bool() const { return this->handle_ != INVALID_HANDLE_VALUE; }
-  bool operator!() const { return this->handle_ == INVALID_HANDLE_VALUE; }
-  operator HANDLE() const { return this->handle_; }
-private:
-  HANDLE handle_;
-};
-#elif defined(__APPLE__)
-#include <crt_externs.h>
-#define environ (*_NSGetEnviron())
+	/* List of entries (seekable Zip only) */
+	struct zip_entry	*zip_entries;
+	struct archive_rb_tree	tree;
+	struct archive_rb_tree	tree_rsrc;
+
+	/* Bytes read but not yet consumed via __archive_read_consume() */
+	size_t			unconsumed;
+
+	/* Information about entry we're currently reading. */
+	struct zip_entry	*entry;
+	int64_t			entry_bytes_remaining;
+
+	/* These count the number of bytes actually read for the entry. */
+	int64_t			entry_compressed_bytes_read;
+	int64_t			entry_uncompressed_bytes_read;
+
+	/* Running CRC32 of the decompressed data */
+	unsigned long		entry_crc32;
+	unsigned long		(*crc32func)(unsigned long, const void *, size_t);
+	char			ignore_crc32;
+
+	/* Flags to mark progress of decompression. */
+	char			decompress_init;
+	char			end_of_entry;
+
+#ifdef HAVE_ZLIB_H
+	unsigned char 		*uncompressed_buffer;
+	size_t 			uncompressed_buffer_size;
+	z_stream		stream;
+	char			stream_valid;
 #endif
 
-bool cmSystemTools::s_RunCommandHideConsole = false;
-bool cmSystemTools::s_DisableRunCommandOutput = false;
-bool cmSystemTools::s_ErrorOccured = false;
-bool cmSystemTools::s_FatalErrorOccured = false;
-bool cmSystemTools::s_DisableMessages = false;
-bool cmSystemTools::s_ForceUnixPaths = false;
-
-cmSystemTools::MessageCallback cmSystemTools::s_MessageCallback;
-cmSystemTools::OutputCallback cmSystemTools::s_StdoutCallback;
-cmSystemTools::OutputCallback cmSystemTools::s_StderrCallback;
-cmSystemTools::InterruptCallback cmSystemTools::s_InterruptCallback;
-void* cmSystemTools::s_MessageCallbackClientData;
-void* cmSystemTools::s_StdoutCallbackClientData;
-void* cmSystemTools::s_StderrCallbackClientData;
-void* cmSystemTools::s_InterruptCallbackClientData;
-
-// replace replace with with as many times as it shows up in source.
-// write the result into source.
-#if defined(_WIN32) && !defined(__CYGWIN__)
-void cmSystemTools::ExpandRegistryValues(std::string& source, KeyWOW64 view)
-{
-  // Regular expression to match anything inside [...] that begins in HKEY.
-  // Note that there is a special rule for regular expressions to match a
-  // close square-bracket inside a list delimited by square brackets.
-  // The "[^]]" part of this expression will match any character except
-  // a close square-bracket.  The ']' character must be the first in the
-  // list of characters inside the [^...] block of the expression.
-  cmsys::RegularExpression regEntry("\\[(HKEY[^]]*)\\]");
-
-  // check for black line or comment
-  while (regEntry.find(source)) {
-    // the arguments are the second match
-    std::string key = regEntry.match(1);
-    std::string val;
-    if (ReadRegistryValue(key.c_str(), val, view)) {
-      std::string reg = "[";
-      reg += key + "]";
-      cmSystemTools::ReplaceString(source, reg.c_str(), val.c_str());
-    } else {
-      std::string reg = "[";
-      reg += key + "]";
-      cmSystemTools::ReplaceString(source, reg.c_str(), "/registry");
-    }
-  }
-}
-#else
-void cmSystemTools::ExpandRegistryValues(std::string& source, KeyWOW64)
-{
-  cmsys::RegularExpression regEntry("\\[(HKEY[^]]*)\\]");
-  while (regEntry.find(source)) {
-    // the arguments are the second match
-    std::string key = regEntry.match(1);
-    std::string val;
-    std::string reg = "[";
-    reg += key + "]";
-    cmSystemTools::ReplaceString(source, reg.c_str(), "/registry");
-  }
-}
-#endif
-
-std::string cmSystemTools::EscapeQuotes(const std::string& str)
-{
-  std::string result;
-  result.reserve(str.size());
-  for (const char* ch = str.c_str(); *ch != '\0'; ++ch) {
-    if (*ch == '"') {
-      result += '\\';
-    }
-    result += *ch;
-  }
-  return result;
-}
-
-std::string cmSystemTools::HelpFileName(std::string name)
-{
-  cmSystemTools::ReplaceString(name, "<", "");
-  cmSystemTools::ReplaceString(name, ">", "");
-  return name;
-}
-
-std::string cmSystemTools::TrimWhitespace(const std::string& s)
-{
-  std::string::const_iterator start = s.begin();
-  while (start != s.end() && cm_isspace(*start)) {
-    ++start;
-  }
-  if (start == s.end()) {
-    return "";
-  }
-  std::string::const_iterator stop = s.end() - 1;
-  while (cm_isspace(*stop)) {
-    --stop;
-  }
-  return std::string(start, stop + 1);
-}
-
-void cmSystemTools::Error(const char* m1, const char* m2, const char* m3,
-                          const char* m4)
-{
-  std::string message = "CMake Error: ";
-  if (m1) {
-    message += m1;
-  }
-  if (m2) {
-    message += m2;
-  }
-  if (m3) {
-    message += m3;
-  }
-  if (m4) {
-    message += m4;
-  }
-  cmSystemTools::s_ErrorOccured = true;
-  cmSystemTools::Message(message.c_str(), "Error");
-}
-
-void cmSystemTools::SetInterruptCallback(InterruptCallback f, void* clientData)
-{
-  s_InterruptCallback = f;
-  s_InterruptCallbackClientData = clientData;
-}
-
-bool cmSystemTools::GetInterruptFlag()
-{
-  if (s_InterruptCallback) {
-    return (*s_InterruptCallback)(s_InterruptCallbackClientData);
-  }
-  return false;
-}
-
-void cmSystemTools::SetMessageCallback(MessageCallback f, void* clientData)
-{
-  s_MessageCallback = f;
-  s_MessageCallbackClientData = clientData;
-}
-
-void cmSystemTools::SetStdoutCallback(OutputCallback f, void* clientData)
-{
-  s_StdoutCallback = f;
-  s_StdoutCallbackClientData = clientData;
-}
-
-void cmSystemTools::SetStderrCallback(OutputCallback f, void* clientData)
-{
-  s_StderrCallback = f;
-  s_StderrCallbackClientData = clientData;
-}
-
-void cmSystemTools::Stdout(const char* s)
-{
-  cmSystemTools::Stdout(s, strlen(s));
-}
-
-void cmSystemTools::Stderr(const char* s)
-{
-  cmSystemTools::Stderr(s, strlen(s));
-}
-
-void cmSystemTools::Stderr(const char* s, size_t length)
-{
-  if (s_StderrCallback) {
-    (*s_StderrCallback)(s, length, s_StderrCallbackClientData);
-  } else {
-    std::cerr.write(s, length);
-    std::cerr.flush();
-  }
-}
-
-void cmSystemTools::Stdout(const char* s, size_t length)
-{
-  if (s_StdoutCallback) {
-    (*s_StdoutCallback)(s, length, s_StdoutCallbackClientData);
-  } else {
-    std::cout.write(s, length);
-    std::cout.flush();
-  }
-}
-
-void cmSystemTools::Message(const char* m1, const char* title)
-{
-  if (s_DisableMessages) {
-    return;
-  }
-  if (s_MessageCallback) {
-    (*s_MessageCallback)(m1, title, s_DisableMessages,
-                         s_MessageCallbackClientData);
-    return;
-  } else {
-    std::cerr << m1 << std::endl << std::flush;
-  }
-}
-
-void cmSystemTools::ReportLastSystemError(const char* msg)
-{
-  std::string m = msg;
-  m += ": System Error: ";
-  m += Superclass::GetLastSystemError();
-  cmSystemTools::Error(m.c_str());
-}
-
-bool cmSystemTools::IsInternallyOn(const char* val)
-{
-  if (!val) {
-    return false;
-  }
-  std::basic_string<char> v = val;
-  if (v.size() > 4) {
-    return false;
-  }
-
-  for (std::basic_string<char>::iterator c = v.begin(); c != v.end(); c++) {
-    *c = static_cast<char>(toupper(*c));
-  }
-  return v == "I_ON";
-}
-
-bool cmSystemTools::IsOn(const char* val)
-{
-  if (!val) {
-    return false;
-  }
-  size_t len = strlen(val);
-  if (len > 4) {
-    return false;
-  }
-  std::basic_string<char> v(val, len);
-
-  static std::set<std::string> onValues;
-  if (onValues.empty()) {
-    onValues.insert("ON");
-    onValues.insert("1");
-    onValues.insert("YES");
-    onValues.insert("TRUE");
-    onValues.insert("Y");
-  }
-  for (std::basic_string<char>::iterator c = v.begin(); c != v.end(); c++) {
-    *c = static_cast<char>(toupper(*c));
-  }
-  return (onValues.count(v) > 0);
-}
-
-bool cmSystemTools::IsNOTFOUND(const char* val)
-{
-  if (strcmp(val, "NOTFOUND") == 0) {
-    return true;
-  }
-  return cmHasLiteralSuffix(val, "-NOTFOUND");
-}
-
-bool cmSystemTools::IsOff(const char* val)
-{
-  if (!val || !*val) {
-    return true;
-  }
-  size_t len = strlen(val);
-  // Try and avoid toupper() for large strings.
-  if (len > 6) {
-    return cmSystemTools::IsNOTFOUND(val);
-  }
-
-  static std::set<std::string> offValues;
-  if (offValues.empty()) {
-    offValues.insert("OFF");
-    offValues.insert("0");
-    offValues.insert("NO");
-    offValues.insert("FALSE");
-    offValues.insert("N");
-    offValues.insert("IGNORE");
-  }
-  // Try and avoid toupper().
-  std::basic_string<char> v(val, len);
-  for (std::basic_string<char>::iterator c = v.begin(); c != v.end(); c++) {
-    *c = static_cast<char>(toupper(*c));
-  }
-  return (offValues.count(v) > 0);
-}
-
-void cmSystemTools::ParseWindowsCommandLine(const char* command,
-                                            std::vector<std::string>& args)
-{
-  // See the MSDN document "Parsing C Command-Line Arguments" at
-  // http://msdn2.microsoft.com/en-us/library/a1y7w461.aspx for rules
-  // of parsing the windows command line.
-
-  bool in_argument = false;
-  bool in_quotes = false;
-  int backslashes = 0;
-  std::string arg;
-  for (const char* c = command; *c; ++c) {
-    if (*c == '\\') {
-      ++backslashes;
-      in_argument = true;
-    } else if (*c == '"') {
-      int backslash_pairs = backslashes >> 1;
-      int backslash_escaped = backslashes & 1;
-      arg.append(backslash_pairs, '\\');
-      backslashes = 0;
-      if (backslash_escaped) {
-        /* An odd number of backslashes precede this quote.
-           It is escaped.  */
-        arg.append(1, '"');
-      } else {
-        /* An even number of backslashes precede this quote.
-           It is not escaped.  */
-        in_quotes = !in_quotes;
-      }
-      in_argument = true;
-    } else {
-      arg.append(backslashes, '\\');
-      backslashes = 0;
-      if (cm_isspace(*c)) {
-        if (in_quotes) {
-          arg.append(1, *c);
-        } else if (in_argument) {
-          args.push_back(arg);
-          arg = "";
-          in_argument = false;
-        }
-      } else {
-        in_argument = true;
-        arg.append(1, *c);
-      }
-    }
-  }
-  arg.append(backslashes, '\\');
-  if (in_argument) {
-    args.push_back(arg);
-  }
-}
-
-class cmSystemToolsArgV
-{
-  char** ArgV;
-
-public:
-  cmSystemToolsArgV(char** argv)
-    : ArgV(argv)
-  {
-  }
-  ~cmSystemToolsArgV()
-  {
-    for (char** arg = this->ArgV; arg && *arg; ++arg) {
-      free(*arg);
-    }
-    free(this->ArgV);
-  }
-  void Store(std::vector<std::string>& args) const
-  {
-    for (char** arg = this->ArgV; arg && *arg; ++arg) {
-      args.push_back(*arg);
-    }
-  }
+	struct archive_string_conv *sconv;
+	struct archive_string_conv *sconv_default;
+	struct archive_string_conv *sconv_utf8;
+	int			init_default_conversion;
+	int			process_mac_extensions;
 };
 
-void cmSystemTools::ParseUnixCommandLine(const char* command,
-                                         std::vector<std::string>& args)
+/* Many systems define min or MIN, but not all. */
+#define	zipmin(a,b) ((a) < (b) ? (a) : (b))
+
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Common code for streaming or seeking modes.
+ *
+ * Includes code to read local file headers, decompress data
+ * from entry bodies, and common API.
+ */
+
+static unsigned long
+real_crc32(unsigned long crc, const void *buff, size_t len)
 {
-  // Invoke the underlying parser.
-  cmSystemToolsArgV argv = cmsysSystem_Parse_CommandForUnix(command, 0);
-  argv.Store(args);
+	return crc32(crc, buff, len);
 }
 
-std::vector<std::string> cmSystemTools::ParseArguments(const char* command)
+static unsigned long
+fake_crc32(unsigned long crc, const void *buff, size_t len)
 {
-  std::vector<std::string> args;
-  std::string arg;
-
-  bool win_path = false;
-
-  if ((command[0] != '/' && command[1] == ':' && command[2] == '\\') ||
-      (command[0] == '\"' && command[1] != '/' && command[2] == ':' &&
-       command[3] == '\\') ||
-      (command[0] == '\'' && command[1] != '/' && command[2] == ':' &&
-       command[3] == '\\') ||
-      (command[0] == '\\' && command[1] == '\\')) {
-    win_path = true;
-  }
-  // Split the command into an argv array.
-  for (const char* c = command; *c;) {
-    // Skip over whitespace.
-    while (*c == ' ' || *c == '\t') {
-      ++c;
-    }
-    arg = "";
-    if (*c == '"') {
-      // Parse a quoted argument.
-      ++c;
-      while (*c && *c != '"') {
-        arg.append(1, *c);
-        ++c;
-      }
-      if (*c) {
-        ++c;
-      }
-      args.push_back(arg);
-    } else if (*c == '\'') {
-      // Parse a quoted argument.
-      ++c;
-      while (*c && *c != '\'') {
-        arg.append(1, *c);
-        ++c;
-      }
-      if (*c) {
-        ++c;
-      }
-      args.push_back(arg);
-    } else if (*c) {
-      // Parse an unquoted argument.
-      while (*c && *c != ' ' && *c != '\t') {
-        if (*c == '\\' && !win_path) {
-          ++c;
-          if (*c) {
-            arg.append(1, *c);
-            ++c;
-          }
-        } else {
-          arg.append(1, *c);
-          ++c;
-        }
-      }
-      args.push_back(arg);
-    }
-  }
-
-  return args;
+	(void)crc; /* UNUSED */
+	(void)buff; /* UNUSED */
+	(void)len; /* UNUSED */
+	return 0;
 }
 
-bool cmSystemTools::RunSingleCommand(std::vector<std::string> const& command,
-                                     std::string* captureStdOut,
-                                     std::string* captureStdErr, int* retVal,
-                                     const char* dir, OutputOption outputflag,
-                                     double timeout)
-{
-  std::vector<const char*> argv;
-  for (std::vector<std::string>::const_iterator a = command.begin();
-       a != command.end(); ++a) {
-    argv.push_back(a->c_str());
-  }
-  argv.push_back(0);
-
-  cmsysProcess* cp = cmsysProcess_New();
-  cmsysProcess_SetCommand(cp, &*argv.begin());
-  cmsysProcess_SetWorkingDirectory(cp, dir);
-  if (cmSystemTools::GetRunCommandHideConsole()) {
-    cmsysProcess_SetOption(cp, cmsysProcess_Option_HideWindow, 1);
-  }
-
-  if (outputflag == OUTPUT_PASSTHROUGH) {
-    cmsysProcess_SetPipeShared(cp, cmsysProcess_Pipe_STDOUT, 1);
-    cmsysProcess_SetPipeShared(cp, cmsysProcess_Pipe_STDERR, 1);
-    captureStdOut = 0;
-    captureStdErr = 0;
-  } else if (outputflag == OUTPUT_MERGE ||
-             (captureStdErr && captureStdErr == captureStdOut)) {
-    cmsysProcess_SetOption(cp, cmsysProcess_Option_MergeOutput, 1);
-    captureStdErr = 0;
-  }
-  assert(!captureStdErr || captureStdErr != captureStdOut);
-
-  cmsysProcess_SetTimeout(cp, timeout);
-  cmsysProcess_Execute(cp);
-
-  std::vector<char> tempStdOut;
-  std::vector<char> tempStdErr;
-  char* data;
-  int length;
-  int pipe;
-  if (outputflag != OUTPUT_PASSTHROUGH &&
-      (captureStdOut || captureStdErr || outputflag != OUTPUT_NONE)) {
-    while ((pipe = cmsysProcess_WaitForData(cp, &data, &length, 0)) > 0) {
-      // Translate NULL characters in the output into valid text.
-      // Visual Studio 7 puts these characters in the output of its
-      // build process.
-      for (int i = 0; i < length; ++i) {
-        if (data[i] == '\0') {
-          data[i] = ' ';
-        }
-      }
-
-      if (pipe == cmsysProcess_Pipe_STDOUT) {
-        if (outputflag != OUTPUT_NONE) {
-          cmSystemTools::Stdout(data, length);
-        }
-        if (captureStdOut) {
-          tempStdOut.insert(tempStdOut.end(), data, data + length);
-        }
-      } else if (pipe == cmsysProcess_Pipe_STDERR) {
-        if (outputflag != OUTPUT_NONE) {
-          cmSystemTools::Stderr(data, length);
-        }
-        if (captureStdErr) {
-          tempStdErr.insert(tempStdErr.end(), data, data + length);
-        }
-      }
-    }
-  }
-
-  cmsysProcess_WaitForExit(cp, 0);
-  if (captureStdOut) {
-    captureStdOut->assign(tempStdOut.begin(), tempStdOut.end());
-  }
-  if (captureStdErr) {
-    captureStdErr->assign(tempStdErr.begin(), tempStdErr.end());
-  }
-
-  bool result = true;
-  if (cmsysProcess_GetState(cp) == cmsysProcess_State_Exited) {
-    if (retVal) {
-      *retVal = cmsysProcess_GetExitValue(cp);
-    } else {
-      if (cmsysProcess_GetExitValue(cp) != 0) {
-        result = false;
-      }
-    }
-  } else if (cmsysProcess_GetState(cp) == cmsysProcess_State_Exception) {
-    const char* exception_str = cmsysProcess_GetExceptionString(cp);
-    if (outputflag != OUTPUT_NONE) {
-      std::cerr << exception_str << std::endl;
-    }
-    if (captureStdErr) {
-      captureStdErr->append(exception_str, strlen(exception_str));
-    }
-    result = false;
-  } else if (cmsysProcess_GetState(cp) == cmsysProcess_State_Error) {
-    const char* error_str = cmsysProcess_GetErrorString(cp);
-    if (outputflag != OUTPUT_NONE) {
-      std::cerr << error_str << std::endl;
-    }
-    if (captureStdErr) {
-      captureStdErr->append(error_str, strlen(error_str));
-    }
-    result = false;
-  } else if (cmsysProcess_GetState(cp) == cmsysProcess_State_Expired) {
-    const char* error_str = "Process terminated due to timeout\n";
-    if (outputflag != OUTPUT_NONE) {
-      std::cerr << error_str << std::endl;
-    }
-    if (captureStdErr) {
-      captureStdErr->append(error_str, strlen(error_str));
-    }
-    result = false;
-  }
-
-  cmsysProcess_Delete(cp);
-  return result;
-}
-
-bool cmSystemTools::RunSingleCommand(const char* command,
-                                     std::string* captureStdOut,
-                                     std::string* captureStdErr, int* retVal,
-                                     const char* dir, OutputOption outputflag,
-                                     double timeout)
-{
-  if (s_DisableRunCommandOutput) {
-    outputflag = OUTPUT_NONE;
-  }
-
-  std::vector<std::string> args = cmSystemTools::ParseArguments(command);
-
-  if (args.empty()) {
-    return false;
-  }
-  return cmSystemTools::RunSingleCommand(args, captureStdOut, captureStdErr,
-                                         retVal, dir, outputflag, timeout);
-}
-
-std::string cmSystemTools::PrintSingleCommand(
-  std::vector<std::string> const& command)
-{
-  if (command.empty()) {
-    return std::string();
-  }
-
-  return cmWrap('"', command, '"', " ");
-}
-
-bool cmSystemTools::DoesFileExistWithExtensions(
-  const char* name, const std::vector<std::string>& headerExts)
-{
-  std::string hname;
-
-  for (std::vector<std::string>::const_iterator ext = headerExts.begin();
-       ext != headerExts.end(); ++ext) {
-    hname = name;
-    hname += ".";
-    hname += *ext;
-    if (cmSystemTools::FileExists(hname.c_str())) {
-      return true;
-    }
-  }
-  return false;
-}
-
-std::string cmSystemTools::FileExistsInParentDirectories(const char* fname,
-                                                         const char* directory,
-                                                         const char* toplevel)
-{
-  std::string file = fname;
-  cmSystemTools::ConvertToUnixSlashes(file);
-  std::string dir = directory;
-  cmSystemTools::ConvertToUnixSlashes(dir);
-  std::string prevDir;
-  while (dir != prevDir) {
-    std::string path = dir + "/" + file;
-    if (cmSystemTools::FileExists(path.c_str())) {
-      return path;
-    }
-    if (dir.size() < strlen(toplevel)) {
-      break;
-    }
-    prevDir = dir;
-    dir = cmSystemTools::GetParentDirectory(dir);
-  }
-  return "";
-}
-
-bool cmSystemTools::cmCopyFile(const char* source, const char* destination)
-{
-  return Superclass::CopyFileAlways(source, destination);
-}
-
-bool cmSystemTools::CopyFileIfDifferent(const char* source,
-                                        const char* destination)
-{
-  return Superclass::CopyFileIfDifferent(source, destination);
-}
-
-#ifdef _WIN32
-cmSystemTools::WindowsFileRetry cmSystemTools::GetWindowsFileRetry()
-{
-  static WindowsFileRetry retry = { 0, 0 };
-  if (!retry.Count) {
-    unsigned int data[2] = { 0, 0 };
-    HKEY const keys[2] = { HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE };
-    wchar_t const* const values[2] = { L"FilesystemRetryCount",
-                                       L"FilesystemRetryDelay" };
-    for (int k = 0; k < 2; ++k) {
-      HKEY hKey;
-      if (RegOpenKeyExW(keys[k], L"Software\\Kitware\\CMake\\Config", 0,
-                        KEY_QUERY_VALUE, &hKey) == ERROR_SUCCESS) {
-        for (int v = 0; v < 2; ++v) {
-          DWORD dwData, dwType, dwSize = 4;
-          if (!data[v] &&
-              RegQueryValueExW(hKey, values[v], 0, &dwType, (BYTE*)&dwData,
-                               &dwSize) == ERROR_SUCCESS &&
-              dwType == REG_DWORD && dwSize == 4) {
-            data[v] = static_cast<unsigned int>(dwData);
-          }
-        }
-        RegCloseKey(hKey);
-      }
-    }
-    retry.Count = data[0] ? data[0] : 5;
-    retry.Delay = data[1] ? data[1] : 500;
-  }
-  return retry;
-}
-#endif
-
-bool cmSystemTools::RenameFile(const char* oldname, const char* newname)
-{
-#ifdef _WIN32
-#ifndef INVALID_FILE_ATTRIBUTES
-#define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
-#endif
-  /* Windows MoveFileEx may not replace read-only or in-use files.  If it
-     fails then remove the read-only attribute from any existing destination.
-     Try multiple times since we may be racing against another process
-     creating/opening the destination file just before our MoveFileEx.  */
-  WindowsFileRetry retry = cmSystemTools::GetWindowsFileRetry();
-  while (
-    !MoveFileExW(SystemTools::ConvertToWindowsExtendedPath(oldname).c_str(),
-                 SystemTools::ConvertToWindowsExtendedPath(newname).c_str(),
-                 MOVEFILE_REPLACE_EXISTING) &&
-    --retry.Count) {
-    DWORD last_error = GetLastError();
-    // Try again only if failure was due to access/sharing permissions.
-    if (last_error != ERROR_ACCESS_DENIED &&
-        last_error != ERROR_SHARING_VIOLATION) {
-      return false;
-    }
-    DWORD attrs = GetFileAttributesW(
-      SystemTools::ConvertToWindowsExtendedPath(newname).c_str());
-    if ((attrs != INVALID_FILE_ATTRIBUTES) &&
-        (attrs & FILE_ATTRIBUTE_READONLY)) {
-      // Remove the read-only attribute from the destination file.
-      SetFileAttributesW(
-        SystemTools::ConvertToWindowsExtendedPath(newname).c_str(),
-        attrs & ~FILE_ATTRIBUTE_READONLY);
-    } else {
-      // The file may be temporarily in use so wait a bit.
-      cmSystemTools::Delay(retry.Delay);
-    }
-  }
-  return retry.Count > 0;
-#else
-  /* On UNIX we have an OS-provided call to do this atomically.  */
-  return rename(oldname, newname) == 0;
-#endif
-}
-
-bool cmSystemTools::ComputeFileMD5(const std::string& source, char* md5out)
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  cmCryptoHashMD5 md5;
-  std::string str = md5.HashFile(source);
-  strncpy(md5out, str.c_str(), 32);
-  return !str.empty();
-#else
-  (void)source;
-  (void)md5out;
-  cmSystemTools::Message("md5sum not supported in bootstrapping mode",
-                         "Error");
-  return false;
-#endif
-}
-
-std::string cmSystemTools::ComputeStringMD5(const std::string& input)
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  cmCryptoHashMD5 md5;
-  return md5.HashString(input);
-#else
-  (void)input;
-  cmSystemTools::Message("md5sum not supported in bootstrapping mode",
-                         "Error");
-  return "";
-#endif
-}
-
-std::string cmSystemTools::ComputeCertificateThumbprint(
-  const std::string& source)
-{
-  std::string thumbprint;
-
-#if defined(CMAKE_BUILD_WITH_CMAKE) && defined(_WIN32)
-  BYTE* certData = NULL;
-  CRYPT_INTEGER_BLOB cryptBlob;
-  HCERTSTORE certStore = NULL;
-  PCCERT_CONTEXT certContext = NULL;
-
-  HANDLE certFile = CreateFileW(
-    cmsys::Encoding::ToWide(source.c_str()).c_str(), GENERIC_READ,
-    FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-
-  if (certFile != INVALID_HANDLE_VALUE && certFile != NULL) {
-    DWORD fileSize = GetFileSize(certFile, NULL);
-    if (fileSize != INVALID_FILE_SIZE) {
-      certData = new BYTE[fileSize];
-      if (certData != NULL) {
-        DWORD dwRead = 0;
-        if (ReadFile(certFile, certData, fileSize, &dwRead, NULL)) {
-          cryptBlob.cbData = fileSize;
-          cryptBlob.pbData = certData;
-
-          // Verify that this is a valid cert
-          if (PFXIsPFXBlob(&cryptBlob)) {
-            // Open the certificate as a store
-            certStore = PFXImportCertStore(&cryptBlob, NULL, CRYPT_EXPORTABLE);
-            if (certStore != NULL) {
-              // There should only be 1 cert.
-              certContext =
-                CertEnumCertificatesInStore(certStore, certContext);
-              if (certContext != NULL) {
-                // The hash is 20 bytes
-                BYTE hashData[20];
-                DWORD hashLength = 20;
-
-                // Buffer to print the hash. Each byte takes 2 chars +
-                // terminating character
-                char hashPrint[41];
-                char* pHashPrint = hashPrint;
-                // Get the hash property from the certificate
-                if (CertGetCertificateContextProperty(
-                      certContext, CERT_HASH_PROP_ID, hashData, &hashLength)) {
-                  for (DWORD i = 0; i < hashLength; i++) {
-                    // Convert each byte to hexadecimal
-                    sprintf(pHashPrint, "%02X", hashData[i]);
-                    pHashPrint += 2;
-                  }
-                  *pHashPrint = '\0';
-                  thumbprint = hashPrint;
-                }
-                CertFreeCertificateContext(certContext);
-              }
-              CertCloseStore(certStore, 0);
-            }
-          }
-        }
-        delete[] certData;
-      }
-    }
-    CloseHandle(certFile);
-  }
-#else
-  (void)source;
-  cmSystemTools::Message("ComputeCertificateThumbprint is not implemented",
-                         "Error");
-#endif
-
-  return thumbprint;
-}
-
-void cmSystemTools::Glob(const std::string& directory,
-                         const std::string& regexp,
-                         std::vector<std::string>& files)
-{
-  cmsys::Directory d;
-  cmsys::RegularExpression reg(regexp.c_str());
-
-  if (d.Load(directory)) {
-    size_t numf;
-    unsigned int i;
-    numf = d.GetNumberOfFiles();
-    for (i = 0; i < numf; i++) {
-      std::string fname = d.GetFile(i);
-      if (reg.find(fname)) {
-        files.push_back(fname);
-      }
-    }
-  }
-}
-
-void cmSystemTools::GlobDirs(const std::string& path,
-                             std::vector<std::string>& files)
-{
-  std::string::size_type pos = path.find("/*");
-  if (pos == std::string::npos) {
-    files.push_back(path);
-    return;
-  }
-  std::string startPath = path.substr(0, pos);
-  std::string finishPath = path.substr(pos + 2);
-
-  cmsys::Directory d;
-  if (d.Load(startPath)) {
-    for (unsigned int i = 0; i < d.GetNumberOfFiles(); ++i) {
-      if ((std::string(d.GetFile(i)) != ".") &&
-          (std::string(d.GetFile(i)) != "..")) {
-        std::string fname = startPath;
-        fname += "/";
-        fname += d.GetFile(i);
-        if (cmSystemTools::FileIsDirectory(fname)) {
-          fname += finishPath;
-          cmSystemTools::GlobDirs(fname, files);
-        }
-      }
-    }
-  }
-}
-
-void cmSystemTools::ExpandList(std::vector<std::string> const& arguments,
-                               std::vector<std::string>& newargs)
-{
-  std::vector<std::string>::const_iterator i;
-  for (i = arguments.begin(); i != arguments.end(); ++i) {
-    cmSystemTools::ExpandListArgument(*i, newargs);
-  }
-}
-
-void cmSystemTools::ExpandListArgument(const std::string& arg,
-                                       std::vector<std::string>& newargs,
-                                       bool emptyArgs)
-{
-  // If argument is empty, it is an empty list.
-  if (!emptyArgs && arg.empty()) {
-    return;
-  }
-  // if there are no ; in the name then just copy the current string
-  if (arg.find(';') == std::string::npos) {
-    newargs.push_back(arg);
-    return;
-  }
-  std::string newArg;
-  const char* last = arg.c_str();
-  // Break the string at non-escaped semicolons not nested in [].
-  int squareNesting = 0;
-  for (const char* c = last; *c; ++c) {
-    switch (*c) {
-      case '\\': {
-        // We only want to allow escaping of semicolons.  Other
-        // escapes should not be processed here.
-        const char* next = c + 1;
-        if (*next == ';') {
-          newArg.append(last, c - last);
-          // Skip over the escape character
-          last = c = next;
-        }
-      } break;
-      case '[': {
-        ++squareNesting;
-      } break;
-      case ']': {
-        --squareNesting;
-      } break;
-      case ';': {
-        // Break the string here if we are not nested inside square
-        // brackets.
-        if (squareNesting == 0) {
-          newArg.append(last, c - last);
-          // Skip over the semicolon
-          last = c + 1;
-          if (!newArg.empty() || emptyArgs) {
-            // Add the last argument if the string is not empty.
-            newargs.push_back(newArg);
-            newArg = "";
-          }
-        }
-      } break;
-      default: {
-        // Just append this character.
-      } break;
-    }
-  }
-  newArg.append(last);
-  if (!newArg.empty() || emptyArgs) {
-    // Add the last argument if the string is not empty.
-    newargs.push_back(newArg);
-  }
-}
-
-bool cmSystemTools::SimpleGlob(const std::string& glob,
-                               std::vector<std::string>& files,
-                               int type /* = 0 */)
-{
-  files.clear();
-  if (glob[glob.size() - 1] != '*') {
-    return false;
-  }
-  std::string path = cmSystemTools::GetFilenamePath(glob);
-  std::string ppath = cmSystemTools::GetFilenameName(glob);
-  ppath = ppath.substr(0, ppath.size() - 1);
-  if (path.empty()) {
-    path = "/";
-  }
-
-  bool res = false;
-  cmsys::Directory d;
-  if (d.Load(path)) {
-    for (unsigned int i = 0; i < d.GetNumberOfFiles(); ++i) {
-      if ((std::string(d.GetFile(i)) != ".") &&
-          (std::string(d.GetFile(i)) != "..")) {
-        std::string fname = path;
-        if (path[path.size() - 1] != '/') {
-          fname += "/";
-        }
-        fname += d.GetFile(i);
-        std::string sfname = d.GetFile(i);
-        if (type > 0 && cmSystemTools::FileIsDirectory(fname)) {
-          continue;
-        }
-        if (type < 0 && !cmSystemTools::FileIsDirectory(fname)) {
-          continue;
-        }
-        if (sfname.size() >= ppath.size() &&
-            sfname.substr(0, ppath.size()) == ppath) {
-          files.push_back(fname);
-          res = true;
-        }
-      }
-    }
-  }
-  return res;
-}
-
-cmSystemTools::FileFormat cmSystemTools::GetFileFormat(const char* cext)
-{
-  if (!cext || *cext == 0) {
-    return cmSystemTools::NO_FILE_FORMAT;
-  }
-  // std::string ext = cmSystemTools::LowerCase(cext);
-  std::string ext = cext;
-  if (ext == "c" || ext == ".c" || ext == "m" || ext == ".m") {
-    return cmSystemTools::C_FILE_FORMAT;
-  }
-  if (ext == "C" || ext == ".C" || ext == "M" || ext == ".M" || ext == "c++" ||
-      ext == ".c++" || ext == "cc" || ext == ".cc" || ext == "cpp" ||
-      ext == ".cpp" || ext == "cxx" || ext == ".cxx" || ext == "mm" ||
-      ext == ".mm") {
-    return cmSystemTools::CXX_FILE_FORMAT;
-  }
-  if (ext == "f" || ext == ".f" || ext == "F" || ext == ".F" || ext == "f77" ||
-      ext == ".f77" || ext == "f90" || ext == ".f90" || ext == "for" ||
-      ext == ".for" || ext == "f95" || ext == ".f95") {
-    return cmSystemTools::FORTRAN_FILE_FORMAT;
-  }
-  if (ext == "java" || ext == ".java") {
-    return cmSystemTools::JAVA_FILE_FORMAT;
-  }
-  if (ext == "H" || ext == ".H" || ext == "h" || ext == ".h" || ext == "h++" ||
-      ext == ".h++" || ext == "hm" || ext == ".hm" || ext == "hpp" ||
-      ext == ".hpp" || ext == "hxx" || ext == ".hxx" || ext == "in" ||
-      ext == ".in" || ext == "txx" || ext == ".txx") {
-    return cmSystemTools::HEADER_FILE_FORMAT;
-  }
-  if (ext == "rc" || ext == ".rc") {
-    return cmSystemTools::RESOURCE_FILE_FORMAT;
-  }
-  if (ext == "def" || ext == ".def") {
-    return cmSystemTools::DEFINITION_FILE_FORMAT;
-  }
-  if (ext == "lib" || ext == ".lib" || ext == "a" || ext == ".a") {
-    return cmSystemTools::STATIC_LIBRARY_FILE_FORMAT;
-  }
-  if (ext == "o" || ext == ".o" || ext == "obj" || ext == ".obj") {
-    return cmSystemTools::OBJECT_FILE_FORMAT;
-  }
-#ifdef __APPLE__
-  if (ext == "dylib" || ext == ".dylib") {
-    return cmSystemTools::SHARED_LIBRARY_FILE_FORMAT;
-  }
-  if (ext == "so" || ext == ".so" || ext == "bundle" || ext == ".bundle") {
-    return cmSystemTools::MODULE_FILE_FORMAT;
-  }
-#else  // __APPLE__
-  if (ext == "so" || ext == ".so" || ext == "sl" || ext == ".sl" ||
-      ext == "dll" || ext == ".dll") {
-    return cmSystemTools::SHARED_LIBRARY_FILE_FORMAT;
-  }
-#endif // __APPLE__
-  return cmSystemTools::UNKNOWN_FILE_FORMAT;
-}
-
-bool cmSystemTools::Split(const char* s, std::vector<std::string>& l)
-{
-  std::vector<std::string> temp;
-  bool res = Superclass::Split(s, temp);
-  l.insert(l.end(), temp.begin(), temp.end());
-  return res;
-}
-
-std::string cmSystemTools::ConvertToOutputPath(const char* path)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  if (s_ForceUnixPaths) {
-    return cmSystemTools::ConvertToUnixOutputPath(path);
-  }
-  return cmSystemTools::ConvertToWindowsOutputPath(path);
-#else
-  return cmSystemTools::ConvertToUnixOutputPath(path);
-#endif
-}
-
-void cmSystemTools::ConvertToOutputSlashes(std::string& path)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  if (!s_ForceUnixPaths) {
-    // Convert to windows slashes.
-    std::string::size_type pos = 0;
-    while ((pos = path.find('/', pos)) != std::string::npos) {
-      path[pos++] = '\\';
-    }
-  }
-#else
-  static_cast<void>(path);
-#endif
-}
-
-std::string cmSystemTools::ConvertToRunCommandPath(const char* path)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  return cmSystemTools::ConvertToWindowsOutputPath(path);
-#else
-  return cmSystemTools::ConvertToUnixOutputPath(path);
-#endif
-}
-
-// compute the relative path from here to there
-std::string cmSystemTools::RelativePath(const char* local, const char* remote)
-{
-  if (!cmSystemTools::FileIsFullPath(local)) {
-    cmSystemTools::Error("RelativePath must be passed a full path to local: ",
-                         local);
-  }
-  if (!cmSystemTools::FileIsFullPath(remote)) {
-    cmSystemTools::Error("RelativePath must be passed a full path to remote: ",
-                         remote);
-  }
-  return cmsys::SystemTools::RelativePath(local, remote);
-}
-
-std::string cmSystemTools::CollapseCombinedPath(std::string const& dir,
-                                                std::string const& file)
-{
-  if (dir.empty() || dir == ".") {
-    return file;
-  }
-
-  std::vector<std::string> dirComponents;
-  std::vector<std::string> fileComponents;
-  cmSystemTools::SplitPath(dir, dirComponents);
-  cmSystemTools::SplitPath(file, fileComponents);
-
-  if (fileComponents.empty()) {
-    return dir;
-  }
-  if (fileComponents[0] != "") {
-    // File is not a relative path.
-    return file;
-  }
-
-  std::vector<std::string>::iterator i = fileComponents.begin() + 1;
-  while (i != fileComponents.end() && *i == ".." && dirComponents.size() > 1) {
-    ++i;                      // Remove ".." file component.
-    dirComponents.pop_back(); // Remove last dir component.
-  }
-
-  dirComponents.insert(dirComponents.end(), i, fileComponents.end());
-  return cmSystemTools::JoinPath(dirComponents);
-}
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-bool cmSystemTools::UnsetEnv(const char* value)
-{
-#if !defined(HAVE_UNSETENV)
-  std::string var = value;
-  var += "=";
-  return cmSystemTools::PutEnv(var.c_str());
-#else
-  unsetenv(value);
-  return true;
-#endif
-}
-
-std::vector<std::string> cmSystemTools::GetEnvironmentVariables()
-{
-  std::vector<std::string> env;
-  int cc;
-  for (cc = 0; environ[cc]; ++cc) {
-    env.push_back(environ[cc]);
-  }
-  return env;
-}
-
-void cmSystemTools::AppendEnv(std::vector<std::string> const& env)
-{
-  for (std::vector<std::string>::const_iterator eit = env.begin();
-       eit != env.end(); ++eit) {
-    cmSystemTools::PutEnv(*eit);
-  }
-}
-
-cmSystemTools::SaveRestoreEnvironment::SaveRestoreEnvironment()
-{
-  this->Env = cmSystemTools::GetEnvironmentVariables();
-}
-
-cmSystemTools::SaveRestoreEnvironment::~SaveRestoreEnvironment()
-{
-  // First clear everything in the current environment:
-  std::vector<std::string> currentEnv = GetEnvironmentVariables();
-  for (std::vector<std::string>::const_iterator eit = currentEnv.begin();
-       eit != currentEnv.end(); ++eit) {
-    std::string var(*eit);
-
-    std::string::size_type pos = var.find('=');
-    if (pos != std::string::npos) {
-      var = var.substr(0, pos);
-    }
-
-    cmSystemTools::UnsetEnv(var.c_str());
-  }
-
-  // Then put back each entry from the original environment:
-  cmSystemTools::AppendEnv(this->Env);
-}
-#endif
-
-void cmSystemTools::EnableVSConsoleOutput()
-{
-#ifdef _WIN32
-  // Visual Studio 8 2005 (devenv.exe or VCExpress.exe) will not
-  // display output to the console unless this environment variable is
-  // set.  We need it to capture the output of these build tools.
-  // Note for future work that one could pass "/out \\.\pipe\NAME" to
-  // either of these executables where NAME is created with
-  // CreateNamedPipe.  This would bypass the internal buffering of the
-  // output and allow it to be captured on the fly.
-  cmSystemTools::PutEnv("vsconsoleoutput=1");
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // VS sets an environment variable to tell MS tools like "cl" to report
-  // output through a backdoor pipe instead of stdout/stderr.  Unset the
-  // environment variable to close this backdoor for any path of process
-  // invocations that passes through CMake so we can capture the output.
-  cmSystemTools::UnsetEnv("VS_UNICODE_OUTPUT");
-#endif
-#endif
-}
-
-bool cmSystemTools::IsPathToFramework(const char* path)
-{
-  return (cmSystemTools::FileIsFullPath(path) &&
-          cmHasLiteralSuffix(path, ".framework"));
-}
-
-bool cmSystemTools::CreateTar(const char* outFileName,
-                              const std::vector<std::string>& files,
-                              cmTarCompression compressType, bool verbose,
-                              std::string const& mtime,
-                              std::string const& format)
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  cmsys::ofstream fout(outFileName, std::ios::out | std::ios::binary);
-  if (!fout) {
-    std::string e = "Cannot open output file \"";
-    e += outFileName;
-    e += "\": ";
-    e += cmSystemTools::GetLastSystemError();
-    cmSystemTools::Error(e.c_str());
-    return false;
-  }
-  cmArchiveWrite::Compress compress = cmArchiveWrite::CompressNone;
-  switch (compressType) {
-    case TarCompressGZip:
-      compress = cmArchiveWrite::CompressGZip;
-      break;
-    case TarCompressBZip2:
-      compress = cmArchiveWrite::CompressBZip2;
-      break;
-    case TarCompressXZ:
-      compress = cmArchiveWrite::CompressXZ;
-      break;
-    case TarCompressNone:
-      compress = cmArchiveWrite::CompressNone;
-      break;
-  }
-
-  cmArchiveWrite a(fout, compress, format.empty() ? "paxr" : format);
-
-  a.SetMTime(mtime);
-  a.SetVerbose(verbose);
-  for (std::vector<std::string>::const_iterator i = files.begin();
-       i != files.end(); ++i) {
-    std::string path = *i;
-    if (cmSystemTools::FileIsFullPath(path.c_str())) {
-      // Get the relative path to the file.
-      path = cmSystemTools::RelativePath(cwd.c_str(), path.c_str());
-    }
-    if (!a.Add(path)) {
-      break;
-    }
-  }
-  if (!a) {
-    cmSystemTools::Error(a.GetError().c_str());
-    return false;
-  }
-  return true;
-#else
-  (void)outFileName;
-  (void)files;
-  (void)verbose;
-  return false;
-#endif
-}
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-namespace {
-#define BSDTAR_FILESIZE_PRINTF "%lu"
-#define BSDTAR_FILESIZE_TYPE unsigned long
-void list_item_verbose(FILE* out, struct archive_entry* entry)
-{
-  char tmp[100];
-  size_t w;
-  const char* p;
-  const char* fmt;
-  time_t tim;
-  static time_t now;
-  size_t u_width = 6;
-  size_t gs_width = 13;
-
-  /*
-   * We avoid collecting the entire list in memory at once by
-   * listing things as we see them.  However, that also means we can't
-   * just pre-compute the field widths.  Instead, we start with guesses
-   * and just widen them as necessary.  These numbers are completely
-   * arbitrary.
-   */
-  if (!now) {
-    time(&now);
-  }
-  fprintf(out, "%s %d ", archive_entry_strmode(entry),
-          archive_entry_nlink(entry));
-
-  /* Use uname if it's present, else uid. */
-  p = archive_entry_uname(entry);
-  if ((p == NULL) || (*p == '\0')) {
-    sprintf(tmp, "%lu ", (unsigned long)archive_entry_uid(entry));
-    p = tmp;
-  }
-  w = strlen(p);
-  if (w > u_width) {
-    u_width = w;
-  }
-  fprintf(out, "%-*s ", (int)u_width, p);
-  /* Use gname if it's present, else gid. */
-  p = archive_entry_gname(entry);
-  if (p != NULL && p[0] != '\0') {
-    fprintf(out, "%s", p);
-    w = strlen(p);
-  } else {
-    sprintf(tmp, "%lu", (unsigned long)archive_entry_gid(entry));
-    w = strlen(tmp);
-    fprintf(out, "%s", tmp);
-  }
-
-  /*
-   * Print device number or file size, right-aligned so as to make
-   * total width of group and devnum/filesize fields be gs_width.
-   * If gs_width is too small, grow it.
-   */
-  if (archive_entry_filetype(entry) == AE_IFCHR ||
-      archive_entry_filetype(entry) == AE_IFBLK) {
-    sprintf(tmp, "%lu,%lu", (unsigned long)archive_entry_rdevmajor(entry),
-            (unsigned long)archive_entry_rdevminor(entry));
-  } else {
-    /*
-     * Note the use of platform-dependent macros to format
-     * the filesize here.  We need the format string and the
-     * corresponding type for the cast.
-     */
-    sprintf(tmp, BSDTAR_FILESIZE_PRINTF,
-            (BSDTAR_FILESIZE_TYPE)archive_entry_size(entry));
-  }
-  if (w + strlen(tmp) >= gs_width) {
-    gs_width = w + strlen(tmp) + 1;
-  }
-  fprintf(out, "%*s", (int)(gs_width - w), tmp);
-
-  /* Format the time using 'ls -l' conventions. */
-  tim = archive_entry_mtime(entry);
-#define HALF_YEAR (time_t)365 * 86400 / 2
-#if defined(_WIN32) && !defined(__CYGWIN__)
-/* Windows' strftime function does not support %e format. */
-#define DAY_FMT "%d"
-#else
-#define DAY_FMT "%e" /* Day number without leading zeros */
-#endif
-  if (tim < now - HALF_YEAR || tim > now + HALF_YEAR) {
-    fmt = DAY_FMT " %b  %Y";
-  } else {
-    fmt = DAY_FMT " %b %H:%M";
-  }
-  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
-  fprintf(out, " %s ", tmp);
-  fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
-
-  /* Extra information for links. */
-  if (archive_entry_hardlink(entry)) /* Hard link */
-  {
-    fprintf(out, " link to %s", archive_entry_hardlink(entry));
-  } else if (archive_entry_symlink(entry)) /* Symbolic link */
-  {
-    fprintf(out, " -> %s", archive_entry_symlink(entry));
-  }
-}
-
-long copy_data(struct archive* ar, struct archive* aw)
-{
-  long r;
-  const void* buff;
-  size_t size;
-#if defined(ARCHIVE_VERSION_NUMBER) && ARCHIVE_VERSION_NUMBER >= 3000000
-  __LA_INT64_T offset;
-#else
-  off_t offset;
-#endif
-
-  for (;;) {
-    r = archive_read_data_block(ar, &buff, &size, &offset);
-    if (r == ARCHIVE_EOF) {
-      return (ARCHIVE_OK);
-    }
-    if (r != ARCHIVE_OK) {
-      return (r);
-    }
-    r = archive_write_data_block(aw, buff, size, offset);
-    if (r != ARCHIVE_OK) {
-      cmSystemTools::Message("archive_write_data_block()",
-                             archive_error_string(aw));
-      return (r);
-    }
-  }
-#if !defined(__clang__) && !defined(__HP_aCC)
-  return r; /* this should not happen but it quiets some compilers */
-#endif
-}
-
-bool extract_tar(const char* outFileName, bool verbose, bool extract)
-{
-  cmLocaleRAII localeRAII;
-  static_cast<void>(localeRAII);
-  struct archive* a = archive_read_new();
-  struct archive* ext = archive_write_disk_new();
-  archive_read_support_filter_all(a);
-  archive_read_support_format_all(a);
-  struct archive_entry* entry;
-  int r = cm_archive_read_open_file(a, outFileName, 10240);
-  if (r) {
-    cmSystemTools::Error("Problem with archive_read_open_file(): ",
-                         archive_error_string(a));
-    archive_write_free(ext);
-    archive_read_close(a);
-    return false;
-  }
-  for (;;) {
-    r = archive_read_next_header(a, &entry);
-    if (r == ARCHIVE_EOF) {
-      break;
-    }
-    if (r != ARCHIVE_OK) {
-      cmSystemTools::Error("Problem with archive_read_next_header(): ",
-                           archive_error_string(a));
-      break;
-    }
-    if (verbose) {
-      if (extract) {
-        cmSystemTools::Stdout("x ");
-        cmSystemTools::Stdout(cm_archive_entry_pathname(entry).c_str());
-      } else {
-        list_item_verbose(stdout, entry);
-      }
-      cmSystemTools::Stdout("\n");
-    } else if (!extract) {
-      cmSystemTools::Stdout(cm_archive_entry_pathname(entry).c_str());
-      cmSystemTools::Stdout("\n");
-    }
-    if (extract) {
-      r = archive_write_disk_set_options(ext, ARCHIVE_EXTRACT_TIME);
-      if (r != ARCHIVE_OK) {
-        cmSystemTools::Error("Problem with archive_write_disk_set_options(): ",
-                             archive_error_string(ext));
-        break;
-      }
-
-      r = archive_write_header(ext, entry);
-      if (r == ARCHIVE_OK) {
-        copy_data(a, ext);
-        r = archive_write_finish_entry(ext);
-        if (r != ARCHIVE_OK) {
-          cmSystemTools::Error("Problem with archive_write_finish_entry(): ",
-                               archive_error_string(ext));
-          break;
-        }
-      }
-#ifdef _WIN32
-      else if (const char* linktext = archive_entry_symlink(entry)) {
-        std::cerr << "cmake -E tar: warning: skipping symbolic link \""
-                  << cm_archive_entry_pathname(entry) << "\" -> \"" << linktext
-                  << "\"." << std::endl;
-      }
-#endif
-      else {
-        cmSystemTools::Error("Problem with archive_write_header(): ",
-                             archive_error_string(ext));
-        cmSystemTools::Error("Current file: ",
-                             cm_archive_entry_pathname(entry).c_str());
-        break;
-      }
-    }
-  }
-  archive_write_free(ext);
-  archive_read_close(a);
-  archive_read_free(a);
-  return r == ARCHIVE_EOF || r == ARCHIVE_OK;
-}
-}
-#endif
-
-bool cmSystemTools::ExtractTar(const char* outFileName, bool verbose)
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  return extract_tar(outFileName, verbose, true);
-#else
-  (void)outFileName;
-  (void)verbose;
-  return false;
-#endif
-}
-
-bool cmSystemTools::ListTar(const char* outFileName, bool verbose)
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  return extract_tar(outFileName, verbose, false);
-#else
-  (void)outFileName;
-  (void)verbose;
-  return false;
-#endif
-}
-
-int cmSystemTools::WaitForLine(cmsysProcess* process, std::string& line,
-                               double timeout, std::vector<char>& out,
-                               std::vector<char>& err)
-{
-  line = "";
-  std::vector<char>::iterator outiter = out.begin();
-  std::vector<char>::iterator erriter = err.begin();
-  while (1) {
-    // Check for a newline in stdout.
-    for (; outiter != out.end(); ++outiter) {
-      if ((*outiter == '\r') && ((outiter + 1) == out.end())) {
-        break;
-      } else if (*outiter == '\n' || *outiter == '\0') {
-        std::vector<char>::size_type length = outiter - out.begin();
-        if (length > 1 && *(outiter - 1) == '\r') {
-          --length;
-        }
-        if (length > 0) {
-          line.append(&out[0], length);
-        }
-        out.erase(out.begin(), outiter + 1);
-        return cmsysProcess_Pipe_STDOUT;
-      }
-    }
-
-    // Check for a newline in stderr.
-    for (; erriter != err.end(); ++erriter) {
-      if ((*erriter == '\r') && ((erriter + 1) == err.end())) {
-        break;
-      } else if (*erriter == '\n' || *erriter == '\0') {
-        std::vector<char>::size_type length = erriter - err.begin();
-        if (length > 1 && *(erriter - 1) == '\r') {
-          --length;
-        }
-        if (length > 0) {
-          line.append(&err[0], length);
-        }
-        err.erase(err.begin(), erriter + 1);
-        return cmsysProcess_Pipe_STDERR;
-      }
-    }
-
-    // No newlines found.  Wait for more data from the process.
-    int length;
-    char* data;
-    int pipe = cmsysProcess_WaitForData(process, &data, &length, &timeout);
-    if (pipe == cmsysProcess_Pipe_Timeout) {
-      // Timeout has been exceeded.
-      return pipe;
-    } else if (pipe == cmsysProcess_Pipe_STDOUT) {
-      // Append to the stdout buffer.
-      std::vector<char>::size_type size = out.size();
-      out.insert(out.end(), data, data + length);
-      outiter = out.begin() + size;
-    } else if (pipe == cmsysProcess_Pipe_STDERR) {
-      // Append to the stderr buffer.
-      std::vector<char>::size_type size = err.size();
-      err.insert(err.end(), data, data + length);
-      erriter = err.begin() + size;
-    } else if (pipe == cmsysProcess_Pipe_None) {
-      // Both stdout and stderr pipes have broken.  Return leftover data.
-      if (!out.empty()) {
-        line.append(&out[0], outiter - out.begin());
-        out.erase(out.begin(), out.end());
-        return cmsysProcess_Pipe_STDOUT;
-      } else if (!err.empty()) {
-        line.append(&err[0], erriter - err.begin());
-        err.erase(err.begin(), err.end());
-        return cmsysProcess_Pipe_STDERR;
-      } else {
-        return cmsysProcess_Pipe_None;
-      }
-    }
-  }
-}
-
-void cmSystemTools::DoNotInheritStdPipes()
-{
-#ifdef _WIN32
-  // Check to see if we are attached to a console
-  // if so, then do not stop the inherited pipes
-  // or stdout and stderr will not show up in dos
-  // shell windows
-  CONSOLE_SCREEN_BUFFER_INFO hOutInfo;
-  HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-  if (GetConsoleScreenBufferInfo(hOut, &hOutInfo)) {
-    return;
-  }
-  {
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out, GetCurrentProcess(), &out, 0,
-                    FALSE, DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_OUTPUT_HANDLE, out);
-  }
-  {
-    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out, GetCurrentProcess(), &out, 0,
-                    FALSE, DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_ERROR_HANDLE, out);
-  }
-#endif
-}
-
-bool cmSystemTools::CopyFileTime(const char* fromFile, const char* toFile)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  cmSystemToolsWindowsHandle hFrom = CreateFileW(
-    SystemTools::ConvertToWindowsExtendedPath(fromFile).c_str(), GENERIC_READ,
-    FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-  cmSystemToolsWindowsHandle hTo = CreateFileW(
-    SystemTools::ConvertToWindowsExtendedPath(toFile).c_str(),
-    FILE_WRITE_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-  if (!hFrom || !hTo) {
-    return false;
-  }
-  FILETIME timeCreation;
-  FILETIME timeLastAccess;
-  FILETIME timeLastWrite;
-  if (!GetFileTime(hFrom, &timeCreation, &timeLastAccess, &timeLastWrite)) {
-    return false;
-  }
-  if (!SetFileTime(hTo, &timeCreation, &timeLastAccess, &timeLastWrite)) {
-    return false;
-  }
-#else
-  struct stat fromStat;
-  if (stat(fromFile, &fromStat) < 0) {
-    return false;
-  }
-
-  struct utimbuf buf;
-  buf.actime = fromStat.st_atime;
-  buf.modtime = fromStat.st_mtime;
-  if (utime(toFile, &buf) < 0) {
-    return false;
-  }
-#endif
-  return true;
-}
-
-cmSystemToolsFileTime* cmSystemTools::FileTimeNew()
-{
-  return new cmSystemToolsFileTime;
-}
-
-void cmSystemTools::FileTimeDelete(cmSystemToolsFileTime* t)
-{
-  delete t;
-}
-
-bool cmSystemTools::FileTimeGet(const char* fname, cmSystemToolsFileTime* t)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  cmSystemToolsWindowsHandle h = CreateFileW(
-    SystemTools::ConvertToWindowsExtendedPath(fname).c_str(), GENERIC_READ,
-    FILE_SHARE_READ, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-  if (!h) {
-    return false;
-  }
-  if (!GetFileTime(h, &t->timeCreation, &t->timeLastAccess,
-                   &t->timeLastWrite)) {
-    return false;
-  }
-#else
-  struct stat st;
-  if (stat(fname, &st) < 0) {
-    return false;
-  }
-  t->timeBuf.actime = st.st_atime;
-  t->timeBuf.modtime = st.st_mtime;
-#endif
-  return true;
-}
-
-bool cmSystemTools::FileTimeSet(const char* fname, cmSystemToolsFileTime* t)
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  cmSystemToolsWindowsHandle h = CreateFileW(
-    SystemTools::ConvertToWindowsExtendedPath(fname).c_str(),
-    FILE_WRITE_ATTRIBUTES, 0, 0, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, 0);
-  if (!h) {
-    return false;
-  }
-  if (!SetFileTime(h, &t->timeCreation, &t->timeLastAccess,
-                   &t->timeLastWrite)) {
-    return false;
-  }
-#else
-  if (utime(fname, &t->timeBuf) < 0) {
-    return false;
-  }
-#endif
-  return true;
-}
-
-#ifdef _WIN32
-#ifndef CRYPT_SILENT
-#define CRYPT_SILENT 0x40 /* Not defined by VS 6 version of header.  */
-#endif
-static int WinCryptRandom(void* data, size_t size)
-{
-  int result = 0;
-  HCRYPTPROV hProvider = 0;
-  if (CryptAcquireContextW(&hProvider, 0, 0, PROV_RSA_FULL,
-                           CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
-    result = CryptGenRandom(hProvider, (DWORD)size, (BYTE*)data) ? 1 : 0;
-    CryptReleaseContext(hProvider, 0);
-  }
-  return result;
-}
-#endif
-
-unsigned int cmSystemTools::RandomSeed()
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  unsigned int seed = 0;
-
-  // Try using a real random source.
-  if (WinCryptRandom(&seed, sizeof(seed))) {
-    return seed;
-  }
-
-  // Fall back to the time and pid.
-  FILETIME ft;
-  GetSystemTimeAsFileTime(&ft);
-  unsigned int t1 = static_cast<unsigned int>(ft.dwHighDateTime);
-  unsigned int t2 = static_cast<unsigned int>(ft.dwLowDateTime);
-  unsigned int pid = static_cast<unsigned int>(GetCurrentProcessId());
-  return t1 ^ t2 ^ pid;
-#else
-  union
-  {
-    unsigned int integer;
-    char bytes[sizeof(unsigned int)];
-  } seed;
-
-  // Try using a real random source.
-  cmsys::ifstream fin;
-  fin.rdbuf()->pubsetbuf(0, 0); // Unbuffered read.
-  fin.open("/dev/urandom");
-  if (fin.good() && fin.read(seed.bytes, sizeof(seed)) &&
-      fin.gcount() == sizeof(seed)) {
-    return seed.integer;
-  }
-
-  // Fall back to the time and pid.
-  struct timeval t;
-  gettimeofday(&t, 0);
-  unsigned int pid = static_cast<unsigned int>(getpid());
-  unsigned int tv_sec = static_cast<unsigned int>(t.tv_sec);
-  unsigned int tv_usec = static_cast<unsigned int>(t.tv_usec);
-  // Since tv_usec never fills more than 11 bits we shift it to fill
-  // in the slow-changing high-order bits of tv_sec.
-  return tv_sec ^ (tv_usec << 21) ^ pid;
-#endif
-}
-
-static std::string cmSystemToolsCMakeCommand;
-static std::string cmSystemToolsCTestCommand;
-static std::string cmSystemToolsCPackCommand;
-static std::string cmSystemToolsCMakeCursesCommand;
-static std::string cmSystemToolsCMakeGUICommand;
-static std::string cmSystemToolsCMClDepsCommand;
-static std::string cmSystemToolsCMakeRoot;
-void cmSystemTools::FindCMakeResources(const char* argv0)
-{
-  std::string exe_dir;
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  (void)argv0; // ignore this on windows
-  wchar_t modulepath[_MAX_PATH];
-  ::GetModuleFileNameW(NULL, modulepath, sizeof(modulepath));
-  exe_dir =
-    cmSystemTools::GetFilenamePath(cmsys::Encoding::ToNarrow(modulepath));
-#elif defined(__APPLE__)
-  (void)argv0; // ignore this on OS X
-#define CM_EXE_PATH_LOCAL_SIZE 16384
-  char exe_path_local[CM_EXE_PATH_LOCAL_SIZE];
-#if defined(MAC_OS_X_VERSION_10_3) && !defined(MAC_OS_X_VERSION_10_4)
-  unsigned long exe_path_size = CM_EXE_PATH_LOCAL_SIZE;
-#else
-  uint32_t exe_path_size = CM_EXE_PATH_LOCAL_SIZE;
-#endif
-#undef CM_EXE_PATH_LOCAL_SIZE
-  char* exe_path = exe_path_local;
-  if (_NSGetExecutablePath(exe_path, &exe_path_size) < 0) {
-    exe_path = (char*)malloc(exe_path_size);
-    _NSGetExecutablePath(exe_path, &exe_path_size);
-  }
-  exe_dir =
-    cmSystemTools::GetFilenamePath(cmSystemTools::GetRealPath(exe_path));
-  if (exe_path != exe_path_local) {
-    free(exe_path);
-  }
-  if (cmSystemTools::GetFilenameName(exe_dir) == "MacOS") {
-    // The executable is inside an application bundle.
-    // Look for ..<CMAKE_BIN_DIR> (install tree) and then fall back to
-    // ../../../bin (build tree).
-    exe_dir = cmSystemTools::GetFilenamePath(exe_dir);
-    if (cmSystemTools::FileExists(exe_dir + CMAKE_BIN_DIR "/cmake")) {
-      exe_dir += CMAKE_BIN_DIR;
-    } else {
-      exe_dir = cmSystemTools::GetFilenamePath(exe_dir);
-      exe_dir = cmSystemTools::GetFilenamePath(exe_dir);
-    }
-  }
-#else
-  std::string errorMsg;
-  std::string exe;
-  if (cmSystemTools::FindProgramPath(argv0, exe, errorMsg)) {
-    // remove symlinks
-    exe = cmSystemTools::GetRealPath(exe);
-    exe_dir = cmSystemTools::GetFilenamePath(exe);
-  } else {
-    // ???
-  }
-#endif
-  cmSystemToolsCMakeCommand = exe_dir;
-  cmSystemToolsCMakeCommand += "/cmake";
-  cmSystemToolsCMakeCommand += cmSystemTools::GetExecutableExtension();
-#ifndef CMAKE_BUILD_WITH_CMAKE
-  // The bootstrap cmake does not provide the other tools,
-  // so use the directory where they are about to be built.
-  exe_dir = CMAKE_BOOTSTRAP_BINARY_DIR "/bin";
-#endif
-  cmSystemToolsCTestCommand = exe_dir;
-  cmSystemToolsCTestCommand += "/ctest";
-  cmSystemToolsCTestCommand += cmSystemTools::GetExecutableExtension();
-  cmSystemToolsCPackCommand = exe_dir;
-  cmSystemToolsCPackCommand += "/cpack";
-  cmSystemToolsCPackCommand += cmSystemTools::GetExecutableExtension();
-  cmSystemToolsCMakeGUICommand = exe_dir;
-  cmSystemToolsCMakeGUICommand += "/cmake-gui";
-  cmSystemToolsCMakeGUICommand += cmSystemTools::GetExecutableExtension();
-  if (!cmSystemTools::FileExists(cmSystemToolsCMakeGUICommand.c_str())) {
-    cmSystemToolsCMakeGUICommand = "";
-  }
-  cmSystemToolsCMakeCursesCommand = exe_dir;
-  cmSystemToolsCMakeCursesCommand += "/ccmake";
-  cmSystemToolsCMakeCursesCommand += cmSystemTools::GetExecutableExtension();
-  if (!cmSystemTools::FileExists(cmSystemToolsCMakeCursesCommand.c_str())) {
-    cmSystemToolsCMakeCursesCommand = "";
-  }
-  cmSystemToolsCMClDepsCommand = exe_dir;
-  cmSystemToolsCMClDepsCommand += "/cmcldeps";
-  cmSystemToolsCMClDepsCommand += cmSystemTools::GetExecutableExtension();
-  if (!cmSystemTools::FileExists(cmSystemToolsCMClDepsCommand.c_str())) {
-    cmSystemToolsCMClDepsCommand = "";
-  }
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // Install tree has
-  // - "<prefix><CMAKE_BIN_DIR>/cmake"
-  // - "<prefix><CMAKE_DATA_DIR>"
-  if (cmHasSuffix(exe_dir, CMAKE_BIN_DIR)) {
-    std::string const prefix =
-      exe_dir.substr(0, exe_dir.size() - strlen(CMAKE_BIN_DIR));
-    cmSystemToolsCMakeRoot = prefix + CMAKE_DATA_DIR;
-  }
-  if (cmSystemToolsCMakeRoot.empty() ||
-      !cmSystemTools::FileExists(
-        (cmSystemToolsCMakeRoot + "/Modules/CMake.cmake").c_str())) {
-    // Build tree has "<build>/bin[/<config>]/cmake" and
-    // "<build>/CMakeFiles/CMakeSourceDir.txt".
-    std::string dir = cmSystemTools::GetFilenamePath(exe_dir);
-    std::string src_dir_txt = dir + "/CMakeFiles/CMakeSourceDir.txt";
-    cmsys::ifstream fin(src_dir_txt.c_str());
-    std::string src_dir;
-    if (fin && cmSystemTools::GetLineFromStream(fin, src_dir) &&
-        cmSystemTools::FileIsDirectory(src_dir)) {
-      cmSystemToolsCMakeRoot = src_dir;
-    } else {
-      dir = cmSystemTools::GetFilenamePath(dir);
-      src_dir_txt = dir + "/CMakeFiles/CMakeSourceDir.txt";
-      cmsys::ifstream fin2(src_dir_txt.c_str());
-      if (fin2 && cmSystemTools::GetLineFromStream(fin2, src_dir) &&
-          cmSystemTools::FileIsDirectory(src_dir)) {
-        cmSystemToolsCMakeRoot = src_dir;
-      }
-    }
-  }
-#else
-  // Bootstrap build knows its source.
-  cmSystemToolsCMakeRoot = CMAKE_BOOTSTRAP_SOURCE_DIR;
-#endif
-}
-
-std::string const& cmSystemTools::GetCMakeCommand()
-{
-  return cmSystemToolsCMakeCommand;
-}
-
-std::string const& cmSystemTools::GetCTestCommand()
-{
-  return cmSystemToolsCTestCommand;
-}
-
-std::string const& cmSystemTools::GetCPackCommand()
-{
-  return cmSystemToolsCPackCommand;
-}
-
-std::string const& cmSystemTools::GetCMakeCursesCommand()
-{
-  return cmSystemToolsCMakeCursesCommand;
-}
-
-std::string const& cmSystemTools::GetCMakeGUICommand()
-{
-  return cmSystemToolsCMakeGUICommand;
-}
-
-std::string const& cmSystemTools::GetCMClDepsCommand()
-{
-  return cmSystemToolsCMClDepsCommand;
-}
-
-std::string const& cmSystemTools::GetCMakeRoot()
-{
-  return cmSystemToolsCMakeRoot;
-}
-
-void cmSystemTools::MakefileColorEcho(int color, const char* message,
-                                      bool newline, bool enabled)
-{
-  // On some platforms (an MSYS prompt) cmsysTerminal may not be able
-  // to determine whether the stream is displayed on a tty.  In this
-  // case it assumes no unless we tell it otherwise.  Since we want
-  // color messages to be displayed for users we will assume yes.
-  // However, we can test for some situations when the answer is most
-  // likely no.
-  int assumeTTY = cmsysTerminal_Color_AssumeTTY;
-  if (cmSystemTools::GetEnv("DART_TEST_FROM_DART") ||
-      cmSystemTools::GetEnv("DASHBOARD_TEST_FROM_CTEST") ||
-      cmSystemTools::GetEnv("CTEST_INTERACTIVE_DEBUG_MODE")) {
-    // Avoid printing color escapes during dashboard builds.
-    assumeTTY = 0;
-  }
-
-  if (enabled && color != cmsysTerminal_Color_Normal) {
-    // Print with color.  Delay the newline until later so that
-    // all color restore sequences appear before it.
-    cmsysTerminal_cfprintf(color | assumeTTY, stdout, "%s", message);
-  } else {
-    // Color is disabled.  Print without color.
-    fprintf(stdout, "%s", message);
-  }
-
-  if (newline) {
-    fprintf(stdout, "\n");
-  }
-}
-
-bool cmSystemTools::GuessLibrarySOName(std::string const& fullPath,
-                                       std::string& soname)
-{
-// For ELF shared libraries use a real parser to get the correct
-// soname.
-#if defined(CMAKE_USE_ELF_PARSER)
-  cmELF elf(fullPath.c_str());
-  if (elf) {
-    return elf.GetSOName(soname);
-  }
-#endif
-
-  // If the file is not a symlink we have no guess for its soname.
-  if (!cmSystemTools::FileIsSymlink(fullPath)) {
-    return false;
-  }
-  if (!cmSystemTools::ReadSymlink(fullPath, soname)) {
-    return false;
-  }
-
-  // If the symlink has a path component we have no guess for the soname.
-  if (!cmSystemTools::GetFilenamePath(soname).empty()) {
-    return false;
-  }
-
-  // If the symlink points at an extended version of the same name
-  // assume it is the soname.
-  std::string name = cmSystemTools::GetFilenameName(fullPath);
-  return soname.length() > name.length() &&
-    soname.compare(0, name.length(), name) == 0;
-}
-
-bool cmSystemTools::GuessLibraryInstallName(std::string const& fullPath,
-                                            std::string& soname)
-{
-#if defined(CMAKE_USE_MACH_PARSER)
-  cmMachO macho(fullPath.c_str());
-  if (macho) {
-    return macho.GetInstallName(soname);
-  }
-#else
-  (void)fullPath;
-  (void)soname;
-#endif
-
-  return false;
-}
-
-#if defined(CMAKE_USE_ELF_PARSER)
-std::string::size_type cmSystemToolsFindRPath(std::string const& have,
-                                              std::string const& want)
-{
-  std::string::size_type pos = 0;
-  while (pos < have.size()) {
-    // Look for an occurrence of the string.
-    std::string::size_type const beg = have.find(want, pos);
-    if (beg == std::string::npos) {
-      return std::string::npos;
-    }
-
-    // Make sure it is separated from preceding entries.
-    if (beg > 0 && have[beg - 1] != ':') {
-      pos = beg + 1;
-      continue;
-    }
-
-    // Make sure it is separated from following entries.
-    std::string::size_type const end = beg + want.size();
-    if (end < have.size() && have[end] != ':') {
-      pos = beg + 1;
-      continue;
-    }
-
-    // Return the position of the path portion.
-    return beg;
-  }
-
-  // The desired rpath was not found.
-  return std::string::npos;
-}
-#endif
-
-#if defined(CMAKE_USE_ELF_PARSER)
-struct cmSystemToolsRPathInfo
-{
-  unsigned long Position;
-  unsigned long Size;
-  std::string Name;
-  std::string Value;
+static struct {
+	int id;
+	const char * name;
+} compression_methods[] = {
+	{0, "uncompressed"}, /* The file is stored (no compression) */
+	{1, "shrinking"}, /* The file is Shrunk */
+	{2, "reduced-1"}, /* The file is Reduced with compression factor 1 */
+	{3, "reduced-2"}, /* The file is Reduced with compression factor 2 */
+	{4, "reduced-3"}, /* The file is Reduced with compression factor 3 */
+	{5, "reduced-4"}, /* The file is Reduced with compression factor 4 */
+	{6, "imploded"}, /* The file is Imploded */
+	{7, "reserved"}, /* Reserved for Tokenizing compression algorithm */
+	{8, "deflation"}, /* The file is Deflated */
+	{9, "deflation-64-bit"}, /* Enhanced Deflating using Deflate64(tm) */
+	{10, "ibm-terse"}, /* PKWARE Data Compression Library Imploding (old IBM TERSE) */
+	{11, "reserved"}, /* Reserved by PKWARE */
+	{12, "bzip"}, /* File is compressed using BZIP2 algorithm */
+	{13, "reserved"}, /* Reserved by PKWARE */
+	{14, "lzma"}, /* LZMA (EFS) */
+	{15, "reserved"}, /* Reserved by PKWARE */
+	{16, "reserved"}, /* Reserved by PKWARE */
+	{17, "reserved"}, /* Reserved by PKWARE */
+	{18, "ibm-terse-new"}, /* File is compressed using IBM TERSE (new) */
+	{19, "ibm-lz777"}, /* IBM LZ77 z Architecture (PFS) */
+	{97, "wav-pack"}, /* WavPack compressed data */
+	{98, "ppmd-1"} /* PPMd version I, Rev 1 */
 };
+
+static const char *
+compression_name(const int compression)
+{
+	static const int num_compression_methods = sizeof(compression_methods)/sizeof(compression_methods[0]);
+	int i=0;
+	while(compression >= 0 && i < num_compression_methods) {
+		if (compression_methods[i].id == compression) {
+			return compression_methods[i].name;
+		}
+		i++;
+	}
+	return "??";
+}
+
+/* Convert an MSDOS-style date/time into Unix-style time. */
+static time_t
+zip_time(const char *p)
+{
+	int msTime, msDate;
+	struct tm ts;
+
+	msTime = (0xff & (unsigned)p[0]) + 256 * (0xff & (unsigned)p[1]);
+	msDate = (0xff & (unsigned)p[2]) + 256 * (0xff & (unsigned)p[3]);
+
+	memset(&ts, 0, sizeof(ts));
+	ts.tm_year = ((msDate >> 9) & 0x7f) + 80; /* Years since 1900. */
+	ts.tm_mon = ((msDate >> 5) & 0x0f) - 1; /* Month number. */
+	ts.tm_mday = msDate & 0x1f; /* Day of month. */
+	ts.tm_hour = (msTime >> 11) & 0x1f;
+	ts.tm_min = (msTime >> 5) & 0x3f;
+	ts.tm_sec = (msTime << 1) & 0x3e;
+	ts.tm_isdst = -1;
+	return mktime(&ts);
+}
+
+/*
+ * The extra data is stored as a list of
+ *	id1+size1+data1 + id2+size2+data2 ...
+ *  triplets.  id and size are 2 bytes each.
+ */
+static void
+process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
+{
+	unsigned offset = 0;
+
+	while (offset < extra_length - 4)
+	{
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
+		offset += 4;
+		if (offset + datasize > extra_length)
+			break;
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize);
 #endif
-
-bool cmSystemTools::ChangeRPath(std::string const& file,
-                                std::string const& oldRPath,
-                                std::string const& newRPath, std::string* emsg,
-                                bool* changed)
-{
-#if defined(CMAKE_USE_ELF_PARSER)
-  if (changed) {
-    *changed = false;
-  }
-  int rp_count = 0;
-  bool remove_rpath = true;
-  cmSystemToolsRPathInfo rp[2];
-  {
-    // Parse the ELF binary.
-    cmELF elf(file.c_str());
-
-    // Get the RPATH and RUNPATH entries from it.
-    int se_count = 0;
-    cmELF::StringEntry const* se[2] = { 0, 0 };
-    const char* se_name[2] = { 0, 0 };
-    if (cmELF::StringEntry const* se_rpath = elf.GetRPath()) {
-      se[se_count] = se_rpath;
-      se_name[se_count] = "RPATH";
-      ++se_count;
-    }
-    if (cmELF::StringEntry const* se_runpath = elf.GetRunPath()) {
-      se[se_count] = se_runpath;
-      se_name[se_count] = "RUNPATH";
-      ++se_count;
-    }
-    if (se_count == 0) {
-      if (newRPath.empty()) {
-        // The new rpath is empty and there is no rpath anyway so it is
-        // okay.
-        return true;
-      } else {
-        if (emsg) {
-          *emsg = "No valid ELF RPATH or RUNPATH entry exists in the file; ";
-          *emsg += elf.GetErrorMessage();
-        }
-        return false;
-      }
-    }
-
-    for (int i = 0; i < se_count; ++i) {
-      // If both RPATH and RUNPATH refer to the same string literal it
-      // needs to be changed only once.
-      if (rp_count && rp[0].Position == se[i]->Position) {
-        continue;
-      }
-
-      // Make sure the current rpath contains the old rpath.
-      std::string::size_type pos =
-        cmSystemToolsFindRPath(se[i]->Value, oldRPath);
-      if (pos == std::string::npos) {
-        // If it contains the new rpath instead then it is okay.
-        if (cmSystemToolsFindRPath(se[i]->Value, newRPath) !=
-            std::string::npos) {
-          remove_rpath = false;
-          continue;
-        }
-        if (emsg) {
-          std::ostringstream e;
-          /* clang-format off */
-        e << "The current " << se_name[i] << " is:\n"
-          << "  " << se[i]->Value << "\n"
-          << "which does not contain:\n"
-          << "  " << oldRPath << "\n"
-          << "as was expected.";
-          /* clang-format on */
-          *emsg = e.str();
-        }
-        return false;
-      }
-
-      // Store information about the entry in the file.
-      rp[rp_count].Position = se[i]->Position;
-      rp[rp_count].Size = se[i]->Size;
-      rp[rp_count].Name = se_name[i];
-
-      std::string::size_type prefix_len = pos;
-
-      // If oldRPath was at the end of the file's RPath, and newRPath is empty,
-      // we should remove the unnecessary ':' at the end.
-      if (newRPath.empty() && pos > 0 && se[i]->Value[pos - 1] == ':' &&
-          pos + oldRPath.length() == se[i]->Value.length()) {
-        prefix_len--;
-      }
-
-      // Construct the new value which preserves the part of the path
-      // not being changed.
-      rp[rp_count].Value = se[i]->Value.substr(0, prefix_len);
-      rp[rp_count].Value += newRPath;
-      rp[rp_count].Value +=
-        se[i]->Value.substr(pos + oldRPath.length(), oldRPath.npos);
-
-      if (!rp[rp_count].Value.empty()) {
-        remove_rpath = false;
-      }
-
-      // Make sure there is enough room to store the new rpath and at
-      // least one null terminator.
-      if (rp[rp_count].Size < rp[rp_count].Value.length() + 1) {
-        if (emsg) {
-          *emsg = "The replacement path is too long for the ";
-          *emsg += se_name[i];
-          *emsg += " entry.";
-        }
-        return false;
-      }
-
-      // This entry is ready for update.
-      ++rp_count;
-    }
-  }
-
-  // If no runtime path needs to be changed, we are done.
-  if (rp_count == 0) {
-    return true;
-  }
-
-  // If the resulting rpath is empty, just remove the entire entry instead.
-  if (remove_rpath) {
-    return cmSystemTools::RemoveRPath(file, emsg, changed);
-  }
-
-  {
-    // Open the file for update.
-    cmsys::ofstream f(file.c_str(),
-                      std::ios::in | std::ios::out | std::ios::binary);
-    if (!f) {
-      if (emsg) {
-        *emsg = "Error opening file for update.";
-      }
-      return false;
-    }
-
-    // Store the new RPATH and RUNPATH strings.
-    for (int i = 0; i < rp_count; ++i) {
-      // Seek to the RPATH position.
-      if (!f.seekp(rp[i].Position)) {
-        if (emsg) {
-          *emsg = "Error seeking to ";
-          *emsg += rp[i].Name;
-          *emsg += " position.";
-        }
-        return false;
-      }
-
-      // Write the new rpath.  Follow it with enough null terminators to
-      // fill the string table entry.
-      f << rp[i].Value;
-      for (unsigned long j = rp[i].Value.length(); j < rp[i].Size; ++j) {
-        f << '\0';
-      }
-
-      // Make sure it wrote correctly.
-      if (!f) {
-        if (emsg) {
-          *emsg = "Error writing the new ";
-          *emsg += rp[i].Name;
-          *emsg += " string to the file.";
-        }
-        return false;
-      }
-    }
-  }
-
-  // Everything was updated successfully.
-  if (changed) {
-    *changed = true;
-  }
-  return true;
-#else
-  (void)file;
-  (void)oldRPath;
-  (void)newRPath;
-  (void)emsg;
-  (void)changed;
-  return false;
+		switch (headerid) {
+		case 0x0001:
+			/* Zip64 extended information extra field. */
+			zip_entry->flags |= LA_USED_ZIP64;
+			if (zip_entry->uncompressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->uncompressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			if (zip_entry->compressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->compressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			if (zip_entry->local_header_offset == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->local_header_offset =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			/* archive_le32dec(p + offset) gives disk
+			 * on which file starts, but we don't handle
+			 * multi-volume Zip files. */
+			break;
+		case 0x5455:
+		{
+			/* Extended time field "UT". */
+			int flags = p[offset];
+			offset++;
+			datasize--;
+			/* Flag bits indicate which dates are present. */
+			if (flags & 0x01)
+			{
+#ifdef DEBUG
+				fprintf(stderr, "mtime: %lld -> %d\n",
+				    (long long)zip_entry->mtime,
+				    archive_le32dec(p + offset));
 #endif
-}
+				if (datasize < 4)
+					break;
+				zip_entry->mtime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x02)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->atime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x04)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->ctime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			break;
+		}
+		case 0x5855:
+		{
+			/* Info-ZIP Unix Extra Field (old version) "UX". */
+			if (datasize >= 8) {
+				zip_entry->atime = archive_le32dec(p + offset);
+				zip_entry->mtime =
+				    archive_le32dec(p + offset + 4);
+			}
+			if (datasize >= 12) {
+				zip_entry->uid =
+				    archive_le16dec(p + offset + 8);
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 10);
+			}
+			break;
+		}
+		case 0x6c65:
+		{
+			/* Experimental 'el' field */
+			/*
+			 * Introduced Dec 2013 to provide a way to
+			 * include external file attributes in local file
+			 * header.  This provides file type and permission
+			 * information necessary to support full streaming
+			 * extraction.  Currently being discussed with
+			 * other Zip developers... subject to change.
+			 */
+			int bitmap, bitmap_last;
 
-bool cmSystemTools::VersionCompare(cmSystemTools::CompareOp op,
-                                   const char* lhss, const char* rhss)
-{
-  const char* endl = lhss;
-  const char* endr = rhss;
-  unsigned long lhs, rhs;
+			if (datasize < 1)
+				break;
+			bitmap_last = bitmap = 0xff & p[offset];
+			offset += 1;
+			datasize -= 1;
 
-  while (((*endl >= '0') && (*endl <= '9')) ||
-         ((*endr >= '0') && (*endr <= '9'))) {
-    // Do component-wise comparison.
-    lhs = strtoul(endl, const_cast<char**>(&endl), 10);
-    rhs = strtoul(endr, const_cast<char**>(&endr), 10);
+			/* We only support first 7 bits of bitmap; skip rest. */
+			while ((bitmap_last & 0x80) != 0
+			    && datasize >= 1) {
+				bitmap_last = p[offset];
+				offset += 1;
+				datasize -= 1;
+			}
 
-    if (lhs < rhs) {
-      // lhs < rhs, so true if operation is LESS
-      return op == cmSystemTools::OP_LESS;
-    } else if (lhs > rhs) {
-      // lhs > rhs, so true if operation is GREATER
-      return op == cmSystemTools::OP_GREATER;
-    }
+			if (bitmap & 1) {
+				// 2 byte "version made by"
+				if (datasize < 2)
+					break;
+				zip_entry->system
+				    = archive_le16dec(p + offset) >> 8;
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 2) {
+				// 2 byte "internal file attributes"
+				uint32_t internal_attributes;
+				if (datasize < 2)
+					break;
+				internal_attributes
+				    = archive_le16dec(p + offset);
+				// Not used by libarchive at present.
+				(void)internal_attributes; /* UNUSED */
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 4) {
+				// 4 byte "external file attributes"
+				uint32_t external_attributes;
+				if (datasize < 4)
+					break;
+				external_attributes
+				    = archive_le32dec(p + offset);
+				if (zip_entry->system == 3) {
+					zip_entry->mode
+					    = external_attributes >> 16;
+				}
+				offset += 4;
+				datasize -= 4;
+			}
+			if (bitmap & 8) {
+				// 2 byte comment length + comment
+				uint32_t comment_length;
+				if (datasize < 2)
+					break;
+				comment_length
+				    = archive_le16dec(p + offset);
+				offset += 2;
+				datasize -= 2;
 
-    if (*endr == '.') {
-      endr++;
-    }
+				if (datasize < comment_length)
+					break;
+				// Comment is not supported by libarchive
+				offset += comment_length;
+				datasize -= comment_length;
+			}
+			break;
+		}
+		case 0x7855:
+			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
+#ifdef DEBUG
+			fprintf(stderr, "uid %d gid %d\n",
+			    archive_le16dec(p + offset),
+			    archive_le16dec(p + offset + 2));
+#endif
+			if (datasize >= 2)
+				zip_entry->uid = archive_le16dec(p + offset);
+			if (datasize >= 4)
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 2);
+			break;
+		case 0x7875:
+		{
+			/* Info-Zip Unix Extra Field (type 3) "ux". */
+			int uidsize = 0, gidsize = 0;
 
-    if (*endl == '.') {
-      endl++;
-    }
-  }
-  // lhs == rhs, so true if operation is EQUAL
-  return op == cmSystemTools::OP_EQUAL;
-}
-
-bool cmSystemTools::VersionCompareEqual(std::string const& lhs,
-                                        std::string const& rhs)
-{
-  return cmSystemTools::VersionCompare(cmSystemTools::OP_EQUAL, lhs.c_str(),
-                                       rhs.c_str());
-}
-
-bool cmSystemTools::VersionCompareGreater(std::string const& lhs,
-                                          std::string const& rhs)
-{
-  return cmSystemTools::VersionCompare(cmSystemTools::OP_GREATER, lhs.c_str(),
-                                       rhs.c_str());
-}
-
-bool cmSystemTools::RemoveRPath(std::string const& file, std::string* emsg,
-                                bool* removed)
-{
-#if defined(CMAKE_USE_ELF_PARSER)
-  if (removed) {
-    *removed = false;
-  }
-  int zeroCount = 0;
-  unsigned long zeroPosition[2] = { 0, 0 };
-  unsigned long zeroSize[2] = { 0, 0 };
-  unsigned long bytesBegin = 0;
-  std::vector<char> bytes;
-  {
-    // Parse the ELF binary.
-    cmELF elf(file.c_str());
-
-    // Get the RPATH and RUNPATH entries from it and sort them by index
-    // in the dynamic section header.
-    int se_count = 0;
-    cmELF::StringEntry const* se[2] = { 0, 0 };
-    if (cmELF::StringEntry const* se_rpath = elf.GetRPath()) {
-      se[se_count++] = se_rpath;
-    }
-    if (cmELF::StringEntry const* se_runpath = elf.GetRunPath()) {
-      se[se_count++] = se_runpath;
-    }
-    if (se_count == 0) {
-      // There is no RPATH or RUNPATH anyway.
-      return true;
-    }
-    if (se_count == 2 && se[1]->IndexInSection < se[0]->IndexInSection) {
-      std::swap(se[0], se[1]);
-    }
-
-    // Get the size of the dynamic section header.
-    unsigned int count = elf.GetDynamicEntryCount();
-    if (count == 0) {
-      // This should happen only for invalid ELF files where a DT_NULL
-      // appears before the end of the table.
-      if (emsg) {
-        *emsg = "DYNAMIC section contains a DT_NULL before the end.";
-      }
-      return false;
-    }
-
-    // Save information about the string entries to be zeroed.
-    zeroCount = se_count;
-    for (int i = 0; i < se_count; ++i) {
-      zeroPosition[i] = se[i]->Position;
-      zeroSize[i] = se[i]->Size;
-    }
-
-    // Get the range of file positions corresponding to each entry and
-    // the rest of the table after them.
-    unsigned long entryBegin[3] = { 0, 0, 0 };
-    unsigned long entryEnd[2] = { 0, 0 };
-    for (int i = 0; i < se_count; ++i) {
-      entryBegin[i] = elf.GetDynamicEntryPosition(se[i]->IndexInSection);
-      entryEnd[i] = elf.GetDynamicEntryPosition(se[i]->IndexInSection + 1);
-    }
-    entryBegin[se_count] = elf.GetDynamicEntryPosition(count);
-
-    // The data are to be written over the old table entries starting at
-    // the first one being removed.
-    bytesBegin = entryBegin[0];
-    unsigned long bytesEnd = entryBegin[se_count];
-
-    // Allocate a buffer to hold the part of the file to be written.
-    // Initialize it with zeros.
-    bytes.resize(bytesEnd - bytesBegin, 0);
-
-    // Read the part of the DYNAMIC section header that will move.
-    // The remainder of the buffer will be left with zeros which
-    // represent a DT_NULL entry.
-    char* data = &bytes[0];
-    for (int i = 0; i < se_count; ++i) {
-      // Read data between the entries being removed.
-      unsigned long sz = entryBegin[i + 1] - entryEnd[i];
-      if (sz > 0 && !elf.ReadBytes(entryEnd[i], sz, data)) {
-        if (emsg) {
-          *emsg = "Failed to read DYNAMIC section header.";
-        }
-        return false;
-      }
-      data += sz;
-    }
-  }
-
-  // Open the file for update.
-  cmsys::ofstream f(file.c_str(),
-                    std::ios::in | std::ios::out | std::ios::binary);
-  if (!f) {
-    if (emsg) {
-      *emsg = "Error opening file for update.";
-    }
-    return false;
-  }
-
-  // Write the new DYNAMIC table header.
-  if (!f.seekp(bytesBegin)) {
-    if (emsg) {
-      *emsg = "Error seeking to DYNAMIC table header for RPATH.";
-    }
-    return false;
-  }
-  if (!f.write(&bytes[0], bytes.size())) {
-    if (emsg) {
-      *emsg = "Error replacing DYNAMIC table header.";
-    }
-    return false;
-  }
-
-  // Fill the RPATH and RUNPATH strings with zero bytes.
-  for (int i = 0; i < zeroCount; ++i) {
-    if (!f.seekp(zeroPosition[i])) {
-      if (emsg) {
-        *emsg = "Error seeking to RPATH position.";
-      }
-      return false;
-    }
-    for (unsigned long j = 0; j < zeroSize[i]; ++j) {
-      f << '\0';
-    }
-    if (!f) {
-      if (emsg) {
-        *emsg = "Error writing the empty rpath string to the file.";
-      }
-      return false;
-    }
-  }
-
-  // Everything was updated successfully.
-  if (removed) {
-    *removed = true;
-  }
-  return true;
-#else
-  (void)file;
-  (void)emsg;
-  (void)removed;
-  return false;
+			/* TODO: support arbitrary uidsize/gidsize. */
+			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
+				if (datasize >= 4) {
+					/* get a uid size. */
+					uidsize = p[offset+1];
+					if (uidsize == 2)
+						zip_entry->uid =
+						    archive_le16dec(
+						        p + offset + 2);
+					else if (uidsize == 4 && datasize >= 6)
+						zip_entry->uid =
+						    archive_le32dec(
+						        p + offset + 2);
+				}
+				if (datasize >= (2 + uidsize + 3)) {
+					/* get a gid size. */
+					gidsize = p[offset+2+uidsize];
+					if (gidsize == 2)
+						zip_entry->gid =
+						    archive_le16dec(
+						        p+offset+2+uidsize+1);
+					else if (gidsize == 4 &&
+					    datasize >= (2 + uidsize + 5))
+						zip_entry->gid =
+						    archive_le32dec(
+						        p+offset+2+uidsize+1);
+				}
+			}
+			break;
+		}
+		default:
+			break;
+		}
+		offset += datasize;
+	}
+#ifdef DEBUG
+	if (offset != extra_length)
+	{
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}
 #endif
 }
 
-bool cmSystemTools::CheckRPath(std::string const& file,
-                               std::string const& newRPath)
+/*
+ * Assumes file pointer is at beginning of local file header.
+ */
+static int
+zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
+    struct zip *zip)
 {
-#if defined(CMAKE_USE_ELF_PARSER)
-  // Parse the ELF binary.
-  cmELF elf(file.c_str());
+	const char *p;
+	const void *h;
+	const wchar_t *wp;
+	const char *cp;
+	size_t len, filename_length, extra_length;
+	struct archive_string_conv *sconv;
+	struct zip_entry *zip_entry = zip->entry;
+	struct zip_entry zip_entry_central_dir;
+	int ret = ARCHIVE_OK;
+	char version;
 
-  // Get the RPATH or RUNPATH entry from it.
-  cmELF::StringEntry const* se = elf.GetRPath();
-  if (!se) {
-    se = elf.GetRunPath();
-  }
+	/* Save a copy of the original for consistency checks. */
+	zip_entry_central_dir = *zip_entry;
 
-  // Make sure the current rpath contains the new rpath.
-  if (newRPath.empty()) {
-    if (!se) {
-      return true;
-    }
-  } else {
-    if (se &&
-        cmSystemToolsFindRPath(se->Value, newRPath) != std::string::npos) {
-      return true;
-    }
-  }
-  return false;
-#else
-  (void)file;
-  (void)newRPath;
-  return false;
+	zip->decompress_init = 0;
+	zip->end_of_entry = 0;
+	zip->entry_uncompressed_bytes_read = 0;
+	zip->entry_compressed_bytes_read = 0;
+	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
+
+	/* Setup default conversion. */
+	if (zip->sconv == NULL && !zip->init_default_conversion) {
+		zip->sconv_default =
+		    archive_string_default_conversion_for_read(&(a->archive));
+		zip->init_default_conversion = 1;
+	}
+
+	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (memcmp(p, "PK\003\004", 4) != 0) {
+		archive_set_error(&a->archive, -1, "Damaged Zip archive");
+		return ARCHIVE_FATAL;
+	}
+	version = p[4];
+	zip_entry->system = p[5];
+	zip_entry->zip_flags = archive_le16dec(p + 6);
+	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		zip->has_encrypted_entries = 1;
+		archive_entry_set_is_data_encrypted(entry, 1);
+		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
+			archive_entry_set_is_metadata_encrypted(entry, 1);
+			return ARCHIVE_FATAL;
+		}
+	}
+	zip_entry->compression = (char)archive_le16dec(p + 8);
+	zip_entry->mtime = zip_time(p + 10);
+	zip_entry->crc32 = archive_le32dec(p + 14);
+	zip_entry->compressed_size = archive_le32dec(p + 18);
+	zip_entry->uncompressed_size = archive_le32dec(p + 22);
+	filename_length = archive_le16dec(p + 26);
+	extra_length = archive_le16dec(p + 28);
+
+	__archive_read_consume(a, 30);
+
+	/* Read the filename. */
+	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
+		/* The filename is stored to be UTF-8. */
+		if (zip->sconv_utf8 == NULL) {
+			zip->sconv_utf8 =
+			    archive_string_conversion_from_charset(
+				&a->archive, "UTF-8", 1);
+			if (zip->sconv_utf8 == NULL)
+				return (ARCHIVE_FATAL);
+		}
+		sconv = zip->sconv_utf8;
+	} else if (zip->sconv != NULL)
+		sconv = zip->sconv;
+	else
+		sconv = zip->sconv_default;
+
+	if (archive_entry_copy_pathname_l(entry,
+	    h, filename_length, sconv) != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname cannot be converted "
+		    "from %s to current locale.",
+		    archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+	}
+	__archive_read_consume(a, filename_length);
+
+	/* Work around a bug in Info-Zip: When reading from a pipe, it
+	 * stats the pipe instead of synthesizing a file entry. */
+	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
+		zip_entry->mode &= ~ AE_IFMT;
+		zip_entry->mode |= AE_IFREG;
+	}
+
+	if ((zip_entry->mode & AE_IFMT) == 0) {
+		/* Especially in streaming mode, we can end up
+		   here without having seen proper mode information.
+		   Guess from the filename. */
+		wp = archive_entry_pathname_w(entry);
+		if (wp != NULL) {
+			len = wcslen(wp);
+			if (len > 0 && wp[len - 1] == L'/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		} else {
+			cp = archive_entry_pathname(entry);
+			len = (cp != NULL)?strlen(cp):0;
+			if (len > 0 && cp[len - 1] == '/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		}
+		if (zip_entry->mode == AE_IFDIR) {
+			zip_entry->mode |= 0775;
+		} else if (zip_entry->mode == AE_IFREG) {
+			zip_entry->mode |= 0664;
+		}
+	}
+
+	/* Read the extra data. */
+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+
+	process_extra(h, extra_length, zip_entry);
+	__archive_read_consume(a, extra_length);
+
+	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
+		/* If this came from the central dir, it's size info
+		 * is definitive, so ignore the length-at-end flag. */
+		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
+		/* If local header is missing a value, use the one from
+		   the central directory.  If both have it, warn about
+		   mismatches. */
+		if (zip_entry->crc32 == 0) {
+			zip_entry->crc32 = zip_entry_central_dir.crc32;
+		} else if (!zip->ignore_crc32
+		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent CRC32 values");
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->compressed_size == 0) {
+			zip_entry->compressed_size
+			    = zip_entry_central_dir.compressed_size;
+		} else if (zip_entry->compressed_size
+		    != zip_entry_central_dir.compressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent compressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.compressed_size,
+			    (intmax_t)zip_entry->compressed_size);
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->uncompressed_size == 0) {
+			zip_entry->uncompressed_size
+			    = zip_entry_central_dir.uncompressed_size;
+		} else if (zip_entry->uncompressed_size
+		    != zip_entry_central_dir.uncompressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent uncompressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.uncompressed_size,
+			    (intmax_t)zip_entry->uncompressed_size);
+			ret = ARCHIVE_WARN;
+		}
+	}
+
+	/* Populate some additional entry fields: */
+	archive_entry_set_mode(entry, zip_entry->mode);
+	archive_entry_set_uid(entry, zip_entry->uid);
+	archive_entry_set_gid(entry, zip_entry->gid);
+	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
+	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
+	archive_entry_set_atime(entry, zip_entry->atime, 0);
+
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		size_t linkname_length = zip_entry->compressed_size;
+
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
+		}
+		if (__archive_read_consume(a, linkname_length) < 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Read error skipping symlink target name");
+			return ARCHIVE_FATAL;
+		}
+
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			sconv = zip->sconv_utf8;
+		if (sconv == NULL)
+			sconv = zip->sconv_default;
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    sconv) != 0) {
+			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			    archive_entry_copy_symlink_l(entry, p,
+				linkname_length, NULL);
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}
+			/*
+			 * Since there is no character-set regulation for
+			 * symlink name, do not report the conversion error
+			 * in an automatic conversion.
+			 */
+			if (sconv != zip->sconv_utf8 ||
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symlink cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+					sconv));
+				ret = ARCHIVE_WARN;
+			}
+		}
+		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
+	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    || zip_entry->uncompressed_size > 0) {
+		/* Set the size only if it's meaningful. */
+		archive_entry_set_size(entry, zip_entry->uncompressed_size);
+	}
+	zip->entry_bytes_remaining = zip_entry->compressed_size;
+
+	/* If there's no body, force read_data() to return EOF immediately. */
+	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < 1)
+		zip->end_of_entry = 1;
+
+	/* Set up a more descriptive format name. */
+	snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));
+	a->archive.archive_format_name = zip->format_name;
+
+	return (ret);
+}
+
+/*
+ * Read "uncompressed" data.  There are three cases:
+ *  1) We know the size of the data.  This is always true for the
+ * seeking reader (we've examined the Central Directory already).
+ *  2) ZIP_LENGTH_AT_END was set, but only the CRC was deferred.
+ * Info-ZIP seems to do this; we know the size but have to grab
+ * the CRC from the data descriptor afterwards.
+ *  3) We're streaming and ZIP_LENGTH_AT_END was specified and
+ * we have no size information.  In this case, we can do pretty
+ * well by watching for the data descriptor record.  The data
+ * descriptor is 16 bytes and includes a computed CRC that should
+ * provide a strong check.
+ *
+ * TODO: Technically, the PK\007\010 signature is optional.
+ * In the original spec, the data descriptor contained CRC
+ * and size fields but had no leading signature.  In practice,
+ * newer writers seem to provide the signature pretty consistently.
+ *
+ * For uncompressed data, the PK\007\010 marker seems essential
+ * to be sure we've actually seen the end of the entry.
+ *
+ * Returns ARCHIVE_OK if successful, ARCHIVE_FATAL otherwise, sets
+ * zip->end_of_entry if it consumes all of the data.
+ */
+static int
+zip_read_data_none(struct archive_read *a, const void **_buff,
+    size_t *size, int64_t *offset)
+{
+	struct zip *zip;
+	const char *buff;
+	ssize_t bytes_avail;
+
+	(void)offset; /* UNUSED */
+
+	zip = (struct zip *)(a->format->data);
+
+	if (zip->entry->zip_flags & ZIP_LENGTH_AT_END) {
+		const char *p;
+
+		/* Grab at least 24 bytes. */
+		buff = __archive_read_ahead(a, 24, &bytes_avail);
+		if (bytes_avail < 24) {
+			/* Zip archives have end-of-archive markers
+			   that are longer than this, so a failure to get at
+			   least 24 bytes really does indicate a truncated
+			   file. */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
+		}
+		/* Check for a complete PK\007\010 signature, followed
+		 * by the correct 4-byte CRC. */
+		p = buff;
+		if (p[0] == 'P' && p[1] == 'K'
+		    && p[2] == '\007' && p[3] == '\010'
+		    && (archive_le32dec(p + 4) == zip->entry_crc32
+			|| zip->ignore_crc32)) {
+			if (zip->entry->flags & LA_USED_ZIP64) {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size = archive_le64dec(p + 8);
+				zip->entry->uncompressed_size = archive_le64dec(p + 16);
+				zip->unconsumed = 24;
+			} else {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size = archive_le32dec(p + 8);
+				zip->entry->uncompressed_size = archive_le32dec(p + 12);
+				zip->unconsumed = 16;
+			}
+			zip->end_of_entry = 1;
+			return (ARCHIVE_OK);
+		}
+		/* If not at EOF, ensure we consume at least one byte. */
+		++p;
+
+		/* Scan forward until we see where a PK\007\010 signature
+		 * might be. */
+		/* Return bytes up until that point.  On the next call,
+		 * the code above will verify the data descriptor. */
+		while (p < buff + bytes_avail - 4) {
+			if (p[3] == 'P') { p += 3; }
+			else if (p[3] == 'K') { p += 2; }
+			else if (p[3] == '\007') { p += 1; }
+			else if (p[3] == '\010' && p[2] == '\007'
+			    && p[1] == 'K' && p[0] == 'P') {
+				break;
+			} else { p += 4; }
+		}
+		bytes_avail = p - buff;
+	} else {
+		if (zip->entry_bytes_remaining == 0) {
+			zip->end_of_entry = 1;
+			return (ARCHIVE_OK);
+		}
+		/* Grab a bunch of bytes. */
+		buff = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_avail > zip->entry_bytes_remaining)
+			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	}
+	*size = bytes_avail;
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_uncompressed_bytes_read += bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
+	zip->unconsumed += bytes_avail;
+	*_buff = buff;
+	return (ARCHIVE_OK);
+}
+
+#ifdef HAVE_ZLIB_H
+static int
+zip_deflate_init(struct archive_read *a, struct zip *zip)
+{
+	int r;
+
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!zip->decompress_init) {
+		if (zip->stream_valid)
+			r = inflateReset(&zip->stream);
+		else
+			r = inflateInit2(&zip->stream,
+			    -15 /* Don't check for zlib header */);
+		if (r != Z_OK) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize ZIP decompression.");
+			return (ARCHIVE_FATAL);
+		}
+		/* Stream structure has been set up. */
+		zip->stream_valid = 1;
+		/* We've initialized decompression for this stream. */
+		zip->decompress_init = 1;
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+zip_read_data_deflate(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
+{
+	struct zip *zip;
+	ssize_t bytes_avail;
+	const void *compressed_buff;
+	int r;
+
+	(void)offset; /* UNUSED */
+
+	zip = (struct zip *)(a->format->data);
+
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 256 * 1024;
+		zip->uncompressed_buffer
+		    = (unsigned char *)malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for ZIP decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	r = zip_deflate_init(a, zip);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	compressed_buff = __archive_read_ahead(a, 1, &bytes_avail);
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && bytes_avail > zip->entry_bytes_remaining) {
+		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	}
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file body");
+		return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * A bug in zlib.h: stream.next_in should be marked 'const'
+	 * but isn't (the library never alters data through the
+	 * next_in pointer, only reads it).  The result: this ugly
+	 * cast to remove 'const'.
+	 */
+	zip->stream.next_in = (Bytef *)(uintptr_t)(const void *)compressed_buff;
+	zip->stream.avail_in = (uInt)bytes_avail;
+	zip->stream.total_in = 0;
+	zip->stream.next_out = zip->uncompressed_buffer;
+	zip->stream.avail_out = (uInt)zip->uncompressed_buffer_size;
+	zip->stream.total_out = 0;
+
+	r = inflate(&zip->stream, 0);
+	switch (r) {
+	case Z_OK:
+		break;
+	case Z_STREAM_END:
+		zip->end_of_entry = 1;
+		break;
+	case Z_MEM_ERROR:
+		archive_set_error(&a->archive, ENOMEM,
+		    "Out of memory for ZIP decompression");
+		return (ARCHIVE_FATAL);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "ZIP decompression failed (%d)", r);
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Consume as much as the compressor actually used. */
+	bytes_avail = zip->stream.total_in;
+	__archive_read_consume(a, bytes_avail);
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
+
+	*size = zip->stream.total_out;
+	zip->entry_uncompressed_bytes_read += zip->stream.total_out;
+	*buff = zip->uncompressed_buffer;
+
+	if (zip->end_of_entry && (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
+		const char *p;
+
+		if (NULL == (p = __archive_read_ahead(a, 24, NULL))) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP end-of-file record");
+			return (ARCHIVE_FATAL);
+		}
+		/* Consume the optional PK\007\010 marker. */
+		if (p[0] == 'P' && p[1] == 'K' &&
+		    p[2] == '\007' && p[3] == '\010') {
+			p += 4;
+			zip->unconsumed = 4;
+		}
+		if (zip->entry->flags & LA_USED_ZIP64) {
+			zip->entry->crc32 = archive_le32dec(p);
+			zip->entry->compressed_size = archive_le64dec(p + 4);
+			zip->entry->uncompressed_size = archive_le64dec(p + 12);
+			zip->unconsumed += 20;
+		} else {
+			zip->entry->crc32 = archive_le32dec(p);
+			zip->entry->compressed_size = archive_le32dec(p + 4);
+			zip->entry->uncompressed_size = archive_le32dec(p + 8);
+			zip->unconsumed += 12;
+		}
+	}
+
+	return (ARCHIVE_OK);
+}
 #endif
+
+static int
+archive_read_format_zip_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
+{
+	int r;
+	struct zip *zip = (struct zip *)(a->format->data);
+
+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+		zip->has_encrypted_entries = 0;
+	}
+
+	*offset = zip->entry_uncompressed_bytes_read;
+	*size = 0;
+	*buff = NULL;
+
+	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
+	if (zip->end_of_entry)
+		return (ARCHIVE_EOF);
+
+	/* Return EOF immediately if this is a non-regular file. */
+	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
+		return (ARCHIVE_EOF);
+
+	if (zip->entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		zip->has_encrypted_entries = 1;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Encrypted file is unsupported");
+		return (ARCHIVE_FAILED);
+	}
+
+	__archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
+
+	switch(zip->entry->compression) {
+	case 0:  /* No compression. */
+		r =  zip_read_data_none(a, buff, size, offset);
+		break;
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+		r =  zip_read_data_deflate(a, buff, size, offset);
+		break;
+#endif
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(zip->entry->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_FAILED);
+		break;
+	}
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Update checksum */
+	if (*size)
+		zip->entry_crc32 = zip->crc32func(zip->entry_crc32, *buff,
+		    (unsigned)*size);
+	/* If we hit the end, swallow any end-of-data marker. */
+	if (zip->end_of_entry) {
+		/* Check file size, CRC against these values. */
+		if (zip->entry->compressed_size !=
+		    zip->entry_compressed_bytes_read) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP compressed data is wrong size "
+			    "(read %jd, expected %jd)",
+			    (intmax_t)zip->entry_compressed_bytes_read,
+			    (intmax_t)zip->entry->compressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Size field only stores the lower 32 bits of the actual
+		 * size. */
+		if ((zip->entry->uncompressed_size & UINT32_MAX)
+		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP uncompressed data is wrong size "
+			    "(read %jd, expected %jd)\n",
+			    (intmax_t)zip->entry_uncompressed_bytes_read,
+			    (intmax_t)zip->entry->uncompressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Check computed CRC against header */
+		if (zip->entry->crc32 != zip->entry_crc32
+		    && !zip->ignore_crc32) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP bad CRC: 0x%lx should be 0x%lx",
+			    (unsigned long)zip->entry_crc32,
+			    (unsigned long)zip->entry->crc32);
+			return (ARCHIVE_WARN);
+		}
+	}
+
+	return (ARCHIVE_OK);
 }
 
-bool cmSystemTools::RepeatedRemoveDirectory(const char* dir)
+static int
+archive_read_format_zip_cleanup(struct archive_read *a)
 {
-  // Windows sometimes locks files temporarily so try a few times.
-  for (int i = 0; i < 10; ++i) {
-    if (cmSystemTools::RemoveADirectory(dir)) {
-      return true;
-    }
-    cmSystemTools::Delay(100);
-  }
-  return false;
+	struct zip *zip;
+	struct zip_entry *zip_entry, *next_zip_entry;
+
+	zip = (struct zip *)(a->format->data);
+#ifdef HAVE_ZLIB_H
+	if (zip->stream_valid)
+		inflateEnd(&zip->stream);
+	free(zip->uncompressed_buffer);
+#endif
+	if (zip->zip_entries) {
+		zip_entry = zip->zip_entries;
+		while (zip_entry != NULL) {
+			next_zip_entry = zip_entry->next;
+			archive_string_free(&zip_entry->rsrcname);
+			free(zip_entry);
+			zip_entry = next_zip_entry;
+		}
+	}
+	free(zip);
+	(a->format->data) = NULL;
+	return (ARCHIVE_OK);
 }
 
-std::vector<std::string> cmSystemTools::tokenize(const std::string& str,
-                                                 const std::string& sep)
+static int
+archive_read_format_zip_has_encrypted_entries(struct archive_read *_a)
 {
-  std::vector<std::string> tokens;
-  std::string::size_type tokend = 0;
-
-  do {
-    std::string::size_type tokstart = str.find_first_not_of(sep, tokend);
-    if (tokstart == std::string::npos) {
-      break; // no more tokens
-    }
-    tokend = str.find_first_of(sep, tokstart);
-    if (tokend == std::string::npos) {
-      tokens.push_back(str.substr(tokstart));
-    } else {
-      tokens.push_back(str.substr(tokstart, tokend - tokstart));
-    }
-  } while (tokend != std::string::npos);
-
-  if (tokens.empty()) {
-    tokens.push_back("");
-  }
-  return tokens;
+	if (_a && _a->format) {
+		struct zip * zip = (struct zip *)_a->format->data;
+		if (zip) {
+			return zip->has_encrypted_entries;
+		}
+	}
+	return ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
 }
 
-bool cmSystemTools::StringToLong(const char* str, long* value)
+static int
+archive_read_format_zip_options(struct archive_read *a,
+    const char *key, const char *val)
 {
-  errno = 0;
-  char* endp;
-  *value = strtol(str, &endp, 10);
-  return (*endp == '\0') && (endp != str) && (errno == 0);
+	struct zip *zip;
+	int ret = ARCHIVE_FAILED;
+
+	zip = (struct zip *)(a->format->data);
+	if (strcmp(key, "compat-2x")  == 0) {
+		/* Handle filenames as libarchive 2.x */
+		zip->init_default_conversion = (val != NULL) ? 1 : 0;
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "zip: hdrcharset option needs a character-set name"
+			);
+		else {
+			zip->sconv = archive_string_conversion_from_charset(
+			    &a->archive, val, 0);
+			if (zip->sconv != NULL) {
+				if (strcmp(val, "UTF-8") == 0)
+					zip->sconv_utf8 = zip->sconv;
+				ret = ARCHIVE_OK;
+			} else
+				ret = ARCHIVE_FATAL;
+		}
+		return (ret);
+	} else if (strcmp(key, "ignorecrc32") == 0) {
+		/* Mostly useful for testing. */
+		if (val == NULL || val[0] == 0) {
+			zip->crc32func = real_crc32;
+			zip->ignore_crc32 = 0;
+		} else {
+			zip->crc32func = fake_crc32;
+			zip->ignore_crc32 = 1;
+		}
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "mac-ext") == 0) {
+		zip->process_mac_extensions = (val != NULL && val[0] != 0);
+		return (ARCHIVE_OK);
+	}
+
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }
 
-bool cmSystemTools::StringToULong(const char* str, unsigned long* value)
+int
+archive_read_support_format_zip(struct archive *a)
 {
-  errno = 0;
-  char* endp;
-  *value = strtoul(str, &endp, 10);
-  return (*endp == '\0') && (endp != str) && (errno == 0);
+	int r;
+	r = archive_read_support_format_zip_streamable(a);
+	if (r != ARCHIVE_OK)
+		return r;
+	return (archive_read_support_format_zip_seekable(a));
+}
+
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Streaming-mode support
+ */
+
+
+static int
+archive_read_support_format_zip_capabilities_streamable(struct archive_read * a)
+{
+	(void)a; /* UNUSED */
+	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA | ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
+}
+
+static int
+archive_read_format_zip_streamable_bid(struct archive_read *a, int best_bid)
+{
+	const char *p;
+
+	(void)best_bid; /* UNUSED */
+
+	if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
+		return (-1);
+
+	/*
+	 * Bid of 29 here comes from:
+	 *  + 16 bits for "PK",
+	 *  + next 16-bit field has 6 options so contributes
+	 *    about 16 - log_2(6) ~= 16 - 2.6 ~= 13 bits
+	 *
+	 * So we've effectively verified ~29 total bits of check data.
+	 */
+	if (p[0] == 'P' && p[1] == 'K') {
+		if ((p[2] == '\001' && p[3] == '\002')
+		    || (p[2] == '\003' && p[3] == '\004')
+		    || (p[2] == '\005' && p[3] == '\006')
+		    || (p[2] == '\006' && p[3] == '\006')
+		    || (p[2] == '\007' && p[3] == '\010')
+		    || (p[2] == '0' && p[3] == '0'))
+			return (29);
+	}
+
+	/* TODO: It's worth looking ahead a little bit for a valid
+	 * PK signature.  In particular, that would make it possible
+	 * to read some UUEncoded SFX files or SFX files coming from
+	 * a network socket. */
+
+	return (0);
+}
+
+static int
+archive_read_format_zip_streamable_read_header(struct archive_read *a,
+    struct archive_entry *entry)
+{
+	struct zip *zip;
+
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
+
+	zip = (struct zip *)(a->format->data);
+
+	/*
+	 * It should be sufficient to call archive_read_next_header() for
+	 * a reader to determine if an entry is encrypted or not. If the
+	 * encryption of an entry is only detectable when calling
+	 * archive_read_data(), so be it. We'll do the same check there
+	 * as well.
+	 */
+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+		zip->has_encrypted_entries = 0;
+	}
+
+	/* Make sure we have a zip_entry structure to use. */
+	if (zip->zip_entries == NULL) {
+		zip->zip_entries = malloc(sizeof(struct zip_entry));
+		if (zip->zip_entries == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Out  of memory");
+			return ARCHIVE_FATAL;
+		}
+	}
+	zip->entry = zip->zip_entries;
+	memset(zip->entry, 0, sizeof(struct zip_entry));
+
+	/* Search ahead for the next local file header. */
+	__archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
+	for (;;) {
+		int64_t skipped = 0;
+		const char *p, *end;
+		ssize_t bytes;
+
+		p = __archive_read_ahead(a, 4, &bytes);
+		if (p == NULL)
+			return (ARCHIVE_FATAL);
+		end = p + bytes;
+
+		while (p + 4 <= end) {
+			if (p[0] == 'P' && p[1] == 'K') {
+				if (p[2] == '\003' && p[3] == '\004') {
+					/* Regular file entry. */
+					__archive_read_consume(a, skipped);
+					return zip_read_local_file_header(a,
+					    entry, zip);
+				}
+
+                              /*
+                               * TODO: We cannot restore permissions
+                               * based only on the local file headers.
+                               * Consider scanning the central
+                               * directory and returning additional
+                               * entries for at least directories.
+                               * This would allow us to properly set
+                               * directory permissions.
+			       *
+			       * This won't help us fix symlinks
+			       * and may not help with regular file
+			       * permissions, either.  <sigh>
+                               */
+                              if (p[2] == '\001' && p[3] == '\002') {
+                                      return (ARCHIVE_EOF);
+                              }
+
+                              /* End of central directory?  Must be an
+                               * empty archive. */
+                              if ((p[2] == '\005' && p[3] == '\006')
+                                  || (p[2] == '\006' && p[3] == '\006'))
+                                      return (ARCHIVE_EOF);
+			}
+			++p;
+			++skipped;
+		}
+		__archive_read_consume(a, skipped);
+	}
+}
+
+static int
+archive_read_format_zip_read_data_skip_streamable(struct archive_read *a)
+{
+	struct zip *zip;
+	int64_t bytes_skipped;
+
+	zip = (struct zip *)(a->format->data);
+	bytes_skipped = __archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
+	if (bytes_skipped < 0)
+		return (ARCHIVE_FATAL);
+
+	/* If we've already read to end of data, we're done. */
+	if (zip->end_of_entry)
+		return (ARCHIVE_OK);
+
+	/* So we know we're streaming... */
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    || zip->entry->compressed_size > 0) {
+		/* We know the compressed length, so we can just skip. */
+		bytes_skipped = __archive_read_consume(a, zip->entry_bytes_remaining);
+		if (bytes_skipped < 0)
+			return (ARCHIVE_FATAL);
+		return (ARCHIVE_OK);
+	}
+
+	/* We're streaming and we don't know the length. */
+	/* If the body is compressed and we know the format, we can
+	 * find an exact end-of-entry by decompressing it. */
+	switch (zip->entry->compression) {
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+		while (!zip->end_of_entry) {
+			int64_t offset = 0;
+			const void *buff = NULL;
+			size_t size = 0;
+			int r;
+			r =  zip_read_data_deflate(a, &buff, &size, &offset);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+		return ARCHIVE_OK;
+#endif
+	default: /* Uncompressed or unknown. */
+		/* Scan for a PK\007\010 signature. */
+		for (;;) {
+			const char *p, *buff;
+			ssize_t bytes_avail;
+			buff = __archive_read_ahead(a, 16, &bytes_avail);
+			if (bytes_avail < 16) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Truncated ZIP file data");
+				return (ARCHIVE_FATAL);
+			}
+			p = buff;
+			while (p <= buff + bytes_avail - 16) {
+				if (p[3] == 'P') { p += 3; }
+				else if (p[3] == 'K') { p += 2; }
+				else if (p[3] == '\007') { p += 1; }
+				else if (p[3] == '\010' && p[2] == '\007'
+				    && p[1] == 'K' && p[0] == 'P') {
+					if (zip->entry->flags & LA_USED_ZIP64)
+						__archive_read_consume(a, p - buff + 24);
+					else
+						__archive_read_consume(a, p - buff + 16);
+					return ARCHIVE_OK;
+				} else { p += 4; }
+			}
+			__archive_read_consume(a, p - buff);
+		}
+	}
+}
+
+int
+archive_read_support_format_zip_streamable(struct archive *_a)
+{
+	struct archive_read *a = (struct archive_read *)_a;
+	struct zip *zip;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip");
+
+	zip = (struct zip *)malloc(sizeof(*zip));
+	if (zip == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data");
+		return (ARCHIVE_FATAL);
+	}
+	memset(zip, 0, sizeof(*zip));
+
+	/* Streamable reader doesn't support mac extensions. */
+	zip->process_mac_extensions = 0;
+
+	/*
+	 * Until enough data has been read, we cannot tell about
+	 * any encrypted entries yet.
+	 */
+	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+	zip->crc32func = real_crc32;
+
+	r = __archive_read_register_format(a,
+	    zip,
+	    "zip",
+	    archive_read_format_zip_streamable_bid,
+	    archive_read_format_zip_options,
+	    archive_read_format_zip_streamable_read_header,
+	    archive_read_format_zip_read_data,
+	    archive_read_format_zip_read_data_skip_streamable,
+	    NULL,
+	    archive_read_format_zip_cleanup,
+	    archive_read_support_format_zip_capabilities_streamable,
+	    archive_read_format_zip_has_encrypted_entries);
+
+	if (r != ARCHIVE_OK)
+		free(zip);
+	return (ARCHIVE_OK);
+}
+
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Seeking-mode support
+ */
+
+static int
+archive_read_support_format_zip_capabilities_seekable(struct archive_read * a)
+{
+	(void)a; /* UNUSED */
+	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA | ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
+}
+
+/*
+ * TODO: This is a performance sink because it forces the read core to
+ * drop buffered data from the start of file, which will then have to
+ * be re-read again if this bidder loses.
+ *
+ * We workaround this a little by passing in the best bid so far so
+ * that later bidders can do nothing if they know they'll never
+ * outbid.  But we can certainly do better...
+ */
+static int
+read_eocd(struct zip *zip, const char *p, int64_t current_offset)
+{
+	/* Sanity-check the EOCD we've found. */
+
+	/* This must be the first volume. */
+	if (archive_le16dec(p + 4) != 0)
+		return 0;
+	/* Central directory must be on this volume. */
+	if (archive_le16dec(p + 4) != archive_le16dec(p + 6))
+		return 0;
+	/* All central directory entries must be on this volume. */
+	if (archive_le16dec(p + 10) != archive_le16dec(p + 8))
+		return 0;
+	/* Central directory can't extend beyond start of EOCD record. */
+	if (archive_le32dec(p + 16) + archive_le32dec(p + 12)
+	    > current_offset)
+		return 0;
+
+	/* Save the central directory location for later use. */
+	zip->central_directory_offset = archive_le32dec(p + 16);
+
+	/* This is just a tiny bit higher than the maximum
+	   returned by the streaming Zip bidder.  This ensures
+	   that the more accurate seeking Zip parser wins
+	   whenever seek is available. */
+	return 32;
+}
+
+static int
+read_zip64_eocd(struct archive_read *a, struct zip *zip, const char *p)
+{
+	int64_t eocd64_offset;
+	int64_t eocd64_size;
+
+	/* Sanity-check the locator record. */
+
+	/* Central dir must be on first volume. */
+	if (archive_le32dec(p + 4) != 0)
+		return 0;
+	/* Must be only a single volume. */
+	if (archive_le32dec(p + 16) != 1)
+		return 0;
+
+	/* Find the Zip64 EOCD record. */
+	eocd64_offset = archive_le64dec(p + 8);
+	if (__archive_read_seek(a, eocd64_offset, SEEK_SET) < 0)
+		return 0;
+	if ((p = __archive_read_ahead(a, 56, NULL)) == NULL)
+		return 0;
+	/* Make sure we can read all of it. */
+	eocd64_size = archive_le64dec(p + 4) + 12;
+	if (eocd64_size < 56 || eocd64_size > 16384)
+		return 0;
+	if ((p = __archive_read_ahead(a, eocd64_size, NULL)) == NULL)
+		return 0;
+
+	/* Sanity-check the EOCD64 */
+	if (archive_le32dec(p + 16) != 0) /* Must be disk #0 */
+		return 0;
+	if (archive_le32dec(p + 20) != 0) /* CD must be on disk #0 */
+		return 0;
+	/* CD can't be split. */
+	if (archive_le64dec(p + 24) != archive_le64dec(p + 32))
+		return 0;
+
+	/* Save the central directory offset for later use. */
+	zip->central_directory_offset = archive_le64dec(p + 48);
+
+	return 32;
+}
+
+static int
+archive_read_format_zip_seekable_bid(struct archive_read *a, int best_bid)
+{
+	struct zip *zip = (struct zip *)a->format->data;
+	int64_t file_size, current_offset;
+	const char *p;
+	int i, tail;
+
+	/* If someone has already bid more than 32, then avoid
+	   trashing the look-ahead buffers with a seek. */
+	if (best_bid > 32)
+		return (-1);
+
+	file_size = __archive_read_seek(a, 0, SEEK_END);
+	if (file_size <= 0)
+		return 0;
+
+	/* Search last 16k of file for end-of-central-directory
+	 * record (which starts with PK\005\006) or Zip64 locator
+	 * record (which begins with PK\006\007) */
+	tail = zipmin(1024 * 16, file_size);
+	current_offset = __archive_read_seek(a, -tail, SEEK_END);
+	if (current_offset < 0)
+		return 0;
+	if ((p = __archive_read_ahead(a, (size_t)tail, NULL)) == NULL)
+		return 0;
+	/* TODO: Rework this to search backwards from the end.  We
+	 * normally expect the EOCD record to be at the very end, so
+	 * that should be significantly faster.  Tricky part: Make
+	 * sure we still prefer the Zip64 locator if it's present. */
+	for (i = 0; i <= tail - 22;) {
+		switch (p[i + 3]) {
+		case 'P': i += 3; break;
+		case 'K': i += 2; break;
+		case 005: i += 1; break;
+		case 006:
+			if (memcmp(p + i, "PK\005\006", 4) == 0) {
+				int ret = read_eocd(zip, p + i, current_offset + i);
+				if (ret > 0)
+					return (ret);
+			}
+			i += 1; /* Look for PK\006\007 next */
+			break;
+		case 007:
+			if (memcmp(p + i, "PK\006\007", 4) == 0) {
+				int ret = read_zip64_eocd(a, zip, p + i);
+				if (ret > 0)
+					return (ret);
+			}
+			i += 4;
+			break;
+		default: i += 4; break;
+		}
+	}
+	return 0;
+}
+
+/* The red-black trees are only used in seeking mode to manage
+ * the in-memory copy of the central directory. */
+
+static int
+cmp_node(const struct archive_rb_node *n1, const struct archive_rb_node *n2)
+{
+	const struct zip_entry *e1 = (const struct zip_entry *)n1;
+	const struct zip_entry *e2 = (const struct zip_entry *)n2;
+
+	if (e1->local_header_offset > e2->local_header_offset)
+		return -1;
+	if (e1->local_header_offset < e2->local_header_offset)
+		return 1;
+	return 0;
+}
+
+static int
+cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	/* This function won't be called */
+	(void)n; /* UNUSED */
+	(void)key; /* UNUSED */
+	return 1;
+}
+
+static const struct archive_rb_tree_ops rb_ops = {
+	&cmp_node, &cmp_key
+};
+
+static int
+rsrc_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct zip_entry *e1 = (const struct zip_entry *)n1;
+	const struct zip_entry *e2 = (const struct zip_entry *)n2;
+
+	return (strcmp(e2->rsrcname.s, e1->rsrcname.s));
+}
+
+static int
+rsrc_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct zip_entry *e = (const struct zip_entry *)n;
+	return (strcmp((const char *)key, e->rsrcname.s));
+}
+
+static const struct archive_rb_tree_ops rb_rsrc_ops = {
+	&rsrc_cmp_node, &rsrc_cmp_key
+};
+
+static const char *
+rsrc_basename(const char *name, size_t name_length)
+{
+	const char *s, *r;
+
+	r = s = name;
+	for (;;) {
+		s = memchr(s, '/', name_length - (s - name));
+		if (s == NULL)
+			break;
+		r = ++s;
+	}
+	return (r);
+}
+
+static void
+expose_parent_dirs(struct zip *zip, const char *name, size_t name_length)
+{
+	struct archive_string str;
+	struct zip_entry *dir;
+	char *s;
+
+	archive_string_init(&str);
+	archive_strncpy(&str, name, name_length);
+	for (;;) {
+		s = strrchr(str.s, '/');
+		if (s == NULL)
+			break;
+		*s = '\0';
+		/* Transfer the parent directory from zip->tree_rsrc RB
+		 * tree to zip->tree RB tree to expose. */
+		dir = (struct zip_entry *)
+		    __archive_rb_tree_find_node(&zip->tree_rsrc, str.s);
+		if (dir == NULL)
+			break;
+		__archive_rb_tree_remove_node(&zip->tree_rsrc, &dir->node);
+		archive_string_free(&dir->rsrcname);
+		__archive_rb_tree_insert_node(&zip->tree, &dir->node);
+	}
+	archive_string_free(&str);
+}
+
+static int
+slurp_central_directory(struct archive_read *a, struct zip *zip)
+{
+	ssize_t i;
+	unsigned found;
+	int64_t correction;
+	ssize_t bytes_avail;
+	const char *p;
+
+	/*
+	 * Find the start of the central directory.  The end-of-CD
+	 * record has our starting point, but there are lots of
+	 * Zip archives which have had other data prepended to the
+	 * file, which makes the recorded offsets all too small.
+	 * So we search forward from the specified offset until we
+	 * find the real start of the central directory.  Then we
+	 * know the correction we need to apply to account for leading
+	 * padding.
+	 */
+	if (__archive_read_seek(a, zip->central_directory_offset, SEEK_SET) < 0)
+		return ARCHIVE_FATAL;
+
+	found = 0;
+	while (!found) {
+		if ((p = __archive_read_ahead(a, 20, &bytes_avail)) == NULL)
+			return ARCHIVE_FATAL;
+		for (found = 0, i = 0; !found && i < bytes_avail - 4;) {
+			switch (p[i + 3]) {
+			case 'P': i += 3; break;
+			case 'K': i += 2; break;
+			case 001: i += 1; break;
+			case 002:
+				if (memcmp(p + i, "PK\001\002", 4) == 0) {
+					p += i;
+					found = 1;
+				} else
+					i += 4;
+				break;
+			case 005: i += 1; break;
+			case 006:
+				if (memcmp(p + i, "PK\005\006", 4) == 0) {
+					p += i;
+					found = 1;
+				} else if (memcmp(p + i, "PK\006\006", 4) == 0) {
+					p += i;
+					found = 1;
+				} else
+					i += 1;
+				break;
+			default: i += 4; break;
+			}
+		}
+		__archive_read_consume(a, i);
+	}
+	correction = archive_filter_bytes(&a->archive, 0) - zip->central_directory_offset;
+
+	__archive_rb_tree_init(&zip->tree, &rb_ops);
+	__archive_rb_tree_init(&zip->tree_rsrc, &rb_rsrc_ops);
+
+	zip->central_directory_entries_total = 0;
+	while (1) {
+		struct zip_entry *zip_entry;
+		size_t filename_length, extra_length, comment_length;
+		uint32_t external_attributes;
+		const char *name, *r;
+
+		if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
+			return ARCHIVE_FATAL;
+		if (memcmp(p, "PK\006\006", 4) == 0
+		    || memcmp(p, "PK\005\006", 4) == 0) {
+			break;
+		} else if (memcmp(p, "PK\001\002", 4) != 0) {
+			archive_set_error(&a->archive,
+			    -1, "Invalid central directory signature");
+			return ARCHIVE_FATAL;
+		}
+		if ((p = __archive_read_ahead(a, 46, NULL)) == NULL)
+			return ARCHIVE_FATAL;
+
+		zip_entry = calloc(1, sizeof(struct zip_entry));
+		zip_entry->next = zip->zip_entries;
+		zip_entry->flags |= LA_FROM_CENTRAL_DIRECTORY;
+		zip->zip_entries = zip_entry;
+		zip->central_directory_entries_total++;
+
+		/* version = p[4]; */
+		zip_entry->system = p[5];
+		/* version_required = archive_le16dec(p + 6); */
+		zip_entry->zip_flags = archive_le16dec(p + 8);
+		if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)){
+			zip->has_encrypted_entries = 1;
+		}
+		zip_entry->compression = (char)archive_le16dec(p + 10);
+		zip_entry->mtime = zip_time(p + 12);
+		zip_entry->crc32 = archive_le32dec(p + 16);
+		zip_entry->compressed_size = archive_le32dec(p + 20);
+		zip_entry->uncompressed_size = archive_le32dec(p + 24);
+		filename_length = archive_le16dec(p + 28);
+		extra_length = archive_le16dec(p + 30);
+		comment_length = archive_le16dec(p + 32);
+		/* disk_start = archive_le16dec(p + 34); */ /* Better be zero. */
+		/* internal_attributes = archive_le16dec(p + 36); */ /* text bit */
+		external_attributes = archive_le32dec(p + 38);
+		zip_entry->local_header_offset =
+		    archive_le32dec(p + 42) + correction;
+
+		/* If we can't guess the mode, leave it zero here;
+		   when we read the local file header we might get
+		   more information. */
+		zip_entry->mode = 0;
+		if (zip_entry->system == 3) {
+			zip_entry->mode = external_attributes >> 16;
+		}
+
+		/* We're done with the regular data; get the filename and
+		 * extra data. */
+		__archive_read_consume(a, 46);
+		if ((p = __archive_read_ahead(a, filename_length + extra_length, NULL))
+		    == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			return ARCHIVE_FATAL;
+		}
+		process_extra(p + filename_length, extra_length, zip_entry);
+
+		/*
+		 * Mac resource fork files are stored under the
+		 * "__MACOSX/" directory, so we should check if
+		 * it is.
+		 */
+		if (!zip->process_mac_extensions) {
+			/* Treat every entry as a regular entry. */
+			__archive_rb_tree_insert_node(&zip->tree,
+			    &zip_entry->node);
+		} else {
+			name = p;
+			r = rsrc_basename(name, filename_length);
+			if (filename_length >= 9 &&
+			    strncmp("__MACOSX/", name, 9) == 0) {
+				/* If this file is not a resource fork nor
+				 * a directory. We should treat it as a non
+				 * resource fork file to expose it. */
+				if (name[filename_length-1] != '/' &&
+				    (r - name < 3 || r[0] != '.' || r[1] != '_')) {
+					__archive_rb_tree_insert_node(&zip->tree,
+					    &zip_entry->node);
+					/* Expose its parent directories. */
+					expose_parent_dirs(zip, name, filename_length);
+				} else {
+					/* This file is a resource fork file or
+					 * a directory. */
+					archive_strncpy(&(zip_entry->rsrcname), name,
+					    filename_length);
+					__archive_rb_tree_insert_node(&zip->tree_rsrc,
+					    &zip_entry->node);
+				}
+			} else {
+				/* Generate resource fork name to find its resource
+				 * file at zip->tree_rsrc. */
+				archive_strcpy(&(zip_entry->rsrcname), "__MACOSX/");
+				archive_strncat(&(zip_entry->rsrcname), name, r - name);
+				archive_strcat(&(zip_entry->rsrcname), "._");
+				archive_strncat(&(zip_entry->rsrcname),
+				    name + (r - name), filename_length - (r - name));
+				/* Register an entry to RB tree to sort it by
+				 * file offset. */
+				__archive_rb_tree_insert_node(&zip->tree,
+				    &zip_entry->node);
+			}
+		}
+
+		/* Skip the comment too ... */
+		__archive_read_consume(a,
+		    filename_length + extra_length + comment_length);
+	}
+
+	return ARCHIVE_OK;
+}
+
+static ssize_t
+zip_get_local_file_header_size(struct archive_read *a, size_t extra)
+{
+	const char *p;
+	ssize_t filename_length, extra_length;
+
+	if ((p = __archive_read_ahead(a, extra + 30, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_WARN);
+	}
+	p += extra;
+
+	if (memcmp(p, "PK\003\004", 4) != 0) {
+		archive_set_error(&a->archive, -1, "Damaged Zip archive");
+		return ARCHIVE_WARN;
+	}
+	filename_length = archive_le16dec(p + 26);
+	extra_length = archive_le16dec(p + 28);
+
+	return (30 + filename_length + extra_length);
+}
+
+static int
+zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
+    struct zip_entry *rsrc)
+{
+	struct zip *zip = (struct zip *)a->format->data;
+	unsigned char *metadata, *mp;
+	int64_t offset = archive_filter_bytes(&a->archive, 0);
+	size_t remaining_bytes, metadata_bytes;
+	ssize_t hsize;
+	int ret = ARCHIVE_OK, eof;
+
+	switch(rsrc->compression) {
+	case 0:  /* No compression. */
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+#endif
+		break;
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(rsrc->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_WARN);
+	}
+
+	if (rsrc->uncompressed_size > (4 * 1024 * 1024)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Mac metadata is too large: %jd > 4M bytes",
+		    (intmax_t)rsrc->uncompressed_size);
+		return (ARCHIVE_WARN);
+	}
+
+	metadata = malloc((size_t)rsrc->uncompressed_size);
+	if (metadata == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (offset < rsrc->local_header_offset)
+		__archive_read_consume(a, rsrc->local_header_offset - offset);
+	else if (offset != rsrc->local_header_offset) {
+		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
+	}
+
+	hsize = zip_get_local_file_header_size(a, 0);
+	__archive_read_consume(a, hsize);
+
+	remaining_bytes = (size_t)rsrc->compressed_size;
+	metadata_bytes = (size_t)rsrc->uncompressed_size;
+	mp = metadata;
+	eof = 0;
+	while (!eof && remaining_bytes) {
+		const unsigned char *p;
+		ssize_t bytes_avail;
+		size_t bytes_used;
+
+		p = __archive_read_ahead(a, 1, &bytes_avail);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			ret = ARCHIVE_WARN;
+			goto exit_mac_metadata;
+		}
+		if ((size_t)bytes_avail > remaining_bytes)
+			bytes_avail = remaining_bytes;
+		switch(rsrc->compression) {
+		case 0:  /* No compression. */
+			memcpy(mp, p, bytes_avail);
+			bytes_used = (size_t)bytes_avail;
+			metadata_bytes -= bytes_used;
+			mp += bytes_used;
+			if (metadata_bytes == 0)
+				eof = 1;
+			break;
+#ifdef HAVE_ZLIB_H
+		case 8: /* Deflate compression. */
+		{
+			int r;
+
+			ret = zip_deflate_init(a, zip);
+			if (ret != ARCHIVE_OK)
+				goto exit_mac_metadata;
+			zip->stream.next_in =
+			    (Bytef *)(uintptr_t)(const void *)p;
+			zip->stream.avail_in = (uInt)bytes_avail;
+			zip->stream.total_in = 0;
+			zip->stream.next_out = mp;
+			zip->stream.avail_out = (uInt)metadata_bytes;
+			zip->stream.total_out = 0;
+
+			r = inflate(&zip->stream, 0);
+			switch (r) {
+			case Z_OK:
+				break;
+			case Z_STREAM_END:
+				eof = 1;
+				break;
+			case Z_MEM_ERROR:
+				archive_set_error(&a->archive, ENOMEM,
+				    "Out of memory for ZIP decompression");
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "ZIP decompression failed (%d)", r);
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			}
+			bytes_used = zip->stream.total_in;
+			metadata_bytes -= zip->stream.total_out;
+			mp += zip->stream.total_out;
+			break;
+		}
+#endif
+		default:
+			bytes_used = 0;
+			break;
+		}
+		__archive_read_consume(a, bytes_used);
+		remaining_bytes -= bytes_used;
+	}
+	archive_entry_copy_mac_metadata(entry, metadata,
+	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+
+exit_mac_metadata:
+	__archive_read_seek(a, offset, SEEK_SET);
+	zip->decompress_init = 0;
+	free(metadata);
+	return (ret);
+}
+
+static int
+archive_read_format_zip_seekable_read_header(struct archive_read *a,
+	struct archive_entry *entry)
+{
+	struct zip *zip = (struct zip *)a->format->data;
+	struct zip_entry *rsrc;
+	int64_t offset;
+	int r, ret = ARCHIVE_OK;
+
+	/*
+	 * It should be sufficient to call archive_read_next_header() for
+	 * a reader to determine if an entry is encrypted or not. If the
+	 * encryption of an entry is only detectable when calling
+	 * archive_read_data(), so be it. We'll do the same check there
+	 * as well.
+	 */
+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+		zip->has_encrypted_entries = 0;
+	}
+
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
+
+	if (zip->zip_entries == NULL) {
+		r = slurp_central_directory(a, zip);
+		if (r != ARCHIVE_OK)
+			return r;
+		/* Get first entry whose local header offset is lower than
+		 * other entries in the archive file. */
+		zip->entry =
+		    (struct zip_entry *)ARCHIVE_RB_TREE_MIN(&zip->tree);
+	} else if (zip->entry != NULL) {
+		/* Get next entry in local header offset order. */
+		zip->entry = (struct zip_entry *)__archive_rb_tree_iterate(
+		    &zip->tree, &zip->entry->node, ARCHIVE_RB_DIR_RIGHT);
+	}
+
+	if (zip->entry == NULL)
+		return ARCHIVE_EOF;
+
+	if (zip->entry->rsrcname.s)
+		rsrc = (struct zip_entry *)__archive_rb_tree_find_node(
+		    &zip->tree_rsrc, zip->entry->rsrcname.s);
+	else
+		rsrc = NULL;
+
+	/* File entries are sorted by the header offset, we should mostly
+	 * use __archive_read_consume to advance a read point to avoid redundant
+	 * data reading.  */
+	offset = archive_filter_bytes(&a->archive, 0);
+	if (offset < zip->entry->local_header_offset)
+		__archive_read_consume(a,
+		    zip->entry->local_header_offset - offset);
+	else if (offset != zip->entry->local_header_offset) {
+		__archive_read_seek(a, zip->entry->local_header_offset, SEEK_SET);
+	}
+	zip->unconsumed = 0;
+	r = zip_read_local_file_header(a, entry, zip);
+	if (r != ARCHIVE_OK)
+		return r;
+	if (rsrc) {
+		int ret2 = zip_read_mac_metadata(a, entry, rsrc);
+		if (ret2 < ret)
+			ret = ret2;
+	}
+	return (ret);
+}
+
+/*
+ * We're going to seek for the next header anyway, so we don't
+ * need to bother doing anything here.
+ */
+static int
+archive_read_format_zip_read_data_skip_seekable(struct archive_read *a)
+{
+	struct zip *zip;
+	zip = (struct zip *)(a->format->data);
+
+	zip->unconsumed = 0;
+	return (ARCHIVE_OK);
+}
+
+int
+archive_read_support_format_zip_seekable(struct archive *_a)
+{
+	struct archive_read *a = (struct archive_read *)_a;
+	struct zip *zip;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip_seekable");
+
+	zip = (struct zip *)malloc(sizeof(*zip));
+	if (zip == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data");
+		return (ARCHIVE_FATAL);
+	}
+	memset(zip, 0, sizeof(*zip));
+
+#ifdef HAVE_COPYFILE_H
+	/* Set this by default on Mac OS. */
+	zip->process_mac_extensions = 1;
+#endif
+
+	/*
+	 * Until enough data has been read, we cannot tell about
+	 * any encrypted entries yet.
+	 */
+	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+	zip->crc32func = real_crc32;
+
+	r = __archive_read_register_format(a,
+	    zip,
+	    "zip",
+	    archive_read_format_zip_seekable_bid,
+	    archive_read_format_zip_options,
+	    archive_read_format_zip_seekable_read_header,
+	    archive_read_format_zip_read_data,
+	    archive_read_format_zip_read_data_skip_seekable,
+	    NULL,
+	    archive_read_format_zip_cleanup,
+	    archive_read_support_format_zip_capabilities_seekable,
+	    archive_read_format_zip_has_encrypted_entries);
+
+	if (r != ARCHIVE_OK)
+		free(zip);
+	return (ARCHIVE_OK);
 }

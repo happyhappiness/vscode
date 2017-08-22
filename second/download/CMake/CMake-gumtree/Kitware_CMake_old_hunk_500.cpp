@@ -1,6 +1,7 @@
+      }
+      fprintf(out, "%s\n", format_ptr);
+      free(format_ptr);
+      co=co->next;
+    }
+  }
 
-static int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");

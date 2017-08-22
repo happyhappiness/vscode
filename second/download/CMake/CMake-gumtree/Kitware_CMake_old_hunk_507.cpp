@@ -1,7 +1,7 @@
-    if(res)
-      return res;
+  idna_init();
+#endif
 
-    Curl_safefree(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
+  if(Curl_resolver_global_init() != CURLE_OK) {
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }

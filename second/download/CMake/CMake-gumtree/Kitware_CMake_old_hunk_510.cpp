@@ -1,22 +1,19 @@
- */
-CURL *curl_easy_init(void)
-{
-  CURLcode res;
-  struct SessionHandle *data;
+        }
+        if(ptr) {
+          ftpc->newport = (unsigned short)(num & 0xffff);
 
-  /* Make sure we inited the global SSL stuff */
-  if(!initialized) {
-    res = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if(res) {
-      /* something in the global init failed, return nothing */
-      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      return NULL;
-    }
-  }
-
-  /* We use curl_open() with undefined URL so far */
-  res = Curl_open(&data);
-  if(res != CURLE_OK) {
-    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
-    return NULL;
-  }
+          if(conn->bits.tunnel_proxy ||
+             conn->proxytype == CURLPROXY_SOCKS5 ||
+             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
+             conn->proxytype == CURLPROXY_SOCKS4 ||
+             conn->proxytype == CURLPROXY_SOCKS4A)
+            /* proxy tunnel -> use other host info because ip_addr_str is the
+               proxy address not the ftp host */
+            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name);
+          else
+            /* use the same IP we are already connected to */
+            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
+        }
+      }
+      else

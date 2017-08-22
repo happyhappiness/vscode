@@ -1,7 +1,7 @@
 
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Read from filter failed unexpectedly.");
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
+        /* column is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           yy_fatal_error( "cmFortran_yyset_column called with no buffer" , yyscanner);
+
+    yycolumn = column_no;
+}

@@ -1,19 +1,16 @@
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
 
-          if(conn->bits.tunnel_proxy ||
-             conn->proxytype == CURLPROXY_SOCKS5 ||
-             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-             conn->proxytype == CURLPROXY_SOCKS4 ||
-             conn->proxytype == CURLPROXY_SOCKS4A)
-            /* proxy tunnel -> use other host info because ip_addr_str is the
-               proxy address not the ftp host */
-            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name);
-          else
-            /* use the same IP we are already connected to */
-            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
-        }
-      }
-      else
+  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+
+  error = Curl_base64_encode(data,
+                             data->state.buffer, strlen(data->state.buffer),
+                             &authorization, &size);
+  if(error)
+    return error;
+
+  if(!authorization)
+    return CURLE_REMOTE_ACCESS_DENIED;
+
+  Curl_safefree(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy?"Proxy-":"",
+                   authorization);

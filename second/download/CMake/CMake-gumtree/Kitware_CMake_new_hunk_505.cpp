@@ -1,6 +1,7 @@
-  /* Initial packet length */
-  size = 32 + hostlen + domlen;
+    if(res)
+      return res;
 
-  DEBUG_OUT({
-    fprintf(stderr, "* TYPE1 header flags=0x%02.2x%02.2x%02.2x%02.2x "
-            "0x%08.8x ",
+    free(*allocuserpwd);
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                            proxy ? "Proxy-" : "",
+                            conn->response_header);

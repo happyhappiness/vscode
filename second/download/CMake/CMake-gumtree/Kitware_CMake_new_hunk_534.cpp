@@ -1,9 +1,7 @@
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
-          ftpc->newhost = strdup(control_address(conn));
-          if(!ftpc->newhost)
-            return CURLE_OUT_OF_MEMORY;
-        }
-      }
-      else
+#endif
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+  fprintf(stderr, "Output before crash on stderr from crash test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  assert(invalidAddress); /* Quiet Clang scan-build. */
