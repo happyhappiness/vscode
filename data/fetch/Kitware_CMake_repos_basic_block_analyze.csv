@@ -1,15 +1,1 @@
 file,loc,block,block_file,block_feature,condition_info,normalized_condition
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Modules/CheckForPthreads.cpp,37,"{
-    printf(""%p CC: %d\n"", args, cc);
-  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_basic_block_block_0.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 3, 0, 0, 0, 0, 0, 0]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Modules/CheckFunctionExists.cpp,19,"{
-    return *av[0];
-  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_basic_block_block_1.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Modules/CheckVariableExists.cpp,15,"{
-    return *av[0];
-  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_basic_block_block_2.cpp,"[0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]"
-/usr/info/code/cpp/LogMonitor/LogMonitor/second/download/CMake/CMake/CMake/Source/CPack/OSXScriptLauncher.cpp,114,"{
-    const char* error_str = ""Process terminated due to timeout\n"";
-    std::cerr << error_str << std::endl;
-    result = false;
-  }",second/download/CMake/CMake-gumtree/Kitware_CMake_repos_basic_block_block_3.cpp,"[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0, 1, 1, 0, 0, 1, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0]"
