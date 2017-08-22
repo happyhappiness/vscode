@@ -20,7 +20,6 @@ class Joern_api:
         self.order = '2'
         self.flow_order = '30'
 
-        self.control_dependence = None
         self.log_depended_var = None
         self.argument = None
         self.var_type_dict = {}
@@ -32,6 +31,52 @@ class Joern_api:
     """
     def set_order(self, order):
         self.order = str(order)
+
+    """
+    @ param
+    @ return [condition id + flag], normalized condition info
+    @ involve get condition and controled statements and its condition info
+    """
+    def get_all_condition(self):
+        nodes_query = '_().getAllConditionControledNodes()'
+        nodes = Joern_api.joern_instance.runGremlinQuery(nodes_query)
+        conditions = []
+        if nodes is not None:
+            for node in nodes:
+                node_id = str(node[0][my_constant.JOERN_ID])
+                loc = node[0][my_constant.JOERN_LOCATION]
+                loc = loc[0:loc.index(':')]
+                file_name = node[1]
+                # get condition and normalized condition for each node
+                condition_info = self.__get_control_dependence_for_node(node_id)
+                normalized_condition = []
+                for condition in condition_info:
+                    node_std_code = self.__get_std_condition(condition[0], condition[1])
+                    if len(normalized_condition) == 0:
+                        normalized_condition = node_std_code
+                    else:
+                        normalized_condition = node_std_code + normalized_condition + ['&&']
+                # append this condition info to conditions
+                conditions.append([file_name, loc, condition_info, normalized_condition])
+        return conditions
+                
+    """
+    @ param node_id
+    @ return [condition id + flag], normalized condition info
+    @ involve get condition for node
+    """
+    def __get_control_dependence_for_node(self, node_id):
+        cdg_query = '_().getControlDependence(' + node_id + ',' + self.order +')'
+        cdg_list = Joern_api.joern_instance.runGremlinQuery(cdg_query)
+        condition_info = []
+        if cdg_list is not None and len(cdg_list) != 0:
+            cdg_list = cdg_list[my_constant.JOERN_DEFALUT]
+            # node_id, statement, label
+            for condition in cdg_list:
+                control_node_id = str(condition[my_constant.JOERN_ID])
+                label = self.__get_label_for_control(node_id, control_node_id)
+                condition_info.append([control_node_id, label])
+        return condition_info
 
     """
     @ param file name and log location(from 0, int)
@@ -57,28 +102,7 @@ class Joern_api:
     @ involve get control statement and identified variable type
     """
     def get_control_dependence(self):
-        cdg_query = '_().getControlDependence(' + self.log_id + ',' + self.order +')'
-        cdg_list = Joern_api.joern_instance.runGremlinQuery(cdg_query)
-        self.control_dependence = []
-        if cdg_list is not None and len(cdg_list) != 0:
-            cdg_list = cdg_list[my_constant.JOERN_DEFALUT]
-            # node_id, statement, label
-            for condition in cdg_list:
-                condition = condition[my_constant.JOERN_DEFALUT]
-                node_id = str(condition[my_constant.JOERN_ID])
-                # print node_id
-                # node_code = condition[my_constant.JOERN_CODE]
-                label = self.__get_label_for_control(node_id)
-                # print label
-                node_std_code = self.__get_std_condition(node_id, label)
-                # print node_std_code
-                # self.control_dependence.append([node_id, node_std_code, label])
-                if len(self.control_dependence) == 0:
-                    self.control_dependence = node_std_code
-                else:
-                    self.control_dependence = node_std_code + self.control_dependence + ['&&']
-        # print self.control_dependence
-        return self.control_dependence
+        return self.__get_control_dependence_for_node(self.log_id)
 
     """
     @ param condition node id and condition label(true or false)
@@ -510,8 +534,8 @@ class Joern_api:
     @ return flow label between log node and control node
     @ involve get flowlabel between control and controled node
     """
-    def __get_label_for_control(self, control_node_id):
-        label_query = '_().getControlLabel(' + self.log_id + ',' + control_node_id + ',' + self.flow_order + ')'
+    def __get_label_for_control(self, node_id, control_node_id):
+        label_query = '_().getControlLabel(' + node_id + ',' + control_node_id + ',' + self.flow_order + ')'
         label = Joern_api.joern_instance.runGremlinQuery(label_query)
         if label is not None and len(label) != 0:
             label = label[my_constant.JOERN_DEFALUT]
@@ -524,9 +548,10 @@ class Joern_api:
 if __name__ == "__main__":
     filename = 'function_29.cpp'
     joern_api = Joern_api()
-    joern_api.set_log(filename, 65)
-    print joern_api.get_control_dependence()
-    print joern_api.get_argument_type()
+    print joern_api.get_all_condition()
+    # joern_api.set_log(filename, 65)
+    # print joern_api.get_control_dependence()
+    # print joern_api.get_argument_type()
     # if re.match(r'^[A-Z0-9_]+$', 'BZ2_bzlibVersion'):
     #     print 'is macro'
     # else:
