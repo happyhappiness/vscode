@@ -1,7 +1,15 @@
-		ret = child_write(f, data, buf, length);
-		if (ret == -1 || ret == 0) {
-			archive_set_error(f->archive, EIO,
-			    "Can't write to filter");
-			return (ARCHIVE_FATAL);
-		}
-		length -= ret;
+{
+	unsigned offset = 0;
+
+	while (offset < extra_length - 4)
+	{
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
+		offset += 4;
+		if (offset + datasize > extra_length)
+			break;
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize);
+#endif
+		switch (headerid) {

@@ -1,9 +1,15 @@
-		/* We're done with the regular data; get the filename and
-		 * extra data. */
-		__archive_read_consume(a, 46);
-		if ((p = __archive_read_ahead(a, filename_length + extra_length, NULL))
-		    == NULL) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			return ARCHIVE_FATAL;
-		}
+{
+	unsigned offset = 0;
+
+	while (offset < extra_length - 4)
+	{
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
+		offset += 4;
+		if (offset + datasize > extra_length)
+			break;
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%x, length %d\n",
+		    headerid, datasize);
+#endif
+		switch (headerid) {

@@ -1,279 +1,628 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
+/*-
+ * Copyright (c) 2007 Kai Wang
+ * Copyright (c) 2007 Tim Kientzle
+ * All rights reserved.
  *
- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer
+ *    in this position and unchanged.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-/* Base64 encoding/decoding */
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_ar.c 201101 2009-12-28 03:06:27Z kientzle $");
 
-#include "curl_setup.h"
-#include "curl_printf.h"
-#include "urldata.h" /* for the SessionHandle definition */
-#include "warnless.h"
-#include "curl_base64.h"
-#include "non-ascii.h"
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
 
-/* The last #include files should be: */
-#include "curl_memory.h"
-#include "memdebug.h"
+#include "archive.h"
+#include "archive_entry.h"
+#include "archive_private.h"
+#include "archive_read_private.h"
 
-/* ---- Base64 Encoding/Decoding Table --- */
-static const char base64[]=
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/* The Base 64 encoding with an URL and filename safe alphabet, RFC 4648
-   section 5 */
-static const char base64url[]=
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-
-static size_t decodeQuantum(unsigned char *dest, const char *src)
-{
-  size_t padding = 0;
-  const char *s, *p;
-  unsigned long i, x = 0;
-
-  for(i = 0, s = src; i < 4; i++, s++) {
-    unsigned long v = 0;
-
-    if(*s == '=') {
-      x = (x << 6);
-      padding++;
-    }
-    else {
-      p = base64;
-
-      while(*p && (*p != *s)) {
-        v++;
-        p++;
-      }
-
-      if(*p == *s)
-        x = (x << 6) + v;
-      else
-        return 0;
-    }
-  }
-
-  if(padding < 1)
-    dest[2] = curlx_ultouc(x & 0xFFUL);
-
-  x >>= 8;
-  if(padding < 2)
-    dest[1] = curlx_ultouc(x & 0xFFUL);
-
-  x >>= 8;
-  dest[0] = curlx_ultouc(x & 0xFFUL);
-
-  return 3 - padding;
-}
+struct ar {
+	int64_t	 entry_bytes_remaining;
+	/* unconsumed is purely to track data we've gotten from readahead,
+	 * but haven't yet marked as consumed.  Must be paired with
+	 * entry_bytes_remaining usage/modification.
+	 */
+	size_t   entry_bytes_unconsumed;
+	int64_t	 entry_offset;
+	int64_t	 entry_padding;
+	char	*strtab;
+	size_t	 strtab_size;
+	char	 read_global_header;
+};
 
 /*
- * Curl_base64_decode()
- *
- * Given a base64 NUL-terminated string at src, decode it and return a
- * pointer in *outptr to a newly allocated memory area holding decoded
- * data. Size of decoded data is returned in variable pointed by outlen.
- *
- * Returns CURLE_OK on success, otherwise specific error code. Function
- * output shall not be considered valid unless CURLE_OK is returned.
- *
- * When decoded data length is 0, returns NULL in *outptr.
- *
- * @unittest: 1302
+ * Define structure of the "ar" header.
  */
-CURLcode Curl_base64_decode(const char *src,
-                            unsigned char **outptr, size_t *outlen)
+#define AR_name_offset 0
+#define AR_name_size 16
+#define AR_date_offset 16
+#define AR_date_size 12
+#define AR_uid_offset 28
+#define AR_uid_size 6
+#define AR_gid_offset 34
+#define AR_gid_size 6
+#define AR_mode_offset 40
+#define AR_mode_size 8
+#define AR_size_offset 48
+#define AR_size_size 10
+#define AR_fmag_offset 58
+#define AR_fmag_size 2
+
+static int	archive_read_format_ar_bid(struct archive_read *a, int);
+static int	archive_read_format_ar_cleanup(struct archive_read *a);
+static int	archive_read_format_ar_read_data(struct archive_read *a,
+		    const void **buff, size_t *size, int64_t *offset);
+static int	archive_read_format_ar_skip(struct archive_read *a);
+static int	archive_read_format_ar_read_header(struct archive_read *a,
+		    struct archive_entry *e);
+static uint64_t	ar_atol8(const char *p, unsigned char_cnt);
+static uint64_t	ar_atol10(const char *p, unsigned char_cnt);
+static int	ar_parse_gnu_filename_table(struct archive_read *a);
+static int	ar_parse_common_header(struct ar *ar, struct archive_entry *,
+		    const char *h);
+
+int
+archive_read_support_format_ar(struct archive *_a)
 {
-  size_t srclen = 0;
-  size_t length = 0;
-  size_t padding = 0;
-  size_t i;
-  size_t numQuantums;
-  size_t rawlen = 0;
-  unsigned char *pos;
-  unsigned char *newstr;
+	struct archive_read *a = (struct archive_read *)_a;
+	struct ar *ar;
+	int r;
 
-  *outptr = NULL;
-  *outlen = 0;
-  srclen = strlen(src);
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
 
-  /* Check the length of the input string is valid */
-  if(!srclen || srclen % 4)
-    return CURLE_BAD_CONTENT_ENCODING;
+	ar = (struct ar *)malloc(sizeof(*ar));
+	if (ar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ar data");
+		return (ARCHIVE_FATAL);
+	}
+	memset(ar, 0, sizeof(*ar));
+	ar->strtab = NULL;
 
-  /* Find the position of any = padding characters */
-  while((src[length] != '=') && src[length])
-    length++;
+	r = __archive_read_register_format(a,
+	    ar,
+	    "ar",
+	    archive_read_format_ar_bid,
+	    NULL,
+	    archive_read_format_ar_read_header,
+	    archive_read_format_ar_read_data,
+	    archive_read_format_ar_skip,
+	    NULL,
+	    archive_read_format_ar_cleanup,
+	    NULL,
+	    NULL);
 
-  /* A maximum of two = padding characters is allowed */
-  if(src[length] == '=') {
-    padding++;
-    if(src[length + 1] == '=')
-      padding++;
-  }
-
-  /* Check the = padding characters weren't part way through the input */
-  if(length + padding != srclen)
-    return CURLE_BAD_CONTENT_ENCODING;
-
-  /* Calculate the number of quantums */
-  numQuantums = srclen / 4;
-
-  /* Calculate the size of the decoded string */
-  rawlen = (numQuantums * 3) - padding;
-
-  /* Allocate our buffer including room for a zero terminator */
-  newstr = malloc(rawlen + 1);
-  if(!newstr)
-    return CURLE_OUT_OF_MEMORY;
-
-  pos = newstr;
-
-  /* Decode the quantums */
-  for(i = 0; i < numQuantums; i++) {
-    size_t result = decodeQuantum(pos, src);
-    if(!result) {
-      free(newstr);
-
-      return CURLE_BAD_CONTENT_ENCODING;
-    }
-
-    pos += result;
-    src += 4;
-  }
-
-  /* Zero terminate */
-  *pos = '\0';
-
-  /* Return the decoded data */
-  *outptr = newstr;
-  *outlen = rawlen;
-
-  return CURLE_OK;
+	if (r != ARCHIVE_OK) {
+		free(ar);
+		return (r);
+	}
+	return (ARCHIVE_OK);
 }
 
-static CURLcode base64_encode(const char *table64,
-                              struct SessionHandle *data,
-                              const char *inputbuff, size_t insize,
-                              char **outptr, size_t *outlen)
+static int
+archive_read_format_ar_cleanup(struct archive_read *a)
 {
-  CURLcode error;
-  unsigned char ibuf[3];
-  unsigned char obuf[4];
-  int i;
-  int inputparts;
-  char *output;
-  char *base64data;
-  char *convbuf = NULL;
+	struct ar *ar;
 
-  const char *indata = inputbuff;
-
-  *outptr = NULL;
-  *outlen = 0;
-
-  if(0 == insize)
-    insize = strlen(indata);
-
-  base64data = output = malloc(insize*4/3+4);
-  if(NULL == output)
-    return CURLE_OUT_OF_MEMORY;
-
-  /*
-   * The base64 data needs to be created using the network encoding
-   * not the host encoding.  And we can't change the actual input
-   * so we copy it to a buffer, translate it, and use that instead.
-   */
-  error = Curl_convert_clone(data, indata, insize, &convbuf);
-  if(error) {
-    free(output);
-    return error;
-  }
-
-  if(convbuf)
-    indata = (char *)convbuf;
-
-  while(insize > 0) {
-    for(i = inputparts = 0; i < 3; i++) {
-      if(insize > 0) {
-        inputparts++;
-        ibuf[i] = (unsigned char) *indata;
-        indata++;
-        insize--;
-      }
-      else
-        ibuf[i] = 0;
-    }
-
-    obuf[0] = (unsigned char)  ((ibuf[0] & 0xFC) >> 2);
-    obuf[1] = (unsigned char) (((ibuf[0] & 0x03) << 4) | \
-                               ((ibuf[1] & 0xF0) >> 4));
-    obuf[2] = (unsigned char) (((ibuf[1] & 0x0F) << 2) | \
-                               ((ibuf[2] & 0xC0) >> 6));
-    obuf[3] = (unsigned char)   (ibuf[2] & 0x3F);
-
-    switch(inputparts) {
-    case 1: /* only one byte read */
-      snprintf(output, 5, "%c%c==",
-               table64[obuf[0]],
-               table64[obuf[1]]);
-      break;
-    case 2: /* two bytes read */
-      snprintf(output, 5, "%c%c%c=",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]]);
-      break;
-    default:
-      snprintf(output, 5, "%c%c%c%c",
-               table64[obuf[0]],
-               table64[obuf[1]],
-               table64[obuf[2]],
-               table64[obuf[3]] );
-      break;
-    }
-    output += 4;
-  }
-  *output = '\0';
-  *outptr = base64data; /* return pointer to new data, allocated memory */
-
-  free(convbuf);
-
-  *outlen = strlen(base64data); /* return the length of the new data */
-
-  return CURLE_OK;
+	ar = (struct ar *)(a->format->data);
+	if (ar->strtab)
+		free(ar->strtab);
+	free(ar);
+	(a->format->data) = NULL;
+	return (ARCHIVE_OK);
 }
 
-/*
- * Curl_base64_encode()
- *
- * Given a pointer to an input buffer and an input size, encode it and
- * return a pointer in *outptr to a newly allocated memory area holding
- * encoded data. Size of encoded data is returned in variable pointed by
- * outlen.
- *
- * Input length of 0 indicates input buffer holds a NUL-terminated string.
- *
- * Returns CURLE_OK on success, otherwise specific error code. Function
- * output shall not be considered valid unless CURLE_OK is returned.
- *
- * When encoded data length is 0, returns NULL in *outptr.
- *
- * @unittest: 1302
- */
-CURLcode Curl_base64_encode(struct SessionHandle *data,
+static int
+archive_read_format_ar_bid(struct archive_read *a, int best_bid)
+{
+	const void *h;
+
+	(void)best_bid; /* UNUSED */
+
+	/*
+	 * Verify the 8-byte file signature.
+	 * TODO: Do we need to check more than this?
+	 */
+	if ((h = __archive_read_ahead(a, 8, NULL)) == NULL)
+		return (-1);
+	if (memcmp(h, "!<arch>\n", 8) == 0) {
+		return (64);
+	}
+	return (-1);
+}
+
+static int
+_ar_read_header(struct archive_read *a, struct archive_entry *entry,
+	struct ar *ar, const char *h, size_t *unconsumed)
+{
+	char filename[AR_name_size + 1];
+	uint64_t number; /* Used to hold parsed numbers before validation. */
+	size_t bsd_name_length, entry_size;
+	char *p, *st;
+	const void *b;
+	int r;
+
+	/* Verify the magic signature on the file header. */
+	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Incorrect file header signature");
+		return (ARCHIVE_WARN);
+	}
+
+	/* Copy filename into work buffer. */
+	strncpy(filename, h + AR_name_offset, AR_name_size);
+	filename[AR_name_size] = '\0';
+
+	/*
+	 * Guess the format variant based on the filename.
+	 */
+	if (a->archive.archive_format == ARCHIVE_FORMAT_AR) {
+		/* We don't already know the variant, so let's guess. */
+		/*
+		 * Biggest clue is presence of '/': GNU starts special
+		 * filenames with '/', appends '/' as terminator to
+		 * non-special names, so anything with '/' should be
+		 * GNU except for BSD long filenames.
+		 */
+		if (strncmp(filename, "#1/", 3) == 0)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
+		else if (strchr(filename, '/') != NULL)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_GNU;
+		else if (strncmp(filename, "__.SYMDEF", 9) == 0)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
+		/*
+		 * XXX Do GNU/SVR4 'ar' programs ever omit trailing '/'
+		 * if name exactly fills 16-byte field?  If so, we
+		 * can't assume entries without '/' are BSD. XXX
+		 */
+	}
+
+	/* Update format name from the code. */
+	if (a->archive.archive_format == ARCHIVE_FORMAT_AR_GNU)
+		a->archive.archive_format_name = "ar (GNU/SVR4)";
+	else if (a->archive.archive_format == ARCHIVE_FORMAT_AR_BSD)
+		a->archive.archive_format_name = "ar (BSD)";
+	else
+		a->archive.archive_format_name = "ar";
+
+	/*
+	 * Remove trailing spaces from the filename.  GNU and BSD
+	 * variants both pad filename area out with spaces.
+	 * This will only be wrong if GNU/SVR4 'ar' implementations
+	 * omit trailing '/' for 16-char filenames and we have
+	 * a 16-char filename that ends in ' '.
+	 */
+	p = filename + AR_name_size - 1;
+	while (p >= filename && *p == ' ') {
+		*p = '\0';
+		p--;
+	}
+
+	/*
+	 * Remove trailing slash unless first character is '/'.
+	 * (BSD entries never end in '/', so this will only trim
+	 * GNU-format entries.  GNU special entries start with '/'
+	 * and are not terminated in '/', so we don't trim anything
+	 * that starts with '/'.)
+	 */
+	if (filename[0] != '/' && *p == '/')
+		*p = '\0';
+
+	/*
+	 * '//' is the GNU filename table.
+	 * Later entries can refer to names in this table.
+	 */
+	if (strcmp(filename, "//") == 0) {
+		/* This must come before any call to _read_ahead. */
+		ar_parse_common_header(ar, entry, h);
+		archive_entry_copy_pathname(entry, filename);
+		archive_entry_set_filetype(entry, AE_IFREG);
+		/* Get the size of the filename table. */
+		number = ar_atol10(h + AR_size_offset, AR_size_size);
+		if (number > SIZE_MAX) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Filename table too large");
+			return (ARCHIVE_FATAL);
+		}
+		entry_size = (size_t)number;
+		if (entry_size == 0) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Invalid string table");
+			return (ARCHIVE_WARN);
+		}
+		if (ar->strtab != NULL) {
+			archive_set_error(&a->archive, EINVAL,
+			    "More than one string tables exist");
+			return (ARCHIVE_WARN);
+		}
+
+		/* Read the filename table into memory. */
+		st = malloc(entry_size);
+		if (st == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate filename table buffer");
+			return (ARCHIVE_FATAL);
+		}
+		ar->strtab = st;
+		ar->strtab_size = entry_size;
+
+		if (*unconsumed) {
+			__archive_read_consume(a, *unconsumed);
+			*unconsumed = 0;
+		}
+
+		if ((b = __archive_read_ahead(a, entry_size, NULL)) == NULL)
+			return (ARCHIVE_FATAL);
+		memcpy(st, b, entry_size);
+		__archive_read_consume(a, entry_size);
+		/* All contents are consumed. */
+		ar->entry_bytes_remaining = 0;
+		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+
+		/* Parse the filename table. */
+		return (ar_parse_gnu_filename_table(a));
+	}
+
+	/*
+	 * GNU variant handles long filenames by storing /<number>
+	 * to indicate a name stored in the filename table.
+	 * XXX TODO: Verify that it's all digits... Don't be fooled
+	 * by "/9xyz" XXX
+	 */
+	if (filename[0] == '/' && filename[1] >= '0' && filename[1] <= '9') {
+		number = ar_atol10(h + AR_name_offset + 1, AR_name_size - 1);
+		/*
+		 * If we can't look up the real name, warn and return
+		 * the entry with the wrong name.
+		 */
+		if (ar->strtab == NULL || number > ar->strtab_size) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Can't find long filename for entry");
+			archive_entry_copy_pathname(entry, filename);
+			/* Parse the time, owner, mode, size fields. */
+			ar_parse_common_header(ar, entry, h);
+			return (ARCHIVE_WARN);
+		}
+
+		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
+		/* Parse the time, owner, mode, size fields. */
+		return (ar_parse_common_header(ar, entry, h));
+	}
+
+	/*
+	 * BSD handles long filenames by storing "#1/" followed by the
+	 * length of filename as a decimal number, then prepends the
+	 * the filename to the file contents.
+	 */
+	if (strncmp(filename, "#1/", 3) == 0) {
+		/* Parse the time, owner, mode, size fields. */
+		/* This must occur before _read_ahead is called again. */
+		ar_parse_common_header(ar, entry, h);
+
+		/* Parse the size of the name, adjust the file size. */
+		number = ar_atol10(h + AR_name_offset + 3, AR_name_size - 3);
+		bsd_name_length = (size_t)number;
+		/* Guard against the filename + trailing NUL
+		 * overflowing a size_t and against the filename size
+		 * being larger than the entire entry. */
+		if (number > (uint64_t)(bsd_name_length + 1)
+		    || (int64_t)bsd_name_length > ar->entry_bytes_remaining) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Bad input file size");
+			return (ARCHIVE_FATAL);
+		}
+		ar->entry_bytes_remaining -= bsd_name_length;
+		/* Adjust file size reported to client. */
+		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+
+		if (*unconsumed) {
+			__archive_read_consume(a, *unconsumed);
+			*unconsumed = 0;
+		}
+
+		/* Read the long name into memory. */
+		if ((b = __archive_read_ahead(a, bsd_name_length, NULL)) == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated input file");
+			return (ARCHIVE_FATAL);
+		}
+		/* Store it in the entry. */
+		p = (char *)malloc(bsd_name_length + 1);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate fname buffer");
+			return (ARCHIVE_FATAL);
+		}
+		strncpy(p, b, bsd_name_length);
+		p[bsd_name_length] = '\0';
+
+		__archive_read_consume(a, bsd_name_length);
+
+		archive_entry_copy_pathname(entry, p);
+		free(p);
+		return (ARCHIVE_OK);
+	}
+
+	/*
+	 * "/" is the SVR4/GNU archive symbol table.
+	 */
+	if (strcmp(filename, "/") == 0) {
+		archive_entry_copy_pathname(entry, "/");
+		/* Parse the time, owner, mode, size fields. */
+		r = ar_parse_common_header(ar, entry, h);
+		/* Force the file type to a regular file. */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		return (r);
+	}
+
+	/*
+	 * "__.SYMDEF" is a BSD archive symbol table.
+	 */
+	if (strcmp(filename, "__.SYMDEF") == 0) {
+		archive_entry_copy_pathname(entry, filename);
+		/* Parse the time, owner, mode, size fields. */
+		return (ar_parse_common_header(ar, entry, h));
+	}
+
+	/*
+	 * Otherwise, this is a standard entry.  The filename
+	 * has already been trimmed as much as possible, based
+	 * on our current knowledge of the format.
+	 */
+	archive_entry_copy_pathname(entry, filename);
+	return (ar_parse_common_header(ar, entry, h));
+}
+
+static int
+archive_read_format_ar_read_header(struct archive_read *a,
+    struct archive_entry *entry)
+{
+	struct ar *ar = (struct ar*)(a->format->data);
+	size_t unconsumed;
+	const void *header_data;
+	int ret;
+
+	if (!ar->read_global_header) {
+		/*
+		 * We are now at the beginning of the archive,
+		 * so we need first consume the ar global header.
+		 */
+		__archive_read_consume(a, 8);
+		ar->read_global_header = 1;
+		/* Set a default format code for now. */
+		a->archive.archive_format = ARCHIVE_FORMAT_AR;
+	}
+
+	/* Read the header for the next file entry. */
+	if ((header_data = __archive_read_ahead(a, 60, NULL)) == NULL)
+		/* Broken header. */
+		return (ARCHIVE_EOF);
+	
+	unconsumed = 60;
+	
+	ret = _ar_read_header(a, entry, ar, (const char *)header_data, &unconsumed);
+
+	if (unconsumed)
+		__archive_read_consume(a, unconsumed);
+
+	return ret;
+}
+
+
+static int
+ar_parse_common_header(struct ar *ar, struct archive_entry *entry,
+    const char *h)
+{
+	uint64_t n;
+
+	/* Copy remaining header */
+	archive_entry_set_mtime(entry,
+	    (time_t)ar_atol10(h + AR_date_offset, AR_date_size), 0L);
+	archive_entry_set_uid(entry,
+	    (uid_t)ar_atol10(h + AR_uid_offset, AR_uid_size));
+	archive_entry_set_gid(entry,
+	    (gid_t)ar_atol10(h + AR_gid_offset, AR_gid_size));
+	archive_entry_set_mode(entry,
+	    (mode_t)ar_atol8(h + AR_mode_offset, AR_mode_size));
+	n = ar_atol10(h + AR_size_offset, AR_size_size);
+
+	ar->entry_offset = 0;
+	ar->entry_padding = n % 2;
+	archive_entry_set_size(entry, n);
+	ar->entry_bytes_remaining = n;
+	return (ARCHIVE_OK);
+}
+
+static int
+archive_read_format_ar_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
+{
+	ssize_t bytes_read;
+	struct ar *ar;
+
+	ar = (struct ar *)(a->format->data);
+
+	if (ar->entry_bytes_unconsumed) {
+		__archive_read_consume(a, ar->entry_bytes_unconsumed);
+		ar->entry_bytes_unconsumed = 0;
+	}
+
+	if (ar->entry_bytes_remaining > 0) {
+		*buff = __archive_read_ahead(a, 1, &bytes_read);
+		if (bytes_read == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated ar archive");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_read < 0)
+			return (ARCHIVE_FATAL);
+		if (bytes_read > ar->entry_bytes_remaining)
+			bytes_read = (ssize_t)ar->entry_bytes_remaining;
+		*size = bytes_read;
+		ar->entry_bytes_unconsumed = bytes_read;
+		*offset = ar->entry_offset;
+		ar->entry_offset += bytes_read;
+		ar->entry_bytes_remaining -= bytes_read;
+		return (ARCHIVE_OK);
+	} else {
+		int64_t skipped = __archive_read_consume(a, ar->entry_padding);
+		if (skipped >= 0) {
+			ar->entry_padding -= skipped;
+		}
+		if (ar->entry_padding) {
+			if (skipped >= 0) {
+				archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+					"Truncated ar archive- failed consuming padding");
+			}
+			return (ARCHIVE_FATAL);
+		}
+		*buff = NULL;
+		*size = 0;
+		*offset = ar->entry_offset;
+		return (ARCHIVE_EOF);
+	}
+}
+
+static int
+archive_read_format_ar_skip(struct archive_read *a)
+{
+	int64_t bytes_skipped;
+	struct ar* ar;
+
+	ar = (struct ar *)(a->format->data);
+
+	bytes_skipped = __archive_read_consume(a,
+	    ar->entry_bytes_remaining + ar->entry_padding
+	    + ar->entry_bytes_unconsumed);
+	if (bytes_skipped < 0)
+		return (ARCHIVE_FATAL);
+
+	ar->entry_bytes_remaining = 0;
+	ar->entry_bytes_unconsumed = 0;
+	ar->entry_padding = 0;
+
+	return (ARCHIVE_OK);
+}
+
+static int
+ar_parse_gnu_filename_table(struct archive_read *a)
+{
+	struct ar *ar;
+	char *p;
+	size_t size;
+
+	ar = (struct ar*)(a->format->data);
+	size = ar->strtab_size;
+
+	for (p = ar->strtab; p < ar->strtab + size - 1; ++p) {
+		if (*p == '/') {
+			*p++ = '\0';
+			if (*p != '\n')
+				goto bad_string_table;
+			*p = '\0';
+		}
+	}
+	/*
+	 * GNU ar always pads the table to an even size.
+	 * The pad character is either '\n' or '`'.
+	 */
+	if (p != ar->strtab + size && *p != '\n' && *p != '`')
+		goto bad_string_table;
+
+	/* Enforce zero termination. */
+	ar->strtab[size - 1] = '\0';
+
+	return (ARCHIVE_OK);
+
+bad_string_table:
+	archive_set_error(&a->archive, EINVAL,
+	    "Invalid string table");
+	free(ar->strtab);
+	ar->strtab = NULL;
+	return (ARCHIVE_WARN);
+}
+
+static uint64_t
+ar_atol8(const char *p, unsigned char_cnt)
+{
+	uint64_t l, limit, last_digit_limit;
+	unsigned int digit, base;
+
+	base = 8;
+	limit = UINT64_MAX / base;
+	last_digit_limit = UINT64_MAX % base;
+
+	while ((*p == ' ' || *p == '\t') && char_cnt-- > 0)
+		p++;
+
+	l = 0;
+	digit = *p - '0';
+	while (*p >= '0' && digit < base  && char_cnt-- > 0) {
+		if (l>limit || (l == limit && digit > last_digit_limit)) {
+			l = UINT64_MAX; /* Truncate on overflow. */
+			break;
+		}
+		l = (l * base) + digit;
+		digit = *++p - '0';
+	}
+	return (l);
+}
+
+static uint64_t
+ar_atol10(const char *p, unsigned char_cnt)
+{
+	uint64_t l, limit, last_digit_limit;
+	unsigned int base, digit;
+
+	base = 10;
+	limit = UINT64_MAX / base;
+	last_digit_limit = UINT64_MAX % base;
+
+	while ((*p == ' ' || *p == '\t') && char_cnt-- > 0)
+		p++;
+	l = 0;
+	digit = *p - '0';
+	while (*p >= '0' && digit < base  && char_cnt-- > 0) {
+		if (l > limit || (l == limit && digit > last_digit_limit)) {
+			l = UINT64_MAX; /* Truncate on overflow. */
+			break;
+		}
+		l = (l * base) + digit;
+		digit = *++p - '0';
+	}
+	return (l);
+}

@@ -1,7 +1,13 @@
-              value, kwsysProcess_GetExitValue(kp));
-      }
+      << covLogFilename << std::endl);
+    return false;
     }
+  return true;
+}
 
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
+//----------------------------------------------------------------------
+void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
+  int logFileCount)
+{
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "

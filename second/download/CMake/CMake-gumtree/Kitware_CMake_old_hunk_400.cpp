@@ -1,16 +1,13 @@
+	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
+		/* Reject entries over 4GB. */
+		if (archive_entry_size_is_set(entry)
+		    && (archive_entry_size(entry) > 0xffffffff)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Files > 4GB require Zip64 extensions");
+			return ARCHIVE_FAILED;
 		}
-	}
-
-	/* Read the extra data. */
-	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated ZIP file header");
-		return (ARCHIVE_FATAL);
-	}
-
-	process_extra(h, extra_length, zip_entry);
-	__archive_read_consume(a, extra_length);
-
-	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
-		/* If this came from the central dir, it's size info
-		 * is definitive, so ignore the length-at-end flag. */
+		/* Reject entries if archive is > 4GB. */
+		if (zip->written_bytes > 0xffffffff) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Archives > 4GB require Zip64 extensions");
+			return ARCHIVE_FAILED;

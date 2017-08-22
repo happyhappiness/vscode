@@ -1,14 +1,16 @@
-			archive_set_error(&a->archive, errno, "fchdir failed");
-			return (ARCHIVE_FAILED);
 		}
-		vr = statvfs(tree_current_access_path(t), &svfs);
-		r = statfs(tree_current_access_path(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, -1, tree_current_access_path(t));
-#endif
-	} else {
-#ifdef HAVE_FSTATFS
-		vr = fstatvfs(tree_current_dir_fd(t), &svfs);
-		r = fstatfs(tree_current_dir_fd(t), &sfs);
-		if (r == 0)
-			xr = get_xfer_size(t, tree_current_dir_fd(t), NULL);
+	}
+
+	/* Read the extra data. */
+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+
+	process_extra(h, extra_length, zip_entry);
+	__archive_read_consume(a, extra_length);
+
+	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
+		/* If this came from the central dir, it's size info
+		 * is definitive, so ignore the length-at-end flag. */

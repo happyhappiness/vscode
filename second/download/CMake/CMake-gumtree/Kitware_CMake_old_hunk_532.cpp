@@ -1,22 +1,21 @@
- */
-CURL *curl_easy_init(void)
-{
-  CURLcode res;
-  struct SessionHandle *data;
+    if(cp->ErrorMessage[0] == 0)
+      {
+      /* Format the error message.  */
+      DWORD original = GetLastError();
+      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
+      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
+                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
+      WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
+                          KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL);
+      if(length < 1)
+        {
+        /* FormatMessage failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  original, GetLastError());
+        }
+      }
 
-  /* Make sure we inited the global SSL stuff */
-  if(!initialized) {
-    res = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if(res) {
-      /* something in the global init failed, return nothing */
-      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      return NULL;
-    }
-  }
-
-  /* We use curl_open() with undefined URL so far */
-  res = Curl_open(&data);
-  if(res != CURLE_OK) {
-    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
-    return NULL;
-  }

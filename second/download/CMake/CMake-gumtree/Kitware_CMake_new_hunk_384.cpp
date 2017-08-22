@@ -1,28 +1,12 @@
+ * header and library are very different, you should expect some
+ * strangeness.  Don't do that.
+ */
+__LA_DECL int		archive_version_number(void);
 
-static void yy_fatal_error (yyconst char* msg , yyscan_t yyscanner)
-{
-	struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
-	(void)yyg;
-	(void) fprintf( stderr, "%s\n", msg );
-	exit( YY_EXIT_FAILURE );
-}
-
-/* Redefine yyless() so it works in section 3 code. */
-
-#undef yyless
-#define yyless(n) \
-	do \
-		{ \
-		/* Undo effects of setting up yytext. */ \
-        int yyless_macro_arg = (n); \
-        YY_LESS_LINENO(yyless_macro_arg);\
-		yytext[yyleng] = yyg->yy_hold_char; \
-		yyg->yy_c_buf_p = yytext + yyless_macro_arg; \
-		yyg->yy_hold_char = *yyg->yy_c_buf_p; \
-		*yyg->yy_c_buf_p = '\0'; \
-		yyleng = yyless_macro_arg; \
-		} \
-	while ( 0 )
-
-/* Accessor  methods (get/set functions) to struct members. */
+/*
+ * Textual name/version of the library, useful for version displays.
+ */
+#define	ARCHIVE_VERSION_ONLY_STRING "3.2.0"
+#define	ARCHIVE_VERSION_STRING "libarchive " ARCHIVE_VERSION_ONLY_STRING
+__LA_DECL const char *	archive_version_string(void);
 

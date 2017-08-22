@@ -1,2944 +1,3822 @@
 /*-
-* Copyright (c) 2003-2007 Tim Kientzle
-* Copyright (c) 2011 Andres Mejia
-* All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-* 1. Redistributions of source code must retain the above copyright
-*    notice, this list of conditions and the following disclaimer.
-* 2. Redistributions in binary form must reproduce the above copyright
-*    notice, this list of conditions and the following disclaimer in the
-*    documentation and/or other materials provided with the distribution.
-*
-* THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
-* IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
-* OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
-* IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
-* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
-* NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-* DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-* THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-* (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-* THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-*/
+ * Copyright (c) 2003-2010 Tim Kientzle
+ * Copyright (c) 2012 Michihiro NAKAJIMA
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer
+ *    in this position and unchanged.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 #include "archive_platform.h"
+__FBSDID("$FreeBSD$");
 
+#if !defined(_WIN32) || defined(__CYGWIN__)
+
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_ACL_H
+#include <sys/acl.h>
+#endif
+#ifdef HAVE_SYS_EXTATTR_H
+#include <sys/extattr.h>
+#endif
+#if defined(HAVE_SYS_XATTR_H)
+#include <sys/xattr.h>
+#elif defined(HAVE_ATTR_XATTR_H)
+#include <attr/xattr.h>
+#endif
+#ifdef HAVE_SYS_EA_H
+#include <sys/ea.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#ifdef HAVE_SYS_UTIME_H
+#include <sys/utime.h>
+#endif
+#ifdef HAVE_COPYFILE_H
+#include <copyfile.h>
+#endif
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#include <time.h>
-#include <limits.h>
-#ifdef HAVE_ZLIB_H
-#include <cm_zlib.h> /* crc32 */
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
 #endif
+#ifdef HAVE_GRP_H
+#include <grp.h>
+#endif
+#ifdef HAVE_LANGINFO_H
+#include <langinfo.h>
+#endif
+#ifdef HAVE_LINUX_FS_H
+#include <linux/fs.h>	/* for Linux file flags */
+#endif
+/*
+ * Some Linux distributions have both linux/ext2_fs.h and ext2fs/ext2_fs.h.
+ * As the include guards don't agree, the order of include is important.
+ */
+#ifdef HAVE_LINUX_EXT2_FS_H
+#include <linux/ext2_fs.h>	/* for Linux file flags */
+#endif
+#if defined(HAVE_EXT2FS_EXT2_FS_H) && !defined(__CYGWIN__)
+#include <ext2fs/ext2_fs.h>	/* Linux file flags, broken on Cygwin */
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#ifdef HAVE_PWD_H
+#include <pwd.h>
+#endif
+#include <stdio.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_UTIME_H
+#include <utime.h>
+#endif
+#ifdef F_GETTIMES /* Tru64 specific */
+#include <sys/fcntl1.h>
+#endif
+
+#if __APPLE__
+#include <TargetConditionals.h>
+#if TARGET_OS_MAC && !TARGET_OS_EMBEDDED && HAVE_QUARANTINE_H
+#include <quarantine.h>
+#define HAVE_QUARANTINE 1
+#endif
+#endif
+
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
+#endif
+
+/* TODO: Support Mac OS 'quarantine' feature.  This is really just a
+ * standard tag to mark files that have been downloaded as "tainted".
+ * On Mac OS, we should mark the extracted files as tainted if the
+ * archive being read was tainted.  Windows has a similar feature; we
+ * should investigate ways to support this generically. */
 
 #include "archive.h"
-#ifndef HAVE_ZLIB_H
-#include "archive_crc32.h"
-#endif
+#include "archive_acl_private.h"
+#include "archive_string.h"
 #include "archive_endian.h"
 #include "archive_entry.h"
-#include "archive_entry_locale.h"
-#include "archive_ppmd7_private.h"
 #include "archive_private.h"
-#include "archive_read_private.h"
+#include "archive_write_disk_private.h"
 
-/* RAR signature, also known as the mark header */
-#define RAR_SIGNATURE "\x52\x61\x72\x21\x1A\x07\x00"
-
-/* Header types */
-#define MARK_HEAD    0x72
-#define MAIN_HEAD    0x73
-#define FILE_HEAD    0x74
-#define COMM_HEAD    0x75
-#define AV_HEAD      0x76
-#define SUB_HEAD     0x77
-#define PROTECT_HEAD 0x78
-#define SIGN_HEAD    0x79
-#define NEWSUB_HEAD  0x7a
-#define ENDARC_HEAD  0x7b
-
-/* Main Header Flags */
-#define MHD_VOLUME       0x0001
-#define MHD_COMMENT      0x0002
-#define MHD_LOCK         0x0004
-#define MHD_SOLID        0x0008
-#define MHD_NEWNUMBERING 0x0010
-#define MHD_AV           0x0020
-#define MHD_PROTECT      0x0040
-#define MHD_PASSWORD     0x0080
-#define MHD_FIRSTVOLUME  0x0100
-#define MHD_ENCRYPTVER   0x0200
-
-/* Flags common to all headers */
-#define HD_MARKDELETION     0x4000
-#define HD_ADD_SIZE_PRESENT 0x8000
-
-/* File Header Flags */
-#define FHD_SPLIT_BEFORE 0x0001
-#define FHD_SPLIT_AFTER  0x0002
-#define FHD_PASSWORD     0x0004
-#define FHD_COMMENT      0x0008
-#define FHD_SOLID        0x0010
-#define FHD_LARGE        0x0100
-#define FHD_UNICODE      0x0200
-#define FHD_SALT         0x0400
-#define FHD_VERSION      0x0800
-#define FHD_EXTTIME      0x1000
-#define FHD_EXTFLAGS     0x2000
-
-/* File dictionary sizes */
-#define DICTIONARY_SIZE_64   0x00
-#define DICTIONARY_SIZE_128  0x20
-#define DICTIONARY_SIZE_256  0x40
-#define DICTIONARY_SIZE_512  0x60
-#define DICTIONARY_SIZE_1024 0x80
-#define DICTIONARY_SIZE_2048 0xA0
-#define DICTIONARY_SIZE_4096 0xC0
-#define FILE_IS_DIRECTORY    0xE0
-#define DICTIONARY_MASK      FILE_IS_DIRECTORY
-
-/* OS Flags */
-#define OS_MSDOS  0
-#define OS_OS2    1
-#define OS_WIN32  2
-#define OS_UNIX   3
-#define OS_MAC_OS 4
-#define OS_BEOS   5
-
-/* Compression Methods */
-#define COMPRESS_METHOD_STORE   0x30
-/* LZSS */
-#define COMPRESS_METHOD_FASTEST 0x31
-#define COMPRESS_METHOD_FAST    0x32
-#define COMPRESS_METHOD_NORMAL  0x33
-/* PPMd Variant H */
-#define COMPRESS_METHOD_GOOD    0x34
-#define COMPRESS_METHOD_BEST    0x35
-
-#define CRC_POLYNOMIAL 0xEDB88320
-
-#define NS_UNIT 10000000
-
-#define DICTIONARY_MAX_SIZE 0x400000
-
-#define MAINCODE_SIZE      299
-#define OFFSETCODE_SIZE    60
-#define LOWOFFSETCODE_SIZE 17
-#define LENGTHCODE_SIZE    28
-#define HUFFMAN_TABLE_SIZE \
-  MAINCODE_SIZE + OFFSETCODE_SIZE + LOWOFFSETCODE_SIZE + LENGTHCODE_SIZE
-
-#define MAX_SYMBOL_LENGTH 0xF
-#define MAX_SYMBOLS       20
-
-/*
- * Considering L1,L2 cache miss and a calling of write system-call,
- * the best size of the output buffer(uncompressed buffer) is 128K.
- * If the structure of extracting process is changed, this value
- * might be researched again.
- */
-#define UNP_BUFFER_SIZE   (128 * 1024)
-
-/* Define this here for non-Windows platforms */
-#if !((defined(__WIN32__) || defined(_WIN32) || defined(__WIN32)) && !defined(__CYGWIN__))
-#define FILE_ATTRIBUTE_DIRECTORY 0x10
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	0
 #endif
 
-/* Fields common to all headers */
-struct rar_header
-{
-  char crc[2];
-  char type;
-  char flags[2];
-  char size[2];
+struct fixup_entry {
+	struct fixup_entry	*next;
+	struct archive_acl	 acl;
+	mode_t			 mode;
+	int64_t			 atime;
+	int64_t                  birthtime;
+	int64_t			 mtime;
+	int64_t			 ctime;
+	unsigned long		 atime_nanos;
+	unsigned long            birthtime_nanos;
+	unsigned long		 mtime_nanos;
+	unsigned long		 ctime_nanos;
+	unsigned long		 fflags_set;
+	size_t			 mac_metadata_size;
+	void			*mac_metadata;
+	int			 fixup; /* bitmask of what needs fixing */
+	char			*name;
 };
-
-/* Fields common to all file headers */
-struct rar_file_header
-{
-  char pack_size[4];
-  char unp_size[4];
-  char host_os;
-  char file_crc[4];
-  char file_time[4];
-  char unp_ver;
-  char method;
-  char name_size[2];
-  char file_attr[4];
-};
-
-struct huffman_tree_node
-{
-  int branches[2];
-};
-
-struct huffman_table_entry
-{
-  unsigned int length;
-  int value;
-};
-
-struct huffman_code
-{
-  struct huffman_tree_node *tree;
-  int numentries;
-  int numallocatedentries;
-  int minlength;
-  int maxlength;
-  int tablesize;
-  struct huffman_table_entry *table;
-};
-
-struct lzss
-{
-  unsigned char *window;
-  int mask;
-  int64_t position;
-};
-
-struct data_block_offsets
-{
-  int64_t header_size;
-  int64_t start_offset;
-  int64_t end_offset;
-};
-
-struct rar
-{
-  /* Entries from main RAR header */
-  unsigned main_flags;
-  unsigned long file_crc;
-  char reserved1[2];
-  char reserved2[4];
-  char encryptver;
-
-  /* File header entries */
-  char compression_method;
-  unsigned file_flags;
-  int64_t packed_size;
-  int64_t unp_size;
-  time_t mtime;
-  long mnsec;
-  mode_t mode;
-  char *filename;
-  char *filename_save;
-  size_t filename_save_size;
-  size_t filename_allocated;
-
-  /* File header optional entries */
-  char salt[8];
-  time_t atime;
-  long ansec;
-  time_t ctime;
-  long cnsec;
-  time_t arctime;
-  long arcnsec;
-
-  /* Fields to help with tracking decompression of files. */
-  int64_t bytes_unconsumed;
-  int64_t bytes_remaining;
-  int64_t bytes_uncopied;
-  int64_t offset;
-  int64_t offset_outgoing;
-  int64_t offset_seek;
-  char valid;
-  unsigned int unp_offset;
-  unsigned int unp_buffer_size;
-  unsigned char *unp_buffer;
-  unsigned int dictionary_size;
-  char start_new_block;
-  char entry_eof;
-  unsigned long crc_calculated;
-  int found_first_header;
-  char has_endarc_header;
-  struct data_block_offsets *dbo;
-  unsigned int cursor;
-  unsigned int nodes;
-
-  /* LZSS members */
-  struct huffman_code maincode;
-  struct huffman_code offsetcode;
-  struct huffman_code lowoffsetcode;
-  struct huffman_code lengthcode;
-  unsigned char lengthtable[HUFFMAN_TABLE_SIZE];
-  struct lzss lzss;
-  char output_last_match;
-  unsigned int lastlength;
-  unsigned int lastoffset;
-  unsigned int oldoffset[4];
-  unsigned int lastlowoffset;
-  unsigned int numlowoffsetrepeats;
-  int64_t filterstart;
-  char start_new_table;
-
-  /* PPMd Variant H members */
-  char ppmd_valid;
-  char ppmd_eod;
-  char is_ppmd_block;
-  int ppmd_escape;
-  CPpmd7 ppmd7_context;
-  CPpmd7z_RangeDec range_dec;
-  IByteIn bytein;
-
-  /*
-   * String conversion object.
-   */
-  int init_default_conversion;
-  struct archive_string_conv *sconv_default;
-  struct archive_string_conv *opt_sconv;
-  struct archive_string_conv *sconv_utf8;
-  struct archive_string_conv *sconv_utf16be;
-
-  /*
-   * Bit stream reader.
-   */
-  struct rar_br {
-#define CACHE_TYPE	uint64_t
-#define CACHE_BITS	(8 * sizeof(CACHE_TYPE))
-    /* Cache buffer. */
-    CACHE_TYPE		 cache_buffer;
-    /* Indicates how many bits avail in cache_buffer. */
-    int			 cache_avail;
-    ssize_t		 avail_in;
-    const unsigned char *next_in;
-  } br;
-
-  /*
-   * Custom field to denote that this archive contains encrypted entries
-   */
-  int has_encrypted_entries;
-};
-
-static int archive_read_support_format_rar_capabilities(struct archive_read *);
-static int archive_read_format_rar_has_encrypted_entries(struct archive_read *);
-static int archive_read_format_rar_bid(struct archive_read *, int);
-static int archive_read_format_rar_options(struct archive_read *,
-    const char *, const char *);
-static int archive_read_format_rar_read_header(struct archive_read *,
-    struct archive_entry *);
-static int archive_read_format_rar_read_data(struct archive_read *,
-    const void **, size_t *, int64_t *);
-static int archive_read_format_rar_read_data_skip(struct archive_read *a);
-static int64_t archive_read_format_rar_seek_data(struct archive_read *, int64_t,
-    int);
-static int archive_read_format_rar_cleanup(struct archive_read *);
-
-/* Support functions */
-static int read_header(struct archive_read *, struct archive_entry *, char);
-static time_t get_time(int);
-static int read_exttime(const char *, struct rar *, const char *);
-static int read_symlink_stored(struct archive_read *, struct archive_entry *,
-                               struct archive_string_conv *);
-static int read_data_stored(struct archive_read *, const void **, size_t *,
-                            int64_t *);
-static int read_data_compressed(struct archive_read *, const void **, size_t *,
-                          int64_t *);
-static int rar_br_preparation(struct archive_read *, struct rar_br *);
-static int parse_codes(struct archive_read *);
-static void free_codes(struct archive_read *);
-static int read_next_symbol(struct archive_read *, struct huffman_code *);
-static int create_code(struct archive_read *, struct huffman_code *,
-                        unsigned char *, int, char);
-static int add_value(struct archive_read *, struct huffman_code *, int, int,
-                     int);
-static int new_node(struct huffman_code *);
-static int make_table(struct archive_read *, struct huffman_code *);
-static int make_table_recurse(struct archive_read *, struct huffman_code *, int,
-                              struct huffman_table_entry *, int, int);
-static int64_t expand(struct archive_read *, int64_t);
-static int copy_from_lzss_window(struct archive_read *, const void **,
-                                   int64_t, int);
-static const void *rar_read_ahead(struct archive_read *, size_t, ssize_t *);
 
 /*
- * Bit stream reader.
+ * We use a bitmask to track which operations remain to be done for
+ * this file.  In particular, this helps us avoid unnecessary
+ * operations when it's possible to take care of one step as a
+ * side-effect of another.  For example, mkdir() can specify the mode
+ * for the newly-created object but symlink() cannot.  This means we
+ * can skip chmod() if mkdir() succeeded, but we must explicitly
+ * chmod() if we're trying to create a directory that already exists
+ * (mkdir() failed) or if we're restoring a symlink.  Similarly, we
+ * need to verify UID/GID before trying to restore SUID/SGID bits;
+ * that verification can occur explicitly through a stat() call or
+ * implicitly because of a successful chown() call.
  */
-/* Check that the cache buffer has enough bits. */
-#define rar_br_has(br, n) ((br)->cache_avail >= n)
-/* Get compressed data by bit. */
-#define rar_br_bits(br, n)        \
-  (((uint32_t)((br)->cache_buffer >>    \
-    ((br)->cache_avail - (n)))) & cache_masks[n])
-#define rar_br_bits_forced(br, n)     \
-  (((uint32_t)((br)->cache_buffer <<    \
-    ((n) - (br)->cache_avail))) & cache_masks[n])
-/* Read ahead to make sure the cache buffer has enough compressed data we
- * will use.
- *  True  : completed, there is enough data in the cache buffer.
- *  False : there is no data in the stream. */
-#define rar_br_read_ahead(a, br, n) \
-  ((rar_br_has(br, (n)) || rar_br_fillup(a, br)) || rar_br_has(br, (n)))
-/* Notify how many bits we consumed. */
-#define rar_br_consume(br, n) ((br)->cache_avail -= (n))
-#define rar_br_consume_unalined_bits(br) ((br)->cache_avail &= ~7)
+#define	TODO_MODE_FORCE		0x40000000
+#define	TODO_MODE_BASE		0x20000000
+#define	TODO_SUID		0x10000000
+#define	TODO_SUID_CHECK		0x08000000
+#define	TODO_SGID		0x04000000
+#define	TODO_SGID_CHECK		0x02000000
+#define	TODO_APPLEDOUBLE	0x01000000
+#define	TODO_MODE		(TODO_MODE_BASE|TODO_SUID|TODO_SGID)
+#define	TODO_TIMES		ARCHIVE_EXTRACT_TIME
+#define	TODO_OWNER		ARCHIVE_EXTRACT_OWNER
+#define	TODO_FFLAGS		ARCHIVE_EXTRACT_FFLAGS
+#define	TODO_ACLS		ARCHIVE_EXTRACT_ACL
+#define	TODO_XATTR		ARCHIVE_EXTRACT_XATTR
+#define	TODO_MAC_METADATA	ARCHIVE_EXTRACT_MAC_METADATA
+#define	TODO_HFS_COMPRESSION	ARCHIVE_EXTRACT_HFS_COMPRESSION_FORCED
 
-static const uint32_t cache_masks[] = {
-  0x00000000, 0x00000001, 0x00000003, 0x00000007,
-  0x0000000F, 0x0000001F, 0x0000003F, 0x0000007F,
-  0x000000FF, 0x000001FF, 0x000003FF, 0x000007FF,
-  0x00000FFF, 0x00001FFF, 0x00003FFF, 0x00007FFF,
-  0x0000FFFF, 0x0001FFFF, 0x0003FFFF, 0x0007FFFF,
-  0x000FFFFF, 0x001FFFFF, 0x003FFFFF, 0x007FFFFF,
-  0x00FFFFFF, 0x01FFFFFF, 0x03FFFFFF, 0x07FFFFFF,
-  0x0FFFFFFF, 0x1FFFFFFF, 0x3FFFFFFF, 0x7FFFFFFF,
-  0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF
+struct archive_write_disk {
+	struct archive	archive;
+
+	mode_t			 user_umask;
+	struct fixup_entry	*fixup_list;
+	struct fixup_entry	*current_fixup;
+	int64_t			 user_uid;
+	int			 skip_file_set;
+	int64_t			 skip_file_dev;
+	int64_t			 skip_file_ino;
+	time_t			 start_time;
+
+	int64_t (*lookup_gid)(void *private, const char *gname, int64_t gid);
+	void  (*cleanup_gid)(void *private);
+	void			*lookup_gid_data;
+	int64_t (*lookup_uid)(void *private, const char *uname, int64_t uid);
+	void  (*cleanup_uid)(void *private);
+	void			*lookup_uid_data;
+
+	/*
+	 * Full path of last file to satisfy symlink checks.
+	 */
+	struct archive_string	path_safe;
+
+	/*
+	 * Cached stat data from disk for the current entry.
+	 * If this is valid, pst points to st.  Otherwise,
+	 * pst is null.
+	 */
+	struct stat		 st;
+	struct stat		*pst;
+
+	/* Information about the object being restored right now. */
+	struct archive_entry	*entry; /* Entry being extracted. */
+	char			*name; /* Name of entry, possibly edited. */
+	struct archive_string	 _name_data; /* backing store for 'name' */
+	/* Tasks remaining for this object. */
+	int			 todo;
+	/* Tasks deferred until end-of-archive. */
+	int			 deferred;
+	/* Options requested by the client. */
+	int			 flags;
+	/* Handle for the file we're restoring. */
+	int			 fd;
+	/* Current offset for writing data to the file. */
+	int64_t			 offset;
+	/* Last offset actually written to disk. */
+	int64_t			 fd_offset;
+	/* Total bytes actually written to files. */
+	int64_t			 total_bytes_written;
+	/* Maximum size of file, -1 if unknown. */
+	int64_t			 filesize;
+	/* Dir we were in before this restore; only for deep paths. */
+	int			 restore_pwd;
+	/* Mode we should use for this entry; affected by _PERM and umask. */
+	mode_t			 mode;
+	/* UID/GID to use in restoring this entry. */
+	int64_t			 uid;
+	int64_t			 gid;
+	/*
+	 * HFS+ Compression.
+	 */
+	/* Xattr "com.apple.decmpfs". */
+	uint32_t		 decmpfs_attr_size;
+	unsigned char		*decmpfs_header_p;
+	/* ResourceFork set options used for fsetxattr. */
+	int			 rsrc_xattr_options;
+	/* Xattr "com.apple.ResourceFork". */
+	unsigned char		*resource_fork;
+	size_t			 resource_fork_allocated_size;
+	unsigned int		 decmpfs_block_count;
+	uint32_t		*decmpfs_block_info;
+	/* Buffer for compressed data. */
+	unsigned char		*compressed_buffer;
+	size_t			 compressed_buffer_size;
+	size_t			 compressed_buffer_remaining;
+	/* The offset of the ResourceFork where compressed data will
+	 * be placed. */
+	uint32_t		 compressed_rsrc_position;
+	uint32_t		 compressed_rsrc_position_v;
+	/* Buffer for uncompressed data. */
+	char			*uncompressed_buffer;
+	size_t			 block_remaining_bytes;
+	size_t			 file_remaining_bytes;
+#ifdef HAVE_ZLIB_H
+	z_stream		 stream;
+	int			 stream_valid;
+	int			 decmpfs_compression_level;
+#endif
 };
 
 /*
- * Shift away used bits in the cache data and fill it up with following bits.
- * Call this when cache buffer does not have enough bits you need.
+ * Default mode for dirs created automatically (will be modified by umask).
+ * Note that POSIX specifies 0777 for implicitly-created dirs, "modified
+ * by the process' file creation mask."
+ */
+#define	DEFAULT_DIR_MODE 0777
+/*
+ * Dir modes are restored in two steps:  During the extraction, the permissions
+ * in the archive are modified to match the following limits.  During
+ * the post-extract fixup pass, the permissions from the archive are
+ * applied.
+ */
+#define	MINIMUM_DIR_MODE 0700
+#define	MAXIMUM_DIR_MODE 0775
+
+/*
+ * Maxinum uncompressed size of a decmpfs block.
+ */
+#define MAX_DECMPFS_BLOCK_SIZE	(64 * 1024)
+/*
+ * HFS+ compression type.
+ */
+#define CMP_XATTR		3/* Compressed data in xattr. */
+#define CMP_RESOURCE_FORK	4/* Compressed data in resource fork. */
+/*
+ * HFS+ compression resource fork.
+ */
+#define RSRC_H_SIZE	260	/* Base size of Resource fork header. */
+#define RSRC_F_SIZE	50	/* Size of Resource fork footer. */
+/* Size to write compressed data to resource fork. */
+#define COMPRESSED_W_SIZE	(64 * 1024)
+/* decmpfs difinitions. */
+#define MAX_DECMPFS_XATTR_SIZE		3802
+#ifndef DECMPFS_XATTR_NAME
+#define DECMPFS_XATTR_NAME		"com.apple.decmpfs"
+#endif
+#define DECMPFS_MAGIC			0x636d7066
+#define DECMPFS_COMPRESSION_MAGIC	0
+#define DECMPFS_COMPRESSION_TYPE	4
+#define DECMPFS_UNCOMPRESSED_SIZE	8
+#define DECMPFS_HEADER_SIZE		16
+
+#define HFS_BLOCKS(s)	((s) >> 12)
+
+static int	check_symlinks(struct archive_write_disk *);
+static int	create_filesystem_object(struct archive_write_disk *);
+static struct fixup_entry *current_fixup(struct archive_write_disk *, const char *pathname);
+#if defined(HAVE_FCHDIR) && defined(PATH_MAX)
+static void	edit_deep_directories(struct archive_write_disk *ad);
+#endif
+static int	cleanup_pathname(struct archive_write_disk *);
+static int	create_dir(struct archive_write_disk *, char *);
+static int	create_parent_dir(struct archive_write_disk *, char *);
+static ssize_t	hfs_write_data_block(struct archive_write_disk *,
+		    const char *, size_t);
+static int	fixup_appledouble(struct archive_write_disk *, const char *);
+static int	older(struct stat *, struct archive_entry *);
+static int	restore_entry(struct archive_write_disk *);
+static int	set_mac_metadata(struct archive_write_disk *, const char *,
+				 const void *, size_t);
+static int	set_xattrs(struct archive_write_disk *);
+static int	set_fflags(struct archive_write_disk *);
+static int	set_fflags_platform(struct archive_write_disk *, int fd,
+		    const char *name, mode_t mode,
+		    unsigned long fflags_set, unsigned long fflags_clear);
+static int	set_ownership(struct archive_write_disk *);
+static int	set_mode(struct archive_write_disk *, int mode);
+static int	set_time(int, int, const char *, time_t, long, time_t, long);
+static int	set_times(struct archive_write_disk *, int, int, const char *,
+		    time_t, long, time_t, long, time_t, long, time_t, long);
+static int	set_times_from_entry(struct archive_write_disk *);
+static struct fixup_entry *sort_dir_list(struct fixup_entry *p);
+static ssize_t	write_data_block(struct archive_write_disk *,
+		    const char *, size_t);
+
+static struct archive_vtable *archive_write_disk_vtable(void);
+
+static int	_archive_write_disk_close(struct archive *);
+static int	_archive_write_disk_free(struct archive *);
+static int	_archive_write_disk_header(struct archive *, struct archive_entry *);
+static int64_t	_archive_write_disk_filter_bytes(struct archive *, int);
+static int	_archive_write_disk_finish_entry(struct archive *);
+static ssize_t	_archive_write_disk_data(struct archive *, const void *, size_t);
+static ssize_t	_archive_write_disk_data_block(struct archive *, const void *, size_t, int64_t);
+
+static int
+lazy_stat(struct archive_write_disk *a)
+{
+	if (a->pst != NULL) {
+		/* Already have stat() data available. */
+		return (ARCHIVE_OK);
+	}
+#ifdef HAVE_FSTAT
+	if (a->fd >= 0 && fstat(a->fd, &a->st) == 0) {
+		a->pst = &a->st;
+		return (ARCHIVE_OK);
+	}
+#endif
+	/*
+	 * XXX At this point, symlinks should not be hit, otherwise
+	 * XXX a race occurred.  Do we want to check explicitly for that?
+	 */
+	if (lstat(a->name, &a->st) == 0) {
+		a->pst = &a->st;
+		return (ARCHIVE_OK);
+	}
+	archive_set_error(&a->archive, errno, "Couldn't stat file");
+	return (ARCHIVE_WARN);
+}
+
+static struct archive_vtable *
+archive_write_disk_vtable(void)
+{
+	static struct archive_vtable av;
+	static int inited = 0;
+
+	if (!inited) {
+		av.archive_close = _archive_write_disk_close;
+		av.archive_filter_bytes = _archive_write_disk_filter_bytes;
+		av.archive_free = _archive_write_disk_free;
+		av.archive_write_header = _archive_write_disk_header;
+		av.archive_write_finish_entry
+		    = _archive_write_disk_finish_entry;
+		av.archive_write_data = _archive_write_disk_data;
+		av.archive_write_data_block = _archive_write_disk_data_block;
+		inited = 1;
+	}
+	return (&av);
+}
+
+static int64_t
+_archive_write_disk_filter_bytes(struct archive *_a, int n)
+{
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	(void)n; /* UNUSED */
+	if (n == -1 || n == 0)
+		return (a->total_bytes_written);
+	return (-1);
+}
+
+
+int
+archive_write_disk_set_options(struct archive *_a, int flags)
+{
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+
+	a->flags = flags;
+	return (ARCHIVE_OK);
+}
+
+
+/*
+ * Extract this entry to disk.
  *
- * Returns 1 if the cache buffer is full.
- * Returns 0 if the cache buffer is not full; input buffer is empty.
+ * TODO: Validate hardlinks.  According to the standards, we're
+ * supposed to check each extracted hardlink and squawk if it refers
+ * to a file that we didn't restore.  I'm not entirely convinced this
+ * is a good idea, but more importantly: Is there any way to validate
+ * hardlinks without keeping a complete list of filenames from the
+ * entire archive?? Ugh.
+ *
  */
 static int
-rar_br_fillup(struct archive_read *a, struct rar_br *br)
+_archive_write_disk_header(struct archive *_a, struct archive_entry *entry)
 {
-  struct rar *rar = (struct rar *)(a->format->data);
-  int n = CACHE_BITS - br->cache_avail;
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	struct fixup_entry *fe;
+	int ret, r;
 
-  for (;;) {
-    switch (n >> 3) {
-    case 8:
-      if (br->avail_in >= 8) {
-        br->cache_buffer =
-            ((uint64_t)br->next_in[0]) << 56 |
-            ((uint64_t)br->next_in[1]) << 48 |
-            ((uint64_t)br->next_in[2]) << 40 |
-            ((uint64_t)br->next_in[3]) << 32 |
-            ((uint32_t)br->next_in[4]) << 24 |
-            ((uint32_t)br->next_in[5]) << 16 |
-            ((uint32_t)br->next_in[6]) << 8 |
-             (uint32_t)br->next_in[7];
-        br->next_in += 8;
-        br->avail_in -= 8;
-        br->cache_avail += 8 * 8;
-        rar->bytes_unconsumed += 8;
-        rar->bytes_remaining -= 8;
-        return (1);
-      }
-      break;
-    case 7:
-      if (br->avail_in >= 7) {
-        br->cache_buffer =
-           (br->cache_buffer << 56) |
-            ((uint64_t)br->next_in[0]) << 48 |
-            ((uint64_t)br->next_in[1]) << 40 |
-            ((uint64_t)br->next_in[2]) << 32 |
-            ((uint32_t)br->next_in[3]) << 24 |
-            ((uint32_t)br->next_in[4]) << 16 |
-            ((uint32_t)br->next_in[5]) << 8 |
-             (uint32_t)br->next_in[6];
-        br->next_in += 7;
-        br->avail_in -= 7;
-        br->cache_avail += 7 * 8;
-        rar->bytes_unconsumed += 7;
-        rar->bytes_remaining -= 7;
-        return (1);
-      }
-      break;
-    case 6:
-      if (br->avail_in >= 6) {
-        br->cache_buffer =
-           (br->cache_buffer << 48) |
-            ((uint64_t)br->next_in[0]) << 40 |
-            ((uint64_t)br->next_in[1]) << 32 |
-            ((uint32_t)br->next_in[2]) << 24 |
-            ((uint32_t)br->next_in[3]) << 16 |
-            ((uint32_t)br->next_in[4]) << 8 |
-             (uint32_t)br->next_in[5];
-        br->next_in += 6;
-        br->avail_in -= 6;
-        br->cache_avail += 6 * 8;
-        rar->bytes_unconsumed += 6;
-        rar->bytes_remaining -= 6;
-        return (1);
-      }
-      break;
-    case 0:
-      /* We have enough compressed data in
-       * the cache buffer.*/
-      return (1);
-    default:
-      break;
-    }
-    if (br->avail_in <= 0) {
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+	    "archive_write_disk_header");
+	archive_clear_error(&a->archive);
+	if (a->archive.state & ARCHIVE_STATE_DATA) {
+		r = _archive_write_disk_finish_entry(&a->archive);
+		if (r == ARCHIVE_FATAL)
+			return (r);
+	}
 
-      if (rar->bytes_unconsumed > 0) {
-        /* Consume as much as the decompressor
-         * actually used. */
-        __archive_read_consume(a, rar->bytes_unconsumed);
-        rar->bytes_unconsumed = 0;
-      }
-      br->next_in = rar_read_ahead(a, 1, &(br->avail_in));
-      if (br->next_in == NULL)
-        return (0);
-      if (br->avail_in == 0)
-        return (0);
-    }
-    br->cache_buffer =
-       (br->cache_buffer << 8) | *br->next_in++;
-    br->avail_in--;
-    br->cache_avail += 8;
-    n -= 8;
-    rar->bytes_unconsumed++;
-    rar->bytes_remaining--;
-  }
-}
+	/* Set up for this particular entry. */
+	a->pst = NULL;
+	a->current_fixup = NULL;
+	a->deferred = 0;
+	if (a->entry) {
+		archive_entry_free(a->entry);
+		a->entry = NULL;
+	}
+	a->entry = archive_entry_clone(entry);
+	a->fd = -1;
+	a->fd_offset = 0;
+	a->offset = 0;
+	a->restore_pwd = -1;
+	a->uid = a->user_uid;
+	a->mode = archive_entry_mode(a->entry);
+	if (archive_entry_size_is_set(a->entry))
+		a->filesize = archive_entry_size(a->entry);
+	else
+		a->filesize = -1;
+	archive_strcpy(&(a->_name_data), archive_entry_pathname(a->entry));
+	a->name = a->_name_data.s;
+	archive_clear_error(&a->archive);
 
-static int
-rar_br_preparation(struct archive_read *a, struct rar_br *br)
-{
-  struct rar *rar = (struct rar *)(a->format->data);
+	/*
+	 * Clean up the requested path.  This is necessary for correct
+	 * dir restores; the dir restore logic otherwise gets messed
+	 * up by nonsense like "dir/.".
+	 */
+	ret = cleanup_pathname(a);
+	if (ret != ARCHIVE_OK)
+		return (ret);
 
-  if (rar->bytes_remaining > 0) {
-    br->next_in = rar_read_ahead(a, 1, &(br->avail_in));
-    if (br->next_in == NULL) {
-      archive_set_error(&a->archive,
-          ARCHIVE_ERRNO_FILE_FORMAT,
-          "Truncated RAR file data");
-      return (ARCHIVE_FATAL);
-    }
-    if (br->cache_avail == 0)
-      (void)rar_br_fillup(a, br);
-  }
-  return (ARCHIVE_OK);
-}
+	/*
+	 * Query the umask so we get predictable mode settings.
+	 * This gets done on every call to _write_header in case the
+	 * user edits their umask during the extraction for some
+	 * reason.
+	 */
+	umask(a->user_umask = umask(0));
 
-/* Find last bit set */
-static inline int
-rar_fls(unsigned int word)
-{
-  word |= (word >>  1);
-  word |= (word >>  2);
-  word |= (word >>  4);
-  word |= (word >>  8);
-  word |= (word >> 16);
-  return word - (word >> 1);
-}
+	/* Figure out what we need to do for this entry. */
+	a->todo = TODO_MODE_BASE;
+	if (a->flags & ARCHIVE_EXTRACT_PERM) {
+		a->todo |= TODO_MODE_FORCE; /* Be pushy about permissions. */
+		/*
+		 * SGID requires an extra "check" step because we
+		 * cannot easily predict the GID that the system will
+		 * assign.  (Different systems assign GIDs to files
+		 * based on a variety of criteria, including process
+		 * credentials and the gid of the enclosing
+		 * directory.)  We can only restore the SGID bit if
+		 * the file has the right GID, and we only know the
+		 * GID if we either set it (see set_ownership) or if
+		 * we've actually called stat() on the file after it
+		 * was restored.  Since there are several places at
+		 * which we might verify the GID, we need a TODO bit
+		 * to keep track.
+		 */
+		if (a->mode & S_ISGID)
+			a->todo |= TODO_SGID | TODO_SGID_CHECK;
+		/*
+		 * Verifying the SUID is simpler, but can still be
+		 * done in multiple ways, hence the separate "check" bit.
+		 */
+		if (a->mode & S_ISUID)
+			a->todo |= TODO_SUID | TODO_SUID_CHECK;
+	} else {
+		/*
+		 * User didn't request full permissions, so don't
+		 * restore SUID, SGID bits and obey umask.
+		 */
+		a->mode &= ~S_ISUID;
+		a->mode &= ~S_ISGID;
+		a->mode &= ~S_ISVTX;
+		a->mode &= ~a->user_umask;
+	}
+	if (a->flags & ARCHIVE_EXTRACT_OWNER)
+		a->todo |= TODO_OWNER;
+	if (a->flags & ARCHIVE_EXTRACT_TIME)
+		a->todo |= TODO_TIMES;
+	if (a->flags & ARCHIVE_EXTRACT_ACL) {
+		if (archive_entry_filetype(a->entry) == AE_IFDIR)
+			a->deferred |= TODO_ACLS;
+		else
+			a->todo |= TODO_ACLS;
+	}
+	if (a->flags & ARCHIVE_EXTRACT_MAC_METADATA) {
+		if (archive_entry_filetype(a->entry) == AE_IFDIR)
+			a->deferred |= TODO_MAC_METADATA;
+		else
+			a->todo |= TODO_MAC_METADATA;
+	}
+#if defined(__APPLE__) && defined(UF_COMPRESSED) && defined(HAVE_ZLIB_H)
+	if ((a->flags & ARCHIVE_EXTRACT_NO_HFS_COMPRESSION) == 0) {
+		unsigned long set, clear;
+		archive_entry_fflags(a->entry, &set, &clear);
+		if ((set & ~clear) & UF_COMPRESSED) {
+			a->todo |= TODO_HFS_COMPRESSION;
+			a->decmpfs_block_count = (unsigned)-1;
+		}
+	}
+	if ((a->flags & ARCHIVE_EXTRACT_HFS_COMPRESSION_FORCED) != 0 &&
+	    (a->mode & AE_IFMT) == AE_IFREG && a->filesize > 0) {
+		a->todo |= TODO_HFS_COMPRESSION;
+		a->decmpfs_block_count = (unsigned)-1;
+	}
+	{
+		const char *p;
 
-/* LZSS functions */
-static inline int64_t
-lzss_position(struct lzss *lzss)
-{
-  return lzss->position;
-}
+		/* Check if the current file name is a type of the
+		 * resource fork file. */
+		p = strrchr(a->name, '/');
+		if (p == NULL)
+			p = a->name;
+		else
+			p++;
+		if (p[0] == '.' && p[1] == '_') {
+			/* Do not compress "._XXX" files. */
+			a->todo &= ~TODO_HFS_COMPRESSION;
+			if (a->filesize > 0)
+				a->todo |= TODO_APPLEDOUBLE;
+		}
+	}
+#endif
 
-static inline int
-lzss_mask(struct lzss *lzss)
-{
-  return lzss->mask;
-}
+	if (a->flags & ARCHIVE_EXTRACT_XATTR)
+		a->todo |= TODO_XATTR;
+	if (a->flags & ARCHIVE_EXTRACT_FFLAGS)
+		a->todo |= TODO_FFLAGS;
+	if (a->flags & ARCHIVE_EXTRACT_SECURE_SYMLINKS) {
+		ret = check_symlinks(a);
+		if (ret != ARCHIVE_OK)
+			return (ret);
+	}
+#if defined(HAVE_FCHDIR) && defined(PATH_MAX)
+	/* If path exceeds PATH_MAX, shorten the path. */
+	edit_deep_directories(a);
+#endif
 
-static inline int
-lzss_size(struct lzss *lzss)
-{
-  return lzss->mask + 1;
-}
+	ret = restore_entry(a);
 
-static inline int
-lzss_offset_for_position(struct lzss *lzss, int64_t pos)
-{
-  return (int)(pos & lzss->mask);
-}
+#if defined(__APPLE__) && defined(UF_COMPRESSED) && defined(HAVE_ZLIB_H)
+	/*
+	 * Check if the filesystem the file is restoring on supports
+	 * HFS+ Compression. If not, cancel HFS+ Compression.
+	 */
+	if (a->todo | TODO_HFS_COMPRESSION) {
+		/*
+		 * NOTE: UF_COMPRESSED is ignored even if the filesystem
+		 * supports HFS+ Compression because the file should
+		 * have at least an extended attriute "com.apple.decmpfs"
+		 * before the flag is set to indicate that the file have
+		 * been compressed. If hte filesystem does not support
+		 * HFS+ Compression the system call will fail.
+		 */
+		if (a->fd < 0 || fchflags(a->fd, UF_COMPRESSED) != 0)
+			a->todo &= ~TODO_HFS_COMPRESSION;
+	}
+#endif
 
-static inline unsigned char *
-lzss_pointer_for_position(struct lzss *lzss, int64_t pos)
-{
-  return &lzss->window[lzss_offset_for_position(lzss, pos)];
-}
+	/*
+	 * TODO: There are rumours that some extended attributes must
+	 * be restored before file data is written.  If this is true,
+	 * then we either need to write all extended attributes both
+	 * before and after restoring the data, or find some rule for
+	 * determining which must go first and which last.  Due to the
+	 * many ways people are using xattrs, this may prove to be an
+	 * intractable problem.
+	 */
 
-static inline int
-lzss_current_offset(struct lzss *lzss)
-{
-  return lzss_offset_for_position(lzss, lzss->position);
-}
+#ifdef HAVE_FCHDIR
+	/* If we changed directory above, restore it here. */
+	if (a->restore_pwd >= 0) {
+		r = fchdir(a->restore_pwd);
+		if (r != 0) {
+			archive_set_error(&a->archive, errno, "chdir() failure");
+			ret = ARCHIVE_FATAL;
+		}
+		close(a->restore_pwd);
+		a->restore_pwd = -1;
+	}
+#endif
 
-static inline uint8_t *
-lzss_current_pointer(struct lzss *lzss)
-{
-  return lzss_pointer_for_position(lzss, lzss->position);
-}
+	/*
+	 * Fixup uses the unedited pathname from archive_entry_pathname(),
+	 * because it is relative to the base dir and the edited path
+	 * might be relative to some intermediate dir as a result of the
+	 * deep restore logic.
+	 */
+	if (a->deferred & TODO_MODE) {
+		fe = current_fixup(a, archive_entry_pathname(entry));
+		if (fe == NULL)
+			return (ARCHIVE_FATAL);
+		fe->fixup |= TODO_MODE_BASE;
+		fe->mode = a->mode;
+	}
 
-static inline void
-lzss_emit_literal(struct rar *rar, uint8_t literal)
-{
-  *lzss_current_pointer(&rar->lzss) = literal;
-  rar->lzss.position++;
-}
+	if ((a->deferred & TODO_TIMES)
+		&& (archive_entry_mtime_is_set(entry)
+		    || archive_entry_atime_is_set(entry))) {
+		fe = current_fixup(a, archive_entry_pathname(entry));
+		if (fe == NULL)
+			return (ARCHIVE_FATAL);
+		fe->mode = a->mode;
+		fe->fixup |= TODO_TIMES;
+		if (archive_entry_atime_is_set(entry)) {
+			fe->atime = archive_entry_atime(entry);
+			fe->atime_nanos = archive_entry_atime_nsec(entry);
+		} else {
+			/* If atime is unset, use start time. */
+			fe->atime = a->start_time;
+			fe->atime_nanos = 0;
+		}
+		if (archive_entry_mtime_is_set(entry)) {
+			fe->mtime = archive_entry_mtime(entry);
+			fe->mtime_nanos = archive_entry_mtime_nsec(entry);
+		} else {
+			/* If mtime is unset, use start time. */
+			fe->mtime = a->start_time;
+			fe->mtime_nanos = 0;
+		}
+		if (archive_entry_birthtime_is_set(entry)) {
+			fe->birthtime = archive_entry_birthtime(entry);
+			fe->birthtime_nanos = archive_entry_birthtime_nsec(entry);
+		} else {
+			/* If birthtime is unset, use mtime. */
+			fe->birthtime = fe->mtime;
+			fe->birthtime_nanos = fe->mtime_nanos;
+		}
+	}
 
-static inline void
-lzss_emit_match(struct rar *rar, int offset, int length)
-{
-  int dstoffs = lzss_current_offset(&rar->lzss);
-  int srcoffs = (dstoffs - offset) & lzss_mask(&rar->lzss);
-  int l, li, remaining;
-  unsigned char *d, *s;
+	if (a->deferred & TODO_ACLS) {
+		fe = current_fixup(a, archive_entry_pathname(entry));
+		if (fe == NULL)
+			return (ARCHIVE_FATAL);
+		fe->fixup |= TODO_ACLS;
+		archive_acl_copy(&fe->acl, archive_entry_acl(entry));
+	}
 
-  remaining = length;
-  while (remaining > 0) {
-    l = remaining;
-    if (dstoffs > srcoffs) {
-      if (l > lzss_size(&rar->lzss) - dstoffs)
-        l = lzss_size(&rar->lzss) - dstoffs;
-    } else {
-      if (l > lzss_size(&rar->lzss) - srcoffs)
-        l = lzss_size(&rar->lzss) - srcoffs;
-    }
-    d = &(rar->lzss.window[dstoffs]);
-    s = &(rar->lzss.window[srcoffs]);
-    if ((dstoffs + l < srcoffs) || (srcoffs + l < dstoffs))
-      memcpy(d, s, l);
-    else {
-      for (li = 0; li < l; li++)
-        d[li] = s[li];
-    }
-    remaining -= l;
-    dstoffs = (dstoffs + l) & lzss_mask(&(rar->lzss));
-    srcoffs = (srcoffs + l) & lzss_mask(&(rar->lzss));
-  }
-  rar->lzss.position += length;
-}
+	if (a->deferred & TODO_MAC_METADATA) {
+		const void *metadata;
+		size_t metadata_size;
+		metadata = archive_entry_mac_metadata(a->entry, &metadata_size);
+		if (metadata != NULL && metadata_size > 0) {
+			fe = current_fixup(a, archive_entry_pathname(entry));
+			if (fe == NULL)
+				return (ARCHIVE_FATAL);
+			fe->mac_metadata = malloc(metadata_size);
+			if (fe->mac_metadata != NULL) {
+				memcpy(fe->mac_metadata, metadata, metadata_size);
+				fe->mac_metadata_size = metadata_size;
+				fe->fixup |= TODO_MAC_METADATA;
+			}
+		}
+	}
 
-static void *
-ppmd_alloc(void *p, size_t size)
-{
-  (void)p;
-  return malloc(size);
-}
-static void
-ppmd_free(void *p, void *address)
-{
-  (void)p;
-  free(address);
-}
-static ISzAlloc g_szalloc = { ppmd_alloc, ppmd_free };
+	if (a->deferred & TODO_FFLAGS) {
+		fe = current_fixup(a, archive_entry_pathname(entry));
+		if (fe == NULL)
+			return (ARCHIVE_FATAL);
+		fe->fixup |= TODO_FFLAGS;
+		/* TODO: Complete this.. defer fflags from below. */
+	}
 
-static Byte
-ppmd_read(void *p)
-{
-  struct archive_read *a = ((IByteIn*)p)->a;
-  struct rar *rar = (struct rar *)(a->format->data);
-  struct rar_br *br = &(rar->br);
-  Byte b;
-  if (!rar_br_read_ahead(a, br, 8))
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Truncated RAR file data");
-    rar->valid = 0;
-    return 0;
-  }
-  b = rar_br_bits(br, 8);
-  rar_br_consume(br, 8);
-  return b;
+	/* We've created the object and are ready to pour data into it. */
+	if (ret >= ARCHIVE_WARN)
+		a->archive.state = ARCHIVE_STATE_DATA;
+	/*
+	 * If it's not open, tell our client not to try writing.
+	 * In particular, dirs, links, etc, don't get written to.
+	 */
+	if (a->fd < 0) {
+		archive_entry_set_size(entry, 0);
+		a->filesize = 0;
+	}
+
+	return (ret);
 }
 
 int
-archive_read_support_format_rar(struct archive *_a)
+archive_write_disk_set_skip_file(struct archive *_a, int64_t d, int64_t i)
 {
-  struct archive_read *a = (struct archive_read *)_a;
-  struct rar *rar;
-  int r;
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_write_disk_set_skip_file");
+	a->skip_file_set = 1;
+	a->skip_file_dev = d;
+	a->skip_file_ino = i;
+	return (ARCHIVE_OK);
+}
 
-  archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
-                      "archive_read_support_format_rar");
+static ssize_t
+write_data_block(struct archive_write_disk *a, const char *buff, size_t size)
+{
+	uint64_t start_size = size;
+	ssize_t bytes_written = 0;
+	ssize_t block_size = 0, bytes_to_write;
 
-  rar = (struct rar *)malloc(sizeof(*rar));
-  if (rar == NULL)
-  {
-    archive_set_error(&a->archive, ENOMEM, "Can't allocate rar data");
-    return (ARCHIVE_FATAL);
-  }
-  memset(rar, 0, sizeof(*rar));
+	if (size == 0)
+		return (ARCHIVE_OK);
+
+	if (a->filesize == 0 || a->fd < 0) {
+		archive_set_error(&a->archive, 0,
+		    "Attempt to write to an empty file");
+		return (ARCHIVE_WARN);
+	}
+
+	if (a->flags & ARCHIVE_EXTRACT_SPARSE) {
+#if HAVE_STRUCT_STAT_ST_BLKSIZE
+		int r;
+		if ((r = lazy_stat(a)) != ARCHIVE_OK)
+			return (r);
+		block_size = a->pst->st_blksize;
+#else
+		/* XXX TODO XXX Is there a more appropriate choice here ? */
+		/* This needn't match the filesystem allocation size. */
+		block_size = 16*1024;
+#endif
+	}
+
+	/* If this write would run beyond the file size, truncate it. */
+	if (a->filesize >= 0 && (int64_t)(a->offset + size) > a->filesize)
+		start_size = size = (size_t)(a->filesize - a->offset);
+
+	/* Write the data. */
+	while (size > 0) {
+		if (block_size == 0) {
+			bytes_to_write = size;
+		} else {
+			/* We're sparsifying the file. */
+			const char *p, *end;
+			int64_t block_end;
+
+			/* Skip leading zero bytes. */
+			for (p = buff, end = buff + size; p < end; ++p) {
+				if (*p != '\0')
+					break;
+			}
+			a->offset += p - buff;
+			size -= p - buff;
+			buff = p;
+			if (size == 0)
+				break;
+
+			/* Calculate next block boundary after offset. */
+			block_end
+			    = (a->offset / block_size + 1) * block_size;
+
+			/* If the adjusted write would cross block boundary,
+			 * truncate it to the block boundary. */
+			bytes_to_write = size;
+			if (a->offset + bytes_to_write > block_end)
+				bytes_to_write = block_end - a->offset;
+		}
+		/* Seek if necessary to the specified offset. */
+		if (a->offset != a->fd_offset) {
+			if (lseek(a->fd, a->offset, SEEK_SET) < 0) {
+				archive_set_error(&a->archive, errno,
+				    "Seek failed");
+				return (ARCHIVE_FATAL);
+			}
+			a->fd_offset = a->offset;
+		}
+		bytes_written = write(a->fd, buff, bytes_to_write);
+		if (bytes_written < 0) {
+			archive_set_error(&a->archive, errno, "Write failed");
+			return (ARCHIVE_WARN);
+		}
+		buff += bytes_written;
+		size -= bytes_written;
+		a->total_bytes_written += bytes_written;
+		a->offset += bytes_written;
+		a->fd_offset = a->offset;
+	}
+	return (start_size - size);
+}
+
+#if defined(__APPLE__) && defined(UF_COMPRESSED) && defined(HAVE_SYS_XATTR_H)\
+	&& defined(HAVE_ZLIB_H)
+
+/*
+ * Set UF_COMPRESSED file flag.
+ * This have to be called after hfs_write_decmpfs() because if the
+ * file does not have "com.apple.decmpfs" xattr the flag is ignored.
+ */
+static int
+hfs_set_compressed_fflag(struct archive_write_disk *a)
+{
+	int r;
+
+	if ((r = lazy_stat(a)) != ARCHIVE_OK)
+		return (r);
+
+	a->st.st_flags |= UF_COMPRESSED;
+	if (fchflags(a->fd, a->st.st_flags) != 0) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to set UF_COMPRESSED file flag");
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * HFS+ Compression decmpfs
+ *
+ *     +------------------------------+ +0
+ *     |      Magic(LE 4 bytes)       |
+ *     +------------------------------+
+ *     |      Type(LE 4 bytes)        |
+ *     +------------------------------+
+ *     | Uncompressed size(LE 8 bytes)|
+ *     +------------------------------+ +16
+ *     |                              |
+ *     |       Compressed data        |
+ *     |  (Placed only if Type == 3)  |
+ *     |                              |
+ *     +------------------------------+  +3802 = MAX_DECMPFS_XATTR_SIZE
+ *
+ *  Type is 3: decmpfs has compressed data.
+ *  Type is 4: Resource Fork has compressed data.
+ */
+/*
+ * Write "com.apple.decmpfs"
+ */
+static int
+hfs_write_decmpfs(struct archive_write_disk *a)
+{
+	int r;
+	uint32_t compression_type;
+
+	r = fsetxattr(a->fd, DECMPFS_XATTR_NAME, a->decmpfs_header_p,
+	    a->decmpfs_attr_size, 0, 0);
+	if (r < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Cannot restore xattr:%s", DECMPFS_XATTR_NAME);
+		compression_type = archive_le32dec(
+		    &a->decmpfs_header_p[DECMPFS_COMPRESSION_TYPE]);
+		if (compression_type == CMP_RESOURCE_FORK)
+			fremovexattr(a->fd, XATTR_RESOURCEFORK_NAME,
+			    XATTR_SHOWCOMPRESSION);
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * HFS+ Compression Resource Fork
+ *
+ *     +-----------------------------+
+ *     |     Header(260 bytes)       |
+ *     +-----------------------------+
+ *     |   Block count(LE 4 bytes)   |
+ *     +-----------------------------+  --+
+ * +-- |     Offset (LE 4 bytes)     |    |
+ * |   | [distance from Block count] |    | Block 0
+ * |   +-----------------------------+    |
+ * |   | Compressed size(LE 4 bytes) |    |
+ * |   +-----------------------------+  --+
+ * |   |                             |
+ * |   |      ..................     |
+ * |   |                             |
+ * |   +-----------------------------+  --+
+ * |   |     Offset (LE 4 bytes)     |    |
+ * |   +-----------------------------+    | Block (Block count -1)
+ * |   | Compressed size(LE 4 bytes) |    |
+ * +-> +-----------------------------+  --+
+ *     |   Compressed data(n bytes)  |  Block 0
+ *     +-----------------------------+
+ *     |                             |
+ *     |      ..................     |
+ *     |                             |
+ *     +-----------------------------+
+ *     |   Compressed data(n bytes)  |  Block (Block count -1)
+ *     +-----------------------------+
+ *     |      Footer(50 bytes)       |
+ *     +-----------------------------+
+ *
+ */
+/*
+ * Write the header of "com.apple.ResourceFork"
+ */
+static int
+hfs_write_resource_fork(struct archive_write_disk *a, unsigned char *buff,
+    size_t bytes, uint32_t position)
+{
+	int ret;
+
+	ret = fsetxattr(a->fd, XATTR_RESOURCEFORK_NAME, buff, bytes,
+	    position, a->rsrc_xattr_options);
+	if (ret < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Cannot restore xattr: %s at %u pos %u bytes",
+		    XATTR_RESOURCEFORK_NAME,
+		    (unsigned)position,
+		    (unsigned)bytes);
+		return (ARCHIVE_WARN);
+	}
+	a->rsrc_xattr_options &= ~XATTR_CREATE;
+	return (ARCHIVE_OK);
+}
+
+static int
+hfs_write_compressed_data(struct archive_write_disk *a, size_t bytes_compressed)
+{
+	int ret;
+
+	ret = hfs_write_resource_fork(a, a->compressed_buffer,
+	    bytes_compressed, a->compressed_rsrc_position);
+	if (ret == ARCHIVE_OK)
+		a->compressed_rsrc_position += bytes_compressed;
+	return (ret);
+}
+
+static int
+hfs_write_resource_fork_header(struct archive_write_disk *a)
+{
+	unsigned char *buff;
+	uint32_t rsrc_bytes;
+	uint32_t rsrc_header_bytes;
 
 	/*
-	 * Until enough data has been read, we cannot tell about
-	 * any encrypted entries yet.
+	 * Write resource fork header + block info.
 	 */
-	rar->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+	buff = a->resource_fork;
+	rsrc_bytes = a->compressed_rsrc_position - RSRC_F_SIZE;
+	rsrc_header_bytes =
+		RSRC_H_SIZE +		/* Header base size. */
+		4 +			/* Block count. */
+		(a->decmpfs_block_count * 8);/* Block info */
+	archive_be32enc(buff, 0x100);
+	archive_be32enc(buff + 4, rsrc_bytes);
+	archive_be32enc(buff + 8, rsrc_bytes - 256);
+	archive_be32enc(buff + 12, 0x32);
+	memset(buff + 16, 0, 240);
+	archive_be32enc(buff + 256, rsrc_bytes - 260);
+	return hfs_write_resource_fork(a, buff, rsrc_header_bytes, 0);
+}
 
-  r = __archive_read_register_format(a,
-                                     rar,
-                                     "rar",
-                                     archive_read_format_rar_bid,
-                                     archive_read_format_rar_options,
-                                     archive_read_format_rar_read_header,
-                                     archive_read_format_rar_read_data,
-                                     archive_read_format_rar_read_data_skip,
-                                     archive_read_format_rar_seek_data,
-                                     archive_read_format_rar_cleanup,
-                                     archive_read_support_format_rar_capabilities,
-                                     archive_read_format_rar_has_encrypted_entries);
-
-  if (r != ARCHIVE_OK)
-    free(rar);
-  return (r);
+static size_t
+hfs_set_resource_fork_footer(unsigned char *buff, size_t buff_size)
+{
+	static const char rsrc_footer[RSRC_F_SIZE] = {
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x1c, 0x00, 0x32, 0x00, 0x00, 'c',  'm',
+		'p', 'f',   0x00, 0x00, 0x00, 0x0a, 0x00, 0x01,
+		0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00
+	};
+	if (buff_size < sizeof(rsrc_footer))
+		return (0);
+	memcpy(buff, rsrc_footer, sizeof(rsrc_footer));
+	return (sizeof(rsrc_footer));
 }
 
 static int
-archive_read_support_format_rar_capabilities(struct archive_read * a)
+hfs_reset_compressor(struct archive_write_disk *a)
 {
-	(void)a; /* UNUSED */
-	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA
-			| ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
+	int ret;
+
+	if (a->stream_valid)
+		ret = deflateReset(&a->stream);
+	else
+		ret = deflateInit(&a->stream, a->decmpfs_compression_level);
+
+	if (ret != Z_OK) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to initialize compressor");
+		return (ARCHIVE_FATAL);
+	} else
+		a->stream_valid = 1;
+
+	return (ARCHIVE_OK);
 }
 
 static int
-archive_read_format_rar_has_encrypted_entries(struct archive_read *_a)
+hfs_decompress(struct archive_write_disk *a)
 {
-	if (_a && _a->format) {
-		struct rar * rar = (struct rar *)_a->format->data;
-		if (rar) {
-			return rar->has_encrypted_entries;
+	uint32_t *block_info;
+	unsigned int block_count;
+	uint32_t data_pos, data_size;
+	ssize_t r;
+	ssize_t bytes_written, bytes_to_write;
+	unsigned char *b;
+
+	block_info = (uint32_t *)(a->resource_fork + RSRC_H_SIZE);
+	block_count = archive_le32dec(block_info++);
+	while (block_count--) {
+		data_pos = RSRC_H_SIZE + archive_le32dec(block_info++);
+		data_size = archive_le32dec(block_info++);
+		r = fgetxattr(a->fd, XATTR_RESOURCEFORK_NAME,
+		    a->compressed_buffer, data_size, data_pos, 0);
+		if (r != data_size)  {
+			archive_set_error(&a->archive,
+			    (r < 0)?errno:ARCHIVE_ERRNO_MISC,
+			    "Failed to read resource fork");
+			return (ARCHIVE_WARN);
+		}
+		if (a->compressed_buffer[0] == 0xff) {
+			bytes_to_write = data_size -1;
+			b = a->compressed_buffer + 1;
+		} else {
+			uLong dest_len = MAX_DECMPFS_BLOCK_SIZE;
+			int zr;
+
+			zr = uncompress((Bytef *)a->uncompressed_buffer,
+			    &dest_len, a->compressed_buffer, data_size);
+			if (zr != Z_OK) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Failed to decompress resource fork");
+				return (ARCHIVE_WARN);
+			}
+			bytes_to_write = dest_len;
+			b = (unsigned char *)a->uncompressed_buffer;
+		}
+		do {
+			bytes_written = write(a->fd, b, bytes_to_write);
+			if (bytes_written < 0) {
+				archive_set_error(&a->archive, errno,
+				    "Write failed");
+				return (ARCHIVE_WARN);
+			}
+			bytes_to_write -= bytes_written;
+			b += bytes_written;
+		} while (bytes_to_write > 0);
+	}
+	r = fremovexattr(a->fd, XATTR_RESOURCEFORK_NAME, 0);
+	if (r == -1)  {
+		archive_set_error(&a->archive, errno,
+		    "Failed to remove resource fork");
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+hfs_drive_compressor(struct archive_write_disk *a, const char *buff,
+    size_t size)
+{
+	unsigned char *buffer_compressed;
+	size_t bytes_compressed;
+	size_t bytes_used;
+	int ret;
+
+	ret = hfs_reset_compressor(a);
+	if (ret != ARCHIVE_OK)
+		return (ret);
+
+	if (a->compressed_buffer == NULL) {
+		size_t block_size;
+
+		block_size = COMPRESSED_W_SIZE + RSRC_F_SIZE +
+		    + compressBound(MAX_DECMPFS_BLOCK_SIZE);
+		a->compressed_buffer = malloc(block_size);
+		if (a->compressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Resource Fork");
+			return (ARCHIVE_FATAL);
+		}
+		a->compressed_buffer_size = block_size;
+		a->compressed_buffer_remaining = block_size;
+	}
+
+	buffer_compressed = a->compressed_buffer +
+	    a->compressed_buffer_size - a->compressed_buffer_remaining;
+	a->stream.next_in = (Bytef *)(uintptr_t)(const void *)buff;
+	a->stream.avail_in = size;
+	a->stream.next_out = buffer_compressed;
+	a->stream.avail_out = a->compressed_buffer_remaining;
+	do {
+		ret = deflate(&a->stream, Z_FINISH);
+		switch (ret) {
+		case Z_OK:
+		case Z_STREAM_END:
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Failed to compress data");
+			return (ARCHIVE_FAILED);
+		}
+	} while (ret == Z_OK);
+	bytes_compressed = a->compressed_buffer_remaining - a->stream.avail_out;
+
+	/*
+	 * If the compressed size is larger than the original size,
+	 * throw away compressed data, use uncompressed data instead.
+	 */
+	if (bytes_compressed > size) {
+		buffer_compressed[0] = 0xFF;/* uncompressed marker. */
+		memcpy(buffer_compressed + 1, buff, size);
+		bytes_compressed = size + 1;
+	}
+	a->compressed_buffer_remaining -= bytes_compressed;
+
+	/*
+	 * If the compressed size is smaller than MAX_DECMPFS_XATTR_SIZE
+	 * and the block count in the file is only one, store compressed
+	 * data to decmpfs xattr instead of the resource fork.
+	 */
+	if (a->decmpfs_block_count == 1 &&
+	    (a->decmpfs_attr_size + bytes_compressed)
+	      <= MAX_DECMPFS_XATTR_SIZE) {
+		archive_le32enc(&a->decmpfs_header_p[DECMPFS_COMPRESSION_TYPE],
+		    CMP_XATTR);
+		memcpy(a->decmpfs_header_p + DECMPFS_HEADER_SIZE,
+		    buffer_compressed, bytes_compressed);
+		a->decmpfs_attr_size += bytes_compressed;
+		a->compressed_buffer_remaining = a->compressed_buffer_size;
+		/*
+		 * Finish HFS+ Compression.
+		 * - Write the decmpfs xattr.
+		 * - Set the UF_COMPRESSED file flag.
+		 */
+		ret = hfs_write_decmpfs(a);
+		if (ret == ARCHIVE_OK)
+			ret = hfs_set_compressed_fflag(a);
+		return (ret);
+	}
+
+	/* Update block info. */
+	archive_le32enc(a->decmpfs_block_info++,
+	    a->compressed_rsrc_position_v - RSRC_H_SIZE);
+	archive_le32enc(a->decmpfs_block_info++, bytes_compressed);
+	a->compressed_rsrc_position_v += bytes_compressed;
+
+	/*
+	 * Write the compressed data to the resource fork.
+	 */
+	bytes_used = a->compressed_buffer_size - a->compressed_buffer_remaining;
+	while (bytes_used >= COMPRESSED_W_SIZE) {
+		ret = hfs_write_compressed_data(a, COMPRESSED_W_SIZE);
+		if (ret != ARCHIVE_OK)
+			return (ret);
+		bytes_used -= COMPRESSED_W_SIZE;
+		if (bytes_used > COMPRESSED_W_SIZE)
+			memmove(a->compressed_buffer,
+			    a->compressed_buffer + COMPRESSED_W_SIZE,
+			    bytes_used);
+		else
+			memcpy(a->compressed_buffer,
+			    a->compressed_buffer + COMPRESSED_W_SIZE,
+			    bytes_used);
+	}
+	a->compressed_buffer_remaining = a->compressed_buffer_size - bytes_used;
+
+	/*
+	 * If the current block is the last block, write the remaining
+	 * compressed data and the resource fork footer.
+	 */
+	if (a->file_remaining_bytes == 0) {
+		size_t rsrc_size;
+		int64_t bk;
+
+		/* Append the resource footer. */
+		rsrc_size = hfs_set_resource_fork_footer(
+		    a->compressed_buffer + bytes_used,
+		    a->compressed_buffer_remaining);
+		ret = hfs_write_compressed_data(a, bytes_used + rsrc_size);
+		a->compressed_buffer_remaining = a->compressed_buffer_size;
+
+		/* If the compressed size is not enouph smaller than
+		 * the uncompressed size. cancel HFS+ compression.
+		 * TODO: study a behavior of ditto utility and improve
+		 * the condition to fall back into no HFS+ compression. */
+		bk = HFS_BLOCKS(a->compressed_rsrc_position);
+		bk += bk >> 7;
+		if (bk > HFS_BLOCKS(a->filesize))
+			return hfs_decompress(a);
+		/*
+		 * Write the resourcefork header.
+		 */
+		if (ret == ARCHIVE_OK)
+			ret = hfs_write_resource_fork_header(a);
+		/*
+		 * Finish HFS+ Compression.
+		 * - Write the decmpfs xattr.
+		 * - Set the UF_COMPRESSED file flag.
+		 */
+		if (ret == ARCHIVE_OK)
+			ret = hfs_write_decmpfs(a);
+		if (ret == ARCHIVE_OK)
+			ret = hfs_set_compressed_fflag(a);
+	}
+	return (ret);
+}
+
+static ssize_t
+hfs_write_decmpfs_block(struct archive_write_disk *a, const char *buff,
+    size_t size)
+{
+	const char *buffer_to_write;
+	size_t bytes_to_write;
+	int ret;
+
+	if (a->decmpfs_block_count == (unsigned)-1) {
+		void *new_block;
+		size_t new_size;
+		unsigned int block_count;
+
+		if (a->decmpfs_header_p == NULL) {
+			new_block = malloc(MAX_DECMPFS_XATTR_SIZE
+			    + sizeof(uint32_t));
+			if (new_block == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for decmpfs");
+				return (ARCHIVE_FATAL);
+			}
+			a->decmpfs_header_p = new_block;
+		}
+		a->decmpfs_attr_size = DECMPFS_HEADER_SIZE;
+		archive_le32enc(&a->decmpfs_header_p[DECMPFS_COMPRESSION_MAGIC],
+		    DECMPFS_MAGIC);
+		archive_le32enc(&a->decmpfs_header_p[DECMPFS_COMPRESSION_TYPE],
+		    CMP_RESOURCE_FORK);
+		archive_le64enc(&a->decmpfs_header_p[DECMPFS_UNCOMPRESSED_SIZE],
+		    a->filesize);
+
+		/* Calculate a block count of the file. */
+		block_count =
+		    (a->filesize + MAX_DECMPFS_BLOCK_SIZE -1) /
+			MAX_DECMPFS_BLOCK_SIZE;
+		/*
+		 * Allocate buffer for resource fork.
+		 * Set up related pointers;
+		 */
+		new_size =
+		    RSRC_H_SIZE + /* header */
+		    4 + /* Block count */
+		    (block_count * sizeof(uint32_t) * 2) +
+		    RSRC_F_SIZE; /* footer */
+		if (new_size > a->resource_fork_allocated_size) {
+			new_block = realloc(a->resource_fork, new_size);
+			if (new_block == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for ResourceFork");
+				return (ARCHIVE_FATAL);
+			}
+			a->resource_fork_allocated_size = new_size;
+			a->resource_fork = new_block;
+		}
+
+		/* Allocate uncompressed buffer */
+		if (a->uncompressed_buffer == NULL) {
+			new_block = malloc(MAX_DECMPFS_BLOCK_SIZE);
+			if (new_block == NULL) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for decmpfs");
+				return (ARCHIVE_FATAL);
+			}
+			a->uncompressed_buffer = new_block;
+		}
+		a->block_remaining_bytes = MAX_DECMPFS_BLOCK_SIZE;
+		a->file_remaining_bytes = a->filesize;
+		a->compressed_buffer_remaining = a->compressed_buffer_size;
+
+		/*
+		 * Set up a resource fork.
+		 */
+		a->rsrc_xattr_options = XATTR_CREATE;
+		/* Get the position where we are going to set a bunch
+		 * of block info. */
+		a->decmpfs_block_info =
+		    (uint32_t *)(a->resource_fork + RSRC_H_SIZE);
+		/* Set the block count to the resource fork. */
+		archive_le32enc(a->decmpfs_block_info++, block_count);
+		/* Get the position where we are goint to set compressed
+		 * data. */
+		a->compressed_rsrc_position =
+		    RSRC_H_SIZE + 4 + (block_count * 8);
+		a->compressed_rsrc_position_v = a->compressed_rsrc_position;
+		a->decmpfs_block_count = block_count;
+	}
+
+	/* Ignore redundant bytes. */
+	if (a->file_remaining_bytes == 0)
+		return ((ssize_t)size);
+
+	/* Do not overrun a block size. */
+	if (size > a->block_remaining_bytes)
+		bytes_to_write = a->block_remaining_bytes;
+	else
+		bytes_to_write = size;
+	/* Do not overrun the file size. */
+	if (bytes_to_write > a->file_remaining_bytes)
+		bytes_to_write = a->file_remaining_bytes;
+
+	/* For efficiency, if a copy length is full of the uncompressed
+	 * buffer size, do not copy writing data to it. */
+	if (bytes_to_write == MAX_DECMPFS_BLOCK_SIZE)
+		buffer_to_write = buff;
+	else {
+		memcpy(a->uncompressed_buffer +
+		    MAX_DECMPFS_BLOCK_SIZE - a->block_remaining_bytes,
+		    buff, bytes_to_write);
+		buffer_to_write = a->uncompressed_buffer;
+	}
+	a->block_remaining_bytes -= bytes_to_write;
+	a->file_remaining_bytes -= bytes_to_write;
+
+	if (a->block_remaining_bytes == 0 || a->file_remaining_bytes == 0) {
+		ret = hfs_drive_compressor(a, buffer_to_write,
+		    MAX_DECMPFS_BLOCK_SIZE - a->block_remaining_bytes);
+		if (ret < 0)
+			return (ret);
+		a->block_remaining_bytes = MAX_DECMPFS_BLOCK_SIZE;
+	}
+	/* Ignore redundant bytes. */
+	if (a->file_remaining_bytes == 0)
+		return ((ssize_t)size);
+	return (bytes_to_write);
+}
+
+static ssize_t
+hfs_write_data_block(struct archive_write_disk *a, const char *buff,
+    size_t size)
+{
+	uint64_t start_size = size;
+	ssize_t bytes_written = 0;
+	ssize_t bytes_to_write;
+
+	if (size == 0)
+		return (ARCHIVE_OK);
+
+	if (a->filesize == 0 || a->fd < 0) {
+		archive_set_error(&a->archive, 0,
+		    "Attempt to write to an empty file");
+		return (ARCHIVE_WARN);
+	}
+
+	/* If this write would run beyond the file size, truncate it. */
+	if (a->filesize >= 0 && (int64_t)(a->offset + size) > a->filesize)
+		start_size = size = (size_t)(a->filesize - a->offset);
+
+	/* Write the data. */
+	while (size > 0) {
+		bytes_to_write = size;
+		/* Seek if necessary to the specified offset. */
+		if (a->offset < a->fd_offset) {
+			/* Can't support backword move. */
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Seek failed");
+			return (ARCHIVE_FATAL);
+		} else if (a->offset > a->fd_offset) {
+			int64_t skip = a->offset - a->fd_offset;
+			char nullblock[1024];
+
+			memset(nullblock, 0, sizeof(nullblock));
+			while (skip > 0) {
+				if (skip > (int64_t)sizeof(nullblock))
+					bytes_written = hfs_write_decmpfs_block(
+					    a, nullblock, sizeof(nullblock));
+				else
+					bytes_written = hfs_write_decmpfs_block(
+					    a, nullblock, skip);
+				if (bytes_written < 0) {
+					archive_set_error(&a->archive, errno,
+					    "Write failed");
+					return (ARCHIVE_WARN);
+				}
+				skip -= bytes_written;
+			}
+
+			a->fd_offset = a->offset;
+		}
+		bytes_written =
+		    hfs_write_decmpfs_block(a, buff, bytes_to_write);
+		if (bytes_written < 0)
+			return (bytes_written);
+		buff += bytes_written;
+		size -= bytes_written;
+		a->total_bytes_written += bytes_written;
+		a->offset += bytes_written;
+		a->fd_offset = a->offset;
+	}
+	return (start_size - size);
+}
+#else
+static ssize_t
+hfs_write_data_block(struct archive_write_disk *a, const char *buff,
+    size_t size)
+{
+	return (write_data_block(a, buff, size));
+}
+#endif
+
+static ssize_t
+_archive_write_disk_data_block(struct archive *_a,
+    const void *buff, size_t size, int64_t offset)
+{
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	ssize_t r;
+
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_DATA, "archive_write_data_block");
+
+	a->offset = offset;
+	if (a->todo & TODO_HFS_COMPRESSION)
+		r = hfs_write_data_block(a, buff, size);
+	else
+		r = write_data_block(a, buff, size);
+	if (r < ARCHIVE_OK)
+		return (r);
+	if ((size_t)r < size) {
+		archive_set_error(&a->archive, 0,
+		    "Write request too large");
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
+}
+
+static ssize_t
+_archive_write_disk_data(struct archive *_a, const void *buff, size_t size)
+{
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_DATA, "archive_write_data");
+
+	if (a->todo & TODO_HFS_COMPRESSION)
+		return (hfs_write_data_block(a, buff, size));
+	return (write_data_block(a, buff, size));
+}
+
+static int
+_archive_write_disk_finish_entry(struct archive *_a)
+{
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	int ret = ARCHIVE_OK;
+
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+	    "archive_write_finish_entry");
+	if (a->archive.state & ARCHIVE_STATE_HEADER)
+		return (ARCHIVE_OK);
+	archive_clear_error(&a->archive);
+
+	/* Pad or truncate file to the right size. */
+	if (a->fd < 0) {
+		/* There's no file. */
+	} else if (a->filesize < 0) {
+		/* File size is unknown, so we can't set the size. */
+	} else if (a->fd_offset == a->filesize) {
+		/* Last write ended at exactly the filesize; we're done. */
+		/* Hopefully, this is the common case. */
+#if defined(__APPLE__) && defined(UF_COMPRESSED) && defined(HAVE_ZLIB_H)
+	} else if (a->todo & TODO_HFS_COMPRESSION) {
+		char null_d[1024];
+		ssize_t r;
+
+		if (a->file_remaining_bytes)
+			memset(null_d, 0, sizeof(null_d));
+		while (a->file_remaining_bytes) {
+			if (a->file_remaining_bytes > sizeof(null_d))
+				r = hfs_write_data_block(
+				    a, null_d, sizeof(null_d));
+			else
+				r = hfs_write_data_block(
+				    a, null_d, a->file_remaining_bytes);
+			if (r < 0)
+				return ((int)r);
+		}
+#endif
+	} else {
+#if HAVE_FTRUNCATE
+		if (ftruncate(a->fd, a->filesize) == -1 &&
+		    a->filesize == 0) {
+			archive_set_error(&a->archive, errno,
+			    "File size could not be restored");
+			return (ARCHIVE_FAILED);
+		}
+#endif
+		/*
+		 * Not all platforms implement the XSI option to
+		 * extend files via ftruncate.  Stat() the file again
+		 * to see what happened.
+		 */
+		a->pst = NULL;
+		if ((ret = lazy_stat(a)) != ARCHIVE_OK)
+			return (ret);
+		/* We can use lseek()/write() to extend the file if
+		 * ftruncate didn't work or isn't available. */
+		if (a->st.st_size < a->filesize) {
+			const char nul = '\0';
+			if (lseek(a->fd, a->filesize - 1, SEEK_SET) < 0) {
+				archive_set_error(&a->archive, errno,
+				    "Seek failed");
+				return (ARCHIVE_FATAL);
+			}
+			if (write(a->fd, &nul, 1) < 0) {
+				archive_set_error(&a->archive, errno,
+				    "Write to restore size failed");
+				return (ARCHIVE_FATAL);
+			}
+			a->pst = NULL;
 		}
 	}
-	return ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+
+	/* Restore metadata. */
+
+	/*
+	 * This is specific to Mac OS X.
+	 * If the current file is an AppleDouble file, it should be
+	 * linked with the data fork file and remove it.
+	 */
+	if (a->todo & TODO_APPLEDOUBLE) {
+		int r2 = fixup_appledouble(a, a->name);
+		if (r2 == ARCHIVE_EOF) {
+			/* The current file has been successfully linked
+			 * with the data fork file and removed. So there
+			 * is nothing to do on the current file.  */
+			goto finish_metadata;
+		}
+		if (r2 < ret) ret = r2;
+	}
+
+	/*
+	 * Look up the "real" UID only if we're going to need it.
+	 * TODO: the TODO_SGID condition can be dropped here, can't it?
+	 */
+	if (a->todo & (TODO_OWNER | TODO_SUID | TODO_SGID)) {
+		a->uid = archive_write_disk_uid(&a->archive,
+		    archive_entry_uname(a->entry),
+		    archive_entry_uid(a->entry));
+	}
+	/* Look up the "real" GID only if we're going to need it. */
+	/* TODO: the TODO_SUID condition can be dropped here, can't it? */
+	if (a->todo & (TODO_OWNER | TODO_SGID | TODO_SUID)) {
+		a->gid = archive_write_disk_gid(&a->archive,
+		    archive_entry_gname(a->entry),
+		    archive_entry_gid(a->entry));
+	 }
+
+	/*
+	 * Restore ownership before set_mode tries to restore suid/sgid
+	 * bits.  If we set the owner, we know what it is and can skip
+	 * a stat() call to examine the ownership of the file on disk.
+	 */
+	if (a->todo & TODO_OWNER) {
+		int r2 = set_ownership(a);
+		if (r2 < ret) ret = r2;
+	}
+
+	/*
+	 * set_mode must precede ACLs on systems such as Solaris and
+	 * FreeBSD where setting the mode implicitly clears extended ACLs
+	 */
+	if (a->todo & TODO_MODE) {
+		int r2 = set_mode(a, a->mode);
+		if (r2 < ret) ret = r2;
+	}
+
+	/*
+	 * Security-related extended attributes (such as
+	 * security.capability on Linux) have to be restored last,
+	 * since they're implicitly removed by other file changes.
+	 */
+	if (a->todo & TODO_XATTR) {
+		int r2 = set_xattrs(a);
+		if (r2 < ret) ret = r2;
+	}
+
+	/*
+	 * Some flags prevent file modification; they must be restored after
+	 * file contents are written.
+	 */
+	if (a->todo & TODO_FFLAGS) {
+		int r2 = set_fflags(a);
+		if (r2 < ret) ret = r2;
+	}
+
+	/*
+	 * Time must follow most other metadata;
+	 * otherwise atime will get changed.
+	 */
+	if (a->todo & TODO_TIMES) {
+		int r2 = set_times_from_entry(a);
+		if (r2 < ret) ret = r2;
+	}
+
+	/*
+	 * Mac extended metadata includes ACLs.
+	 */
+	if (a->todo & TODO_MAC_METADATA) {
+		const void *metadata;
+		size_t metadata_size;
+		metadata = archive_entry_mac_metadata(a->entry, &metadata_size);
+		if (metadata != NULL && metadata_size > 0) {
+			int r2 = set_mac_metadata(a, archive_entry_pathname(
+			    a->entry), metadata, metadata_size);
+			if (r2 < ret) ret = r2;
+		}
+	}
+
+	/*
+	 * ACLs must be restored after timestamps because there are
+	 * ACLs that prevent attribute changes (including time).
+	 */
+	if (a->todo & TODO_ACLS) {
+		int r2 = archive_write_disk_set_acls(&a->archive, a->fd,
+				  archive_entry_pathname(a->entry),
+				  archive_entry_acl(a->entry));
+		if (r2 < ret) ret = r2;
+	}
+
+finish_metadata:
+	/* If there's an fd, we can close it now. */
+	if (a->fd >= 0) {
+		close(a->fd);
+		a->fd = -1;
+	}
+	/* If there's an entry, we can release it now. */
+	if (a->entry) {
+		archive_entry_free(a->entry);
+		a->entry = NULL;
+	}
+	a->archive.state = ARCHIVE_STATE_HEADER;
+	return (ret);
 }
 
-
-static int
-archive_read_format_rar_bid(struct archive_read *a, int best_bid)
+int
+archive_write_disk_set_group_lookup(struct archive *_a,
+    void *private_data,
+    int64_t (*lookup_gid)(void *private, const char *gname, int64_t gid),
+    void (*cleanup_gid)(void *private))
 {
-  const char *p;
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_write_disk_set_group_lookup");
 
-  /* If there's already a bid > 30, we'll never win. */
-  if (best_bid > 30)
-	  return (-1);
+	if (a->cleanup_gid != NULL && a->lookup_gid_data != NULL)
+		(a->cleanup_gid)(a->lookup_gid_data);
 
-  if ((p = __archive_read_ahead(a, 7, NULL)) == NULL)
-    return (-1);
-
-  if (memcmp(p, RAR_SIGNATURE, 7) == 0)
-    return (30);
-
-  if ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0) {
-    /* This is a PE file */
-    ssize_t offset = 0x10000;
-    ssize_t window = 4096;
-    ssize_t bytes_avail;
-    while (offset + window <= (1024 * 128)) {
-      const char *buff = __archive_read_ahead(a, offset + window, &bytes_avail);
-      if (buff == NULL) {
-        /* Remaining bytes are less than window. */
-        window >>= 1;
-        if (window < 0x40)
-          return (0);
-        continue;
-      }
-      p = buff + offset;
-      while (p + 7 < buff + bytes_avail) {
-        if (memcmp(p, RAR_SIGNATURE, 7) == 0)
-          return (30);
-        p += 0x10;
-      }
-      offset = p - buff;
-    }
-  }
-  return (0);
+	a->lookup_gid = lookup_gid;
+	a->cleanup_gid = cleanup_gid;
+	a->lookup_gid_data = private_data;
+	return (ARCHIVE_OK);
 }
 
-static int
-skip_sfx(struct archive_read *a)
+int
+archive_write_disk_set_user_lookup(struct archive *_a,
+    void *private_data,
+    int64_t (*lookup_uid)(void *private, const char *uname, int64_t uid),
+    void (*cleanup_uid)(void *private))
 {
-  const void *h;
-  const char *p, *q;
-  size_t skip, total;
-  ssize_t bytes, window;
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_write_disk_set_user_lookup");
 
-  total = 0;
-  window = 4096;
-  while (total + window <= (1024 * 128)) {
-    h = __archive_read_ahead(a, window, &bytes);
-    if (h == NULL) {
-      /* Remaining bytes are less than window. */
-      window >>= 1;
-      if (window < 0x40)
-      	goto fatal;
-      continue;
-    }
-    if (bytes < 0x40)
-      goto fatal;
-    p = h;
-    q = p + bytes;
+	if (a->cleanup_uid != NULL && a->lookup_uid_data != NULL)
+		(a->cleanup_uid)(a->lookup_uid_data);
 
-    /*
-     * Scan ahead until we find something that looks
-     * like the RAR header.
-     */
-    while (p + 7 < q) {
-      if (memcmp(p, RAR_SIGNATURE, 7) == 0) {
-      	skip = p - (const char *)h;
-      	__archive_read_consume(a, skip);
-      	return (ARCHIVE_OK);
-      }
-      p += 0x10;
-    }
-    skip = p - (const char *)h;
-    __archive_read_consume(a, skip);
-	total += skip;
-  }
-fatal:
-  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Couldn't find out RAR header");
-  return (ARCHIVE_FATAL);
+	a->lookup_uid = lookup_uid;
+	a->cleanup_uid = cleanup_uid;
+	a->lookup_uid_data = private_data;
+	return (ARCHIVE_OK);
 }
 
-static int
-archive_read_format_rar_options(struct archive_read *a,
-    const char *key, const char *val)
+int64_t
+archive_write_disk_gid(struct archive *_a, const char *name, int64_t id)
 {
-  struct rar *rar;
-  int ret = ARCHIVE_FAILED;
-
-  rar = (struct rar *)(a->format->data);
-  if (strcmp(key, "hdrcharset")  == 0) {
-    if (val == NULL || val[0] == 0)
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-          "rar: hdrcharset option needs a character-set name");
-    else {
-      rar->opt_sconv =
-          archive_string_conversion_from_charset(
-              &a->archive, val, 0);
-      if (rar->opt_sconv != NULL)
-        ret = ARCHIVE_OK;
-      else
-        ret = ARCHIVE_FATAL;
-    }
-    return (ret);
-  }
-
-  /* Note: The "warn" return is just to inform the options
-   * supervisor that we didn't handle it.  It will generate
-   * a suitable error if no one used this option. */
-  return (ARCHIVE_WARN);
+       struct archive_write_disk *a = (struct archive_write_disk *)_a;
+       archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+           ARCHIVE_STATE_ANY, "archive_write_disk_gid");
+       if (a->lookup_gid)
+               return (a->lookup_gid)(a->lookup_gid_data, name, id);
+       return (id);
 }
-
-static int
-archive_read_format_rar_read_header(struct archive_read *a,
-                                    struct archive_entry *entry)
+ 
+int64_t
+archive_write_disk_uid(struct archive *_a, const char *name, int64_t id)
 {
-  const void *h;
-  const char *p;
-  struct rar *rar;
-  size_t skip;
-  char head_type;
-  int ret;
-  unsigned flags;
-  unsigned long crc32_expected;
-
-  a->archive.archive_format = ARCHIVE_FORMAT_RAR;
-  if (a->archive.archive_format_name == NULL)
-    a->archive.archive_format_name = "RAR";
-
-  rar = (struct rar *)(a->format->data);
-
-  /*
-   * It should be sufficient to call archive_read_next_header() for
-   * a reader to determine if an entry is encrypted or not. If the
-   * encryption of an entry is only detectable when calling
-   * archive_read_data(), so be it. We'll do the same check there
-   * as well.
-   */
-  if (rar->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-	  rar->has_encrypted_entries = 0;
-  }
-
-  /* RAR files can be generated without EOF headers, so return ARCHIVE_EOF if
-  * this fails.
-  */
-  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-    return (ARCHIVE_EOF);
-
-  p = h;
-  if (rar->found_first_header == 0 &&
-     ((p[0] == 'M' && p[1] == 'Z') || memcmp(p, "\x7F\x45LF", 4) == 0)) {
-    /* This is an executable ? Must be self-extracting... */
-    ret = skip_sfx(a);
-    if (ret < ARCHIVE_WARN)
-      return (ret);
-  }
-  rar->found_first_header = 1;
-
-  while (1)
-  {
-    unsigned long crc32_val;
-
-    if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-      return (ARCHIVE_FATAL);
-    p = h;
-
-    head_type = p[2];
-    switch(head_type)
-    {
-    case MARK_HEAD:
-      if (memcmp(p, RAR_SIGNATURE, 7) != 0) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid marker header");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, 7);
-      break;
-
-    case MAIN_HEAD:
-      rar->main_flags = archive_le16dec(p + 3);
-      skip = archive_le16dec(p + 5);
-      if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid header size");
-        return (ARCHIVE_FATAL);
-      }
-      if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-        return (ARCHIVE_FATAL);
-      p = h;
-      memcpy(rar->reserved1, p + 7, sizeof(rar->reserved1));
-      memcpy(rar->reserved2, p + 7 + sizeof(rar->reserved1),
-             sizeof(rar->reserved2));
-      if (rar->main_flags & MHD_ENCRYPTVER) {
-        if (skip < 7 + sizeof(rar->reserved1) + sizeof(rar->reserved2)+1) {
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-            "Invalid header size");
-          return (ARCHIVE_FATAL);
-        }
-        rar->encryptver = *(p + 7 + sizeof(rar->reserved1) +
-                            sizeof(rar->reserved2));
-      }
-
-      /* Main header is password encrytped, so we cannot read any
-         file names or any other info about files from the header. */
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_entry_set_is_metadata_encrypted(entry, 1);
-        archive_entry_set_is_data_encrypted(entry, 1);
-        rar->has_encrypted_entries = 1;
-         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }
-
-      crc32_val = crc32(0, (const unsigned char *)p + 2, (unsigned)skip - 2);
-      if ((crc32_val & 0xffff) != archive_le16dec(p)) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Header CRC error");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_read_consume(a, skip);
-      break;
-
-    case FILE_HEAD:
-      return read_header(a, entry, head_type);
-
-    case COMM_HEAD:
-    case AV_HEAD:
-    case SUB_HEAD:
-    case PROTECT_HEAD:
-    case SIGN_HEAD:
-    case ENDARC_HEAD:
-      flags = archive_le16dec(p + 3);
-      skip = archive_le16dec(p + 5);
-      if (skip < 7) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid header size too small");
-        return (ARCHIVE_FATAL);
-      }
-      if (flags & HD_ADD_SIZE_PRESENT)
-      {
-        if (skip < 7 + 4) {
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-            "Invalid header size too small");
-          return (ARCHIVE_FATAL);
-        }
-        if ((h = __archive_read_ahead(a, skip, NULL)) == NULL)
-          return (ARCHIVE_FATAL);
-        p = h;
-        skip += archive_le32dec(p + 7);
-      }
-
-      /* Skip over the 2-byte CRC at the beginning of the header. */
-      crc32_expected = archive_le16dec(p);
-      __archive_read_consume(a, 2);
-      skip -= 2;
-
-      /* Skim the entire header and compute the CRC. */
-      crc32_val = 0;
-      while (skip > 0) {
-	      size_t to_read = skip;
-	      ssize_t did_read;
-	      if (to_read > 32 * 1024) {
-		      to_read = 32 * 1024;
-	      }
-	      if ((h = __archive_read_ahead(a, to_read, &did_read)) == NULL) {
-		      return (ARCHIVE_FATAL);
-	      }
-	      p = h;
-	      crc32_val = crc32(crc32_val, (const unsigned char *)p, (unsigned)did_read);
-	      __archive_read_consume(a, did_read);
-	      skip -= did_read;
-      }
-      if ((crc32_val & 0xffff) != crc32_expected) {
-	      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		  "Header CRC error");
-	      return (ARCHIVE_FATAL);
-      }
-      if (head_type == ENDARC_HEAD)
-	      return (ARCHIVE_EOF);
-      break;
-
-    case NEWSUB_HEAD:
-      if ((ret = read_header(a, entry, head_type)) < ARCHIVE_WARN)
-        return ret;
-      break;
-
-    default:
-      archive_set_error(&a->archive,  ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Bad RAR file");
-      return (ARCHIVE_FATAL);
-    }
-  }
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_write_disk_uid");
+	if (a->lookup_uid)
+		return (a->lookup_uid)(a->lookup_uid_data, name, id);
+	return (id);
 }
 
-static int
-archive_read_format_rar_read_data(struct archive_read *a, const void **buff,
-                                  size_t *size, int64_t *offset)
+/*
+ * Create a new archive_write_disk object and initialize it with global state.
+ */
+struct archive *
+archive_write_disk_new(void)
 {
-  struct rar *rar = (struct rar *)(a->format->data);
-  int ret;
+	struct archive_write_disk *a;
 
-  if (rar->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-	  rar->has_encrypted_entries = 0;
-  }
-
-  if (rar->bytes_unconsumed > 0) {
-      /* Consume as much as the decompressor actually used. */
-      __archive_read_consume(a, rar->bytes_unconsumed);
-      rar->bytes_unconsumed = 0;
-  }
-
-  *buff = NULL;
-  if (rar->entry_eof || rar->offset_seek >= rar->unp_size) {
-    *size = 0;
-    *offset = rar->offset;
-    if (*offset < rar->unp_size)
-      *offset = rar->unp_size;
-    return (ARCHIVE_EOF);
-  }
-
-  switch (rar->compression_method)
-  {
-  case COMPRESS_METHOD_STORE:
-    ret = read_data_stored(a, buff, size, offset);
-    break;
-
-  case COMPRESS_METHOD_FASTEST:
-  case COMPRESS_METHOD_FAST:
-  case COMPRESS_METHOD_NORMAL:
-  case COMPRESS_METHOD_GOOD:
-  case COMPRESS_METHOD_BEST:
-    ret = read_data_compressed(a, buff, size, offset);
-    if (ret != ARCHIVE_OK && ret != ARCHIVE_WARN)
-      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
-    break;
-
-  default:
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Unsupported compression method for RAR file.");
-    ret = ARCHIVE_FATAL;
-    break;
-  }
-  return (ret);
+	a = (struct archive_write_disk *)malloc(sizeof(*a));
+	if (a == NULL)
+		return (NULL);
+	memset(a, 0, sizeof(*a));
+	a->archive.magic = ARCHIVE_WRITE_DISK_MAGIC;
+	/* We're ready to write a header immediately. */
+	a->archive.state = ARCHIVE_STATE_HEADER;
+	a->archive.vtable = archive_write_disk_vtable();
+	a->start_time = time(NULL);
+	/* Query and restore the umask. */
+	umask(a->user_umask = umask(0));
+#ifdef HAVE_GETEUID
+	a->user_uid = geteuid();
+#endif /* HAVE_GETEUID */
+	if (archive_string_ensure(&a->path_safe, 512) == NULL) {
+		free(a);
+		return (NULL);
+	}
+#ifdef HAVE_ZLIB_H
+	a->decmpfs_compression_level = 5;
+#endif
+	return (&a->archive);
 }
 
-static int
-archive_read_format_rar_read_data_skip(struct archive_read *a)
-{
-  struct rar *rar;
-  int64_t bytes_skipped;
-  int ret;
 
-  rar = (struct rar *)(a->format->data);
-
-  if (rar->bytes_unconsumed > 0) {
-      /* Consume as much as the decompressor actually used. */
-      __archive_read_consume(a, rar->bytes_unconsumed);
-      rar->bytes_unconsumed = 0;
-  }
-
-  if (rar->bytes_remaining > 0) {
-    bytes_skipped = __archive_read_consume(a, rar->bytes_remaining);
-    if (bytes_skipped < 0)
-      return (ARCHIVE_FATAL);
-  }
-
-  /* Compressed data to skip must be read from each header in a multivolume
-   * archive.
-   */
-  if (rar->main_flags & MHD_VOLUME && rar->file_flags & FHD_SPLIT_AFTER)
-  {
-    ret = archive_read_format_rar_read_header(a, a->entry);
-    if (ret == (ARCHIVE_EOF))
-      ret = archive_read_format_rar_read_header(a, a->entry);
-    if (ret != (ARCHIVE_OK))
-      return ret;
-    return archive_read_format_rar_read_data_skip(a);
-  }
-
-  return (ARCHIVE_OK);
-}
-
-static int64_t
-archive_read_format_rar_seek_data(struct archive_read *a, int64_t offset,
-    int whence)
-{
-  int64_t client_offset, ret;
-  unsigned int i;
-  struct rar *rar = (struct rar *)(a->format->data);
-
-  if (rar->compression_method == COMPRESS_METHOD_STORE)
-  {
-    /* Modify the offset for use with SEEK_SET */
-    switch (whence)
-    {
-      case SEEK_CUR:
-        client_offset = rar->offset_seek;
-        break;
-      case SEEK_END:
-        client_offset = rar->unp_size;
-        break;
-      case SEEK_SET:
-      default:
-        client_offset = 0;
-    }
-    client_offset += offset;
-    if (client_offset < 0)
-    {
-      /* Can't seek past beginning of data block */
-      return -1;
-    }
-    else if (client_offset > rar->unp_size)
-    {
-      /*
-       * Set the returned offset but only seek to the end of
-       * the data block.
-       */
-      rar->offset_seek = client_offset;
-      client_offset = rar->unp_size;
-    }
-
-    client_offset += rar->dbo[0].start_offset;
-    i = 0;
-    while (i < rar->cursor)
-    {
-      i++;
-      client_offset += rar->dbo[i].start_offset - rar->dbo[i-1].end_offset;
-    }
-    if (rar->main_flags & MHD_VOLUME)
-    {
-      /* Find the appropriate offset among the multivolume archive */
-      while (1)
-      {
-        if (client_offset < rar->dbo[rar->cursor].start_offset &&
-          rar->file_flags & FHD_SPLIT_BEFORE)
-        {
-          /* Search backwards for the correct data block */
-          if (rar->cursor == 0)
-          {
-            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Attempt to seek past beginning of RAR data block");
-            return (ARCHIVE_FAILED);
-          }
-          rar->cursor--;
-          client_offset -= rar->dbo[rar->cursor+1].start_offset -
-            rar->dbo[rar->cursor].end_offset;
-          if (client_offset < rar->dbo[rar->cursor].start_offset)
-            continue;
-          ret = __archive_read_seek(a, rar->dbo[rar->cursor].start_offset -
-            rar->dbo[rar->cursor].header_size, SEEK_SET);
-          if (ret < (ARCHIVE_OK))
-            return ret;
-          ret = archive_read_format_rar_read_header(a, a->entry);
-          if (ret != (ARCHIVE_OK))
-          {
-            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Error during seek of RAR file");
-            return (ARCHIVE_FAILED);
-          }
-          rar->cursor--;
-          break;
-        }
-        else if (client_offset > rar->dbo[rar->cursor].end_offset &&
-          rar->file_flags & FHD_SPLIT_AFTER)
-        {
-          /* Search forward for the correct data block */
-          rar->cursor++;
-          if (rar->cursor < rar->nodes &&
-            client_offset > rar->dbo[rar->cursor].end_offset)
-          {
-            client_offset += rar->dbo[rar->cursor].start_offset -
-              rar->dbo[rar->cursor-1].end_offset;
-            continue;
-          }
-          rar->cursor--;
-          ret = __archive_read_seek(a, rar->dbo[rar->cursor].end_offset,
-                                    SEEK_SET);
-          if (ret < (ARCHIVE_OK))
-            return ret;
-          ret = archive_read_format_rar_read_header(a, a->entry);
-          if (ret == (ARCHIVE_EOF))
-          {
-            rar->has_endarc_header = 1;
-            ret = archive_read_format_rar_read_header(a, a->entry);
-          }
-          if (ret != (ARCHIVE_OK))
-          {
-            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-              "Error during seek of RAR file");
-            return (ARCHIVE_FAILED);
-          }
-          client_offset += rar->dbo[rar->cursor].start_offset -
-            rar->dbo[rar->cursor-1].end_offset;
-          continue;
-        }
-        break;
-      }
-    }
-
-    ret = __archive_read_seek(a, client_offset, SEEK_SET);
-    if (ret < (ARCHIVE_OK))
-      return ret;
-    rar->bytes_remaining = rar->dbo[rar->cursor].end_offset - ret;
-    i = rar->cursor;
-    while (i > 0)
-    {
-      i--;
-      ret -= rar->dbo[i+1].start_offset - rar->dbo[i].end_offset;
-    }
-    ret -= rar->dbo[0].start_offset;
-
-    /* Always restart reading the file after a seek */
-    __archive_reset_read_data(&a->archive);
-
-    rar->bytes_unconsumed = 0;
-    rar->offset = 0;
-
-    /*
-     * If a seek past the end of file was requested, return the requested
-     * offset.
-     */
-    if (ret == rar->unp_size && rar->offset_seek > rar->unp_size)
-      return rar->offset_seek;
-
-    /* Return the new offset */
-    rar->offset_seek = ret;
-    return rar->offset_seek;
-  }
-  else
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-      "Seeking of compressed RAR files is unsupported");
-  }
-  return (ARCHIVE_FAILED);
-}
-
-static int
-archive_read_format_rar_cleanup(struct archive_read *a)
-{
-  struct rar *rar;
-
-  rar = (struct rar *)(a->format->data);
-  free_codes(a);
-  free(rar->filename);
-  free(rar->filename_save);
-  free(rar->dbo);
-  free(rar->unp_buffer);
-  free(rar->lzss.window);
-  __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
-  free(rar);
-  (a->format->data) = NULL;
-  return (ARCHIVE_OK);
-}
-
-static int
-read_header(struct archive_read *a, struct archive_entry *entry,
-            char head_type)
-{
-  const void *h;
-  const char *p, *endp;
-  struct rar *rar;
-  struct rar_header rar_header;
-  struct rar_file_header file_header;
-  int64_t header_size;
-  unsigned filename_size, end;
-  char *filename;
-  char *strp;
-  char packed_size[8];
-  char unp_size[8];
-  int ttime;
-  struct archive_string_conv *sconv, *fn_sconv;
-  unsigned long crc32_val;
-  int ret = (ARCHIVE_OK), ret2;
-
-  rar = (struct rar *)(a->format->data);
-
-  /* Setup a string conversion object for non-rar-unicode filenames. */
-  sconv = rar->opt_sconv;
-  if (sconv == NULL) {
-    if (!rar->init_default_conversion) {
-      rar->sconv_default =
-          archive_string_default_conversion_for_read(
-            &(a->archive));
-      rar->init_default_conversion = 1;
-    }
-    sconv = rar->sconv_default;
-  }
-
-
-  if ((h = __archive_read_ahead(a, 7, NULL)) == NULL)
-    return (ARCHIVE_FATAL);
-  p = h;
-  memcpy(&rar_header, p, sizeof(rar_header));
-  rar->file_flags = archive_le16dec(rar_header.flags);
-  header_size = archive_le16dec(rar_header.size);
-  if (header_size < (int64_t)sizeof(file_header) + 7) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Invalid header size");
-    return (ARCHIVE_FATAL);
-  }
-  crc32_val = crc32(0, (const unsigned char *)p + 2, 7 - 2);
-  __archive_read_consume(a, 7);
-
-  if (!(rar->file_flags & FHD_SOLID))
-  {
-    rar->compression_method = 0;
-    rar->packed_size = 0;
-    rar->unp_size = 0;
-    rar->mtime = 0;
-    rar->ctime = 0;
-    rar->atime = 0;
-    rar->arctime = 0;
-    rar->mode = 0;
-    memset(&rar->salt, 0, sizeof(rar->salt));
-    rar->atime = 0;
-    rar->ansec = 0;
-    rar->ctime = 0;
-    rar->cnsec = 0;
-    rar->mtime = 0;
-    rar->mnsec = 0;
-    rar->arctime = 0;
-    rar->arcnsec = 0;
-  }
-  else
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR solid archive support unavailable.");
-    return (ARCHIVE_FATAL);
-  }
-
-  if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
-    return (ARCHIVE_FATAL);
-
-  /* File Header CRC check. */
-  crc32_val = crc32(crc32_val, h, (unsigned)(header_size - 7));
-  if ((crc32_val & 0xffff) != archive_le16dec(rar_header.crc)) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Header CRC error");
-    return (ARCHIVE_FATAL);
-  }
-  /* If no CRC error, Go on parsing File Header. */
-  p = h;
-  endp = p + header_size - 7;
-  memcpy(&file_header, p, sizeof(file_header));
-  p += sizeof(file_header);
-
-  rar->compression_method = file_header.method;
-
-  ttime = archive_le32dec(file_header.file_time);
-  rar->mtime = get_time(ttime);
-
-  rar->file_crc = archive_le32dec(file_header.file_crc);
-
-  if (rar->file_flags & FHD_PASSWORD)
-  {
-	archive_entry_set_is_data_encrypted(entry, 1);
-	rar->has_encrypted_entries = 1;
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "RAR encryption support unavailable.");
-    /* Since it is only the data part itself that is encrypted we can at least
-       extract information about the currently processed entry and don't need
-       to return ARCHIVE_FATAL here. */
-    /*return (ARCHIVE_FATAL);*/
-  }
-
-  if (rar->file_flags & FHD_LARGE)
-  {
-    memcpy(packed_size, file_header.pack_size, 4);
-    memcpy(packed_size + 4, p, 4); /* High pack size */
-    p += 4;
-    memcpy(unp_size, file_header.unp_size, 4);
-    memcpy(unp_size + 4, p, 4); /* High unpack size */
-    p += 4;
-    rar->packed_size = archive_le64dec(&packed_size);
-    rar->unp_size = archive_le64dec(&unp_size);
-  }
-  else
-  {
-    rar->packed_size = archive_le32dec(file_header.pack_size);
-    rar->unp_size = archive_le32dec(file_header.unp_size);
-  }
-
-  if (rar->packed_size < 0 || rar->unp_size < 0)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Invalid sizes specified.");
-    return (ARCHIVE_FATAL);
-  }
-
-  rar->bytes_remaining = rar->packed_size;
-
-  /* TODO: RARv3 subblocks contain comments. For now the complete block is
-   * consumed at the end.
-   */
-  if (head_type == NEWSUB_HEAD) {
-    size_t distance = p - (const char *)h;
-    header_size += rar->packed_size;
-    /* Make sure we have the extended data. */
-    if ((h = __archive_read_ahead(a, (size_t)header_size - 7, NULL)) == NULL)
-        return (ARCHIVE_FATAL);
-    p = h;
-    endp = p + header_size - 7;
-    p += distance;
-  }
-
-  filename_size = archive_le16dec(file_header.name_size);
-  if (p + filename_size > endp) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-      "Invalid filename size");
-    return (ARCHIVE_FATAL);
-  }
-  if (rar->filename_allocated < filename_size * 2 + 2) {
-    char *newptr;
-    size_t newsize = filename_size * 2 + 2;
-    newptr = realloc(rar->filename, newsize);
-    if (newptr == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Couldn't allocate memory.");
-      return (ARCHIVE_FATAL);
-    }
-    rar->filename = newptr;
-    rar->filename_allocated = newsize;
-  }
-  filename = rar->filename;
-  memcpy(filename, p, filename_size);
-  filename[filename_size] = '\0';
-  if (rar->file_flags & FHD_UNICODE)
-  {
-    if (filename_size != strlen(filename))
-    {
-      unsigned char highbyte, flagbits, flagbyte;
-      unsigned fn_end, offset;
-
-      end = filename_size;
-      fn_end = filename_size * 2;
-      filename_size = 0;
-      offset = (unsigned)strlen(filename) + 1;
-      highbyte = *(p + offset++);
-      flagbits = 0;
-      flagbyte = 0;
-      while (offset < end && filename_size < fn_end)
-      {
-        if (!flagbits)
-        {
-          flagbyte = *(p + offset++);
-          flagbits = 8;
-        }
-
-        flagbits -= 2;
-        switch((flagbyte >> flagbits) & 3)
-        {
-          case 0:
-            filename[filename_size++] = '\0';
-            filename[filename_size++] = *(p + offset++);
-            break;
-          case 1:
-            filename[filename_size++] = highbyte;
-            filename[filename_size++] = *(p + offset++);
-            break;
-          case 2:
-            filename[filename_size++] = *(p + offset + 1);
-            filename[filename_size++] = *(p + offset);
-            offset += 2;
-            break;
-          case 3:
-          {
-            char extra, high;
-            uint8_t length = *(p + offset++);
-
-            if (length & 0x80) {
-              extra = *(p + offset++);
-              high = (char)highbyte;
-            } else
-              extra = high = 0;
-            length = (length & 0x7f) + 2;
-            while (length && filename_size < fn_end) {
-              unsigned cp = filename_size >> 1;
-              filename[filename_size++] = high;
-              filename[filename_size++] = p[cp] + extra;
-              length--;
-            }
-          }
-          break;
-        }
-      }
-      if (filename_size > fn_end) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-          "Invalid filename");
-        return (ARCHIVE_FATAL);
-      }
-      filename[filename_size++] = '\0';
-      filename[filename_size++] = '\0';
-
-      /* Decoded unicode form is UTF-16BE, so we have to update a string
-       * conversion object for it. */
-      if (rar->sconv_utf16be == NULL) {
-        rar->sconv_utf16be = archive_string_conversion_from_charset(
-           &a->archive, "UTF-16BE", 1);
-        if (rar->sconv_utf16be == NULL)
-          return (ARCHIVE_FATAL);
-      }
-      fn_sconv = rar->sconv_utf16be;
-
-      strp = filename;
-      while (memcmp(strp, "\x00\x00", 2))
-      {
-        if (!memcmp(strp, "\x00\\", 2))
-          *(strp + 1) = '/';
-        strp += 2;
-      }
-      p += offset;
-    } else {
-      /*
-       * If FHD_UNICODE is set but no unicode data, this file name form
-       * is UTF-8, so we have to update a string conversion object for
-       * it accordingly.
-       */
-      if (rar->sconv_utf8 == NULL) {
-        rar->sconv_utf8 = archive_string_conversion_from_charset(
-           &a->archive, "UTF-8", 1);
-        if (rar->sconv_utf8 == NULL)
-          return (ARCHIVE_FATAL);
-      }
-      fn_sconv = rar->sconv_utf8;
-      while ((strp = strchr(filename, '\\')) != NULL)
-        *strp = '/';
-      p += filename_size;
-    }
-  }
-  else
-  {
-    fn_sconv = sconv;
-    while ((strp = strchr(filename, '\\')) != NULL)
-      *strp = '/';
-    p += filename_size;
-  }
-
-  /* Split file in multivolume RAR. No more need to process header. */
-  if (rar->filename_save &&
-    filename_size == rar->filename_save_size &&
-    !memcmp(rar->filename, rar->filename_save, filename_size + 1))
-  {
-    __archive_read_consume(a, header_size - 7);
-    rar->cursor++;
-    if (rar->cursor >= rar->nodes)
-    {
-      rar->nodes++;
-      if ((rar->dbo =
-        realloc(rar->dbo, sizeof(*rar->dbo) * rar->nodes)) == NULL)
-      {
-        archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
-        return (ARCHIVE_FATAL);
-      }
-      rar->dbo[rar->cursor].header_size = header_size;
-      rar->dbo[rar->cursor].start_offset = -1;
-      rar->dbo[rar->cursor].end_offset = -1;
-    }
-    if (rar->dbo[rar->cursor].start_offset < 0)
-    {
-      rar->dbo[rar->cursor].start_offset = a->filter->position;
-      rar->dbo[rar->cursor].end_offset = rar->dbo[rar->cursor].start_offset +
-        rar->packed_size;
-    }
-    return ret;
-  }
-
-  rar->filename_save = (char*)realloc(rar->filename_save,
-                                      filename_size + 1);
-  memcpy(rar->filename_save, rar->filename, filename_size + 1);
-  rar->filename_save_size = filename_size;
-
-  /* Set info for seeking */
-  free(rar->dbo);
-  if ((rar->dbo = calloc(1, sizeof(*rar->dbo))) == NULL)
-  {
-    archive_set_error(&a->archive, ENOMEM, "Couldn't allocate memory.");
-    return (ARCHIVE_FATAL);
-  }
-  rar->dbo[0].header_size = header_size;
-  rar->dbo[0].start_offset = -1;
-  rar->dbo[0].end_offset = -1;
-  rar->cursor = 0;
-  rar->nodes = 1;
-
-  if (rar->file_flags & FHD_SALT)
-  {
-    if (p + 8 > endp) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-        "Invalid header size");
-      return (ARCHIVE_FATAL);
-    }
-    memcpy(rar->salt, p, 8);
-    p += 8;
-  }
-
-  if (rar->file_flags & FHD_EXTTIME) {
-    if (read_exttime(p, rar, endp) < 0) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-        "Invalid header size");
-      return (ARCHIVE_FATAL);
-    }
-  }
-
-  __archive_read_consume(a, header_size - 7);
-  rar->dbo[0].start_offset = a->filter->position;
-  rar->dbo[0].end_offset = rar->dbo[0].start_offset + rar->packed_size;
-
-  switch(file_header.host_os)
-  {
-  case OS_MSDOS:
-  case OS_OS2:
-  case OS_WIN32:
-    rar->mode = archive_le32dec(file_header.file_attr);
-    if (rar->mode & FILE_ATTRIBUTE_DIRECTORY)
-      rar->mode = AE_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
-    else
-      rar->mode = AE_IFREG;
-    rar->mode |= S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    break;
-
-  case OS_UNIX:
-  case OS_MAC_OS:
-  case OS_BEOS:
-    rar->mode = archive_le32dec(file_header.file_attr);
-    break;
-
-  default:
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Unknown file attributes from RAR file's host OS");
-    return (ARCHIVE_FATAL);
-  }
-
-  rar->bytes_uncopied = rar->bytes_unconsumed = 0;
-  rar->lzss.position = rar->offset = 0;
-  rar->offset_seek = 0;
-  rar->dictionary_size = 0;
-  rar->offset_outgoing = 0;
-  rar->br.cache_avail = 0;
-  rar->br.avail_in = 0;
-  rar->crc_calculated = 0;
-  rar->entry_eof = 0;
-  rar->valid = 1;
-  rar->is_ppmd_block = 0;
-  rar->start_new_table = 1;
-  free(rar->unp_buffer);
-  rar->unp_buffer = NULL;
-  rar->unp_offset = 0;
-  rar->unp_buffer_size = UNP_BUFFER_SIZE;
-  memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
-  __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
-  rar->ppmd_valid = rar->ppmd_eod = 0;
-
-  /* Don't set any archive entries for non-file header types */
-  if (head_type == NEWSUB_HEAD)
-    return ret;
-
-  archive_entry_set_mtime(entry, rar->mtime, rar->mnsec);
-  archive_entry_set_ctime(entry, rar->ctime, rar->cnsec);
-  archive_entry_set_atime(entry, rar->atime, rar->ansec);
-  archive_entry_set_size(entry, rar->unp_size);
-  archive_entry_set_mode(entry, rar->mode);
-
-  if (archive_entry_copy_pathname_l(entry, filename, filename_size, fn_sconv))
-  {
-    if (errno == ENOMEM)
-    {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Can't allocate memory for Pathname");
-      return (ARCHIVE_FATAL);
-    }
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Pathname cannot be converted from %s to current locale.",
-                      archive_string_conversion_charset_name(fn_sconv));
-    ret = (ARCHIVE_WARN);
-  }
-
-  if (((rar->mode) & AE_IFMT) == AE_IFLNK)
-  {
-    /* Make sure a symbolic-link file does not have its body. */
-    rar->bytes_remaining = 0;
-    archive_entry_set_size(entry, 0);
-
-    /* Read a symbolic-link name. */
-    if ((ret2 = read_symlink_stored(a, entry, sconv)) < (ARCHIVE_WARN))
-      return ret2;
-    if (ret > ret2)
-      ret = ret2;
-  }
-
-  if (rar->bytes_remaining == 0)
-    rar->entry_eof = 1;
-
-  return ret;
-}
-
-static time_t
-get_time(int ttime)
-{
-  struct tm tm;
-  tm.tm_sec = 2 * (ttime & 0x1f);
-  tm.tm_min = (ttime >> 5) & 0x3f;
-  tm.tm_hour = (ttime >> 11) & 0x1f;
-  tm.tm_mday = (ttime >> 16) & 0x1f;
-  tm.tm_mon = ((ttime >> 21) & 0x0f) - 1;
-  tm.tm_year = ((ttime >> 25) & 0x7f) + 80;
-  tm.tm_isdst = -1;
-  return mktime(&tm);
-}
-
-static int
-read_exttime(const char *p, struct rar *rar, const char *endp)
-{
-  unsigned rmode, flags, rem, j, count;
-  int ttime, i;
-  struct tm *tm;
-  time_t t;
-  long nsec;
-
-  if (p + 2 > endp)
-    return (-1);
-  flags = archive_le16dec(p);
-  p += 2;
-
-  for (i = 3; i >= 0; i--)
-  {
-    t = 0;
-    if (i == 3)
-      t = rar->mtime;
-    rmode = flags >> i * 4;
-    if (rmode & 8)
-    {
-      if (!t)
-      {
-        if (p + 4 > endp)
-          return (-1);
-        ttime = archive_le32dec(p);
-        t = get_time(ttime);
-        p += 4;
-      }
-      rem = 0;
-      count = rmode & 3;
-      if (p + count > endp)
-        return (-1);
-      for (j = 0; j < count; j++)
-      {
-        rem = ((*p) << 16) | (rem >> 8);
-        p++;
-      }
-      tm = localtime(&t);
-      nsec = tm->tm_sec + rem / NS_UNIT;
-      if (rmode & 4)
-      {
-        tm->tm_sec++;
-        t = mktime(tm);
-      }
-      if (i == 3)
-      {
-        rar->mtime = t;
-        rar->mnsec = nsec;
-      }
-      else if (i == 2)
-      {
-        rar->ctime = t;
-        rar->cnsec = nsec;
-      }
-      else if (i == 1)
-      {
-        rar->atime = t;
-        rar->ansec = nsec;
-      }
-      else
-      {
-        rar->arctime = t;
-        rar->arcnsec = nsec;
-      }
-    }
-  }
-  return (0);
-}
-
-static int
-read_symlink_stored(struct archive_read *a, struct archive_entry *entry,
-                    struct archive_string_conv *sconv)
-{
-  const void *h;
-  const char *p;
-  struct rar *rar;
-  int ret = (ARCHIVE_OK);
-
-  rar = (struct rar *)(a->format->data);
-  if ((h = rar_read_ahead(a, (size_t)rar->packed_size, NULL)) == NULL)
-    return (ARCHIVE_FATAL);
-  p = h;
-
-  if (archive_entry_copy_symlink_l(entry,
-      p, (size_t)rar->packed_size, sconv))
-  {
-    if (errno == ENOMEM)
-    {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Can't allocate memory for link");
-      return (ARCHIVE_FATAL);
-    }
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "link cannot be converted from %s to current locale.",
-                      archive_string_conversion_charset_name(sconv));
-    ret = (ARCHIVE_WARN);
-  }
-  __archive_read_consume(a, rar->packed_size);
-  return ret;
-}
-
-static int
-read_data_stored(struct archive_read *a, const void **buff, size_t *size,
-                 int64_t *offset)
-{
-  struct rar *rar;
-  ssize_t bytes_avail;
-
-  rar = (struct rar *)(a->format->data);
-  if (rar->bytes_remaining == 0 &&
-    !(rar->main_flags & MHD_VOLUME && rar->file_flags & FHD_SPLIT_AFTER))
-  {
-    *buff = NULL;
-    *size = 0;
-    *offset = rar->offset;
-    if (rar->file_crc != rar->crc_calculated) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                        "File CRC error");
-      return (ARCHIVE_FATAL);
-    }
-    rar->entry_eof = 1;
-    return (ARCHIVE_EOF);
-  }
-
-  *buff = rar_read_ahead(a, 1, &bytes_avail);
-  if (bytes_avail <= 0)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Truncated RAR file data");
-    return (ARCHIVE_FATAL);
-  }
-
-  *size = bytes_avail;
-  *offset = rar->offset;
-  rar->offset += bytes_avail;
-  rar->offset_seek += bytes_avail;
-  rar->bytes_remaining -= bytes_avail;
-  rar->bytes_unconsumed = bytes_avail;
-  /* Calculate File CRC. */
-  rar->crc_calculated = crc32(rar->crc_calculated, *buff,
-    (unsigned)bytes_avail);
-  return (ARCHIVE_OK);
-}
-
-static int
-read_data_compressed(struct archive_read *a, const void **buff, size_t *size,
-               int64_t *offset)
-{
-  struct rar *rar;
-  int64_t start, end, actualend;
-  size_t bs;
-  int ret = (ARCHIVE_OK), sym, code, lzss_offset, length, i;
-
-  rar = (struct rar *)(a->format->data);
-
-  do {
-    if (!rar->valid)
-      return (ARCHIVE_FATAL);
-    if (rar->ppmd_eod ||
-       (rar->dictionary_size && rar->offset >= rar->unp_size))
-    {
-      if (rar->unp_offset > 0) {
-        /*
-         * We have unprocessed extracted data. write it out.
-         */
-        *buff = rar->unp_buffer;
-        *size = rar->unp_offset;
-        *offset = rar->offset_outgoing;
-        rar->offset_outgoing += *size;
-        /* Calculate File CRC. */
-        rar->crc_calculated = crc32(rar->crc_calculated, *buff,
-          (unsigned)*size);
-        rar->unp_offset = 0;
-        return (ARCHIVE_OK);
-      }
-      *buff = NULL;
-      *size = 0;
-      *offset = rar->offset;
-      if (rar->file_crc != rar->crc_calculated) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "File CRC error");
-        return (ARCHIVE_FATAL);
-      }
-      rar->entry_eof = 1;
-      return (ARCHIVE_EOF);
-    }
-
-    if (!rar->is_ppmd_block && rar->dictionary_size && rar->bytes_uncopied > 0)
-    {
-      if (rar->bytes_uncopied > (rar->unp_buffer_size - rar->unp_offset))
-        bs = rar->unp_buffer_size - rar->unp_offset;
-      else
-        bs = (size_t)rar->bytes_uncopied;
-      ret = copy_from_lzss_window(a, buff, rar->offset, (int)bs);
-      if (ret != ARCHIVE_OK)
-        return (ret);
-      rar->offset += bs;
-      rar->bytes_uncopied -= bs;
-      if (*buff != NULL) {
-        rar->unp_offset = 0;
-        *size = rar->unp_buffer_size;
-        *offset = rar->offset_outgoing;
-        rar->offset_outgoing += *size;
-        /* Calculate File CRC. */
-        rar->crc_calculated = crc32(rar->crc_calculated, *buff,
-          (unsigned)*size);
-        return (ret);
-      }
-      continue;
-    }
-
-    if (!rar->br.next_in &&
-      (ret = rar_br_preparation(a, &(rar->br))) < ARCHIVE_WARN)
-      return (ret);
-    if (rar->start_new_table && ((ret = parse_codes(a)) < (ARCHIVE_WARN)))
-      return (ret);
-
-    if (rar->is_ppmd_block)
-    {
-      if ((sym = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
-        &rar->ppmd7_context, &rar->range_dec.p)) < 0)
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Invalid symbol");
-        return (ARCHIVE_FATAL);
-      }
-      if(sym != rar->ppmd_escape)
-      {
-        lzss_emit_literal(rar, sym);
-        rar->bytes_uncopied++;
-      }
-      else
-      {
-        if ((code = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
-          &rar->ppmd7_context, &rar->range_dec.p)) < 0)
-        {
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                            "Invalid symbol");
-          return (ARCHIVE_FATAL);
-        }
-
-        switch(code)
-        {
-          case 0:
-            rar->start_new_table = 1;
-            return read_data_compressed(a, buff, size, offset);
-
-          case 2:
-            rar->ppmd_eod = 1;/* End Of ppmd Data. */
-            continue;
-
-          case 3:
-            archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                              "Parsing filters is unsupported.");
-            return (ARCHIVE_FAILED);
-
-          case 4:
-            lzss_offset = 0;
-            for (i = 2; i >= 0; i--)
-            {
-              if ((code = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
-                &rar->ppmd7_context, &rar->range_dec.p)) < 0)
-              {
-                archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                                  "Invalid symbol");
-                return (ARCHIVE_FATAL);
-              }
-              lzss_offset |= code << (i * 8);
-            }
-            if ((length = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
-              &rar->ppmd7_context, &rar->range_dec.p)) < 0)
-            {
-              archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                                "Invalid symbol");
-              return (ARCHIVE_FATAL);
-            }
-            lzss_emit_match(rar, lzss_offset + 2, length + 32);
-            rar->bytes_uncopied += length + 32;
-            break;
-
-          case 5:
-            if ((length = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
-              &rar->ppmd7_context, &rar->range_dec.p)) < 0)
-            {
-              archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                                "Invalid symbol");
-              return (ARCHIVE_FATAL);
-            }
-            lzss_emit_match(rar, 1, length + 4);
-            rar->bytes_uncopied += length + 4;
-            break;
-
-         default:
-           lzss_emit_literal(rar, sym);
-           rar->bytes_uncopied++;
-        }
-      }
-    }
-    else
-    {
-      start = rar->offset;
-      end = start + rar->dictionary_size;
-      rar->filterstart = INT64_MAX;
-
-      if ((actualend = expand(a, end)) < 0)
-        return ((int)actualend);
-
-      rar->bytes_uncopied = actualend - start;
-      if (rar->bytes_uncopied == 0) {
-          /* Broken RAR files cause this case.
-          * NOTE: If this case were possible on a normal RAR file
-          * we would find out where it was actually bad and
-          * what we would do to solve it. */
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                            "Internal error extracting RAR file");
-          return (ARCHIVE_FATAL);
-      }
-    }
-    if (rar->bytes_uncopied > (rar->unp_buffer_size - rar->unp_offset))
-      bs = rar->unp_buffer_size - rar->unp_offset;
-    else
-      bs = (size_t)rar->bytes_uncopied;
-    ret = copy_from_lzss_window(a, buff, rar->offset, (int)bs);
-    if (ret != ARCHIVE_OK)
-      return (ret);
-    rar->offset += bs;
-    rar->bytes_uncopied -= bs;
-    /*
-     * If *buff is NULL, it means unp_buffer is not full.
-     * So we have to continue extracting a RAR file.
-     */
-  } while (*buff == NULL);
-
-  rar->unp_offset = 0;
-  *size = rar->unp_buffer_size;
-  *offset = rar->offset_outgoing;
-  rar->offset_outgoing += *size;
-  /* Calculate File CRC. */
-  rar->crc_calculated = crc32(rar->crc_calculated, *buff, (unsigned)*size);
-  return ret;
-}
-
-static int
-parse_codes(struct archive_read *a)
-{
-  int i, j, val, n, r;
-  unsigned char bitlengths[MAX_SYMBOLS], zerocount, ppmd_flags;
-  unsigned int maxorder;
-  struct huffman_code precode;
-  struct rar *rar = (struct rar *)(a->format->data);
-  struct rar_br *br = &(rar->br);
-
-  free_codes(a);
-
-  /* Skip to the next byte */
-  rar_br_consume_unalined_bits(br);
-
-  /* PPMd block flag */
-  if (!rar_br_read_ahead(a, br, 1))
-    goto truncated_data;
-  if ((rar->is_ppmd_block = rar_br_bits(br, 1)) != 0)
-  {
-    rar_br_consume(br, 1);
-    if (!rar_br_read_ahead(a, br, 7))
-      goto truncated_data;
-    ppmd_flags = rar_br_bits(br, 7);
-    rar_br_consume(br, 7);
-
-    /* Memory is allocated in MB */
-    if (ppmd_flags & 0x20)
-    {
-      if (!rar_br_read_ahead(a, br, 8))
-        goto truncated_data;
-      rar->dictionary_size = (rar_br_bits(br, 8) + 1) << 20;
-      rar_br_consume(br, 8);
-    }
-
-    if (ppmd_flags & 0x40)
-    {
-      if (!rar_br_read_ahead(a, br, 8))
-        goto truncated_data;
-      rar->ppmd_escape = rar->ppmd7_context.InitEsc = rar_br_bits(br, 8);
-      rar_br_consume(br, 8);
-    }
-    else
-      rar->ppmd_escape = 2;
-
-    if (ppmd_flags & 0x20)
-    {
-      maxorder = (ppmd_flags & 0x1F) + 1;
-      if(maxorder > 16)
-        maxorder = 16 + (maxorder - 16) * 3;
-
-      if (maxorder == 1)
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Truncated RAR file data");
-        return (ARCHIVE_FATAL);
-      }
-
-      /* Make sure ppmd7_contest is freed before Ppmd7_Construct
-       * because reading a broken file cause this abnormal sequence. */
-      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
-
-      rar->bytein.a = a;
-      rar->bytein.Read = &ppmd_read;
-      __archive_ppmd7_functions.PpmdRAR_RangeDec_CreateVTable(&rar->range_dec);
-      rar->range_dec.Stream = &rar->bytein;
-      __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
-
-      if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
-        rar->dictionary_size, &g_szalloc))
-      {
-        archive_set_error(&a->archive, ENOMEM,
-                          "Out of memory");
-        return (ARCHIVE_FATAL);
-      }
-      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Unable to initialize PPMd range decoder");
-        return (ARCHIVE_FATAL);
-      }
-      __archive_ppmd7_functions.Ppmd7_Init(&rar->ppmd7_context, maxorder);
-      rar->ppmd_valid = 1;
-    }
-    else
-    {
-      if (!rar->ppmd_valid) {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Invalid PPMd sequence");
-        return (ARCHIVE_FATAL);
-      }
-      if (!__archive_ppmd7_functions.PpmdRAR_RangeDec_Init(&rar->range_dec))
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Unable to initialize PPMd range decoder");
-        return (ARCHIVE_FATAL);
-      }
-    }
-  }
-  else
-  {
-    rar_br_consume(br, 1);
-
-    /* Keep existing table flag */
-    if (!rar_br_read_ahead(a, br, 1))
-      goto truncated_data;
-    if (!rar_br_bits(br, 1))
-      memset(rar->lengthtable, 0, sizeof(rar->lengthtable));
-    rar_br_consume(br, 1);
-
-    memset(&bitlengths, 0, sizeof(bitlengths));
-    for (i = 0; i < MAX_SYMBOLS;)
-    {
-      if (!rar_br_read_ahead(a, br, 4))
-        goto truncated_data;
-      bitlengths[i++] = rar_br_bits(br, 4);
-      rar_br_consume(br, 4);
-      if (bitlengths[i-1] == 0xF)
-      {
-        if (!rar_br_read_ahead(a, br, 4))
-          goto truncated_data;
-        zerocount = rar_br_bits(br, 4);
-        rar_br_consume(br, 4);
-        if (zerocount)
-        {
-          i--;
-          for (j = 0; j < zerocount + 2 && i < MAX_SYMBOLS; j++)
-            bitlengths[i++] = 0;
-        }
-      }
-    }
-
-    memset(&precode, 0, sizeof(precode));
-    r = create_code(a, &precode, bitlengths, MAX_SYMBOLS, MAX_SYMBOL_LENGTH);
-    if (r != ARCHIVE_OK) {
-      free(precode.tree);
-      free(precode.table);
-      return (r);
-    }
-
-    for (i = 0; i < HUFFMAN_TABLE_SIZE;)
-    {
-      if ((val = read_next_symbol(a, &precode)) < 0) {
-        free(precode.tree);
-        free(precode.table);
-        return (ARCHIVE_FATAL);
-      }
-      if (val < 16)
-      {
-        rar->lengthtable[i] = (rar->lengthtable[i] + val) & 0xF;
-        i++;
-      }
-      else if (val < 18)
-      {
-        if (i == 0)
-        {
-          free(precode.tree);
-          free(precode.table);
-          archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                            "Internal error extracting RAR file.");
-          return (ARCHIVE_FATAL);
-        }
-
-        if(val == 16) {
-          if (!rar_br_read_ahead(a, br, 3)) {
-            free(precode.tree);
-            free(precode.table);
-            goto truncated_data;
-          }
-          n = rar_br_bits(br, 3) + 3;
-          rar_br_consume(br, 3);
-        } else {
-          if (!rar_br_read_ahead(a, br, 7)) {
-            free(precode.tree);
-            free(precode.table);
-            goto truncated_data;
-          }
-          n = rar_br_bits(br, 7) + 11;
-          rar_br_consume(br, 7);
-        }
-
-        for (j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
-        {
-          rar->lengthtable[i] = rar->lengthtable[i-1];
-          i++;
-        }
-      }
-      else
-      {
-        if(val == 18) {
-          if (!rar_br_read_ahead(a, br, 3)) {
-            free(precode.tree);
-            free(precode.table);
-            goto truncated_data;
-          }
-          n = rar_br_bits(br, 3) + 3;
-          rar_br_consume(br, 3);
-        } else {
-          if (!rar_br_read_ahead(a, br, 7)) {
-            free(precode.tree);
-            free(precode.table);
-            goto truncated_data;
-          }
-          n = rar_br_bits(br, 7) + 11;
-          rar_br_consume(br, 7);
-        }
-
-        for(j = 0; j < n && i < HUFFMAN_TABLE_SIZE; j++)
-          rar->lengthtable[i++] = 0;
-      }
-    }
-    free(precode.tree);
-    free(precode.table);
-
-    r = create_code(a, &rar->maincode, &rar->lengthtable[0], MAINCODE_SIZE,
-                MAX_SYMBOL_LENGTH);
-    if (r != ARCHIVE_OK)
-      return (r);
-    r = create_code(a, &rar->offsetcode, &rar->lengthtable[MAINCODE_SIZE],
-                OFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
-    if (r != ARCHIVE_OK)
-      return (r);
-    r = create_code(a, &rar->lowoffsetcode,
-                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE],
-                LOWOFFSETCODE_SIZE, MAX_SYMBOL_LENGTH);
-    if (r != ARCHIVE_OK)
-      return (r);
-    r = create_code(a, &rar->lengthcode,
-                &rar->lengthtable[MAINCODE_SIZE + OFFSETCODE_SIZE +
-                LOWOFFSETCODE_SIZE], LENGTHCODE_SIZE, MAX_SYMBOL_LENGTH);
-    if (r != ARCHIVE_OK)
-      return (r);
-  }
-
-  if (!rar->dictionary_size || !rar->lzss.window)
-  {
-    /* Seems as though dictionary sizes are not used. Even so, minimize
-     * memory usage as much as possible.
-     */
-    void *new_window;
-    unsigned int new_size;
-
-    if (rar->unp_size >= DICTIONARY_MAX_SIZE)
-      new_size = DICTIONARY_MAX_SIZE;
-    else
-      new_size = rar_fls((unsigned int)rar->unp_size) << 1;
-    new_window = realloc(rar->lzss.window, new_size);
-    if (new_window == NULL) {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Unable to allocate memory for uncompressed data.");
-      return (ARCHIVE_FATAL);
-    }
-    rar->lzss.window = (unsigned char *)new_window;
-    rar->dictionary_size = new_size;
-    memset(rar->lzss.window, 0, rar->dictionary_size);
-    rar->lzss.mask = rar->dictionary_size - 1;
-  }
-
-  rar->start_new_table = 0;
-  return (ARCHIVE_OK);
-truncated_data:
-  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                    "Truncated RAR file data");
-  rar->valid = 0;
-  return (ARCHIVE_FATAL);
-}
-
+/*
+ * If pathname is longer than PATH_MAX, chdir to a suitable
+ * intermediate dir and edit the path down to a shorter suffix.  Note
+ * that this routine never returns an error; if the chdir() attempt
+ * fails for any reason, we just go ahead with the long pathname.  The
+ * object creation is likely to fail, but any error will get handled
+ * at that time.
+ */
+#if defined(HAVE_FCHDIR) && defined(PATH_MAX)
 static void
-free_codes(struct archive_read *a)
+edit_deep_directories(struct archive_write_disk *a)
 {
-  struct rar *rar = (struct rar *)(a->format->data);
-  free(rar->maincode.tree);
-  free(rar->offsetcode.tree);
-  free(rar->lowoffsetcode.tree);
-  free(rar->lengthcode.tree);
-  free(rar->maincode.table);
-  free(rar->offsetcode.table);
-  free(rar->lowoffsetcode.table);
-  free(rar->lengthcode.table);
-  memset(&rar->maincode, 0, sizeof(rar->maincode));
-  memset(&rar->offsetcode, 0, sizeof(rar->offsetcode));
-  memset(&rar->lowoffsetcode, 0, sizeof(rar->lowoffsetcode));
-  memset(&rar->lengthcode, 0, sizeof(rar->lengthcode));
+	int ret;
+	char *tail = a->name;
+
+	/* If path is short, avoid the open() below. */
+	if (strlen(tail) <= PATH_MAX)
+		return;
+
+	/* Try to record our starting dir. */
+	a->restore_pwd = open(".", O_RDONLY | O_BINARY | O_CLOEXEC);
+	__archive_ensure_cloexec_flag(a->restore_pwd);
+	if (a->restore_pwd < 0)
+		return;
+
+	/* As long as the path is too long... */
+	while (strlen(tail) > PATH_MAX) {
+		/* Locate a dir prefix shorter than PATH_MAX. */
+		tail += PATH_MAX - 8;
+		while (tail > a->name && *tail != '/')
+			tail--;
+		/* Exit if we find a too-long path component. */
+		if (tail <= a->name)
+			return;
+		/* Create the intermediate dir and chdir to it. */
+		*tail = '\0'; /* Terminate dir portion */
+		ret = create_dir(a, a->name);
+		if (ret == ARCHIVE_OK && chdir(a->name) != 0)
+			ret = ARCHIVE_FAILED;
+		*tail = '/'; /* Restore the / we removed. */
+		if (ret != ARCHIVE_OK)
+			return;
+		tail++;
+		/* The chdir() succeeded; we've now shortened the path. */
+		a->name = tail;
+	}
+	return;
 }
+#endif
 
-
+/*
+ * The main restore function.
+ */
 static int
-read_next_symbol(struct archive_read *a, struct huffman_code *code)
+restore_entry(struct archive_write_disk *a)
 {
-  unsigned char bit;
-  unsigned int bits;
-  int length, value, node;
-  struct rar *rar;
-  struct rar_br *br;
+	int ret = ARCHIVE_OK, en;
 
-  if (!code->table)
-  {
-    if (make_table(a, code) != (ARCHIVE_OK))
-      return -1;
-  }
+	if (a->flags & ARCHIVE_EXTRACT_UNLINK && !S_ISDIR(a->mode)) {
+		/*
+		 * TODO: Fix this.  Apparently, there are platforms
+		 * that still allow root to hose the entire filesystem
+		 * by unlinking a dir.  The S_ISDIR() test above
+		 * prevents us from using unlink() here if the new
+		 * object is a dir, but that doesn't mean the old
+		 * object isn't a dir.
+		 */
+		if (unlink(a->name) == 0) {
+			/* We removed it, reset cached stat. */
+			a->pst = NULL;
+		} else if (errno == ENOENT) {
+			/* File didn't exist, that's just as good. */
+		} else if (rmdir(a->name) == 0) {
+			/* It was a dir, but now it's gone. */
+			a->pst = NULL;
+		} else {
+			/* We tried, but couldn't get rid of it. */
+			archive_set_error(&a->archive, errno,
+			    "Could not unlink");
+			return(ARCHIVE_FAILED);
+		}
+	}
 
-  rar = (struct rar *)(a->format->data);
-  br = &(rar->br);
+	/* Try creating it first; if this fails, we'll try to recover. */
+	en = create_filesystem_object(a);
 
-  /* Look ahead (peek) at bits */
-  if (!rar_br_read_ahead(a, br, code->tablesize)) {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Truncated RAR file data");
-    rar->valid = 0;
-    return -1;
-  }
-  bits = rar_br_bits(br, code->tablesize);
+	if ((en == ENOTDIR || en == ENOENT)
+	    && !(a->flags & ARCHIVE_EXTRACT_NO_AUTODIR)) {
+		/* If the parent dir doesn't exist, try creating it. */
+		create_parent_dir(a, a->name);
+		/* Now try to create the object again. */
+		en = create_filesystem_object(a);
+	}
 
-  length = code->table[bits].length;
-  value = code->table[bits].value;
+	if ((en == EISDIR || en == EEXIST)
+	    && (a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE)) {
+		/* If we're not overwriting, we're done. */
+		archive_entry_unset_size(a->entry);
+		return (ARCHIVE_OK);
+	}
 
-  if (length < 0)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Invalid prefix code in bitstream");
-    return -1;
-  }
+	/*
+	 * Some platforms return EISDIR if you call
+	 * open(O_WRONLY | O_EXCL | O_CREAT) on a directory, some
+	 * return EEXIST.  POSIX is ambiguous, requiring EISDIR
+	 * for open(O_WRONLY) on a dir and EEXIST for open(O_EXCL | O_CREAT)
+	 * on an existing item.
+	 */
+	if (en == EISDIR) {
+		/* A dir is in the way of a non-dir, rmdir it. */
+		if (rmdir(a->name) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't remove already-existing dir");
+			return (ARCHIVE_FAILED);
+		}
+		a->pst = NULL;
+		/* Try again. */
+		en = create_filesystem_object(a);
+	} else if (en == EEXIST) {
+		/*
+		 * We know something is in the way, but we don't know what;
+		 * we need to find out before we go any further.
+		 */
+		int r = 0;
+		/*
+		 * The SECURE_SYMLINKS logic has already removed a
+		 * symlink to a dir if the client wants that.  So
+		 * follow the symlink if we're creating a dir.
+		 */
+		if (S_ISDIR(a->mode))
+			r = stat(a->name, &a->st);
+		/*
+		 * If it's not a dir (or it's a broken symlink),
+		 * then don't follow it.
+		 */
+		if (r != 0 || !S_ISDIR(a->mode))
+			r = lstat(a->name, &a->st);
+		if (r != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't stat existing object");
+			return (ARCHIVE_FAILED);
+		}
 
-  if (length <= code->tablesize)
-  {
-    /* Skip length bits */
-    rar_br_consume(br, length);
-    return value;
-  }
+		/*
+		 * NO_OVERWRITE_NEWER doesn't apply to directories.
+		 */
+		if ((a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE_NEWER)
+		    &&  !S_ISDIR(a->st.st_mode)) {
+			if (!older(&(a->st), a->entry)) {
+				archive_entry_unset_size(a->entry);
+				return (ARCHIVE_OK);
+			}
+		}
 
-  /* Skip tablesize bits */
-  rar_br_consume(br, code->tablesize);
+		/* If it's our archive, we're done. */
+		if (a->skip_file_set &&
+		    a->st.st_dev == (dev_t)a->skip_file_dev &&
+		    a->st.st_ino == (ino_t)a->skip_file_ino) {
+			archive_set_error(&a->archive, 0,
+			    "Refusing to overwrite archive");
+			return (ARCHIVE_FAILED);
+		}
 
-  node = value;
-  while (!(code->tree[node].branches[0] ==
-    code->tree[node].branches[1]))
-  {
-    if (!rar_br_read_ahead(a, br, 1)) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Truncated RAR file data");
-      rar->valid = 0;
-      return -1;
-    }
-    bit = rar_br_bits(br, 1);
-    rar_br_consume(br, 1);
+		if (!S_ISDIR(a->st.st_mode)) {
+			/* A non-dir is in the way, unlink it. */
+			if (unlink(a->name) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't unlink already-existing object");
+				return (ARCHIVE_FAILED);
+			}
+			a->pst = NULL;
+			/* Try again. */
+			en = create_filesystem_object(a);
+		} else if (!S_ISDIR(a->mode)) {
+			/* A dir is in the way of a non-dir, rmdir it. */
+			if (rmdir(a->name) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't replace existing directory with non-directory");
+				return (ARCHIVE_FAILED);
+			}
+			/* Try again. */
+			en = create_filesystem_object(a);
+		} else {
+			/*
+			 * There's a dir in the way of a dir.  Don't
+			 * waste time with rmdir()/mkdir(), just fix
+			 * up the permissions on the existing dir.
+			 * Note that we don't change perms on existing
+			 * dirs unless _EXTRACT_PERM is specified.
+			 */
+			if ((a->mode != a->st.st_mode)
+			    && (a->todo & TODO_MODE_FORCE))
+				a->deferred |= (a->todo & TODO_MODE);
+			/* Ownership doesn't need deferred fixup. */
+			en = 0; /* Forget the EEXIST. */
+		}
+	}
 
-    if (code->tree[node].branches[bit] < 0)
-    {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Invalid prefix code in bitstream");
-      return -1;
-    }
-    node = code->tree[node].branches[bit];
-  }
+	if (en) {
+		/* Everything failed; give up here. */
+		archive_set_error(&a->archive, en, "Can't create '%s'",
+		    a->name);
+		return (ARCHIVE_FAILED);
+	}
 
-  return code->tree[node].branches[0];
+	a->pst = NULL; /* Cached stat data no longer valid. */
+	return (ret);
 }
 
+/*
+ * Returns 0 if creation succeeds, or else returns errno value from
+ * the failed system call.   Note:  This function should only ever perform
+ * a single system call.
+ */
 static int
-create_code(struct archive_read *a, struct huffman_code *code,
-            unsigned char *lengths, int numsymbols, char maxlength)
+create_filesystem_object(struct archive_write_disk *a)
 {
-  int i, j, codebits = 0, symbolsleft = numsymbols;
+	/* Create the entry. */
+	const char *linkname;
+	mode_t final_mode, mode;
+	int r;
 
-  code->numentries = 0;
-  code->numallocatedentries = 0;
-  if (new_node(code) < 0) {
-    archive_set_error(&a->archive, ENOMEM,
-                      "Unable to allocate memory for node data.");
-    return (ARCHIVE_FATAL);
-  }
-  code->numentries = 1;
-  code->minlength = INT_MAX;
-  code->maxlength = INT_MIN;
-  codebits = 0;
-  for(i = 1; i <= maxlength; i++)
-  {
-    for(j = 0; j < numsymbols; j++)
-    {
-      if (lengths[j] != i) continue;
-      if (add_value(a, code, j, codebits, i) != ARCHIVE_OK)
-        return (ARCHIVE_FATAL);
-      codebits++;
-      if (--symbolsleft <= 0) { break; break; }
-    }
-    codebits <<= 1;
-  }
-  return (ARCHIVE_OK);
+	/* We identify hard/symlinks according to the link names. */
+	/* Since link(2) and symlink(2) don't handle modes, we're done here. */
+	linkname = archive_entry_hardlink(a->entry);
+	if (linkname != NULL) {
+#if !HAVE_LINK
+		return (EPERM);
+#else
+		r = link(linkname, a->name) ? errno : 0;
+		/*
+		 * New cpio and pax formats allow hardlink entries
+		 * to carry data, so we may have to open the file
+		 * for hardlink entries.
+		 *
+		 * If the hardlink was successfully created and
+		 * the archive doesn't have carry data for it,
+		 * consider it to be non-authoritative for meta data.
+		 * This is consistent with GNU tar and BSD pax.
+		 * If the hardlink does carry data, let the last
+		 * archive entry decide ownership.
+		 */
+		if (r == 0 && a->filesize <= 0) {
+			a->todo = 0;
+			a->deferred = 0;
+		} else if (r == 0 && a->filesize > 0) {
+			a->fd = open(a->name,
+				     O_WRONLY | O_TRUNC | O_BINARY | O_CLOEXEC);
+			__archive_ensure_cloexec_flag(a->fd);
+			if (a->fd < 0)
+				r = errno;
+		}
+		return (r);
+#endif
+	}
+	linkname = archive_entry_symlink(a->entry);
+	if (linkname != NULL) {
+#if HAVE_SYMLINK
+		return symlink(linkname, a->name) ? errno : 0;
+#else
+		return (EPERM);
+#endif
+	}
+
+	/*
+	 * The remaining system calls all set permissions, so let's
+	 * try to take advantage of that to avoid an extra chmod()
+	 * call.  (Recall that umask is set to zero right now!)
+	 */
+
+	/* Mode we want for the final restored object (w/o file type bits). */
+	final_mode = a->mode & 07777;
+	/*
+	 * The mode that will actually be restored in this step.  Note
+	 * that SUID, SGID, etc, require additional work to ensure
+	 * security, so we never restore them at this point.
+	 */
+	mode = final_mode & 0777 & ~a->user_umask;
+
+	switch (a->mode & AE_IFMT) {
+	default:
+		/* POSIX requires that we fall through here. */
+		/* FALLTHROUGH */
+	case AE_IFREG:
+		a->fd = open(a->name,
+		    O_WRONLY | O_CREAT | O_EXCL | O_BINARY | O_CLOEXEC, mode);
+		__archive_ensure_cloexec_flag(a->fd);
+		r = (a->fd < 0);
+		break;
+	case AE_IFCHR:
+#ifdef HAVE_MKNOD
+		/* Note: we use AE_IFCHR for the case label, and
+		 * S_IFCHR for the mknod() call.  This is correct.  */
+		r = mknod(a->name, mode | S_IFCHR,
+		    archive_entry_rdev(a->entry));
+		break;
+#else
+		/* TODO: Find a better way to warn about our inability
+		 * to restore a char device node. */
+		return (EINVAL);
+#endif /* HAVE_MKNOD */
+	case AE_IFBLK:
+#ifdef HAVE_MKNOD
+		r = mknod(a->name, mode | S_IFBLK,
+		    archive_entry_rdev(a->entry));
+		break;
+#else
+		/* TODO: Find a better way to warn about our inability
+		 * to restore a block device node. */
+		return (EINVAL);
+#endif /* HAVE_MKNOD */
+	case AE_IFDIR:
+		mode = (mode | MINIMUM_DIR_MODE) & MAXIMUM_DIR_MODE;
+		r = mkdir(a->name, mode);
+		if (r == 0) {
+			/* Defer setting dir times. */
+			a->deferred |= (a->todo & TODO_TIMES);
+			a->todo &= ~TODO_TIMES;
+			/* Never use an immediate chmod(). */
+			/* We can't avoid the chmod() entirely if EXTRACT_PERM
+			 * because of SysV SGID inheritance. */
+			if ((mode != final_mode)
+			    || (a->flags & ARCHIVE_EXTRACT_PERM))
+				a->deferred |= (a->todo & TODO_MODE);
+			a->todo &= ~TODO_MODE;
+		}
+		break;
+	case AE_IFIFO:
+#ifdef HAVE_MKFIFO
+		r = mkfifo(a->name, mode);
+		break;
+#else
+		/* TODO: Find a better way to warn about our inability
+		 * to restore a fifo. */
+		return (EINVAL);
+#endif /* HAVE_MKFIFO */
+	}
+
+	/* All the system calls above set errno on failure. */
+	if (r)
+		return (errno);
+
+	/* If we managed to set the final mode, we've avoided a chmod(). */
+	if (mode == final_mode)
+		a->todo &= ~TODO_MODE;
+	return (0);
 }
 
+/*
+ * Cleanup function for archive_extract.  Mostly, this involves processing
+ * the fixup list, which is used to address a number of problems:
+ *   * Dir permissions might prevent us from restoring a file in that
+ *     dir, so we restore the dir with minimum 0700 permissions first,
+ *     then correct the mode at the end.
+ *   * Similarly, the act of restoring a file touches the directory
+ *     and changes the timestamp on the dir, so we have to touch-up dir
+ *     timestamps at the end as well.
+ *   * Some file flags can interfere with the restore by, for example,
+ *     preventing the creation of hardlinks to those files.
+ *   * Mac OS extended metadata includes ACLs, so must be deferred on dirs.
+ *
+ * Note that tar/cpio do not require that archives be in a particular
+ * order; there is no way to know when the last file has been restored
+ * within a directory, so there's no way to optimize the memory usage
+ * here by fixing up the directory any earlier than the
+ * end-of-archive.
+ *
+ * XXX TODO: Directory ACLs should be restored here, for the same
+ * reason we set directory perms here. XXX
+ */
 static int
-add_value(struct archive_read *a, struct huffman_code *code, int value,
-          int codebits, int length)
+_archive_write_disk_close(struct archive *_a)
 {
-  int repeatpos, lastnode, bitpos, bit, repeatnode, nextnode;
+	struct archive_write_disk *a = (struct archive_write_disk *)_a;
+	struct fixup_entry *next, *p;
+	int ret;
 
-  free(code->table);
-  code->table = NULL;
+	archive_check_magic(&a->archive, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+	    "archive_write_disk_close");
+	ret = _archive_write_disk_finish_entry(&a->archive);
 
-  if(length > code->maxlength)
-    code->maxlength = length;
-  if(length < code->minlength)
-    code->minlength = length;
+	/* Sort dir list so directories are fixed up in depth-first order. */
+	p = sort_dir_list(a->fixup_list);
 
-  repeatpos = -1;
-  if (repeatpos == 0 || (repeatpos >= 0
-    && (((codebits >> (repeatpos - 1)) & 3) == 0
-    || ((codebits >> (repeatpos - 1)) & 3) == 3)))
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Invalid repeat position");
-    return (ARCHIVE_FATAL);
-  }
-
-  lastnode = 0;
-  for (bitpos = length - 1; bitpos >= 0; bitpos--)
-  {
-    bit = (codebits >> bitpos) & 1;
-
-    /* Leaf node check */
-    if (code->tree[lastnode].branches[0] ==
-      code->tree[lastnode].branches[1])
-    {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Prefix found");
-      return (ARCHIVE_FATAL);
-    }
-
-    if (bitpos == repeatpos)
-    {
-      /* Open branch check */
-      if (!(code->tree[lastnode].branches[bit] < 0))
-      {
-        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "Invalid repeating code");
-        return (ARCHIVE_FATAL);
-      }
-
-      if ((repeatnode = new_node(code)) < 0) {
-        archive_set_error(&a->archive, ENOMEM,
-                          "Unable to allocate memory for node data.");
-        return (ARCHIVE_FATAL);
-      }
-      if ((nextnode = new_node(code)) < 0) {
-        archive_set_error(&a->archive, ENOMEM,
-                          "Unable to allocate memory for node data.");
-        return (ARCHIVE_FATAL);
-      }
-
-      /* Set branches */
-      code->tree[lastnode].branches[bit] = repeatnode;
-      code->tree[repeatnode].branches[bit] = repeatnode;
-      code->tree[repeatnode].branches[bit^1] = nextnode;
-      lastnode = nextnode;
-
-      bitpos++; /* terminating bit already handled, skip it */
-    }
-    else
-    {
-      /* Open branch check */
-      if (code->tree[lastnode].branches[bit] < 0)
-      {
-        if (new_node(code) < 0) {
-          archive_set_error(&a->archive, ENOMEM,
-                            "Unable to allocate memory for node data.");
-          return (ARCHIVE_FATAL);
-        }
-        code->tree[lastnode].branches[bit] = code->numentries++;
-      }
-
-      /* set to branch */
-      lastnode = code->tree[lastnode].branches[bit];
-    }
-  }
-
-  if (!(code->tree[lastnode].branches[0] == -1
-    && code->tree[lastnode].branches[1] == -2))
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Prefix found");
-    return (ARCHIVE_FATAL);
-  }
-
-  /* Set leaf value */
-  code->tree[lastnode].branches[0] = value;
-  code->tree[lastnode].branches[1] = value;
-
-  return (ARCHIVE_OK);
-}
-
-static int
-new_node(struct huffman_code *code)
-{
-  void *new_tree;
-  if (code->numallocatedentries == code->numentries) {
-    int new_num_entries = 256;
-    if (code->numentries > 0) {
-        new_num_entries = code->numentries * 2;
-    }
-    new_tree = realloc(code->tree, new_num_entries * sizeof(*code->tree));
-    if (new_tree == NULL)
-        return (-1);
-    code->tree = (struct huffman_tree_node *)new_tree;
-    code->numallocatedentries = new_num_entries;
-  }
-  code->tree[code->numentries].branches[0] = -1;
-  code->tree[code->numentries].branches[1] = -2;
-  return 1;
-}
-
-static int
-make_table(struct archive_read *a, struct huffman_code *code)
-{
-  if (code->maxlength < code->minlength || code->maxlength > 10)
-    code->tablesize = 10;
-  else
-    code->tablesize = code->maxlength;
-
-  code->table =
-    (struct huffman_table_entry *)calloc(1, sizeof(*code->table)
-    * ((size_t)1 << code->tablesize));
-
-  return make_table_recurse(a, code, 0, code->table, 0, code->tablesize);
-}
-
-static int
-make_table_recurse(struct archive_read *a, struct huffman_code *code, int node,
-                   struct huffman_table_entry *table, int depth,
-                   int maxdepth)
-{
-  int currtablesize, i, ret = (ARCHIVE_OK);
-
-  if (!code->tree)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Huffman tree was not created.");
-    return (ARCHIVE_FATAL);
-  }
-  if (node < 0 || node >= code->numentries)
-  {
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Invalid location to Huffman tree specified.");
-    return (ARCHIVE_FATAL);
-  }
-
-  currtablesize = 1 << (maxdepth - depth);
-
-  if (code->tree[node].branches[0] ==
-    code->tree[node].branches[1])
-  {
-    for(i = 0; i < currtablesize; i++)
-    {
-      table[i].length = depth;
-      table[i].value = code->tree[node].branches[0];
-    }
-  }
-  else if (node < 0)
-  {
-    for(i = 0; i < currtablesize; i++)
-      table[i].length = -1;
-  }
-  else
-  {
-    if(depth == maxdepth)
-    {
-      table[0].length = maxdepth + 1;
-      table[0].value = node;
-    }
-    else
-    {
-      ret |= make_table_recurse(a, code, code->tree[node].branches[0], table,
-                                depth + 1, maxdepth);
-      ret |= make_table_recurse(a, code, code->tree[node].branches[1],
-                         table + currtablesize / 2, depth + 1, maxdepth);
-    }
-  }
-  return ret;
-}
-
-static int64_t
-expand(struct archive_read *a, int64_t end)
-{
-  static const unsigned char lengthbases[] =
-    {   0,   1,   2,   3,   4,   5,   6,
-        7,   8,  10,  12,  14,  16,  20,
-       24,  28,  32,  40,  48,  56,  64,
-       80,  96, 112, 128, 160, 192, 224 };
-  static const unsigned char lengthbits[] =
-    { 0, 0, 0, 0, 0, 0, 0,
-      0, 1, 1, 1, 1, 2, 2,
-      2, 2, 3, 3, 3, 3, 4,
-      4, 4, 4, 5, 5, 5, 5 };
-  static const unsigned int offsetbases[] =
-    {       0,       1,       2,       3,       4,       6,
-            8,      12,      16,      24,      32,      48,
-           64,      96,     128,     192,     256,     384,
-          512,     768,    1024,    1536,    2048,    3072,
-         4096,    6144,    8192,   12288,   16384,   24576,
-        32768,   49152,   65536,   98304,  131072,  196608,
-       262144,  327680,  393216,  458752,  524288,  589824,
-       655360,  720896,  786432,  851968,  917504,  983040,
-      1048576, 1310720, 1572864, 1835008, 2097152, 2359296,
-      2621440, 2883584, 3145728, 3407872, 3670016, 3932160 };
-  static const unsigned char offsetbits[] =
-    {  0,  0,  0,  0,  1,  1,  2,  2,  3,  3,  4,  4,
-       5,  5,  6,  6,  7,  7,  8,  8,  9,  9, 10, 10,
-      11, 11, 12, 12, 13, 13, 14, 14, 15, 15, 16, 16,
-      16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
-      18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18 };
-  static const unsigned char shortbases[] =
-    { 0, 4, 8, 16, 32, 64, 128, 192 };
-  static const unsigned char shortbits[] =
-    { 2, 2, 3, 4, 5, 6, 6, 6 };
-
-  int symbol, offs, len, offsindex, lensymbol, i, offssymbol, lowoffsetsymbol;
-  unsigned char newfile;
-  struct rar *rar = (struct rar *)(a->format->data);
-  struct rar_br *br = &(rar->br);
-
-  if (rar->filterstart < end)
-    end = rar->filterstart;
-
-  while (1)
-  {
-    if (rar->output_last_match &&
-      lzss_position(&rar->lzss) + rar->lastlength <= end)
-    {
-      lzss_emit_match(rar, rar->lastoffset, rar->lastlength);
-      rar->output_last_match = 0;
-    }
-
-    if(rar->is_ppmd_block || rar->output_last_match ||
-      lzss_position(&rar->lzss) >= end)
-      return lzss_position(&rar->lzss);
-
-    if ((symbol = read_next_symbol(a, &rar->maincode)) < 0)
-      return (ARCHIVE_FATAL);
-    rar->output_last_match = 0;
-
-    if (symbol < 256)
-    {
-      lzss_emit_literal(rar, symbol);
-      continue;
-    }
-    else if (symbol == 256)
-    {
-      if (!rar_br_read_ahead(a, br, 1))
-        goto truncated_data;
-      newfile = !rar_br_bits(br, 1);
-      rar_br_consume(br, 1);
-
-      if(newfile)
-      {
-        rar->start_new_block = 1;
-        if (!rar_br_read_ahead(a, br, 1))
-          goto truncated_data;
-        rar->start_new_table = rar_br_bits(br, 1);
-        rar_br_consume(br, 1);
-        return lzss_position(&rar->lzss);
-      }
-      else
-      {
-        if (parse_codes(a) != ARCHIVE_OK)
-          return (ARCHIVE_FATAL);
-        continue;
-      }
-    }
-    else if(symbol==257)
-    {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-                        "Parsing filters is unsupported.");
-      return (ARCHIVE_FAILED);
-    }
-    else if(symbol==258)
-    {
-      if(rar->lastlength == 0)
-        continue;
-
-      offs = rar->lastoffset;
-      len = rar->lastlength;
-    }
-    else if (symbol <= 262)
-    {
-      offsindex = symbol - 259;
-      offs = rar->oldoffset[offsindex];
-
-      if ((lensymbol = read_next_symbol(a, &rar->lengthcode)) < 0)
-        goto bad_data;
-      if (lensymbol > (int)(sizeof(lengthbases)/sizeof(lengthbases[0])))
-        goto bad_data;
-      if (lensymbol > (int)(sizeof(lengthbits)/sizeof(lengthbits[0])))
-        goto bad_data;
-      len = lengthbases[lensymbol] + 2;
-      if (lengthbits[lensymbol] > 0) {
-        if (!rar_br_read_ahead(a, br, lengthbits[lensymbol]))
-          goto truncated_data;
-        len += rar_br_bits(br, lengthbits[lensymbol]);
-        rar_br_consume(br, lengthbits[lensymbol]);
-      }
-
-      for (i = offsindex; i > 0; i--)
-        rar->oldoffset[i] = rar->oldoffset[i-1];
-      rar->oldoffset[0] = offs;
-    }
-    else if(symbol<=270)
-    {
-      offs = shortbases[symbol-263] + 1;
-      if(shortbits[symbol-263] > 0) {
-        if (!rar_br_read_ahead(a, br, shortbits[symbol-263]))
-          goto truncated_data;
-        offs += rar_br_bits(br, shortbits[symbol-263]);
-        rar_br_consume(br, shortbits[symbol-263]);
-      }
-
-      len = 2;
-
-      for(i = 3; i > 0; i--)
-        rar->oldoffset[i] = rar->oldoffset[i-1];
-      rar->oldoffset[0] = offs;
-    }
-    else
-    {
-      if (symbol-271 > (int)(sizeof(lengthbases)/sizeof(lengthbases[0])))
-        goto bad_data;
-      if (symbol-271 > (int)(sizeof(lengthbits)/sizeof(lengthbits[0])))
-        goto bad_data;
-      len = lengthbases[symbol-271]+3;
-      if(lengthbits[symbol-271] > 0) {
-        if (!rar_br_read_ahead(a, br, lengthbits[symbol-271]))
-          goto truncated_data;
-        len += rar_br_bits(br, lengthbits[symbol-271]);
-        rar_br_consume(br, lengthbits[symbol-271]);
-      }
-
-      if ((offssymbol = read_next_symbol(a, &rar->offsetcode)) < 0)
-        goto bad_data;
-      if (offssymbol > (int)(sizeof(offsetbases)/sizeof(offsetbases[0])))
-        goto bad_data;
-      if (offssymbol > (int)(sizeof(offsetbits)/sizeof(offsetbits[0])))
-        goto bad_data;
-      offs = offsetbases[offssymbol]+1;
-      if(offsetbits[offssymbol] > 0)
-      {
-        if(offssymbol > 9)
-        {
-          if(offsetbits[offssymbol] > 4) {
-            if (!rar_br_read_ahead(a, br, offsetbits[offssymbol] - 4))
-              goto truncated_data;
-            offs += rar_br_bits(br, offsetbits[offssymbol] - 4) << 4;
-            rar_br_consume(br, offsetbits[offssymbol] - 4);
-	  }
-
-          if(rar->numlowoffsetrepeats > 0)
-          {
-            rar->numlowoffsetrepeats--;
-            offs += rar->lastlowoffset;
-          }
-          else
-          {
-            if ((lowoffsetsymbol =
-              read_next_symbol(a, &rar->lowoffsetcode)) < 0)
-              return (ARCHIVE_FATAL);
-            if(lowoffsetsymbol == 16)
-            {
-              rar->numlowoffsetrepeats = 15;
-              offs += rar->lastlowoffset;
-            }
-            else
-            {
-              offs += lowoffsetsymbol;
-              rar->lastlowoffset = lowoffsetsymbol;
-            }
-          }
-        }
-        else {
-          if (!rar_br_read_ahead(a, br, offsetbits[offssymbol]))
-            goto truncated_data;
-          offs += rar_br_bits(br, offsetbits[offssymbol]);
-          rar_br_consume(br, offsetbits[offssymbol]);
-        }
-      }
-
-      if (offs >= 0x40000)
-        len++;
-      if (offs >= 0x2000)
-        len++;
-
-      for(i = 3; i > 0; i--)
-        rar->oldoffset[i] = rar->oldoffset[i-1];
-      rar->oldoffset[0] = offs;
-    }
-
-    rar->lastoffset = offs;
-    rar->lastlength = len;
-    rar->output_last_match = 1;
-  }
-truncated_data:
-  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                    "Truncated RAR file data");
-  rar->valid = 0;
-  return (ARCHIVE_FATAL);
-bad_data:
-  archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                    "Bad RAR file data");
-  return (ARCHIVE_FATAL);
+	while (p != NULL) {
+		a->pst = NULL; /* Mark stat cache as out-of-date. */
+		if (p->fixup & TODO_TIMES) {
+			set_times(a, -1, p->mode, p->name,
+			    p->atime, p->atime_nanos,
+			    p->birthtime, p->birthtime_nanos,
+			    p->mtime, p->mtime_nanos,
+			    p->ctime, p->ctime_nanos);
+		}
+		if (p->fixup & TODO_MODE_BASE)
+			chmod(p->name, p->mode);
+		if (p->fixup & TODO_ACLS)
+			archive_write_disk_set_acls(&a->archive,
+						    -1, p->name, &p->acl);
+		if (p->fixup & TODO_FFLAGS)
+			set_fflags_platform(a, -1, p->name,
+			    p->mode, p->fflags_set, 0);
+		if (p->fixup & TODO_MAC_METADATA)
+			set_mac_metadata(a, p->name, p->mac_metadata,
+					 p->mac_metadata_size);
+		next = p->next;
+		archive_acl_clear(&p->acl);
+		free(p->mac_metadata);
+		free(p->name);
+		free(p);
+		p = next;
+	}
+	a->fixup_list = NULL;
+	return (ret);
 }
 
 static int
-copy_from_lzss_window(struct archive_read *a, const void **buffer,
-                        int64_t startpos, int length)
+_archive_write_disk_free(struct archive *_a)
 {
-  int windowoffs, firstpart;
-  struct rar *rar = (struct rar *)(a->format->data);
-
-  if (!rar->unp_buffer)
-  {
-    if ((rar->unp_buffer = malloc(rar->unp_buffer_size)) == NULL)
-    {
-      archive_set_error(&a->archive, ENOMEM,
-                        "Unable to allocate memory for uncompressed data.");
-      return (ARCHIVE_FATAL);
-    }
-  }
-
-  windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
-  if(windowoffs + length <= lzss_size(&rar->lzss))
-    memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
-           length);
-  else
-  {
-    firstpart = lzss_size(&rar->lzss) - windowoffs;
-    if (firstpart < 0) {
-      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                        "Bad RAR file data");
-      return (ARCHIVE_FATAL);
-    }
-    if (firstpart < length) {
-      memcpy(&rar->unp_buffer[rar->unp_offset],
-             &rar->lzss.window[windowoffs], firstpart);
-      memcpy(&rar->unp_buffer[rar->unp_offset + firstpart],
-             &rar->lzss.window[0], length - firstpart);
-    } else
-      memcpy(&rar->unp_buffer[rar->unp_offset],
-             &rar->lzss.window[windowoffs], length);
-  }
-  rar->unp_offset += length;
-  if (rar->unp_offset >= rar->unp_buffer_size)
-    *buffer = rar->unp_buffer;
-  else
-    *buffer = NULL;
-  return (ARCHIVE_OK);
+	struct archive_write_disk *a;
+	int ret;
+	if (_a == NULL)
+		return (ARCHIVE_OK);
+	archive_check_magic(_a, ARCHIVE_WRITE_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY | ARCHIVE_STATE_FATAL, "archive_write_disk_free");
+	a = (struct archive_write_disk *)_a;
+	ret = _archive_write_disk_close(&a->archive);
+	archive_write_disk_set_group_lookup(&a->archive, NULL, NULL, NULL);
+	archive_write_disk_set_user_lookup(&a->archive, NULL, NULL, NULL);
+	if (a->entry)
+		archive_entry_free(a->entry);
+	archive_string_free(&a->_name_data);
+	archive_string_free(&a->archive.error_string);
+	archive_string_free(&a->path_safe);
+	a->archive.magic = 0;
+	__archive_clean(&a->archive);
+	free(a->decmpfs_header_p);
+	free(a->resource_fork);
+	free(a->compressed_buffer);
+	free(a->uncompressed_buffer);
+#if defined(__APPLE__) && defined(UF_COMPRESSED) && defined(HAVE_SYS_XATTR_H)\
+	&& defined(HAVE_ZLIB_H)
+	if (a->stream_valid) {
+		switch (deflateEnd(&a->stream)) {
+		case Z_OK:
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Failed to clean up compressor");
+			ret = ARCHIVE_FATAL;
+			break;
+		}
+	}
+#endif
+	free(a);
+	return (ret);
 }
 
-static const void *
-rar_read_ahead(struct archive_read *a, size_t min, ssize_t *avail)
+/*
+ * Simple O(n log n) merge sort to order the fixup list.  In
+ * particular, we want to restore dir timestamps depth-first.
+ */
+static struct fixup_entry *
+sort_dir_list(struct fixup_entry *p)
 {
-  struct rar *rar = (struct rar *)(a->format->data);
-  const void *h = __archive_read_ahead(a, min, avail);
-  int ret;
-  if (avail)
-  {
-    if (a->archive.read_data_is_posix_read && *avail > (ssize_t)a->archive.read_data_requested)
-      *avail = a->archive.read_data_requested;
-    if (*avail > rar->bytes_remaining)
-      *avail = (ssize_t)rar->bytes_remaining;
-    if (*avail < 0)
-      return NULL;
-    else if (*avail == 0 && rar->main_flags & MHD_VOLUME &&
-      rar->file_flags & FHD_SPLIT_AFTER)
-    {
-      ret = archive_read_format_rar_read_header(a, a->entry);
-      if (ret == (ARCHIVE_EOF))
-      {
-        rar->has_endarc_header = 1;
-        ret = archive_read_format_rar_read_header(a, a->entry);
-      }
-      if (ret != (ARCHIVE_OK))
-        return NULL;
-      return rar_read_ahead(a, min, avail);
-    }
-  }
-  return h;
+	struct fixup_entry *a, *b, *t;
+
+	if (p == NULL)
+		return (NULL);
+	/* A one-item list is already sorted. */
+	if (p->next == NULL)
+		return (p);
+
+	/* Step 1: split the list. */
+	t = p;
+	a = p->next->next;
+	while (a != NULL) {
+		/* Step a twice, t once. */
+		a = a->next;
+		if (a != NULL)
+			a = a->next;
+		t = t->next;
+	}
+	/* Now, t is at the mid-point, so break the list here. */
+	b = t->next;
+	t->next = NULL;
+	a = p;
+
+	/* Step 2: Recursively sort the two sub-lists. */
+	a = sort_dir_list(a);
+	b = sort_dir_list(b);
+
+	/* Step 3: Merge the returned lists. */
+	/* Pick the first element for the merged list. */
+	if (strcmp(a->name, b->name) > 0) {
+		t = p = a;
+		a = a->next;
+	} else {
+		t = p = b;
+		b = b->next;
+	}
+
+	/* Always put the later element on the list first. */
+	while (a != NULL && b != NULL) {
+		if (strcmp(a->name, b->name) > 0) {
+			t->next = a;
+			a = a->next;
+		} else {
+			t->next = b;
+			b = b->next;
+		}
+		t = t->next;
+	}
+
+	/* Only one list is non-empty, so just splice it on. */
+	if (a != NULL)
+		t->next = a;
+	if (b != NULL)
+		t->next = b;
+
+	return (p);
 }
+
+/*
+ * Returns a new, initialized fixup entry.
+ *
+ * TODO: Reduce the memory requirements for this list by using a tree
+ * structure rather than a simple list of names.
+ */
+static struct fixup_entry *
+new_fixup(struct archive_write_disk *a, const char *pathname)
+{
+	struct fixup_entry *fe;
+
+	fe = (struct fixup_entry *)calloc(1, sizeof(struct fixup_entry));
+	if (fe == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for a fixup");
+		return (NULL);
+	}
+	fe->next = a->fixup_list;
+	a->fixup_list = fe;
+	fe->fixup = 0;
+	fe->name = strdup(pathname);
+	return (fe);
+}
+
+/*
+ * Returns a fixup structure for the current entry.
+ */
+static struct fixup_entry *
+current_fixup(struct archive_write_disk *a, const char *pathname)
+{
+	if (a->current_fixup == NULL)
+		a->current_fixup = new_fixup(a, pathname);
+	return (a->current_fixup);
+}
+
+/* TODO: Make this work. */
+/*
+ * TODO: The deep-directory support bypasses this; disable deep directory
+ * support if we're doing symlink checks.
+ */
+/*
+ * TODO: Someday, integrate this with the deep dir support; they both
+ * scan the path and both can be optimized by comparing against other
+ * recent paths.
+ */
+/* TODO: Extend this to support symlinks on Windows Vista and later. */
+static int
+check_symlinks(struct archive_write_disk *a)
+{
+#if !defined(HAVE_LSTAT)
+	/* Platform doesn't have lstat, so we can't look for symlinks. */
+	(void)a; /* UNUSED */
+	return (ARCHIVE_OK);
+#else
+	char *pn;
+	char c;
+	int r;
+	struct stat st;
+
+	/*
+	 * Guard against symlink tricks.  Reject any archive entry whose
+	 * destination would be altered by a symlink.
+	 */
+	/* Whatever we checked last time doesn't need to be re-checked. */
+	pn = a->name;
+	if (archive_strlen(&(a->path_safe)) > 0) {
+		char *p = a->path_safe.s;
+		while ((*pn != '\0') && (*p == *pn))
+			++p, ++pn;
+	}
+	c = pn[0];
+	/* Keep going until we've checked the entire name. */
+	while (pn[0] != '\0' && (pn[0] != '/' || pn[1] != '\0')) {
+		/* Skip the next path element. */
+		while (*pn != '\0' && *pn != '/')
+			++pn;
+		c = pn[0];
+		pn[0] = '\0';
+		/* Check that we haven't hit a symlink. */
+		r = lstat(a->name, &st);
+		if (r != 0) {
+			/* We've hit a dir that doesn't exist; stop now. */
+			if (errno == ENOENT)
+				break;
+		} else if (S_ISLNK(st.st_mode)) {
+			if (c == '\0') {
+				/*
+				 * Last element is symlink; remove it
+				 * so we can overwrite it with the
+				 * item being extracted.
+				 */
+				if (unlink(a->name)) {
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+				/*
+				 * Even if we did remove it, a warning
+				 * is in order.  The warning is silly,
+				 * though, if we're just replacing one
+				 * symlink with another symlink.
+				 */
+				if (!S_ISLNK(a->mode)) {
+					archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);
+				}
+				/* Symlink gone.  No more problem! */
+				pn[0] = c;
+				return (0);
+			} else if (a->flags & ARCHIVE_EXTRACT_UNLINK) {
+				/* User asked us to remove problems. */
+				if (unlink(a->name) != 0) {
+					archive_set_error(&a->archive, 0,
+					    "Cannot remove intervening symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}
+				a->pst = NULL;
+			} else {
+				archive_set_error(&a->archive, 0,
+				    "Cannot extract through symlink %s",
+				    a->name);
+				pn[0] = c;
+				return (ARCHIVE_FAILED);
+			}
+		}
+	}
+	pn[0] = c;
+	/* We've checked and/or cleaned the whole path, so remember it. */
+	archive_strcpy(&a->path_safe, a->name);
+	return (ARCHIVE_OK);
+#endif
+}
+
+#if defined(__CYGWIN__)
+/*
+ * 1. Convert a path separator from '\' to '/' .
+ *    We shouldn't check multibyte character directly because some
+ *    character-set have been using the '\' character for a part of
+ *    its multibyte character code.
+ * 2. Replace unusable characters in Windows with underscore('_').
+ * See also : http://msdn.microsoft.com/en-us/library/aa365247.aspx
+ */
+static void
+cleanup_pathname_win(struct archive_write_disk *a)
+{
+	wchar_t wc;
+	char *p;
+	size_t alen, l;
+	int mb, complete, utf8;
+
+	alen = 0;
+	mb = 0;
+	complete = 1;
+	utf8 = (strcmp(nl_langinfo(CODESET), "UTF-8") == 0)? 1: 0;
+	for (p = a->name; *p != '\0'; p++) {
+		++alen;
+		if (*p == '\\') {
+			/* If previous byte is smaller than 128,
+			 * this is not second byte of multibyte characters,
+			 * so we can replace '\' with '/'. */
+			if (utf8 || !mb)
+				*p = '/';
+			else
+				complete = 0;/* uncompleted. */
+		} else if (*(unsigned char *)p > 127)
+			mb = 1;
+		else
+			mb = 0;
+		/* Rewrite the path name if its next character is unusable. */
+		if (*p == ':' || *p == '*' || *p == '?' || *p == '"' ||
+		    *p == '<' || *p == '>' || *p == '|')
+			*p = '_';
+	}
+	if (complete)
+		return;
+
+	/*
+	 * Convert path separator in wide-character.
+	 */
+	p = a->name;
+	while (*p != '\0' && alen) {
+		l = mbtowc(&wc, p, alen);
+		if (l == (size_t)-1) {
+			while (*p != '\0') {
+				if (*p == '\\')
+					*p = '/';
+				++p;
+			}
+			break;
+		}
+		if (l == 1 && wc == L'\\')
+			*p = '/';
+		p += l;
+		alen -= l;
+	}
+}
+#endif
+
+/*
+ * Canonicalize the pathname.  In particular, this strips duplicate
+ * '/' characters, '.' elements, and trailing '/'.  It also raises an
+ * error for an empty path, a trailing '..' or (if _SECURE_NODOTDOT is
+ * set) any '..' in the path.
+ */
+static int
+cleanup_pathname(struct archive_write_disk *a)
+{
+	char *dest, *src;
+	char separator = '\0';
+
+	dest = src = a->name;
+	if (*src == '\0') {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid empty pathname");
+		return (ARCHIVE_FAILED);
+	}
+
+#if defined(__CYGWIN__)
+	cleanup_pathname_win(a);
+#endif
+	/* Skip leading '/'. */
+	if (*src == '/')
+		separator = *src++;
+
+	/* Scan the pathname one element at a time. */
+	for (;;) {
+		/* src points to first char after '/' */
+		if (src[0] == '\0') {
+			break;
+		} else if (src[0] == '/') {
+			/* Found '//', ignore second one. */
+			src++;
+			continue;
+		} else if (src[0] == '.') {
+			if (src[1] == '\0') {
+				/* Ignore trailing '.' */
+				break;
+			} else if (src[1] == '/') {
+				/* Skip './'. */
+				src += 2;
+				continue;
+			} else if (src[1] == '.') {
+				if (src[2] == '/' || src[2] == '\0') {
+					/* Conditionally warn about '..' */
+					if (a->flags & ARCHIVE_EXTRACT_SECURE_NODOTDOT) {
+						archive_set_error(&a->archive,
+						    ARCHIVE_ERRNO_MISC,
+						    "Path contains '..'");
+						return (ARCHIVE_FAILED);
+					}
+				}
+				/*
+				 * Note: Under no circumstances do we
+				 * remove '..' elements.  In
+				 * particular, restoring
+				 * '/foo/../bar/' should create the
+				 * 'foo' dir as a side-effect.
+				 */
+			}
+		}
+
+		/* Copy current element, including leading '/'. */
+		if (separator)
+			*dest++ = '/';
+		while (*src != '\0' && *src != '/') {
+			*dest++ = *src++;
+		}
+
+		if (*src == '\0')
+			break;
+
+		/* Skip '/' separator. */
+		separator = *src++;
+	}
+	/*
+	 * We've just copied zero or more path elements, not including the
+	 * final '/'.
+	 */
+	if (dest == a->name) {
+		/*
+		 * Nothing got copied.  The path must have been something
+		 * like '.' or '/' or './' or '/././././/./'.
+		 */
+		if (separator)
+			*dest++ = '/';
+		else
+			*dest++ = '.';
+	}
+	/* Terminate the result. */
+	*dest = '\0';
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Create the parent directory of the specified path, assuming path
+ * is already in mutable storage.
+ */
+static int
+create_parent_dir(struct archive_write_disk *a, char *path)
+{
+	char *slash;
+	int r;
+
+	/* Remove tail element to obtain parent name. */
+	slash = strrchr(path, '/');
+	if (slash == NULL)
+		return (ARCHIVE_OK);
+	*slash = '\0';
+	r = create_dir(a, path);
+	*slash = '/';
+	return (r);
+}
+
+/*
+ * Create the specified dir, recursing to create parents as necessary.
+ *
+ * Returns ARCHIVE_OK if the path exists when we're done here.
+ * Otherwise, returns ARCHIVE_FAILED.
+ * Assumes path is in mutable storage; path is unchanged on exit.
+ */
+static int
+create_dir(struct archive_write_disk *a, char *path)
+{
+	struct stat st;
+	struct fixup_entry *le;
+	char *slash, *base;
+	mode_t mode_final, mode;
+	int r;
+
+	/* Check for special names and just skip them. */
+	slash = strrchr(path, '/');
+	if (slash == NULL)
+		base = path;
+	else
+		base = slash + 1;
+
+	if (base[0] == '\0' ||
+	    (base[0] == '.' && base[1] == '\0') ||
+	    (base[0] == '.' && base[1] == '.' && base[2] == '\0')) {
+		/* Don't bother trying to create null path, '.', or '..'. */
+		if (slash != NULL) {
+			*slash = '\0';
+			r = create_dir(a, path);
+			*slash = '/';
+			return (r);
+		}
+		return (ARCHIVE_OK);
+	}
+
+	/*
+	 * Yes, this should be stat() and not lstat().  Using lstat()
+	 * here loses the ability to extract through symlinks.  Also note
+	 * that this should not use the a->st cache.
+	 */
+	if (stat(path, &st) == 0) {
+		if (S_ISDIR(st.st_mode))
+			return (ARCHIVE_OK);
+		if ((a->flags & ARCHIVE_EXTRACT_NO_OVERWRITE)) {
+			archive_set_error(&a->archive, EEXIST,
+			    "Can't create directory '%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		if (unlink(path) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't create directory '%s': "
+			    "Conflicting file cannot be removed",
+			    path);
+			return (ARCHIVE_FAILED);
+		}
+	} else if (errno != ENOENT && errno != ENOTDIR) {
+		/* Stat failed? */
+		archive_set_error(&a->archive, errno, "Can't test directory '%s'", path);
+		return (ARCHIVE_FAILED);
+	} else if (slash != NULL) {
+		*slash = '\0';
+		r = create_dir(a, path);
+		*slash = '/';
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
+
+	/*
+	 * Mode we want for the final restored directory.  Per POSIX,
+	 * implicitly-created dirs must be created obeying the umask.
+	 * There's no mention whether this is different for privileged
+	 * restores (which the rest of this code handles by pretending
+	 * umask=0).  I've chosen here to always obey the user's umask for
+	 * implicit dirs, even if _EXTRACT_PERM was specified.
+	 */
+	mode_final = DEFAULT_DIR_MODE & ~a->user_umask;
+	/* Mode we want on disk during the restore process. */
+	mode = mode_final;
+	mode |= MINIMUM_DIR_MODE;
+	mode &= MAXIMUM_DIR_MODE;
+	if (mkdir(path, mode) == 0) {
+		if (mode != mode_final) {
+			le = new_fixup(a, path);
+			if (le == NULL)
+				return (ARCHIVE_FATAL);
+			le->fixup |=TODO_MODE_BASE;
+			le->mode = mode_final;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	/*
+	 * Without the following check, a/b/../b/c/d fails at the
+	 * second visit to 'b', so 'd' can't be created.  Note that we
+	 * don't add it to the fixup list here, as it's already been
+	 * added.
+	 */
+	if (stat(path, &st) == 0 && S_ISDIR(st.st_mode))
+		return (ARCHIVE_OK);
+
+	archive_set_error(&a->archive, errno, "Failed to create dir '%s'",
+	    path);
+	return (ARCHIVE_FAILED);
+}
+
+/*
+ * Note: Although we can skip setting the user id if the desired user
+ * id matches the current user, we cannot skip setting the group, as
+ * many systems set the gid based on the containing directory.  So
+ * we have to perform a chown syscall if we want to set the SGID
+ * bit.  (The alternative is to stat() and then possibly chown(); it's
+ * more efficient to skip the stat() and just always chown().)  Note
+ * that a successful chown() here clears the TODO_SGID_CHECK bit, which
+ * allows set_mode to skip the stat() check for the GID.
+ */
+static int
+set_ownership(struct archive_write_disk *a)
+{
+#ifndef __CYGWIN__
+/* unfortunately, on win32 there is no 'root' user with uid 0,
+   so we just have to try the chown and see if it works */
+
+	/* If we know we can't change it, don't bother trying. */
+	if (a->user_uid != 0  &&  a->user_uid != a->uid) {
+		archive_set_error(&a->archive, errno,
+		    "Can't set UID=%jd", (intmax_t)a->uid);
+		return (ARCHIVE_WARN);
+	}
+#endif
+
+#ifdef HAVE_FCHOWN
+	/* If we have an fd, we can avoid a race. */
+	if (a->fd >= 0 && fchown(a->fd, a->uid, a->gid) == 0) {
+		/* We've set owner and know uid/gid are correct. */
+		a->todo &= ~(TODO_OWNER | TODO_SGID_CHECK | TODO_SUID_CHECK);
+		return (ARCHIVE_OK);
+	}
+#endif
+
+	/* We prefer lchown() but will use chown() if that's all we have. */
+	/* Of course, if we have neither, this will always fail. */
+#ifdef HAVE_LCHOWN
+	if (lchown(a->name, a->uid, a->gid) == 0) {
+		/* We've set owner and know uid/gid are correct. */
+		a->todo &= ~(TODO_OWNER | TODO_SGID_CHECK | TODO_SUID_CHECK);
+		return (ARCHIVE_OK);
+	}
+#elif HAVE_CHOWN
+	if (!S_ISLNK(a->mode) && chown(a->name, a->uid, a->gid) == 0) {
+		/* We've set owner and know uid/gid are correct. */
+		a->todo &= ~(TODO_OWNER | TODO_SGID_CHECK | TODO_SUID_CHECK);
+		return (ARCHIVE_OK);
+	}
+#endif
+
+	archive_set_error(&a->archive, errno,
+	    "Can't set user=%jd/group=%jd for %s",
+	    (intmax_t)a->uid, (intmax_t)a->gid, a->name);
+	return (ARCHIVE_WARN);
+}
+
+/*
+ * Note: Returns 0 on success, non-zero on failure.
+ */
+static int
+set_time(int fd, int mode, const char *name,
+    time_t atime, long atime_nsec,
+    time_t mtime, long mtime_nsec)
+{
+	/* Select the best implementation for this platform. */
+#if defined(HAVE_UTIMENSAT) && defined(HAVE_FUTIMENS)
+	/*
+	 * utimensat() and futimens() are defined in
+	 * POSIX.1-2008. They support ns resolution and setting times
+	 * on fds and symlinks.
+	 */
+	struct timespec ts[2];
+	(void)mode; /* UNUSED */
+	ts[0].tv_sec = atime;
+	ts[0].tv_nsec = atime_nsec;
+	ts[1].tv_sec = mtime;
+	ts[1].tv_nsec = mtime_nsec;
+	if (fd >= 0)
+		return futimens(fd, ts);
+	return utimensat(AT_FDCWD, name, ts, AT_SYMLINK_NOFOLLOW);
+
+#elif HAVE_UTIMES
+	/*
+	 * The utimes()-family functions support µs-resolution and
+	 * setting times fds and symlinks.  utimes() is documented as
+	 * LEGACY by POSIX, futimes() and lutimes() are not described
+	 * in POSIX.
+	 */
+	struct timeval times[2];
+
+	times[0].tv_sec = atime;
+	times[0].tv_usec = atime_nsec / 1000;
+	times[1].tv_sec = mtime;
+	times[1].tv_usec = mtime_nsec / 1000;
+
+#ifdef HAVE_FUTIMES
+	if (fd >= 0)
+		return (futimes(fd, times));
+#else
+	(void)fd; /* UNUSED */
+#endif
+#ifdef HAVE_LUTIMES
+	(void)mode; /* UNUSED */
+	return (lutimes(name, times));
+#else
+	if (S_ISLNK(mode))
+		return (0);
+	return (utimes(name, times));
+#endif
+
+#elif defined(HAVE_UTIME)
+	/*
+	 * utime() is POSIX-standard but only supports 1s resolution and
+	 * does not support fds or symlinks.
+	 */
+	struct utimbuf times;
+	(void)fd; /* UNUSED */
+	(void)name; /* UNUSED */
+	(void)atime_nsec; /* UNUSED */
+	(void)mtime_nsec; /* UNUSED */
+	times.actime = atime;
+	times.modtime = mtime;
+	if (S_ISLNK(mode))
+		return (ARCHIVE_OK);
+	return (utime(name, &times));
+
+#else
+	/*
+	 * We don't know how to set the time on this platform.
+	 */
+	(void)fd; /* UNUSED */
+	(void)mode; /* UNUSED */
+	(void)name; /* UNUSED */
+	(void)atime_nsec; /* UNUSED */
+	(void)mtime_nsec; /* UNUSED */
+	return (ARCHIVE_WARN);
+#endif
+}
+
+#ifdef F_SETTIMES /* Tru64 */
+static int
+set_time_tru64(int fd, int mode, const char *name,
+    time_t atime, long atime_nsec,
+    time_t mtime, long mtime_nsec,
+    time_t ctime, long ctime_nsec)
+{
+	struct attr_timbuf tstamp;
+	struct timeval times[3];
+	times[0].tv_sec = atime;
+	times[0].tv_usec = atime_nsec / 1000;
+	times[1].tv_sec = mtime;
+	times[1].tv_usec = mtime_nsec / 1000;
+	times[2].tv_sec = ctime;
+	times[2].tv_usec = ctime_nsec / 1000;
+	tstamp.atime = times[0];
+	tstamp.mtime = times[1];
+	tstamp.ctime = times[2];
+	return (fcntl(fd,F_SETTIMES,&tstamp));
+}
+#endif /* Tru64 */
+
+static int
+set_times(struct archive_write_disk *a,
+    int fd, int mode, const char *name,
+    time_t atime, long atime_nanos,
+    time_t birthtime, long birthtime_nanos,
+    time_t mtime, long mtime_nanos,
+    time_t cctime, long ctime_nanos)
+{
+	/* Note: set_time doesn't use libarchive return conventions!
+	 * It uses syscall conventions.  So 0 here instead of ARCHIVE_OK. */
+	int r1 = 0, r2 = 0;
+
+#ifdef F_SETTIMES
+	 /*
+	 * on Tru64 try own fcntl first which can restore even the
+	 * ctime, fall back to default code path below if it fails
+	 * or if we are not running as root
+	 */
+	if (a->user_uid == 0 &&
+	    set_time_tru64(fd, mode, name,
+			   atime, atime_nanos, mtime,
+			   mtime_nanos, cctime, ctime_nanos) == 0) {
+		return (ARCHIVE_OK);
+	}
+#else /* Tru64 */
+	(void)cctime; /* UNUSED */
+	(void)ctime_nanos; /* UNUSED */
+#endif /* Tru64 */
+
+#ifdef HAVE_STRUCT_STAT_ST_BIRTHTIME
+	/*
+	 * If you have struct stat.st_birthtime, we assume BSD
+	 * birthtime semantics, in which {f,l,}utimes() updates
+	 * birthtime to earliest mtime.  So we set the time twice,
+	 * first using the birthtime, then using the mtime.  If
+	 * birthtime == mtime, this isn't necessary, so we skip it.
+	 * If birthtime > mtime, then this won't work, so we skip it.
+	 */
+	if (birthtime < mtime
+	    || (birthtime == mtime && birthtime_nanos < mtime_nanos))
+		r1 = set_time(fd, mode, name,
+			      atime, atime_nanos,
+			      birthtime, birthtime_nanos);
+#else
+	(void)birthtime; /* UNUSED */
+	(void)birthtime_nanos; /* UNUSED */
+#endif
+	r2 = set_time(fd, mode, name,
+		      atime, atime_nanos,
+		      mtime, mtime_nanos);
+	if (r1 != 0 || r2 != 0) {
+		archive_set_error(&a->archive, errno,
+				  "Can't restore time");
+		return (ARCHIVE_WARN);
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+set_times_from_entry(struct archive_write_disk *a)
+{
+	time_t atime, birthtime, mtime, cctime;
+	long atime_nsec, birthtime_nsec, mtime_nsec, ctime_nsec;
+
+	/* Suitable defaults. */
+	atime = birthtime = mtime = cctime = a->start_time;
+	atime_nsec = birthtime_nsec = mtime_nsec = ctime_nsec = 0;
+
+	/* If no time was provided, we're done. */
+	if (!archive_entry_atime_is_set(a->entry)
+#if HAVE_STRUCT_STAT_ST_BIRTHTIME
+	    && !archive_entry_birthtime_is_set(a->entry)
+#endif
+	    && !archive_entry_mtime_is_set(a->entry))
+		return (ARCHIVE_OK);
+
+	if (archive_entry_atime_is_set(a->entry)) {
+		atime = archive_entry_atime(a->entry);
+		atime_nsec = archive_entry_atime_nsec(a->entry);
+	}
+	if (archive_entry_birthtime_is_set(a->entry)) {
+		birthtime = archive_entry_birthtime(a->entry);
+		birthtime_nsec = archive_entry_birthtime_nsec(a->entry);
+	}
+	if (archive_entry_mtime_is_set(a->entry)) {
+		mtime = archive_entry_mtime(a->entry);
+		mtime_nsec = archive_entry_mtime_nsec(a->entry);
+	}
+	if (archive_entry_ctime_is_set(a->entry)) {
+		cctime = archive_entry_ctime(a->entry);
+		ctime_nsec = archive_entry_ctime_nsec(a->entry);
+	}
+
+	return set_times(a, a->fd, a->mode, a->name,
+			 atime, atime_nsec,
+			 birthtime, birthtime_nsec,
+			 mtime, mtime_nsec,
+			 cctime, ctime_nsec);
+}
+
+static int
+set_mode(struct archive_write_disk *a, int mode)
+{
+	int r = ARCHIVE_OK;
+	mode &= 07777; /* Strip off file type bits. */
+
+	if (a->todo & TODO_SGID_CHECK) {
+		/*
+		 * If we don't know the GID is right, we must stat()
+		 * to verify it.  We can't just check the GID of this
+		 * process, since systems sometimes set GID from
+		 * the enclosing dir or based on ACLs.
+		 */
+		if ((r = lazy_stat(a)) != ARCHIVE_OK)
+			return (r);
+		if (a->pst->st_gid != a->gid) {
+			mode &= ~ S_ISGID;
+			if (a->flags & ARCHIVE_EXTRACT_OWNER) {
+				/*
+				 * This is only an error if you
+				 * requested owner restore.  If you
+				 * didn't, we'll try to restore
+				 * sgid/suid, but won't consider it a
+				 * problem if we can't.
+				 */
+				archive_set_error(&a->archive, -1,
+				    "Can't restore SGID bit");
+				r = ARCHIVE_WARN;
+			}
+		}
+		/* While we're here, double-check the UID. */
+		if (a->pst->st_uid != a->uid
+		    && (a->todo & TODO_SUID)) {
+			mode &= ~ S_ISUID;
+			if (a->flags & ARCHIVE_EXTRACT_OWNER) {
+				archive_set_error(&a->archive, -1,
+				    "Can't restore SUID bit");
+				r = ARCHIVE_WARN;
+			}
+		}
+		a->todo &= ~TODO_SGID_CHECK;
+		a->todo &= ~TODO_SUID_CHECK;
+	} else if (a->todo & TODO_SUID_CHECK) {
+		/*
+		 * If we don't know the UID is right, we can just check
+		 * the user, since all systems set the file UID from
+		 * the process UID.
+		 */
+		if (a->user_uid != a->uid) {
+			mode &= ~ S_ISUID;
+			if (a->flags & ARCHIVE_EXTRACT_OWNER) {
+				archive_set_error(&a->archive, -1,
+				    "Can't make file SUID");
+				r = ARCHIVE_WARN;
+			}
+		}
+		a->todo &= ~TODO_SUID_CHECK;
+	}
+
+	if (S_ISLNK(a->mode)) {
+#ifdef HAVE_LCHMOD
+		/*
+		 * If this is a symlink, use lchmod().  If the
+		 * platform doesn't support lchmod(), just skip it.  A
+		 * platform that doesn't provide a way to set
+		 * permissions on symlinks probably ignores
+		 * permissions on symlinks, so a failure here has no
+		 * impact.
+		 */
+		if (lchmod(a->name, mode) != 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't set permissions to 0%o", (int)mode);
+			r = ARCHIVE_WARN;
+		}
+#endif
+	} else if (!S_ISDIR(a->mode)) {
+		/*
+		 * If it's not a symlink and not a dir, then use
+		 * fchmod() or chmod(), depending on whether we have
+		 * an fd.  Dirs get their perms set during the
+		 * post-extract fixup, which is handled elsewhere.
+		 */
+#ifdef HAVE_FCHMOD
+		if (a->fd >= 0) {
+			if (fchmod(a->fd, mode) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't set permissions to 0%o", (int)mode);
+				r = ARCHIVE_WARN;
+			}
+		} else
+#endif
+			/* If this platform lacks fchmod(), then
+			 * we'll just use chmod(). */
+			if (chmod(a->name, mode) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't set permissions to 0%o", (int)mode);
+				r = ARCHIVE_WARN;
+			}
+	}
+	return (r);
+}
+
+static int
+set_fflags(struct archive_write_disk *a)
+{
+	struct fixup_entry *le;
+	unsigned long	set, clear;
+	int		r;
+	int		critical_flags;
+	mode_t		mode = archive_entry_mode(a->entry);
+
+	/*
+	 * Make 'critical_flags' hold all file flags that can't be
+	 * immediately restored.  For example, on BSD systems,
+	 * SF_IMMUTABLE prevents hardlinks from being created, so
+	 * should not be set until after any hardlinks are created.  To
+	 * preserve some semblance of portability, this uses #ifdef
+	 * extensively.  Ugly, but it works.
+	 *
+	 * Yes, Virginia, this does create a security race.  It's mitigated
+	 * somewhat by the practice of creating dirs 0700 until the extract
+	 * is done, but it would be nice if we could do more than that.
+	 * People restoring critical file systems should be wary of
+	 * other programs that might try to muck with files as they're
+	 * being restored.
+	 */
+	/* Hopefully, the compiler will optimize this mess into a constant. */
+	critical_flags = 0;
+#ifdef SF_IMMUTABLE
+	critical_flags |= SF_IMMUTABLE;
+#endif
+#ifdef UF_IMMUTABLE
+	critical_flags |= UF_IMMUTABLE;
+#endif
+#ifdef SF_APPEND
+	critical_flags |= SF_APPEND;
+#endif
+#ifdef UF_APPEND
+	critical_flags |= UF_APPEND;
+#endif
+#ifdef EXT2_APPEND_FL
+	critical_flags |= EXT2_APPEND_FL;
+#endif
+#ifdef EXT2_IMMUTABLE_FL
+	critical_flags |= EXT2_IMMUTABLE_FL;
+#endif
+
+	if (a->todo & TODO_FFLAGS) {
+		archive_entry_fflags(a->entry, &set, &clear);
+
+		/*
+		 * The first test encourages the compiler to eliminate
+		 * all of this if it's not necessary.
+		 */
+		if ((critical_flags != 0)  &&  (set & critical_flags)) {
+			le = current_fixup(a, a->name);
+			if (le == NULL)
+				return (ARCHIVE_FATAL);
+			le->fixup |= TODO_FFLAGS;
+			le->fflags_set = set;
+			/* Store the mode if it's not already there. */
+			if ((le->fixup & TODO_MODE) == 0)
+				le->mode = mode;
+		} else {
+			r = set_fflags_platform(a, a->fd,
+			    a->name, mode, set, clear);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+
+#if ( defined(HAVE_LCHFLAGS) || defined(HAVE_CHFLAGS) || defined(HAVE_FCHFLAGS) ) && defined(HAVE_STRUCT_STAT_ST_FLAGS)
+/*
+ * BSD reads flags using stat() and sets them with one of {f,l,}chflags()
+ */
+static int
+set_fflags_platform(struct archive_write_disk *a, int fd, const char *name,
+    mode_t mode, unsigned long set, unsigned long clear)
+{
+	int r;
+
+	(void)mode; /* UNUSED */
+	if (set == 0  && clear == 0)
+		return (ARCHIVE_OK);
+
+	/*
+	 * XXX Is the stat here really necessary?  Or can I just use
+	 * the 'set' flags directly?  In particular, I'm not sure
+	 * about the correct approach if we're overwriting an existing
+	 * file that already has flags on it. XXX
+	 */
+	if ((r = lazy_stat(a)) != ARCHIVE_OK)
+		return (r);
+
+	a->st.st_flags &= ~clear;
+	a->st.st_flags |= set;
+#ifdef HAVE_FCHFLAGS
+	/* If platform has fchflags() and we were given an fd, use it. */
+	if (fd >= 0 && fchflags(fd, a->st.st_flags) == 0)
+		return (ARCHIVE_OK);
+#endif
+	/*
+	 * If we can't use the fd to set the flags, we'll use the
+	 * pathname to set flags.  We prefer lchflags() but will use
+	 * chflags() if we must.
+	 */
+#ifdef HAVE_LCHFLAGS
+	if (lchflags(name, a->st.st_flags) == 0)
+		return (ARCHIVE_OK);
+#elif defined(HAVE_CHFLAGS)
+	if (S_ISLNK(a->st.st_mode)) {
+		archive_set_error(&a->archive, errno,
+		    "Can't set file flags on symlink.");
+		return (ARCHIVE_WARN);
+	}
+	if (chflags(name, a->st.st_flags) == 0)
+		return (ARCHIVE_OK);
+#endif
+	archive_set_error(&a->archive, errno,
+	    "Failed to set file flags");
+	return (ARCHIVE_WARN);
+}
+
+#elif defined(EXT2_IOC_GETFLAGS) && defined(EXT2_IOC_SETFLAGS) && defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
+/*
+ * Linux uses ioctl() to read and write file flags.
+ */
+static int
+set_fflags_platform(struct archive_write_disk *a, int fd, const char *name,
+    mode_t mode, unsigned long set, unsigned long clear)
+{
+	int		 ret;
+	int		 myfd = fd;
+	int newflags, oldflags;
+	int sf_mask = 0;
+
+	if (set == 0  && clear == 0)
+		return (ARCHIVE_OK);
+	/* Only regular files and dirs can have flags. */
+	if (!S_ISREG(mode) && !S_ISDIR(mode))
+		return (ARCHIVE_OK);
+
+	/* If we weren't given an fd, open it ourselves. */
+	if (myfd < 0) {
+		myfd = open(name, O_RDONLY | O_NONBLOCK | O_BINARY | O_CLOEXEC);
+		__archive_ensure_cloexec_flag(myfd);
+	}
+	if (myfd < 0)
+		return (ARCHIVE_OK);
+
+	/*
+	 * Linux has no define for the flags that are only settable by
+	 * the root user.  This code may seem a little complex, but
+	 * there seem to be some Linux systems that lack these
+	 * defines. (?)  The code below degrades reasonably gracefully
+	 * if sf_mask is incomplete.
+	 */
+#ifdef EXT2_IMMUTABLE_FL
+	sf_mask |= EXT2_IMMUTABLE_FL;
+#endif
+#ifdef EXT2_APPEND_FL
+	sf_mask |= EXT2_APPEND_FL;
+#endif
+	/*
+	 * XXX As above, this would be way simpler if we didn't have
+	 * to read the current flags from disk. XXX
+	 */
+	ret = ARCHIVE_OK;
+
+	/* Read the current file flags. */
+	if (ioctl(myfd, EXT2_IOC_GETFLAGS, &oldflags) < 0)
+		goto fail;
+
+	/* Try setting the flags as given. */
+	newflags = (oldflags & ~clear) | set;
+	if (ioctl(myfd, EXT2_IOC_SETFLAGS, &newflags) >= 0)
+		goto cleanup;
+	if (errno != EPERM)
+		goto fail;
+
+	/* If we couldn't set all the flags, try again with a subset. */
+	newflags &= ~sf_mask;
+	oldflags &= sf_mask;
+	newflags |= oldflags;
+	if (ioctl(myfd, EXT2_IOC_SETFLAGS, &newflags) >= 0)
+		goto cleanup;
+
+	/* We couldn't set the flags, so report the failure. */
+fail:
+	archive_set_error(&a->archive, errno,
+	    "Failed to set file flags");
+	ret = ARCHIVE_WARN;
+cleanup:
+	if (fd < 0)
+		close(myfd);
+	return (ret);
+}
+
+#else
+
+/*
+ * Of course, some systems have neither BSD chflags() nor Linux' flags
+ * support through ioctl().
+ */
+static int
+set_fflags_platform(struct archive_write_disk *a, int fd, const char *name,
+    mode_t mode, unsigned long set, unsigned long clear)
+{
+	(void)a; /* UNUSED */
+	(void)fd; /* UNUSED */
+	(void)name; /* UNUSED */
+	(void)mode; /* UNUSED */
+	(void)set; /* UNUSED */
+	(void)clear; /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+#endif /* __linux */
+
+#ifndef HAVE_COPYFILE_H
+/* Default is to simply drop Mac extended metadata. */
+static int
+set_mac_metadata(struct archive_write_disk *a, const char *pathname,
+		 const void *metadata, size_t metadata_size)
+{
+	(void)a; /* UNUSED */
+	(void)pathname; /* UNUSED */
+	(void)metadata; /* UNUSED */
+	(void)metadata_size; /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+static int
+fixup_appledouble(struct archive_write_disk *a, const char *pathname)
+{
+	(void)a; /* UNUSED */
+	(void)pathname; /* UNUSED */
+	return (ARCHIVE_OK);
+}
+#else
+
+/*
+ * On Mac OS, we use copyfile() to unpack the metadata and
+ * apply it to the target file.
+ */
+
+#if defined(HAVE_SYS_XATTR_H)
+static int
+copy_xattrs(struct archive_write_disk *a, int tmpfd, int dffd)
+{
+	ssize_t xattr_size;
+	char *xattr_names = NULL, *xattr_val = NULL;
+	int ret = ARCHIVE_OK, xattr_i;
+
+	xattr_size = flistxattr(tmpfd, NULL, 0, 0);
+	if (xattr_size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to read metadata(xattr)");
+		ret = ARCHIVE_WARN;
+		goto exit_xattr;
+	}
+	xattr_names = malloc(xattr_size);
+	if (xattr_names == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for metadata(xattr)");
+		ret = ARCHIVE_FATAL;
+		goto exit_xattr;
+	}
+	xattr_size = flistxattr(tmpfd, xattr_names, xattr_size, 0);
+	if (xattr_size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to read metadata(xattr)");
+		ret = ARCHIVE_WARN;
+		goto exit_xattr;
+	}
+	for (xattr_i = 0; xattr_i < xattr_size;
+	    xattr_i += strlen(xattr_names + xattr_i) + 1) {
+		ssize_t s;
+		int f;
+
+		s = fgetxattr(tmpfd, xattr_names + xattr_i, NULL, 0, 0, 0);
+		if (s == -1) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get metadata(xattr)");
+			ret = ARCHIVE_WARN;
+			goto exit_xattr;
+		}
+		xattr_val = realloc(xattr_val, s);
+		if (xattr_val == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Failed to get metadata(xattr)");
+			ret = ARCHIVE_WARN;
+			goto exit_xattr;
+		}
+		s = fgetxattr(tmpfd, xattr_names + xattr_i, xattr_val, s, 0, 0);
+		if (s == -1) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get metadata(xattr)");
+			ret = ARCHIVE_WARN;
+			goto exit_xattr;
+		}
+		f = fsetxattr(dffd, xattr_names + xattr_i, xattr_val, s, 0, 0);
+		if (f == -1) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to get metadata(xattr)");
+			ret = ARCHIVE_WARN;
+			goto exit_xattr;
+		}
+	}
+exit_xattr:
+	free(xattr_names);
+	free(xattr_val);
+	return (ret);
+}
+#endif
+
+static int
+copy_acls(struct archive_write_disk *a, int tmpfd, int dffd)
+{
+	acl_t acl, dfacl = NULL;
+	int acl_r, ret = ARCHIVE_OK;
+
+	acl = acl_get_fd(tmpfd);
+	if (acl == NULL) {
+		if (errno == ENOENT)
+			/* There are not any ACLs. */
+			return (ret);
+		archive_set_error(&a->archive, errno,
+		    "Failed to get metadata(acl)");
+		ret = ARCHIVE_WARN;
+		goto exit_acl;
+	}
+	dfacl = acl_dup(acl);
+	acl_r = acl_set_fd(dffd, dfacl);
+	if (acl_r == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to get metadata(acl)");
+		ret = ARCHIVE_WARN;
+		goto exit_acl;
+	}
+exit_acl:
+	if (acl)
+		acl_free(acl);
+	if (dfacl)
+		acl_free(dfacl);
+	return (ret);
+}
+
+static int
+create_tempdatafork(struct archive_write_disk *a, const char *pathname)
+{
+	struct archive_string tmpdatafork;
+	int tmpfd;
+
+	archive_string_init(&tmpdatafork);
+	archive_strcpy(&tmpdatafork, "tar.md.XXXXXX");
+	tmpfd = mkstemp(tmpdatafork.s);
+	if (tmpfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to mkstemp");
+		archive_string_free(&tmpdatafork);
+		return (-1);
+	}
+	if (copyfile(pathname, tmpdatafork.s, 0,
+	    COPYFILE_UNPACK | COPYFILE_NOFOLLOW
+	    | COPYFILE_ACL | COPYFILE_XATTR) < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to restore metadata");
+		close(tmpfd);
+		tmpfd = -1;
+	}
+	unlink(tmpdatafork.s);
+	archive_string_free(&tmpdatafork);
+	return (tmpfd);
+}
+
+static int
+copy_metadata(struct archive_write_disk *a, const char *metadata,
+    const char *datafork, int datafork_compressed)
+{
+	int ret = ARCHIVE_OK;
+
+	if (datafork_compressed) {
+		int dffd, tmpfd;
+
+		tmpfd = create_tempdatafork(a, metadata);
+		if (tmpfd == -1)
+			return (ARCHIVE_WARN);
+
+		/*
+		 * Do not open the data fork compressed by HFS+ compression
+		 * with at least a writing mode(O_RDWR or O_WRONLY). it
+		 * makes the data fork uncompressed.
+		 */
+		dffd = open(datafork, 0);
+		if (dffd == -1) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to open the data fork for metadata");
+			close(tmpfd);
+			return (ARCHIVE_WARN);
+		}
+
+#if defined(HAVE_SYS_XATTR_H)
+		ret = copy_xattrs(a, tmpfd, dffd);
+		if (ret == ARCHIVE_OK)
+#endif
+			ret = copy_acls(a, tmpfd, dffd);
+		close(tmpfd);
+		close(dffd);
+	} else {
+		if (copyfile(metadata, datafork, 0,
+		    COPYFILE_UNPACK | COPYFILE_NOFOLLOW
+		    | COPYFILE_ACL | COPYFILE_XATTR) < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Failed to restore metadata");
+			ret = ARCHIVE_WARN;
+		}
+	}
+	return (ret);
+}
+
+static int
+set_mac_metadata(struct archive_write_disk *a, const char *pathname,
+		 const void *metadata, size_t metadata_size)
+{
+	struct archive_string tmp;
+	ssize_t written;
+	int fd;
+	int ret = ARCHIVE_OK;
+
+	/* This would be simpler if copyfile() could just accept the
+	 * metadata as a block of memory; then we could sidestep this
+	 * silly dance of writing the data to disk just so that
+	 * copyfile() can read it back in again. */
+	archive_string_init(&tmp);
+	archive_strcpy(&tmp, pathname);
+	archive_strcat(&tmp, ".XXXXXX");
+	fd = mkstemp(tmp.s);
+
+	if (fd < 0) {
+		archive_set_error(&a->archive, errno,
+				  "Failed to restore metadata");
+		archive_string_free(&tmp);
+		return (ARCHIVE_WARN);
+	}
+	written = write(fd, metadata, metadata_size);
+	close(fd);
+	if ((size_t)written != metadata_size) {
+		archive_set_error(&a->archive, errno,
+				  "Failed to restore metadata");
+		ret = ARCHIVE_WARN;
+	} else {
+		int compressed;
+
+#if defined(UF_COMPRESSED)
+		if ((a->todo & TODO_HFS_COMPRESSION) != 0 &&
+		    (ret = lazy_stat(a)) == ARCHIVE_OK)
+			compressed = a->st.st_flags & UF_COMPRESSED;
+		else
+#endif
+			compressed = 0;
+		ret = copy_metadata(a, tmp.s, pathname, compressed);
+	}
+	unlink(tmp.s);
+	archive_string_free(&tmp);
+	return (ret);
+}
+
+static int
+fixup_appledouble(struct archive_write_disk *a, const char *pathname)
+{
+	char buff[8];
+	struct stat st;
+	const char *p;
+	struct archive_string datafork;
+	int fd = -1, ret = ARCHIVE_OK;
+
+	archive_string_init(&datafork);
+	/* Check if the current file name is a type of the resource
+	 * fork file. */
+	p = strrchr(pathname, '/');
+	if (p == NULL)
+		p = pathname;
+	else
+		p++;
+	if (p[0] != '.' || p[1] != '_')
+		goto skip_appledouble;
+
+	/*
+	 * Check if the data fork file exists.
+	 *
+	 * TODO: Check if this write disk object has handled it.
+	 */
+	archive_strncpy(&datafork, pathname, p - pathname);
+	archive_strcat(&datafork, p + 2);
+	if (lstat(datafork.s, &st) == -1 ||
+	    (st.st_mode & AE_IFMT) != AE_IFREG)
+		goto skip_appledouble;
+
+	/*
+	 * Check if the file is in the AppleDouble form.
+	 */
+	fd = open(pathname, O_RDONLY | O_BINARY | O_CLOEXEC);
+	__archive_ensure_cloexec_flag(fd);
+	if (fd == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to open a restoring file");
+		ret = ARCHIVE_WARN;
+		goto skip_appledouble;
+	}
+	if (read(fd, buff, 8) == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Failed to read a restoring file");
+		close(fd);
+		ret = ARCHIVE_WARN;
+		goto skip_appledouble;
+	}
+	close(fd);
+	/* Check AppleDouble Magic Code. */
+	if (archive_be32dec(buff) != 0x00051607)
+		goto skip_appledouble;
+	/* Check AppleDouble Version. */
+	if (archive_be32dec(buff+4) != 0x00020000)
+		goto skip_appledouble;
+
+	ret = copy_metadata(a, pathname, datafork.s,
+#if defined(UF_COMPRESSED)
+	    st.st_flags & UF_COMPRESSED);
+#else
+	    0);
+#endif
+	if (ret == ARCHIVE_OK) {
+		unlink(pathname);
+		ret = ARCHIVE_EOF;
+	}
+skip_appledouble:
+	archive_string_free(&datafork);
+	return (ret);
+}
+#endif
+
+#if HAVE_LSETXATTR || HAVE_LSETEA
+/*
+ * Restore extended attributes -  Linux and AIX implementations:
+ * AIX' ea interface is syntaxwise identical to the Linux xattr interface.
+ */
+static int
+set_xattrs(struct archive_write_disk *a)
+{
+	struct archive_entry *entry = a->entry;
+	static int warning_done = 0;
+	int ret = ARCHIVE_OK;
+	int i = archive_entry_xattr_reset(entry);
+
+	while (i--) {
+		const char *name;
+		const void *value;
+		size_t size;
+		archive_entry_xattr_next(entry, &name, &value, &size);
+		if (name != NULL &&
+				strncmp(name, "xfsroot.", 8) != 0 &&
+				strncmp(name, "system.", 7) != 0) {
+			int e;
+#if HAVE_FSETXATTR
+			if (a->fd >= 0)
+				e = fsetxattr(a->fd, name, value, size, 0);
+			else
+#elif HAVE_FSETEA
+			if (a->fd >= 0)
+				e = fsetea(a->fd, name, value, size, 0);
+			else
+#endif
+			{
+#if HAVE_LSETXATTR
+				e = lsetxattr(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#elif HAVE_LSETEA
+				e = lsetea(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#endif
+			}
+			if (e == -1) {
+				if (errno == ENOTSUP || errno == ENOSYS) {
+					if (!warning_done) {
+						warning_done = 1;
+						archive_set_error(&a->archive, errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");
+					}
+				} else
+					archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");
+				ret = ARCHIVE_WARN;
+			}
+		} else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");
+			ret = ARCHIVE_WARN;
+		}
+	}
+	return (ret);
+}
+#elif HAVE_EXTATTR_SET_FILE && HAVE_DECL_EXTATTR_NAMESPACE_USER
+/*
+ * Restore extended attributes -  FreeBSD implementation
+ */
+static int
+set_xattrs(struct archive_write_disk *a)
+{
+	struct archive_entry *entry = a->entry;
+	static int warning_done = 0;
+	int ret = ARCHIVE_OK;
+	int i = archive_entry_xattr_reset(entry);
+
+	while (i--) {
+		const char *name;
+		const void *value;
+		size_t size;
+		archive_entry_xattr_next(entry, &name, &value, &size);
+		if (name != NULL) {
+			int e;
+			int namespace;
+
+			if (strncmp(name, "user.", 5) == 0) {
+				/* "user." attributes go to user namespace */
+				name += 5;
+				namespace = EXTATTR_NAMESPACE_USER;
+			} else {
+				/* Warn about other extended attributes. */
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Can't restore extended attribute ``%s''",
+				    name);
+				ret = ARCHIVE_WARN;
+				continue;
+			}
+			errno = 0;
+#if HAVE_EXTATTR_SET_FD
+			if (a->fd >= 0)
+				e = extattr_set_fd(a->fd, namespace, name, value, size);
+			else
+#endif
+			/* TODO: should we use extattr_set_link() instead? */
+			{
+				e = extattr_set_file(archive_entry_pathname(entry),
+				    namespace, name, value, size);
+			}
+			if (e != (int)size) {
+				if (errno == ENOTSUP || errno == ENOSYS) {
+					if (!warning_done) {
+						warning_done = 1;
+						archive_set_error(&a->archive, errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");
+					}
+				} else {
+					archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");
+				}
+
+				ret = ARCHIVE_WARN;
+			}
+		}
+	}
+	return (ret);
+}
+#else
+/*
+ * Restore extended attributes - stub implementation for unsupported systems
+ */
+static int
+set_xattrs(struct archive_write_disk *a)
+{
+	static int warning_done = 0;
+
+	/* If there aren't any extended attributes, then it's okay not
+	 * to extract them, otherwise, issue a single warning. */
+	if (archive_entry_xattr_count(a->entry) != 0 && !warning_done) {
+		warning_done = 1;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Cannot restore extended attributes on this system");
+		return (ARCHIVE_WARN);
+	}
+	/* Warning was already emitted; suppress further warnings. */
+	return (ARCHIVE_OK);
+}
+#endif
+
+/*
+ * Test if file on disk is older than entry.
+ */
+static int
+older(struct stat *st, struct archive_entry *entry)
+{
+	/* First, test the seconds and return if we have a definite answer. */
+	/* Definitely older. */
+	if (st->st_mtime < archive_entry_mtime(entry))
+		return (1);
+	/* Definitely younger. */
+	if (st->st_mtime > archive_entry_mtime(entry))
+		return (0);
+	/* If this platform supports fractional seconds, try those. */
+#if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
+	/* Definitely older. */
+	if (st->st_mtimespec.tv_nsec < archive_entry_mtime_nsec(entry))
+		return (1);
+#elif HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
+	/* Definitely older. */
+	if (st->st_mtim.tv_nsec < archive_entry_mtime_nsec(entry))
+		return (1);
+#elif HAVE_STRUCT_STAT_ST_MTIME_N
+	/* older. */
+	if (st->st_mtime_n < archive_entry_mtime_nsec(entry))
+		return (1);
+#elif HAVE_STRUCT_STAT_ST_UMTIME
+	/* older. */
+	if (st->st_umtime * 1000 < archive_entry_mtime_nsec(entry))
+		return (1);
+#elif HAVE_STRUCT_STAT_ST_MTIME_USEC
+	/* older. */
+	if (st->st_mtime_usec * 1000 < archive_entry_mtime_nsec(entry))
+		return (1);
+#else
+	/* This system doesn't have high-res timestamps. */
+#endif
+	/* Same age or newer, so not older. */
+	return (0);
+}
+
+#endif /* !_WIN32 || __CYGWIN__ */
+

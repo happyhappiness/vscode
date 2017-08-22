@@ -1,8 +1,6 @@
-{
-  int i, j, codebits = 0, symbolsleft = numsymbols;
+	ssize_t bytes_avail;
+	int r;
 
-  code->numentries = 0;
-  code->numallocatedentries = 0;
-  if (new_node(code) < 0) {
-    archive_set_error(&a->archive, ENOMEM,
-                      "Unable to allocate memory for node data.");
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!lha->decompress_init) {
+		r = lzh_decode_init(&(lha->strm), lha->method);

@@ -1,1984 +1,1365 @@
-/*-
- * Copyright (c) 2003-2007 Tim Kientzle
- * Copyright (c) 2008 Joerg Sonnenberger
- * Copyright (c) 2011-2012 Michihiro NAKAJIMA
- * All rights reserved.
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
-#include "archive_platform.h"
-__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_mtree.c 201165 2009-12-29 05:52:13Z kientzle $");
-
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#ifdef HAVE_ERRNO_H
-#include <errno.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-#include <stddef.h>
-/* #include <stdint.h> */ /* See archive_platform.h */
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
-
-#include "archive.h"
-#include "archive_entry.h"
-#include "archive_private.h"
-#include "archive_read_private.h"
-#include "archive_string.h"
-#include "archive_pack_dev.h"
-
-#ifndef O_BINARY
-#define	O_BINARY 0
-#endif
-#ifndef O_CLOEXEC
-#define O_CLOEXEC	0
-#endif
-
-#define	MTREE_HAS_DEVICE	0x0001
-#define	MTREE_HAS_FFLAGS	0x0002
-#define	MTREE_HAS_GID		0x0004
-#define	MTREE_HAS_GNAME		0x0008
-#define	MTREE_HAS_MTIME		0x0010
-#define	MTREE_HAS_NLINK		0x0020
-#define	MTREE_HAS_PERM		0x0040
-#define	MTREE_HAS_SIZE		0x0080
-#define	MTREE_HAS_TYPE		0x0100
-#define	MTREE_HAS_UID		0x0200
-#define	MTREE_HAS_UNAME		0x0400
-
-#define	MTREE_HAS_OPTIONAL	0x0800
-#define	MTREE_HAS_NOCHANGE	0x1000 /* FreeBSD specific */
-
-struct mtree_option {
-	struct mtree_option *next;
-	char *value;
-};
-
-struct mtree_entry {
-	struct mtree_entry *next;
-	struct mtree_option *options;
-	char *name;
-	char full;
-	char used;
-};
-
-struct mtree {
-	struct archive_string	 line;
-	size_t			 buffsize;
-	char			*buff;
-	int64_t			 offset;
-	int			 fd;
-	int			 archive_format;
-	const char		*archive_format_name;
-	struct mtree_entry	*entries;
-	struct mtree_entry	*this_entry;
-	struct archive_string	 current_dir;
-	struct archive_string	 contents_name;
-
-	struct archive_entry_linkresolver *resolver;
-
-	int64_t			 cur_size;
-	char checkfs;
-};
-
-static int	bid_keycmp(const char *, const char *, ssize_t);
-static int	cleanup(struct archive_read *);
-static int	detect_form(struct archive_read *, int *);
-static int	mtree_bid(struct archive_read *, int);
-static int	parse_file(struct archive_read *, struct archive_entry *,
-		    struct mtree *, struct mtree_entry *, int *);
-static void	parse_escapes(char *, struct mtree_entry *);
-static int	parse_line(struct archive_read *, struct archive_entry *,
-		    struct mtree *, struct mtree_entry *, int *);
-static int	parse_keyword(struct archive_read *, struct mtree *,
-		    struct archive_entry *, struct mtree_option *, int *);
-static int	read_data(struct archive_read *a,
-		    const void **buff, size_t *size, int64_t *offset);
-static ssize_t	readline(struct archive_read *, struct mtree *, char **, ssize_t);
-static int	skip(struct archive_read *a);
-static int	read_header(struct archive_read *,
-		    struct archive_entry *);
-static int64_t	mtree_atol10(char **);
-static int64_t	mtree_atol8(char **);
-static int64_t	mtree_atol(char **);
-
-/*
- * There's no standard for TIME_T_MAX/TIME_T_MIN.  So we compute them
- * here.  TODO: Move this to configure time, but be careful
- * about cross-compile environments.
- */
-static int64_t
-get_time_t_max(void)
-{
-#if defined(TIME_T_MAX)
-	return TIME_T_MAX;
-#else
-	/* ISO C allows time_t to be a floating-point type,
-	   but POSIX requires an integer type.  The following
-	   should work on any system that follows the POSIX
-	   conventions. */
-	if (((time_t)0) < ((time_t)-1)) {
-		/* Time_t is unsigned */
-		return (~(time_t)0);
-	} else {
-		/* Time_t is signed. */
-		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
-		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
-		return (time_t)max_signed_time_t;
-	}
-#endif
-}
-
-static int64_t
-get_time_t_min(void)
-{
-#if defined(TIME_T_MIN)
-	return TIME_T_MIN;
-#else
-	if (((time_t)0) < ((time_t)-1)) {
-		/* Time_t is unsigned */
-		return (time_t)0;
-	} else {
-		/* Time_t is signed. */
-		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
-		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
-		const intmax_t min_signed_time_t = (intmax_t)~max_signed_time_t;
-		return (time_t)min_signed_time_t;
-	}
-#endif
-}
-
-static int
-archive_read_format_mtree_options(struct archive_read *a,
-    const char *key, const char *val)
-{
-	struct mtree *mtree;
-
-	mtree = (struct mtree *)(a->format->data);
-	if (strcmp(key, "checkfs")  == 0) {
-		/* Allows to read information missing from the mtree from the file system */
-		if (val == NULL || val[0] == 0) {
-			mtree->checkfs = 0;
-		} else {
-			mtree->checkfs = 1;
-		}
-		return (ARCHIVE_OK);
-	}
-
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
-
-static void
-free_options(struct mtree_option *head)
-{
-	struct mtree_option *next;
-
-	for (; head != NULL; head = next) {
-		next = head->next;
-		free(head->value);
-		free(head);
-	}
-}
-
-int
-archive_read_support_format_mtree(struct archive *_a)
-{
-	struct archive_read *a = (struct archive_read *)_a;
-	struct mtree *mtree;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_mtree");
-
-	mtree = (struct mtree *)malloc(sizeof(*mtree));
-	if (mtree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate mtree data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(mtree, 0, sizeof(*mtree));
-	mtree->fd = -1;
-
-	r = __archive_read_register_format(a, mtree, "mtree",
-           mtree_bid, archive_read_format_mtree_options, read_header, read_data, skip, NULL, cleanup, NULL, NULL);
-
-	if (r != ARCHIVE_OK)
-		free(mtree);
-	return (ARCHIVE_OK);
-}
-
-static int
-cleanup(struct archive_read *a)
-{
-	struct mtree *mtree;
-	struct mtree_entry *p, *q;
-
-	mtree = (struct mtree *)(a->format->data);
-
-	p = mtree->entries;
-	while (p != NULL) {
-		q = p->next;
-		free(p->name);
-		free_options(p->options);
-		free(p);
-		p = q;
-	}
-	archive_string_free(&mtree->line);
-	archive_string_free(&mtree->current_dir);
-	archive_string_free(&mtree->contents_name);
-	archive_entry_linkresolver_free(mtree->resolver);
-
-	free(mtree->buff);
-	free(mtree);
-	(a->format->data) = NULL;
-	return (ARCHIVE_OK);
-}
-
-static ssize_t
-get_line_size(const char *b, ssize_t avail, ssize_t *nlsize)
-{
-	ssize_t len;
-
-	len = 0;
-	while (len < avail) {
-		switch (*b) {
-		case '\0':/* Non-ascii character or control character. */
-			if (nlsize != NULL)
-				*nlsize = 0;
-			return (-1);
-		case '\r':
-			if (avail-len > 1 && b[1] == '\n') {
-				if (nlsize != NULL)
-					*nlsize = 2;
-				return (len+2);
-			}
-			/* FALL THROUGH */
-		case '\n':
-			if (nlsize != NULL)
-				*nlsize = 1;
-			return (len+1);
-		default:
-			b++;
-			len++;
-			break;
-		}
-	}
-	if (nlsize != NULL)
-		*nlsize = 0;
-	return (avail);
-}
-
-static ssize_t
-next_line(struct archive_read *a,
-    const char **b, ssize_t *avail, ssize_t *ravail, ssize_t *nl)
-{
-	ssize_t len;
-	int quit;
-	
-	quit = 0;
-	if (*avail == 0) {
-		*nl = 0;
-		len = 0;
-	} else
-		len = get_line_size(*b, *avail, nl);
-	/*
-	 * Read bytes more while it does not reach the end of line.
-	 */
-	while (*nl == 0 && len == *avail && !quit) {
-		ssize_t diff = *ravail - *avail;
-		size_t nbytes_req = (*ravail+1023) & ~1023U;
-		ssize_t tested;
-
-		/* Increase reading bytes if it is not enough to at least
-		 * new two lines. */
-		if (nbytes_req < (size_t)*ravail + 160)
-			nbytes_req <<= 1;
-
-		*b = __archive_read_ahead(a, nbytes_req, avail);
-		if (*b == NULL) {
-			if (*ravail >= *avail)
-				return (0);
-			/* Reading bytes reaches the end of file. */
-			*b = __archive_read_ahead(a, *avail, avail);
-			quit = 1;
-		}
-		*ravail = *avail;
-		*b += diff;
-		*avail -= diff;
-		tested = len;/* Skip some bytes we already determinated. */
-		len = get_line_size(*b, *avail, nl);
-		if (len >= 0)
-			len += tested;
-	}
-	return (len);
-}
-
-/*
- * Compare characters with a mtree keyword.
- * Returns the length of a mtree keyword if matched.
- * Returns 0 if not matched.
- */
-static int
-bid_keycmp(const char *p, const char *key, ssize_t len)
-{
-	int match_len = 0;
-
-	while (len > 0 && *p && *key) {
-		if (*p == *key) {
-			--len;
-			++p;
-			++key;
-			++match_len;
-			continue;
-		}
-		return (0);/* Not match */
-	}
-	if (*key != '\0')
-		return (0);/* Not match */
-
-	/* A following character should be specified characters */
-	if (p[0] == '=' || p[0] == ' ' || p[0] == '\t' ||
-	    p[0] == '\n' || p[0] == '\r' ||
-	   (p[0] == '\\' && (p[1] == '\n' || p[1] == '\r')))
-		return (match_len);
-	return (0);/* Not match */
-}
-
-/*
- * Test whether the characters 'p' has is mtree keyword.
- * Returns the length of a detected keyword.
- * Returns 0 if any keywords were not found.
- */
-static int
-bid_keyword(const char *p,  ssize_t len)
-{
-	static const char *keys_c[] = {
-		"content", "contents", "cksum", NULL
-	};
-	static const char *keys_df[] = {
-		"device", "flags", NULL
-	};
-	static const char *keys_g[] = {
-		"gid", "gname", NULL
-	};
-	static const char *keys_il[] = {
-		"ignore", "inode", "link", NULL
-	};
-	static const char *keys_m[] = {
-		"md5", "md5digest", "mode", NULL
-	};
-	static const char *keys_no[] = {
-		"nlink", "nochange", "optional", NULL
-	};
-	static const char *keys_r[] = {
-		"resdevice", "rmd160", "rmd160digest", NULL
-	};
-	static const char *keys_s[] = {
-		"sha1", "sha1digest",
-		"sha256", "sha256digest",
-		"sha384", "sha384digest",
-		"sha512", "sha512digest",
-		"size", NULL
-	};
-	static const char *keys_t[] = {
-		"tags", "time", "type", NULL
-	};
-	static const char *keys_u[] = {
-		"uid", "uname",	NULL
-	};
-	const char **keys;
-	int i;
-
-	switch (*p) {
-	case 'c': keys = keys_c; break;
-	case 'd': case 'f': keys = keys_df; break;
-	case 'g': keys = keys_g; break;
-	case 'i': case 'l': keys = keys_il; break;
-	case 'm': keys = keys_m; break;
-	case 'n': case 'o': keys = keys_no; break;
-	case 'r': keys = keys_r; break;
-	case 's': keys = keys_s; break;
-	case 't': keys = keys_t; break;
-	case 'u': keys = keys_u; break;
-	default: return (0);/* Unknown key */
-	}
-
-	for (i = 0; keys[i] != NULL; i++) {
-		int l = bid_keycmp(p, keys[i], len);
-		if (l > 0)
-			return (l);
-	}
-	return (0);/* Unknown key */
-}
-
-/*
- * Test whether there is a set of mtree keywords.
- * Returns the number of keyword.
- * Returns -1 if we got incorrect sequence.
- * This function expects a set of "<space characters>keyword=value".
- * When "unset" is specified, expects a set of "<space characters>keyword".
- */
-static int
-bid_keyword_list(const char *p,  ssize_t len, int unset, int last_is_path)
-{
-	int l;
-	int keycnt = 0;
-
-	while (len > 0 && *p) {
-		int blank = 0;
-
-		/* Test whether there are blank characters in the line. */
-		while (len >0 && (*p == ' ' || *p == '\t')) {
-			++p;
-			--len;
-			blank = 1;
-		}
-		if (*p == '\n' || *p == '\r')
-			break;
-		if (p[0] == '\\' && (p[1] == '\n' || p[1] == '\r'))
-			break;
-		if (!blank && !last_is_path) /* No blank character. */
-			return (-1);
-		if (last_is_path && len == 0)
-				return (keycnt);
-
-		if (unset) {
-			l = bid_keycmp(p, "all", len);
-			if (l > 0)
-				return (1);
-		}
-		/* Test whether there is a correct key in the line. */
-		l = bid_keyword(p, len);
-		if (l == 0)
-			return (-1);/* Unknown keyword was found. */
-		p += l;
-		len -= l;
-		keycnt++;
-
-		/* Skip value */
-		if (*p == '=') {
-			int value = 0;
-			++p;
-			--len;
-			while (len > 0 && *p != ' ' && *p != '\t') {
-				++p;
-				--len;
-				value = 1;
-			}
-			/* A keyword should have a its value unless
-			 * "/unset" operation. */ 
-			if (!unset && value == 0)
-				return (-1);
-		}
-	}
-	return (keycnt);
-}
-
-static int
-bid_entry(const char *p, ssize_t len, ssize_t nl, int *last_is_path)
-{
-	int f = 0;
-	static const unsigned char safe_char[256] = {
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 00 - 0F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 10 - 1F */
-		/* !"$%&'()*+,-./  EXCLUSION:( )(#) */
-		0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 20 - 2F */
-		/* 0123456789:;<>?  EXCLUSION:(=) */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, /* 30 - 3F */
-		/* @ABCDEFGHIJKLMNO */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 40 - 4F */
-		/* PQRSTUVWXYZ[\]^_  */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 50 - 5F */
-		/* `abcdefghijklmno */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 60 - 6F */
-		/* pqrstuvwxyz{|}~ */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, /* 70 - 7F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 80 - 8F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 90 - 9F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* A0 - AF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* B0 - BF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* C0 - CF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* D0 - DF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* E0 - EF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* F0 - FF */
-	};
-	ssize_t ll;
-	const char *pp = p;
-	const char * const pp_end = pp + len;
-
-	*last_is_path = 0;
-	/*
-	 * Skip the path-name which is quoted.
-	 */
-	for (;pp < pp_end; ++pp) {
-		if (!safe_char[*(const unsigned char *)pp]) {
-			if (*pp != ' ' && *pp != '\t' && *pp != '\r'
-			    && *pp != '\n')
-				f = 0;
-			break;
-		}
-		f = 1;
-	}
-	ll = pp_end - pp;
-
-	/* If a path-name was not found at the first, try to check
-	 * a mtree format(a.k.a form D) ``NetBSD's mtree -D'' creates,
-	 * which places the path-name at the last. */
-	if (f == 0) {
-		const char *pb = p + len - nl;
-		int name_len = 0;
-		int slash;
-
-		/* The form D accepts only a single line for an entry. */
-		if (pb-2 >= p &&
-		    pb[-1] == '\\' && (pb[-2] == ' ' || pb[-2] == '\t'))
-			return (-1);
-		if (pb-1 >= p && pb[-1] == '\\')
-			return (-1);
-
-		slash = 0;
-		while (p <= --pb && *pb != ' ' && *pb != '\t') {
-			if (!safe_char[*(const unsigned char *)pb])
-				return (-1);
-			name_len++;
-			/* The pathname should have a slash in this
-			 * format. */
-			if (*pb == '/')
-				slash = 1;
-		}
-		if (name_len == 0 || slash == 0)
-			return (-1);
-		/* If '/' is placed at the first in this field, this is not
-		 * a valid filename. */
-		if (pb[1] == '/')
-			return (-1);
-		ll = len - nl - name_len;
-		pp = p;
-		*last_is_path = 1;
-	}
-
-	return (bid_keyword_list(pp, ll, 0, *last_is_path));
-}
-
-#define MAX_BID_ENTRY	3
-
-static int
-mtree_bid(struct archive_read *a, int best_bid)
-{
-	const char *signature = "#mtree";
-	const char *p;
-
-	(void)best_bid; /* UNUSED */
-
-	/* Now let's look at the actual header and see if it matches. */
-	p = __archive_read_ahead(a, strlen(signature), NULL);
-	if (p == NULL)
-		return (-1);
-
-	if (memcmp(p, signature, strlen(signature)) == 0)
-		return (8 * (int)strlen(signature));
-
-	/*
-	 * There is not a mtree signature. Let's try to detect mtree format.
-	 */
-	return (detect_form(a, NULL));
-}
-
-static int
-detect_form(struct archive_read *a, int *is_form_d)
-{
-	const char *p;
-	ssize_t avail, ravail;
-	ssize_t detected_bytes = 0, len, nl;
-	int entry_cnt = 0, multiline = 0;
-	int form_D = 0;/* The archive is generated by `NetBSD mtree -D'
-			* (In this source we call it `form D') . */
-
-	if (is_form_d != NULL)
-		*is_form_d = 0;
-	p = __archive_read_ahead(a, 1, &avail);
-	if (p == NULL)
-		return (-1);
-	ravail = avail;
-	for (;;) {
-		len = next_line(a, &p, &avail, &ravail, &nl);
-		/* The terminal character of the line should be
-		 * a new line character, '\r\n' or '\n'. */
-		if (len <= 0 || nl == 0)
-			break;
-		if (!multiline) {
-			/* Leading whitespace is never significant,
-			 * ignore it. */
-			while (len > 0 && (*p == ' ' || *p == '\t')) {
-				++p;
-				--avail;
-				--len;
-			}
-			/* Skip comment or empty line. */ 
-			if (p[0] == '#' || p[0] == '\n' || p[0] == '\r') {
-				p += len;
-				avail -= len;
-				continue;
-			}
-		} else {
-			/* A continuance line; the terminal
-			 * character of previous line was '\' character. */
-			if (bid_keyword_list(p, len, 0, 0) <= 0)
-				break;
-			if (multiline == 1)
-				detected_bytes += len;
-			if (p[len-nl-1] != '\\') {
-				if (multiline == 1 &&
-				    ++entry_cnt >= MAX_BID_ENTRY)
-					break;
-				multiline = 0;
-			}
-			p += len;
-			avail -= len;
-			continue;
-		}
-		if (p[0] != '/') {
-			int last_is_path, keywords;
-
-			keywords = bid_entry(p, len, nl, &last_is_path);
-			if (keywords >= 0) {
-				detected_bytes += len;
-				if (form_D == 0) {
-					if (last_is_path)
-						form_D = 1;
-					else if (keywords > 0)
-						/* This line is not `form D'. */
-						form_D = -1;
-				} else if (form_D == 1) {
-					if (!last_is_path && keywords > 0)
-						/* This this is not `form D'
-						 * and We cannot accept mixed
-						 * format. */
-						break;
-				}
-				if (!last_is_path && p[len-nl-1] == '\\')
-					/* This line continues. */
-					multiline = 1;
-				else {
-					/* We've got plenty of correct lines
-					 * to assume that this file is a mtree
-					 * format. */
-					if (++entry_cnt >= MAX_BID_ENTRY)
-						break;
-				}
-			} else
-				break;
-		} else if (strncmp(p, "/set", 4) == 0) {
-			if (bid_keyword_list(p+4, len-4, 0, 0) <= 0)
-				break;
-			/* This line continues. */
-			if (p[len-nl-1] == '\\')
-				multiline = 2;
-		} else if (strncmp(p, "/unset", 6) == 0) {
-			if (bid_keyword_list(p+6, len-6, 1, 0) <= 0)
-				break;
-			/* This line continues. */
-			if (p[len-nl-1] == '\\')
-				multiline = 2;
-		} else
-			break;
-
-		/* Test next line. */
-		p += len;
-		avail -= len;
-	}
-	if (entry_cnt >= MAX_BID_ENTRY || (entry_cnt > 0 && len == 0)) {
-		if (is_form_d != NULL) {
-			if (form_D == 1)
-				*is_form_d = 1;
-		}
-		return (32);
-	}
-
-	return (0);
-}
-
-/*
- * The extended mtree format permits multiple lines specifying
- * attributes for each file.  For those entries, only the last line
- * is actually used.  Practically speaking, that means we have
- * to read the entire mtree file into memory up front.
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
  *
- * The parsing is done in two steps.  First, it is decided if a line
- * changes the global defaults and if it is, processed accordingly.
- * Otherwise, the options of the line are merged with the current
- * global options.
- */
-static int
-add_option(struct archive_read *a, struct mtree_option **global,
-    const char *value, size_t len)
-{
-	struct mtree_option *opt;
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-	if ((opt = malloc(sizeof(*opt))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-	if ((opt->value = malloc(len + 1)) == NULL) {
-		free(opt);
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-	memcpy(opt->value, value, len);
-	opt->value[len] = '\0';
-	opt->next = *global;
-	*global = opt;
-	return (ARCHIVE_OK);
+/***
+
+
+RECEIVING COOKIE INFORMATION
+============================
+
+struct CookieInfo *cookie_init(char *file);
+
+        Inits a cookie struct to store data in a local file. This is always
+        called before any cookies are set.
+
+int cookies_set(struct CookieInfo *cookie, char *cookie_line);
+
+        The 'cookie_line' parameter is a full "Set-cookie:" line as
+        received from a server.
+
+        The function need to replace previously stored lines that this new
+        line superceeds.
+
+        It may remove lines that are expired.
+
+        It should return an indication of success/error.
+
+
+SENDING COOKIE INFORMATION
+==========================
+
+struct Cookies *cookie_getlist(struct CookieInfo *cookie,
+                               char *host, char *path, bool secure);
+
+        For a given host and path, return a linked list of cookies that
+        the client should send to the server if used now. The secure
+        boolean informs the cookie if a secure connection is achieved or
+        not.
+
+        It shall only return cookies that haven't expired.
+
+
+Example set of cookies:
+
+    Set-cookie: PRODUCTINFO=webxpress; domain=.fidelity.com; path=/; secure
+    Set-cookie: PERSONALIZE=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/ftgw; secure
+    Set-cookie: FidHist=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: FidOrder=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: DisPend=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: FidDis=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie:
+    Session_Key@6791a9e0-901a-11d0-a1c8-9b012c88aa77=none;expires=Monday,
+    13-Jun-1988 03:04:55 GMT; domain=.fidelity.com; path=/; secure
+****/
+
+
+#include "curl_setup.h"
+
+#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
+
+#define _MPRINTF_REPLACE
+#include <curl/mprintf.h>
+
+#include "urldata.h"
+#include "cookie.h"
+#include "strequal.h"
+#include "strtok.h"
+#include "sendf.h"
+#include "slist.h"
+#include "curl_memory.h"
+#include "share.h"
+#include "strtoofft.h"
+#include "rawstr.h"
+#include "curl_memrchr.h"
+#include "inet_pton.h"
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+static void freecookie(struct Cookie *co)
+{
+  if(co->expirestr)
+    free(co->expirestr);
+  if(co->domain)
+    free(co->domain);
+  if(co->path)
+    free(co->path);
+  if(co->spath)
+    free(co->spath);
+  if(co->name)
+    free(co->name);
+  if(co->value)
+    free(co->value);
+  if(co->maxage)
+    free(co->maxage);
+  if(co->version)
+    free(co->version);
+
+  free(co);
 }
 
-static void
-remove_option(struct mtree_option **global, const char *value, size_t len)
+static bool tailmatch(const char *cooke_domain, const char *hostname)
 {
-	struct mtree_option *iter, *last;
+  size_t cookie_domain_len = strlen(cooke_domain);
+  size_t hostname_len = strlen(hostname);
 
-	last = NULL;
-	for (iter = *global; iter != NULL; last = iter, iter = iter->next) {
-		if (strncmp(iter->value, value, len) == 0 &&
-		    (iter->value[len] == '\0' ||
-		     iter->value[len] == '='))
-			break;
-	}
-	if (iter == NULL)
-		return;
-	if (last == NULL)
-		*global = iter->next;
-	else
-		last->next = iter->next;
+  if(hostname_len < cookie_domain_len)
+    return FALSE;
 
-	free(iter->value);
-	free(iter);
-}
+  if(!Curl_raw_equal(cooke_domain, hostname+hostname_len-cookie_domain_len))
+    return FALSE;
 
-static int
-process_global_set(struct archive_read *a,
-    struct mtree_option **global, const char *line)
-{
-	const char *next, *eq;
-	size_t len;
-	int r;
-
-	line += 4;
-	for (;;) {
-		next = line + strspn(line, " \t\r\n");
-		if (*next == '\0')
-			return (ARCHIVE_OK);
-		line = next;
-		next = line + strcspn(line, " \t\r\n");
-		eq = strchr(line, '=');
-		if (eq > next)
-			len = next - line;
-		else
-			len = eq - line;
-
-		remove_option(global, line, len);
-		r = add_option(a, global, line, next - line);
-		if (r != ARCHIVE_OK)
-			return (r);
-		line = next;
-	}
-}
-
-static int
-process_global_unset(struct archive_read *a,
-    struct mtree_option **global, const char *line)
-{
-	const char *next;
-	size_t len;
-
-	line += 6;
-	if (strchr(line, '=') != NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "/unset shall not contain `='");
-		return ARCHIVE_FATAL;
-	}
-
-	for (;;) {
-		next = line + strspn(line, " \t\r\n");
-		if (*next == '\0')
-			return (ARCHIVE_OK);
-		line = next;
-		len = strcspn(line, " \t\r\n");
-
-		if (len == 3 && strncmp(line, "all", 3) == 0) {
-			free_options(*global);
-			*global = NULL;
-		} else {
-			remove_option(global, line, len);
-		}
-
-		line += len;
-	}
-}
-
-static int
-process_add_entry(struct archive_read *a, struct mtree *mtree,
-    struct mtree_option **global, const char *line, ssize_t line_len,
-    struct mtree_entry **last_entry, int is_form_d)
-{
-	struct mtree_entry *entry;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t len;
-	int r;
-
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-	entry->next = NULL;
-	entry->options = NULL;
-	entry->name = NULL;
-	entry->used = 0;
-	entry->full = 0;
-
-	/* Add this entry to list. */
-	if (*last_entry == NULL)
-		mtree->entries = entry;
-	else
-		(*last_entry)->next = entry;
-	*last_entry = entry;
-
-	if (is_form_d) {
-		/*
-		 * This form places the file name as last parameter.
-		 */
-		name = line + line_len -1;
-		while (line_len > 0) {
-			if (*name != '\r' && *name != '\n' &&
-			    *name != '\t' && *name != ' ')
-				break;
-			name--;
-			line_len--;
-		}
-		len = 0;
-		while (line_len > 0) {
-			if (*name == '\r' || *name == '\n' ||
-			    *name == '\t' || *name == ' ') {
-				name++;
-				break;
-			}
-			name--;
-			line_len--;
-			len++;
-		}
-		end = name;
-	} else {
-		len = strcspn(line, " \t\r\n");
-		name = line;
-		line += len;
-		end = line + line_len;
-	}
-
-	if ((entry->name = malloc(len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-
-	memcpy(entry->name, name, len);
-	entry->name[len] = '\0';
-	parse_escapes(entry->name, entry);
-
-	for (iter = *global; iter != NULL; iter = iter->next) {
-		r = add_option(a, &entry->options, iter->value,
-		    strlen(iter->value));
-		if (r != ARCHIVE_OK)
-			return (r);
-	}
-
-	for (;;) {
-		next = line + strspn(line, " \t\r\n");
-		if (*next == '\0')
-			return (ARCHIVE_OK);
-		if (next >= end)
-			return (ARCHIVE_OK);
-		line = next;
-		next = line + strcspn(line, " \t\r\n");
-		eq = strchr(line, '=');
-		if (eq == NULL || eq > next)
-			len = next - line;
-		else
-			len = eq - line;
-
-		remove_option(&entry->options, line, len);
-		r = add_option(a, &entry->options, line, next - line);
-		if (r != ARCHIVE_OK)
-			return (r);
-		line = next;
-	}
-}
-
-static int
-read_mtree(struct archive_read *a, struct mtree *mtree)
-{
-	ssize_t len;
-	uintmax_t counter;
-	char *p;
-	struct mtree_option *global;
-	struct mtree_entry *last_entry;
-	int r, is_form_d;
-
-	mtree->archive_format = ARCHIVE_FORMAT_MTREE;
-	mtree->archive_format_name = "mtree";
-
-	global = NULL;
-	last_entry = NULL;
-
-	(void)detect_form(a, &is_form_d);
-
-	for (counter = 1; ; ++counter) {
-		len = readline(a, mtree, &p, 65536);
-		if (len == 0) {
-			mtree->this_entry = mtree->entries;
-			free_options(global);
-			return (ARCHIVE_OK);
-		}
-		if (len < 0) {
-			free_options(global);
-			return ((int)len);
-		}
-		/* Leading whitespace is never significant, ignore it. */
-		while (*p == ' ' || *p == '\t') {
-			++p;
-			--len;
-		}
-		/* Skip content lines and blank lines. */
-		if (*p == '#')
-			continue;
-		if (*p == '\r' || *p == '\n' || *p == '\0')
-			continue;
-		if (*p != '/') {
-			r = process_add_entry(a, mtree, &global, p, len,
-			    &last_entry, is_form_d);
-		} else if (strncmp(p, "/set", 4) == 0) {
-			if (p[4] != ' ' && p[4] != '\t')
-				break;
-			r = process_global_set(a, &global, p);
-		} else if (strncmp(p, "/unset", 6) == 0) {
-			if (p[6] != ' ' && p[6] != '\t')
-				break;
-			r = process_global_unset(a, &global, p);
-		} else
-			break;
-
-		if (r != ARCHIVE_OK) {
-			free_options(global);
-			return r;
-		}
-	}
-
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Can't parse line %ju", counter);
-	free_options(global);
-	return (ARCHIVE_FATAL);
+  /* A lead char of cookie_domain is not '.'.
+     RFC6265 4.1.2.3. The Domain Attribute says:
+       For example, if the value of the Domain attribute is
+       "example.com", the user agent will include the cookie in the Cookie
+       header when making HTTP requests to example.com, www.example.com, and
+       www.corp.example.com.
+   */
+  if(hostname_len == cookie_domain_len)
+    return TRUE;
+  if('.' == *(hostname + hostname_len - cookie_domain_len - 1))
+    return TRUE;
+  return FALSE;
 }
 
 /*
- * Read in the entire mtree file into memory on the first request.
- * Then use the next unused file to satisfy each header request.
+ * matching cookie path and url path
+ * RFC6265 5.1.4 Paths and Path-Match
  */
-static int
-read_header(struct archive_read *a, struct archive_entry *entry)
+static bool pathmatch(const char* cookie_path, const char* request_uri)
 {
-	struct mtree *mtree;
-	char *p;
-	int r, use_next;
+  size_t cookie_path_len;
+  size_t uri_path_len;
+  char* uri_path = NULL;
+  char* pos;
+  bool ret = FALSE;
 
-	mtree = (struct mtree *)(a->format->data);
+  /* cookie_path must not have last '/' separator. ex: /sample */
+  cookie_path_len = strlen(cookie_path);
+  if(1 == cookie_path_len) {
+    /* cookie_path must be '/' */
+    return TRUE;
+  }
 
-	if (mtree->fd >= 0) {
-		close(mtree->fd);
-		mtree->fd = -1;
-	}
+  uri_path = strdup(request_uri);
+  if(!uri_path)
+    return FALSE;
+  pos = strchr(uri_path, '?');
+  if(pos)
+    *pos = 0x0;
 
-	if (mtree->entries == NULL) {
-		mtree->resolver = archive_entry_linkresolver_new();
-		if (mtree->resolver == NULL)
-			return ARCHIVE_FATAL;
-		archive_entry_linkresolver_set_strategy(mtree->resolver,
-		    ARCHIVE_FORMAT_MTREE);
-		r = read_mtree(a, mtree);
-		if (r != ARCHIVE_OK)
-			return (r);
-	}
+  /* #-fragments are already cut off! */
+  if(0 == strlen(uri_path) || uri_path[0] != '/') {
+    free(uri_path);
+    uri_path = strdup("/");
+    if(!uri_path)
+      return FALSE;
+  }
 
-	a->archive.archive_format = mtree->archive_format;
-	a->archive.archive_format_name = mtree->archive_format_name;
+  /* here, RFC6265 5.1.4 says
+     4. Output the characters of the uri-path from the first character up
+        to, but not including, the right-most %x2F ("/").
+     but URL path /hoge?fuga=xxx means /hoge/index.cgi?fuga=xxx in some site
+     without redirect.
+     Ignore this algorithm because /hoge is uri path for this case
+     (uri path is not /).
+   */
 
-	for (;;) {
-		if (mtree->this_entry == NULL)
-			return (ARCHIVE_EOF);
-		if (strcmp(mtree->this_entry->name, "..") == 0) {
-			mtree->this_entry->used = 1;
-			if (archive_strlen(&mtree->current_dir) > 0) {
-				/* Roll back current path. */
-				p = mtree->current_dir.s
-				    + mtree->current_dir.length - 1;
-				while (p >= mtree->current_dir.s && *p != '/')
-					--p;
-				if (p >= mtree->current_dir.s)
-					--p;
-				mtree->current_dir.length
-				    = p - mtree->current_dir.s + 1;
-			}
-		}
-		if (!mtree->this_entry->used) {
-			use_next = 0;
-			r = parse_file(a, entry, mtree, mtree->this_entry,
-				&use_next);
-			if (use_next == 0)
-				return (r);
-		}
-		mtree->this_entry = mtree->this_entry->next;
-	}
+  uri_path_len = strlen(uri_path);
+
+  if(uri_path_len < cookie_path_len) {
+    ret = FALSE;
+    goto pathmatched;
+  }
+
+  /* not using checkprefix() because matching should be case-sensitive */
+  if(strncmp(cookie_path, uri_path, cookie_path_len)) {
+    ret = FALSE;
+    goto pathmatched;
+  }
+
+  /* The cookie-path and the uri-path are identical. */
+  if(cookie_path_len == uri_path_len) {
+    ret = TRUE;
+    goto pathmatched;
+  }
+
+  /* here, cookie_path_len < url_path_len */
+  if(uri_path[cookie_path_len] == '/') {
+    ret = TRUE;
+    goto pathmatched;
+  }
+
+  ret = FALSE;
+
+pathmatched:
+  free(uri_path);
+  return ret;
 }
 
 /*
- * A single file can have multiple lines contribute specifications.
- * Parse as many lines as necessary, then pull additional information
- * from a backing file on disk as necessary.
+ * cookie path sanitize
  */
-static int
-parse_file(struct archive_read *a, struct archive_entry *entry,
-    struct mtree *mtree, struct mtree_entry *mentry, int *use_next)
+static char *sanitize_cookie_path(const char *cookie_path)
 {
-	const char *path;
-	struct stat st_storage, *st;
-	struct mtree_entry *mp;
-	struct archive_entry *sparse_entry;
-	int r = ARCHIVE_OK, r1, parsed_kws;
+  size_t len;
+  char *new_path = strdup(cookie_path);
+  if(!new_path)
+    return NULL;
 
-	mentry->used = 1;
+  /* some stupid site sends path attribute with '"'. */
+  if(new_path[0] == '\"') {
+    memmove((void *)new_path, (const void *)(new_path + 1), strlen(new_path));
+  }
+  if(new_path[strlen(new_path) - 1] == '\"') {
+    new_path[strlen(new_path) - 1] = 0x0;
+  }
 
-	/* Initialize reasonable defaults. */
-	archive_entry_set_filetype(entry, AE_IFREG);
-	archive_entry_set_size(entry, 0);
-	archive_string_empty(&mtree->contents_name);
+  /* RFC6265 5.2.4 The Path Attribute */
+  if(new_path[0] != '/') {
+    /* Let cookie-path be the default-path. */
+    free(new_path);
+    new_path = strdup("/");
+    return new_path;
+  }
 
-	/* Parse options from this line. */
-	parsed_kws = 0;
-	r = parse_line(a, entry, mtree, mentry, &parsed_kws);
+  /* convert /hoge/ to /hoge */
+  len = strlen(new_path);
+  if(1 < len && new_path[len - 1] == '/') {
+    new_path[len - 1] = 0x0;
+  }
 
-	if (mentry->full) {
-		archive_entry_copy_pathname(entry, mentry->name);
-		/*
-		 * "Full" entries are allowed to have multiple lines
-		 * and those lines aren't required to be adjacent.  We
-		 * don't support multiple lines for "relative" entries
-		 * nor do we make any attempt to merge data from
-		 * separate "relative" and "full" entries.  (Merging
-		 * "relative" and "full" entries would require dealing
-		 * with pathname canonicalization, which is a very
-		 * tricky subject.)
-		 */
-		for (mp = mentry->next; mp != NULL; mp = mp->next) {
-			if (mp->full && !mp->used
-			    && strcmp(mentry->name, mp->name) == 0) {
-				/* Later lines override earlier ones. */
-				mp->used = 1;
-				r1 = parse_line(a, entry, mtree, mp,
-				    &parsed_kws);
-				if (r1 < r)
-					r = r1;
-			}
-		}
-	} else {
-		/*
-		 * Relative entries require us to construct
-		 * the full path and possibly update the
-		 * current directory.
-		 */
-		size_t n = archive_strlen(&mtree->current_dir);
-		if (n > 0)
-			archive_strcat(&mtree->current_dir, "/");
-		archive_strcat(&mtree->current_dir, mentry->name);
-		archive_entry_copy_pathname(entry, mtree->current_dir.s);
-		if (archive_entry_filetype(entry) != AE_IFDIR)
-			mtree->current_dir.length = n;
-	}
+  return new_path;
+}
 
-	if (mtree->checkfs) {
-		/*
-		 * Try to open and stat the file to get the real size
-		 * and other file info.  It would be nice to avoid
-		 * this here so that getting a listing of an mtree
-		 * wouldn't require opening every referenced contents
-		 * file.  But then we wouldn't know the actual
-		 * contents size, so I don't see a really viable way
-		 * around this.  (Also, we may want to someday pull
-		 * other unspecified info from the contents file on
-		 * disk.)
-		 */
-		mtree->fd = -1;
-		if (archive_strlen(&mtree->contents_name) > 0)
-			path = mtree->contents_name.s;
-		else
-			path = archive_entry_pathname(entry);
+/*
+ * Load cookies from all given cookie files (CURLOPT_COOKIEFILE).
+ */
+void Curl_cookie_loadfiles(struct SessionHandle *data)
+{
+  struct curl_slist *list = data->change.cookielist;
+  if(list) {
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+    while(list) {
+      data->cookies = Curl_cookie_init(data,
+                                       list->data,
+                                       data->cookies,
+                                       data->set.cookiesession);
+      list = list->next;
+    }
+    curl_slist_free_all(data->change.cookielist); /* clean up list */
+    data->change.cookielist = NULL; /* don't do this again! */
+    Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+  }
+}
 
-		if (archive_entry_filetype(entry) == AE_IFREG ||
-				archive_entry_filetype(entry) == AE_IFDIR) {
-			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
-			__archive_ensure_cloexec_flag(mtree->fd);
-			if (mtree->fd == -1 &&
-				(errno != ENOENT ||
-				 archive_strlen(&mtree->contents_name) > 0)) {
-				archive_set_error(&a->archive, errno,
-						"Can't open %s", path);
-				r = ARCHIVE_WARN;
-			}
-		}
+/*
+ * strstore() makes a strdup() on the 'newstr' and if '*str' is non-NULL
+ * that will be freed before the allocated string is stored there.
+ *
+ * It is meant to easily replace strdup()
+ */
+static void strstore(char **str, const char *newstr)
+{
+  if(*str)
+    free(*str);
+  *str = strdup(newstr);
+}
 
-		st = &st_storage;
-		if (mtree->fd >= 0) {
-			if (fstat(mtree->fd, st) == -1) {
-				archive_set_error(&a->archive, errno,
-						"Could not fstat %s", path);
-				r = ARCHIVE_WARN;
-				/* If we can't stat it, don't keep it open. */
-				close(mtree->fd);
-				mtree->fd = -1;
-				st = NULL;
-			}
-		} else if (lstat(path, st) == -1) {
-			st = NULL;
-		}
+/*
+ * remove_expired() removes expired cookies.
+ */
+static void remove_expired(struct CookieInfo *cookies)
+{
+  struct Cookie *co, *nx, *pv;
+  curl_off_t now = (curl_off_t)time(NULL);
 
-		/*
-		 * Check for a mismatch between the type in the specification
-		 * and the type of the contents object on disk.
-		 */
-		if (st != NULL) {
-			if (((st->st_mode & S_IFMT) == S_IFREG &&
-			      archive_entry_filetype(entry) == AE_IFREG)
-#ifdef S_IFLNK
-			  ||((st->st_mode & S_IFMT) == S_IFLNK &&
-			      archive_entry_filetype(entry) == AE_IFLNK)
+  co = cookies->cookies;
+  pv = NULL;
+  while(co) {
+    nx = co->next;
+    if((co->expirestr || co->maxage) && co->expires < now) {
+      if(co == cookies->cookies) {
+        cookies->cookies = co->next;
+      }
+      else {
+        pv->next = co->next;
+      }
+      cookies->numcookies--;
+      freecookie(co);
+    }
+    else {
+      pv = co;
+    }
+    co = nx;
+  }
+}
+
+/*
+ * Return true if the given string is an IP(v4|v6) address.
+ */
+static bool isip(const char *domain)
+{
+  struct in_addr addr;
+#ifdef ENABLE_IPV6
+  struct in6_addr addr6;
 #endif
-#ifdef S_IFSOCK
-			  ||((st->st_mode & S_IFSOCK) == S_IFSOCK &&
-			      archive_entry_filetype(entry) == AE_IFSOCK)
+
+  if(Curl_inet_pton(AF_INET, domain, &addr)
+#ifdef ENABLE_IPV6
+     || Curl_inet_pton(AF_INET6, domain, &addr6)
 #endif
-#ifdef S_IFCHR
-			  ||((st->st_mode & S_IFMT) == S_IFCHR &&
-			      archive_entry_filetype(entry) == AE_IFCHR)
+    ) {
+    /* domain name given as IP address */
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+/****************************************************************************
+ *
+ * Curl_cookie_add()
+ *
+ * Add a single cookie line to the cookie keeping object.
+ *
+ * Be aware that sometimes we get an IP-only host name, and that might also be
+ * a numerical IPv6 address.
+ *
+ ***************************************************************************/
+
+struct Cookie *
+Curl_cookie_add(struct SessionHandle *data,
+                /* The 'data' pointer here may be NULL at times, and thus
+                   must only be used very carefully for things that can deal
+                   with data being NULL. Such as infof() and similar */
+
+                struct CookieInfo *c,
+                bool httpheader, /* TRUE if HTTP header-style line */
+                char *lineptr,   /* first character of the line */
+                const char *domain, /* default domain */
+                const char *path)   /* full path used when this cookie is set,
+                                       used to get default path for the cookie
+                                       unless set */
+{
+  struct Cookie *clist;
+  char name[MAX_NAME];
+  struct Cookie *co;
+  struct Cookie *lastc=NULL;
+  time_t now = time(NULL);
+  bool replace_old = FALSE;
+  bool badcookie = FALSE; /* cookies are good by default. mmmmm yummy */
+
+#ifdef CURL_DISABLE_VERBOSE_STRINGS
+  (void)data;
 #endif
-#ifdef S_IFBLK
-			  ||((st->st_mode & S_IFMT) == S_IFBLK &&
-			      archive_entry_filetype(entry) == AE_IFBLK)
-#endif
-			  ||((st->st_mode & S_IFMT) == S_IFDIR &&
-			      archive_entry_filetype(entry) == AE_IFDIR)
-#ifdef S_IFIFO
-			  ||((st->st_mode & S_IFMT) == S_IFIFO &&
-			      archive_entry_filetype(entry) == AE_IFIFO)
-#endif
-			) {
-				/* Types match. */
-			} else {
-				/* Types don't match; bail out gracefully. */
-				if (mtree->fd >= 0)
-					close(mtree->fd);
-				mtree->fd = -1;
-				if (parsed_kws & MTREE_HAS_OPTIONAL) {
-					/* It's not an error for an optional
-					 * entry to not match disk. */
-					*use_next = 1;
-				} else if (r == ARCHIVE_OK) {
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "mtree specification has different"
-					    " type for %s",
-					    archive_entry_pathname(entry));
-					r = ARCHIVE_WARN;
-				}
-				return (r);
-			}
-		}
 
-		/*
-		 * If there is a contents file on disk, pick some of the
-		 * metadata from that file.  For most of these, we only
-		 * set it from the contents if it wasn't already parsed
-		 * from the specification.
-		 */
-		if (st != NULL) {
-			if (((parsed_kws & MTREE_HAS_DEVICE) == 0 ||
-				(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
-				(archive_entry_filetype(entry) == AE_IFCHR ||
-				 archive_entry_filetype(entry) == AE_IFBLK))
-				archive_entry_set_rdev(entry, st->st_rdev);
-			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME))
-				== 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_gid(entry, st->st_gid);
-			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME))
-				== 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_uid(entry, st->st_uid);
-			if ((parsed_kws & MTREE_HAS_MTIME) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
-#if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtimespec.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtim.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIME_N
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtime_n);
-#elif HAVE_STRUCT_STAT_ST_UMTIME
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_umtime*1000);
-#elif HAVE_STRUCT_STAT_ST_MTIME_USEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtime_usec*1000);
-#else
-				archive_entry_set_mtime(entry, st->st_mtime, 0);
-#endif
-			}
-			if ((parsed_kws & MTREE_HAS_NLINK) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_nlink(entry, st->st_nlink);
-			if ((parsed_kws & MTREE_HAS_PERM) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_perm(entry, st->st_mode);
-			if ((parsed_kws & MTREE_HAS_SIZE) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_size(entry, st->st_size);
-			archive_entry_set_ino(entry, st->st_ino);
-			archive_entry_set_dev(entry, st->st_dev);
+  /* First, alloc and init a new struct for it */
+  co = calloc(1, sizeof(struct Cookie));
+  if(!co)
+    return NULL; /* bail out if we're this low on memory */
 
-			archive_entry_linkify(mtree->resolver, &entry,
-				&sparse_entry);
-		} else if (parsed_kws & MTREE_HAS_OPTIONAL) {
-			/*
-			 * Couldn't open the entry, stat it or the on-disk type
-			 * didn't match.  If this entry is optional, just
-			 * ignore it and read the next header entry.
-			 */
-			*use_next = 1;
-			return ARCHIVE_OK;
-		}
-	}
+  if(httpheader) {
+    /* This line was read off a HTTP-header */
+    const char *ptr;
+    const char *semiptr;
+    char *what;
 
-	mtree->cur_size = archive_entry_size(entry);
-	mtree->offset = 0;
+    what = malloc(MAX_COOKIE_LINE);
+    if(!what) {
+      free(co);
+      return NULL;
+    }
 
-	return r;
+    semiptr=strchr(lineptr, ';'); /* first, find a semicolon */
+
+    while(*lineptr && ISBLANK(*lineptr))
+      lineptr++;
+
+    ptr = lineptr;
+    do {
+      /* we have a <what>=<this> pair or a stand-alone word here */
+      name[0]=what[0]=0; /* init the buffers */
+      if(1 <= sscanf(ptr, "%" MAX_NAME_TXT "[^;\r\n =]=%"
+                     MAX_COOKIE_LINE_TXT "[^;\r\n]",
+                     name, what)) {
+        /* Use strstore() below to properly deal with received cookie
+           headers that have the same string property set more than once,
+           and then we use the last one. */
+        const char *whatptr;
+        bool done = FALSE;
+        bool sep;
+        size_t len=strlen(what);
+        const char *endofn = &ptr[ strlen(name) ];
+
+        /* skip trailing spaces in name */
+        while(*endofn && ISBLANK(*endofn))
+          endofn++;
+
+        /* name ends with a '=' ? */
+        sep = (*endofn == '=')?TRUE:FALSE;
+
+        /* Strip off trailing whitespace from the 'what' */
+        while(len && ISBLANK(what[len-1])) {
+          what[len-1]=0;
+          len--;
+        }
+
+        /* Skip leading whitespace from the 'what' */
+        whatptr=what;
+        while(*whatptr && ISBLANK(*whatptr))
+          whatptr++;
+
+        if(!len) {
+          /* this was a "<name>=" with no content, and we must allow
+             'secure' and 'httponly' specified this weirdly */
+          done = TRUE;
+          if(Curl_raw_equal("secure", name))
+            co->secure = TRUE;
+          else if(Curl_raw_equal("httponly", name))
+            co->httponly = TRUE;
+          else if(sep)
+            /* there was a '=' so we're not done parsing this field */
+            done = FALSE;
+        }
+        if(done)
+          ;
+        else if(Curl_raw_equal("path", name)) {
+          strstore(&co->path, whatptr);
+          if(!co->path) {
+            badcookie = TRUE; /* out of memory bad */
+            break;
+          }
+          co->spath = sanitize_cookie_path(co->path);
+          if(!co->spath) {
+            badcookie = TRUE; /* out of memory bad */
+            break;
+          }
+        }
+        else if(Curl_raw_equal("domain", name)) {
+          bool is_ip;
+          const char *dotp;
+
+          /* Now, we make sure that our host is within the given domain,
+             or the given domain is not valid and thus cannot be set. */
+
+          if('.' == whatptr[0])
+            whatptr++; /* ignore preceding dot */
+
+          is_ip = isip(domain ? domain : whatptr);
+
+          /* check for more dots */
+          dotp = strchr(whatptr, '.');
+          if(!dotp)
+            domain=":";
+
+          if(!domain
+             || (is_ip && !strcmp(whatptr, domain))
+             || (!is_ip && tailmatch(whatptr, domain))) {
+            strstore(&co->domain, whatptr);
+            if(!co->domain) {
+              badcookie = TRUE;
+              break;
+            }
+            if(!is_ip)
+              co->tailmatch=TRUE; /* we always do that if the domain name was
+                                     given */
+          }
+          else {
+            /* we did not get a tailmatch and then the attempted set domain
+               is not a domain to which the current host belongs. Mark as
+               bad. */
+            badcookie=TRUE;
+            infof(data, "skipped cookie with bad tailmatch domain: %s\n",
+                  whatptr);
+          }
+        }
+        else if(Curl_raw_equal("version", name)) {
+          strstore(&co->version, whatptr);
+          if(!co->version) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(Curl_raw_equal("max-age", name)) {
+          /* Defined in RFC2109:
+
+             Optional.  The Max-Age attribute defines the lifetime of the
+             cookie, in seconds.  The delta-seconds value is a decimal non-
+             negative integer.  After delta-seconds seconds elapse, the
+             client should discard the cookie.  A value of zero means the
+             cookie should be discarded immediately.
+
+          */
+          strstore(&co->maxage, whatptr);
+          if(!co->maxage) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(Curl_raw_equal("expires", name)) {
+          strstore(&co->expirestr, whatptr);
+          if(!co->expirestr) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(!co->name) {
+          co->name = strdup(name);
+          co->value = strdup(whatptr);
+          if(!co->name || !co->value) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        /*
+          else this is the second (or more) name we don't know
+          about! */
+      }
+      else {
+        /* this is an "illegal" <what>=<this> pair */
+      }
+
+      if(!semiptr || !*semiptr) {
+        /* we already know there are no more cookies */
+        semiptr = NULL;
+        continue;
+      }
+
+      ptr=semiptr+1;
+      while(*ptr && ISBLANK(*ptr))
+        ptr++;
+      semiptr=strchr(ptr, ';'); /* now, find the next semicolon */
+
+      if(!semiptr && *ptr)
+        /* There are no more semicolons, but there's a final name=value pair
+           coming up */
+        semiptr=strchr(ptr, '\0');
+    } while(semiptr);
+
+    if(co->maxage) {
+      co->expires =
+        curlx_strtoofft((*co->maxage=='\"')?
+                        &co->maxage[1]:&co->maxage[0], NULL, 10);
+      if(CURL_OFF_T_MAX - now < co->expires)
+        /* avoid overflow */
+        co->expires = CURL_OFF_T_MAX;
+      else
+        co->expires += now;
+    }
+    else if(co->expirestr) {
+      /* Note that if the date couldn't get parsed for whatever reason,
+         the cookie will be treated as a session cookie */
+      co->expires = curl_getdate(co->expirestr, NULL);
+
+      /* Session cookies have expires set to 0 so if we get that back
+         from the date parser let's add a second to make it a
+         non-session cookie */
+      if(co->expires == 0)
+        co->expires = 1;
+      else if(co->expires < 0)
+        co->expires = 0;
+    }
+
+    if(!badcookie && !co->domain) {
+      if(domain) {
+        /* no domain was given in the header line, set the default */
+        co->domain=strdup(domain);
+        if(!co->domain)
+          badcookie = TRUE;
+      }
+    }
+
+    if(!badcookie && !co->path && path) {
+      /* No path was given in the header line, set the default.
+         Note that the passed-in path to this function MAY have a '?' and
+         following part that MUST not be stored as part of the path. */
+      char *queryp = strchr(path, '?');
+
+      /* queryp is where the interesting part of the path ends, so now we
+         want to the find the last */
+      char *endslash;
+      if(!queryp)
+        endslash = strrchr(path, '/');
+      else
+        endslash = memrchr(path, '/', (size_t)(queryp - path));
+      if(endslash) {
+        size_t pathlen = (size_t)(endslash-path+1); /* include ending slash */
+        co->path=malloc(pathlen+1); /* one extra for the zero byte */
+        if(co->path) {
+          memcpy(co->path, path, pathlen);
+          co->path[pathlen]=0; /* zero terminate */
+          co->spath = sanitize_cookie_path(co->path);
+          if(!co->spath)
+            badcookie = TRUE; /* out of memory bad */
+        }
+        else
+          badcookie = TRUE;
+      }
+    }
+
+    free(what);
+
+    if(badcookie || !co->name) {
+      /* we didn't get a cookie name or a bad one,
+         this is an illegal line, bail out */
+      freecookie(co);
+      return NULL;
+    }
+
+  }
+  else {
+    /* This line is NOT a HTTP header style line, we do offer support for
+       reading the odd netscape cookies-file format here */
+    char *ptr;
+    char *firstptr;
+    char *tok_buf=NULL;
+    int fields;
+
+    /* IE introduced HTTP-only cookies to prevent XSS attacks. Cookies
+       marked with httpOnly after the domain name are not accessible
+       from javascripts, but since curl does not operate at javascript
+       level, we include them anyway. In Firefox's cookie files, these
+       lines are preceded with #HttpOnly_ and then everything is
+       as usual, so we skip 10 characters of the line..
+    */
+    if(strncmp(lineptr, "#HttpOnly_", 10) == 0) {
+      lineptr += 10;
+      co->httponly = TRUE;
+    }
+
+    if(lineptr[0]=='#') {
+      /* don't even try the comments */
+      free(co);
+      return NULL;
+    }
+    /* strip off the possible end-of-line characters */
+    ptr=strchr(lineptr, '\r');
+    if(ptr)
+      *ptr=0; /* clear it */
+    ptr=strchr(lineptr, '\n');
+    if(ptr)
+      *ptr=0; /* clear it */
+
+    firstptr=strtok_r(lineptr, "\t", &tok_buf); /* tokenize it on the TAB */
+
+    /* Now loop through the fields and init the struct we already have
+       allocated */
+    for(ptr=firstptr, fields=0; ptr && !badcookie;
+        ptr=strtok_r(NULL, "\t", &tok_buf), fields++) {
+      switch(fields) {
+      case 0:
+        if(ptr[0]=='.') /* skip preceding dots */
+          ptr++;
+        co->domain = strdup(ptr);
+        if(!co->domain)
+          badcookie = TRUE;
+        break;
+      case 1:
+        /* This field got its explanation on the 23rd of May 2001 by
+           Andrés García:
+
+           flag: A TRUE/FALSE value indicating if all machines within a given
+           domain can access the variable. This value is set automatically by
+           the browser, depending on the value you set for the domain.
+
+           As far as I can see, it is set to true when the cookie says
+           .domain.com and to false when the domain is complete www.domain.com
+        */
+        co->tailmatch = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
+        break;
+      case 2:
+        /* It turns out, that sometimes the file format allows the path
+           field to remain not filled in, we try to detect this and work
+           around it! Andrés García made us aware of this... */
+        if(strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
+          /* only if the path doesn't look like a boolean option! */
+          co->path = strdup(ptr);
+          if(!co->path)
+            badcookie = TRUE;
+          else {
+            co->spath = sanitize_cookie_path(co->path);
+            if(!co->spath) {
+              badcookie = TRUE; /* out of memory bad */
+            }
+          }
+          break;
+        }
+        /* this doesn't look like a path, make one up! */
+        co->path = strdup("/");
+        if(!co->path)
+          badcookie = TRUE;
+        co->spath = strdup("/");
+        if(!co->spath)
+          badcookie = TRUE;
+        fields++; /* add a field and fall down to secure */
+        /* FALLTHROUGH */
+      case 3:
+        co->secure = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
+        break;
+      case 4:
+        co->expires = curlx_strtoofft(ptr, NULL, 10);
+        break;
+      case 5:
+        co->name = strdup(ptr);
+        if(!co->name)
+          badcookie = TRUE;
+        break;
+      case 6:
+        co->value = strdup(ptr);
+        if(!co->value)
+          badcookie = TRUE;
+        break;
+      }
+    }
+    if(6 == fields) {
+      /* we got a cookie with blank contents, fix it */
+      co->value = strdup("");
+      if(!co->value)
+        badcookie = TRUE;
+      else
+        fields++;
+    }
+
+    if(!badcookie && (7 != fields))
+      /* we did not find the sufficient number of fields */
+      badcookie = TRUE;
+
+    if(badcookie) {
+      freecookie(co);
+      return NULL;
+    }
+
+  }
+
+  if(!c->running &&    /* read from a file */
+     c->newsession &&  /* clean session cookies */
+     !co->expires) {   /* this is a session cookie since it doesn't expire! */
+    freecookie(co);
+    return NULL;
+  }
+
+  co->livecookie = c->running;
+
+  /* now, we have parsed the incoming line, we must now check if this
+     superceeds an already existing cookie, which it may if the previous have
+     the same domain and path as this */
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+  clist = c->cookies;
+  replace_old = FALSE;
+  while(clist) {
+    if(Curl_raw_equal(clist->name, co->name)) {
+      /* the names are identical */
+
+      if(clist->domain && co->domain) {
+        if(Curl_raw_equal(clist->domain, co->domain))
+          /* The domains are identical */
+          replace_old=TRUE;
+      }
+      else if(!clist->domain && !co->domain)
+        replace_old = TRUE;
+
+      if(replace_old) {
+        /* the domains were identical */
+
+        if(clist->spath && co->spath) {
+          if(Curl_raw_equal(clist->spath, co->spath)) {
+            replace_old = TRUE;
+          }
+          else
+            replace_old = FALSE;
+        }
+        else if(!clist->spath && !co->spath)
+          replace_old = TRUE;
+        else
+          replace_old = FALSE;
+
+      }
+
+      if(replace_old && !co->livecookie && clist->livecookie) {
+        /* Both cookies matched fine, except that the already present
+           cookie is "live", which means it was set from a header, while
+           the new one isn't "live" and thus only read from a file. We let
+           live cookies stay alive */
+
+        /* Free the newcomer and get out of here! */
+        freecookie(co);
+        return NULL;
+      }
+
+      if(replace_old) {
+        co->next = clist->next; /* get the next-pointer first */
+
+        /* then free all the old pointers */
+        free(clist->name);
+        if(clist->value)
+          free(clist->value);
+        if(clist->domain)
+          free(clist->domain);
+        if(clist->path)
+          free(clist->path);
+        if(clist->spath)
+          free(clist->spath);
+        if(clist->expirestr)
+          free(clist->expirestr);
+
+        if(clist->version)
+          free(clist->version);
+        if(clist->maxage)
+          free(clist->maxage);
+
+        *clist = *co;  /* then store all the new data */
+
+        free(co);   /* free the newly alloced memory */
+        co = clist; /* point to the previous struct instead */
+
+        /* We have replaced a cookie, now skip the rest of the list but
+           make sure the 'lastc' pointer is properly set */
+        do {
+          lastc = clist;
+          clist = clist->next;
+        } while(clist);
+        break;
+      }
+    }
+    lastc = clist;
+    clist = clist->next;
+  }
+
+  if(c->running)
+    /* Only show this when NOT reading the cookies from a file */
+    infof(data, "%s cookie %s=\"%s\" for domain %s, path %s, "
+          "expire %" CURL_FORMAT_CURL_OFF_T "\n",
+          replace_old?"Replaced":"Added", co->name, co->value,
+          co->domain, co->path, co->expires);
+
+  if(!replace_old) {
+    /* then make the last item point on this new one */
+    if(lastc)
+      lastc->next = co;
+    else
+      c->cookies = co;
+    c->numcookies++; /* one more cookie in the jar */
+  }
+
+  return co;
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_init()
+ *
+ * Inits a cookie struct to read data from a local file. This is always
+ * called before any cookies are set. File may be NULL.
+ *
+ * If 'newsession' is TRUE, discard all "session cookies" on read from file.
+ *
+ ****************************************************************************/
+struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
+                                    const char *file,
+                                    struct CookieInfo *inc,
+                                    bool newsession)
+{
+  struct CookieInfo *c;
+  FILE *fp;
+  bool fromfile=TRUE;
+
+  if(NULL == inc) {
+    /* we didn't get a struct, create one */
+    c = calloc(1, sizeof(struct CookieInfo));
+    if(!c)
+      return NULL; /* failed to get memory */
+    c->filename = strdup(file?file:"none"); /* copy the name just in case */
+  }
+  else {
+    /* we got an already existing one, use that */
+    c = inc;
+  }
+  c->running = FALSE; /* this is not running, this is init */
+
+  if(file && strequal(file, "-")) {
+    fp = stdin;
+    fromfile=FALSE;
+  }
+  else if(file && !*file) {
+    /* points to a "" string */
+    fp = NULL;
+  }
+  else
+    fp = file?fopen(file, "r"):NULL;
+
+  c->newsession = newsession; /* new session? */
+
+  if(fp) {
+    char *lineptr;
+    bool headerline;
+
+    char *line = malloc(MAX_COOKIE_LINE);
+    if(line) {
+      while(fgets(line, MAX_COOKIE_LINE, fp)) {
+        if(checkprefix("Set-Cookie:", line)) {
+          /* This is a cookie line, get it! */
+          lineptr=&line[11];
+          headerline=TRUE;
+        }
+        else {
+          lineptr=line;
+          headerline=FALSE;
+        }
+        while(*lineptr && ISBLANK(*lineptr))
+          lineptr++;
+
+        Curl_cookie_add(data, c, headerline, lineptr, NULL, NULL);
+      }
+      free(line); /* free the line buffer */
+    }
+    if(fromfile)
+      fclose(fp);
+  }
+
+  c->running = TRUE;          /* now, we're running */
+
+  return c;
+}
+
+/* sort this so that the longest path gets before the shorter path */
+static int cookie_sort(const void *p1, const void *p2)
+{
+  struct Cookie *c1 = *(struct Cookie **)p1;
+  struct Cookie *c2 = *(struct Cookie **)p2;
+  size_t l1, l2;
+
+  /* 1 - compare cookie path lengths */
+  l1 = c1->path ? strlen(c1->path) : 0;
+  l2 = c2->path ? strlen(c2->path) : 0;
+
+  if(l1 != l2)
+    return (l2 > l1) ? 1 : -1 ; /* avoid size_t <=> int conversions */
+
+  /* 2 - compare cookie domain lengths */
+  l1 = c1->domain ? strlen(c1->domain) : 0;
+  l2 = c2->domain ? strlen(c2->domain) : 0;
+
+  if(l1 != l2)
+    return (l2 > l1) ? 1 : -1 ;  /* avoid size_t <=> int conversions */
+
+  /* 3 - compare cookie names */
+  if(c1->name && c2->name)
+    return strcmp(c1->name, c2->name);
+
+  /* sorry, can't be more deterministic */
+  return 0;
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_getlist()
+ *
+ * For a given host and path, return a linked list of cookies that the
+ * client should send to the server if used now. The secure boolean informs
+ * the cookie if a secure connection is achieved or not.
+ *
+ * It shall only return cookies that haven't expired.
+ *
+ ****************************************************************************/
+
+struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
+                                   const char *host, const char *path,
+                                   bool secure)
+{
+  struct Cookie *newco;
+  struct Cookie *co;
+  time_t now = time(NULL);
+  struct Cookie *mainco=NULL;
+  size_t matches = 0;
+  bool is_ip;
+
+  if(!c || !c->cookies)
+    return NULL; /* no cookie struct or no cookies in the struct */
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+  /* check if host is an IP(v4|v6) address */
+  is_ip = isip(host);
+
+  co = c->cookies;
+
+  while(co) {
+    /* only process this cookie if it is not expired or had no expire
+       date AND that if the cookie requires we're secure we must only
+       continue if we are! */
+    if((!co->expires || (co->expires > now)) &&
+       (co->secure?secure:TRUE)) {
+
+      /* now check if the domain is correct */
+      if(!co->domain ||
+         (co->tailmatch && !is_ip && tailmatch(co->domain, host)) ||
+         ((!co->tailmatch || is_ip) && Curl_raw_equal(host, co->domain)) ) {
+        /* the right part of the host matches the domain stuff in the
+           cookie data */
+
+        /* now check the left part of the path with the cookies path
+           requirement */
+        if(!co->spath || pathmatch(co->spath, path) ) {
+
+          /* and now, we know this is a match and we should create an
+             entry for the return-linked-list */
+
+          newco = malloc(sizeof(struct Cookie));
+          if(newco) {
+            /* first, copy the whole source cookie: */
+            memcpy(newco, co, sizeof(struct Cookie));
+
+            /* then modify our next */
+            newco->next = mainco;
+
+            /* point the main to us */
+            mainco = newco;
+
+            matches++;
+          }
+          else {
+            fail:
+            /* failure, clear up the allocated chain and return NULL */
+            while(mainco) {
+              co = mainco->next;
+              free(mainco);
+              mainco = co;
+            }
+
+            return NULL;
+          }
+        }
+      }
+    }
+    co = co->next;
+  }
+
+  if(matches) {
+    /* Now we need to make sure that if there is a name appearing more than
+       once, the longest specified path version comes first. To make this
+       the swiftest way, we just sort them all based on path length. */
+    struct Cookie **array;
+    size_t i;
+
+    /* alloc an array and store all cookie pointers */
+    array = malloc(sizeof(struct Cookie *) * matches);
+    if(!array)
+      goto fail;
+
+    co = mainco;
+
+    for(i=0; co; co = co->next)
+      array[i++] = co;
+
+    /* now sort the cookie pointers in path length order */
+    qsort(array, matches, sizeof(struct Cookie *), cookie_sort);
+
+    /* remake the linked list order according to the new order */
+
+    mainco = array[0]; /* start here */
+    for(i=0; i<matches-1; i++)
+      array[i]->next = array[i+1];
+    array[matches-1]->next = NULL; /* terminate the list */
+
+    free(array); /* remove the temporary data again */
+  }
+
+  return mainco; /* return the new list */
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_clearall()
+ *
+ * Clear all existing cookies and reset the counter.
+ *
+ ****************************************************************************/
+void Curl_cookie_clearall(struct CookieInfo *cookies)
+{
+  if(cookies) {
+    Curl_cookie_freelist(cookies->cookies, TRUE);
+    cookies->cookies = NULL;
+    cookies->numcookies = 0;
+  }
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_freelist()
+ *
+ * Free a list of cookies previously returned by Curl_cookie_getlist();
+ *
+ * The 'cookiestoo' argument tells this function whether to just free the
+ * list or actually also free all cookies within the list as well.
+ *
+ ****************************************************************************/
+
+void Curl_cookie_freelist(struct Cookie *co, bool cookiestoo)
+{
+  struct Cookie *next;
+  if(co) {
+    while(co) {
+      next = co->next;
+      if(cookiestoo)
+        freecookie(co);
+      else
+        free(co); /* we only free the struct since the "members" are all just
+                     pointed out in the main cookie list! */
+      co = next;
+    }
+  }
+}
+
+
+/*****************************************************************************
+ *
+ * Curl_cookie_clearsess()
+ *
+ * Free all session cookies in the cookies list.
+ *
+ ****************************************************************************/
+void Curl_cookie_clearsess(struct CookieInfo *cookies)
+{
+  struct Cookie *first, *curr, *next, *prev = NULL;
+
+  if(!cookies || !cookies->cookies)
+    return;
+
+  first = curr = prev = cookies->cookies;
+
+  for(; curr; curr = next) {
+    next = curr->next;
+    if(!curr->expires) {
+      if(first == curr)
+        first = next;
+
+      if(prev == curr)
+        prev = next;
+      else
+        prev->next = next;
+
+      freecookie(curr);
+      cookies->numcookies--;
+    }
+    else
+      prev = curr;
+  }
+
+  cookies->cookies = first;
+}
+
+
+/*****************************************************************************
+ *
+ * Curl_cookie_cleanup()
+ *
+ * Free a "cookie object" previous created with cookie_init().
+ *
+ ****************************************************************************/
+void Curl_cookie_cleanup(struct CookieInfo *c)
+{
+  struct Cookie *co;
+  struct Cookie *next;
+  if(c) {
+    if(c->filename)
+      free(c->filename);
+    co = c->cookies;
+
+    while(co) {
+      next = co->next;
+      freecookie(co);
+      co = next;
+    }
+    free(c); /* free the base struct as well */
+  }
+}
+
+/* get_netscape_format()
+ *
+ * Formats a string for Netscape output file, w/o a newline at the end.
+ *
+ * Function returns a char * to a formatted line. Has to be free()d
+*/
+static char *get_netscape_format(const struct Cookie *co)
+{
+  return aprintf(
+    "%s"     /* httponly preamble */
+    "%s%s\t" /* domain */
+    "%s\t"   /* tailmatch */
+    "%s\t"   /* path */
+    "%s\t"   /* secure */
+    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
+    "%s\t"   /* name */
+    "%s",    /* value */
+    co->httponly?"#HttpOnly_":"",
+    /* Make sure all domains are prefixed with a dot if they allow
+       tailmatching. This is Mozilla-style. */
+    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+    co->domain?co->domain:"unknown",
+    co->tailmatch?"TRUE":"FALSE",
+    co->path?co->path:"/",
+    co->secure?"TRUE":"FALSE",
+    co->expires,
+    co->name,
+    co->value?co->value:"");
 }
 
 /*
- * Each line contains a sequence of keywords.
+ * cookie_output()
+ *
+ * Writes all internally known cookies to the specified file. Specify
+ * "-" as file name to write to stdout.
+ *
+ * The function returns non-zero on write failure.
  */
-static int
-parse_line(struct archive_read *a, struct archive_entry *entry,
-    struct mtree *mtree, struct mtree_entry *mp, int *parsed_kws)
+static int cookie_output(struct CookieInfo *c, const char *dumphere)
 {
-	struct mtree_option *iter;
-	int r = ARCHIVE_OK, r1;
+  struct Cookie *co;
+  FILE *out;
+  bool use_stdout=FALSE;
 
-	for (iter = mp->options; iter != NULL; iter = iter->next) {
-		r1 = parse_keyword(a, mtree, entry, iter, parsed_kws);
-		if (r1 < r)
-			r = r1;
-	}
-	if (r == ARCHIVE_OK && (*parsed_kws & MTREE_HAS_TYPE) == 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Missing type keyword in mtree specification");
-		return (ARCHIVE_WARN);
-	}
-	return (r);
+  if((NULL == c) || (0 == c->numcookies))
+    /* If there are no known cookies, we don't write or even create any
+       destination file */
+    return 0;
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+  if(strequal("-", dumphere)) {
+    /* use stdout */
+    out = stdout;
+    use_stdout=TRUE;
+  }
+  else {
+    out = fopen(dumphere, "w");
+    if(!out)
+      return 1; /* failure */
+  }
+
+  if(c) {
+    char *format_ptr;
+
+    fputs("# Netscape HTTP Cookie File\n"
+          "# http://curl.haxx.se/docs/http-cookies.html\n"
+          "# This file was generated by libcurl! Edit at your own risk.\n\n",
+          out);
+    co = c->cookies;
+
+    while(co) {
+      format_ptr = get_netscape_format(co);
+      if(format_ptr == NULL) {
+        fprintf(out, "#\n# Fatal libcurl error\n");
+        if(!use_stdout)
+          fclose(out);
+        return 1;
+      }
+      fprintf(out, "%s\n", format_ptr);
+      free(format_ptr);
+      co=co->next;
+    }
+  }
+
+  if(!use_stdout)
+    fclose(out);
+
+  return 0;
 }
 
-/*
- * Device entries have one of the following forms:
- *  - raw dev_t
- *  - format,major,minor[,subdevice]
- * When parsing succeeded, `pdev' will contain the appropriate dev_t value.
- */
-
-/* strsep() is not in C90, but strcspn() is. */
-/* Taken from http://unixpapa.com/incnote/string.html */
-static char *
-la_strsep(char **sp, char *sep)
+struct curl_slist *Curl_cookie_list(struct SessionHandle *data)
 {
-	char *p, *s;
-	if (sp == NULL || *sp == NULL || **sp == '\0')
-		return(NULL);
-	s = *sp;
-	p = s + strcspn(s, sep);
-	if (*p != '\0')
-		*p++ = '\0';
-	*sp = p;
-	return(s);
+  struct curl_slist *list = NULL;
+  struct curl_slist *beg;
+  struct Cookie *c;
+  char *line;
+
+  if((data->cookies == NULL) ||
+      (data->cookies->numcookies == 0))
+    return NULL;
+
+  c = data->cookies->cookies;
+
+  while(c) {
+    /* fill the list with _all_ the cookies we know */
+    line = get_netscape_format(c);
+    if(!line) {
+      curl_slist_free_all(list);
+      return NULL;
+    }
+    beg = Curl_slist_append_nodup(list, line);
+    if(!beg) {
+      free(line);
+      curl_slist_free_all(list);
+      return NULL;
+    }
+    list = beg;
+    c = c->next;
+  }
+
+  return list;
 }
 
-static int
-parse_device(dev_t *pdev, struct archive *a, char *val)
+void Curl_flush_cookies(struct SessionHandle *data, int cleanup)
 {
-#define MAX_PACK_ARGS 3
-	unsigned long numbers[MAX_PACK_ARGS];
-	char *p, *dev;
-	int argc;
-	pack_t *pack;
-	dev_t result;
-	const char *error = NULL;
+  if(data->set.str[STRING_COOKIEJAR]) {
+    if(data->change.cookielist) {
+      /* If there is a list of cookie files to read, do it first so that
+         we have all the told files read before we write the new jar.
+         Curl_cookie_loadfiles() LOCKS and UNLOCKS the share itself! */
+      Curl_cookie_loadfiles(data);
+    }
 
-	memset(pdev, 0, sizeof(*pdev));
-	if ((dev = strchr(val, ',')) != NULL) {
-		/*
-		 * Device's major/minor are given in a specified format.
-		 * Decode and pack it accordingly.
-		 */
-		*dev++ = '\0';
-		if ((pack = pack_find(val)) == NULL) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unknown format `%s'", val);
-			return ARCHIVE_WARN;
-		}
-		argc = 0;
-		while ((p = la_strsep(&dev, ",")) != NULL) {
-			if (*p == '\0') {
-				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Missing number");
-				return ARCHIVE_WARN;
-			}
-			numbers[argc++] = (unsigned long)mtree_atol(&p);
-			if (argc > MAX_PACK_ARGS) {
-				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Too many arguments");
-				return ARCHIVE_WARN;
-			}
-		}
-		if (argc < 2) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Not enough arguments");
-			return ARCHIVE_WARN;
-		}
-		result = (*pack)(argc, numbers, &error);
-		if (error != NULL) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "%s", error);
-			return ARCHIVE_WARN;
-		}
-	} else {
-		/* file system raw value. */
-		result = (dev_t)mtree_atol(&val);
-	}
-	*pdev = result;
-	return ARCHIVE_OK;
-#undef MAX_PACK_ARGS
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+
+    /* if we have a destination file for all the cookies to get dumped to */
+    if(cookie_output(data->cookies, data->set.str[STRING_COOKIEJAR]))
+      infof(data, "WARNING: failed to save cookies in %s\n",
+            data->set.str[STRING_COOKIEJAR]);
+  }
+  else {
+    if(cleanup && data->change.cookielist) {
+      /* since nothing is written, we can just free the list of cookie file
+         names */
+      curl_slist_free_all(data->change.cookielist); /* clean up list */
+      data->change.cookielist = NULL;
+    }
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+  }
+
+  if(cleanup && (!data->share || (data->cookies != data->share->cookies))) {
+    Curl_cookie_cleanup(data->cookies);
+  }
+  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
 }
 
-/*
- * Parse a single keyword and its value.
- */
-static int
-parse_keyword(struct archive_read *a, struct mtree *mtree,
-    struct archive_entry *entry, struct mtree_option *opt, int *parsed_kws)
-{
-	char *val, *key;
-
-	key = opt->value;
-
-	if (*key == '\0')
-		return (ARCHIVE_OK);
-
-	if (strcmp(key, "nochange") == 0) {
-		*parsed_kws |= MTREE_HAS_NOCHANGE;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "optional") == 0) {
-		*parsed_kws |= MTREE_HAS_OPTIONAL;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "ignore") == 0) {
-		/*
-		 * The mtree processing is not recursive, so
-		 * recursion will only happen for explicitly listed
-		 * entries.
-		 */
-		return (ARCHIVE_OK);
-	}
-
-	val = strchr(key, '=');
-	if (val == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed attribute \"%s\" (%d)", key, key[0]);
-		return (ARCHIVE_WARN);
-	}
-
-	*val = '\0';
-	++val;
-
-	switch (key[0]) {
-	case 'c':
-		if (strcmp(key, "content") == 0
-		    || strcmp(key, "contents") == 0) {
-			parse_escapes(val, NULL);
-			archive_strcpy(&mtree->contents_name, val);
-			break;
-		}
-		if (strcmp(key, "cksum") == 0)
-			break;
-	case 'd':
-		if (strcmp(key, "device") == 0) {
-			/* stat(2) st_rdev field, e.g. the major/minor IDs
-			 * of a char/block special file */
-			int r;
-			dev_t dev;
-
-			*parsed_kws |= MTREE_HAS_DEVICE;
-			r = parse_device(&dev, &a->archive, val);
-			if (r == ARCHIVE_OK)
-				archive_entry_set_rdev(entry, dev);
-			return r;
-		}
-	case 'f':
-		if (strcmp(key, "flags") == 0) {
-			*parsed_kws |= MTREE_HAS_FFLAGS;
-			archive_entry_copy_fflags_text(entry, val);
-			break;
-		}
-	case 'g':
-		if (strcmp(key, "gid") == 0) {
-			*parsed_kws |= MTREE_HAS_GID;
-			archive_entry_set_gid(entry, mtree_atol10(&val));
-			break;
-		}
-		if (strcmp(key, "gname") == 0) {
-			*parsed_kws |= MTREE_HAS_GNAME;
-			archive_entry_copy_gname(entry, val);
-			break;
-		}
-	case 'i':
-		if (strcmp(key, "inode") == 0) {
-			archive_entry_set_ino(entry, mtree_atol10(&val));
-			break;
-		}
-	case 'l':
-		if (strcmp(key, "link") == 0) {
-			archive_entry_copy_symlink(entry, val);
-			break;
-		}
-	case 'm':
-		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
-			break;
-		if (strcmp(key, "mode") == 0) {
-			if (val[0] >= '0' && val[0] <= '9') {
-				*parsed_kws |= MTREE_HAS_PERM;
-				archive_entry_set_perm(entry,
-				    (mode_t)mtree_atol8(&val));
-			} else {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic mode \"%s\" unsupported", val);
-				return ARCHIVE_WARN;
-			}
-			break;
-		}
-	case 'n':
-		if (strcmp(key, "nlink") == 0) {
-			*parsed_kws |= MTREE_HAS_NLINK;
-			archive_entry_set_nlink(entry,
-				(unsigned int)mtree_atol10(&val));
-			break;
-		}
-	case 'r':
-		if (strcmp(key, "resdevice") == 0) {
-			/* stat(2) st_dev field, e.g. the device ID where the
-			 * inode resides */
-			int r;
-			dev_t dev;
-
-			r = parse_device(&dev, &a->archive, val);
-			if (r == ARCHIVE_OK)
-				archive_entry_set_dev(entry, dev);
-			return r;
-		}
-		if (strcmp(key, "rmd160") == 0 ||
-		    strcmp(key, "rmd160digest") == 0)
-			break;
-	case 's':
-		if (strcmp(key, "sha1") == 0 || strcmp(key, "sha1digest") == 0)
-			break;
-		if (strcmp(key, "sha256") == 0 ||
-		    strcmp(key, "sha256digest") == 0)
-			break;
-		if (strcmp(key, "sha384") == 0 ||
-		    strcmp(key, "sha384digest") == 0)
-			break;
-		if (strcmp(key, "sha512") == 0 ||
-		    strcmp(key, "sha512digest") == 0)
-			break;
-		if (strcmp(key, "size") == 0) {
-			archive_entry_set_size(entry, mtree_atol10(&val));
-			break;
-		}
-	case 't':
-		if (strcmp(key, "tags") == 0) {
-			/*
-			 * Comma delimited list of tags.
-			 * Ignore the tags for now, but the interface
-			 * should be extended to allow inclusion/exclusion.
-			 */
-			break;
-		}
-		if (strcmp(key, "time") == 0) {
-			int64_t m;
-			int64_t my_time_t_max = get_time_t_max();
-			int64_t my_time_t_min = get_time_t_min();
-			long ns;
-
-			*parsed_kws |= MTREE_HAS_MTIME;
-			m = mtree_atol10(&val);
-			/* Replicate an old mtree bug:
-			 * 123456789.1 represents 123456789
-			 * seconds and 1 nanosecond. */
-			if (*val == '.') {
-				++val;
-				ns = (long)mtree_atol10(&val);
-			} else
-				ns = 0;
-			if (m > my_time_t_max)
-				m = my_time_t_max;
-			else if (m < my_time_t_min)
-				m = my_time_t_min;
-			archive_entry_set_mtime(entry, (time_t)m, ns);
-			break;
-		}
-		if (strcmp(key, "type") == 0) {
-			switch (val[0]) {
-			case 'b':
-				if (strcmp(val, "block") == 0) {
-					archive_entry_set_filetype(entry, AE_IFBLK);
-					break;
-				}
-			case 'c':
-				if (strcmp(val, "char") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFCHR);
-					break;
-				}
-			case 'd':
-				if (strcmp(val, "dir") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFDIR);
-					break;
-				}
-			case 'f':
-				if (strcmp(val, "fifo") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFIFO);
-					break;
-				}
-				if (strcmp(val, "file") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFREG);
-					break;
-				}
-			case 'l':
-				if (strcmp(val, "link") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFLNK);
-					break;
-				}
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Unrecognized file type \"%s\"; "
-				    "assuming \"file\"", val);
-				archive_entry_set_filetype(entry, AE_IFREG);
-				return (ARCHIVE_WARN);
-			}
-			*parsed_kws |= MTREE_HAS_TYPE;
-			break;
-		}
-	case 'u':
-		if (strcmp(key, "uid") == 0) {
-			*parsed_kws |= MTREE_HAS_UID;
-			archive_entry_set_uid(entry, mtree_atol10(&val));
-			break;
-		}
-		if (strcmp(key, "uname") == 0) {
-			*parsed_kws |= MTREE_HAS_UNAME;
-			archive_entry_copy_uname(entry, val);
-			break;
-		}
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unrecognized key %s=%s", key, val);
-		return (ARCHIVE_WARN);
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-read_data(struct archive_read *a, const void **buff, size_t *size,
-    int64_t *offset)
-{
-	size_t bytes_to_read;
-	ssize_t bytes_read;
-	struct mtree *mtree;
-
-	mtree = (struct mtree *)(a->format->data);
-	if (mtree->fd < 0) {
-		*buff = NULL;
-		*offset = 0;
-		*size = 0;
-		return (ARCHIVE_EOF);
-	}
-	if (mtree->buff == NULL) {
-		mtree->buffsize = 64 * 1024;
-		mtree->buff = malloc(mtree->buffsize);
-		if (mtree->buff == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory");
-			return (ARCHIVE_FATAL);
-		}
-	}
-
-	*buff = mtree->buff;
-	*offset = mtree->offset;
-	if ((int64_t)mtree->buffsize > mtree->cur_size - mtree->offset)
-		bytes_to_read = (size_t)(mtree->cur_size - mtree->offset);
-	else
-		bytes_to_read = mtree->buffsize;
-	bytes_read = read(mtree->fd, mtree->buff, bytes_to_read);
-	if (bytes_read < 0) {
-		archive_set_error(&a->archive, errno, "Can't read");
-		return (ARCHIVE_WARN);
-	}
-	if (bytes_read == 0) {
-		*size = 0;
-		return (ARCHIVE_EOF);
-	}
-	mtree->offset += bytes_read;
-	*size = bytes_read;
-	return (ARCHIVE_OK);
-}
-
-/* Skip does nothing except possibly close the contents file. */
-static int
-skip(struct archive_read *a)
-{
-	struct mtree *mtree;
-
-	mtree = (struct mtree *)(a->format->data);
-	if (mtree->fd >= 0) {
-		close(mtree->fd);
-		mtree->fd = -1;
-	}
-	return (ARCHIVE_OK);
-}
-
-/*
- * Since parsing backslash sequences always makes strings shorter,
- * we can always do this conversion in-place.
- */
-static void
-parse_escapes(char *src, struct mtree_entry *mentry)
-{
-	char *dest = src;
-	char c;
-
-	if (mentry != NULL && strcmp(src, ".") == 0)
-		mentry->full = 1;
-
-	while (*src != '\0') {
-		c = *src++;
-		if (c == '/' && mentry != NULL)
-			mentry->full = 1;
-		if (c == '\\') {
-			switch (src[0]) {
-			case '0':
-				if (src[1] < '0' || src[1] > '7') {
-					c = 0;
-					++src;
-					break;
-				}
-				/* FALLTHROUGH */
-			case '1':
-			case '2':
-			case '3':
-				if (src[1] >= '0' && src[1] <= '7' &&
-				    src[2] >= '0' && src[2] <= '7') {
-					c = (src[0] - '0') << 6;
-					c |= (src[1] - '0') << 3;
-					c |= (src[2] - '0');
-					src += 3;
-				}
-				break;
-			case 'a':
-				c = '\a';
-				++src;
-				break;
-			case 'b':
-				c = '\b';
-				++src;
-				break;
-			case 'f':
-				c = '\f';
-				++src;
-				break;
-			case 'n':
-				c = '\n';
-				++src;
-				break;
-			case 'r':
-				c = '\r';
-				++src;
-				break;
-			case 's':
-				c = ' ';
-				++src;
-				break;
-			case 't':
-				c = '\t';
-				++src;
-				break;
-			case 'v':
-				c = '\v';
-				++src;
-				break;
-			case '\\':
-				c = '\\';
-				++src;
-				break;
-			}
-		}
-		*dest++ = c;
-	}
-	*dest = '\0';
-}
-
-/*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
- */
-static int64_t
-mtree_atol8(char **p)
-{
-	int64_t	l, limit, last_digit_limit;
-	int digit, base;
-
-	base = 8;
-	limit = INT64_MAX / base;
-	last_digit_limit = INT64_MAX % base;
-
-	l = 0;
-	digit = **p - '0';
-	while (digit >= 0 && digit < base) {
-		if (l>limit || (l == limit && digit > last_digit_limit)) {
-			l = INT64_MAX; /* Truncate on overflow. */
-			break;
-		}
-		l = (l * base) + digit;
-		digit = *++(*p) - '0';
-	}
-	return (l);
-}
-
-/*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
- */
-static int64_t
-mtree_atol10(char **p)
-{
-	int64_t l, limit, last_digit_limit;
-	int base, digit, sign;
-
-	base = 10;
-
-	if (**p == '-') {
-		sign = -1;
-		limit = ((uint64_t)(INT64_MAX) + 1) / base;
-		last_digit_limit = ((uint64_t)(INT64_MAX) + 1) % base;
-		++(*p);
-	} else {
-		sign = 1;
-		limit = INT64_MAX / base;
-		last_digit_limit = INT64_MAX % base;
-	}
-
-	l = 0;
-	digit = **p - '0';
-	while (digit >= 0 && digit < base) {
-		if (l > limit || (l == limit && digit > last_digit_limit))
-			return (sign < 0) ? INT64_MIN : INT64_MAX;
-		l = (l * base) + digit;
-		digit = *++(*p) - '0';
-	}
-	return (sign < 0) ? -l : l;
-}
-
-/* Parse a hex digit. */
-static int
-parsehex(char c)
-{
-	if (c >= '0' && c <= '9')
-		return c - '0';
-	else if (c >= 'a' && c <= 'f')
-		return c - 'a';
-	else if (c >= 'A' && c <= 'F')
-		return c - 'A';
-	else
-		return -1;
-}
-
-/*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
- */
-static int64_t
-mtree_atol16(char **p)
-{
-	int64_t l, limit, last_digit_limit;
-	int base, digit, sign;
-
-	base = 16;
-
-	if (**p == '-') {
-		sign = -1;
-		limit = ((uint64_t)(INT64_MAX) + 1) / base;
-		last_digit_limit = ((uint64_t)(INT64_MAX) + 1) % base;
-		++(*p);
-	} else {
-		sign = 1;
-		limit = INT64_MAX / base;
-		last_digit_limit = INT64_MAX % base;
-	}
-
-	l = 0;
-	digit = parsehex(**p);
-	while (digit >= 0 && digit < base) {
-		if (l > limit || (l == limit && digit > last_digit_limit))
-			return (sign < 0) ? INT64_MIN : INT64_MAX;
-		l = (l * base) + digit;
-		digit = parsehex(*++(*p));
-	}
-	return (sign < 0) ? -l : l;
-}
-
-static int64_t
-mtree_atol(char **p)
-{
-	if (**p != '0')
-		return mtree_atol10(p);
-	if ((*p)[1] == 'x' || (*p)[1] == 'X') {
-		*p += 2;
-		return mtree_atol16(p);
-	}
-	return mtree_atol8(p);
-}
-
-/*
- * Returns length of line (including trailing newline)
- * or negative on error.  'start' argument is updated to
- * point to first character of line.
- */
-static ssize_t
-readline(struct archive_read *a, struct mtree *mtree, char **start,
-    ssize_t limit)
-{
-	ssize_t bytes_read;
-	ssize_t total_size = 0;
-	ssize_t find_off = 0;
-	const void *t;
-	void *nl;
-	char *u;
-
-	/* Accumulate line in a line buffer. */
-	for (;;) {
-		/* Read some more. */
-		t = __archive_read_ahead(a, 1, &bytes_read);
-		if (t == NULL)
-			return (0);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		nl = memchr(t, '\n', bytes_read);
-		/* If we found '\n', trim the read to end exactly there. */
-		if (nl != NULL) {
-			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
-		}
-		if (total_size + bytes_read + 1 > limit) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Line too long");
-			return (ARCHIVE_FATAL);
-		}
-		if (archive_string_ensure(&mtree->line,
-			total_size + bytes_read + 1) == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate working buffer");
-			return (ARCHIVE_FATAL);
-		}
-		/* Append new bytes to string. */
-		memcpy(mtree->line.s + total_size, t, bytes_read);
-		__archive_read_consume(a, bytes_read);
-		total_size += bytes_read;
-		mtree->line.s[total_size] = '\0';
-
-		for (u = mtree->line.s + find_off; *u; ++u) {
-			if (u[0] == '\n') {
-				/* Ends with unescaped newline. */
-				*start = mtree->line.s;
-				return total_size;
-			} else if (u[0] == '#') {
-				/* Ends with comment sequence #...\n */
-				if (nl == NULL) {
-					/* But we've not found the \n yet */
-					break;
-				}
-			} else if (u[0] == '\\') {
-				if (u[1] == '\n') {
-					/* Trim escaped newline. */
-					total_size -= 2;
-					mtree->line.s[total_size] = '\0';
-					break;
-				} else if (u[1] != '\0') {
-					/* Skip the two-char escape sequence */
-					++u;
-				}
-			}
-		}
-		find_off = u - mtree->line.s;
-	}
-}
+#endif /* CURL_DISABLE_HTTP || CURL_DISABLE_COOKIES */

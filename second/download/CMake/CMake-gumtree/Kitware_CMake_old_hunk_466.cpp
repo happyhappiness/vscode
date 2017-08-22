@@ -1,11 +1,7 @@
-		 */
-		if (ar->strtab == NULL || number > ar->strtab_size) {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_WARN);
+			archive_le64enc(z, zip->entry_offset);
+			z += 8;
 		}
-
-		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
+		archive_le16enc(zip64 + 2, z - (zip64 + 4));
+		zd = cd_alloc(zip, z - zip64);
+		if (zd == NULL) {
+			archive_set_error(&a->archive, ENOMEM,

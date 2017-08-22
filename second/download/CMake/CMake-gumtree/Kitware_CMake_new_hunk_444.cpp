@@ -1,10 +1,10 @@
-			return (0);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		nl = memchr(t, '\n', bytes_read);
-		/* If we found '\n', trim the read to end exactly there. */
-		if (nl != NULL) {
-			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
-		}
-		if (total_size + bytes_read + 1 > limit) {
-			archive_set_error(&a->archive,
+		lha->entry_unconsumed = 0;
+	}
+	if (lha->end_of_entry) {
+		*offset = lha->entry_offset;
+		*size = 0;
+		*buff = NULL;
+		return (lha_end_of_entry(a));
+	}
+
+	if (lha->entry_is_compressed)

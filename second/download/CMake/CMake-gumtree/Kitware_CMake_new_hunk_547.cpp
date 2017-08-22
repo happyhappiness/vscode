@@ -1,7 +1,12 @@
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  testProcess_sleep(15);
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
+*----------------------------------------------------------------------
+*/
+
+#include <windows.h>
+#include <stdio.h>
+#include <string>
+#include <fstream>
+
+/*
++ * Utility func, strstr with size
++ */
+const char* StrNStr(const char* start, const char* find, size_t &size) {

@@ -1,11 +1,12 @@
-		/* We're done with the regular data; get the filename and
-		 * extra data. */
-		__archive_read_consume(a, 46);
-		p = __archive_read_ahead(a, filename_length + extra_length,
-			NULL);
-		if (p == NULL) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated ZIP file header");
-			return ARCHIVE_FATAL;
-		}
+    if(res)
+      return res;
+
+    free(*allocuserpwd);
+    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                            proxy ? "Proxy-" : "",
+                            conn->response_header);
+    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+    free(conn->response_header);
+    conn->response_header = NULL;
+    break;
+  case NTLMSTATE_TYPE2:

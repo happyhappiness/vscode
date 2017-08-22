@@ -1,13 +1,8 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip");
+  /* Initial packet length */
+  size = 32 + hostlen + domlen;
 
-	zip = (struct zip *)malloc(sizeof(*zip));
-	if (zip == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(zip, 0, sizeof(*zip));
+#endif
 
-	/* Streamable reader doesn't support mac extensions. */
-	zip->process_mac_extensions = 0;
+  DEBUG_OUT({
+    fprintf(stderr, "* TYPE1 header flags=0x%02.2x%02.2x%02.2x%02.2x "
+            "0x%08.8x ",

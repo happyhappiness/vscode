@@ -1,6 +1,7 @@
-	ssize_t bytes_avail;
-	int r;
+	if (a->format->read_data == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+		    "Internal error: "
+		    "No format->read_data function registered");
+		return (ARCHIVE_FATAL);
+	}
 
-	/* If we haven't yet read any data, initialize the decompressor. */
-	if (!lha->decompress_init) {
-		r = lzh_decode_init(&(lha->strm), lha->method);

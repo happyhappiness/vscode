@@ -1,1160 +1,635 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
+/*-
+ * Copyright (c) 2007 Kai Wang
+ * Copyright (c) 2007 Tim Kientzle
+ * All rights reserved.
  *
- * Copyright (C) 1999 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer
+ *    in this position and unchanged.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at https://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- *
- * Purpose:
- *  A merge of Bjorn Reese's format() function and Daniel's dsprintf()
- *  1.0. A full blooded printf() clone with full support for <num>$
- *  everywhere (parameters, widths and precisions) including variabled
- *  sized parameters (like doubles, long longs, long doubles and even
- *  void * in 64-bit architectures).
- *
- * Current restrictions:
- * - Max 128 parameters
- * - No 'long double' support.
- *
- * If you ever want truly portable and good *printf() clones, the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at https://daniel.haxx.se/projects/trio/
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "curl_setup.h"
-#include <curl/mprintf.h>
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_ar.c 201101 2009-12-28 03:06:27Z kientzle $");
 
-#include "curl_memory.h"
-/* The last #include file should be: */
-#include "memdebug.h"
-
-#ifndef SIZEOF_LONG_DOUBLE
-#define SIZEOF_LONG_DOUBLE 0
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
 #endif
 
-/*
- * If SIZEOF_SIZE_T has not been defined, default to the size of long.
- */
+#include "archive.h"
+#include "archive_entry.h"
+#include "archive_private.h"
+#include "archive_read_private.h"
 
-#ifndef SIZEOF_SIZE_T
-#  define SIZEOF_SIZE_T CURL_SIZEOF_LONG
-#endif
-
-#ifdef HAVE_LONGLONG
-#  define LONG_LONG_TYPE long long
-#  define HAVE_LONG_LONG_TYPE
-#else
-#  if defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64)
-#    define LONG_LONG_TYPE __int64
-#    define HAVE_LONG_LONG_TYPE
-#  else
-#    undef LONG_LONG_TYPE
-#    undef HAVE_LONG_LONG_TYPE
-#  endif
-#endif
-
-/*
- * Non-ANSI integer extensions
- */
-
-#if (defined(__BORLANDC__) && (__BORLANDC__ >= 0x520)) || \
-    (defined(__WATCOMC__) && defined(__386__)) || \
-    (defined(__POCC__) && defined(_MSC_VER)) || \
-    (defined(_WIN32_WCE)) || \
-    (defined(__MINGW32__)) || \
-    (defined(_MSC_VER) && (_MSC_VER >= 900) && (_INTEGRAL_MAX_BITS >= 64))
-#  define MP_HAVE_INT_EXTENSIONS
-#endif
-
-/*
- * Max integer data types that mprintf.c is capable
- */
-
-#ifdef HAVE_LONG_LONG_TYPE
-#  define mp_intmax_t LONG_LONG_TYPE
-#  define mp_uintmax_t unsigned LONG_LONG_TYPE
-#else
-#  define mp_intmax_t long
-#  define mp_uintmax_t unsigned long
-#endif
-
-#define BUFFSIZE 256 /* buffer for long-to-str and float-to-str calcs */
-#define MAX_PARAMETERS 128 /* lame static limit */
-
-#ifdef __AMIGA__
-# undef FORMAT_INT
-#endif
-
-/* Lower-case digits.  */
-static const char lower_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
-
-/* Upper-case digits.  */
-static const char upper_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-#define OUTCHAR(x) \
-  do{ \
-    if(stream((unsigned char)(x), (FILE *)data) != -1) \
-      done++; \
-    else \
-     return done; /* return immediately on failure */ \
-  } WHILE_FALSE
-
-/* Data type to read from the arglist */
-typedef enum  {
-  FORMAT_UNKNOWN = 0,
-  FORMAT_STRING,
-  FORMAT_PTR,
-  FORMAT_INT,
-  FORMAT_INTPTR,
-  FORMAT_LONG,
-  FORMAT_LONGLONG,
-  FORMAT_DOUBLE,
-  FORMAT_LONGDOUBLE,
-  FORMAT_WIDTH /* For internal use */
-} FormatType;
-
-/* conversion and display flags */
-enum {
-  FLAGS_NEW        = 0,
-  FLAGS_SPACE      = 1<<0,
-  FLAGS_SHOWSIGN   = 1<<1,
-  FLAGS_LEFT       = 1<<2,
-  FLAGS_ALT        = 1<<3,
-  FLAGS_SHORT      = 1<<4,
-  FLAGS_LONG       = 1<<5,
-  FLAGS_LONGLONG   = 1<<6,
-  FLAGS_LONGDOUBLE = 1<<7,
-  FLAGS_PAD_NIL    = 1<<8,
-  FLAGS_UNSIGNED   = 1<<9,
-  FLAGS_OCTAL      = 1<<10,
-  FLAGS_HEX        = 1<<11,
-  FLAGS_UPPER      = 1<<12,
-  FLAGS_WIDTH      = 1<<13, /* '*' or '*<num>$' used */
-  FLAGS_WIDTHPARAM = 1<<14, /* width PARAMETER was specified */
-  FLAGS_PREC       = 1<<15, /* precision was specified */
-  FLAGS_PRECPARAM  = 1<<16, /* precision PARAMETER was specified */
-  FLAGS_CHAR       = 1<<17, /* %c story */
-  FLAGS_FLOATE     = 1<<18, /* %e or %E */
-  FLAGS_FLOATG     = 1<<19  /* %g or %G */
+struct ar {
+	int64_t	 entry_bytes_remaining;
+	/* unconsumed is purely to track data we've gotten from readahead,
+	 * but haven't yet marked as consumed.  Must be paired with
+	 * entry_bytes_remaining usage/modification.
+	 */
+	size_t   entry_bytes_unconsumed;
+	int64_t	 entry_offset;
+	int64_t	 entry_padding;
+	char	*strtab;
+	size_t	 strtab_size;
+	char	 read_global_header;
 };
 
-typedef struct {
-  FormatType type;
-  int flags;
-  long width;     /* width OR width parameter number */
-  long precision; /* precision OR precision parameter number */
-  union {
-    char *str;
-    void *ptr;
-    union {
-      mp_intmax_t as_signed;
-      mp_uintmax_t as_unsigned;
-    } num;
-    double dnum;
-  } data;
-} va_stack_t;
+/*
+ * Define structure of the "ar" header.
+ */
+#define AR_name_offset 0
+#define AR_name_size 16
+#define AR_date_offset 16
+#define AR_date_size 12
+#define AR_uid_offset 28
+#define AR_uid_size 6
+#define AR_gid_offset 34
+#define AR_gid_size 6
+#define AR_mode_offset 40
+#define AR_mode_size 8
+#define AR_size_offset 48
+#define AR_size_size 10
+#define AR_fmag_offset 58
+#define AR_fmag_size 2
 
-struct nsprintf {
-  char *buffer;
-  size_t length;
-  size_t max;
-};
+static int	archive_read_format_ar_bid(struct archive_read *a, int);
+static int	archive_read_format_ar_cleanup(struct archive_read *a);
+static int	archive_read_format_ar_read_data(struct archive_read *a,
+		    const void **buff, size_t *size, int64_t *offset);
+static int	archive_read_format_ar_skip(struct archive_read *a);
+static int	archive_read_format_ar_read_header(struct archive_read *a,
+		    struct archive_entry *e);
+static uint64_t	ar_atol8(const char *p, unsigned char_cnt);
+static uint64_t	ar_atol10(const char *p, unsigned char_cnt);
+static int	ar_parse_gnu_filename_table(struct archive_read *a);
+static int	ar_parse_common_header(struct ar *ar, struct archive_entry *,
+		    const char *h);
 
-struct asprintf {
-  char *buffer; /* allocated buffer */
-  size_t len;   /* length of string */
-  size_t alloc; /* length of alloc */
-  int fail;     /* (!= 0) if an alloc has failed and thus
-                   the output is not the complete data */
-};
-
-static long dprintf_DollarString(char *input, char **end)
+int
+archive_read_support_format_ar(struct archive *_a)
 {
-  int number=0;
-  while(ISDIGIT(*input)) {
-    number *= 10;
-    number += *input-'0';
-    input++;
-  }
-  if(number && ('$'==*input++)) {
-    *end = input;
-    return number;
-  }
-  return 0;
+	struct archive_read *a = (struct archive_read *)_a;
+	struct ar *ar;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_ar");
+
+	ar = (struct ar *)malloc(sizeof(*ar));
+	if (ar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate ar data");
+		return (ARCHIVE_FATAL);
+	}
+	memset(ar, 0, sizeof(*ar));
+	ar->strtab = NULL;
+
+	r = __archive_read_register_format(a,
+	    ar,
+	    "ar",
+	    archive_read_format_ar_bid,
+	    NULL,
+	    archive_read_format_ar_read_header,
+	    archive_read_format_ar_read_data,
+	    archive_read_format_ar_skip,
+	    NULL,
+	    archive_read_format_ar_cleanup,
+	    NULL,
+	    NULL);
+
+	if (r != ARCHIVE_OK) {
+		free(ar);
+		return (r);
+	}
+	return (ARCHIVE_OK);
 }
 
-static bool dprintf_IsQualifierNoDollar(const char *fmt)
+static int
+archive_read_format_ar_cleanup(struct archive_read *a)
 {
-#if defined(MP_HAVE_INT_EXTENSIONS)
-  if(!strncmp(fmt, "I32", 3) || !strncmp(fmt, "I64", 3)) {
-    return TRUE;
-  }
-#endif
+	struct ar *ar;
 
-  switch(*fmt) {
-  case '-': case '+': case ' ': case '#': case '.':
-  case '0': case '1': case '2': case '3': case '4':
-  case '5': case '6': case '7': case '8': case '9':
-  case 'h': case 'l': case 'L': case 'z': case 'q':
-  case '*': case 'O':
-#if defined(MP_HAVE_INT_EXTENSIONS)
-  case 'I':
-#endif
-    return TRUE;
-
-  default:
-    return FALSE;
-  }
+	ar = (struct ar *)(a->format->data);
+	if (ar->strtab)
+		free(ar->strtab);
+	free(ar);
+	(a->format->data) = NULL;
+	return (ARCHIVE_OK);
 }
 
-/******************************************************************
- *
- * Pass 1:
- * Create an index with the type of each parameter entry and its
- * value (may vary in size)
- *
- ******************************************************************/
-
-static long dprintf_Pass1(const char *format, va_stack_t *vto, char **endpos,
-                          va_list arglist)
+static int
+archive_read_format_ar_bid(struct archive_read *a, int best_bid)
 {
-  char *fmt = (char *)format;
-  int param_num = 0;
-  long this_param;
-  long width;
-  long precision;
-  int flags;
-  long max_param=0;
-  long i;
+	const void *h;
 
-  while(*fmt) {
-    if(*fmt++ == '%') {
-      if(*fmt == '%') {
-        fmt++;
-        continue; /* while */
-      }
+	(void)best_bid; /* UNUSED */
 
-      flags = FLAGS_NEW;
-
-      /* Handle the positional case (N$) */
-
-      param_num++;
-
-      this_param = dprintf_DollarString(fmt, &fmt);
-      if(0 == this_param)
-        /* we got no positional, get the next counter */
-        this_param = param_num;
-
-      if(this_param > max_param)
-        max_param = this_param;
-
-      /*
-       * The parameter with number 'i' should be used. Next, we need
-       * to get SIZE and TYPE of the parameter. Add the information
-       * to our array.
-       */
-
-      width = 0;
-      precision = 0;
-
-      /* Handle the flags */
-
-      while(dprintf_IsQualifierNoDollar(fmt)) {
-#if defined(MP_HAVE_INT_EXTENSIONS)
-        if(!strncmp(fmt, "I32", 3)) {
-          flags |= FLAGS_LONG;
-          fmt += 3;
-        }
-        else if(!strncmp(fmt, "I64", 3)) {
-          flags |= FLAGS_LONGLONG;
-          fmt += 3;
-        }
-        else
-#endif
-
-        switch(*fmt++) {
-        case ' ':
-          flags |= FLAGS_SPACE;
-          break;
-        case '+':
-          flags |= FLAGS_SHOWSIGN;
-          break;
-        case '-':
-          flags |= FLAGS_LEFT;
-          flags &= ~FLAGS_PAD_NIL;
-          break;
-        case '#':
-          flags |= FLAGS_ALT;
-          break;
-        case '.':
-          flags |= FLAGS_PREC;
-          if('*' == *fmt) {
-            /* The precision is picked from a specified parameter */
-
-            flags |= FLAGS_PRECPARAM;
-            fmt++;
-            param_num++;
-
-            i = dprintf_DollarString(fmt, &fmt);
-            if(i)
-              precision = i;
-            else
-              precision = param_num;
-
-            if(precision > max_param)
-              max_param = precision;
-          }
-          else {
-            flags |= FLAGS_PREC;
-            precision = strtol(fmt, &fmt, 10);
-          }
-          break;
-        case 'h':
-          flags |= FLAGS_SHORT;
-          break;
-#if defined(MP_HAVE_INT_EXTENSIONS)
-        case 'I':
-#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-#endif
-        case 'l':
-          if(flags & FLAGS_LONG)
-            flags |= FLAGS_LONGLONG;
-          else
-            flags |= FLAGS_LONG;
-          break;
-        case 'L':
-          flags |= FLAGS_LONGDOUBLE;
-          break;
-        case 'q':
-          flags |= FLAGS_LONGLONG;
-          break;
-        case 'z':
-          /* the code below generates a warning if -Wunreachable-code is
-             used */
-#if (SIZEOF_SIZE_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-        case 'O':
-#if (CURL_SIZEOF_CURL_OFF_T > CURL_SIZEOF_LONG)
-          flags |= FLAGS_LONGLONG;
-#else
-          flags |= FLAGS_LONG;
-#endif
-          break;
-        case '0':
-          if(!(flags & FLAGS_LEFT))
-            flags |= FLAGS_PAD_NIL;
-          /* FALLTHROUGH */
-        case '1': case '2': case '3': case '4':
-        case '5': case '6': case '7': case '8': case '9':
-          flags |= FLAGS_WIDTH;
-          width = strtol(fmt-1, &fmt, 10);
-          break;
-        case '*':  /* Special case */
-          flags |= FLAGS_WIDTHPARAM;
-          param_num++;
-
-          i = dprintf_DollarString(fmt, &fmt);
-          if(i)
-            width = i;
-          else
-            width = param_num;
-          if(width > max_param)
-            max_param=width;
-          break;
-        default:
-          break;
-        }
-      } /* switch */
-
-      /* Handle the specifier */
-
-      i = this_param - 1;
-
-      switch (*fmt) {
-      case 'S':
-        flags |= FLAGS_ALT;
-        /* FALLTHROUGH */
-      case 's':
-        vto[i].type = FORMAT_STRING;
-        break;
-      case 'n':
-        vto[i].type = FORMAT_INTPTR;
-        break;
-      case 'p':
-        vto[i].type = FORMAT_PTR;
-        break;
-      case 'd': case 'i':
-        vto[i].type = FORMAT_INT;
-        break;
-      case 'u':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_UNSIGNED;
-        break;
-      case 'o':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_OCTAL;
-        break;
-      case 'x':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_HEX|FLAGS_UNSIGNED;
-        break;
-      case 'X':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_HEX|FLAGS_UPPER|FLAGS_UNSIGNED;
-        break;
-      case 'c':
-        vto[i].type = FORMAT_INT;
-        flags |= FLAGS_CHAR;
-        break;
-      case 'f':
-        vto[i].type = FORMAT_DOUBLE;
-        break;
-      case 'e':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATE;
-        break;
-      case 'E':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATE|FLAGS_UPPER;
-        break;
-      case 'g':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATG;
-        break;
-      case 'G':
-        vto[i].type = FORMAT_DOUBLE;
-        flags |= FLAGS_FLOATG|FLAGS_UPPER;
-        break;
-      default:
-        vto[i].type = FORMAT_UNKNOWN;
-        break;
-      } /* switch */
-
-      vto[i].flags = flags;
-      vto[i].width = width;
-      vto[i].precision = precision;
-
-      if(flags & FLAGS_WIDTHPARAM) {
-        /* we have the width specified from a parameter, so we make that
-           parameter's info setup properly */
-        long k = width - 1;
-        vto[i].width = k;
-        vto[k].type = FORMAT_WIDTH;
-        vto[k].flags = FLAGS_NEW;
-        /* can't use width or precision of width! */
-        vto[k].width = 0;
-        vto[k].precision = 0;
-      }
-      if(flags & FLAGS_PRECPARAM) {
-        /* we have the precision specified from a parameter, so we make that
-           parameter's info setup properly */
-        long k = precision - 1;
-        vto[i].precision = k;
-        vto[k].type = FORMAT_WIDTH;
-        vto[k].flags = FLAGS_NEW;
-        /* can't use width or precision of width! */
-        vto[k].width = 0;
-        vto[k].precision = 0;
-      }
-      *endpos++ = fmt + 1; /* end of this sequence */
-    }
-  }
-
-  /* Read the arg list parameters into our data list */
-  for(i=0; i<max_param; i++) {
-    /* Width/precision arguments must be read before the main argument
-       they are attached to */
-    if(vto[i].flags & FLAGS_WIDTHPARAM) {
-      vto[vto[i].width].data.num.as_signed =
-        (mp_intmax_t)va_arg(arglist, int);
-    }
-    if(vto[i].flags & FLAGS_PRECPARAM) {
-      vto[vto[i].precision].data.num.as_signed =
-        (mp_intmax_t)va_arg(arglist, int);
-    }
-
-    switch (vto[i].type) {
-    case FORMAT_STRING:
-      vto[i].data.str = va_arg(arglist, char *);
-      break;
-
-    case FORMAT_INTPTR:
-    case FORMAT_UNKNOWN:
-    case FORMAT_PTR:
-      vto[i].data.ptr = va_arg(arglist, void *);
-      break;
-
-    case FORMAT_INT:
-#ifdef HAVE_LONG_LONG_TYPE
-      if((vto[i].flags & FLAGS_LONGLONG) && (vto[i].flags & FLAGS_UNSIGNED))
-        vto[i].data.num.as_unsigned =
-          (mp_uintmax_t)va_arg(arglist, mp_uintmax_t);
-      else if(vto[i].flags & FLAGS_LONGLONG)
-        vto[i].data.num.as_signed =
-          (mp_intmax_t)va_arg(arglist, mp_intmax_t);
-      else
-#endif
-      {
-        if((vto[i].flags & FLAGS_LONG) && (vto[i].flags & FLAGS_UNSIGNED))
-          vto[i].data.num.as_unsigned =
-            (mp_uintmax_t)va_arg(arglist, unsigned long);
-        else if(vto[i].flags & FLAGS_LONG)
-          vto[i].data.num.as_signed =
-            (mp_intmax_t)va_arg(arglist, long);
-        else if(vto[i].flags & FLAGS_UNSIGNED)
-          vto[i].data.num.as_unsigned =
-            (mp_uintmax_t)va_arg(arglist, unsigned int);
-        else
-          vto[i].data.num.as_signed =
-            (mp_intmax_t)va_arg(arglist, int);
-      }
-      break;
-
-    case FORMAT_DOUBLE:
-      vto[i].data.dnum = va_arg(arglist, double);
-      break;
-
-    case FORMAT_WIDTH:
-      /* Argument has been read. Silently convert it into an integer
-       * for later use
-       */
-      vto[i].type = FORMAT_INT;
-      break;
-
-    default:
-      break;
-    }
-  }
-
-  return max_param;
-
+	/*
+	 * Verify the 8-byte file signature.
+	 * TODO: Do we need to check more than this?
+	 */
+	if ((h = __archive_read_ahead(a, 8, NULL)) == NULL)
+		return (-1);
+	if (memcmp(h, "!<arch>\n", 8) == 0) {
+		return (64);
+	}
+	return (-1);
 }
 
-static int dprintf_formatf(
-  void *data, /* untouched by format(), just sent to the stream() function in
-                 the second argument */
-  /* function pointer called for each output character */
-  int (*stream)(int, FILE *),
-  const char *format,    /* %-formatted string */
-  va_list ap_save) /* list of parameters */
+static int
+_ar_read_header(struct archive_read *a, struct archive_entry *entry,
+	struct ar *ar, const char *h, size_t *unconsumed)
 {
-  /* Base-36 digits for numbers.  */
-  const char *digits = lower_digits;
-
-  /* Pointer into the format string.  */
-  char *f;
-
-  /* Number of characters written.  */
-  int done = 0;
-
-  long param; /* current parameter to read */
-  long param_num=0; /* parameter counter */
-
-  va_stack_t vto[MAX_PARAMETERS];
-  char *endpos[MAX_PARAMETERS];
-  char **end;
-
-  char work[BUFFSIZE];
-
-  va_stack_t *p;
-
-  /* 'workend' points to the final buffer byte position, but with an extra
-     byte as margin to avoid the (false?) warning Coverity gives us
-     otherwise */
-  char *workend = &work[sizeof(work) - 2];
-
-  /* Do the actual %-code parsing */
-  dprintf_Pass1(format, vto, endpos, ap_save);
-
-  end = &endpos[0]; /* the initial end-position from the list dprintf_Pass1()
-                       created for us */
-
-  f = (char *)format;
-  while(*f != '\0') {
-    /* Format spec modifiers.  */
-    int is_alt;
-
-    /* Width of a field.  */
-    long width;
-
-    /* Precision of a field.  */
-    long prec;
-
-    /* Decimal integer is negative.  */
-    int is_neg;
-
-    /* Base of a number to be written.  */
-    long base;
-
-    /* Integral values to be written.  */
-    mp_uintmax_t num;
-
-    /* Used to convert negative in positive.  */
-    mp_intmax_t signed_num;
-
-    char *w;
-
-    if(*f != '%') {
-      /* This isn't a format spec, so write everything out until the next one
-         OR end of string is reached.  */
-      do {
-        OUTCHAR(*f);
-      } while(*++f && ('%' != *f));
-      continue;
-    }
-
-    ++f;
-
-    /* Check for "%%".  Note that although the ANSI standard lists
-       '%' as a conversion specifier, it says "The complete format
-       specification shall be `%%'," so we can avoid all the width
-       and precision processing.  */
-    if(*f == '%') {
-      ++f;
-      OUTCHAR('%');
-      continue;
-    }
-
-    /* If this is a positional parameter, the position must follow immediately
-       after the %, thus create a %<num>$ sequence */
-    param=dprintf_DollarString(f, &f);
-
-    if(!param)
-      param = param_num;
-    else
-      --param;
-
-    param_num++; /* increase this always to allow "%2$s %1$s %s" and then the
-                    third %s will pick the 3rd argument */
-
-    p = &vto[param];
-
-    /* pick up the specified width */
-    if(p->flags & FLAGS_WIDTHPARAM) {
-      width = (long)vto[p->width].data.num.as_signed;
-      param_num++; /* since the width is extracted from a parameter, we
-                      must skip that to get to the next one properly */
-      if(width < 0) {
-        /* "A negative field width is taken as a '-' flag followed by a
-           positive field width." */
-        width = -width;
-        p->flags |= FLAGS_LEFT;
-        p->flags &= ~FLAGS_PAD_NIL;
-      }
-    }
-    else
-      width = p->width;
-
-    /* pick up the specified precision */
-    if(p->flags & FLAGS_PRECPARAM) {
-      prec = (long)vto[p->precision].data.num.as_signed;
-      param_num++; /* since the precision is extracted from a parameter, we
-                      must skip that to get to the next one properly */
-      if(prec < 0)
-        /* "A negative precision is taken as if the precision were
-           omitted." */
-        prec = -1;
-    }
-    else if(p->flags & FLAGS_PREC)
-      prec = p->precision;
-    else
-      prec = -1;
-
-    is_alt = (p->flags & FLAGS_ALT) ? 1 : 0;
-
-    switch (p->type) {
-    case FORMAT_INT:
-      num = p->data.num.as_unsigned;
-      if(p->flags & FLAGS_CHAR) {
-        /* Character.  */
-        if(!(p->flags & FLAGS_LEFT))
-          while(--width > 0)
-            OUTCHAR(' ');
-        OUTCHAR((char) num);
-        if(p->flags & FLAGS_LEFT)
-          while(--width > 0)
-            OUTCHAR(' ');
-        break;
-      }
-      if(p->flags & FLAGS_OCTAL) {
-        /* Octal unsigned integer.  */
-        base = 8;
-        goto unsigned_number;
-      }
-      else if(p->flags & FLAGS_HEX) {
-        /* Hexadecimal unsigned integer.  */
-
-        digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
-        base = 16;
-        goto unsigned_number;
-      }
-      else if(p->flags & FLAGS_UNSIGNED) {
-        /* Decimal unsigned integer.  */
-        base = 10;
-        goto unsigned_number;
-      }
-
-      /* Decimal integer.  */
-      base = 10;
-
-      is_neg = (p->data.num.as_signed < (mp_intmax_t)0) ? 1 : 0;
-      if(is_neg) {
-        /* signed_num might fail to hold absolute negative minimum by 1 */
-        signed_num = p->data.num.as_signed + (mp_intmax_t)1;
-        signed_num = -signed_num;
-        num = (mp_uintmax_t)signed_num;
-        num += (mp_uintmax_t)1;
-      }
-
-      goto number;
-
-      unsigned_number:
-      /* Unsigned number of base BASE.  */
-      is_neg = 0;
-
-      number:
-      /* Number of base BASE.  */
-
-      /* Supply a default precision if none was given.  */
-      if(prec == -1)
-        prec = 1;
-
-      /* Put the number in WORK.  */
-      w = workend;
-      while(num > 0) {
-        *w-- = digits[num % base];
-        num /= base;
-      }
-      width -= (long)(workend - w);
-      prec -= (long)(workend - w);
-
-      if(is_alt && base == 8 && prec <= 0) {
-        *w-- = '0';
-        --width;
-      }
-
-      if(prec > 0) {
-        width -= prec;
-        while(prec-- > 0)
-          *w-- = '0';
-      }
-
-      if(is_alt && base == 16)
-        width -= 2;
-
-      if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
-        --width;
-
-      if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
-        while(width-- > 0)
-          OUTCHAR(' ');
-
-      if(is_neg)
-        OUTCHAR('-');
-      else if(p->flags & FLAGS_SHOWSIGN)
-        OUTCHAR('+');
-      else if(p->flags & FLAGS_SPACE)
-        OUTCHAR(' ');
-
-      if(is_alt && base == 16) {
-        OUTCHAR('0');
-        if(p->flags & FLAGS_UPPER)
-          OUTCHAR('X');
-        else
-          OUTCHAR('x');
-      }
-
-      if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
-        while(width-- > 0)
-          OUTCHAR('0');
-
-      /* Write the number.  */
-      while(++w <= workend) {
-        OUTCHAR(*w);
-      }
-
-      if(p->flags & FLAGS_LEFT)
-        while(width-- > 0)
-          OUTCHAR(' ');
-      break;
-
-    case FORMAT_STRING:
-            /* String.  */
-      {
-        static const char null[] = "(nil)";
-        const char *str;
-        size_t len;
-
-        str = (char *) p->data.str;
-        if(str == NULL) {
-          /* Write null[] if there's space.  */
-          if(prec == -1 || prec >= (long) sizeof(null) - 1) {
-            str = null;
-            len = sizeof(null) - 1;
-            /* Disable quotes around (nil) */
-            p->flags &= (~FLAGS_ALT);
-          }
-          else {
-            str = "";
-            len = 0;
-          }
-        }
-        else if(prec != -1)
-          len = (size_t)prec;
-        else
-          len = strlen(str);
-
-        width -= (len > LONG_MAX) ? LONG_MAX : (long)len;
-
-        if(p->flags & FLAGS_ALT)
-          OUTCHAR('"');
-
-        if(!(p->flags&FLAGS_LEFT))
-          while(width-- > 0)
-            OUTCHAR(' ');
-
-        while((len-- > 0) && *str)
-          OUTCHAR(*str++);
-        if(p->flags&FLAGS_LEFT)
-          while(width-- > 0)
-            OUTCHAR(' ');
-
-        if(p->flags & FLAGS_ALT)
-          OUTCHAR('"');
-      }
-      break;
-
-    case FORMAT_PTR:
-      /* Generic pointer.  */
-      {
-        void *ptr;
-        ptr = (void *) p->data.ptr;
-        if(ptr != NULL) {
-          /* If the pointer is not NULL, write it as a %#x spec.  */
-          base = 16;
-          digits = (p->flags & FLAGS_UPPER)? upper_digits : lower_digits;
-          is_alt = 1;
-          num = (size_t) ptr;
-          is_neg = 0;
-          goto number;
-        }
-        else {
-          /* Write "(nil)" for a nil pointer.  */
-          static const char strnil[] = "(nil)";
-          const char *point;
-
-          width -= (long)(sizeof(strnil) - 1);
-          if(p->flags & FLAGS_LEFT)
-            while(width-- > 0)
-              OUTCHAR(' ');
-          for(point = strnil; *point != '\0'; ++point)
-            OUTCHAR(*point);
-          if(! (p->flags & FLAGS_LEFT))
-            while(width-- > 0)
-              OUTCHAR(' ');
-        }
-      }
-      break;
-
-    case FORMAT_DOUBLE:
-      {
-        char formatbuf[32]="%";
-        char *fptr = &formatbuf[1];
-        size_t left = sizeof(formatbuf)-strlen(formatbuf);
-        int len;
-
-        width = -1;
-        if(p->flags & FLAGS_WIDTH)
-          width = p->width;
-        else if(p->flags & FLAGS_WIDTHPARAM)
-          width = (long)vto[p->width].data.num.as_signed;
-
-        prec = -1;
-        if(p->flags & FLAGS_PREC)
-          prec = p->precision;
-        else if(p->flags & FLAGS_PRECPARAM)
-          prec = (long)vto[p->precision].data.num.as_signed;
-
-        if(p->flags & FLAGS_LEFT)
-          *fptr++ = '-';
-        if(p->flags & FLAGS_SHOWSIGN)
-          *fptr++ = '+';
-        if(p->flags & FLAGS_SPACE)
-          *fptr++ = ' ';
-        if(p->flags & FLAGS_ALT)
-          *fptr++ = '#';
-
-        *fptr = 0;
-
-        if(width >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, "%ld", width);
-          fptr += len;
-          left -= len;
-        }
-        if(prec >= 0) {
-          /* RECURSIVE USAGE */
-          len = curl_msnprintf(fptr, left, ".%ld", prec);
-          fptr += len;
-        }
-        if(p->flags & FLAGS_LONG)
-          *fptr++ = 'l';
-
-        if(p->flags & FLAGS_FLOATE)
-          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'E':'e');
-        else if(p->flags & FLAGS_FLOATG)
-          *fptr++ = (char)((p->flags & FLAGS_UPPER) ? 'G' : 'g');
-        else
-          *fptr++ = 'f';
-
-        *fptr = 0; /* and a final zero termination */
-
-        /* NOTE NOTE NOTE!! Not all sprintf implementations return number of
-           output characters */
-        (sprintf)(work, formatbuf, p->data.dnum);
-
-        for(fptr=work; *fptr; fptr++)
-          OUTCHAR(*fptr);
-      }
-      break;
-
-    case FORMAT_INTPTR:
-      /* Answer the count of characters written.  */
-#ifdef HAVE_LONG_LONG_TYPE
-      if(p->flags & FLAGS_LONGLONG)
-        *(LONG_LONG_TYPE *) p->data.ptr = (LONG_LONG_TYPE)done;
-      else
-#endif
-        if(p->flags & FLAGS_LONG)
-          *(long *) p->data.ptr = (long)done;
-      else if(!(p->flags & FLAGS_SHORT))
-        *(int *) p->data.ptr = (int)done;
-      else
-        *(short *) p->data.ptr = (short)done;
-      break;
-
-    default:
-      break;
-    }
-    f = *end++; /* goto end of %-code */
-
-  }
-  return done;
+	char filename[AR_name_size + 1];
+	uint64_t number; /* Used to hold parsed numbers before validation. */
+	size_t bsd_name_length, entry_size;
+	char *p, *st;
+	const void *b;
+	int r;
+
+	/* Verify the magic signature on the file header. */
+	if (strncmp(h + AR_fmag_offset, "`\n", 2) != 0) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Incorrect file header signature");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Copy filename into work buffer. */
+	strncpy(filename, h + AR_name_offset, AR_name_size);
+	filename[AR_name_size] = '\0';
+
+	/*
+	 * Guess the format variant based on the filename.
+	 */
+	if (a->archive.archive_format == ARCHIVE_FORMAT_AR) {
+		/* We don't already know the variant, so let's guess. */
+		/*
+		 * Biggest clue is presence of '/': GNU starts special
+		 * filenames with '/', appends '/' as terminator to
+		 * non-special names, so anything with '/' should be
+		 * GNU except for BSD long filenames.
+		 */
+		if (strncmp(filename, "#1/", 3) == 0)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
+		else if (strchr(filename, '/') != NULL)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_GNU;
+		else if (strncmp(filename, "__.SYMDEF", 9) == 0)
+			a->archive.archive_format = ARCHIVE_FORMAT_AR_BSD;
+		/*
+		 * XXX Do GNU/SVR4 'ar' programs ever omit trailing '/'
+		 * if name exactly fills 16-byte field?  If so, we
+		 * can't assume entries without '/' are BSD. XXX
+		 */
+	}
+
+	/* Update format name from the code. */
+	if (a->archive.archive_format == ARCHIVE_FORMAT_AR_GNU)
+		a->archive.archive_format_name = "ar (GNU/SVR4)";
+	else if (a->archive.archive_format == ARCHIVE_FORMAT_AR_BSD)
+		a->archive.archive_format_name = "ar (BSD)";
+	else
+		a->archive.archive_format_name = "ar";
+
+	/*
+	 * Remove trailing spaces from the filename.  GNU and BSD
+	 * variants both pad filename area out with spaces.
+	 * This will only be wrong if GNU/SVR4 'ar' implementations
+	 * omit trailing '/' for 16-char filenames and we have
+	 * a 16-char filename that ends in ' '.
+	 */
+	p = filename + AR_name_size - 1;
+	while (p >= filename && *p == ' ') {
+		*p = '\0';
+		p--;
+	}
+
+	/*
+	 * Remove trailing slash unless first character is '/'.
+	 * (BSD entries never end in '/', so this will only trim
+	 * GNU-format entries.  GNU special entries start with '/'
+	 * and are not terminated in '/', so we don't trim anything
+	 * that starts with '/'.)
+	 */
+	if (filename[0] != '/' && p > filename && *p == '/') {
+		*p = '\0';
+	}
+
+	if (p < filename) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Found entry with empty filename");
+		return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * '//' is the GNU filename table.
+	 * Later entries can refer to names in this table.
+	 */
+	if (strcmp(filename, "//") == 0) {
+		/* This must come before any call to _read_ahead. */
+		ar_parse_common_header(ar, entry, h);
+		archive_entry_copy_pathname(entry, filename);
+		archive_entry_set_filetype(entry, AE_IFREG);
+		/* Get the size of the filename table. */
+		number = ar_atol10(h + AR_size_offset, AR_size_size);
+		if (number > SIZE_MAX) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Filename table too large");
+			return (ARCHIVE_FATAL);
+		}
+		entry_size = (size_t)number;
+		if (entry_size == 0) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Invalid string table");
+			return (ARCHIVE_FATAL);
+		}
+		if (ar->strtab != NULL) {
+			archive_set_error(&a->archive, EINVAL,
+			    "More than one string tables exist");
+			return (ARCHIVE_FATAL);
+		}
+
+		/* Read the filename table into memory. */
+		st = malloc(entry_size);
+		if (st == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate filename table buffer");
+			return (ARCHIVE_FATAL);
+		}
+		ar->strtab = st;
+		ar->strtab_size = entry_size;
+
+		if (*unconsumed) {
+			__archive_read_consume(a, *unconsumed);
+			*unconsumed = 0;
+		}
+
+		if ((b = __archive_read_ahead(a, entry_size, NULL)) == NULL)
+			return (ARCHIVE_FATAL);
+		memcpy(st, b, entry_size);
+		__archive_read_consume(a, entry_size);
+		/* All contents are consumed. */
+		ar->entry_bytes_remaining = 0;
+		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+
+		/* Parse the filename table. */
+		return (ar_parse_gnu_filename_table(a));
+	}
+
+	/*
+	 * GNU variant handles long filenames by storing /<number>
+	 * to indicate a name stored in the filename table.
+	 * XXX TODO: Verify that it's all digits... Don't be fooled
+	 * by "/9xyz" XXX
+	 */
+	if (filename[0] == '/' && filename[1] >= '0' && filename[1] <= '9') {
+		number = ar_atol10(h + AR_name_offset + 1, AR_name_size - 1);
+		/*
+		 * If we can't look up the real name, warn and return
+		 * the entry with the wrong name.
+		 */
+		if (ar->strtab == NULL || number > ar->strtab_size) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Can't find long filename for GNU/SVR4 archive entry");
+			archive_entry_copy_pathname(entry, filename);
+			/* Parse the time, owner, mode, size fields. */
+			ar_parse_common_header(ar, entry, h);
+			return (ARCHIVE_FATAL);
+		}
+
+		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);
+		/* Parse the time, owner, mode, size fields. */
+		return (ar_parse_common_header(ar, entry, h));
+	}
+
+	/*
+	 * BSD handles long filenames by storing "#1/" followed by the
+	 * length of filename as a decimal number, then prepends the
+	 * the filename to the file contents.
+	 */
+	if (strncmp(filename, "#1/", 3) == 0) {
+		/* Parse the time, owner, mode, size fields. */
+		/* This must occur before _read_ahead is called again. */
+		ar_parse_common_header(ar, entry, h);
+
+		/* Parse the size of the name, adjust the file size. */
+		number = ar_atol10(h + AR_name_offset + 3, AR_name_size - 3);
+		bsd_name_length = (size_t)number;
+		/* Guard against the filename + trailing NUL
+		 * overflowing a size_t and against the filename size
+		 * being larger than the entire entry. */
+		if (number > (uint64_t)(bsd_name_length + 1)
+		    || (int64_t)bsd_name_length > ar->entry_bytes_remaining) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Bad input file size");
+			return (ARCHIVE_FATAL);
+		}
+		ar->entry_bytes_remaining -= bsd_name_length;
+		/* Adjust file size reported to client. */
+		archive_entry_set_size(entry, ar->entry_bytes_remaining);
+
+		if (*unconsumed) {
+			__archive_read_consume(a, *unconsumed);
+			*unconsumed = 0;
+		}
+
+		/* Read the long name into memory. */
+		if ((b = __archive_read_ahead(a, bsd_name_length, NULL)) == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated input file");
+			return (ARCHIVE_FATAL);
+		}
+		/* Store it in the entry. */
+		p = (char *)malloc(bsd_name_length + 1);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate fname buffer");
+			return (ARCHIVE_FATAL);
+		}
+		strncpy(p, b, bsd_name_length);
+		p[bsd_name_length] = '\0';
+
+		__archive_read_consume(a, bsd_name_length);
+
+		archive_entry_copy_pathname(entry, p);
+		free(p);
+		return (ARCHIVE_OK);
+	}
+
+	/*
+	 * "/" is the SVR4/GNU archive symbol table.
+	 */
+	if (strcmp(filename, "/") == 0) {
+		archive_entry_copy_pathname(entry, "/");
+		/* Parse the time, owner, mode, size fields. */
+		r = ar_parse_common_header(ar, entry, h);
+		/* Force the file type to a regular file. */
+		archive_entry_set_filetype(entry, AE_IFREG);
+		return (r);
+	}
+
+	/*
+	 * "__.SYMDEF" is a BSD archive symbol table.
+	 */
+	if (strcmp(filename, "__.SYMDEF") == 0) {
+		archive_entry_copy_pathname(entry, filename);
+		/* Parse the time, owner, mode, size fields. */
+		return (ar_parse_common_header(ar, entry, h));
+	}
+
+	/*
+	 * Otherwise, this is a standard entry.  The filename
+	 * has already been trimmed as much as possible, based
+	 * on our current knowledge of the format.
+	 */
+	archive_entry_copy_pathname(entry, filename);
+	return (ar_parse_common_header(ar, entry, h));
 }
 
-/* fputc() look-alike */
-static int addbyter(int output, FILE *data)
+static int
+archive_read_format_ar_read_header(struct archive_read *a,
+    struct archive_entry *entry)
 {
-  struct nsprintf *infop=(struct nsprintf *)data;
-  unsigned char outc = (unsigned char)output;
+	struct ar *ar = (struct ar*)(a->format->data);
+	size_t unconsumed;
+	const void *header_data;
+	int ret;
 
-  if(infop->length < infop->max) {
-    /* only do this if we haven't reached max length yet */
-    infop->buffer[0] = outc; /* store */
-    infop->buffer++; /* increase pointer */
-    infop->length++; /* we are now one byte larger */
-    return outc;     /* fputc() returns like this on success */
-  }
-  return -1;
+	if (!ar->read_global_header) {
+		/*
+		 * We are now at the beginning of the archive,
+		 * so we need first consume the ar global header.
+		 */
+		__archive_read_consume(a, 8);
+		ar->read_global_header = 1;
+		/* Set a default format code for now. */
+		a->archive.archive_format = ARCHIVE_FORMAT_AR;
+	}
+
+	/* Read the header for the next file entry. */
+	if ((header_data = __archive_read_ahead(a, 60, NULL)) == NULL)
+		/* Broken header. */
+		return (ARCHIVE_EOF);
+	
+	unconsumed = 60;
+	
+	ret = _ar_read_header(a, entry, ar, (const char *)header_data, &unconsumed);
+
+	if (unconsumed)
+		__archive_read_consume(a, unconsumed);
+
+	return ret;
 }
 
-int curl_mvsnprintf(char *buffer, size_t maxlength, const char *format,
-                    va_list ap_save)
+
+static int
+ar_parse_common_header(struct ar *ar, struct archive_entry *entry,
+    const char *h)
 {
-  int retcode;
-  struct nsprintf info;
+	uint64_t n;
 
-  info.buffer = buffer;
-  info.length = 0;
-  info.max = maxlength;
+	/* Copy remaining header */
+	archive_entry_set_mtime(entry,
+	    (time_t)ar_atol10(h + AR_date_offset, AR_date_size), 0L);
+	archive_entry_set_uid(entry,
+	    (uid_t)ar_atol10(h + AR_uid_offset, AR_uid_size));
+	archive_entry_set_gid(entry,
+	    (gid_t)ar_atol10(h + AR_gid_offset, AR_gid_size));
+	archive_entry_set_mode(entry,
+	    (mode_t)ar_atol8(h + AR_mode_offset, AR_mode_size));
+	n = ar_atol10(h + AR_size_offset, AR_size_size);
 
-  retcode = dprintf_formatf(&info, addbyter, format, ap_save);
-  if(info.max) {
-    /* we terminate this with a zero byte */
-    if(info.max == info.length)
-      /* we're at maximum, scrap the last letter */
-      info.buffer[-1] = 0;
-    else
-      info.buffer[0] = 0;
-  }
-  return retcode;
+	ar->entry_offset = 0;
+	ar->entry_padding = n % 2;
+	archive_entry_set_size(entry, n);
+	ar->entry_bytes_remaining = n;
+	return (ARCHIVE_OK);
 }
 
-int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...)
+static int
+archive_read_format_ar_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
 {
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-  retcode = curl_mvsnprintf(buffer, maxlength, format, ap_save);
-  va_end(ap_save);
-  return retcode;
+	ssize_t bytes_read;
+	struct ar *ar;
+
+	ar = (struct ar *)(a->format->data);
+
+	if (ar->entry_bytes_unconsumed) {
+		__archive_read_consume(a, ar->entry_bytes_unconsumed);
+		ar->entry_bytes_unconsumed = 0;
+	}
+
+	if (ar->entry_bytes_remaining > 0) {
+		*buff = __archive_read_ahead(a, 1, &bytes_read);
+		if (bytes_read == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated ar archive");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_read < 0)
+			return (ARCHIVE_FATAL);
+		if (bytes_read > ar->entry_bytes_remaining)
+			bytes_read = (ssize_t)ar->entry_bytes_remaining;
+		*size = bytes_read;
+		ar->entry_bytes_unconsumed = bytes_read;
+		*offset = ar->entry_offset;
+		ar->entry_offset += bytes_read;
+		ar->entry_bytes_remaining -= bytes_read;
+		return (ARCHIVE_OK);
+	} else {
+		int64_t skipped = __archive_read_consume(a, ar->entry_padding);
+		if (skipped >= 0) {
+			ar->entry_padding -= skipped;
+		}
+		if (ar->entry_padding) {
+			if (skipped >= 0) {
+				archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+					"Truncated ar archive- failed consuming padding");
+			}
+			return (ARCHIVE_FATAL);
+		}
+		*buff = NULL;
+		*size = 0;
+		*offset = ar->entry_offset;
+		return (ARCHIVE_EOF);
+	}
 }
 
-/* fputc() look-alike */
-static int alloc_addbyter(int output, FILE *data)
+static int
+archive_read_format_ar_skip(struct archive_read *a)
 {
-  struct asprintf *infop=(struct asprintf *)data;
-  unsigned char outc = (unsigned char)output;
+	int64_t bytes_skipped;
+	struct ar* ar;
 
-  if(!infop->buffer) {
-    infop->buffer = malloc(32);
-    if(!infop->buffer) {
-      infop->fail = 1;
-      return -1; /* fail */
-    }
-    infop->alloc = 32;
-    infop->len =0;
-  }
-  else if(infop->len+1 >= infop->alloc) {
-    char *newptr;
+	ar = (struct ar *)(a->format->data);
 
-    newptr = realloc(infop->buffer, infop->alloc*2);
+	bytes_skipped = __archive_read_consume(a,
+	    ar->entry_bytes_remaining + ar->entry_padding
+	    + ar->entry_bytes_unconsumed);
+	if (bytes_skipped < 0)
+		return (ARCHIVE_FATAL);
 
-    if(!newptr) {
-      infop->fail = 1;
-      return -1; /* fail */
-    }
-    infop->buffer = newptr;
-    infop->alloc *= 2;
-  }
+	ar->entry_bytes_remaining = 0;
+	ar->entry_bytes_unconsumed = 0;
+	ar->entry_padding = 0;
 
-  infop->buffer[ infop->len ] = outc;
-
-  infop->len++;
-
-  return outc; /* fputc() returns like this on success */
+	return (ARCHIVE_OK);
 }
 
-char *curl_maprintf(const char *format, ...)
+static int
+ar_parse_gnu_filename_table(struct archive_read *a)
 {
-  va_list ap_save; /* argument pointer */
-  int retcode;
-  struct asprintf info;
+	struct ar *ar;
+	char *p;
+	size_t size;
 
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-  info.fail = 0;
+	ar = (struct ar*)(a->format->data);
+	size = ar->strtab_size;
 
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  va_end(ap_save);
-  if((-1 == retcode) || info.fail) {
-    if(info.alloc)
-      free(info.buffer);
-    return NULL;
-  }
-  if(info.alloc) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  else
-    return strdup("");
+	for (p = ar->strtab; p < ar->strtab + size - 1; ++p) {
+		if (*p == '/') {
+			*p++ = '\0';
+			if (*p != '\n')
+				goto bad_string_table;
+			*p = '\0';
+		}
+	}
+	/*
+	 * GNU ar always pads the table to an even size.
+	 * The pad character is either '\n' or '`'.
+	 */
+	if (p != ar->strtab + size && *p != '\n' && *p != '`')
+		goto bad_string_table;
+
+	/* Enforce zero termination. */
+	ar->strtab[size - 1] = '\0';
+
+	return (ARCHIVE_OK);
+
+bad_string_table:
+	archive_set_error(&a->archive, EINVAL,
+	    "Invalid string table");
+	free(ar->strtab);
+	ar->strtab = NULL;
+	return (ARCHIVE_FATAL);
 }
 
-char *curl_mvaprintf(const char *format, va_list ap_save)
+static uint64_t
+ar_atol8(const char *p, unsigned char_cnt)
 {
-  int retcode;
-  struct asprintf info;
+	uint64_t l, limit, last_digit_limit;
+	unsigned int digit, base;
 
-  info.buffer = NULL;
-  info.len = 0;
-  info.alloc = 0;
-  info.fail = 0;
+	base = 8;
+	limit = UINT64_MAX / base;
+	last_digit_limit = UINT64_MAX % base;
 
-  retcode = dprintf_formatf(&info, alloc_addbyter, format, ap_save);
-  if((-1 == retcode) || info.fail) {
-    if(info.alloc)
-      free(info.buffer);
-    return NULL;
-  }
+	while ((*p == ' ' || *p == '\t') && char_cnt-- > 0)
+		p++;
 
-  if(info.alloc) {
-    info.buffer[info.len] = 0; /* we terminate this with a zero byte */
-    return info.buffer;
-  }
-  else
-    return strdup("");
+	l = 0;
+	digit = *p - '0';
+	while (*p >= '0' && digit < base  && char_cnt-- > 0) {
+		if (l>limit || (l == limit && digit > last_digit_limit)) {
+			l = UINT64_MAX; /* Truncate on overflow. */
+			break;
+		}
+		l = (l * base) + digit;
+		digit = *++p - '0';
+	}
+	return (l);
 }
 
-static int storebuffer(int output, FILE *data)
+static uint64_t
+ar_atol10(const char *p, unsigned char_cnt)
 {
-  char **buffer = (char **)data;
-  unsigned char outc = (unsigned char)output;
-  **buffer = outc;
-  (*buffer)++;
-  return outc; /* act like fputc() ! */
-}
+	uint64_t l, limit, last_digit_limit;
+	unsigned int base, digit;
 
-int curl_msprintf(char *buffer, const char *format, ...)
-{
-  va_list ap_save; /* argument pointer */
-  int retcode;
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  va_end(ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
-}
+	base = 10;
+	limit = UINT64_MAX / base;
+	last_digit_limit = UINT64_MAX % base;
 
-int curl_mprintf(const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-
-  retcode = dprintf_formatf(stdout, fputc, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
-
-int curl_mfprintf(FILE *whereto, const char *format, ...)
-{
-  int retcode;
-  va_list ap_save; /* argument pointer */
-  va_start(ap_save, format);
-  retcode = dprintf_formatf(whereto, fputc, format, ap_save);
-  va_end(ap_save);
-  return retcode;
-}
-
-int curl_mvsprintf(char *buffer, const char *format, va_list ap_save)
-{
-  int retcode;
-  retcode = dprintf_formatf(&buffer, storebuffer, format, ap_save);
-  *buffer=0; /* we terminate this with a zero byte */
-  return retcode;
-}
-
-int curl_mvprintf(const char *format, va_list ap_save)
-{
-  return dprintf_formatf(stdout, fputc, format, ap_save);
-}
-
-int curl_mvfprintf(FILE *whereto, const char *format, va_list ap_save)
-{
-  return dprintf_formatf(whereto, fputc, format, ap_save);
+	while ((*p == ' ' || *p == '\t') && char_cnt-- > 0)
+		p++;
+	l = 0;
+	digit = *p - '0';
+	while (*p >= '0' && digit < base  && char_cnt-- > 0) {
+		if (l > limit || (l == limit && digit > last_digit_limit)) {
+			l = UINT64_MAX; /* Truncate on overflow. */
+			break;
+		}
+		l = (l * base) + digit;
+		digit = *++p - '0';
+	}
+	return (l);
 }

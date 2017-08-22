@@ -1,7 +1,8 @@
-		close(data->child_stdout);
-		data->child_stdout = -1;
-		archive_set_error(f->archive, EINVAL,
-		    "Can't launch external program: %s", cmd);
-		return (ARCHIVE_FATAL);
-	}
-#else
+{
+  int i, j, codebits = 0, symbolsleft = numsymbols;
+
+  code->numentries = 0;
+  code->numallocatedentries = 0;
+  if (new_node(code) < 0) {
+    archive_set_error(&a->archive, ENOMEM,
+                      "Unable to allocate memory for node data.");

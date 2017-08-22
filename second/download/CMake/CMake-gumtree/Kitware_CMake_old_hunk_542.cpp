@@ -1,15 +1,9 @@
-                  hostname, conn->bits.ipv6_ip?"]":"",
-                  remote_port);
-        if(!hostheader) {
-          free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
-        }
-
-        if(!Curl_checkProxyheaders(conn, "Host:")) {
-          host = aprintf("Host: %s\r\n", hostheader);
-          if(!host) {
-            free(hostheader);
-            free(req_buffer);
-            return CURLE_OUT_OF_MEMORY;
-          }
-        }
+               }
+            }
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (fImportFlag) {
+               fImportFlag = 0;
+               fprintf(fout,"EXPORTS \n");
+            }
+            /*
+            Check whether it is "Scalar deleting destructor" and

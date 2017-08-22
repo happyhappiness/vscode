@@ -1041,3 +1041,1068 @@ e7b842e18955d13f6d9c021bab4a8935bf282744,Make sure unnused parameters are /*name
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/multi.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_168.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_168.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_168.cpp
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/sendf.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_169.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_169.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_169.cpp
 5bcbc3857fd9976389d8eee3bb54e352ea950aec,Merge branch 'update-curl' into release,[],Utilities/cmcurl/lib/sendf.h,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_170.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_170.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_170.cpp
+fb4791b37ccea1f38b8625b31df952408ab942f3,"cmCoreTryCompile: Refactor forwarding of variables to test project
+
+De-duplicate the logic that constructs the cmake `-D` flag used to pass
+variables into the test project cache.  Also subsume variables that were
+propagated by generating `set()` commands in the project and pass them
+as cache entries instead.",[],Source/cmCoreTryCompile.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_156.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_156.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_156.cpp
+e4a92dab3fa81a893a52dd1a774db79c4363fda6,"cmListFileLexer: Update to flex 2.6
+
+Revise the documented modifications we need to make to the
+flex-generated source file according to the needs of the new version.
+Update our own implementation to avoid warnings with flex types.",[],Source/cmListFileLexer.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_157.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_157.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_157.cpp
+d9fd2f5402eeaa345691313658e02b51038f570b,"Revise C++ coding style using clang-format
+
+Run the `Utilities/Scripts/clang-format.bash` script to update
+all our C++ code to a new style defined by `.clang-format`.
+Use `clang-format` version 3.8.
+
+* If you reached this commit for a line in `git blame`, re-run the blame
+  operation starting at the parent of this commit to see older history
+  for the content.
+
+* See the parent commit for instructions to rebase a change across this
+  style transition commit.",[],Source/CPack/cmCPackDebGenerator.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_158.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_158.cpp
+0ac18d40c8c29a17f1acfcaca506f41a26185901,"Remove `//------...` horizontal separator comments
+
+Modern editors provide plenty of ways to visually separate functions.
+Drop the explicit comments that previously served this purpose.
+Use the following command to automate the change:
+
+    $ git ls-files -z -- \
+        ""*.c"" ""*.cc"" ""*.cpp"" ""*.cxx"" ""*.h"" ""*.hh"" ""*.hpp"" ""*.hxx"" |
+      egrep -z -v ""^Source/cmCommandArgumentLexer\."" |
+      egrep -z -v ""^Source/cmCommandArgumentParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmDependsJavaLexer\."" |
+      egrep -z -v ""^Source/cmDependsJavaParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmExprLexer\."" |
+      egrep -z -v ""^Source/cmExprParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmFortranLexer\."" |
+      egrep -z -v ""^Source/cmFortranParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmListFileLexer\."" |
+      egrep -z -v ""^Source/cm_sha2"" |
+      egrep -z -v ""^Source/(kwsys|CursesDialog/form)/"" |
+      egrep -z -v ""^Utilities/(KW|cm).*/"" |
+      xargs -0 sed -i '/^\(\/\/---*\|\/\*---*\*\/\)$/ {d;}'
+
+This avoids modifying third-party sources and generated sources.",[],Source/cmComputeLinkDepends.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_159.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_159.cpp
+0ac18d40c8c29a17f1acfcaca506f41a26185901,"Remove `//------...` horizontal separator comments
+
+Modern editors provide plenty of ways to visually separate functions.
+Drop the explicit comments that previously served this purpose.
+Use the following command to automate the change:
+
+    $ git ls-files -z -- \
+        ""*.c"" ""*.cc"" ""*.cpp"" ""*.cxx"" ""*.h"" ""*.hh"" ""*.hpp"" ""*.hxx"" |
+      egrep -z -v ""^Source/cmCommandArgumentLexer\."" |
+      egrep -z -v ""^Source/cmCommandArgumentParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmDependsJavaLexer\."" |
+      egrep -z -v ""^Source/cmDependsJavaParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmExprLexer\."" |
+      egrep -z -v ""^Source/cmExprParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmFortranLexer\."" |
+      egrep -z -v ""^Source/cmFortranParser(\.y|\.cxx|Tokens\.h)"" |
+      egrep -z -v ""^Source/cmListFileLexer\."" |
+      egrep -z -v ""^Source/cm_sha2"" |
+      egrep -z -v ""^Source/(kwsys|CursesDialog/form)/"" |
+      egrep -z -v ""^Utilities/(KW|cm).*/"" |
+      xargs -0 sed -i '/^\(\/\/---*\|\/\*---*\*\/\)$/ {d;}'
+
+This avoids modifying third-party sources and generated sources.",[],Source/cmComputeTargetDepends.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_160.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_160.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_160.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_161.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_161.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_161.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_read_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_162.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_162.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_162.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_163.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_163.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_163.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_xar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_164.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_164.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_164.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_165.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_165.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_165.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_write_add_filter_lz4.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_166.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_166.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_166.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_write_add_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_167.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_167.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_167.cpp
+e9bc469b2abcd0ad4cb3ad4bfefbc5ef1f559c1b,"Merge branch 'upstream-LibArchive' into update-libarchive
+
+Resolve conflicts in C code by taking their side.  Resolve conflicts in
+CMake code by integrating the changes.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_168.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_168.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_168.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive.h,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_169.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_169.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_169.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_read_disk_entry_from_file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_170.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_170.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_170.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_read_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_171.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_171.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_171.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_read_support_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_172.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_172.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_172.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_read_support_format_xar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_173.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_173.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_174.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_174.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_174.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_write_add_filter_lz4.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_175.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_175.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_175.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_write_add_filter_program.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_176.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_176.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_176.cpp
+501345e470bb9c5b0cb61aff84bd50ffdd95b92d,"LibArchive 2016-04-30 (167e97be)
+
+Code extracted from:
+
+    https://github.com/libarchive/libarchive.git
+
+at commit 167e97be1d35c1e0947d768adbf94712244aad6b (master).",[],libarchive/archive_write_set_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_177.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_177.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_177.cpp
+7f1bd9fe6910f7633d98dec018cc01331a46b87e,"try_compile: Add option to control type of target
+
+Create a `CMAKE_TRY_COMPILE_TARGET_TYPE` option to specify use
+of `add_library(... STATIC ...)` for the generated test project.
+This will be useful for cross-compiling toolchains that cannot
+link a binary without custom flags or scripts.",[],Source/cmCoreTryCompile.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_178.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_178.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_178.cpp
+1c1ace2db012919f23b6de5400ab192b9277dfc6,"De-duplicate symbols listed in generated module definition files
+
+MS tools have a limit on the number of symbols that can be listed
+in a `.def` file.  If multiple `.obj` files provide a symbol then
+avoid listing it more than once in the generated `.def` file to
+avoid counting toward the limit.",[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_179.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_179.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_179.cpp
+ba819f49df33b546072a5928de3253770c4716b9,"cmFortranParser: Parse #line directives
+
+Teach the lexer to extract the #line directive prefix and line number as
+a new token type.  Teach the parser to recognize this token followed by
+a string as the file name (plus possibly other content).  Report the
+named file as included by the source file.",[],Source/cmFortranLexer.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_180.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_180.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_180.cpp
+7f8bb857b8ab714b80acfa6a6e2c34195fabff6f,VS6: Port to cmGeneratorTarget.,[],Source/cmLocalVisualStudio6Generator.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_181.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_181.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_181.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_read.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_182.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_182.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_182.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_ar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_183.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_183.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_183.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_iso9660.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_184.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_184.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_184.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_lha.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_185.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_185.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_185.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_186.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_186.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_186.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_rar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_187.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_187.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_187.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_188.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_188.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_188.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_write_add_filter_xz.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_189.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_189.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_190.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_190.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_190.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_xar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_191.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_191.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_191.cpp
+932848f420a738ee07997198fead5b2c2fbf4787,"Merge branch 'libarchive-upstream' into update-libarchive
+
+Resolve conflicts by integrating changes from both sides.",[],Utilities/cmlibarchive/libarchive/archive_write_set_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_192.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_192.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_192.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_read.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_193.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_193.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_193.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_read_support_format_ar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_194.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_194.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_194.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_read_support_format_iso9660.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_195.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_195.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_195.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_read_support_format_lha.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_196.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_196.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_196.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_read_support_format_mtree.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_197.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_197.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_197.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_read_support_format_rar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_198.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_198.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_198.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_read_support_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_199.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_199.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_199.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_write_add_filter_xz.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_200.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_200.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_200.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_write_disk_posix.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_201.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_201.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_201.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_write_set_format_xar.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_202.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_202.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_202.cpp
+1a8c7bc2c649781d1163c1966245a45e0fb829ba,"libarchive 3.1.2-601-g3bfe5f1 (reduced)
+
+Extract upstream libarchive using the following shell code.
+
+url=git://github.com/libarchive/libarchive.git &&
+v=3.1.2-601-g3bfe5f1 &&
+r=3bfe5f1 &&
+paths=""
+  CMakeLists.txt
+  COPYING
+  CTestConfig.cmake
+  build/cmake
+  build/pkgconfig
+  build/utils
+  build/version
+  libarchive/*.*
+"" &&
+mkdir libarchive-$v-g$r-reduced &&
+git clone $url libarchive-git &&
+date=$(cd libarchive-git && git log -n 1 --format='%cd' $r) &&
+(cd libarchive-git && git archive --format=tar $r -- $paths) |
+(cd libarchive-$v-g$r-reduced && tar xv) &&
+fromdos libarchive-$v-g$r-reduced/build/cmake/Find*.cmake &&
+echo ""g$r date: $date""",[],libarchive/archive_write_set_format_zip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_203.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_203.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_203.cpp
+bbef3c2da83b7a69d1f99b21dc92d5506d98fb35,cmLocalGenerator: Add current binary directory accessor.,[],Source/cmLocalVisualStudio6Generator.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_204.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_204.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_204.cpp
+3339a7508e2d90cbc832490e64f593c1ab935097,CTest: Port away from cmLocalGenerator.,[],Source/CTest/cmCTestScriptHandler.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_205.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_205.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_205.cpp
+2e6063068c94d4045e699fed51e6d1e9af344bbf,"Merge branch 'improve-variable-help-formatting' into revert-cmake-W-options
+
+Resolve conflicts in
+
+ Help/variable/CMAKE_ERROR_DEPRECATED.rst
+ Help/variable/CMAKE_WARN_DEPRECATED.rst
+
+by integrating changes from both sides.",[],Source/cmGlobalGenerator.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_206.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_206.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_206.cpp
+6c442e5a899e07a85038c4f9c65dfe224ac9485e,"ccmake: Pass format string to 'printw' (#15738)
+
+printw takes a format string as first argument, so don't pass variable
+strings to it directly.",[u'https://gitlab.kitware.com/cmake/cmake/issues/15738'],Source/CursesDialog/cmCursesLongMessageForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_207.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_207.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_207.cpp
+6c442e5a899e07a85038c4f9c65dfe224ac9485e,"ccmake: Pass format string to 'printw' (#15738)
+
+printw takes a format string as first argument, so don't pass variable
+strings to it directly.",[u'https://gitlab.kitware.com/cmake/cmake/issues/15738'],Source/CursesDialog/cmCursesMainForm.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_208.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_208.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_208.cpp
+db7f069a4b33f3e8b45142b67289e51c142c90b4,"Windows: Fix 64-bit DLL module definition file generation on VS 2015
+
+With 64-bit Windows builds, there is no need to remove the leading
+underscore from all the symbols.  This is because it does not have one
+in the .obj file unless it is really in the name.  This did not cause
+any trouble until VS 2015 which has some system functions that have a
+leading underscore that end up in the .def file.",[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_209.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_209.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_209.cpp
+c5cc3441b379e2bc6e70efd6dbd530edebbf0024,Merge branch 'upstream-kwsys' into update-kwsys,[],Source/kwsys/CommandLineArguments.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_210.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_210.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_210.cpp
+1b79433a6d7cdd1da1a0af74240f2299c78e4112,"KWSys 2015-08-28 (dc3fdd7f)
+
+Extract upstream KWSys using the following shell commands.
+
+$ git archive --prefix=upstream-kwsys/ dc3fdd7f | tar x
+$ git shortlog --no-merges --abbrev=8 --format='%h %s' cdaf522c..dc3fdd7f
+Brad King (9):
+      15a16826 Remove include <kwsys/ios/*> and kwsys_ios:: compatibility layer
+      a5799c17 Remove unused KWSYS_IOS_USE_{SSTREAM,STRSTREAM_H,STRSTREA_H} checks
+      198957cf Remove unused KWSYS_IOS_USE_SSTREAM check
+      24d2b60e Remove support for pre-C++98 streams
+      2a581c30 Remove support for pre-C++98 std::string missing operators
+      5f3fd465 Remove support for pre-C++98 STL
+      cded1574 Remove support for pre-C++98 STL from hash_map and hash_set
+      f130a3ab Remove kwsys/cstddef compatibility header
+      dc3fdd7f Remove support for pre-C++98 template capabilities",[],CommandLineArguments.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_211.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_211.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_211.cpp
+49d293a795c42c0325aa677d6a7c0f55c647da91,Merge branch 'upstream-kwsys' into update-kwsys,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_212.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_212.cpp
+ca96be228345d93f51cb4edbd0428b709f529b84,"KWSys 2015-08-24 (cdaf522c)
+
+Extract upstream KWSys using the following shell commands.
+
+$ git archive --prefix=upstream-kwsys/ cdaf522c | tar x
+$ git shortlog --no-merges --abbrev=8 --format='%h %s' dad68c33..cdaf522c
+Brad King (2):
+      c8e5d1b2 Pass C++ standard flags to SunPro in standalone build
+      91cb7820 Remove unused source file ""CMakeEmptyInputFile.in""
+
+James Johnston (6):
+      0bca555e Process: Test running a process many times to discover resource leaks
+      52788bb8 SystemTools:  Remove trailing whitespace.
+      8122214c cmake: Set CMAKE_LEGACY_CYGWIN_WIN32 to 0.
+      389d416b SystemTools:  Clarify/simplify behavior of FileExists
+      8970cd56 SystemTools:  Added new TestFileAccess function.
+      cdaf522c SystemTools:  Add honor_umask parameter to SetPermissions.
+
+Mattias Ellert (1):
+      b9df3e48 Fix implementation of KWSYS_PROPERTIES_C",[],testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_213.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_213.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_213.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_214.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_214.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_214.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/curl_ntlm.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_215.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_215.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_215.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/curl_ntlm_msgs.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_216.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_216.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_216.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/curl_ntlm_wb.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_217.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_217.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_217.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/easy.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_218.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_218.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_218.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_219.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_219.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_219.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/ftp.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_220.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_220.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_220.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_221.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_221.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_221.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/http_digest.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_222.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_222.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_222.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/http_negotiate.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_223.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_223.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_223.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/http_proxy.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_224.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_224.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_224.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/if2ip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_225.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_225.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_225.cpp
+91e8d35ab8ec2d62478a42eff10af88713497fad,"Merge branch 'curl-upstream' into update-curl
+
+Resolve conflicts by taking upstream side when possible and otherwise
+integrating the changes from both sides.  Be carful in CMakeLists.txt
+where the OPENSSL code block that we modified previously has moved, and
+preserve our previous modifications in the new location.",[],Utilities/cmcurl/lib/krb5.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_226.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_226.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_226.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/cookie.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_227.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_227.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_227.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/curl_ntlm.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_228.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_228.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_228.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/curl_ntlm_msgs.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_229.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_229.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_229.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/curl_ntlm_wb.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_230.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_230.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_230.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/easy.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_231.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_231.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_231.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/file.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_232.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_232.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_232.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/ftp.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_233.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_233.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_233.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/http.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_234.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_234.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_234.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/http_digest.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_235.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_235.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_235.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/http_negotiate.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_236.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_236.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_236.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/http_proxy.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_237.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_237.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_237.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/if2ip.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_238.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_238.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_238.cpp
+706542615828488a5ad197d0ef3dd5e42eb739c4,"curl 7.44.0 (reduced)
+
+Extract upstream curl using the following shell code.
+
+url=git://github.com/bagder/curl.git &&
+v=7.44.0 &&
+r=1a7f66a3 &&
+paths=""
+  CMake/*
+  CMakeLists.txt
+  COPYING
+  include/curl/*.h
+  include/curl/curlbuild.h.cmake
+  lib/*.c
+  lib/*.h
+  lib/CMakeLists.txt
+  lib/Makefile.inc
+  lib/curl_config.h.cmake
+  lib/libcurl.rc
+  lib/vtls/*.c
+  lib/vtls/*.h
+"" &&
+mkdir curl-$v-g$r-reduced &&
+git clone $url curl-git &&
+date=$(cd curl-git && git log -n 1 --format='%cd' $r) &&
+(cd curl-git && git checkout $r &&
+ git archive --format=tar $r -- $paths) |
+(cd curl-$v-g$r-reduced && tar xv &&
+ rm lib/config-*.h) &&
+echo ""g$r date: $date""",[],lib/krb5.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_239.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_239.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_239.cpp
+f8be9ba9c258698ed88a7510cf2ba3335491f3da,"cmGlobalGenerator: Base progress on Makefiles, not LocalGenerators.",[],Source/cmGlobalGenerator.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_240.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_240.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_240.cpp
+d0915bc86f294707411ae525e70fa20965f1aeec,Merge branch 'upstream-kwsys' into update-kwsys,[],Source/kwsys/ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_241.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_241.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_241.cpp
+d0915bc86f294707411ae525e70fa20965f1aeec,Merge branch 'upstream-kwsys' into update-kwsys,[],Source/kwsys/testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_242.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_242.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_242.cpp
+1feafc643b1c50fd0fa8171a4170065ca39d4d4c,"KWSys 2015-07-30 (f63febb7)
+
+Extract upstream KWSys using the following shell commands.
+
+$ git archive --prefix=upstream-kwsys/ f63febb7 | tar x
+$ git shortlog --no-merges --abbrev=8 --format='%h %s' c9336bcf..f63febb7
+Brad King (1):
+      83b4a6b8 Process: Fix conversion warning in testProcess.c
+
+James Johnston (7):
+      4cd8846c Process: Remove trailing whitespace in ProcessUNIX.c
+      b1c44c58 Process: Refactor sleeping code in testProcess.c.
+      faff2ab0 Process: Wait for children to terminate on Ctrl+C.
+      ef517b19 Process: Added initial support for process groups.
+      906c2cae Process: Added test cases for testing Ctrl+C and process groups.
+      52874e6a Process: Fix leaked file descriptor in ProcessUNIX
+      f63febb7 Process: Fix error message for startup failure on Windows",[],ProcessWin32.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_243.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_243.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_243.cpp
+1feafc643b1c50fd0fa8171a4170065ca39d4d4c,"KWSys 2015-07-30 (f63febb7)
+
+Extract upstream KWSys using the following shell commands.
+
+$ git archive --prefix=upstream-kwsys/ f63febb7 | tar x
+$ git shortlog --no-merges --abbrev=8 --format='%h %s' c9336bcf..f63febb7
+Brad King (1):
+      83b4a6b8 Process: Fix conversion warning in testProcess.c
+
+James Johnston (7):
+      4cd8846c Process: Remove trailing whitespace in ProcessUNIX.c
+      b1c44c58 Process: Refactor sleeping code in testProcess.c.
+      faff2ab0 Process: Wait for children to terminate on Ctrl+C.
+      ef517b19 Process: Added initial support for process groups.
+      906c2cae Process: Added test cases for testing Ctrl+C and process groups.
+      52874e6a Process: Fix leaked file descriptor in ProcessUNIX
+      f63febb7 Process: Fix error message for startup failure on Windows",[],testProcess.c,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_244.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_244.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_244.cpp
+069aa93b555293679f4b8c07623133ba62a74ee4,"bindexplib: Add support for ""/bigobj"" format objects",[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_245.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_245.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_245.cpp
+de70c922d9c846cf3a6fabfbedd054c02f4b8934,"bindexplib: Teach DumpFile to return errors
+
+This will allow callers to know if it worked.",[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_246.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_246.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_246.cpp
+2963cb2a559fd27edd53b7fb7036cba0adc8b9ca,bindexplib: Wrap long lines,[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_247.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_247.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_247.cpp
+4ff09893232b26b5c2961fb1e2a31836cad00a35,bindexplib: Drop code that CMake does not need,[],Source/bindexplib.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_248.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_248.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_248.cpp
+faec4e611d08ea2f75d2127e3ca3f5e9a427465b,cmComputeTargetDepends: Change API to use cmGeneratorTarget.,[],Source/cmComputeTargetDepends.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_249.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_249.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_249.cpp
+f971ab04cfdcb73e1ac2b182caf302172aebe6a8,"cmMacroCommand: Store the FilePath when creating the prototype.
+
+Instead of setting it each time the macro is invoked.",[],Source/cmMacroCommand.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_250.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_250.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_250.cpp
+59e21ffa134faf0b089d9a704b3763e7f6f237d5,Port static calls from cmLocalGenerator to cmOutputConverter.,[],Source/cmCoreTryCompile.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_251.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_251.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_251.cpp
+8fbc509a48e53f7462143dded5a01c77ab5ba6bd,cmCTestCoverageHandler: Port to cmXMLWriter,[],Source/CTest/cmCTestCoverageHandler.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_252.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_252.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_252.cpp
+9486769866661e3aa76dd588ca5a7466e2969dc3,Don't use a cmLocalGenerator instance to call static methods.,[],Source/cmCoreTryCompile.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_253.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_253.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_253.cpp
+f081c5bdddcfcaaf5bee7b918fe5c7ff01faae35,cmState: Move CacheEntryType enum from cmCacheManager.,[],Source/cmCacheManager.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_254.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_254.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_254.cpp
+f081c5bdddcfcaaf5bee7b918fe5c7ff01faae35,cmState: Move CacheEntryType enum from cmCacheManager.,[],Source/cmGlobalGenerator.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_255.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_255.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_255.cpp
+fc58bdb9ad90ddd41c5336bc1ab2e35fa0f74d41,ctest_coverage: Add QUIET option,[],Source/CTest/cmCTestCoverageHandler.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_256.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_256.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_256.cpp
+876a680d4851a39e77b49daa3c670fe2e535c1e6,ctest_test: Add QUIET option,[],Source/CTest/cmCTestTestHandler.cxx,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_old_file_257.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_new_file_257.cpp,second/download/CMake/CMake-old-new/CMake-old-new/Kitware_CMake_patch_257.cpp

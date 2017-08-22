@@ -1,6 +1,7 @@
-{
-	struct unknown_tag *tag;
-
-	tag = malloc(sizeof(*tag));
-	if (tag == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		close(data->child_stdout);
+		data->child_stdout = -1;
+		archive_set_error(f->archive, EINVAL,
+		    "Can't launch external program: %s", cmd);
+		return (ARCHIVE_FATAL);
+	}
+#else

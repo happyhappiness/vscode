@@ -1,6 +1,22 @@
-			en = create_filesystem_object(a);
-		} else if (!S_ISDIR(a->mode)) {
-			/* A dir is in the way of a non-dir, rmdir it. */
-			if (rmdir(a->name) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Can't replace existing directory with non-directory");
+ */
+CURL *curl_easy_init(void)
+{
+  CURLcode res;
+  struct SessionHandle *data;
+
+  /* Make sure we inited the global SSL stuff */
+  if(!initialized) {
+    res = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if(res) {
+      /* something in the global init failed, return nothing */
+      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
+      return NULL;
+    }
+  }
+
+  /* We use curl_open() with undefined URL so far */
+  res = Curl_open(&data);
+  if(res != CURLE_OK) {
+    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
+    return NULL;
+  }

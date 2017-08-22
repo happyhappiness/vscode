@@ -1,1982 +1,3218 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
+/*-
+ * Copyright (c) 2010-2012 Michihiro NAKAJIMA
+ * All rights reserved.
  *
- * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at https://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-#include "curl_setup.h"
+#include "archive_platform.h"
+__FBSDID("$FreeBSD$");
 
-#ifdef USE_NGHTTP2
-#include <nghttp2/nghttp2.h>
-#include "urldata.h"
-#include "http2.h"
-#include "http.h"
-#include "sendf.h"
-#include "curl_base64.h"
-#include "rawstr.h"
-#include "multiif.h"
-#include "conncache.h"
-#include "url.h"
-#include "connect.h"
-#include "strtoofft.h"
-
-/* The last 3 #include files should be in this order */
-#include "curl_printf.h"
-#include "curl_memory.h"
-#include "memdebug.h"
-
-#define MIN(x,y) ((x)<(y)?(x):(y))
-
-#if (NGHTTP2_VERSION_NUM < 0x010000)
-#error too old nghttp2 version, upgrade!
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#include <stdlib.h>
+#if HAVE_LIBXML_XMLWRITER_H
+#include <libxml/xmlwriter.h>
+#endif
+#ifdef HAVE_BZLIB_H
+#include <cm_bzlib.h>
+#endif
+#if HAVE_LZMA_H
+#include <cm_lzma.h>
+#endif
+#ifdef HAVE_ZLIB_H
+#include <cm_zlib.h>
 #endif
 
-#if (NGHTTP2_VERSION_NUM > 0x010800)
-#define NGHTTP2_HAS_HTTP2_STRERROR 1
-#endif
+#include "archive.h"
+#include "archive_digest_private.h"
+#include "archive_endian.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_private.h"
+#include "archive_rb.h"
+#include "archive_string.h"
+#include "archive_write_private.h"
 
-#if (NGHTTP2_VERSION_NUM >= 0x010900)
-/* nghttp2_session_callbacks_set_error_callback is present in nghttp2 1.9.0 or
-   later */
-#define NGHTTP2_HAS_ERROR_CALLBACK 1
+/*
+ * Differences to xar utility.
+ * - Subdocument is not supported yet.
+ * - ACL is not supported yet.
+ * - When writing an XML element <link type="<file-type>">, <file-type>
+ *   which is a file type a symbolic link is referencing is always marked
+ *   as "broken". Xar utility uses stat(2) to get the file type, but, in
+ *   libarcive format writer, we should not use it; if it is needed, we
+ *   should get about it at archive_read_disk.c.
+ * - It is possible to appear both <flags> and <ext2> elements.
+ *   Xar utility generates <flags> on BSD platform and <ext2> on Linux
+ *   platform.
+ *
+ */
+
+#if !(defined(HAVE_LIBXML_XMLWRITER_H) && defined(LIBXML_VERSION) &&\
+	LIBXML_VERSION >= 20703) ||\
+	!defined(HAVE_ZLIB_H) || \
+	!defined(ARCHIVE_HAS_MD5) || !defined(ARCHIVE_HAS_SHA1)
+/*
+ * xar needs several external libraries.
+ *   o libxml2
+ *   o openssl or MD5/SHA1 hash function
+ *   o zlib
+ *   o bzlib2 (option)
+ *   o liblzma (option)
+ */
+int
+archive_write_set_format_xar(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Xar not supported on this platform");
+	return (ARCHIVE_WARN);
+}
+
+#else	/* Support xar format */
+
+/*#define DEBUG_PRINT_TOC		1 */
+
+#define BAD_CAST_CONST (const xmlChar *)
+
+#define HEADER_MAGIC	0x78617221
+#define HEADER_SIZE	28
+#define HEADER_VERSION	1
+
+enum sumalg {
+	CKSUM_NONE = 0,
+	CKSUM_SHA1 = 1,
+	CKSUM_MD5 = 2
+};
+
+#define MD5_SIZE	16
+#define SHA1_SIZE	20
+#define MAX_SUM_SIZE	20
+#define MD5_NAME	"md5"
+#define SHA1_NAME	"sha1"
+
+enum enctype {
+	NONE,
+	GZIP,
+	BZIP2,
+	LZMA,
+	XZ,
+};
+
+struct chksumwork {
+	enum sumalg		 alg;
+#ifdef ARCHIVE_HAS_MD5
+	archive_md5_ctx		 md5ctx;
+#endif
+#ifdef ARCHIVE_HAS_SHA1
+	archive_sha1_ctx	 sha1ctx;
+#endif
+};
+
+enum la_zaction {
+	ARCHIVE_Z_FINISH,
+	ARCHIVE_Z_RUN
+};
+
+/*
+ * Universal zstream.
+ */
+struct la_zstream {
+	const unsigned char	*next_in;
+	size_t			 avail_in;
+	uint64_t		 total_in;
+
+	unsigned char		*next_out;
+	size_t			 avail_out;
+	uint64_t		 total_out;
+
+	int			 valid;
+	void			*real_stream;
+	int			 (*code) (struct archive *a,
+				    struct la_zstream *lastrm,
+				    enum la_zaction action);
+	int			 (*end)(struct archive *a,
+				    struct la_zstream *lastrm);
+};
+
+struct chksumval {
+	enum sumalg		 alg;
+	size_t			 len;
+	unsigned char		 val[MAX_SUM_SIZE];
+};
+
+struct heap_data {
+	int			 id;
+	struct heap_data	*next;
+	uint64_t		 temp_offset;
+	uint64_t		 length;	/* archived size.	*/
+	uint64_t		 size;		/* extracted size.	*/
+	enum enctype		 compression;
+	struct chksumval	 a_sum;		/* archived checksum.	*/
+	struct chksumval	 e_sum;		/* extracted checksum.	*/
+};
+
+struct file {
+	struct archive_rb_node	 rbnode;
+
+	int			 id;
+	struct archive_entry	*entry;
+
+	struct archive_rb_tree	 rbtree;
+	struct file		*next;
+	struct file		*chnext;
+	struct file		*hlnext;
+	/* For hardlinked files.
+	 * Use only when archive_entry_nlink() > 1 */
+	struct file		*hardlink_target;
+	struct file		*parent;	/* parent directory entry */
+	/*
+	 * To manage sub directory files.
+	 * We use 'chnext' a menber of struct file to chain.
+	 */
+	struct {
+		struct file	*first;
+		struct file	**last;
+	}			 children;
+
+	/* For making a directory tree. */
+        struct archive_string    parentdir;
+        struct archive_string    basename;
+        struct archive_string    symlink;
+
+	int			 ea_idx;
+	struct {
+		struct heap_data *first;
+		struct heap_data **last;
+	}			 xattr;
+	struct heap_data	 data;
+        struct archive_string    script;
+
+	int			 virtual:1;
+	int			 dir:1;
+};
+
+struct hardlink {
+	struct archive_rb_node	 rbnode;
+	int			 nlink;
+	struct {
+		struct file	*first;
+		struct file	**last;
+	}			 file_list;
+};
+
+struct xar {
+	int			 temp_fd;
+	uint64_t		 temp_offset;
+
+	int			 file_idx;
+	struct file		*root;
+	struct file		*cur_dirent;
+	struct archive_string	 cur_dirstr;
+	struct file		*cur_file;
+	uint64_t		 bytes_remaining;
+	struct archive_string	 tstr;
+	struct archive_string	 vstr;
+
+	enum sumalg		 opt_toc_sumalg;
+	enum sumalg		 opt_sumalg;
+	enum enctype		 opt_compression;
+	int			 opt_compression_level;
+	uint32_t		 opt_threads;
+
+	struct chksumwork	 a_sumwrk;	/* archived checksum.	*/
+	struct chksumwork	 e_sumwrk;	/* extracted checksum.	*/
+	struct la_zstream	 stream;
+	struct archive_string_conv *sconv;
+	/*
+	 * Compressed data buffer.
+	 */
+	unsigned char		 wbuff[1024 * 64];
+	size_t			 wbuff_remaining;
+
+	struct heap_data	 toc;
+	/*
+	 * The list of all file entries is used to manage struct file
+	 * objects.
+	 * We use 'next' a menber of struct file to chain.
+	 */
+	struct {
+		struct file	*first;
+		struct file	**last;
+	}			 file_list;
+	/*
+	 * The list of hard-linked file entries.
+	 * We use 'hlnext' a menber of struct file to chain.
+	 */
+	struct archive_rb_tree	 hardlink_rbtree;
+};
+
+static int	xar_options(struct archive_write *,
+		    const char *, const char *);
+static int	xar_write_header(struct archive_write *,
+		    struct archive_entry *);
+static ssize_t	xar_write_data(struct archive_write *,
+		    const void *, size_t);
+static int	xar_finish_entry(struct archive_write *);
+static int	xar_close(struct archive_write *);
+static int	xar_free(struct archive_write *);
+
+static struct file *file_new(struct archive_write *a, struct archive_entry *);
+static void	file_free(struct file *);
+static struct file *file_create_virtual_dir(struct archive_write *a, struct xar *,
+		    const char *);
+static int	file_add_child_tail(struct file *, struct file *);
+static struct file *file_find_child(struct file *, const char *);
+static int	file_gen_utility_names(struct archive_write *,
+		    struct file *);
+static int	get_path_component(char *, int, const char *);
+static int	file_tree(struct archive_write *, struct file **);
+static void	file_register(struct xar *, struct file *);
+static void	file_init_register(struct xar *);
+static void	file_free_register(struct xar *);
+static int	file_register_hardlink(struct archive_write *,
+		    struct file *);
+static void	file_connect_hardlink_files(struct xar *);
+static void	file_init_hardlinks(struct xar *);
+static void	file_free_hardlinks(struct xar *);
+
+static void	checksum_init(struct chksumwork *, enum sumalg);
+static void	checksum_update(struct chksumwork *, const void *, size_t);
+static void	checksum_final(struct chksumwork *, struct chksumval *);
+static int	compression_init_encoder_gzip(struct archive *,
+		    struct la_zstream *, int, int);
+static int	compression_code_gzip(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end_gzip(struct archive *, struct la_zstream *);
+static int	compression_init_encoder_bzip2(struct archive *,
+		    struct la_zstream *, int);
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+static int	compression_code_bzip2(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end_bzip2(struct archive *, struct la_zstream *);
+#endif
+static int	compression_init_encoder_lzma(struct archive *,
+		    struct la_zstream *, int);
+static int	compression_init_encoder_xz(struct archive *,
+		    struct la_zstream *, int, int);
+#if defined(HAVE_LZMA_H)
+static int	compression_code_lzma(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end_lzma(struct archive *, struct la_zstream *);
+#endif
+static int	xar_compression_init_encoder(struct archive_write *);
+static int	compression_code(struct archive *,
+		    struct la_zstream *, enum la_zaction);
+static int	compression_end(struct archive *,
+		    struct la_zstream *);
+static int	save_xattrs(struct archive_write *, struct file *);
+static int	getalgsize(enum sumalg);
+static const char *getalgname(enum sumalg);
+
+int
+archive_write_set_format_xar(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	struct xar *xar;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_set_format_xar");
+
+	/* If another format was already registered, unregister it. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
+
+	xar = calloc(1, sizeof(*xar));
+	if (xar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate xar data");
+		return (ARCHIVE_FATAL);
+	}
+	xar->temp_fd = -1;
+	file_init_register(xar);
+	file_init_hardlinks(xar);
+	archive_string_init(&(xar->tstr));
+	archive_string_init(&(xar->vstr));
+
+	/*
+	 * Create the root directory.
+	 */
+	xar->root = file_create_virtual_dir(a, xar, "");
+	if (xar->root == NULL) {
+		free(xar);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate xar data");
+		return (ARCHIVE_FATAL);
+	}
+	xar->root->parent = xar->root;
+	file_register(xar, xar->root);
+	xar->cur_dirent = xar->root;
+	archive_string_init(&(xar->cur_dirstr));
+	archive_string_ensure(&(xar->cur_dirstr), 1);
+	xar->cur_dirstr.s[0] = 0;
+
+	/*
+	 * Initialize option.
+	 */
+	/* Set default checksum type. */
+	xar->opt_toc_sumalg = CKSUM_SHA1;
+	xar->opt_sumalg = CKSUM_SHA1;
+	/* Set default compression type, level, and number of threads. */
+	xar->opt_compression = GZIP;
+	xar->opt_compression_level = 6;
+	xar->opt_threads = 1;
+
+	a->format_data = xar;
+
+	a->format_name = "xar";
+	a->format_options = xar_options;
+	a->format_write_header = xar_write_header;
+	a->format_write_data = xar_write_data;
+	a->format_finish_entry = xar_finish_entry;
+	a->format_close = xar_close;
+	a->format_free = xar_free;
+	a->archive.archive_format = ARCHIVE_FORMAT_XAR;
+	a->archive.archive_format_name = "xar";
+
+	return (ARCHIVE_OK);
+}
+
+static int
+xar_options(struct archive_write *a, const char *key, const char *value)
+{
+	struct xar *xar;
+
+	xar = (struct xar *)a->format_data;
+
+	if (strcmp(key, "checksum") == 0) {
+		if (value == NULL)
+			xar->opt_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "compression") == 0) {
+		const char *name = NULL;
+
+		if (value == NULL)
+			xar->opt_compression = NONE;
+		else if (strcmp(value, "gzip") == 0)
+			xar->opt_compression = GZIP;
+		else if (strcmp(value, "bzip2") == 0)
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+			xar->opt_compression = BZIP2;
 #else
-#define nghttp2_session_callbacks_set_error_callback(x,y)
+			name = "bzip2";
 #endif
-
-/*
- * Curl_http2_init_state() is called when the easy handle is created and
- * allows for HTTP/2 specific init of state.
- */
-void Curl_http2_init_state(struct UrlState *state)
-{
-  state->stream_weight = NGHTTP2_DEFAULT_WEIGHT;
-}
-
-/*
- * Curl_http2_init_userset() is called when the easy handle is created and
- * allows for HTTP/2 specific user-set fields.
- */
-void Curl_http2_init_userset(struct UserDefined *set)
-{
-  set->stream_weight = NGHTTP2_DEFAULT_WEIGHT;
-}
-
-static int http2_perform_getsock(const struct connectdata *conn,
-                                 curl_socket_t *sock, /* points to
-                                                         numsocks
-                                                         number of
-                                                         sockets */
-                                 int numsocks)
-{
-  const struct http_conn *c = &conn->proto.httpc;
-  int bitmap = GETSOCK_BLANK;
-  (void)numsocks;
-
-  /* TODO We should check underlying socket state if it is SSL socket
-     because of renegotiation. */
-  sock[0] = conn->sock[FIRSTSOCKET];
-
-  if(nghttp2_session_want_read(c->h2))
-    bitmap |= GETSOCK_READSOCK(FIRSTSOCKET);
-
-  if(nghttp2_session_want_write(c->h2))
-    bitmap |= GETSOCK_WRITESOCK(FIRSTSOCKET);
-
-  return bitmap;
-}
-
-static int http2_getsock(struct connectdata *conn,
-                         curl_socket_t *sock, /* points to numsocks
-                                                 number of sockets */
-                         int numsocks)
-{
-  return http2_perform_getsock(conn, sock, numsocks);
-}
-
-static CURLcode http2_disconnect(struct connectdata *conn,
-                                 bool dead_connection)
-{
-  struct HTTP *http = conn->data->req.protop;
-  struct http_conn *c = &conn->proto.httpc;
-  (void)dead_connection;
-
-  DEBUGF(infof(conn->data, "HTTP/2 DISCONNECT starts now\n"));
-
-  nghttp2_session_del(c->h2);
-  Curl_safefree(c->inbuf);
-
-  if(http) {
-    Curl_add_buffer_free(http->header_recvbuf);
-    http->header_recvbuf = NULL; /* clear the pointer */
-    Curl_add_buffer_free(http->trailer_recvbuf);
-    http->trailer_recvbuf = NULL; /* clear the pointer */
-    for(; http->push_headers_used > 0; --http->push_headers_used) {
-      free(http->push_headers[http->push_headers_used - 1]);
-    }
-    free(http->push_headers);
-    http->push_headers = NULL;
-  }
-
-  DEBUGF(infof(conn->data, "HTTP/2 DISCONNECT done\n"));
-
-  return CURLE_OK;
-}
-
-/* called from Curl_http_setup_conn */
-void Curl_http2_setup_req(struct Curl_easy *data)
-{
-  struct HTTP *http = data->req.protop;
-
-  http->nread_header_recvbuf = 0;
-  http->bodystarted = FALSE;
-  http->status_code = -1;
-  http->pausedata = NULL;
-  http->pauselen = 0;
-  http->error_code = NGHTTP2_NO_ERROR;
-  http->closed = FALSE;
-  http->mem = data->state.buffer;
-  http->len = BUFSIZE;
-  http->memlen = 0;
-}
-
-/* called from Curl_http_setup_conn */
-void Curl_http2_setup_conn(struct connectdata *conn)
-{
-  conn->proto.httpc.settings.max_concurrent_streams =
-    DEFAULT_MAX_CONCURRENT_STREAMS;
-}
-
-/*
- * HTTP2 handler interface. This isn't added to the general list of protocols
- * but will be used at run-time when the protocol is dynamically switched from
- * HTTP to HTTP2.
- */
-const struct Curl_handler Curl_handler_http2 = {
-  "HTTP",                               /* scheme */
-  ZERO_NULL,                            /* setup_connection */
-  Curl_http,                            /* do_it */
-  Curl_http_done,                       /* done */
-  ZERO_NULL,                            /* do_more */
-  ZERO_NULL,                            /* connect_it */
-  ZERO_NULL,                            /* connecting */
-  ZERO_NULL,                            /* doing */
-  http2_getsock,                        /* proto_getsock */
-  http2_getsock,                        /* doing_getsock */
-  ZERO_NULL,                            /* domore_getsock */
-  http2_perform_getsock,                /* perform_getsock */
-  http2_disconnect,                     /* disconnect */
-  ZERO_NULL,                            /* readwrite */
-  PORT_HTTP,                            /* defport */
-  CURLPROTO_HTTP,                       /* protocol */
-  PROTOPT_NONE                          /* flags */
-};
-
-const struct Curl_handler Curl_handler_http2_ssl = {
-  "HTTPS",                              /* scheme */
-  ZERO_NULL,                            /* setup_connection */
-  Curl_http,                            /* do_it */
-  Curl_http_done,                       /* done */
-  ZERO_NULL,                            /* do_more */
-  ZERO_NULL,                            /* connect_it */
-  ZERO_NULL,                            /* connecting */
-  ZERO_NULL,                            /* doing */
-  http2_getsock,                        /* proto_getsock */
-  http2_getsock,                        /* doing_getsock */
-  ZERO_NULL,                            /* domore_getsock */
-  http2_perform_getsock,                /* perform_getsock */
-  http2_disconnect,                     /* disconnect */
-  ZERO_NULL,                            /* readwrite */
-  PORT_HTTP,                            /* defport */
-  CURLPROTO_HTTPS,                      /* protocol */
-  PROTOPT_SSL                           /* flags */
-};
-
-/*
- * Store nghttp2 version info in this buffer, Prefix with a space.  Return
- * total length written.
- */
-int Curl_http2_ver(char *p, size_t len)
-{
-  nghttp2_info *h2 = nghttp2_version(0);
-  return snprintf(p, len, " nghttp2/%s", h2->version_str);
-}
-
-/* HTTP/2 error code to name based on the Error Code Registry.
-https://tools.ietf.org/html/rfc7540#page-77
-nghttp2_error_code enums are identical.
-*/
-const char *Curl_http2_strerror(uint32_t err) {
-#ifndef NGHTTP2_HAS_HTTP2_STRERROR
-  const char *str[] = {
-    "NO_ERROR",             /* 0x0 */
-    "PROTOCOL_ERROR",       /* 0x1 */
-    "INTERNAL_ERROR",       /* 0x2 */
-    "FLOW_CONTROL_ERROR",   /* 0x3 */
-    "SETTINGS_TIMEOUT",     /* 0x4 */
-    "STREAM_CLOSED",        /* 0x5 */
-    "FRAME_SIZE_ERROR",     /* 0x6 */
-    "REFUSED_STREAM",       /* 0x7 */
-    "CANCEL",               /* 0x8 */
-    "COMPRESSION_ERROR",    /* 0x9 */
-    "CONNECT_ERROR",        /* 0xA */
-    "ENHANCE_YOUR_CALM",    /* 0xB */
-    "INADEQUATE_SECURITY",  /* 0xC */
-    "HTTP_1_1_REQUIRED"     /* 0xD */
-  };
-  return (err < sizeof str / sizeof str[0]) ? str[err] : "unknown";
+		else if (strcmp(value, "lzma") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = LZMA;
 #else
-  return nghttp2_http2_strerror(err);
+			name = "lzma";
 #endif
+		else if (strcmp(value, "xz") == 0)
+#if HAVE_LZMA_H
+			xar->opt_compression = XZ;
+#else
+			name = "xz";
+#endif
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown compression name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		if (name != NULL) {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' compression not supported "
+			    "on this platform",
+			    name);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL ||
+		    !(value[0] >= '0' && value[0] <= '9') ||
+		    value[1] != '\0') {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Illegal value `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		xar->opt_compression_level = value[0] - '0';
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "toc-checksum") == 0) {
+		if (value == NULL)
+			xar->opt_toc_sumalg = CKSUM_NONE;
+		else if (strcmp(value, "sha1") == 0)
+			xar->opt_toc_sumalg = CKSUM_SHA1;
+		else if (strcmp(value, "md5") == 0)
+			xar->opt_toc_sumalg = CKSUM_MD5;
+		else {
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Unknown checksum name: `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		return (ARCHIVE_OK);
+	}
+	if (strcmp(key, "threads") == 0) {
+		if (value == NULL)
+			return (ARCHIVE_FAILED);
+		xar->opt_threads = (int)strtoul(value, NULL, 10);
+		if (xar->opt_threads == 0 && errno != 0) {
+			xar->opt_threads = 1;
+			archive_set_error(&(a->archive),
+			    ARCHIVE_ERRNO_MISC,
+			    "Illegal value `%s'",
+			    value);
+			return (ARCHIVE_FAILED);
+		}
+		if (xar->opt_threads == 0) {
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+			xar->opt_threads = lzma_cputhreads();
+#else
+			xar->opt_threads = 1;
+#endif
+		}
+	}
+
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
 }
 
-/*
- * The implementation of nghttp2_send_callback type. Here we write |data| with
- * size |length| to the network and return the number of bytes actually
- * written. See the documentation of nghttp2_send_callback for the details.
- */
-static ssize_t send_callback(nghttp2_session *h2,
-                             const uint8_t *data, size_t length, int flags,
-                             void *userp)
+static int
+xar_write_header(struct archive_write *a, struct archive_entry *entry)
 {
-  struct connectdata *conn = (struct connectdata *)userp;
-  struct http_conn *c = &conn->proto.httpc;
-  ssize_t written;
-  CURLcode result = CURLE_OK;
+	struct xar *xar;
+	struct file *file;
+	struct archive_entry *file_entry;
+	int r, r2;
 
-  (void)h2;
-  (void)flags;
+	xar = (struct xar *)a->format_data;
+	xar->cur_file = NULL;
+	xar->bytes_remaining = 0;
 
-  written = ((Curl_send*)c->send_underlying)(conn, FIRSTSOCKET,
-                                             data, length, &result);
+	if (xar->sconv == NULL) {
+		xar->sconv = archive_string_conversion_to_charset(
+		    &a->archive, "UTF-8", 1);
+		if (xar->sconv == NULL)
+			return (ARCHIVE_FATAL);
+	}
 
-  if(result == CURLE_AGAIN) {
-    return NGHTTP2_ERR_WOULDBLOCK;
-  }
+	file = file_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate data");
+		return (ARCHIVE_FATAL);
+	}
+	r2 = file_gen_utility_names(a, file);
+	if (r2 < ARCHIVE_WARN)
+		return (r2);
 
-  if(written == -1) {
-    failf(conn->data, "Failed sending HTTP2 data");
-    return NGHTTP2_ERR_CALLBACK_FAILURE;
-  }
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an Xar archive.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		file_free(file);
+		return (r2);
+	}
 
-  if(!written)
-    return NGHTTP2_ERR_WOULDBLOCK;
+	/* Add entry into tree */
+	file_entry = file->entry;
+	r = file_tree(a, &file);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* There is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (file->entry != file_entry)
+		return (r2);
+	if (file->id == 0)
+		file_register(xar, file);
 
-  return written;
+	/* A virtual file, which is a directory, does not have
+	 * any contents and we won't store it into a archive
+	 * file other than its name. */
+	if (file->virtual)
+		return (r2);
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (xar->temp_fd == -1) {
+		int algsize;
+		xar->temp_offset = 0;
+		xar->temp_fd = __archive_mktemp(NULL);
+		if (xar->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't create temporary file");
+			return (ARCHIVE_FATAL);
+		}
+		algsize = getalgsize(xar->opt_toc_sumalg);
+		if (algsize > 0) {
+			if (lseek(xar->temp_fd, algsize, SEEK_SET) < 0) {
+				archive_set_error(&(a->archive), errno,
+				    "lseek failed");
+				return (ARCHIVE_FATAL);
+			}
+			xar->temp_offset = algsize;
+		}
+	}
+
+	if (archive_entry_hardlink(file->entry) == NULL) {
+		r = save_xattrs(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Non regular files contents are unneeded to be saved to
+	 * a temporary file. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (r2);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	xar->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = file_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (r);
+		if (archive_entry_hardlink(file->entry) != NULL) {
+			archive_entry_unset_size(file->entry);
+			return (r2);
+		}
+	}
+
+	/* Save a offset of current file in temporary file. */
+	file->data.temp_offset = xar->temp_offset;
+	file->data.size = archive_entry_size(file->entry);
+	file->data.compression = xar->opt_compression;
+	xar->bytes_remaining = archive_entry_size(file->entry);
+	checksum_init(&(xar->a_sumwrk), xar->opt_sumalg);
+	checksum_init(&(xar->e_sumwrk), xar->opt_sumalg);
+	r = xar_compression_init_encoder(a);
+
+	if (r != ARCHIVE_OK)
+		return (r);
+	else
+		return (r2);
 }
 
-
-/* We pass a pointer to this struct in the push callback, but the contents of
-   the struct are hidden from the user. */
-struct curl_pushheaders {
-  struct Curl_easy *data;
-  const nghttp2_push_promise *frame;
-};
-
-/*
- * push header access function. Only to be used from within the push callback
- */
-char *curl_pushheader_bynum(struct curl_pushheaders *h, size_t num)
+static int
+write_to_temp(struct archive_write *a, const void *buff, size_t s)
 {
-  /* Verify that we got a good easy handle in the push header struct, mostly to
-     detect rubbish input fast(er). */
-  if(!h || !GOOD_EASY_HANDLE(h->data))
-    return NULL;
-  else {
-    struct HTTP *stream = h->data->req.protop;
-    if(num < stream->push_headers_used)
-      return stream->push_headers[num];
-  }
-  return NULL;
+	struct xar *xar;
+	const unsigned char *p;
+	ssize_t ws;
+
+	xar = (struct xar *)a->format_data;
+	p = (const unsigned char *)buff;
+	while (s) {
+		ws = write(xar->temp_fd, p, s);
+		if (ws < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "fwrite function failed");
+			return (ARCHIVE_FATAL);
+		}
+		s -= ws;
+		p += ws;
+		xar->temp_offset += ws;
+	}
+	return (ARCHIVE_OK);
 }
 
-/*
- * push header access function. Only to be used from within the push callback
- */
-char *curl_pushheader_byname(struct curl_pushheaders *h, const char *header)
+static ssize_t
+xar_write_data(struct archive_write *a, const void *buff, size_t s)
 {
-  /* Verify that we got a good easy handle in the push header struct,
-     mostly to detect rubbish input fast(er). Also empty header name
-     is just a rubbish too. We have to allow ":" at the beginning of
-     the header, but header == ":" must be rejected. If we have ':' in
-     the middle of header, it could be matched in middle of the value,
-     this is because we do prefix match.*/
-  if(!h || !GOOD_EASY_HANDLE(h->data) || !header || !header[0] ||
-     Curl_raw_equal(header, ":") || strchr(header + 1, ':'))
-    return NULL;
-  else {
-    struct HTTP *stream = h->data->req.protop;
-    size_t len = strlen(header);
-    size_t i;
-    for(i=0; i<stream->push_headers_used; i++) {
-      if(!strncmp(header, stream->push_headers[i], len)) {
-        /* sub-match, make sure that it is followed by a colon */
-        if(stream->push_headers[i][len] != ':')
-          continue;
-        return &stream->push_headers[i][len+1];
-      }
-    }
-  }
-  return NULL;
-}
-
-static struct Curl_easy *duphandle(struct Curl_easy *data)
-{
-  struct Curl_easy *second = curl_easy_duphandle(data);
-  if(second) {
-    /* setup the request struct */
-    struct HTTP *http = calloc(1, sizeof(struct HTTP));
-    if(!http) {
-      (void)Curl_close(second);
-      second = NULL;
-    }
-    else {
-      second->req.protop = http;
-      http->header_recvbuf = Curl_add_buffer_init();
-      if(!http->header_recvbuf) {
-        free(http);
-        (void)Curl_close(second);
-        second = NULL;
-      }
-      else {
-        Curl_http2_setup_req(second);
-        second->state.stream_weight = data->state.stream_weight;
-      }
-    }
-  }
-  return second;
-}
-
-
-static int push_promise(struct Curl_easy *data,
-                        struct connectdata *conn,
-                        const nghttp2_push_promise *frame)
-{
-  int rv;
-  DEBUGF(infof(data, "PUSH_PROMISE received, stream %u!\n",
-               frame->promised_stream_id));
-  if(data->multi->push_cb) {
-    struct HTTP *stream;
-    struct HTTP *newstream;
-    struct curl_pushheaders heads;
-    CURLMcode rc;
-    struct http_conn *httpc;
-    size_t i;
-    /* clone the parent */
-    struct Curl_easy *newhandle = duphandle(data);
-    if(!newhandle) {
-      infof(data, "failed to duplicate handle\n");
-      rv = 1; /* FAIL HARD */
-      goto fail;
-    }
-
-    heads.data = data;
-    heads.frame = frame;
-    /* ask the application */
-    DEBUGF(infof(data, "Got PUSH_PROMISE, ask application!\n"));
-
-    stream = data->req.protop;
-    if(!stream) {
-      failf(data, "Internal NULL stream!\n");
-      rv = 1;
-      goto fail;
-    }
-
-    rv = data->multi->push_cb(data, newhandle,
-                              stream->push_headers_used, &heads,
-                              data->multi->push_userp);
-
-    /* free the headers again */
-    for(i=0; i<stream->push_headers_used; i++)
-      free(stream->push_headers[i]);
-    free(stream->push_headers);
-    stream->push_headers = NULL;
-
-    if(rv) {
-      /* denied, kill off the new handle again */
-      (void)Curl_close(newhandle);
-      goto fail;
-    }
-
-    newstream = newhandle->req.protop;
-    newstream->stream_id = frame->promised_stream_id;
-    newhandle->req.maxdownload = -1;
-    newhandle->req.size = -1;
-
-    /* approved, add to the multi handle and immediately switch to PERFORM
-       state with the given connection !*/
-    rc = Curl_multi_add_perform(data->multi, newhandle, conn);
-    if(rc) {
-      infof(data, "failed to add handle to multi\n");
-      Curl_close(newhandle);
-      rv = 1;
-      goto fail;
-    }
-
-    httpc = &conn->proto.httpc;
-    nghttp2_session_set_stream_user_data(httpc->h2,
-                                         frame->promised_stream_id, newhandle);
-  }
-  else {
-    DEBUGF(infof(data, "Got PUSH_PROMISE, ignore it!\n"));
-    rv = 1;
-  }
-  fail:
-  return rv;
-}
-
-static int on_frame_recv(nghttp2_session *session, const nghttp2_frame *frame,
-                         void *userp)
-{
-  struct connectdata *conn = (struct connectdata *)userp;
-  struct http_conn *httpc = &conn->proto.httpc;
-  struct Curl_easy *data_s = NULL;
-  struct HTTP *stream = NULL;
-  static int lastStream = -1;
-  int rv;
-  size_t left, ncopy;
-  int32_t stream_id = frame->hd.stream_id;
-
-  if(!stream_id) {
-    /* stream ID zero is for connection-oriented stuff */
-    if(frame->hd.type == NGHTTP2_SETTINGS) {
-      uint32_t max_conn = httpc->settings.max_concurrent_streams;
-      DEBUGF(infof(conn->data, "Got SETTINGS\n"));
-      httpc->settings.max_concurrent_streams =
-        nghttp2_session_get_remote_settings(
-          session, NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS);
-      httpc->settings.enable_push =
-        nghttp2_session_get_remote_settings(
-          session, NGHTTP2_SETTINGS_ENABLE_PUSH);
-      DEBUGF(infof(conn->data, "MAX_CONCURRENT_STREAMS == %d\n",
-                   httpc->settings.max_concurrent_streams));
-      DEBUGF(infof(conn->data, "ENABLE_PUSH == %s\n",
-                   httpc->settings.enable_push?"TRUE":"false"));
-      if(max_conn != httpc->settings.max_concurrent_streams) {
-        /* only signal change if the value actually changed */
-        infof(conn->data,
-              "Connection state changed (MAX_CONCURRENT_STREAMS updated)!\n");
-        Curl_multi_connchanged(conn->data->multi);
-      }
-    }
-    return 0;
-  }
-  data_s = nghttp2_session_get_stream_user_data(session, stream_id);
-  if(lastStream != stream_id) {
-    lastStream = stream_id;
-  }
-  if(!data_s) {
-    DEBUGF(infof(conn->data,
-                 "No Curl_easy associated with stream: %x\n",
-                 stream_id));
-    return 0;
-  }
-
-  stream = data_s->req.protop;
-  if(!stream)
-    return NGHTTP2_ERR_CALLBACK_FAILURE;
-
-  DEBUGF(infof(data_s, "on_frame_recv() header %x stream %x\n",
-               frame->hd.type, stream_id));
-
-  switch(frame->hd.type) {
-  case NGHTTP2_DATA:
-    /* If body started on this stream, then receiving DATA is illegal. */
-    if(!stream->bodystarted) {
-      rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE,
-                                     stream_id, NGHTTP2_PROTOCOL_ERROR);
-
-      if(nghttp2_is_fatal(rv)) {
-        return NGHTTP2_ERR_CALLBACK_FAILURE;
-      }
-    }
-    break;
-  case NGHTTP2_HEADERS:
-    if(stream->bodystarted) {
-      /* Only valid HEADERS after body started is trailer HEADERS.  We
-         buffer them in on_header callback. */
-      break;
-    }
-
-    /* nghttp2 guarantees that :status is received, and we store it to
-       stream->status_code */
-    DEBUGASSERT(stream->status_code != -1);
-
-    /* Only final status code signals the end of header */
-    if(stream->status_code / 100 != 1) {
-      stream->bodystarted = TRUE;
-      stream->status_code = -1;
-    }
-
-    Curl_add_buffer(stream->header_recvbuf, "\r\n", 2);
-
-    left = stream->header_recvbuf->size_used - stream->nread_header_recvbuf;
-    ncopy = MIN(stream->len, left);
-
-    memcpy(&stream->mem[stream->memlen],
-           stream->header_recvbuf->buffer + stream->nread_header_recvbuf,
-           ncopy);
-    stream->nread_header_recvbuf += ncopy;
-
-    DEBUGF(infof(data_s, "Store %zu bytes headers from stream %u at %p\n",
-                 ncopy, stream_id, stream->mem));
-
-    stream->len -= ncopy;
-    stream->memlen += ncopy;
-
-    data_s->state.drain++;
-    httpc->drain_total++;
-    {
-      /* get the pointer from userp again since it was re-assigned above */
-      struct connectdata *conn_s = (struct connectdata *)userp;
-
-      /* if we receive data for another handle, wake that up */
-      if(conn_s->data != data_s)
-        Curl_expire(data_s, 1);
-    }
-    break;
-  case NGHTTP2_PUSH_PROMISE:
-    rv = push_promise(data_s, conn, &frame->push_promise);
-    if(rv) { /* deny! */
-      rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE,
-                                     frame->push_promise.promised_stream_id,
-                                     NGHTTP2_CANCEL);
-      if(nghttp2_is_fatal(rv)) {
-        return rv;
-      }
-    }
-    break;
-  default:
-    DEBUGF(infof(conn->data, "Got frame type %x for stream %u!\n",
-                 frame->hd.type, stream_id));
-    break;
-  }
-  return 0;
-}
-
-static int on_invalid_frame_recv(nghttp2_session *session,
-                                 const nghttp2_frame *frame,
-                                 int lib_error_code, void *userp)
-{
-  struct Curl_easy *data_s = NULL;
-  (void)userp;
-
-  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
-  if(data_s) {
-    DEBUGF(infof(data_s,
-                 "on_invalid_frame_recv() was called, error=%d:%s\n",
-                 lib_error_code, nghttp2_strerror(lib_error_code)));
-  }
-  return 0;
-}
-
-static int on_data_chunk_recv(nghttp2_session *session, uint8_t flags,
-                              int32_t stream_id,
-                              const uint8_t *data, size_t len, void *userp)
-{
-  struct HTTP *stream;
-  struct Curl_easy *data_s;
-  size_t nread;
-  struct connectdata *conn = (struct connectdata *)userp;
-  (void)session;
-  (void)flags;
-  (void)data;
-
-  DEBUGASSERT(stream_id); /* should never be a zero stream ID here */
-
-  /* get the stream from the hash based on Stream ID */
-  data_s = nghttp2_session_get_stream_user_data(session, stream_id);
-  if(!data_s)
-    /* Receiving a Stream ID not in the hash should not happen, this is an
-       internal error more than anything else! */
-    return NGHTTP2_ERR_CALLBACK_FAILURE;
-
-  stream = data_s->req.protop;
-  if(!stream)
-    return NGHTTP2_ERR_CALLBACK_FAILURE;
-
-  nread = MIN(stream->len, len);
-  memcpy(&stream->mem[stream->memlen], data, nread);
-
-  stream->len -= nread;
-  stream->memlen += nread;
-
-  data_s->state.drain++;
-  conn->proto.httpc.drain_total++;
-
-  /* if we receive data for another handle, wake that up */
-  if(conn->data != data_s)
-    Curl_expire(data_s, 1); /* TODO: fix so that this can be set to 0 for
-                               immediately? */
-
-  DEBUGF(infof(data_s, "%zu data received for stream %u "
-               "(%zu left in buffer %p, total %zu)\n",
-               nread, stream_id,
-               stream->len, stream->mem,
-               stream->memlen));
-
-  if(nread < len) {
-    stream->pausedata = data + nread;
-    stream->pauselen = len - nread;
-    DEBUGF(infof(data_s, "NGHTTP2_ERR_PAUSE - %zu bytes out of buffer"
-                 ", stream %u\n",
-                 len - nread, stream_id));
-    data_s->easy_conn->proto.httpc.pause_stream_id = stream_id;
-
-    return NGHTTP2_ERR_PAUSE;
-  }
-
-  /* pause execution of nghttp2 if we received data for another handle
-     in order to process them first. */
-  if(conn->data != data_s) {
-    data_s->easy_conn->proto.httpc.pause_stream_id = stream_id;
-
-    return NGHTTP2_ERR_PAUSE;
-  }
-
-  return 0;
-}
-
-static int before_frame_send(nghttp2_session *session,
-                             const nghttp2_frame *frame,
-                             void *userp)
-{
-  struct Curl_easy *data_s;
-  (void)userp;
-
-  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
-  if(data_s) {
-    DEBUGF(infof(data_s, "before_frame_send() was called\n"));
-  }
-
-  return 0;
-}
-static int on_frame_send(nghttp2_session *session,
-                         const nghttp2_frame *frame,
-                         void *userp)
-{
-  struct Curl_easy *data_s;
-  (void)userp;
-
-  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
-  if(data_s) {
-    DEBUGF(infof(data_s, "on_frame_send() was called, length = %zd\n",
-                 frame->hd.length));
-  }
-  return 0;
-}
-static int on_frame_not_send(nghttp2_session *session,
-                             const nghttp2_frame *frame,
-                             int lib_error_code, void *userp)
-{
-  struct Curl_easy *data_s;
-  (void)userp;
-
-  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
-  if(data_s) {
-    DEBUGF(infof(data_s,
-                 "on_frame_not_send() was called, lib_error_code = %d\n",
-                 lib_error_code));
-  }
-  return 0;
-}
-static int on_stream_close(nghttp2_session *session, int32_t stream_id,
-                           uint32_t error_code, void *userp)
-{
-  struct Curl_easy *data_s;
-  struct HTTP *stream;
-  struct connectdata *conn = (struct connectdata *)userp;
-  (void)session;
-  (void)stream_id;
-
-  if(stream_id) {
-    /* get the stream from the hash based on Stream ID, stream ID zero is for
-       connection-oriented stuff */
-    data_s = nghttp2_session_get_stream_user_data(session, stream_id);
-    if(!data_s) {
-      /* We could get stream ID not in the hash.  For example, if we
-         decided to reject stream (e.g., PUSH_PROMISE). */
-      return 0;
-    }
-    DEBUGF(infof(data_s, "on_stream_close(), %s (err %d), stream %u\n",
-                 Curl_http2_strerror(error_code), error_code, stream_id));
-    stream = data_s->req.protop;
-    if(!stream)
-      return NGHTTP2_ERR_CALLBACK_FAILURE;
-
-    stream->error_code = error_code;
-    stream->closed = TRUE;
-    data_s->state.drain++;
-    conn->proto.httpc.drain_total++;
-
-    /* remove the entry from the hash as the stream is now gone */
-    nghttp2_session_set_stream_user_data(session, stream_id, 0);
-    DEBUGF(infof(data_s, "Removed stream %u hash!\n", stream_id));
-  }
-  return 0;
-}
-
-static int on_begin_headers(nghttp2_session *session,
-                            const nghttp2_frame *frame, void *userp)
-{
-  struct HTTP *stream;
-  struct Curl_easy *data_s = NULL;
-  (void)userp;
-
-  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
-  if(!data_s) {
-    return 0;
-  }
-
-  DEBUGF(infof(data_s, "on_begin_headers() was called\n"));
-
-  if(frame->hd.type != NGHTTP2_HEADERS) {
-    return 0;
-  }
-
-  stream = data_s->req.protop;
-  if(!stream || !stream->bodystarted) {
-    return 0;
-  }
-
-  /* This is trailer HEADERS started.  Allocate buffer for them. */
-  DEBUGF(infof(data_s, "trailer field started\n"));
-
-  assert(stream->trailer_recvbuf == NULL);
-
-  stream->trailer_recvbuf = Curl_add_buffer_init();
-  if(!stream->trailer_recvbuf) {
-    return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
-  }
-
-  return 0;
-}
-
-/* Decode HTTP status code.  Returns -1 if no valid status code was
-   decoded. */
-static int decode_status_code(const uint8_t *value, size_t len)
-{
-  int i;
-  int res;
-
-  if(len != 3) {
-    return -1;
-  }
-
-  res = 0;
-
-  for(i = 0; i < 3; ++i) {
-    char c = value[i];
-
-    if(c < '0' || c > '9') {
-      return -1;
-    }
-
-    res *= 10;
-    res += c - '0';
-  }
-
-  return res;
-}
-
-/* frame->hd.type is either NGHTTP2_HEADERS or NGHTTP2_PUSH_PROMISE */
-static int on_header(nghttp2_session *session, const nghttp2_frame *frame,
-                     const uint8_t *name, size_t namelen,
-                     const uint8_t *value, size_t valuelen,
-                     uint8_t flags,
-                     void *userp)
-{
-  struct HTTP *stream;
-  struct Curl_easy *data_s;
-  int32_t stream_id = frame->hd.stream_id;
-  struct connectdata *conn = (struct connectdata *)userp;
-  (void)flags;
-
-  DEBUGASSERT(stream_id); /* should never be a zero stream ID here */
-
-  /* get the stream from the hash based on Stream ID */
-  data_s = nghttp2_session_get_stream_user_data(session, stream_id);
-  if(!data_s)
-    /* Receiving a Stream ID not in the hash should not happen, this is an
-       internal error more than anything else! */
-    return NGHTTP2_ERR_CALLBACK_FAILURE;
-
-  stream = data_s->req.protop;
-  if(!stream) {
-    failf(data_s, "Internal NULL stream! 5\n");
-    return NGHTTP2_ERR_CALLBACK_FAILURE;
-  }
-
-  /* Store received PUSH_PROMISE headers to be used when the subsequent
-     PUSH_PROMISE callback comes */
-  if(frame->hd.type == NGHTTP2_PUSH_PROMISE) {
-    char *h;
-
-    if(!stream->push_headers) {
-      stream->push_headers_alloc = 10;
-      stream->push_headers = malloc(stream->push_headers_alloc *
-                                    sizeof(char *));
-      stream->push_headers_used = 0;
-    }
-    else if(stream->push_headers_used ==
-            stream->push_headers_alloc) {
-      char **headp;
-      stream->push_headers_alloc *= 2;
-      headp = realloc(stream->push_headers,
-                      stream->push_headers_alloc * sizeof(char *));
-      if(!headp) {
-        free(stream->push_headers);
-        stream->push_headers = NULL;
-        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
-      }
-      stream->push_headers = headp;
-    }
-    h = aprintf("%s:%s", name, value);
-    if(h)
-      stream->push_headers[stream->push_headers_used++] = h;
-    return 0;
-  }
-
-  if(stream->bodystarted) {
-    /* This is trailer fields. */
-    /* 3 is for ":" and "\r\n". */
-    uint32_t n = (uint32_t)(namelen + valuelen + 3);
-
-    DEBUGF(infof(data_s, "h2 trailer: %.*s: %.*s\n", namelen, name, valuelen,
-                 value));
-
-    Curl_add_buffer(stream->trailer_recvbuf, &n, sizeof(n));
-    Curl_add_buffer(stream->trailer_recvbuf, name, namelen);
-    Curl_add_buffer(stream->trailer_recvbuf, ": ", 2);
-    Curl_add_buffer(stream->trailer_recvbuf, value, valuelen);
-    Curl_add_buffer(stream->trailer_recvbuf, "\r\n\0", 3);
-
-    return 0;
-  }
-
-  if(namelen == sizeof(":status") - 1 &&
-     memcmp(":status", name, namelen) == 0) {
-    /* nghttp2 guarantees :status is received first and only once, and
-       value is 3 digits status code, and decode_status_code always
-       succeeds. */
-    stream->status_code = decode_status_code(value, valuelen);
-    DEBUGASSERT(stream->status_code != -1);
-
-    Curl_add_buffer(stream->header_recvbuf, "HTTP/2 ", 7);
-    Curl_add_buffer(stream->header_recvbuf, value, valuelen);
-    /* the space character after the status code is mandatory */
-    Curl_add_buffer(stream->header_recvbuf, " \r\n", 3);
-    /* if we receive data for another handle, wake that up */
-    if(conn->data != data_s)
-      Curl_expire(data_s, 1);
-
-    DEBUGF(infof(data_s, "h2 status: HTTP/2 %03d (easy %p)\n",
-                 stream->status_code, data_s));
-    return 0;
-  }
-
-  /* nghttp2 guarantees that namelen > 0, and :status was already
-     received, and this is not pseudo-header field . */
-  /* convert to a HTTP1-style header */
-  Curl_add_buffer(stream->header_recvbuf, name, namelen);
-  Curl_add_buffer(stream->header_recvbuf, ": ", 2);
-  Curl_add_buffer(stream->header_recvbuf, value, valuelen);
-  Curl_add_buffer(stream->header_recvbuf, "\r\n", 2);
-  /* if we receive data for another handle, wake that up */
-  if(conn->data != data_s)
-    Curl_expire(data_s, 1);
-
-  DEBUGF(infof(data_s, "h2 header: %.*s: %.*s\n", namelen, name, valuelen,
-               value));
-
-  return 0; /* 0 is successful */
-}
-
-static ssize_t data_source_read_callback(nghttp2_session *session,
-                                         int32_t stream_id,
-                                         uint8_t *buf, size_t length,
-                                         uint32_t *data_flags,
-                                         nghttp2_data_source *source,
-                                         void *userp)
-{
-  struct Curl_easy *data_s;
-  struct HTTP *stream = NULL;
-  size_t nread;
-  (void)source;
-  (void)userp;
-
-  if(stream_id) {
-    /* get the stream from the hash based on Stream ID, stream ID zero is for
-       connection-oriented stuff */
-    data_s = nghttp2_session_get_stream_user_data(session, stream_id);
-    if(!data_s)
-      /* Receiving a Stream ID not in the hash should not happen, this is an
-         internal error more than anything else! */
-      return NGHTTP2_ERR_CALLBACK_FAILURE;
-
-    stream = data_s->req.protop;
-    if(!stream)
-      return NGHTTP2_ERR_CALLBACK_FAILURE;
-  }
-  else
-    return NGHTTP2_ERR_INVALID_ARGUMENT;
-
-  nread = MIN(stream->upload_len, length);
-  if(nread > 0) {
-    memcpy(buf, stream->upload_mem, nread);
-    stream->upload_mem += nread;
-    stream->upload_len -= nread;
-    stream->upload_left -= nread;
-  }
-
-  if(stream->upload_left == 0)
-    *data_flags = 1;
-  else if(nread == 0)
-    return NGHTTP2_ERR_DEFERRED;
-
-  DEBUGF(infof(data_s, "data_source_read_callback: "
-               "returns %zu bytes stream %u\n",
-               nread, stream_id));
-
-  return nread;
-}
-
-/*
- * The HTTP2 settings we send in the Upgrade request
- */
-static nghttp2_settings_entry settings[] = {
-  { NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100 },
-  { NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE, NGHTTP2_INITIAL_WINDOW_SIZE },
-};
-
-#define H2_BUFSIZE 32768
-
-#ifdef NGHTTP2_HAS_ERROR_CALLBACK
-static int error_callback(nghttp2_session *session,
-                          const char *msg,
-                          size_t len,
-                          void *userp)
-{
-  struct connectdata *conn = (struct connectdata *)userp;
-  (void)session;
-  infof(conn->data, "http2 error: %.*s\n", len, msg);
-  return 0;
-}
+	struct xar *xar;
+	enum la_zaction run;
+	size_t size, rsize;
+	int r;
+
+	xar = (struct xar *)a->format_data;
+
+	if (s > xar->bytes_remaining)
+		s = (size_t)xar->bytes_remaining;
+	if (s == 0 || xar->cur_file == NULL)
+		return (0);
+	if (xar->cur_file->data.compression == NONE) {
+		checksum_update(&(xar->e_sumwrk), buff, s);
+		checksum_update(&(xar->a_sumwrk), buff, s);
+		size = rsize = s;
+	} else {
+		xar->stream.next_in = (const unsigned char *)buff;
+		xar->stream.avail_in = s;
+		if (xar->bytes_remaining > s)
+			run = ARCHIVE_Z_RUN;
+		else
+			run = ARCHIVE_Z_FINISH;
+		/* Compress file data. */
+		r = compression_code(&(a->archive), &(xar->stream), run);
+		if (r != ARCHIVE_OK && r != ARCHIVE_EOF)
+			return (ARCHIVE_FATAL);
+		rsize = s - xar->stream.avail_in;
+		checksum_update(&(xar->e_sumwrk), buff, rsize);
+		size = sizeof(xar->wbuff) - xar->stream.avail_out;
+		checksum_update(&(xar->a_sumwrk), xar->wbuff, size);
+	}
+#if !defined(_WIN32) || defined(__CYGWIN__)
+	if (xar->bytes_remaining ==
+	    (uint64_t)archive_entry_size(xar->cur_file->entry)) {
+		/*
+		 * Get the path of a shell script if so.
+		 */
+		const unsigned char *b = (const unsigned char *)buff;
+
+		archive_string_empty(&(xar->cur_file->script));
+		if (rsize > 2 && b[0] == '#' && b[1] == '!') {
+			size_t i, end, off;
+
+			off = 2;
+			if (b[off] == ' ')
+				off++;
+#ifdef PATH_MAX
+			if ((rsize - off) > PATH_MAX)
+				end = off + PATH_MAX;
+			else
+#endif
+				end = rsize;
+			/* Find the end of a script path. */
+			for (i = off; i < end && b[i] != '\0' &&
+			    b[i] != '\n' && b[i] != '\r' &&
+			    b[i] != ' ' && b[i] != '\t'; i++)
+				;
+			archive_strncpy(&(xar->cur_file->script), b + off,
+			    i - off);
+		}
+	}
 #endif
 
-/*
- * Initialize nghttp2 for a Curl connection
- */
-CURLcode Curl_http2_init(struct connectdata *conn)
+	if (xar->cur_file->data.compression == NONE) {
+		if (write_to_temp(a, buff, size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	} else {
+		if (write_to_temp(a, xar->wbuff, size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+	xar->bytes_remaining -= rsize;
+	xar->cur_file->data.length += size;
+
+	return (rsize);
+}
+
+static int
+xar_finish_entry(struct archive_write *a)
 {
-  if(!conn->proto.httpc.h2) {
-    int rc;
-    nghttp2_session_callbacks *callbacks;
+	struct xar *xar;
+	struct file *file;
+	size_t s;
+	ssize_t w;
 
-    conn->proto.httpc.inbuf = malloc(H2_BUFSIZE);
-    if(conn->proto.httpc.inbuf == NULL)
-      return CURLE_OUT_OF_MEMORY;
+	xar = (struct xar *)a->format_data;
+	if (xar->cur_file == NULL)
+		return (ARCHIVE_OK);
 
-    rc = nghttp2_session_callbacks_new(&callbacks);
+	while (xar->bytes_remaining > 0) {
+		s = (size_t)xar->bytes_remaining;
+		if (s > a->null_length)
+			s = a->null_length;
+		w = xar_write_data(a, a->nulls, s);
+		if (w > 0)
+			xar->bytes_remaining -= w;
+		else
+			return (w);
+	}
+	file = xar->cur_file;
+	checksum_final(&(xar->e_sumwrk), &(file->data.e_sum));
+	checksum_final(&(xar->a_sumwrk), &(file->data.a_sum));
+	xar->cur_file = NULL;
 
-    if(rc) {
-      failf(conn->data, "Couldn't initialize nghttp2 callbacks!");
-      return CURLE_OUT_OF_MEMORY; /* most likely at least */
-    }
-
-    /* nghttp2_send_callback */
-    nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
-    /* nghttp2_on_frame_recv_callback */
-    nghttp2_session_callbacks_set_on_frame_recv_callback
-      (callbacks, on_frame_recv);
-    /* nghttp2_on_invalid_frame_recv_callback */
-    nghttp2_session_callbacks_set_on_invalid_frame_recv_callback
-      (callbacks, on_invalid_frame_recv);
-    /* nghttp2_on_data_chunk_recv_callback */
-    nghttp2_session_callbacks_set_on_data_chunk_recv_callback
-      (callbacks, on_data_chunk_recv);
-    /* nghttp2_before_frame_send_callback */
-    nghttp2_session_callbacks_set_before_frame_send_callback
-      (callbacks, before_frame_send);
-    /* nghttp2_on_frame_send_callback */
-    nghttp2_session_callbacks_set_on_frame_send_callback
-      (callbacks, on_frame_send);
-    /* nghttp2_on_frame_not_send_callback */
-    nghttp2_session_callbacks_set_on_frame_not_send_callback
-      (callbacks, on_frame_not_send);
-    /* nghttp2_on_stream_close_callback */
-    nghttp2_session_callbacks_set_on_stream_close_callback
-      (callbacks, on_stream_close);
-    /* nghttp2_on_begin_headers_callback */
-    nghttp2_session_callbacks_set_on_begin_headers_callback
-      (callbacks, on_begin_headers);
-    /* nghttp2_on_header_callback */
-    nghttp2_session_callbacks_set_on_header_callback(callbacks, on_header);
-
-    nghttp2_session_callbacks_set_error_callback(callbacks, error_callback);
-
-    /* The nghttp2 session is not yet setup, do it */
-    rc = nghttp2_session_client_new(&conn->proto.httpc.h2, callbacks, conn);
-
-    nghttp2_session_callbacks_del(callbacks);
-
-    if(rc) {
-      failf(conn->data, "Couldn't initialize nghttp2!");
-      return CURLE_OUT_OF_MEMORY; /* most likely at least */
-    }
-  }
-  return CURLE_OK;
+	return (ARCHIVE_OK);
 }
 
-/*
- * Append headers to ask for a HTTP1.1 to HTTP2 upgrade.
- */
-CURLcode Curl_http2_request_upgrade(Curl_send_buffer *req,
-                                    struct connectdata *conn)
+static int
+xmlwrite_string_attr(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, const char *value,
+	const char *attrkey, const char *attrvalue)
 {
-  CURLcode result;
-  ssize_t binlen;
-  char *base64;
-  size_t blen;
-  struct SingleRequest *k = &conn->data->req;
-  uint8_t *binsettings = conn->proto.httpc.binsettings;
+	int r;
 
-  /* As long as we have a fixed set of settings, we don't have to dynamically
-   * figure out the base64 strings since it'll always be the same. However,
-   * the settings will likely not be fixed every time in the future.
-   */
-
-  /* this returns number of bytes it wrote */
-  binlen = nghttp2_pack_settings_payload(binsettings, H2_BINSETTINGS_LEN,
-                                         settings,
-                                         sizeof(settings)/sizeof(settings[0]));
-  if(!binlen) {
-    failf(conn->data, "nghttp2 unexpectedly failed on pack_settings_payload");
-    return CURLE_FAILED_INIT;
-  }
-  conn->proto.httpc.binlen = binlen;
-
-  result = Curl_base64url_encode(conn->data, (const char *)binsettings, binlen,
-                                 &base64, &blen);
-  if(result)
-    return result;
-
-  result = Curl_add_bufferf(req,
-                            "Connection: Upgrade, HTTP2-Settings\r\n"
-                            "Upgrade: %s\r\n"
-                            "HTTP2-Settings: %s\r\n",
-                            NGHTTP2_CLEARTEXT_PROTO_VERSION_ID, base64);
-  free(base64);
-
-  k->upgr101 = UPGR101_REQUESTED;
-
-  return result;
+	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	if (attrkey != NULL && attrvalue != NULL) {
+		r = xmlTextWriterWriteAttribute(writer,
+		    BAD_CAST_CONST(attrkey), BAD_CAST_CONST(attrvalue));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	if (value != NULL) {
+		r = xmlTextWriterWriteString(writer, BAD_CAST_CONST(value));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteString() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	r = xmlTextWriterEndElement(writer);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterEndElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
 }
 
-/*
- * Returns nonzero if current HTTP/2 session should be closed.
- */
-static int should_close_session(struct http_conn *httpc) {
-  return httpc->drain_total == 0 && !nghttp2_session_want_read(httpc->h2) &&
-         !nghttp2_session_want_write(httpc->h2);
-}
-
-static int h2_session_send(struct Curl_easy *data,
-                           nghttp2_session *h2);
-
-/*
- * h2_process_pending_input() processes pending input left in
- * httpc->inbuf.  Then, call h2_session_send() to send pending data.
- * This function returns 0 if it succeeds, or -1 and error code will
- * be assigned to *err.
- */
-static int h2_process_pending_input(struct Curl_easy *data,
-                                    struct http_conn *httpc,
-                                    CURLcode *err) {
-  ssize_t nread;
-  char *inbuf;
-  ssize_t rv;
-
-  nread = httpc->inbuflen - httpc->nread_inbuf;
-  inbuf = httpc->inbuf + httpc->nread_inbuf;
-
-  rv = nghttp2_session_mem_recv(httpc->h2, (const uint8_t *)inbuf, nread);
-  if(rv < 0) {
-    failf(data,
-          "h2_process_pending_input: nghttp2_session_mem_recv() returned "
-          "%d:%s\n", rv, nghttp2_strerror((int)rv));
-    *err = CURLE_RECV_ERROR;
-    return -1;
-  }
-
-  if(nread == rv) {
-    DEBUGF(infof(data,
-                 "h2_process_pending_input: All data in connection buffer "
-                 "processed\n"));
-    httpc->inbuflen = 0;
-    httpc->nread_inbuf = 0;
-  }
-  else {
-    httpc->nread_inbuf += rv;
-    DEBUGF(infof(data,
-                 "h2_process_pending_input: %zu bytes left in connection "
-                 "buffer\n",
-                 httpc->inbuflen - httpc->nread_inbuf));
-  }
-
-  rv = h2_session_send(data, httpc->h2);
-  if(rv != 0) {
-    *err = CURLE_SEND_ERROR;
-    return -1;
-  }
-
-  if(should_close_session(httpc)) {
-    DEBUGF(infof(data,
-                 "h2_process_pending_input: nothing to do in this session\n"));
-    *err = CURLE_HTTP2;
-    return -1;
-  }
-
-  return 0;
-}
-
-static ssize_t http2_handle_stream_close(struct connectdata *conn,
-                                         struct Curl_easy *data,
-                                         struct HTTP *stream, CURLcode *err) {
-  char *trailer_pos, *trailer_end;
-  CURLcode result;
-  struct http_conn *httpc = &conn->proto.httpc;
-
-  if(httpc->pause_stream_id == stream->stream_id) {
-    httpc->pause_stream_id = 0;
-  }
-
-  DEBUGASSERT(httpc->drain_total >= data->state.drain);
-  httpc->drain_total -= data->state.drain;
-  data->state.drain = 0;
-
-  if(httpc->pause_stream_id == 0) {
-    if(h2_process_pending_input(data, httpc, err) != 0) {
-      return -1;
-    }
-  }
-
-  DEBUGASSERT(data->state.drain == 0);
-
-  /* Reset to FALSE to prevent infinite loop in readwrite_data
-   function. */
-  stream->closed = FALSE;
-  if(stream->error_code != NGHTTP2_NO_ERROR) {
-    failf(data, "HTTP/2 stream %u was not closed cleanly: %s (err %d)",
-          stream->stream_id, Curl_http2_strerror(stream->error_code),
-          stream->error_code);
-    *err = CURLE_HTTP2_STREAM;
-    return -1;
-  }
-
-  if(!stream->bodystarted) {
-    failf(data, "HTTP/2 stream %u was closed cleanly, but before getting "
-          " all response header fields, teated as error",
-          stream->stream_id);
-    *err = CURLE_HTTP2_STREAM;
-    return -1;
-  }
-
-  if(stream->trailer_recvbuf && stream->trailer_recvbuf->buffer) {
-    trailer_pos = stream->trailer_recvbuf->buffer;
-    trailer_end = trailer_pos + stream->trailer_recvbuf->size_used;
-
-    for(; trailer_pos < trailer_end;) {
-      uint32_t n;
-      memcpy(&n, trailer_pos, sizeof(n));
-      trailer_pos += sizeof(n);
-
-      result = Curl_client_write(conn, CLIENTWRITE_HEADER, trailer_pos, n);
-      if(result) {
-        *err = result;
-        return -1;
-      }
-
-      trailer_pos += n + 1;
-    }
-  }
-
-  DEBUGF(infof(data, "http2_recv returns 0, http2_handle_stream_close\n"));
-  return 0;
-}
-
-/*
- * h2_pri_spec() fills in the pri_spec struct, used by nghttp2 to send weight
- * and dependency to the peer. It also stores the updated values in the state
- * struct.
- */
-
-static void h2_pri_spec(struct Curl_easy *data,
-                        nghttp2_priority_spec *pri_spec)
+static int
+xmlwrite_string(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, const char *value)
 {
-  struct HTTP *depstream = (data->set.stream_depends_on?
-                            data->set.stream_depends_on->req.protop:NULL);
-  int32_t depstream_id = depstream? depstream->stream_id:0;
-  nghttp2_priority_spec_init(pri_spec, depstream_id, data->set.stream_weight,
-                             data->set.stream_depends_e);
-  data->state.stream_weight = data->set.stream_weight;
-  data->state.stream_depends_e = data->set.stream_depends_e;
-  data->state.stream_depends_on = data->set.stream_depends_on;
+	int r;
+
+	if (value == NULL)
+		return (ARCHIVE_OK);
+
+	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	if (value != NULL) {
+		r = xmlTextWriterWriteString(writer, BAD_CAST_CONST(value));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteString() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	r = xmlTextWriterEndElement(writer);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterEndElement() failed: %d", r);
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+xmlwrite_fstring(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, const char *fmt, ...)
+{
+	struct xar *xar;
+	va_list ap;
+
+	xar = (struct xar *)a->format_data;
+	va_start(ap, fmt);
+	archive_string_empty(&xar->vstr);
+	archive_string_vsprintf(&xar->vstr, fmt, ap);
+	va_end(ap);
+	return (xmlwrite_string(a, writer, key, xar->vstr.s));
+}
+
+static int
+xmlwrite_time(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, time_t t, int z)
+{
+	char timestr[100];
+	struct tm tm;
+
+#if defined(HAVE_GMTIME_R)
+	gmtime_r(&t, &tm);
+#elif defined(HAVE__GMTIME64_S)
+	_gmtime64_s(&tm, &t);
+#else
+	memcpy(&tm, gmtime(&t), sizeof(tm));
+#endif
+	memset(&timestr, 0, sizeof(timestr));
+	/* Do not use %F and %T for portability. */
+	strftime(timestr, sizeof(timestr), "%Y-%m-%dT%H:%M:%S", &tm);
+	if (z)
+		strcat(timestr, "Z");
+	return (xmlwrite_string(a, writer, key, timestr));
+}
+
+static int
+xmlwrite_mode(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, mode_t mode)
+{
+	char ms[5];
+
+	ms[0] = '0';
+	ms[1] = '0' + ((mode >> 6) & 07);
+	ms[2] = '0' + ((mode >> 3) & 07);
+	ms[3] = '0' + (mode & 07);
+	ms[4] = '\0';
+
+	return (xmlwrite_string(a, writer, key, ms));
+}
+
+static int
+xmlwrite_sum(struct archive_write *a, xmlTextWriterPtr writer,
+	const char *key, struct chksumval *sum)
+{
+	const char *algname;
+	int algsize;
+	char buff[MAX_SUM_SIZE*2 + 1];
+	char *p;
+	unsigned char *s;
+	int i, r;
+
+	if (sum->len > 0) {
+		algname = getalgname(sum->alg);
+		algsize = getalgsize(sum->alg);
+		if (algname != NULL) {
+			const char *hex = "0123456789abcdef";
+			p = buff;
+			s = sum->val;
+			for (i = 0; i < algsize; i++) {
+				*p++ = hex[(*s >> 4)];
+				*p++ = hex[(*s & 0x0f)];
+				s++;
+			}
+			*p = '\0';
+			r = xmlwrite_string_attr(a, writer,
+			    key, buff,
+			    "style", algname);
+			if (r < 0)
+				return (ARCHIVE_FATAL);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+xmlwrite_heap(struct archive_write *a, xmlTextWriterPtr writer,
+	struct heap_data *heap)
+{
+	const char *encname;
+	int r;
+
+	r = xmlwrite_fstring(a, writer, "length", "%ju", heap->length);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_fstring(a, writer, "offset", "%ju", heap->temp_offset);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_fstring(a, writer, "size", "%ju", heap->size);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	switch (heap->compression) {
+	case GZIP:
+		encname = "application/x-gzip"; break;
+	case BZIP2:
+		encname = "application/x-bzip2"; break;
+	case LZMA:
+		encname = "application/x-lzma"; break;
+	case XZ:
+		encname = "application/x-xz"; break;
+	default:
+		encname = "application/octet-stream"; break;
+	}
+	r = xmlwrite_string_attr(a, writer, "encoding", NULL,
+	    "style", encname);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_sum(a, writer, "archived-checksum", &(heap->a_sum));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = xmlwrite_sum(a, writer, "extracted-checksum", &(heap->e_sum));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	return (ARCHIVE_OK);
 }
 
 /*
- * h2_session_send() checks if there's been an update in the priority /
- * dependency settings and if so it submits a PRIORITY frame with the updated
- * info.
+ * xar utility records fflags as following xml elements:
+ *   <flags>
+ *     <UserNoDump/>
+ *     .....
+ *   </flags>
+ * or
+ *   <ext2>
+ *     <NoDump/>
+ *     .....
+ *   </ext2>
+ * If xar is running on BSD platform, records <flags>..</flags>;
+ * if xar is running on linux platform, records <ext2>..</ext2>;
+ * otherwise does not record.
+ *
+ * Our implements records both <flags> and <ext2> if it's necessary.
  */
-static int h2_session_send(struct Curl_easy *data,
-                           nghttp2_session *h2)
+static int
+make_fflags_entry(struct archive_write *a, xmlTextWriterPtr writer,
+    const char *element, const char *fflags_text)
 {
-  struct HTTP *stream = data->req.protop;
-  if((data->set.stream_weight != data->state.stream_weight) ||
-     (data->set.stream_depends_e != data->state.stream_depends_e) ||
-     (data->set.stream_depends_on != data->state.stream_depends_on) ) {
-    /* send new weight and/or dependency */
-    nghttp2_priority_spec pri_spec;
-    int rv;
+	static const struct flagentry {
+		const char	*name;
+		const char	*xarname;
+	}
+	flagbsd[] = {
+		{ "sappnd",	"SystemAppend"},
+		{ "sappend",	"SystemAppend"},
+		{ "arch",	"SystemArchived"},
+		{ "archived",	"SystemArchived"},
+		{ "schg",	"SystemImmutable"},
+		{ "schange",	"SystemImmutable"},
+		{ "simmutable",	"SystemImmutable"},
+		{ "nosunlnk",	"SystemNoUnlink"},
+		{ "nosunlink",	"SystemNoUnlink"},
+		{ "snapshot",	"SystemSnapshot"},
+		{ "uappnd",	"UserAppend"},
+		{ "uappend",	"UserAppend"},
+		{ "uchg",	"UserImmutable"},
+		{ "uchange",	"UserImmutable"},
+		{ "uimmutable",	"UserImmutable"},
+		{ "nodump",	"UserNoDump"},
+		{ "noopaque",	"UserOpaque"},
+		{ "nouunlnk",	"UserNoUnlink"},
+		{ "nouunlink",	"UserNoUnlink"},
+		{ NULL, NULL}
+	},
+	flagext2[] = {
+		{ "sappnd",	"AppendOnly"},
+		{ "sappend",	"AppendOnly"},
+		{ "schg",	"Immutable"},
+		{ "schange",	"Immutable"},
+		{ "simmutable",	"Immutable"},
+		{ "nodump",	"NoDump"},
+		{ "nouunlnk",	"Undelete"},
+		{ "nouunlink",	"Undelete"},
+		{ "btree",	"BTree"},
+		{ "comperr",	"CompError"},
+		{ "compress",	"Compress"},
+		{ "noatime",	"NoAtime"},
+		{ "compdirty",	"CompDirty"},
+		{ "comprblk",	"CompBlock"},
+		{ "dirsync",	"DirSync"},
+		{ "hashidx",	"HashIndexed"},
+		{ "imagic",	"iMagic"},
+		{ "journal",	"Journaled"},
+		{ "securedeletion",	"SecureDeletion"},
+		{ "sync",	"Synchronous"},
+		{ "notail",	"NoTail"},
+		{ "topdir",	"TopDir"},
+		{ "reserved",	"Reserved"},
+		{ NULL, NULL}
+	};
+	const struct flagentry *fe, *flagentry;
+#define FLAGENTRY_MAXSIZE ((sizeof(flagbsd)+sizeof(flagext2))/sizeof(flagbsd))
+	const struct flagentry *avail[FLAGENTRY_MAXSIZE];
+	const char *p;
+	int i, n, r;
 
-    h2_pri_spec(data, &pri_spec);
+	if (strcmp(element, "ext2") == 0)
+		flagentry = flagext2;
+	else
+		flagentry = flagbsd;
+	n = 0;
+	p = fflags_text;
+	do {
+		const char *cp;
 
-    DEBUGF(infof(data, "Queuing PRIORITY on stream %u (easy %p)\n",
-                 stream->stream_id, data));
-    rv = nghttp2_submit_priority(h2, NGHTTP2_FLAG_NONE, stream->stream_id,
-                                 &pri_spec);
-    if(rv)
-      return rv;
-  }
+		cp = strchr(p, ',');
+		if (cp == NULL)
+			cp = p + strlen(p);
 
-  return nghttp2_session_send(h2);
+		for (fe = flagentry; fe->name != NULL; fe++) {
+			if (fe->name[cp - p] != '\0'
+			    || p[0] != fe->name[0])
+				continue;
+			if (strncmp(p, fe->name, cp - p) == 0) {
+				avail[n++] = fe;
+				break;
+			}
+		}
+		if (*cp == ',')
+			p = cp + 1;
+		else
+			p = NULL;
+	} while (p != NULL);
+
+	if (n > 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(element));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		for (i = 0; i < n; i++) {
+			r = xmlwrite_string(a, writer,
+			    avail[i]->xarname, NULL);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+make_file_entry(struct archive_write *a, xmlTextWriterPtr writer,
+    struct file *file)
+{
+	struct xar *xar;
+	const char *filetype, *filelink, *fflags;
+	struct archive_string linkto;
+	struct heap_data *heap;
+	unsigned char *tmp;
+	const char *p;
+	size_t len;
+	int r, r2, l, ll;
+
+	xar = (struct xar *)a->format_data;
+	r2 = ARCHIVE_OK;
+
+	/*
+	 * Make a file name entry, "<name>".
+	 */
+	l = ll = archive_strlen(&(file->basename));
+	tmp = malloc(l);
+	if (tmp == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	r = UTF8Toisolat1(tmp, &l, BAD_CAST(file->basename.s), &ll);
+	free(tmp);
+	if (r < 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST("name"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterWriteAttribute(writer,
+		    BAD_CAST("enctype"), BAD_CAST("base64"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterWriteBase64(writer, file->basename.s,
+		    0, archive_strlen(&(file->basename)));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteBase64() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	} else {
+		r = xmlwrite_string(a, writer, "name", file->basename.s);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a file type entry, "<type>".
+	 */
+	filelink = NULL;
+	archive_string_init(&linkto);
+	switch (archive_entry_filetype(file->entry)) {
+	case AE_IFDIR:
+		filetype = "directory"; break;
+	case AE_IFLNK:
+		filetype = "symlink"; break;
+	case AE_IFCHR:
+		filetype = "character special"; break;
+	case AE_IFBLK:
+		filetype = "block special"; break;
+	case AE_IFSOCK:
+		filetype = "socket"; break;
+	case AE_IFIFO:
+		filetype = "fifo"; break;
+	case AE_IFREG:
+	default:
+		if (file->hardlink_target != NULL) {
+			filetype = "hardlink";
+			filelink = "link";
+			if (file->hardlink_target == file)
+				archive_strcpy(&linkto, "original");
+			else
+				archive_string_sprintf(&linkto, "%d",
+				    file->hardlink_target->id);
+		} else
+			filetype = "file";
+		break;
+	}
+	r = xmlwrite_string_attr(a, writer, "type", filetype,
+	    filelink, linkto.s);
+	archive_string_free(&linkto);
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+
+	/*
+	 * On a virtual directory, we record "name" and "type" only.
+	 */
+	if (file->virtual)
+		return (ARCHIVE_OK);
+
+	switch (archive_entry_filetype(file->entry)) {
+	case AE_IFLNK:
+		/*
+		 * xar utility has checked a file type, which
+		 * a symblic-link file has referenced.
+		 * For example:
+		 *   <link type="directory">../ref/</link>
+		 *   The symlink target file is "../ref/" and its
+		 *   file type is a directory.
+		 *
+		 *   <link type="file">../f</link>
+		 *   The symlink target file is "../f" and its
+		 *   file type is a regular file.
+		 *
+		 * But our implemention cannot do it, and then we
+		 * always record that a attribute "type" is "borken",
+		 * for example:
+		 *   <link type="broken">foo/bar</link>
+		 *   It means "foo/bar" is not reachable.
+		 */
+		r = xmlwrite_string_attr(a, writer, "link",
+		    file->symlink.s,
+		    "type", "broken");
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		break;
+	case AE_IFCHR:
+	case AE_IFBLK:
+		r = xmlTextWriterStartElement(writer, BAD_CAST("device"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlwrite_fstring(a, writer, "major",
+		    "%d", archive_entry_rdevmajor(file->entry));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		r = xmlwrite_fstring(a, writer, "minor",
+		    "%d", archive_entry_rdevminor(file->entry));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		break;
+	default:
+		break;
+	}
+
+	/*
+	 * Make a inode entry, "<inode>".
+	 */
+	r = xmlwrite_fstring(a, writer, "inode",
+	    "%jd", archive_entry_ino64(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	if (archive_entry_dev(file->entry) != 0) {
+		r = xmlwrite_fstring(a, writer, "deviceno",
+		    "%d", archive_entry_dev(file->entry));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a file mode entry, "<mode>".
+	 */
+	r = xmlwrite_mode(a, writer, "mode",
+	    archive_entry_mode(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+
+	/*
+	 * Make a user entry, "<uid>" and "<user>.
+	 */
+	r = xmlwrite_fstring(a, writer, "uid",
+	    "%d", archive_entry_uid(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = archive_entry_uname_l(file->entry, &p, &len, xar->sconv);
+	if (r != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Uname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate uname '%s' to UTF-8",
+		    archive_entry_uname(file->entry));
+		r2 = ARCHIVE_WARN;
+	}
+	if (len > 0) {
+		r = xmlwrite_string(a, writer, "user", p);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a group entry, "<gid>" and "<group>.
+	 */
+	r = xmlwrite_fstring(a, writer, "gid",
+	    "%d", archive_entry_gid(file->entry));
+	if (r < 0)
+		return (ARCHIVE_FATAL);
+	r = archive_entry_gname_l(file->entry, &p, &len, xar->sconv);
+	if (r != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Gname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate gname '%s' to UTF-8",
+		    archive_entry_gname(file->entry));
+		r2 = ARCHIVE_WARN;
+	}
+	if (len > 0) {
+		r = xmlwrite_string(a, writer, "group", p);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a ctime entry, "<ctime>".
+	 */
+	if (archive_entry_ctime_is_set(file->entry)) {
+		r = xmlwrite_time(a, writer, "ctime",
+		    archive_entry_ctime(file->entry), 1);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a mtime entry, "<mtime>".
+	 */
+	if (archive_entry_mtime_is_set(file->entry)) {
+		r = xmlwrite_time(a, writer, "mtime",
+		    archive_entry_mtime(file->entry), 1);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make a atime entry, "<atime>".
+	 */
+	if (archive_entry_atime_is_set(file->entry)) {
+		r = xmlwrite_time(a, writer, "atime",
+		    archive_entry_atime(file->entry), 1);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Make fflags entries, "<flags>" and "<ext2>".
+	 */
+	fflags = archive_entry_fflags_text(file->entry);
+	if (fflags != NULL) {
+		r = make_fflags_entry(a, writer, "flags", fflags);
+		if (r < 0)
+			return (r);
+		r = make_fflags_entry(a, writer, "ext2", fflags);
+		if (r < 0)
+			return (r);
+	}
+
+	/*
+	 * Make extended attribute entries, "<ea>".
+	 */
+	archive_entry_xattr_reset(file->entry);
+	for (heap = file->xattr.first; heap != NULL; heap = heap->next) {
+		const char *name;
+		const void *value;
+		size_t size;
+
+		archive_entry_xattr_next(file->entry,
+		    &name, &value, &size);
+		r = xmlTextWriterStartElement(writer, BAD_CAST("ea"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlTextWriterWriteFormatAttribute(writer,
+		    BAD_CAST("id"), "%d", heap->id);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+		r = xmlwrite_heap(a, writer, heap);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+		r = xmlwrite_string(a, writer, "name", name);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/*
+	 * Make a file data entry, "<data>".
+	 */
+	if (file->data.length > 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST("data"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+
+		r = xmlwrite_heap(a, writer, &(file->data));
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	if (archive_strlen(&file->script) > 0) {
+		r = xmlTextWriterStartElement(writer, BAD_CAST("content"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+
+		r = xmlwrite_string(a, writer,
+		    "interpreter", file->script.s);
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlwrite_string(a, writer, "type", "script");
+		if (r < 0)
+			return (ARCHIVE_FATAL);
+
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	return (r2);
 }
 
 /*
- * If the read would block (EWOULDBLOCK) we return -1. Otherwise we return
- * a regular CURLcode value.
+ * Make the TOC
  */
-static ssize_t http2_recv(struct connectdata *conn, int sockindex,
-                          char *mem, size_t len, CURLcode *err)
+static int
+make_toc(struct archive_write *a)
 {
-  CURLcode result = CURLE_OK;
-  ssize_t rv;
-  ssize_t nread;
-  struct http_conn *httpc = &conn->proto.httpc;
-  struct Curl_easy *data = conn->data;
-  struct HTTP *stream = data->req.protop;
+	struct xar *xar;
+	struct file *np;
+	xmlBufferPtr bp;
+	xmlTextWriterPtr writer;
+	int algsize;
+	int r, ret;
 
-  (void)sockindex; /* we always do HTTP2 on sockindex 0 */
+	xar = (struct xar *)a->format_data;
 
-  if(should_close_session(httpc)) {
-    DEBUGF(infof(data,
-                 "http2_recv: nothing to do in this session\n"));
-    *err = CURLE_HTTP2;
-    return -1;
-  }
+	ret = ARCHIVE_FATAL;
 
-  /* Nullify here because we call nghttp2_session_send() and they
-     might refer to the old buffer. */
-  stream->upload_mem = NULL;
-  stream->upload_len = 0;
+	/*
+	 * Initialize xml writer.
+	 */
+	writer = NULL;
+	bp = xmlBufferCreate();
+	if (bp == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "xmlBufferCreate() "
+		    "couldn't create xml buffer");
+		goto exit_toc;
+	}
+	writer = xmlNewTextWriterMemory(bp, 0);
+	if (writer == NULL) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlNewTextWriterMemory() "
+		    "couldn't create xml writer");
+		goto exit_toc;
+	}
+	r = xmlTextWriterStartDocument(writer, "1.0", "UTF-8", NULL);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartDocument() failed: %d", r);
+		goto exit_toc;
+	}
+	r = xmlTextWriterSetIndent(writer, 4);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterSetIndent() failed: %d", r);
+		goto exit_toc;
+	}
 
-  /*
-   * At this point 'stream' is just in the Curl_easy the connection
-   * identifies as its owner at this time.
-   */
+	/*
+	 * Start recoding TOC
+	 */
+	r = xmlTextWriterStartElement(writer, BAD_CAST("xar"));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartElement() failed: %d", r);
+		goto exit_toc;
+	}
+	r = xmlTextWriterStartElement(writer, BAD_CAST("toc"));
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterStartDocument() failed: %d", r);
+		goto exit_toc;
+	}
 
-  if(stream->bodystarted &&
-     stream->nread_header_recvbuf < stream->header_recvbuf->size_used) {
-    /* If there is body data pending for this stream to return, do that */
-    size_t left =
-      stream->header_recvbuf->size_used - stream->nread_header_recvbuf;
-    size_t ncopy = MIN(len, left);
-    memcpy(mem, stream->header_recvbuf->buffer + stream->nread_header_recvbuf,
-           ncopy);
-    stream->nread_header_recvbuf += ncopy;
+	/*
+	 * Record the creation time of the archive file.
+	 */
+	r = xmlwrite_time(a, writer, "creation-time", time(NULL), 0);
+	if (r < 0)
+		goto exit_toc;
 
-    DEBUGF(infof(data, "http2_recv: Got %d bytes from header_recvbuf\n",
-                 (int)ncopy));
-    return ncopy;
-  }
+	/*
+	 * Record the checksum value of TOC
+	 */
+	algsize = getalgsize(xar->opt_toc_sumalg);
+	if (algsize) {
+		/*
+		 * Record TOC checksum
+		 */
+		r = xmlTextWriterStartElement(writer, BAD_CAST("checksum"));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterStartElement() failed: %d", r);
+			goto exit_toc;
+		}
+		r = xmlTextWriterWriteAttribute(writer, BAD_CAST("style"),
+		    BAD_CAST_CONST(getalgname(xar->opt_toc_sumalg)));
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterWriteAttribute() failed: %d", r);
+			goto exit_toc;
+		}
 
-  DEBUGF(infof(data, "http2_recv: easy %p (stream %u)\n",
-               data, stream->stream_id));
+		/*
+		 * Record the offset of the value of checksum of TOC
+		 */
+		r = xmlwrite_string(a, writer, "offset", "0");
+		if (r < 0)
+			goto exit_toc;
 
-  if((data->state.drain) && stream->memlen) {
-    DEBUGF(infof(data, "http2_recv: DRAIN %zu bytes stream %u!! (%p => %p)\n",
-                 stream->memlen, stream->stream_id,
-                 stream->mem, mem));
-    if(mem != stream->mem) {
-      /* if we didn't get the same buffer this time, we must move the data to
-         the beginning */
-      memmove(mem, stream->mem, stream->memlen);
-      stream->len = len - stream->memlen;
-      stream->mem = mem;
-    }
-    if(httpc->pause_stream_id == stream->stream_id && !stream->pausedata) {
-      /* We have paused nghttp2, but we have no pause data (see
-         on_data_chunk_recv). */
-      httpc->pause_stream_id = 0;
-      if(h2_process_pending_input(data, httpc, &result) != 0) {
-        *err = result;
-        return -1;
-      }
-    }
-  }
-  else if(stream->pausedata) {
-    DEBUGASSERT(httpc->pause_stream_id == stream->stream_id);
-    nread = MIN(len, stream->pauselen);
-    memcpy(mem, stream->pausedata, nread);
+		/*
+		 * Record the size of the value of checksum of TOC
+		 */
+		r = xmlwrite_fstring(a, writer, "size", "%d", algsize);
+		if (r < 0)
+			goto exit_toc;
 
-    stream->pausedata += nread;
-    stream->pauselen -= nread;
+		r = xmlTextWriterEndElement(writer);
+		if (r < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "xmlTextWriterEndElement() failed: %d", r);
+			goto exit_toc;
+		}
+	}
 
-    infof(data, "%zu data bytes written\n", nread);
-    if(stream->pauselen == 0) {
-      DEBUGF(infof(data, "Unpaused by stream %u\n", stream->stream_id));
-      assert(httpc->pause_stream_id == stream->stream_id);
-      httpc->pause_stream_id = 0;
+	np = xar->root;
+	do {
+		if (np != np->parent) {
+			r = make_file_entry(a, writer, np);
+			if (r != ARCHIVE_OK)
+				goto exit_toc;
+		}
 
-      stream->pausedata = NULL;
-      stream->pauselen = 0;
+		if (np->dir && np->children.first != NULL) {
+			/* Enter to sub directories. */
+			np = np->children.first;
+			r = xmlTextWriterStartElement(writer,
+			    BAD_CAST("file"));
+			if (r < 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "xmlTextWriterStartElement() "
+				    "failed: %d", r);
+				goto exit_toc;
+			}
+			r = xmlTextWriterWriteFormatAttribute(
+			    writer, BAD_CAST("id"), "%d", np->id);
+			if (r < 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "xmlTextWriterWriteAttribute() "
+				    "failed: %d", r);
+				goto exit_toc;
+			}
+			continue;
+		}
+		while (np != np->parent) {
+			r = xmlTextWriterEndElement(writer);
+			if (r < 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "xmlTextWriterEndElement() "
+				    "failed: %d", r);
+				goto exit_toc;
+			}
+			if (np->chnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+			} else {
+				np = np->chnext;
+				r = xmlTextWriterStartElement(writer,
+				    BAD_CAST("file"));
+				if (r < 0) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "xmlTextWriterStartElement() "
+					    "failed: %d", r);
+					goto exit_toc;
+				}
+				r = xmlTextWriterWriteFormatAttribute(
+				    writer, BAD_CAST("id"), "%d", np->id);
+				if (r < 0) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "xmlTextWriterWriteAttribute() "
+					    "failed: %d", r);
+					goto exit_toc;
+				}
+				break;
+			}
+		}
+	} while (np != np->parent);
 
-      /* When NGHTTP2_ERR_PAUSE is returned from
-         data_source_read_callback, we might not process DATA frame
-         fully.  Calling nghttp2_session_mem_recv() again will
-         continue to process DATA frame, but if there is no incoming
-         frames, then we have to call it again with 0-length data.
-         Without this, on_stream_close callback will not be called,
-         and stream could be hanged. */
-      if(h2_process_pending_input(data, httpc, &result) != 0) {
-        *err = result;
-        return -1;
-      }
-    }
-    DEBUGF(infof(data, "http2_recv: returns unpaused %zd bytes on stream %u\n",
-                 nread, stream->stream_id));
-    return nread;
-  }
-  else if(httpc->pause_stream_id) {
-    /* If a stream paused nghttp2_session_mem_recv previously, and has
-       not processed all data, it still refers to the buffer in
-       nghttp2_session.  If we call nghttp2_session_mem_recv(), we may
-       overwrite that buffer.  To avoid that situation, just return
-       here with CURLE_AGAIN.  This could be busy loop since data in
-       socket is not read.  But it seems that usually streams are
-       notified with its drain property, and socket is read again
-       quickly. */
-    *err = CURLE_AGAIN;
-    return -1;
-  }
-  else {
-    char *inbuf;
-    /* remember where to store incoming data for this stream and how big the
-       buffer is */
-    stream->mem = mem;
-    stream->len = len;
-    stream->memlen = 0;
+	r = xmlTextWriterEndDocument(writer);
+	if (r < 0) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "xmlTextWriterEndDocument() failed: %d", r);
+		goto exit_toc;
+	}
+#if DEBUG_PRINT_TOC
+	fprintf(stderr, "\n---TOC-- %d bytes --\n%s\n",
+	    strlen((const char *)bp->content), bp->content);
+#endif
 
-    if(httpc->inbuflen == 0) {
-      nread = ((Curl_recv *)httpc->recv_underlying)(
-          conn, FIRSTSOCKET, httpc->inbuf, H2_BUFSIZE, &result);
+	/*
+	 * Compress the TOC and calculate the sum of the TOC.
+	 */
+	xar->toc.temp_offset = xar->temp_offset;
+	xar->toc.size = bp->use;
+	checksum_init(&(xar->a_sumwrk), xar->opt_toc_sumalg);
 
-      if(nread == -1) {
-        if(result != CURLE_AGAIN)
-          failf(data, "Failed receiving HTTP2 data");
-        else if(stream->closed)
-          /* received when the stream was already closed! */
-          return http2_handle_stream_close(conn, data, stream, err);
+	r = compression_init_encoder_gzip(&(a->archive),
+	    &(xar->stream), 6, 1);
+	if (r != ARCHIVE_OK)
+		goto exit_toc;
+	xar->stream.next_in = bp->content;
+	xar->stream.avail_in = bp->use;
+	xar->stream.total_in = 0;
+	xar->stream.next_out = xar->wbuff;
+	xar->stream.avail_out = sizeof(xar->wbuff);
+	xar->stream.total_out = 0;
+	for (;;) {
+		size_t size;
 
-        *err = result;
-        return -1;
-      }
+		r = compression_code(&(a->archive),
+		    &(xar->stream), ARCHIVE_Z_FINISH);
+		if (r != ARCHIVE_OK && r != ARCHIVE_EOF)
+			goto exit_toc;
+		size = sizeof(xar->wbuff) - xar->stream.avail_out;
+		checksum_update(&(xar->a_sumwrk), xar->wbuff, size);
+		if (write_to_temp(a, xar->wbuff, size) != ARCHIVE_OK)
+			goto exit_toc;
+		if (r == ARCHIVE_EOF)
+			break;
+		xar->stream.next_out = xar->wbuff;
+		xar->stream.avail_out = sizeof(xar->wbuff);
+	}
+	r = compression_end(&(a->archive), &(xar->stream));
+	if (r != ARCHIVE_OK)
+		goto exit_toc;
+	xar->toc.length = xar->stream.total_out;
+	xar->toc.compression = GZIP;
+	checksum_final(&(xar->a_sumwrk), &(xar->toc.a_sum));
 
-      if(nread == 0) {
-        failf(data, "Unexpected EOF");
-        *err = CURLE_RECV_ERROR;
-        return -1;
-      }
+	ret = ARCHIVE_OK;
+exit_toc:
+	if (writer)
+		xmlFreeTextWriter(writer);
+	if (bp)
+		xmlBufferFree(bp);
 
-      DEBUGF(infof(data, "nread=%zd\n", nread));
-
-      httpc->inbuflen = nread;
-      inbuf = httpc->inbuf;
-    }
-    else {
-      nread = httpc->inbuflen - httpc->nread_inbuf;
-      inbuf = httpc->inbuf + httpc->nread_inbuf;
-
-      DEBUGF(infof(data, "Use data left in connection buffer, nread=%zd\n",
-                   nread));
-    }
-    rv = nghttp2_session_mem_recv(httpc->h2, (const uint8_t *)inbuf, nread);
-
-    if(nghttp2_is_fatal((int)rv)) {
-      failf(data, "nghttp2_session_mem_recv() returned %d:%s\n",
-            rv, nghttp2_strerror((int)rv));
-      *err = CURLE_RECV_ERROR;
-      return 0;
-    }
-    DEBUGF(infof(data, "nghttp2_session_mem_recv() returns %zd\n", rv));
-    if(nread == rv) {
-      DEBUGF(infof(data, "All data in connection buffer processed\n"));
-      httpc->inbuflen = 0;
-      httpc->nread_inbuf = 0;
-    }
-    else {
-      httpc->nread_inbuf += rv;
-      DEBUGF(infof(data, "%zu bytes left in connection buffer\n",
-                   httpc->inbuflen - httpc->nread_inbuf));
-    }
-    /* Always send pending frames in nghttp2 session, because
-       nghttp2_session_mem_recv() may queue new frame */
-    rv = h2_session_send(data, httpc->h2);
-    if(rv != 0) {
-      *err = CURLE_SEND_ERROR;
-      return 0;
-    }
-
-    if(should_close_session(httpc)) {
-      DEBUGF(infof(data, "http2_recv: nothing to do in this session\n"));
-      *err = CURLE_HTTP2;
-      return -1;
-    }
-  }
-  if(stream->memlen) {
-    ssize_t retlen = stream->memlen;
-    DEBUGF(infof(data, "http2_recv: returns %zd for stream %u\n",
-                 retlen, stream->stream_id));
-    stream->memlen = 0;
-
-    if(httpc->pause_stream_id == stream->stream_id) {
-      /* data for this stream is returned now, but this stream caused a pause
-         already so we need it called again asap */
-      DEBUGF(infof(data, "Data returned for PAUSED stream %u\n",
-                   stream->stream_id));
-    }
-    else if(!stream->closed) {
-      DEBUGASSERT(httpc->drain_total >= data->state.drain);
-      httpc->drain_total -= data->state.drain;
-      data->state.drain = 0; /* this stream is hereby drained */
-    }
-
-    return retlen;
-  }
-  /* If stream is closed, return 0 to signal the http routine to close
-     the connection */
-  if(stream->closed) {
-    return http2_handle_stream_close(conn, data, stream, err);
-  }
-  *err = CURLE_AGAIN;
-  DEBUGF(infof(data, "http2_recv returns AGAIN for stream %u\n",
-               stream->stream_id));
-  return -1;
+	return (ret);
 }
 
-/* Index where :authority header field will appear in request header
-   field list. */
-#define AUTHORITY_DST_IDX 3
-
-#define HEADER_OVERFLOW(x) \
-  (x.namelen > (uint16_t)-1 || x.valuelen > (uint16_t)-1 - x.namelen)
-
-/* return number of received (decrypted) bytes */
-static ssize_t http2_send(struct connectdata *conn, int sockindex,
-                          const void *mem, size_t len, CURLcode *err)
+static int
+flush_wbuff(struct archive_write *a)
 {
-  /*
-   * BIG TODO: Currently, we send request in this function, but this
-   * function is also used to send request body. It would be nice to
-   * add dedicated function for request.
-   */
-  int rv;
-  struct http_conn *httpc = &conn->proto.httpc;
-  struct HTTP *stream = conn->data->req.protop;
-  nghttp2_nv *nva = NULL;
-  size_t nheader;
-  size_t i;
-  size_t authority_idx;
-  char *hdbuf = (char*)mem;
-  char *end, *line_end;
-  nghttp2_data_provider data_prd;
-  int32_t stream_id;
-  nghttp2_session *h2 = httpc->h2;
-  nghttp2_priority_spec pri_spec;
+	struct xar *xar;
+	int r;
+	size_t s;
 
-  (void)sockindex;
-
-  DEBUGF(infof(conn->data, "http2_send len=%zu\n", len));
-
-  if(stream->stream_id != -1) {
-    /* If stream_id != -1, we have dispatched request HEADERS, and now
-       are going to send or sending request body in DATA frame */
-    stream->upload_mem = mem;
-    stream->upload_len = len;
-    nghttp2_session_resume_data(h2, stream->stream_id);
-    rv = h2_session_send(conn->data, h2);
-    if(nghttp2_is_fatal(rv)) {
-      *err = CURLE_SEND_ERROR;
-      return -1;
-    }
-    len -= stream->upload_len;
-
-    /* Nullify here because we call nghttp2_session_send() and they
-       might refer to the old buffer. */
-    stream->upload_mem = NULL;
-    stream->upload_len = 0;
-
-    if(should_close_session(httpc)) {
-      DEBUGF(infof(conn->data, "http2_send: nothing to do in this session\n"));
-      *err = CURLE_HTTP2;
-      return -1;
-    }
-
-    if(stream->upload_left) {
-      /* we are sure that we have more data to send here.  Calling the
-         following API will make nghttp2_session_want_write() return
-         nonzero if remote window allows it, which then libcurl checks
-         socket is writable or not.  See http2_perform_getsock(). */
-      nghttp2_session_resume_data(h2, stream->stream_id);
-    }
-
-    DEBUGF(infof(conn->data, "http2_send returns %zu for stream %u\n", len,
-                 stream->stream_id));
-    return len;
-  }
-
-  /* Calculate number of headers contained in [mem, mem + len) */
-  /* Here, we assume the curl http code generate *correct* HTTP header
-     field block */
-  nheader = 0;
-  for(i = 1; i < len; ++i) {
-    if(hdbuf[i] == '\n' && hdbuf[i - 1] == '\r') {
-      ++nheader;
-      ++i;
-    }
-  }
-  if(nheader < 2)
-    goto fail;
-
-  /* We counted additional 2 \r\n in the first and last line. We need 3
-     new headers: :method, :path and :scheme. Therefore we need one
-     more space. */
-  nheader += 1;
-  nva = malloc(sizeof(nghttp2_nv) * nheader);
-  if(nva == NULL) {
-    *err = CURLE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  /* Extract :method, :path from request line */
-  line_end = strstr(hdbuf, "\r\n");
-
-  /* Method does not contain spaces */
-  end = memchr(hdbuf, ' ', line_end - hdbuf);
-  if(!end || end == hdbuf)
-    goto fail;
-  nva[0].name = (unsigned char *)":method";
-  nva[0].namelen = strlen((char *)nva[0].name);
-  nva[0].value = (unsigned char *)hdbuf;
-  nva[0].valuelen = (size_t)(end - hdbuf);
-  nva[0].flags = NGHTTP2_NV_FLAG_NONE;
-  if(HEADER_OVERFLOW(nva[0])) {
-    failf(conn->data, "Failed sending HTTP request: Header overflow");
-    goto fail;
-  }
-
-  hdbuf = end + 1;
-
-  /* Path may contain spaces so scan backwards */
-  end = NULL;
-  for(i = (size_t)(line_end - hdbuf); i; --i) {
-    if(hdbuf[i - 1] == ' ') {
-      end = &hdbuf[i - 1];
-      break;
-    }
-  }
-  if(!end || end == hdbuf)
-    goto fail;
-  nva[1].name = (unsigned char *)":path";
-  nva[1].namelen = strlen((char *)nva[1].name);
-  nva[1].value = (unsigned char *)hdbuf;
-  nva[1].valuelen = (size_t)(end - hdbuf);
-  nva[1].flags = NGHTTP2_NV_FLAG_NONE;
-  if(HEADER_OVERFLOW(nva[1])) {
-    failf(conn->data, "Failed sending HTTP request: Header overflow");
-    goto fail;
-  }
-
-  hdbuf = end + 1;
-
-  end = line_end;
-  nva[2].name = (unsigned char *)":scheme";
-  nva[2].namelen = strlen((char *)nva[2].name);
-  if(conn->handler->flags & PROTOPT_SSL)
-    nva[2].value = (unsigned char *)"https";
-  else
-    nva[2].value = (unsigned char *)"http";
-  nva[2].valuelen = strlen((char *)nva[2].value);
-  nva[2].flags = NGHTTP2_NV_FLAG_NONE;
-  if(HEADER_OVERFLOW(nva[2])) {
-    failf(conn->data, "Failed sending HTTP request: Header overflow");
-    goto fail;
-  }
-
-  authority_idx = 0;
-  i = 3;
-  while(i < nheader) {
-    size_t hlen;
-    int skip = 0;
-
-    hdbuf = line_end + 2;
-
-    line_end = strstr(hdbuf, "\r\n");
-    if(line_end == hdbuf)
-      goto fail;
-
-    /* header continuation lines are not supported */
-    if(*hdbuf == ' ' || *hdbuf == '\t')
-      goto fail;
-
-    for(end = hdbuf; end < line_end && *end != ':'; ++end)
-      ;
-    if(end == hdbuf || end == line_end)
-      goto fail;
-    hlen = end - hdbuf;
-
-    if(hlen == 10 && Curl_raw_nequal("connection", hdbuf, 10)) {
-      /* skip Connection: headers! */
-      skip = 1;
-      --nheader;
-    }
-    else if(hlen == 4 && Curl_raw_nequal("host", hdbuf, 4)) {
-      authority_idx = i;
-      nva[i].name = (unsigned char *)":authority";
-      nva[i].namelen = strlen((char *)nva[i].name);
-    }
-    else {
-      nva[i].name = (unsigned char *)hdbuf;
-      nva[i].namelen = (size_t)(end - hdbuf);
-    }
-    hdbuf = end + 1;
-    while(*hdbuf == ' ' || *hdbuf == '\t')
-      ++hdbuf;
-    end = line_end;
-    if(!skip) {
-      nva[i].value = (unsigned char *)hdbuf;
-      nva[i].valuelen = (size_t)(end - hdbuf);
-      nva[i].flags = NGHTTP2_NV_FLAG_NONE;
-      if(HEADER_OVERFLOW(nva[i])) {
-        failf(conn->data, "Failed sending HTTP request: Header overflow");
-        goto fail;
-      }
-      /* Inspect Content-Length header field and retrieve the request
-         entity length so that we can set END_STREAM to the last DATA
-         frame. */
-      if(nva[i].namelen == 14 &&
-         Curl_raw_nequal("content-length", (char*)nva[i].name, 14)) {
-        size_t j;
-        stream->upload_left = 0;
-        if(!nva[i].valuelen)
-          goto fail;
-        for(j = 0; j < nva[i].valuelen; ++j) {
-          if(nva[i].value[j] < '0' || nva[i].value[j] > '9')
-            goto fail;
-          if(stream->upload_left >= CURL_OFF_T_MAX / 10)
-            goto fail;
-          stream->upload_left *= 10;
-          stream->upload_left += nva[i].value[j] - '0';
-        }
-        DEBUGF(infof(conn->data,
-                     "request content-length=%"
-                     CURL_FORMAT_CURL_OFF_T
-                     "\n", stream->upload_left));
-      }
-      ++i;
-    }
-  }
-
-  /* :authority must come before non-pseudo header fields */
-  if(authority_idx != 0 && authority_idx != AUTHORITY_DST_IDX) {
-    nghttp2_nv authority = nva[authority_idx];
-    for(i = authority_idx; i > AUTHORITY_DST_IDX; --i) {
-      nva[i] = nva[i - 1];
-    }
-    nva[i] = authority;
-  }
-
-  /* Warn stream may be rejected if cumulative length of headers is too large.
-     It appears nghttp2 will not send a header frame larger than 64KB. */
-  {
-    size_t acc = 0;
-    const size_t max_acc = 60000;  /* <64KB to account for some overhead */
-
-    for(i = 0; i < nheader; ++i) {
-      if(nva[i].namelen > max_acc - acc)
-        break;
-      acc += nva[i].namelen;
-
-      if(nva[i].valuelen > max_acc - acc)
-        break;
-      acc += nva[i].valuelen;
-    }
-
-    if(i != nheader) {
-      infof(conn->data, "http2_send: Warning: The cumulative length of all "
-                        "headers exceeds %zu bytes and that could cause the "
-                        "stream to be rejected.\n", max_acc);
-    }
-  }
-
-  h2_pri_spec(conn->data, &pri_spec);
-
-  switch(conn->data->set.httpreq) {
-  case HTTPREQ_POST:
-  case HTTPREQ_POST_FORM:
-  case HTTPREQ_PUT:
-    data_prd.read_callback = data_source_read_callback;
-    data_prd.source.ptr = NULL;
-    stream_id = nghttp2_submit_request(h2, &pri_spec, nva, nheader,
-                                       &data_prd, conn->data);
-    break;
-  default:
-    stream_id = nghttp2_submit_request(h2, &pri_spec, nva, nheader,
-                                       NULL, conn->data);
-  }
-
-  Curl_safefree(nva);
-
-  if(stream_id < 0) {
-    DEBUGF(infof(conn->data, "http2_send() send error\n"));
-    *err = CURLE_SEND_ERROR;
-    return -1;
-  }
-
-  infof(conn->data, "Using Stream ID: %x (easy handle %p)\n",
-        stream_id, conn->data);
-  stream->stream_id = stream_id;
-
-  /* this does not call h2_session_send() since there can not have been any
-   * priority upodate since the nghttp2_submit_request() call above */
-  rv = nghttp2_session_send(h2);
-
-  if(rv != 0) {
-    *err = CURLE_SEND_ERROR;
-    return -1;
-  }
-
-  if(should_close_session(httpc)) {
-    DEBUGF(infof(conn->data, "http2_send: nothing to do in this session\n"));
-    *err = CURLE_HTTP2;
-    return -1;
-  }
-
-  if(stream->stream_id != -1) {
-    /* If whole HEADERS frame was sent off to the underlying socket,
-       the nghttp2 library calls data_source_read_callback. But only
-       it found that no data available, so it deferred the DATA
-       transmission. Which means that nghttp2_session_want_write()
-       returns 0 on http2_perform_getsock(), which results that no
-       writable socket check is performed. To workaround this, we
-       issue nghttp2_session_resume_data() here to bring back DATA
-       transmission from deferred state. */
-    nghttp2_session_resume_data(h2, stream->stream_id);
-  }
-
-  return len;
-
-fail:
-  free(nva);
-  *err = CURLE_SEND_ERROR;
-  return -1;
+	xar = (struct xar *)a->format_data;
+	s = sizeof(xar->wbuff) - xar->wbuff_remaining;
+	r = __archive_write_output(a, xar->wbuff, s);
+	if (r != ARCHIVE_OK)
+		return (r);
+	xar->wbuff_remaining = sizeof(xar->wbuff);
+	return (r);
 }
 
-CURLcode Curl_http2_setup(struct connectdata *conn)
+static int
+copy_out(struct archive_write *a, uint64_t offset, uint64_t length)
 {
-  CURLcode result;
-  struct http_conn *httpc = &conn->proto.httpc;
-  struct HTTP *stream = conn->data->req.protop;
+	struct xar *xar;
+	int r;
 
-  stream->stream_id = -1;
+	xar = (struct xar *)a->format_data;
+	if (lseek(xar->temp_fd, offset, SEEK_SET) < 0) {
+		archive_set_error(&(a->archive), errno, "lseek failed");
+		return (ARCHIVE_FATAL);
+	}
+	while (length) {
+		size_t rsize;
+		ssize_t rs;
+		unsigned char *wb;
 
-  if(!stream->header_recvbuf)
-    stream->header_recvbuf = Curl_add_buffer_init();
-
-  if((conn->handler == &Curl_handler_http2_ssl) ||
-     (conn->handler == &Curl_handler_http2))
-    return CURLE_OK; /* already done */
-
-  if(conn->handler->flags & PROTOPT_SSL)
-    conn->handler = &Curl_handler_http2_ssl;
-  else
-    conn->handler = &Curl_handler_http2;
-
-  result = Curl_http2_init(conn);
-  if(result)
-    return result;
-
-  infof(conn->data, "Using HTTP2, server supports multi-use\n");
-  stream->upload_left = 0;
-  stream->upload_mem = NULL;
-  stream->upload_len = 0;
-
-  httpc->inbuflen = 0;
-  httpc->nread_inbuf = 0;
-
-  httpc->pause_stream_id = 0;
-  httpc->drain_total = 0;
-
-  conn->bits.multiplex = TRUE; /* at least potentially multiplexed */
-  conn->httpversion = 20;
-  conn->bundle->multiuse = BUNDLE_MULTIPLEX;
-
-  infof(conn->data, "Connection state changed (HTTP/2 confirmed)\n");
-  Curl_multi_connchanged(conn->data->multi);
-
-  /* switch on TCP_NODELAY as we need to send off packets without delay for
-     maximum throughput */
-  Curl_tcpnodelay(conn, conn->sock[FIRSTSOCKET]);
-
-  return CURLE_OK;
+		if (length > xar->wbuff_remaining)
+			rsize = xar->wbuff_remaining;
+		else
+			rsize = (size_t)length;
+		wb = xar->wbuff + (sizeof(xar->wbuff) - xar->wbuff_remaining);
+		rs = read(xar->temp_fd, wb, rsize);
+		if (rs < 0) {
+			archive_set_error(&(a->archive), errno,
+			    "Can't read temporary file(%jd)",
+			    (intmax_t)rs);
+			return (ARCHIVE_FATAL);
+		}
+		if (rs == 0) {
+			archive_set_error(&(a->archive), 0,
+			    "Truncated xar archive");
+			return (ARCHIVE_FATAL);
+		}
+		xar->wbuff_remaining -= rs;
+		length -= rs;
+		if (xar->wbuff_remaining == 0) {
+			r = flush_wbuff(a);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+	}
+	return (ARCHIVE_OK);
 }
 
-CURLcode Curl_http2_switched(struct connectdata *conn,
-                             const char *mem, size_t nread)
+static int
+xar_close(struct archive_write *a)
 {
-  CURLcode result;
-  struct http_conn *httpc = &conn->proto.httpc;
-  int rv;
-  ssize_t nproc;
-  struct Curl_easy *data = conn->data;
-  struct HTTP *stream = conn->data->req.protop;
+	struct xar *xar;
+	unsigned char *wb;
+	uint64_t length;
+	int r;
 
-  result = Curl_http2_setup(conn);
-  if(result)
-    return result;
+	xar = (struct xar *)a->format_data;
 
-  httpc->recv_underlying = (recving)conn->recv[FIRSTSOCKET];
-  httpc->send_underlying = (sending)conn->send[FIRSTSOCKET];
-  conn->recv[FIRSTSOCKET] = http2_recv;
-  conn->send[FIRSTSOCKET] = http2_send;
+	/* Empty! */
+	if (xar->root->children.first == NULL)
+		return (ARCHIVE_OK);
 
-  if(conn->data->req.upgr101 == UPGR101_RECEIVED) {
-    /* stream 1 is opened implicitly on upgrade */
-    stream->stream_id = 1;
-    /* queue SETTINGS frame (again) */
-    rv = nghttp2_session_upgrade(httpc->h2, httpc->binsettings,
-                                 httpc->binlen, NULL);
-    if(rv != 0) {
-      failf(data, "nghttp2_session_upgrade() failed: %s(%d)",
-            nghttp2_strerror(rv), rv);
-      return CURLE_HTTP2;
-    }
+	/* Save the length of all file extended attributes and contents. */
+	length = xar->temp_offset;
 
-    nghttp2_session_set_stream_user_data(httpc->h2,
-                                         stream->stream_id,
-                                         conn->data);
-  }
-  else {
-    /* stream ID is unknown at this point */
-    stream->stream_id = -1;
-    rv = nghttp2_submit_settings(httpc->h2, NGHTTP2_FLAG_NONE, NULL, 0);
-    if(rv != 0) {
-      failf(data, "nghttp2_submit_settings() failed: %s(%d)",
-            nghttp2_strerror(rv), rv);
-      return CURLE_HTTP2;
-    }
-  }
+	/* Connect hardlinked files */
+	file_connect_hardlink_files(xar);
 
-  /* we are going to copy mem to httpc->inbuf.  This is required since
-     mem is part of buffer pointed by stream->mem, and callbacks
-     called by nghttp2_session_mem_recv() will write stream specific
-     data into stream->mem, overwriting data already there. */
-  if(H2_BUFSIZE < nread) {
-    failf(data, "connection buffer size is too small to store data following "
-                "HTTP Upgrade response header: buflen=%zu, datalen=%zu",
-          H2_BUFSIZE, nread);
-    return CURLE_HTTP2;
-  }
+	/* Make the TOC */
+	r = make_toc(a);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/*
+	 * Make the xar header on wbuff(write buffer).
+	 */
+	wb = xar->wbuff;
+	xar->wbuff_remaining = sizeof(xar->wbuff);
+	archive_be32enc(&wb[0], HEADER_MAGIC);
+	archive_be16enc(&wb[4], HEADER_SIZE);
+	archive_be16enc(&wb[6], HEADER_VERSION);
+	archive_be64enc(&wb[8], xar->toc.length);
+	archive_be64enc(&wb[16], xar->toc.size);
+	archive_be32enc(&wb[24], xar->toc.a_sum.alg);
+	xar->wbuff_remaining -= HEADER_SIZE;
 
-  infof(conn->data, "Copying HTTP/2 data in stream buffer to connection buffer"
-                    " after upgrade: len=%zu\n",
-        nread);
+	/*
+	 * Write the TOC
+	 */
+	r = copy_out(a, xar->toc.temp_offset, xar->toc.length);
+	if (r != ARCHIVE_OK)
+		return (r);
 
-  memcpy(httpc->inbuf, mem, nread);
-  httpc->inbuflen = nread;
+	/* Write the checksum value of the TOC. */
+	if (xar->toc.a_sum.len) {
+		if (xar->wbuff_remaining < xar->toc.a_sum.len) {
+			r = flush_wbuff(a);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+		wb = xar->wbuff + (sizeof(xar->wbuff) - xar->wbuff_remaining);
+		memcpy(wb, xar->toc.a_sum.val, xar->toc.a_sum.len);
+		xar->wbuff_remaining -= xar->toc.a_sum.len;
+	}
 
-  nproc = nghttp2_session_mem_recv(httpc->h2, (const uint8_t *)httpc->inbuf,
-                                   httpc->inbuflen);
-
-  if(nghttp2_is_fatal((int)nproc)) {
-    failf(data, "nghttp2_session_mem_recv() failed: %s(%d)",
-          nghttp2_strerror((int)nproc), (int)nproc);
-    return CURLE_HTTP2;
-  }
-
-  DEBUGF(infof(data, "nghttp2_session_mem_recv() returns %zd\n", nproc));
-
-  if((ssize_t)nread == nproc) {
-    httpc->inbuflen = 0;
-    httpc->nread_inbuf = 0;
-  }
-  else {
-    httpc->nread_inbuf += nproc;
-  }
-
-  /* Try to send some frames since we may read SETTINGS already. */
-  rv = h2_session_send(data, httpc->h2);
-
-  if(rv != 0) {
-    failf(data, "nghttp2_session_send() failed: %s(%d)",
-          nghttp2_strerror(rv), rv);
-    return CURLE_HTTP2;
-  }
-
-  if(should_close_session(httpc)) {
-    DEBUGF(infof(data,
-                 "nghttp2_session_send(): nothing to do in this session\n"));
-    return CURLE_HTTP2;
-  }
-
-  return CURLE_OK;
+	/*
+	 * Write all file extended attributes and contents.
+	 */
+	r = copy_out(a, xar->toc.a_sum.len, length);
+	if (r != ARCHIVE_OK)
+		return (r);
+	r = flush_wbuff(a);
+	return (r);
 }
 
-#else /* !USE_NGHTTP2 */
-
-/* Satisfy external references even if http2 is not compiled in. */
-
-#define CURL_DISABLE_TYPECHECK
-#include <curl/curl.h>
-
-char *curl_pushheader_bynum(struct curl_pushheaders *h, size_t num)
+static int
+xar_free(struct archive_write *a)
 {
-  (void) h;
-  (void) num;
-  return NULL;
+	struct xar *xar;
+
+	xar = (struct xar *)a->format_data;
+	archive_string_free(&(xar->cur_dirstr));
+	archive_string_free(&(xar->tstr));
+	archive_string_free(&(xar->vstr));
+	file_free_hardlinks(xar);
+	file_free_register(xar);
+	compression_end(&(a->archive), &(xar->stream));
+	free(xar);
+
+	return (ARCHIVE_OK);
 }
 
-char *curl_pushheader_byname(struct curl_pushheaders *h, const char *header)
+static int
+file_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
 {
-  (void) h;
-  (void) header;
-  return NULL;
+	const struct file *f1 = (const struct file *)n1;
+	const struct file *f2 = (const struct file *)n2;
+
+	return (strcmp(f1->basename.s, f2->basename.s));
 }
 
-#endif /* USE_NGHTTP2 */
+static int
+file_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct file *f = (const struct file *)n;
+
+	return (strcmp(f->basename.s, (const char *)key));
+}
+
+static struct file *
+file_new(struct archive_write *a, struct archive_entry *entry)
+{
+	struct file *file;
+	static const struct archive_rb_tree_ops rb_ops = {
+		file_cmp_node, file_cmp_key
+	};
+
+	file = calloc(1, sizeof(*file));
+	if (file == NULL)
+		return (NULL);
+
+	if (entry != NULL)
+		file->entry = archive_entry_clone(entry);
+	else
+		file->entry = archive_entry_new2(&a->archive);
+	if (file->entry == NULL) {
+		free(file);
+		return (NULL);
+	}
+	__archive_rb_tree_init(&(file->rbtree), &rb_ops);
+	file->children.first = NULL;
+	file->children.last = &(file->children.first);
+	file->xattr.first = NULL;
+	file->xattr.last = &(file->xattr.first);
+	archive_string_init(&(file->parentdir));
+	archive_string_init(&(file->basename));
+	archive_string_init(&(file->symlink));
+	archive_string_init(&(file->script));
+	if (entry != NULL && archive_entry_filetype(entry) == AE_IFDIR)
+		file->dir = 1;
+
+	return (file);
+}
+
+static void
+file_free(struct file *file)
+{
+	struct heap_data *heap, *next_heap;
+
+	heap = file->xattr.first;
+	while (heap != NULL) {
+		next_heap = heap->next;
+		free(heap);
+		heap = next_heap;
+	}
+	archive_string_free(&(file->parentdir));
+	archive_string_free(&(file->basename));
+	archive_string_free(&(file->symlink));
+	archive_string_free(&(file->script));
+	free(file);
+}
+
+static struct file *
+file_create_virtual_dir(struct archive_write *a, struct xar *xar,
+    const char *pathname)
+{
+	struct file *file;
+
+	(void)xar; /* UNUSED */
+
+	file = file_new(a, NULL);
+	if (file == NULL)
+		return (NULL);
+	archive_entry_set_pathname(file->entry, pathname);
+	archive_entry_set_mode(file->entry, 0555 | AE_IFDIR);
+
+	file->dir = 1;
+	file->virtual = 1;
+
+	return (file);
+}
+
+static int
+file_add_child_tail(struct file *parent, struct file *child)
+{
+	if (!__archive_rb_tree_insert_node(
+	    &(parent->rbtree), (struct archive_rb_node *)child))
+		return (0);
+	child->chnext = NULL;
+	*parent->children.last = child;
+	parent->children.last = &(child->chnext);
+	child->parent = parent;
+	return (1);
+}
+
+/*
+ * Find a entry from `parent'
+ */
+static struct file *
+file_find_child(struct file *parent, const char *child_name)
+{
+	struct file *np;
+
+	np = (struct file *)__archive_rb_tree_find_node(
+	    &(parent->rbtree), child_name);
+	return (np);
+}
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+static void
+cleanup_backslash(char *utf8, size_t len)
+{
+
+	/* Convert a path-separator from '\' to  '/' */
+	while (*utf8 != '\0' && len) {
+		if (*utf8 == '\\')
+			*utf8 = '/';
+		++utf8;
+		--len;
+	}
+}
+#else
+#define cleanup_backslash(p, len)	/* nop */
+#endif
+
+/*
+ * Generate a parent directory name and a base name from a pathname.
+ */
+static int
+file_gen_utility_names(struct archive_write *a, struct file *file)
+{
+	struct xar *xar;
+	const char *pp;
+	char *p, *dirname, *slash;
+	size_t len;
+	int r = ARCHIVE_OK;
+
+	xar = (struct xar *)a->format_data;
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->symlink));
+
+	if (file->parent == file)/* virtual root */
+		return (ARCHIVE_OK);
+
+	if (archive_entry_pathname_l(file->entry, &pp, &len, xar->sconv)
+	    != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Can't translate pathname '%s' to UTF-8",
+		    archive_entry_pathname(file->entry));
+		r = ARCHIVE_WARN;
+	}
+	archive_strncpy(&(file->parentdir), pp, len);
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	cleanup_backslash(p, len);
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove "/","/." and "/.." elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		size_t len2;
+		/* Convert symlink name too. */
+		if (archive_entry_symlink_l(file->entry, &pp, &len2,
+		    xar->sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Linkname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Can't translate symlink '%s' to UTF-8",
+			    archive_entry_symlink(file->entry));
+			r = ARCHIVE_WARN;
+		}
+		archive_strncpy(&(file->symlink), pp, len2);
+		cleanup_backslash(file->symlink.s, file->symlink.length);
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	for (; *p != '\0'; p++)
+		if (*p == '/')
+			slash = p;
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		*file->parentdir.s = '\0';
+		return (r);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	return (r);
+}
+
+static int
+get_path_component(char *name, int n, const char *fn)
+{
+	char *p;
+	int l;
+
+	p = strchr(fn, '/');
+	if (p == NULL) {
+		if ((l = strlen(fn)) == 0)
+			return (0);
+	} else
+		l = p - fn;
+	if (l > n -1)
+		return (-1);
+	memcpy(name, fn, l);
+	name[l] = '\0';
+
+	return (l);
+}
+
+/*
+ * Add a new entry into the tree.
+ */
+static int
+file_tree(struct archive_write *a, struct file **filepp)
+{
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
+#else
+	char name[256];
+#endif
+	struct xar *xar = (struct xar *)a->format_data;
+	struct file *dent, *file, *np;
+	struct archive_entry *ent;
+	const char *fn, *p;
+	int l;
+
+	file = *filepp;
+	dent = xar->root;
+	if (file->parentdir.length > 0)
+		fn = p = file->parentdir.s;
+	else
+		fn = p = "";
+
+	/*
+	 * If the path of the parent directory of `file' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(xar->cur_dirstr))
+	      == archive_strlen(&(file->parentdir)) &&
+	    strcmp(xar->cur_dirstr.s, fn) == 0) {
+		if (!file_add_child_tail(xar->cur_dirent, file)) {
+			np = (struct file *)__archive_rb_tree_find_node(
+			    &(xar->cur_dirent->rbtree),
+			    file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "A name buffer is too small");
+			file_free(file);
+			*filepp = NULL;
+			return (ARCHIVE_FATAL);
+		}
+
+		np = file_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' is not directory, we cannot insert `%s' ",
+			    archive_entry_pathname(np->entry),
+			    archive_entry_pathname(file->entry));
+			file_free(file);
+			*filepp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct file *vp;
+			struct archive_string as;
+
+			archive_string_init(&as);
+			archive_strncat(&as, p, fn - p + l);
+			if (as.s[as.length-1] == '/') {
+				as.s[as.length-1] = '\0';
+				as.length--;
+			}
+			vp = file_create_virtual_dir(a, xar, as.s);
+			if (vp == NULL) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory");
+				file_free(file);
+				*filepp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			archive_string_free(&as);
+			if (file_gen_utility_names(a, vp) <= ARCHIVE_FAILED)
+				return (ARCHIVE_FATAL);
+			file_add_child_tail(dent, vp);
+			file_register(xar, vp);
+			np = vp;
+
+			fn += l;
+			if (fn[0] == '/')
+				fn++;
+			l = get_path_component(name, sizeof(name), fn);
+			if (l < 0) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "A name buffer is too small");
+				file_free(file);
+				*filepp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			dent = np;
+		}
+
+		/* Found out the parent directory where isoent can be
+		 * inserted. */
+		xar->cur_dirent = dent;
+		archive_string_empty(&(xar->cur_dirstr));
+		archive_string_ensure(&(xar->cur_dirstr),
+		    archive_strlen(&(dent->parentdir)) +
+		    archive_strlen(&(dent->basename)) + 2);
+		if (archive_strlen(&(dent->parentdir)) +
+		    archive_strlen(&(dent->basename)) == 0)
+			xar->cur_dirstr.s[0] = 0;
+		else {
+			if (archive_strlen(&(dent->parentdir)) > 0) {
+				archive_string_copy(&(xar->cur_dirstr),
+				    &(dent->parentdir));
+				archive_strappend_char(&(xar->cur_dirstr), '/');
+			}
+			archive_string_concat(&(xar->cur_dirstr),
+			    &(dent->basename));
+		}
+
+		if (!file_add_child_tail(dent, file)) {
+			np = (struct file *)__archive_rb_tree_find_node(
+			    &(dent->rbtree), file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+same_entry:
+	/*
+	 * We have already has the entry the filename of which is
+	 * the same.
+	 */
+	if (archive_entry_filetype(np->entry) !=
+	    archive_entry_filetype(file->entry)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Found duplicate entries `%s' and its file type is "
+		    "different",
+		    archive_entry_pathname(np->entry));
+		file_free(file);
+		*filepp = NULL;
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Swap files. */
+	ent = np->entry;
+	np->entry = file->entry;
+	file->entry = ent;
+	np->virtual = 0;
+
+	file_free(file);
+	*filepp = np;
+	return (ARCHIVE_OK);
+}
+
+static void
+file_register(struct xar *xar, struct file *file)
+{
+	file->id = xar->file_idx++;
+        file->next = NULL;
+        *xar->file_list.last = file;
+        xar->file_list.last = &(file->next);
+}
+
+static void
+file_init_register(struct xar *xar)
+{
+	xar->file_list.first = NULL;
+	xar->file_list.last = &(xar->file_list.first);
+}
+
+static void
+file_free_register(struct xar *xar)
+{
+	struct file *file, *file_next;
+
+	file = xar->file_list.first;
+	while (file != NULL) {
+		file_next = file->next;
+		file_free(file);
+		file = file_next;
+	}
+}
+
+/*
+ * Register entry to get a hardlink target.
+ */
+static int
+file_register_hardlink(struct archive_write *a, struct file *file)
+{
+	struct xar *xar = (struct xar *)a->format_data;
+	struct hardlink *hl;
+	const char *pathname;
+
+	archive_entry_set_nlink(file->entry, 1);
+	pathname = archive_entry_hardlink(file->entry);
+	if (pathname == NULL) {
+		/* This `file` is a hardlink target. */
+		hl = malloc(sizeof(*hl));
+		if (hl == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		hl->nlink = 1;
+		/* A hardlink target must be the first position. */
+		file->hlnext = NULL;
+		hl->file_list.first = file;
+		hl->file_list.last = &(file->hlnext);
+		__archive_rb_tree_insert_node(&(xar->hardlink_rbtree),
+		    (struct archive_rb_node *)hl);
+	} else {
+		hl = (struct hardlink *)__archive_rb_tree_find_node(
+		    &(xar->hardlink_rbtree), pathname);
+		if (hl != NULL) {
+			/* Insert `file` entry into the tail. */
+			file->hlnext = NULL;
+			*hl->file_list.last = file;
+			hl->file_list.last = &(file->hlnext);
+			hl->nlink++;
+		}
+		archive_entry_unset_size(file->entry);
+	}
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Hardlinked files have to have the same location of extent.
+ * We have to find out hardlink target entries for entries which
+ * have a hardlink target name.
+ */
+static void
+file_connect_hardlink_files(struct xar *xar)
+{
+	struct archive_rb_node *n;
+	struct hardlink *hl;
+	struct file *target, *nf;
+
+	ARCHIVE_RB_TREE_FOREACH(n, &(xar->hardlink_rbtree)) {
+		hl = (struct hardlink *)n;
+
+		/* The first entry must be a hardlink target. */
+		target = hl->file_list.first;
+		archive_entry_set_nlink(target->entry, hl->nlink);
+		if (hl->nlink > 1)
+			/* It means this file is a hardlink
+			 * targe itself. */
+			target->hardlink_target = target;
+		for (nf = target->hlnext;
+		    nf != NULL; nf = nf->hlnext) {
+			nf->hardlink_target = target;
+			archive_entry_set_nlink(nf->entry, hl->nlink);
+		}
+	}
+}
+
+static int
+file_hd_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct hardlink *h1 = (const struct hardlink *)n1;
+	const struct hardlink *h2 = (const struct hardlink *)n2;
+
+	return (strcmp(archive_entry_pathname(h1->file_list.first->entry),
+		       archive_entry_pathname(h2->file_list.first->entry)));
+}
+
+static int
+file_hd_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct hardlink *h = (const struct hardlink *)n;
+
+	return (strcmp(archive_entry_pathname(h->file_list.first->entry),
+		       (const char *)key));
+}
+
+
+static void
+file_init_hardlinks(struct xar *xar)
+{
+	static const struct archive_rb_tree_ops rb_ops = {
+		file_hd_cmp_node, file_hd_cmp_key,
+	};
+
+	__archive_rb_tree_init(&(xar->hardlink_rbtree), &rb_ops);
+}
+
+static void
+file_free_hardlinks(struct xar *xar)
+{
+	struct archive_rb_node *n, *next;
+
+	for (n = ARCHIVE_RB_TREE_MIN(&(xar->hardlink_rbtree)); n;) {
+		next = __archive_rb_tree_iterate(&(xar->hardlink_rbtree),
+		    n, ARCHIVE_RB_DIR_RIGHT);
+		free(n);
+		n = next;
+	}
+}
+
+static void
+checksum_init(struct chksumwork *sumwrk, enum sumalg sum_alg)
+{
+	sumwrk->alg = sum_alg;
+	switch (sum_alg) {
+	case CKSUM_NONE:
+		break;
+	case CKSUM_SHA1:
+		archive_sha1_init(&(sumwrk->sha1ctx));
+		break;
+	case CKSUM_MD5:
+		archive_md5_init(&(sumwrk->md5ctx));
+		break;
+	}
+}
+
+static void
+checksum_update(struct chksumwork *sumwrk, const void *buff, size_t size)
+{
+
+	switch (sumwrk->alg) {
+	case CKSUM_NONE:
+		break;
+	case CKSUM_SHA1:
+		archive_sha1_update(&(sumwrk->sha1ctx), buff, size);
+		break;
+	case CKSUM_MD5:
+		archive_md5_update(&(sumwrk->md5ctx), buff, size);
+		break;
+	}
+}
+
+static void
+checksum_final(struct chksumwork *sumwrk, struct chksumval *sumval)
+{
+
+	switch (sumwrk->alg) {
+	case CKSUM_NONE:
+		sumval->len = 0;
+		break;
+	case CKSUM_SHA1:
+		archive_sha1_final(&(sumwrk->sha1ctx), sumval->val);
+		sumval->len = SHA1_SIZE;
+		break;
+	case CKSUM_MD5:
+		archive_md5_final(&(sumwrk->md5ctx), sumval->val);
+		sumval->len = MD5_SIZE;
+		break;
+	}
+	sumval->alg = sumwrk->alg;
+}
+
+#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR) || !defined(HAVE_LZMA_H)
+static int
+compression_unsupported_encoder(struct archive *a,
+    struct la_zstream *lastrm, const char *name)
+{
+
+	archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "%s compression not supported on this platform", name);
+	lastrm->valid = 0;
+	lastrm->real_stream = NULL;
+	return (ARCHIVE_FAILED);
+}
+#endif
+
+static int
+compression_init_encoder_gzip(struct archive *a,
+    struct la_zstream *lastrm, int level, int withheader)
+{
+	z_stream *strm;
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	strm = calloc(1, sizeof(*strm));
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for gzip stream");
+		return (ARCHIVE_FATAL);
+	}
+	/* zlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (Bytef *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in = (uLong)lastrm->total_in;
+	strm->next_out = lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out = (uLong)lastrm->total_out;
+	if (deflateInit2(strm, level, Z_DEFLATED,
+	    (withheader)?15:-15,
+	    8, Z_DEFAULT_STRATEGY) != Z_OK) {
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	lastrm->real_stream = strm;
+	lastrm->valid = 1;
+	lastrm->code = compression_code_gzip;
+	lastrm->end = compression_end_gzip;
+	return (ARCHIVE_OK);
+}
+
+static int
+compression_code_gzip(struct archive *a,
+    struct la_zstream *lastrm, enum la_zaction action)
+{
+	z_stream *strm;
+	int r;
+
+	strm = (z_stream *)lastrm->real_stream;
+	/* zlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (Bytef *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in = (uLong)lastrm->total_in;
+	strm->next_out = lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out = (uLong)lastrm->total_out;
+	r = deflate(strm,
+	    (action == ARCHIVE_Z_FINISH)? Z_FINISH: Z_NO_FLUSH);
+	lastrm->next_in = strm->next_in;
+	lastrm->avail_in = strm->avail_in;
+	lastrm->total_in = strm->total_in;
+	lastrm->next_out = strm->next_out;
+	lastrm->avail_out = strm->avail_out;
+	lastrm->total_out = strm->total_out;
+	switch (r) {
+	case Z_OK:
+		return (ARCHIVE_OK);
+	case Z_STREAM_END:
+		return (ARCHIVE_EOF);
+	default:
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "GZip compression failed:"
+		    " deflate() call returned status %d", r);
+		return (ARCHIVE_FATAL);
+	}
+}
+
+static int
+compression_end_gzip(struct archive *a, struct la_zstream *lastrm)
+{
+	z_stream *strm;
+	int r;
+
+	strm = (z_stream *)lastrm->real_stream;
+	r = deflateEnd(strm);
+	free(strm);
+	lastrm->real_stream = NULL;
+	lastrm->valid = 0;
+	if (r != Z_OK) {
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
+}
+
+#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
+static int
+compression_init_encoder_bzip2(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+	bz_stream *strm;
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	strm = calloc(1, sizeof(*strm));
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for bzip2 stream");
+		return (ARCHIVE_FATAL);
+	}
+	/* bzlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (char *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in_lo32 = (uint32_t)(lastrm->total_in & 0xffffffff);
+	strm->total_in_hi32 = (uint32_t)(lastrm->total_in >> 32);
+	strm->next_out = (char *)lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out_lo32 = (uint32_t)(lastrm->total_out & 0xffffffff);
+	strm->total_out_hi32 = (uint32_t)(lastrm->total_out >> 32);
+	if (BZ2_bzCompressInit(strm, level, 0, 30) != BZ_OK) {
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	lastrm->real_stream = strm;
+	lastrm->valid = 1;
+	lastrm->code = compression_code_bzip2;
+	lastrm->end = compression_end_bzip2;
+	return (ARCHIVE_OK);
+}
+
+static int
+compression_code_bzip2(struct archive *a,
+    struct la_zstream *lastrm, enum la_zaction action)
+{
+	bz_stream *strm;
+	int r;
+
+	strm = (bz_stream *)lastrm->real_stream;
+	/* bzlib.h is not const-correct, so we need this one bit
+	 * of ugly hackery to convert a const * pointer to
+	 * a non-const pointer. */
+	strm->next_in = (char *)(uintptr_t)(const void *)lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in_lo32 = (uint32_t)(lastrm->total_in & 0xffffffff);
+	strm->total_in_hi32 = (uint32_t)(lastrm->total_in >> 32);
+	strm->next_out = (char *)lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out_lo32 = (uint32_t)(lastrm->total_out & 0xffffffff);
+	strm->total_out_hi32 = (uint32_t)(lastrm->total_out >> 32);
+	r = BZ2_bzCompress(strm,
+	    (action == ARCHIVE_Z_FINISH)? BZ_FINISH: BZ_RUN);
+	lastrm->next_in = (const unsigned char *)strm->next_in;
+	lastrm->avail_in = strm->avail_in;
+	lastrm->total_in =
+	    (((uint64_t)(uint32_t)strm->total_in_hi32) << 32)
+	    + (uint64_t)(uint32_t)strm->total_in_lo32;
+	lastrm->next_out = (unsigned char *)strm->next_out;
+	lastrm->avail_out = strm->avail_out;
+	lastrm->total_out =
+	    (((uint64_t)(uint32_t)strm->total_out_hi32) << 32)
+	    + (uint64_t)(uint32_t)strm->total_out_lo32;
+	switch (r) {
+	case BZ_RUN_OK:     /* Non-finishing */
+	case BZ_FINISH_OK:  /* Finishing: There's more work to do */
+		return (ARCHIVE_OK);
+	case BZ_STREAM_END: /* Finishing: all done */
+		/* Only occurs in finishing case */
+		return (ARCHIVE_EOF);
+	default:
+		/* Any other return value indicates an error */
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Bzip2 compression failed:"
+		    " BZ2_bzCompress() call returned status %d", r);
+		return (ARCHIVE_FATAL);
+	}
+}
+
+static int
+compression_end_bzip2(struct archive *a, struct la_zstream *lastrm)
+{
+	bz_stream *strm;
+	int r;
+
+	strm = (bz_stream *)lastrm->real_stream;
+	r = BZ2_bzCompressEnd(strm);
+	free(strm);
+	lastrm->real_stream = NULL;
+	lastrm->valid = 0;
+	if (r != BZ_OK) {
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
+}
+
+#else
+static int
+compression_init_encoder_bzip2(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+
+	(void) level; /* UNUSED */
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	return (compression_unsupported_encoder(a, lastrm, "bzip2"));
+}
+#endif
+
+#if defined(HAVE_LZMA_H)
+static int
+compression_init_encoder_lzma(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+	static const lzma_stream lzma_init_data = LZMA_STREAM_INIT;
+	lzma_stream *strm;
+	lzma_options_lzma lzma_opt;
+	int r;
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	if (lzma_lzma_preset(&lzma_opt, level)) {
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	strm = calloc(1, sizeof(*strm));
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for lzma stream");
+		return (ARCHIVE_FATAL);
+	}
+	*strm = lzma_init_data;
+	r = lzma_alone_encoder(strm, &lzma_opt);
+	switch (r) {
+	case LZMA_OK:
+		lastrm->real_stream = strm;
+		lastrm->valid = 1;
+		lastrm->code = compression_code_lzma;
+		lastrm->end = compression_end_lzma;
+		r = ARCHIVE_OK;
+		break;
+	case LZMA_MEM_ERROR:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");
+		r =  ARCHIVE_FATAL;
+		break;
+        default:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "It's a bug in liblzma");
+		r =  ARCHIVE_FATAL;
+		break;
+	}
+	return (r);
+}
+
+static int
+compression_init_encoder_xz(struct archive *a,
+    struct la_zstream *lastrm, int level, int threads)
+{
+	static const lzma_stream lzma_init_data = LZMA_STREAM_INIT;
+	lzma_stream *strm;
+	lzma_filter *lzmafilters;
+	lzma_options_lzma lzma_opt;
+	int r;
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+	lzma_mt mt_options;
+#endif
+
+	(void)threads; /* UNUSED (if multi-threaded LZMA library not avail) */
+
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	strm = calloc(1, sizeof(*strm) + sizeof(*lzmafilters) * 2);
+	if (strm == NULL) {
+		archive_set_error(a, ENOMEM,
+		    "Can't allocate memory for xz stream");
+		return (ARCHIVE_FATAL);
+	}
+	lzmafilters = (lzma_filter *)(strm+1);
+	if (level > 6)
+		level = 6;
+	if (lzma_lzma_preset(&lzma_opt, level)) {
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library");
+		return (ARCHIVE_FATAL);
+	}
+	lzmafilters[0].id = LZMA_FILTER_LZMA2;
+	lzmafilters[0].options = &lzma_opt;
+	lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
+
+	*strm = lzma_init_data;
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+	if (threads > 1) {
+		bzero(&mt_options, sizeof(mt_options));
+		mt_options.threads = threads;
+		mt_options.timeout = 300;
+		mt_options.filters = lzmafilters;
+		mt_options.check = LZMA_CHECK_CRC64;
+		r = lzma_stream_encoder_mt(strm, &mt_options);
+	} else
+#endif
+		r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
+	switch (r) {
+	case LZMA_OK:
+		lastrm->real_stream = strm;
+		lastrm->valid = 1;
+		lastrm->code = compression_code_lzma;
+		lastrm->end = compression_end_lzma;
+		r = ARCHIVE_OK;
+		break;
+	case LZMA_MEM_ERROR:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");
+		r =  ARCHIVE_FATAL;
+		break;
+        default:
+		free(strm);
+		lastrm->real_stream = NULL;
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "It's a bug in liblzma");
+		r =  ARCHIVE_FATAL;
+		break;
+	}
+	return (r);
+}
+
+static int
+compression_code_lzma(struct archive *a,
+    struct la_zstream *lastrm, enum la_zaction action)
+{
+	lzma_stream *strm;
+	int r;
+
+	strm = (lzma_stream *)lastrm->real_stream;
+	strm->next_in = lastrm->next_in;
+	strm->avail_in = lastrm->avail_in;
+	strm->total_in = lastrm->total_in;
+	strm->next_out = lastrm->next_out;
+	strm->avail_out = lastrm->avail_out;
+	strm->total_out = lastrm->total_out;
+	r = lzma_code(strm,
+	    (action == ARCHIVE_Z_FINISH)? LZMA_FINISH: LZMA_RUN);
+	lastrm->next_in = strm->next_in;
+	lastrm->avail_in = strm->avail_in;
+	lastrm->total_in = strm->total_in;
+	lastrm->next_out = strm->next_out;
+	lastrm->avail_out = strm->avail_out;
+	lastrm->total_out = strm->total_out;
+	switch (r) {
+	case LZMA_OK:
+		/* Non-finishing case */
+		return (ARCHIVE_OK);
+	case LZMA_STREAM_END:
+		/* This return can only occur in finishing case. */
+		return (ARCHIVE_EOF);
+	case LZMA_MEMLIMIT_ERROR:
+		archive_set_error(a, ENOMEM,
+		    "lzma compression error:"
+		    " %ju MiB would have been needed",
+		    (uintmax_t)((lzma_memusage(strm) + 1024 * 1024 -1)
+			/ (1024 * 1024)));
+		return (ARCHIVE_FATAL);
+	default:
+		/* Any other return value indicates an error */
+		archive_set_error(a, ARCHIVE_ERRNO_MISC,
+		    "lzma compression failed:"
+		    " lzma_code() call returned status %d", r);
+		return (ARCHIVE_FATAL);
+	}
+}
+
+static int
+compression_end_lzma(struct archive *a, struct la_zstream *lastrm)
+{
+	lzma_stream *strm;
+
+	(void)a; /* UNUSED */
+	strm = (lzma_stream *)lastrm->real_stream;
+	lzma_end(strm);
+	free(strm);
+	lastrm->valid = 0;
+	lastrm->real_stream = NULL;
+	return (ARCHIVE_OK);
+}
+#else
+static int
+compression_init_encoder_lzma(struct archive *a,
+    struct la_zstream *lastrm, int level)
+{
+
+	(void) level; /* UNUSED */
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	return (compression_unsupported_encoder(a, lastrm, "lzma"));
+}
+static int
+compression_init_encoder_xz(struct archive *a,
+    struct la_zstream *lastrm, int level, int threads)
+{
+
+	(void) level; /* UNUSED */
+	(void) threads; /* UNUSED */
+	if (lastrm->valid)
+		compression_end(a, lastrm);
+	return (compression_unsupported_encoder(a, lastrm, "xz"));
+}
+#endif
+
+static int
+xar_compression_init_encoder(struct archive_write *a)
+{
+	struct xar *xar;
+	int r;
+
+	xar = (struct xar *)a->format_data;
+	switch (xar->opt_compression) {
+	case GZIP:
+		r = compression_init_encoder_gzip(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level, 1);
+		break;
+	case BZIP2:
+		r = compression_init_encoder_bzip2(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level);
+		break;
+	case LZMA:
+		r = compression_init_encoder_lzma(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level);
+		break;
+	case XZ:
+		r = compression_init_encoder_xz(
+		    &(a->archive), &(xar->stream),
+		    xar->opt_compression_level, xar->opt_threads);
+		break;
+	default:
+		r = ARCHIVE_OK;
+		break;
+	}
+	if (r == ARCHIVE_OK) {
+		xar->stream.total_in = 0;
+		xar->stream.next_out = xar->wbuff;
+		xar->stream.avail_out = sizeof(xar->wbuff);
+		xar->stream.total_out = 0;
+	}
+
+	return (r);
+}
+
+static int
+compression_code(struct archive *a, struct la_zstream *lastrm,
+    enum la_zaction action)
+{
+	if (lastrm->valid)
+		return (lastrm->code(a, lastrm, action));
+	return (ARCHIVE_OK);
+}
+
+static int
+compression_end(struct archive *a, struct la_zstream *lastrm)
+{
+	if (lastrm->valid)
+		return (lastrm->end(a, lastrm));
+	return (ARCHIVE_OK);
+}
+
+
+static int
+save_xattrs(struct archive_write *a, struct file *file)
+{
+	struct xar *xar;
+	const char *name;
+	const void *value;
+	struct heap_data *heap;
+	size_t size;
+	int count, r;
+
+	xar = (struct xar *)a->format_data;
+	count = archive_entry_xattr_reset(file->entry);
+	if (count == 0)
+		return (ARCHIVE_OK);
+	while (count--) {
+		archive_entry_xattr_next(file->entry,
+		    &name, &value, &size);
+		checksum_init(&(xar->a_sumwrk), xar->opt_sumalg);
+		checksum_init(&(xar->e_sumwrk), xar->opt_sumalg);
+
+		heap = calloc(1, sizeof(*heap));
+		if (heap == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for xattr");
+			return (ARCHIVE_FATAL);
+		}
+		heap->id = file->ea_idx++;
+		heap->temp_offset = xar->temp_offset;
+		heap->size = size;/* save a extracted size */
+		heap->compression = xar->opt_compression;
+		/* Get a extracted sumcheck value. */
+		checksum_update(&(xar->e_sumwrk), value, size);
+		checksum_final(&(xar->e_sumwrk), &(heap->e_sum));
+
+		/*
+		 * Not compression to xattr is simple way.
+		 */
+		if (heap->compression == NONE) {
+			checksum_update(&(xar->a_sumwrk), value, size);
+			checksum_final(&(xar->a_sumwrk), &(heap->a_sum));
+			if (write_to_temp(a, value, size)
+			    != ARCHIVE_OK) {
+				free(heap);
+				return (ARCHIVE_FATAL);
+			}
+			heap->length = size;
+			/* Add heap to the tail of file->xattr. */
+			heap->next = NULL;
+			*file->xattr.last = heap;
+			file->xattr.last = &(heap->next);
+			/* Next xattr */
+			continue;
+		}
+
+		/*
+		 * Init compression library.
+		 */
+		r = xar_compression_init_encoder(a);
+		if (r != ARCHIVE_OK) {
+			free(heap);
+			return (ARCHIVE_FATAL);
+		}
+
+		xar->stream.next_in = (const unsigned char *)value;
+		xar->stream.avail_in = size;
+		for (;;) {
+			r = compression_code(&(a->archive),
+			    &(xar->stream), ARCHIVE_Z_FINISH);
+			if (r != ARCHIVE_OK && r != ARCHIVE_EOF) {
+				free(heap);
+				return (ARCHIVE_FATAL);
+			}
+			size = sizeof(xar->wbuff) - xar->stream.avail_out;
+			checksum_update(&(xar->a_sumwrk),
+			    xar->wbuff, size);
+			if (write_to_temp(a, xar->wbuff, size)
+			    != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			if (r == ARCHIVE_OK) {
+				xar->stream.next_out = xar->wbuff;
+				xar->stream.avail_out = sizeof(xar->wbuff);
+			} else {
+				checksum_final(&(xar->a_sumwrk),
+				    &(heap->a_sum));
+				heap->length = xar->stream.total_out;
+				/* Add heap to the tail of file->xattr. */
+				heap->next = NULL;
+				*file->xattr.last = heap;
+				file->xattr.last = &(heap->next);
+				break;
+			}
+		}
+		/* Clean up compression library. */
+		r = compression_end(&(a->archive), &(xar->stream));
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+getalgsize(enum sumalg sumalg)
+{
+	switch (sumalg) {
+	default:
+	case CKSUM_NONE:
+		return (0);
+	case CKSUM_SHA1:
+		return (SHA1_SIZE);
+	case CKSUM_MD5:
+		return (MD5_SIZE);
+	}
+}
+
+static const char *
+getalgname(enum sumalg sumalg)
+{
+	switch (sumalg) {
+	default:
+	case CKSUM_NONE:
+		return (NULL);
+	case CKSUM_SHA1:
+		return (SHA1_NAME);
+	case CKSUM_MD5:
+		return (MD5_NAME);
+	}
+}
+
+#endif /* Support xar format */

@@ -1,2018 +1,583 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "curl_setup.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmGlobalGenerator.h"
-#include "cmLocalVisualStudio6Generator.h"
-#include "cmMakefile.h"
-#include "cmSystemTools.h"
-#include "cmSourceFile.h"
-#include "cmGeneratorTarget.h"
-#include "cmCustomCommandGenerator.h"
-#include "cmake.h"
+#ifndef CURL_DISABLE_FILE
 
-#include "cmComputeLinkInformation.h"
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
 
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/FStream.hxx>
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
 
-cmLocalVisualStudio6Generator
-::cmLocalVisualStudio6Generator(cmGlobalGenerator* gg, cmMakefile* mf):
-  cmLocalVisualStudioGenerator(gg, mf)
-{
-}
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
 
-cmLocalVisualStudio6Generator::~cmLocalVisualStudio6Generator()
-{
-}
+#include "strtoofft.h"
+#include "urldata.h"
+#include <curl/curl.h>
+#include "progress.h"
+#include "sendf.h"
+#include "escape.h"
+#include "file.h"
+#include "speedcheck.h"
+#include "getinfo.h"
+#include "transfer.h"
+#include "url.h"
+#include "curl_memory.h"
+#include "parsedate.h" /* for the week day and month names */
+#include "warnless.h"
 
-//----------------------------------------------------------------------------
-// Helper class to write build events.
-class cmLocalVisualStudio6Generator::EventWriter
-{
-public:
-  EventWriter(cmLocalVisualStudio6Generator* lg,
-              const std::string& config, std::string& code):
-    LG(lg), Config(config), Code(code), First(true) {}
-  void Start(const char* event)
-    {
-    this->First = true;
-    this->Event = event;
-    }
-  void Finish()
-    {
-    this->Code += (this->First? "" : "\n");
-    }
-  void Write(std::vector<cmCustomCommand> const& ccs)
-    {
-    for(std::vector<cmCustomCommand>::const_iterator ci = ccs.begin();
-        ci != ccs.end(); ++ci)
-      {
-      this->Write(*ci);
-      }
-    }
-  void Write(cmCustomCommand const& cc)
-    {
-    cmCustomCommandGenerator ccg(cc, this->Config, this->LG);
-    if(this->First)
-      {
-      this->Code += this->Event + "_Cmds=";
-      this->First = false;
-      }
-    else
-      {
-      this->Code += "\\\n\t";
-      }
-    this->Code += this->LG->ConstructScript(ccg, "\\\n\t");
-    }
-private:
-  cmLocalVisualStudio6Generator* LG;
-  std::string Config;
-  std::string& Code;
-  bool First;
-  std::string Event;
+#define _MPRINTF_REPLACE /* use our functions only */
+#include <curl/mprintf.h>
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+#if defined(WIN32) || defined(MSDOS) || defined(__EMX__) || \
+  defined(__SYMBIAN32__)
+#define DOS_FILESYSTEM 1
+#endif
+
+#ifdef OPEN_NEEDS_ARG3
+#  define open_readonly(p,f) open((p),(f),(0))
+#else
+#  define open_readonly(p,f) open((p),(f))
+#endif
+
+/*
+ * Forward declarations.
+ */
+
+static CURLcode file_do(struct connectdata *, bool *done);
+static CURLcode file_done(struct connectdata *conn,
+                          CURLcode status, bool premature);
+static CURLcode file_connect(struct connectdata *conn, bool *done);
+static CURLcode file_disconnect(struct connectdata *conn,
+                                bool dead_connection);
+static CURLcode file_setup_connection(struct connectdata *conn);
+
+/*
+ * FILE scheme handler.
+ */
+
+const struct Curl_handler Curl_handler_file = {
+  "FILE",                               /* scheme */
+  file_setup_connection,                /* setup_connection */
+  file_do,                              /* do_it */
+  file_done,                            /* done */
+  ZERO_NULL,                            /* do_more */
+  file_connect,                         /* connect_it */
+  ZERO_NULL,                            /* connecting */
+  ZERO_NULL,                            /* doing */
+  ZERO_NULL,                            /* proto_getsock */
+  ZERO_NULL,                            /* doing_getsock */
+  ZERO_NULL,                            /* domore_getsock */
+  ZERO_NULL,                            /* perform_getsock */
+  file_disconnect,                      /* disconnect */
+  ZERO_NULL,                            /* readwrite */
+  0,                                    /* defport */
+  CURLPROTO_FILE,                       /* protocol */
+  PROTOPT_NONETWORK | PROTOPT_NOURLQUERY /* flags */
 };
 
-void cmLocalVisualStudio6Generator::AddCMakeListsRules()
-{
-  std::vector<cmGeneratorTarget*> tgts = this->GetGeneratorTargets();
-  for(std::vector<cmGeneratorTarget*>::iterator l = tgts.begin();
-      l != tgts.end(); ++l)
-    {
-    if ((*l)->GetType() == cmState::INTERFACE_LIBRARY
-        || (*l)->GetType() == cmState::GLOBAL_TARGET)
-      {
-      continue;
-      }
 
-    // Add a rule to regenerate the build system when the target
-    // specification source changes.
-    const char* suppRegenRule =
-      this->Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
-    if (!cmSystemTools::IsOn(suppRegenRule))
-      {
-      this->AddDSPBuildRule(*(*l)->Target);
-      }
-    }
+static CURLcode file_setup_connection(struct connectdata *conn)
+{
+  /* allocate the FILE specific struct */
+  conn->data->req.protop = calloc(1, sizeof(struct FILEPROTO));
+  if(!conn->data->req.protop)
+    return CURLE_OUT_OF_MEMORY;
+
+  return CURLE_OK;
 }
 
-void cmLocalVisualStudio6Generator::Generate()
+ /*
+  Check if this is a range download, and if so, set the internal variables
+  properly. This code is copied from the FTP implementation and might as
+  well be factored out.
+ */
+static CURLcode file_range(struct connectdata *conn)
 {
-  this->OutputDSPFile();
-}
+  curl_off_t from, to;
+  curl_off_t totalsize=-1;
+  char *ptr;
+  char *ptr2;
+  struct SessionHandle *data = conn->data;
 
-void cmLocalVisualStudio6Generator::OutputDSPFile()
-{
-  // If not an in source build, then create the output directory
-  if(strcmp(this->GetCurrentBinaryDirectory(),
-            this->GetSourceDirectory()) != 0)
-    {
-    if(!cmSystemTools::MakeDirectory
-       (this->GetCurrentBinaryDirectory()))
-      {
-      cmSystemTools::Error("Error creating directory ",
-                           this->GetCurrentBinaryDirectory());
-      }
+  if(data->state.use_range && data->state.range) {
+    from=curlx_strtoofft(data->state.range, &ptr, 0);
+    while(*ptr && (ISSPACE(*ptr) || (*ptr=='-')))
+      ptr++;
+    to=curlx_strtoofft(ptr, &ptr2, 0);
+    if(ptr == ptr2) {
+      /* we didn't get any digit */
+      to=-1;
     }
-
-  // Create the DSP or set of DSP's for libraries and executables
-
-  std::vector<cmGeneratorTarget*> tgts = this->GetGeneratorTargets();
-  for(std::vector<cmGeneratorTarget*>::iterator l = tgts.begin();
-      l != tgts.end(); ++l)
-    {
-    switch((*l)->GetType())
-      {
-      case cmState::STATIC_LIBRARY:
-      case cmState::OBJECT_LIBRARY:
-        this->SetBuildType(STATIC_LIBRARY,
-                           (*l)->GetName().c_str(), *(*l)->Target);
-        break;
-      case cmState::SHARED_LIBRARY:
-      case cmState::MODULE_LIBRARY:
-        this->SetBuildType(DLL,
-                           (*l)->GetName().c_str(), *(*l)->Target);
-        break;
-      case cmState::EXECUTABLE:
-        this->SetBuildType(EXECUTABLE,
-                           (*l)->GetName().c_str(), *(*l)->Target);
-        break;
-      case cmState::UTILITY:
-      case cmState::GLOBAL_TARGET:
-        this->SetBuildType(UTILITY,
-                           (*l)->GetName().c_str(), *(*l)->Target);
-        break;
-      case cmState::INTERFACE_LIBRARY:
-        continue;
-      default:
-        cmSystemTools::Error("Bad target type: ", (*l)->GetName().c_str());
-        break;
-      }
-    // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
-    // so don't build a projectfile for it
-    const char* path =
-      (*l)->GetProperty("EXTERNAL_MSPROJECT");
-    if(!path)
-      {
-      // check to see if the dsp is going into a sub-directory
-      std::string::size_type pos = (*l)->GetName().rfind('/');
-      if(pos != std::string::npos)
-        {
-        std::string dir = this->GetCurrentBinaryDirectory();
-        dir += "/";
-        dir += (*l)->GetName().substr(0, pos);
-        if(!cmSystemTools::MakeDirectory(dir.c_str()))
-          {
-          cmSystemTools::Error("Error creating directory: ", dir.c_str());
-          }
-        }
-      this->CreateSingleDSP((*l)->GetName().c_str(), *(*l)->Target);
-      }
+    if((-1 == to) && (from>=0)) {
+      /* X - */
+      data->state.resume_from = from;
+      DEBUGF(infof(data, "RANGE %" CURL_FORMAT_CURL_OFF_T " to end of file\n",
+                   from));
     }
-}
-
-// Utility function to make a valid VS6 *.dsp filename out
-// of a CMake target name:
-//
-extern std::string GetVS6TargetName(const std::string& targetName);
-
-void cmLocalVisualStudio6Generator::CreateSingleDSP(const std::string& lname,
-                                                    cmTarget &target)
-{
-  // add to the list of projects
-  std::string pname = GetVS6TargetName(lname);
-
-  // create the dsp.cmake file
-  std::string fname;
-  fname = this->GetCurrentBinaryDirectory();
-  fname += "/";
-  fname += pname;
-  fname += ".dsp";
-  // save the name of the real dsp file
-  std::string realDSP = fname;
-  fname += ".cmake";
-  cmsys::ofstream fout(fname.c_str());
-  if(!fout)
-    {
-    cmSystemTools::Error("Error Writing ", fname.c_str());
-    cmSystemTools::ReportLastSystemError("");
+    else if(from < 0) {
+      /* -Y */
+      data->req.maxdownload = -from;
+      data->state.resume_from = from;
+      DEBUGF(infof(data, "RANGE the last %" CURL_FORMAT_CURL_OFF_T " bytes\n",
+                   -from));
     }
-  this->WriteDSPFile(fout,pname.c_str(),target);
-  fout.close();
-  // if the dsp file has changed, then write it.
-  cmSystemTools::CopyFileIfDifferent(fname.c_str(), realDSP.c_str());
-}
-
-
-void cmLocalVisualStudio6Generator::AddDSPBuildRule(cmTarget& tgt)
-{
-  std::string dspname = GetVS6TargetName(tgt.GetName());
-  dspname += ".dsp.cmake";
-  cmCustomCommandLine commandLine;
-  commandLine.push_back(cmSystemTools::GetCMakeCommand());
-  std::string makefileIn = this->GetCurrentSourceDirectory();
-  makefileIn += "/";
-  makefileIn += "CMakeLists.txt";
-  if(!cmSystemTools::FileExists(makefileIn.c_str()))
-    {
-    return;
+    else {
+      /* X-Y */
+      totalsize = to-from;
+      data->req.maxdownload = totalsize+1; /* include last byte */
+      data->state.resume_from = from;
+      DEBUGF(infof(data, "RANGE from %" CURL_FORMAT_CURL_OFF_T
+                   " getting %" CURL_FORMAT_CURL_OFF_T " bytes\n",
+                   from, data->req.maxdownload));
     }
-  std::string comment = "Building Custom Rule ";
-  comment += makefileIn;
-  std::string args;
-  args = "-H";
-  args += this->GetSourceDirectory();
-  commandLine.push_back(args);
-  args = "-B";
-  args += this->GetBinaryDirectory();
-  commandLine.push_back(args);
-
-  std::vector<std::string> const& listFiles = this->Makefile->GetListFiles();
-
-  cmCustomCommandLines commandLines;
-  commandLines.push_back(commandLine);
-  const char* no_working_directory = 0;
-  this->Makefile->AddCustomCommandToOutput(dspname.c_str(), listFiles,
-                                           makefileIn.c_str(), commandLines,
-                                           comment.c_str(),
-                                           no_working_directory, true);
-  if(this->Makefile->GetSource(makefileIn.c_str()))
-    {
-    cmGeneratorTarget* gt = this->GlobalGenerator->GetGeneratorTarget(&tgt);
-    gt->AddSource(makefileIn);
-    }
+    DEBUGF(infof(data, "range-download from %" CURL_FORMAT_CURL_OFF_T
+                 " to %" CURL_FORMAT_CURL_OFF_T ", totally %"
+                 CURL_FORMAT_CURL_OFF_T " bytes\n",
+                 from, to, data->req.maxdownload));
+  }
   else
-    {
-    cmSystemTools::Error("Error adding rule for ", makefileIn.c_str());
-    }
+    data->req.maxdownload = -1;
+  return CURLE_OK;
 }
 
-
-void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout,
-                                                 const std::string& libName,
-                                                 cmTarget &target)
+/*
+ * file_connect() gets called from Curl_protocol_connect() to allow us to
+ * do protocol-specific actions at connect-time.  We emulate a
+ * connect-then-transfer protocol and "connect" to the file here
+ */
+static CURLcode file_connect(struct connectdata *conn, bool *done)
 {
-  // For utility targets need custom command since pre- and post-
-  // build does not do anything in Visual Studio 6.  In order for the
-  // rules to run in the correct order as custom commands, we need
-  // special care for dependencies.  The first rule must depend on all
-  // the dependencies of all the rules.  The later rules must each
-  // depend only on the previous rule.
-  if ((target.GetType() == cmState::UTILITY ||
-      target.GetType() == cmState::GLOBAL_TARGET) &&
-      (!target.GetPreBuildCommands().empty() ||
-       !target.GetPostBuildCommands().empty()))
-    {
-    // Accumulate the dependencies of all the commands.
-    std::vector<std::string> depends;
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPreBuildCommands().begin();
-         cr != target.GetPreBuildCommands().end(); ++cr)
-      {
-      depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
-      }
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPostBuildCommands().begin();
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      depends.insert(depends.end(),
-                     cr->GetDepends().begin(), cr->GetDepends().end());
-      }
+  struct SessionHandle *data = conn->data;
+  char *real_path;
+  struct FILEPROTO *file = data->req.protop;
+  int fd;
+#ifdef DOS_FILESYSTEM
+  int i;
+  char *actual_path;
+#endif
 
-    // Add the pre- and post-build commands in order.
-    int count = 1;
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPreBuildCommands().begin();
-         cr != target.GetPreBuildCommands().end(); ++cr)
-      {
-      this->AddUtilityCommandHack(target, count++, depends, *cr);
-      }
-    for (std::vector<cmCustomCommand>::const_iterator cr =
-           target.GetPostBuildCommands().begin();
-         cr != target.GetPostBuildCommands().end(); ++cr)
-      {
-      this->AddUtilityCommandHack(target, count++, depends, *cr);
-      }
-    }
+  real_path = curl_easy_unescape(data, data->state.path, 0, NULL);
+  if(!real_path)
+    return CURLE_OUT_OF_MEMORY;
 
-  // We may be modifying the source groups temporarily, so make a copy.
-  std::vector<cmSourceGroup> sourceGroups = this->Makefile->GetSourceGroups();
+#ifdef DOS_FILESYSTEM
+  /* If the first character is a slash, and there's
+     something that looks like a drive at the beginning of
+     the path, skip the slash.  If we remove the initial
+     slash in all cases, paths without drive letters end up
+     relative to the current directory which isn't how
+     browsers work.
 
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
+     Some browsers accept | instead of : as the drive letter
+     separator, so we do too.
 
-  // get the classes from the source lists then add them to the groups
-  std::vector<cmSourceFile*> classes;
-  if (!gt->GetConfigCommonSourceFiles(classes))
-    {
-    return;
-    }
+     On other platforms, we need the slash to indicate an
+     absolute pathname.  On Windows, absolute paths start
+     with a drive letter.
+  */
+  actual_path = real_path;
+  if((actual_path[0] == '/') &&
+      actual_path[1] &&
+     (actual_path[2] == ':' || actual_path[2] == '|')) {
+    actual_path[2] = ':';
+    actual_path++;
+  }
 
-  // now all of the source files have been properly assigned to the target
-  // now stick them into source groups using the reg expressions
-  for(std::vector<cmSourceFile*>::const_iterator i = classes.begin();
-      i != classes.end(); i++)
-    {
-    if (!(*i)->GetObjectLibrary().empty())
-      {
-      continue;
-      }
+  /* change path separators from '/' to '\\' for DOS, Windows and OS/2 */
+  for(i=0; actual_path[i] != '\0'; ++i)
+    if(actual_path[i] == '/')
+      actual_path[i] = '\\';
 
-    // Add the file to the list of sources.
-    std::string source = (*i)->GetFullPath();
-    cmSourceGroup* sourceGroup =
-      this->Makefile->FindSourceGroup(source.c_str(), sourceGroups);
-    sourceGroup->AssignSource(*i);
-    // while we are at it, if it is a .rule file then for visual studio 6 we
-    // must generate it
-    if ((*i)->GetPropertyAsBool("__CMAKE_RULE"))
-      {
-      if(!cmSystemTools::FileExists(source.c_str()))
-        {
-        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
-        // Make sure the path exists for the file
-        std::string path = cmSystemTools::GetFilenamePath(source);
-        cmSystemTools::MakeDirectory(path.c_str());
-#if defined(_WIN32) || defined(__CYGWIN__)
-        cmsys::ofstream sourceFout(source.c_str(),
-                           std::ios::binary | std::ios::out
-                           | std::ios::trunc);
+  fd = open_readonly(actual_path, O_RDONLY|O_BINARY);
+  file->path = actual_path;
 #else
-        cmsys::ofstream sourceFout(source.c_str(),
-                           std::ios::out | std::ios::trunc);
+  fd = open_readonly(real_path, O_RDONLY);
+  file->path = real_path;
 #endif
-        if(sourceFout)
-          {
-          sourceFout.write("# generated from CMake",22);
-          sourceFout.flush();
-          sourceFout.close();
-          }
-        }
-      }
-    }
+  file->freepath = real_path; /* free this when done */
 
-  // Write the DSP file's header.
-  this->WriteDSPHeader(fout, libName, target, sourceGroups);
+  file->fd = fd;
+  if(!data->set.upload && (fd == -1)) {
+    failf(data, "Couldn't open file %s", data->state.path);
+    file_done(conn, CURLE_FILE_COULDNT_READ_FILE, FALSE);
+    return CURLE_FILE_COULDNT_READ_FILE;
+  }
+  *done = TRUE;
 
-
-  // Loop through every source group.
-  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
-      sg != sourceGroups.end(); ++sg)
-    {
-    this->WriteGroup(&(*sg), target, fout, libName);
-    }
-
-  // Write the DSP file's footer.
-  this->WriteDSPFooter(fout);
+  return CURLE_OK;
 }
 
-void cmLocalVisualStudio6Generator
-::WriteGroup(const cmSourceGroup *sg, cmTarget& target,
-             std::ostream &fout, const std::string& libName)
+static CURLcode file_done(struct connectdata *conn,
+                               CURLcode status, bool premature)
 {
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-  const std::vector<const cmSourceFile *> &sourceFiles =
-    sg->GetSourceFiles();
-  // If the group is empty, don't write it at all.
+  struct FILEPROTO *file = conn->data->req.protop;
+  (void)status; /* not used */
+  (void)premature; /* not used */
 
-  if(sourceFiles.empty() && sg->GetGroupChildren().empty())
-    {
-    return;
-    }
+  if(file) {
+    Curl_safefree(file->freepath);
+    file->path = NULL;
+    if(file->fd != -1)
+      close(file->fd);
+    file->fd = -1;
+  }
 
-  // If the group has a name, write the header.
-  std::string name = sg->GetName();
-  if(name != "")
-    {
-    this->WriteDSPBeginGroup(fout, name.c_str(), "");
-    }
-
-  // Loop through each source in the source group.
-  for(std::vector<const cmSourceFile *>::const_iterator sf =
-        sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
-    {
-    if (!(*sf)->GetObjectLibrary().empty())
-      {
-      continue;
-      }
-
-    std::string source = (*sf)->GetFullPath();
-    const cmCustomCommand *command =
-      (*sf)->GetCustomCommand();
-    std::string compileFlags;
-    std::vector<std::string> depends;
-    std::string objectNameDir;
-    if(gt->HasExplicitObjectName(*sf))
-      {
-      objectNameDir = cmSystemTools::GetFilenamePath(gt->GetObjectName(*sf));
-      }
-
-    // Add per-source file flags.
-    if(const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS"))
-      {
-      compileFlags += cflags;
-      }
-
-    const std::string& lang = this->GetSourceFileLanguage(*(*sf));
-    if(lang == "CXX")
-      {
-      // force a C++ file type
-      compileFlags += " /TP ";
-      }
-    else if(lang == "C")
-      {
-      // force to c file type
-      compileFlags += " /TC ";
-      }
-
-    // Add per-source and per-configuration preprocessor definitions.
-    std::map<std::string, std::string> cdmap;
-
-      {
-      std::set<std::string> targetCompileDefinitions;
-
-      this->AppendDefines(targetCompileDefinitions,
-                        (*sf)->GetProperty("COMPILE_DEFINITIONS"));
-      this->JoinDefines(targetCompileDefinitions, compileFlags, lang);
-      }
-
-    if(const char* cdefs = (*sf)->GetProperty("COMPILE_DEFINITIONS_DEBUG"))
-      {
-      std::set<std::string> debugCompileDefinitions;
-      this->AppendDefines(debugCompileDefinitions, cdefs);
-      this->JoinDefines(debugCompileDefinitions, cdmap["DEBUG"], lang);
-      }
-    if(const char* cdefs = (*sf)->GetProperty("COMPILE_DEFINITIONS_RELEASE"))
-      {
-      std::set<std::string> releaseCompileDefinitions;
-      this->AppendDefines(releaseCompileDefinitions, cdefs);
-      this->JoinDefines(releaseCompileDefinitions, cdmap["RELEASE"], lang);
-      }
-    if(const char* cdefs =
-       (*sf)->GetProperty("COMPILE_DEFINITIONS_MINSIZEREL"))
-      {
-      std::set<std::string> minsizerelCompileDefinitions;
-      this->AppendDefines(minsizerelCompileDefinitions, cdefs);
-      this->JoinDefines(minsizerelCompileDefinitions, cdmap["MINSIZEREL"],
-                        lang);
-      }
-    if(const char* cdefs =
-       (*sf)->GetProperty("COMPILE_DEFINITIONS_RELWITHDEBINFO"))
-      {
-      std::set<std::string> relwithdebinfoCompileDefinitions;
-      this->AppendDefines(relwithdebinfoCompileDefinitions, cdefs);
-      this->JoinDefines(relwithdebinfoCompileDefinitions,
-                        cdmap["RELWITHDEBINFO"], lang);
-      }
-
-    bool excludedFromBuild =
-      (!lang.empty() && (*sf)->GetPropertyAsBool("HEADER_FILE_ONLY"));
-
-    // Check for extra object-file dependencies.
-    const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
-    if(dependsValue)
-      {
-      cmSystemTools::ExpandListArgument(dependsValue, depends);
-      }
-    if (GetVS6TargetName(source) != libName ||
-      target.GetType() == cmState::UTILITY ||
-      target.GetType() == cmState::GLOBAL_TARGET)
-      {
-      fout << "# Begin Source File\n\n";
-
-      // Tell MS-Dev what the source is.  If the compiler knows how to
-      // build it, then it will.
-      fout << "SOURCE=" <<
-        this->ConvertToOutputFormat(source.c_str(), SHELL) << "\n\n";
-      if(!depends.empty())
-        {
-        // Write out the dependencies for the rule.
-        fout << "USERDEP__HACK=";
-        for(std::vector<std::string>::const_iterator d = depends.begin();
-            d != depends.end(); ++d)
-          {
-          fout << "\\\n\t" <<
-            this->ConvertToOutputFormat(d->c_str(), SHELL);
-          }
-        fout << "\n";
-        }
-      if (command)
-        {
-        const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
-        this->WriteCustomRule(fout, source.c_str(), *command, flags);
-        }
-      else if(!compileFlags.empty() || !objectNameDir.empty() ||
-              excludedFromBuild || !cdmap.empty())
-        {
-        for(std::vector<std::string>::iterator i
-              = this->Configurations.begin();
-            i != this->Configurations.end(); ++i)
-          {
-          // Strip the subdirectory name out of the configuration name.
-          std::string config = this->GetConfigName(*i);
-          if (i == this->Configurations.begin())
-            {
-            fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-            }
-          else
-            {
-            fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-            }
-          if(excludedFromBuild)
-            {
-            fout << "# PROP Exclude_From_Build 1\n";
-            }
-          if(!compileFlags.empty())
-            {
-            fout << "\n# ADD CPP " << compileFlags << "\n\n";
-            }
-          std::map<std::string, std::string>::iterator cdi =
-            cdmap.find(cmSystemTools::UpperCase(config));
-          if(cdi != cdmap.end() && !cdi->second.empty())
-            {
-            fout << "\n# ADD CPP " << cdi->second << "\n\n";
-            }
-          if(!objectNameDir.empty())
-            {
-            // Setup an alternate object file directory.
-            fout << "\n# PROP Intermediate_Dir \""
-                 << config << "/" << objectNameDir << "\"\n\n";
-            }
-          }
-        fout << "!ENDIF\n\n";
-        }
-      fout << "# End Source File\n";
-      }
-    }
-
-  std::vector<cmSourceGroup> const& children  = sg->GetGroupChildren();
-
-  for(unsigned int i=0;i<children.size();++i)
-    {
-    this->WriteGroup(&children[i], target, fout, libName);
-    }
-
-
-
-
-  // If the group has a name, write the footer.
-  if(name != "")
-    {
-    this->WriteDSPEndGroup(fout);
-    }
-
+  return CURLE_OK;
 }
 
-
-void
-cmLocalVisualStudio6Generator
-::AddUtilityCommandHack(cmTarget& target, int count,
-                        std::vector<std::string>& depends,
-                        const cmCustomCommand& origCommand)
+static CURLcode file_disconnect(struct connectdata *conn,
+                                bool dead_connection)
 {
-  // Create a fake output that forces the rule to run.
-  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
-                           + target.GetName().size() + 30)];
-  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
-          target.GetName().c_str(), count);
-  const char* comment = origCommand.GetComment();
-  if(!comment && origCommand.GetOutputs().empty())
-    {
-    comment = "<hack>";
-    }
+  struct FILEPROTO *file = conn->data->req.protop;
+  (void)dead_connection; /* not used */
 
-  // Add the rule with the given dependencies and commands.
-  std::string no_main_dependency = "";
-  if(cmSourceFile* outsf =
-     this->Makefile->AddCustomCommandToOutput(
-       output, depends, no_main_dependency,
-       origCommand.GetCommandLines(), comment,
-       origCommand.GetWorkingDirectory().c_str()))
-    {
-    cmGeneratorTarget* gt = this->GlobalGenerator->GetGeneratorTarget(&target);
-    gt->AddSource(outsf->GetFullPath());
-    }
+  if(file) {
+    Curl_safefree(file->freepath);
+    file->path = NULL;
+    if(file->fd != -1)
+      close(file->fd);
+    file->fd = -1;
+  }
 
-  // Replace the dependencies with the output of this rule so that the
-  // next rule added will run after this one.
-  depends.clear();
-  depends.push_back(output);
-
-  // Free the fake output name.
-  delete [] output;
+  return CURLE_OK;
 }
 
-void
-cmLocalVisualStudio6Generator
-::WriteCustomRule(std::ostream& fout,
-                  const char* source,
-                  const cmCustomCommand& command,
-                  const char* flags)
+#ifdef DOS_FILESYSTEM
+#define DIRSEP '\\'
+#else
+#define DIRSEP '/'
+#endif
+
+static CURLcode file_upload(struct connectdata *conn)
 {
-  // Write the rule for each configuration.
-  std::vector<std::string>::iterator i;
-  for(i = this->Configurations.begin(); i != this->Configurations.end(); ++i)
-    {
-    std::string config = this->GetConfigName(*i);
-    cmCustomCommandGenerator ccg(command, config, this);
-    std::string comment =
-      this->ConstructComment(ccg, "Building Custom Rule $(InputPath)");
-    if(comment == "<hack>")
-      {
-      comment = "";
-      }
+  struct FILEPROTO *file = conn->data->req.protop;
+  const char *dir = strchr(file->path, DIRSEP);
+  int fd;
+  int mode;
+  CURLcode res=CURLE_OK;
+  struct SessionHandle *data = conn->data;
+  char *buf = data->state.buffer;
+  size_t nread;
+  size_t nwrite;
+  curl_off_t bytecount = 0;
+  struct timeval now = Curl_tvnow();
+  struct_stat file_stat;
+  const char* buf2;
 
-    std::string script =
-      this->ConstructScript(ccg, "\\\n\t");
+  /*
+   * Since FILE: doesn't do the full init, we need to provide some extra
+   * assignments here.
+   */
+  conn->fread_func = data->set.fread_func;
+  conn->fread_in = data->set.in;
+  conn->data->req.upload_fromhere = buf;
 
-    if (i == this->Configurations.begin())
-      {
-      fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-      }
-    else
-      {
-      fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-      }
-    if(flags)
-      {
-      fout << "\n# ADD CPP " << flags << "\n\n";
-      }
-    // Write out the dependencies for the rule.
-    fout << "USERDEP__HACK=";
-    for(std::vector<std::string>::const_iterator d =
-          ccg.GetDepends().begin();
-        d != ccg.GetDepends().end();
-        ++d)
-      {
-      // Lookup the real name of the dependency in case it is a CMake target.
-      std::string dep;
-      if(this->GetRealDependency(d->c_str(), config.c_str(), dep))
-        {
-        fout << "\\\n\t" <<
-          this->ConvertToOutputFormat(dep.c_str(), SHELL);
-        }
-      }
-    fout << "\n";
+  if(!dir)
+    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
 
-    fout << "# PROP Ignore_Default_Tool 1\n";
-    fout << "# Begin Custom Build -";
-    if(!comment.empty())
-      {
-      fout << " " << comment.c_str();
-      }
-    fout << "\n\n";
-    if(ccg.GetOutputs().empty())
-      {
-      fout << source
-           << "_force :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-      fout << script.c_str() << "\n\n";
-      }
-    else
-      {
-      for(std::vector<std::string>::const_iterator o =
-          ccg.GetOutputs().begin();
-          o != ccg.GetOutputs().end();
-          ++o)
-        {
-        // Write a rule for every output generated by this command.
-        fout << this->ConvertToOutputFormat(o->c_str(), SHELL)
-             << " :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-        fout << script.c_str() << "\n\n";
-        }
-      }
-    fout << "# End Custom Build\n\n";
-    }
+  if(!dir[1])
+    return CURLE_FILE_COULDNT_READ_FILE; /* fix: better error code */
 
-  fout << "!ENDIF\n\n";
-}
+#ifdef O_BINARY
+#define MODE_DEFAULT O_WRONLY|O_CREAT|O_BINARY
+#else
+#define MODE_DEFAULT O_WRONLY|O_CREAT
+#endif
 
-
-void cmLocalVisualStudio6Generator::WriteDSPBeginGroup(std::ostream& fout,
-                                                       const char* group,
-                                                       const char* filter)
-{
-  fout << "# Begin Group \"" << group << "\"\n"
-    "# PROP Default_Filter \"" << filter << "\"\n";
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPEndGroup(std::ostream& fout)
-{
-  fout << "# End Group\n";
-}
-
-
-
-
-void cmLocalVisualStudio6Generator::SetBuildType(BuildType b,
-                                                 const std::string& libName,
-                                                 cmTarget& target)
-{
-  std::string root= this->Makefile->GetRequiredDefinition("CMAKE_ROOT");
-  const char *def=
-    this->Makefile->GetDefinition( "MSPROJECT_TEMPLATE_DIRECTORY");
-
-  if( def)
-    {
-    root = def;
-    }
+  if(data->state.resume_from)
+    mode = MODE_DEFAULT|O_APPEND;
   else
-    {
-    root += "/Templates";
+    mode = MODE_DEFAULT|O_TRUNC;
+
+  fd = open(file->path, mode, conn->data->set.new_file_perms);
+  if(fd < 0) {
+    failf(data, "Can't open %s for writing", file->path);
+    return CURLE_WRITE_ERROR;
+  }
+
+  if(-1 != data->state.infilesize)
+    /* known size of data to "upload" */
+    Curl_pgrsSetUploadSize(data, data->state.infilesize);
+
+  /* treat the negative resume offset value as the case of "-" */
+  if(data->state.resume_from < 0) {
+    if(fstat(fd, &file_stat)) {
+      close(fd);
+      failf(data, "Can't get the size of %s", file->path);
+      return CURLE_WRITE_ERROR;
     }
-
-  switch(b)
-    {
-    case WIN32_EXECUTABLE:
-      break;
-    case STATIC_LIBRARY:
-      this->DSPHeaderTemplate = root;
-      this->DSPHeaderTemplate += "/staticLibHeader.dsptemplate";
-      this->DSPFooterTemplate = root;
-      this->DSPFooterTemplate += "/staticLibFooter.dsptemplate";
-      break;
-    case DLL:
-      this->DSPHeaderTemplate =  root;
-      this->DSPHeaderTemplate += "/DLLHeader.dsptemplate";
-      this->DSPFooterTemplate =  root;
-      this->DSPFooterTemplate += "/DLLFooter.dsptemplate";
-      break;
-    case EXECUTABLE:
-      if ( target.GetPropertyAsBool("WIN32_EXECUTABLE") )
-        {
-        this->DSPHeaderTemplate = root;
-        this->DSPHeaderTemplate += "/EXEWinHeader.dsptemplate";
-        this->DSPFooterTemplate = root;
-        this->DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      else
-        {
-        this->DSPHeaderTemplate = root;
-        this->DSPHeaderTemplate += "/EXEHeader.dsptemplate";
-        this->DSPFooterTemplate = root;
-        this->DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      break;
-    case UTILITY:
-      this->DSPHeaderTemplate = root;
-      this->DSPHeaderTemplate += "/UtilityHeader.dsptemplate";
-      this->DSPFooterTemplate = root;
-      this->DSPFooterTemplate += "/UtilityFooter.dsptemplate";
-      break;
-    }
-
-  // once the build type is set, determine what configurations are
-  // possible
-  cmsys::ifstream fin(this->DSPHeaderTemplate.c_str());
-
-  cmsys::RegularExpression reg("# Name ");
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", this->DSPHeaderTemplate.c_str());
-    }
-
-  // reset this->Configurations
-  this->Configurations.erase(this->Configurations.begin(),
-                             this->Configurations.end());
-
-  // now add all the configurations possible
-  std::string vs6name = GetVS6TargetName(libName);
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME", vs6name.c_str());
-    if (reg.find(line))
-      {
-      this->Configurations.push_back(line.substr(reg.end()));
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-cmsys::auto_ptr<cmCustomCommand>
-cmLocalVisualStudio6Generator::MaybeCreateOutputDir(cmTarget& target,
-                                                    const std::string& config)
-{
-  cmsys::auto_ptr<cmCustomCommand> pcc;
-
-  // VS6 forgets to create the output directory for archives if it
-  // differs from the intermediate directory.
-  if(target.GetType() != cmState::STATIC_LIBRARY) { return pcc; }
-
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-
-  std::string outDir = gt->GetDirectory(config, false);
-
-  // Add a pre-link event to create the directory.
-  cmCustomCommandLine command;
-  command.push_back(cmSystemTools::GetCMakeCommand());
-  command.push_back("-E");
-  command.push_back("make_directory");
-  command.push_back(outDir);
-  std::vector<std::string> no_output;
-  std::vector<std::string> no_byproducts;
-  std::vector<std::string> no_depends;
-  cmCustomCommandLines commands;
-  commands.push_back(command);
-  pcc.reset(new cmCustomCommand(0, no_output, no_byproducts,
-                                no_depends, commands, 0, 0));
-  pcc->SetEscapeOldStyle(false);
-  pcc->SetEscapeAllowMakeVars(true);
-  return pcc;
-}
-
-// look for custom rules on a target and collect them together
-std::string
-cmLocalVisualStudio6Generator::CreateTargetRules(cmTarget &target,
-                                              const std::string& configName,
-                                              const std::string& /* libName */)
-{
-  if (target.GetType() >= cmState::UTILITY )
-    {
-    return "";
-    }
-
-  std::string customRuleCode = "# Begin Special Build Tool\n";
-  EventWriter event(this, configName, customRuleCode);
-
-  // Write the pre-build and pre-link together (VS6 does not support both).
-  event.Start("PreLink");
-  event.Write(target.GetPreBuildCommands());
-  event.Write(target.GetPreLinkCommands());
-  cmsys::auto_ptr<cmCustomCommand> pcc(
-    this->MaybeCreateImplibDir(target, configName, false));
-  if(pcc.get())
-    {
-    event.Write(*pcc);
-    }
-  pcc = this->MaybeCreateOutputDir(target, configName);
-  if(pcc.get())
-    {
-    event.Write(*pcc);
-    }
-  event.Finish();
-
-  // Write the post-build rules.
-  event.Start("PostBuild");
-  event.Write(target.GetPostBuildCommands());
-  event.Finish();
-
-  customRuleCode += "# End Special Build Tool\n";
-  return customRuleCode;
-}
-
-
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
-}
-
-
-std::string
-cmLocalVisualStudio6Generator::GetTargetIncludeOptions(cmTarget &target,
-                                                  const std::string& config)
-{
-  std::string includeOptions;
-
-  // Setup /I and /LIBPATH options for the resulting DSP file.  VS 6
-  // truncates long include paths so make it as short as possible if
-  // the length threatens this problem.
-  unsigned int maxIncludeLength = 3000;
-  bool useShortPath = false;
-
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-  for(int j=0; j < 2; ++j)
-    {
-    std::vector<std::string> includes;
-    this->GetIncludeDirectories(includes, gt, "C", config);
-
-    std::vector<std::string>::iterator i;
-    for(i = includes.begin(); i != includes.end(); ++i)
-      {
-      std::string tmp =
-        this->ConvertToOutputFormat(i->c_str(), SHELL);
-      if(useShortPath)
-        {
-        cmSystemTools::GetShortPath(tmp.c_str(), tmp);
-        }
-      includeOptions +=  " /I ";
-
-      // quote if not already quoted
-      if (tmp[0] != '"')
-        {
-        includeOptions += "\"";
-        includeOptions += tmp;
-        includeOptions += "\"";
-        }
-      else
-        {
-        includeOptions += tmp;
-        }
-      }
-
-    if(j == 0 && includeOptions.size() > maxIncludeLength)
-      {
-      includeOptions = "";
-      useShortPath = true;
-      }
     else
-      {
+      data->state.resume_from = (curl_off_t)file_stat.st_size;
+  }
+
+  while(res == CURLE_OK) {
+    int readcount;
+    res = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
+    if(res)
       break;
+
+    if(readcount <= 0)  /* fix questionable compare error. curlvms */
+      break;
+
+    nread = (size_t)readcount;
+
+    /*skip bytes before resume point*/
+    if(data->state.resume_from) {
+      if((curl_off_t)nread <= data->state.resume_from ) {
+        data->state.resume_from -= nread;
+        nread = 0;
+        buf2 = buf;
+      }
+      else {
+        buf2 = buf + data->state.resume_from;
+        nread -= (size_t)data->state.resume_from;
+        data->state.resume_from = 0;
       }
     }
+    else
+      buf2 = buf;
 
-  return includeOptions;
+    /* write the data to the target */
+    nwrite = write(fd, buf2, nread);
+    if(nwrite != nread) {
+      res = CURLE_SEND_ERROR;
+      break;
+    }
+
+    bytecount += nread;
+
+    Curl_pgrsSetUploadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      res = CURLE_ABORTED_BY_CALLBACK;
+    else
+      res = Curl_speedcheck(data, now);
+  }
+  if(!res && Curl_pgrsUpdate(conn))
+    res = CURLE_ABORTED_BY_CALLBACK;
+
+  close(fd);
+
+  return res;
 }
 
-
-// Code in blocks surrounded by a test for this definition is needed
-// only for compatibility with user project's replacement DSP
-// templates.  The CMake templates no longer use them.
-#define CM_USE_OLD_VS6
-
-void cmLocalVisualStudio6Generator
-::WriteDSPHeader(std::ostream& fout,
-                 const std::string& libName, cmTarget &target,
-                 std::vector<cmSourceGroup> &)
+/*
+ * file_do() is the protocol-specific function for the do-phase, separated
+ * from the connect-phase above. Other protocols merely setup the transfer in
+ * the do-phase, to have it done in the main transfer loop but since some
+ * platforms we support don't allow select()ing etc on file handles (as
+ * opposed to sockets) we instead perform the whole do-operation in this
+ * function.
+ */
+static CURLcode file_do(struct connectdata *conn, bool *done)
 {
-  bool targetBuilds = (target.GetType() >= cmState::EXECUTABLE &&
-                       target.GetType() <= cmState::MODULE_LIBRARY);
-#ifdef CM_USE_OLD_VS6
-  // Lookup the library and executable output directories.
-  std::string libPath;
-  if(this->Makefile->GetDefinition("LIBRARY_OUTPUT_PATH"))
-    {
-    libPath = this->Makefile->GetDefinition("LIBRARY_OUTPUT_PATH");
+  /* This implementation ignores the host name in conformance with
+     RFC 1738. Only local files (reachable via the standard file system)
+     are supported. This means that files on remotely mounted directories
+     (via NFS, Samba, NT sharing) can be accessed through a file:// URL
+  */
+  CURLcode res = CURLE_OK;
+  struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
+                          Windows version to have a different struct without
+                          having to redefine the simple word 'stat' */
+  curl_off_t expected_size=0;
+  bool fstated=FALSE;
+  ssize_t nread;
+  struct SessionHandle *data = conn->data;
+  char *buf = data->state.buffer;
+  curl_off_t bytecount = 0;
+  int fd;
+  struct timeval now = Curl_tvnow();
+  struct FILEPROTO *file;
+
+  *done = TRUE; /* unconditionally */
+
+  Curl_initinfo(data);
+  Curl_pgrsStartNow(data);
+
+  if(data->set.upload)
+    return file_upload(conn);
+
+  file = conn->data->req.protop;
+
+  /* get the fd from the connection phase */
+  fd = file->fd;
+
+  /* VMS: This only works reliable for STREAMLF files */
+  if(-1 != fstat(fd, &statbuf)) {
+    /* we could stat it, then read out the size */
+    expected_size = statbuf.st_size;
+    /* and store the modification time */
+    data->info.filetime = (long)statbuf.st_mtime;
+    fstated = TRUE;
+  }
+
+  if(fstated && !data->state.range && data->set.timecondition) {
+    if(!Curl_meets_timecondition(data, (time_t)data->info.filetime)) {
+      *done = TRUE;
+      return CURLE_OK;
     }
-  std::string exePath;
-  if(this->Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH"))
-    {
-    exePath = this->Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH");
+  }
+
+  /* If we have selected NOBODY and HEADER, it means that we only want file
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    CURLcode result;
+    snprintf(buf, sizeof(data->state.buffer),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(result)
+      return result;
+
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH,
+                               (char *)"Accept-ranges: bytes\r\n", 0);
+    if(result)
+      return result;
+
+    if(fstated) {
+      time_t filetime = (time_t)statbuf.st_mtime;
+      struct tm buffer;
+      const struct tm *tm = &buffer;
+      result = Curl_gmtime(filetime, &buffer);
+      if(result)
+        return result;
+
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+      snprintf(buf, BUFSIZE-1,
+               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+               tm->tm_mday,
+               Curl_month[tm->tm_mon],
+               tm->tm_year + 1900,
+               tm->tm_hour,
+               tm->tm_min,
+               tm->tm_sec);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
     }
+    /* if we fstat()ed the file, set the file size to make it available post-
+       transfer */
+    if(fstated)
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }
 
-  // Make sure there are trailing slashes.
-  if(!libPath.empty())
-    {
-    if(libPath[libPath.size()-1] != '/')
-      {
-      libPath += "/";
-      }
+  /* Check whether file range has been specified */
+  file_range(conn);
+
+  /* Adjust the start offset in case we want to get the N last bytes
+   * of the stream iff the filesize could be determined */
+  if(data->state.resume_from < 0) {
+    if(!fstated) {
+      failf(data, "Can't get the size of file.");
+      return CURLE_READ_ERROR;
     }
-  if(!exePath.empty())
-    {
-    if(exePath[exePath.size()-1] != '/')
-      {
-      exePath += "/";
-      }
-    }
+    else
+      data->state.resume_from += (curl_off_t)statbuf.st_size;
+  }
 
-  std::set<std::string> pathEmitted;
+  if(data->state.resume_from <= expected_size)
+    expected_size -= data->state.resume_from;
+  else {
+    failf(data, "failed to resume file:// transfer");
+    return CURLE_BAD_DOWNLOAD_RESUME;
+  }
 
-  // determine the link directories
-  std::string libOptions;
-  std::string libDebugOptions;
-  std::string libOptimizedOptions;
+  /* A high water mark has been specified so we obey... */
+  if(data->req.maxdownload > 0)
+    expected_size = data->req.maxdownload;
 
-  std::string libMultiLineOptions;
-  std::string libMultiLineOptionsForDebug;
-  std::string libMultiLineDebugOptions;
-  std::string libMultiLineOptimizedOptions;
+  if(fstated && (expected_size == 0))
+    return CURLE_OK;
 
-  if(!libPath.empty())
-    {
-    std::string lpath =
-      this->ConvertToOutputFormat(libPath.c_str(), SHELL);
-    if(lpath.empty())
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = libPath + "$(INTDIR)";
-    lpathIntDir =
-      this->ConvertToOutputFormat(lpathIntDir.c_str(), SHELL);
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  if(!exePath.empty())
-    {
-    std::string lpath =
-      this->ConvertToOutputFormat(exePath.c_str(), SHELL);
-    if(lpath.empty())
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = exePath + "$(INTDIR)";
-    lpathIntDir =
-      this->ConvertToOutputFormat(lpathIntDir.c_str(), SHELL);
+  /* The following is a shortcut implementation of file reading
+     this is both more efficient than the former call to download() and
+     it avoids problems with select() and recv() on file descriptors
+     in Winsock */
+  if(fstated)
+    Curl_pgrsSetDownloadSize(data, expected_size);
 
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  std::vector<std::string>::const_iterator i;
-  const std::vector<std::string>& libdirs = target.GetLinkDirectories();
-  for(i = libdirs.begin(); i != libdirs.end(); ++i)
-    {
-    std::string path = *i;
-    if(path[path.size()-1] != '/')
-      {
-      path += "/";
-      }
-    std::string lpath =
-      this->ConvertToOutputFormat(path.c_str(), SHELL);
-    if(lpath.empty())
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = path + "$(INTDIR)";
-    lpathIntDir =
-      this->ConvertToOutputFormat(lpathIntDir.c_str(), SHELL);
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
+  if(data->state.resume_from) {
+    if(data->state.resume_from !=
+       lseek(fd, data->state.resume_from, SEEK_SET))
+      return CURLE_BAD_DOWNLOAD_RESUME;
+  }
 
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  // find link libraries
-  const cmTarget::LinkLibraryVectorType& libs =
-    target.GetLinkLibrariesForVS6();
-  cmTarget::LinkLibraryVectorType::const_iterator j;
-  for(j = libs.begin(); j != libs.end(); ++j)
-    {
-    // add libraries to executables and dlls (but never include
-    // a library in a library, bad recursion)
-    // NEVER LINK STATIC LIBRARIES TO OTHER STATIC LIBRARIES
-    if ((target.GetType() != cmState::SHARED_LIBRARY
-         && target.GetType() != cmState::STATIC_LIBRARY
-         && target.GetType() != cmState::MODULE_LIBRARY) ||
-        (target.GetType()==cmState::SHARED_LIBRARY
-         && libName != GetVS6TargetName(j->first)) ||
-        (target.GetType()==cmState::MODULE_LIBRARY
-         && libName != GetVS6TargetName(j->first)))
-      {
-      // Compute the proper name to use to link this library.
-      std::string lib;
-      std::string libDebug;
-      cmTarget* tgt = this->GlobalGenerator->FindTarget(j->first.c_str());
-      if(tgt)
-        {
-        cmGeneratorTarget* gt =
-          this->GlobalGenerator->GetGeneratorTarget(tgt);
-        lib = cmSystemTools::GetFilenameWithoutExtension
-          (gt->GetFullName().c_str());
-        libDebug = cmSystemTools::GetFilenameWithoutExtension
-          (gt->GetFullName("Debug").c_str());
-        lib += ".lib";
-        libDebug += ".lib";
-        }
-      else
-        {
-        lib = j->first.c_str();
-        libDebug = j->first.c_str();
-        if(j->first.find(".lib") == std::string::npos)
-          {
-          lib += ".lib";
-          libDebug += ".lib";
-          }
-        }
-      lib = this->ConvertToOutputFormat(lib.c_str(), SHELL);
-      libDebug =
-        this->ConvertToOutputFormat(libDebug.c_str(), SHELL);
+  Curl_pgrsTime(data, TIMER_STARTTRANSFER);
 
-      if (j->second == GENERAL_LibraryType)
-        {
-        libOptions += " ";
-        libOptions += lib;
-        libMultiLineOptions += "# ADD LINK32 ";
-        libMultiLineOptions +=  lib;
-        libMultiLineOptions += "\n";
-        libMultiLineOptionsForDebug += "# ADD LINK32 ";
-        libMultiLineOptionsForDebug +=  libDebug;
-        libMultiLineOptionsForDebug += "\n";
-        }
-      if (j->second == DEBUG_LibraryType)
-        {
-        libDebugOptions += " ";
-        libDebugOptions += lib;
+  while(res == CURLE_OK) {
+    /* Don't fill a whole buffer if we want less than all data */
+    size_t bytestoread =
+      (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
+      curlx_sotouz(expected_size) : BUFSIZE - 1;
 
-        libMultiLineDebugOptions += "# ADD LINK32 ";
-        libMultiLineDebugOptions += libDebug;
-        libMultiLineDebugOptions += "\n";
-        }
-      if (j->second == OPTIMIZED_LibraryType)
-        {
-        libOptimizedOptions += " ";
-        libOptimizedOptions += lib;
+    nread = read(fd, buf, bytestoread);
 
-        libMultiLineOptimizedOptions += "# ADD LINK32 ";
-        libMultiLineOptimizedOptions += lib;
-        libMultiLineOptimizedOptions += "\n";
-        }
-      }
-    }
+    if(nread > 0)
+      buf[nread] = 0;
+
+    if(nread <= 0 || expected_size == 0)
+      break;
+
+    bytecount += nread;
+    expected_size -= nread;
+
+    res = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
+    if(res)
+      return res;
+
+    Curl_pgrsSetDownloadCounter(data, bytecount);
+
+    if(Curl_pgrsUpdate(conn))
+      res = CURLE_ABORTED_BY_CALLBACK;
+    else
+      res = Curl_speedcheck(data, now);
+  }
+  if(Curl_pgrsUpdate(conn))
+    res = CURLE_ABORTED_BY_CALLBACK;
+
+  return res;
+}
+
 #endif
-
-  // Get include options for this target.
-  std::string includeOptionsDebug = this->GetTargetIncludeOptions(target,
-                                                                  "DEBUG");
-  std::string includeOptionsRelease = this->GetTargetIncludeOptions(target,
-                                                                  "RELEASE");
-  std::string includeOptionsRelWithDebInfo = this->GetTargetIncludeOptions(
-                                                            target,
-                                                            "RELWITHDEBINFO");
-  std::string includeOptionsMinSizeRel = this->GetTargetIncludeOptions(target,
-                                                                "MINSIZEREL");
-
-  // Get extra linker options for this target type.
-  std::string extraLinkOptions;
-  std::string extraLinkOptionsDebug;
-  std::string extraLinkOptionsRelease;
-  std::string extraLinkOptionsMinSizeRel;
-  std::string extraLinkOptionsRelWithDebInfo;
-  if(target.GetType() == cmState::EXECUTABLE)
-    {
-    extraLinkOptions = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS");
-    extraLinkOptionsDebug = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_DEBUG");
-    extraLinkOptionsRelease = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_RELEASE");
-    extraLinkOptionsMinSizeRel = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_MINSIZEREL");
-    extraLinkOptionsRelWithDebInfo = this->Makefile->
-      GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO");
-    }
-  if(target.GetType() == cmState::SHARED_LIBRARY)
-    {
-    extraLinkOptions = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS");
-    extraLinkOptionsDebug = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_DEBUG");
-    extraLinkOptionsRelease = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_RELEASE");
-    extraLinkOptionsMinSizeRel = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_MINSIZEREL");
-    extraLinkOptionsRelWithDebInfo = this->Makefile->
-      GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO");
-    }
-  if(target.GetType() == cmState::MODULE_LIBRARY)
-    {
-    extraLinkOptions = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS");
-    extraLinkOptionsDebug = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_DEBUG");
-    extraLinkOptionsRelease = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_RELEASE");
-    extraLinkOptionsMinSizeRel = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_MINSIZEREL");
-    extraLinkOptionsRelWithDebInfo = this->Makefile->
-      GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO");
-    }
-
-  // Get extra linker options for this target.
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS"))
-    {
-    extraLinkOptions += " ";
-    extraLinkOptions += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS_DEBUG"))
-    {
-    extraLinkOptionsDebug += " ";
-    extraLinkOptionsDebug += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS_RELEASE"))
-    {
-    extraLinkOptionsRelease += " ";
-    extraLinkOptionsRelease += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS_MINSIZEREL"))
-    {
-    extraLinkOptionsMinSizeRel += " ";
-    extraLinkOptionsMinSizeRel += targetLinkFlags;
-    }
-
-  if(const char* targetLinkFlags =
-     target.GetProperty("LINK_FLAGS_RELWITHDEBINFO"))
-    {
-    extraLinkOptionsRelWithDebInfo += " ";
-    extraLinkOptionsRelWithDebInfo += targetLinkFlags;
-    }
-
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-
-  // Get standard libraries for this language.
-  if(targetBuilds)
-    {
-    // Get the language to use for linking.
-    std::vector<std::string> configs;
-    target.GetMakefile()->GetConfigurations(configs);
-    std::vector<std::string>::const_iterator it = configs.begin();
-    const std::string& linkLanguage = gt->GetLinkerLanguage(*it);
-    for ( ; it != configs.end(); ++it)
-      {
-      const std::string& configLinkLanguage = gt->GetLinkerLanguage(*it);
-      if (configLinkLanguage != linkLanguage)
-        {
-        cmSystemTools::Error
-          ("Linker language must not vary by configuration for target: ",
-          target.GetName().c_str());
-        }
-      }
-    if(linkLanguage.empty())
-      {
-      cmSystemTools::Error
-        ("CMake can not determine linker language for target: ",
-         target.GetName().c_str());
-      return;
-      }
-
-    // Compute the variable name to lookup standard libraries for this
-    // language.
-    std::string standardLibsVar = "CMAKE_";
-    standardLibsVar += linkLanguage;
-    standardLibsVar += "_STANDARD_LIBRARIES";
-
-    // Add standard libraries.
-    if(const char* stdLibs =
-       this->Makefile->GetDefinition(standardLibsVar.c_str()))
-      {
-      extraLinkOptions += " ";
-      extraLinkOptions += stdLibs;
-      }
-    }
-
-  // Compute version number information.
-  std::string targetVersionFlag;
-  if(target.GetType() == cmState::EXECUTABLE ||
-     target.GetType() == cmState::SHARED_LIBRARY ||
-     target.GetType() == cmState::MODULE_LIBRARY)
-    {
-    int major;
-    int minor;
-    gt->GetTargetVersion(major, minor);
-    std::ostringstream targetVersionStream;
-    targetVersionStream << "/version:" << major << "." << minor;
-    targetVersionFlag = targetVersionStream.str();
-    }
-
-  // Compute the real name of the target.
-  std::string outputName =
-    "(OUTPUT_NAME is for libraries and executables only)";
-  std::string outputNameDebug = outputName;
-  std::string outputNameRelease = outputName;
-  std::string outputNameMinSizeRel = outputName;
-  std::string outputNameRelWithDebInfo = outputName;
-  if(target.GetType() == cmState::EXECUTABLE ||
-     target.GetType() == cmState::STATIC_LIBRARY ||
-     target.GetType() == cmState::SHARED_LIBRARY ||
-     target.GetType() == cmState::MODULE_LIBRARY)
-    {
-    outputName = gt->GetFullName();
-    outputNameDebug = gt->GetFullName("Debug");
-    outputNameRelease = gt->GetFullName("Release");
-    outputNameMinSizeRel = gt->GetFullName("MinSizeRel");
-    outputNameRelWithDebInfo = gt->GetFullName("RelWithDebInfo");
-    }
-  else if(target.GetType() == cmState::OBJECT_LIBRARY)
-    {
-    outputName = target.GetName();
-    outputName += ".lib";
-    outputNameDebug = outputName;
-    outputNameRelease = outputName;
-    outputNameMinSizeRel = outputName;
-    outputNameRelWithDebInfo = outputName;
-    }
-
-  // Compute the output directory for the target.
-  std::string outputDirOld;
-  std::string outputDirDebug;
-  std::string outputDirRelease;
-  std::string outputDirMinSizeRel;
-  std::string outputDirRelWithDebInfo;
-  if(target.GetType() == cmState::EXECUTABLE ||
-     target.GetType() == cmState::STATIC_LIBRARY ||
-     target.GetType() == cmState::SHARED_LIBRARY ||
-     target.GetType() == cmState::MODULE_LIBRARY)
-    {
-#ifdef CM_USE_OLD_VS6
-    outputDirOld =
-      removeQuotes(this->ConvertToOutputFormat
-                   (gt->GetDirectory().c_str(), SHELL));
-#endif
-    outputDirDebug =
-        removeQuotes(this->ConvertToOutputFormat(
-                       gt->GetDirectory("Debug").c_str(), SHELL));
-    outputDirRelease =
-        removeQuotes(this->ConvertToOutputFormat(
-                 gt->GetDirectory("Release").c_str(), SHELL));
-    outputDirMinSizeRel =
-        removeQuotes(this->ConvertToOutputFormat(
-                 gt->GetDirectory("MinSizeRel").c_str(), SHELL));
-    outputDirRelWithDebInfo =
-        removeQuotes(this->ConvertToOutputFormat(
-                 gt->GetDirectory("RelWithDebInfo").c_str(), SHELL));
-    }
-  else if(target.GetType() == cmState::OBJECT_LIBRARY)
-    {
-    std::string outputDir = cmake::GetCMakeFilesDirectoryPostSlash();
-    outputDirDebug = outputDir + "Debug";
-    outputDirRelease = outputDir + "Release";
-    outputDirMinSizeRel = outputDir + "MinSizeRel";
-    outputDirRelWithDebInfo = outputDir + "RelWithDebInfo";
-    }
-
-  // Compute the proper link information for the target.
-  std::string optionsDebug;
-  std::string optionsRelease;
-  std::string optionsMinSizeRel;
-  std::string optionsRelWithDebInfo;
-  if(target.GetType() == cmState::EXECUTABLE ||
-     target.GetType() == cmState::SHARED_LIBRARY ||
-     target.GetType() == cmState::MODULE_LIBRARY)
-    {
-    extraLinkOptionsDebug =
-      extraLinkOptions + " " + extraLinkOptionsDebug;
-    extraLinkOptionsRelease =
-      extraLinkOptions + " " + extraLinkOptionsRelease;
-    extraLinkOptionsMinSizeRel =
-      extraLinkOptions + " " + extraLinkOptionsMinSizeRel;
-    extraLinkOptionsRelWithDebInfo =
-      extraLinkOptions + " " + extraLinkOptionsRelWithDebInfo;
-    this->ComputeLinkOptions(target, "Debug", extraLinkOptionsDebug,
-                             optionsDebug);
-    this->ComputeLinkOptions(target, "Release", extraLinkOptionsRelease,
-                             optionsRelease);
-    this->ComputeLinkOptions(target, "MinSizeRel", extraLinkOptionsMinSizeRel,
-                             optionsMinSizeRel);
-    this->ComputeLinkOptions(target, "RelWithDebInfo",
-                             extraLinkOptionsRelWithDebInfo,
-                             optionsRelWithDebInfo);
-    }
-
-  // Compute the path of the import library.
-  std::string targetImplibFlagDebug;
-  std::string targetImplibFlagRelease;
-  std::string targetImplibFlagMinSizeRel;
-  std::string targetImplibFlagRelWithDebInfo;
-  if(target.GetType() == cmState::SHARED_LIBRARY ||
-     target.GetType() == cmState::MODULE_LIBRARY ||
-     target.GetType() == cmState::EXECUTABLE)
-    {
-    std::string fullPathImpDebug = gt->GetDirectory("Debug", true);
-    std::string fullPathImpRelease = gt->GetDirectory("Release", true);
-    std::string fullPathImpMinSizeRel =
-      gt->GetDirectory("MinSizeRel", true);
-    std::string fullPathImpRelWithDebInfo =
-      gt->GetDirectory("RelWithDebInfo", true);
-    fullPathImpDebug += "/";
-    fullPathImpRelease += "/";
-    fullPathImpMinSizeRel += "/";
-    fullPathImpRelWithDebInfo += "/";
-    fullPathImpDebug += gt->GetFullName("Debug", true);
-    fullPathImpRelease += gt->GetFullName("Release", true);
-    fullPathImpMinSizeRel += gt->GetFullName("MinSizeRel", true);
-    fullPathImpRelWithDebInfo += gt->GetFullName("RelWithDebInfo", true);
-
-    targetImplibFlagDebug = "/implib:";
-    targetImplibFlagRelease = "/implib:";
-    targetImplibFlagMinSizeRel = "/implib:";
-    targetImplibFlagRelWithDebInfo = "/implib:";
-    targetImplibFlagDebug +=
-      this->ConvertToOutputFormat(fullPathImpDebug.c_str(), SHELL);
-    targetImplibFlagRelease +=
-      this->ConvertToOutputFormat(fullPathImpRelease.c_str(), SHELL);
-    targetImplibFlagMinSizeRel +=
-      this->ConvertToOutputFormat(fullPathImpMinSizeRel.c_str(), SHELL);
-    targetImplibFlagRelWithDebInfo +=
-      this->ConvertToOutputFormat(fullPathImpRelWithDebInfo.c_str(), SHELL);
-    }
-
-#ifdef CM_USE_OLD_VS6
-  // Compute link information for the target.
-  if(!extraLinkOptions.empty())
-    {
-    libOptions += " ";
-    libOptions += extraLinkOptions;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  extraLinkOptions;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  extraLinkOptions;
-    libMultiLineOptionsForDebug += " \n";
-    }
-#endif
-
-  // are there any custom rules on the target itself
-  // only if the target is a lib or exe
-  std::string customRuleCodeRelease
-      = this->CreateTargetRules(target, "RELEASE",        libName);
-  std::string customRuleCodeDebug
-      = this->CreateTargetRules(target, "DEBUG",          libName);
-  std::string customRuleCodeMinSizeRel
-      = this->CreateTargetRules(target, "MINSIZEREL",     libName);
-  std::string customRuleCodeRelWithDebInfo
-      = this->CreateTargetRules(target, "RELWITHDEBINFO", libName);
-
-  cmsys::ifstream fin(this->DSPHeaderTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", this->DSPHeaderTemplate.c_str());
-    }
-  std::string staticLibOptions;
-  std::string staticLibOptionsDebug;
-  std::string staticLibOptionsRelease;
-  std::string staticLibOptionsMinSizeRel;
-  std::string staticLibOptionsRelWithDebInfo;
-  if(target.GetType() == cmState::STATIC_LIBRARY )
-    {
-    const char *libflagsGlobal =
-      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS");
-    this->AppendFlags(staticLibOptions, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsDebug, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsRelease, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsMinSizeRel, libflagsGlobal);
-    this->AppendFlags(staticLibOptionsRelWithDebInfo, libflagsGlobal);
-
-    this->AppendFlags(staticLibOptionsDebug, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_DEBUG"));
-    this->AppendFlags(staticLibOptionsRelease, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_RELEASE"));
-    this->AppendFlags(staticLibOptionsMinSizeRel, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_MINSIZEREL"));
-    this->AppendFlags(staticLibOptionsRelWithDebInfo, this->Makefile->
-      GetSafeDefinition("CMAKE_STATIC_LINKER_FLAGS_RELWITHDEBINFO"));
-
-    const char *libflags = target.GetProperty("STATIC_LIBRARY_FLAGS");
-    this->AppendFlags(staticLibOptions, libflags);
-    this->AppendFlags(staticLibOptionsDebug, libflags);
-    this->AppendFlags(staticLibOptionsRelease, libflags);
-    this->AppendFlags(staticLibOptionsMinSizeRel, libflags);
-    this->AppendFlags(staticLibOptionsRelWithDebInfo, libflags);
-
-    this->AppendFlags(staticLibOptionsDebug,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_DEBUG"));
-    this->AppendFlags(staticLibOptionsRelease,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_RELEASE"));
-    this->AppendFlags(staticLibOptionsMinSizeRel,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_MINSIZEREL"));
-    this->AppendFlags(staticLibOptionsRelWithDebInfo,
-      target.GetProperty("STATIC_LIBRARY_FLAGS_RELWITHDEBINFO"));
-
-    std::string objects;
-    this->OutputObjects(target, "LIB", objects);
-    if(!objects.empty())
-      {
-      objects = "\n" + objects;
-      staticLibOptionsDebug += objects;
-      staticLibOptionsRelease += objects;
-      staticLibOptionsMinSizeRel += objects;
-      staticLibOptionsRelWithDebInfo += objects;
-      }
-    }
-
-  // Add the export symbol definition for shared library objects.
-  std::string exportSymbol;
-  if(const char* exportMacro = gt->GetExportMacro())
-    {
-    exportSymbol = exportMacro;
-    }
-
-  std::string line;
-  std::string libnameExports;
-  if(!exportSymbol.empty())
-    {
-    libnameExports = "/D \"";
-    libnameExports += exportSymbol;
-    libnameExports += "\"";
-    }
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    const char* mfcFlag = this->Makefile->GetDefinition("CMAKE_MFC_FLAG");
-    if(!mfcFlag)
-      {
-      mfcFlag = "0";
-      }
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME_EXPORTS",
-                                 libnameExports.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_MFC_FLAG",
-                                 mfcFlag);
-    if(target.GetType() == cmState::STATIC_LIBRARY ||
-       target.GetType() == cmState::OBJECT_LIBRARY)
-      {
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_DEBUG",
-                                   staticLibOptionsDebug.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_RELEASE",
-                                   staticLibOptionsRelease.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_MINSIZEREL",
-                                   staticLibOptionsMinSizeRel.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS_RELWITHDEBINFO",
-                                   staticLibOptionsRelWithDebInfo.c_str());
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS",
-                                   staticLibOptions.c_str());
-      }
-    if(this->Makefile->IsOn("CMAKE_VERBOSE_MAKEFILE"))
-      {
-      cmSystemTools::ReplaceString(line, "/nologo", "");
-      }
-
-#ifdef CM_USE_OLD_VS6
-    cmSystemTools::ReplaceString(line, "CM_LIBRARIES",
-                                 libOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_DEBUG_LIBRARIES",
-                                 libDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_OPTIMIZED_LIBRARIES",
-                                 libOptimizedOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES_FOR_DEBUG",
-                                 libMultiLineOptionsForDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES",
-                                 libMultiLineOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_DEBUG_LIBRARIES",
-                                 libMultiLineDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIMIZED_LIBRARIES",
-                                 libMultiLineOptimizedOptions.c_str());
-#endif
-
-    // Substitute the rules for custom command. When specifying just the
-    // target name for the command the command can be different for
-    // different configs
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_RELEASE",
-                                 customRuleCodeRelease.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_DEBUG",
-                                 customRuleCodeDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_MINSIZEREL",
-                                 customRuleCodeMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE_RELWITHDEBINFO",
-                                 customRuleCodeRelWithDebInfo.c_str());
-
-    // Substitute the real output name into the template.
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_DEBUG",
-                                 outputNameDebug.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_RELEASE",
-                                 outputNameRelease.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_MINSIZEREL",
-                                 outputNameMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME_RELWITHDEBINFO",
-                                 outputNameRelWithDebInfo.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_NAME", outputName.c_str());
-
-    // Substitute the proper link information into the template.
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_DEBUG",
-                                 optionsDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_RELEASE",
-                                 optionsRelease.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_MINSIZEREL",
-                                 optionsMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIONS_RELWITHDEBINFO",
-                                 optionsRelWithDebInfo.c_str());
-
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_DEBUG",
-                                 includeOptionsDebug.c_str());
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_RELEASE",
-                                 includeOptionsRelease.c_str());
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_MINSIZEREL",
-                                 includeOptionsMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES_RELWITHDEBINFO",
-                                 includeOptionsRelWithDebInfo.c_str());
-
-    cmSystemTools::ReplaceString(line, "TARGET_VERSION_FLAG",
-                                 targetVersionFlag.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_DEBUG",
-                                 targetImplibFlagDebug.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_RELEASE",
-                                 targetImplibFlagRelease.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_MINSIZEREL",
-                                 targetImplibFlagMinSizeRel.c_str());
-    cmSystemTools::ReplaceString(line, "TARGET_IMPLIB_FLAG_RELWITHDEBINFO",
-                                 targetImplibFlagRelWithDebInfo.c_str());
-
-    std::string vs6name = GetVS6TargetName(libName);
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME", vs6name.c_str());
-
-#ifdef CM_USE_OLD_VS6
-    // because LIBRARY_OUTPUT_PATH and EXECUTABLE_OUTPUT_PATH
-    // are already quoted in the template file,
-    // we need to remove the quotes here, we still need
-    // to convert to output path for unix to win32 conversion
-    cmSystemTools::ReplaceString
-      (line, "LIBRARY_OUTPUT_PATH",
-       removeQuotes(this->ConvertToOutputFormat
-                    (libPath.c_str(), SHELL)).c_str());
-    cmSystemTools::ReplaceString
-      (line, "EXECUTABLE_OUTPUT_PATH",
-       removeQuotes(this->ConvertToOutputFormat
-                    (exePath.c_str(), SHELL)).c_str());
-#endif
-
-    if(targetBuilds || target.GetType() == cmState::OBJECT_LIBRARY)
-      {
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_DEBUG",
-                                   outputDirDebug.c_str());
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_RELEASE",
-                                   outputDirRelease.c_str());
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_MINSIZEREL",
-                                   outputDirMinSizeRel.c_str());
-      cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY_RELWITHDEBINFO",
-                                   outputDirRelWithDebInfo.c_str());
-      if(!outputDirOld.empty())
-        {
-        cmSystemTools::ReplaceString(line, "OUTPUT_DIRECTORY",
-                                     outputDirOld.c_str());
-        }
-      }
-
-    cmSystemTools::ReplaceString(line,
-                                 "EXTRA_DEFINES",
-                                 this->Makefile->GetDefineFlags());
-    const char* debugPostfix
-      = this->Makefile->GetDefinition("CMAKE_DEBUG_POSTFIX");
-    cmSystemTools::ReplaceString(line, "DEBUG_POSTFIX",
-                                 debugPostfix?debugPostfix:"");
-    if(target.GetType() >= cmState::EXECUTABLE &&
-       target.GetType() <= cmState::OBJECT_LIBRARY)
-      {
-      // store flags for each configuration
-      std::string flags = " ";
-      std::string flagsRelease = " ";
-      std::string flagsMinSizeRel = " ";
-      std::string flagsDebug = " ";
-      std::string flagsRelWithDebInfo = " ";
-      std::vector<std::string> configs;
-      target.GetMakefile()->GetConfigurations(configs);
-      std::vector<std::string>::const_iterator it = configs.begin();
-      const std::string& linkLanguage = gt->GetLinkerLanguage(*it);
-      for ( ; it != configs.end(); ++it)
-        {
-        const std::string& configLinkLanguage = gt->GetLinkerLanguage(*it);
-        if (configLinkLanguage != linkLanguage)
-          {
-          cmSystemTools::Error
-            ("Linker language must not vary by configuration for target: ",
-            target.GetName().c_str());
-          }
-        }
-      if(linkLanguage.empty())
-        {
-        cmSystemTools::Error
-          ("CMake can not determine linker language for target: ",
-           target.GetName().c_str());
-        return;
-        }
-      // if CXX is on and the target contains cxx code then add the cxx flags
-      std::string baseFlagVar = "CMAKE_";
-      baseFlagVar += linkLanguage;
-      baseFlagVar += "_FLAGS";
-      flags = this->Makefile->GetSafeDefinition(baseFlagVar.c_str());
-
-      std::string flagVar = baseFlagVar + "_RELEASE";
-      flagsRelease = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsRelease += " -DCMAKE_INTDIR=\\\"Release\\\" ";
-
-      flagVar = baseFlagVar + "_MINSIZEREL";
-      flagsMinSizeRel = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsMinSizeRel += " -DCMAKE_INTDIR=\\\"MinSizeRel\\\" ";
-
-      flagVar = baseFlagVar + "_DEBUG";
-      flagsDebug = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsDebug += " -DCMAKE_INTDIR=\\\"Debug\\\" ";
-
-      flagVar = baseFlagVar + "_RELWITHDEBINFO";
-      flagsRelWithDebInfo = this->Makefile->GetSafeDefinition(flagVar.c_str());
-      flagsRelWithDebInfo += " -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" ";
-
-      this->AddCompileOptions(flags, gt, linkLanguage, "");
-      this->AddCompileOptions(flagsDebug, gt, linkLanguage, "Debug");
-      this->AddCompileOptions(flagsRelease, gt, linkLanguage, "Release");
-      this->AddCompileOptions(flagsMinSizeRel, gt, linkLanguage,
-                              "MinSizeRel");
-      this->AddCompileOptions(flagsRelWithDebInfo, gt, linkLanguage,
-                              "RelWithDebInfo");
-
-      // if _UNICODE and _SBCS are not found, then add -D_MBCS
-      std::string defs = this->Makefile->GetDefineFlags();
-      if(flags.find("D_UNICODE") == flags.npos &&
-         defs.find("D_UNICODE") == flags.npos &&
-         flags.find("D_SBCS") == flags.npos &&
-         defs.find("D_SBCS") == flags.npos)
-        {
-        flags += " /D \"_MBCS\"";
-        }
-
-      // Add per-target and per-configuration preprocessor definitions.
-      std::set<std::string> definesSet;
-      std::set<std::string> debugDefinesSet;
-      std::set<std::string> releaseDefinesSet;
-      std::set<std::string> minsizeDefinesSet;
-      std::set<std::string> debugrelDefinesSet;
-
-      this->AddCompileDefinitions(definesSet, gt, "", linkLanguage);
-      this->AddCompileDefinitions(debugDefinesSet, gt,
-                                  "DEBUG", linkLanguage);
-      this->AddCompileDefinitions(releaseDefinesSet, gt,
-                                  "RELEASE", linkLanguage);
-      this->AddCompileDefinitions(minsizeDefinesSet, gt,
-                                  "MINSIZEREL", linkLanguage);
-      this->AddCompileDefinitions(debugrelDefinesSet, gt,
-                                  "RELWITHDEBINFO", linkLanguage);
-
-      std::string defines = " ";
-      std::string debugDefines = " ";
-      std::string releaseDefines = " ";
-      std::string minsizeDefines = " ";
-      std::string debugrelDefines = " ";
-
-      this->JoinDefines(definesSet, defines, "");
-      this->JoinDefines(debugDefinesSet, debugDefines, "");
-      this->JoinDefines(releaseDefinesSet, releaseDefines, "");
-      this->JoinDefines(minsizeDefinesSet, minsizeDefines, "");
-      this->JoinDefines(debugrelDefinesSet, debugrelDefines, "");
-
-      flags += defines;
-      flagsDebug += debugDefines;
-      flagsRelease += releaseDefines;
-      flagsMinSizeRel += minsizeDefines;
-      flagsRelWithDebInfo += debugrelDefines;
-
-      // The template files have CXX FLAGS in them, that need to be replaced.
-      // There are not separate CXX and C template files, so we use the same
-      // variable names.   The previous code sets up flags* variables to
-      // contain the correct C or CXX flags
-      cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_MINSIZEREL",
-                                   flagsMinSizeRel.c_str());
-      cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_DEBUG",
-                                   flagsDebug.c_str());
-      cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELWITHDEBINFO",
-                                   flagsRelWithDebInfo.c_str());
-      cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELEASE",
-                                   flagsRelease.c_str());
-      cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS", flags.c_str());
-
-      cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_MINSIZEREL",
-                                   minsizeDefines.c_str());
-      cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_DEBUG",
-                                   debugDefines.c_str());
-      cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_RELWITHDEBINFO",
-                                   debugrelDefines.c_str());
-      cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS_RELEASE",
-                                   releaseDefines.c_str());
-      cmSystemTools::ReplaceString(line, "COMPILE_DEFINITIONS",
-                                   defines.c_str());
-      }
-
-    fout << line.c_str() << std::endl;
-    }
-}
-
-void cmLocalVisualStudio6Generator::WriteDSPFooter(std::ostream& fout)
-{
-  cmsys::ifstream fin(this->DSPFooterTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ",
-                         this->DSPFooterTemplate.c_str());
-    }
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    fout << line << std::endl;
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmLocalVisualStudio6Generator
-::ComputeLinkOptions(cmTarget& target,
-                     const std::string& configName,
-                     const std::string extraOptions,
-                     std::string& options)
-{
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-  // Compute the link information for this configuration.
-  cmComputeLinkInformation* pcli = gt->GetLinkInformation(configName);
-  if(!pcli)
-    {
-    return;
-    }
-  cmComputeLinkInformation& cli = *pcli;
-  typedef cmComputeLinkInformation::ItemVector ItemVector;
-  ItemVector const& linkLibs = cli.GetItems();
-  std::vector<std::string> const& linkDirs = cli.GetDirectories();
-
-  this->OutputObjects(target, "LINK", options);
-
-  // Build the link options code.
-  for(std::vector<std::string>::const_iterator d = linkDirs.begin();
-      d != linkDirs.end(); ++d)
-    {
-    std::string dir = *d;
-    if(!dir.empty())
-      {
-      if(dir[dir.size()-1] != '/')
-        {
-        dir += "/";
-        }
-      dir += "$(IntDir)";
-      options += "# ADD LINK32 /LIBPATH:";
-      options += this->ConvertToOutputFormat(dir.c_str(), SHELL);
-      options += " /LIBPATH:";
-      options += this->ConvertToOutputFormat(d->c_str(), SHELL);
-      options += "\n";
-      }
-    }
-  for(ItemVector::const_iterator l = linkLibs.begin();
-      l != linkLibs.end(); ++l)
-    {
-    options += "# ADD LINK32 ";
-    if(l->IsPath)
-      {
-      options +=
-        this->ConvertToOutputFormat(l->Value.c_str(), SHELL);
-      }
-    else if (!l->Target
-        || l->Target->GetType() != cmState::INTERFACE_LIBRARY)
-      {
-      options += l->Value;
-      }
-    options += "\n";
-    }
-
-  // Add extra options if any.
-  if(!extraOptions.empty())
-    {
-    options += "# ADD LINK32 ";
-    options += extraOptions;
-    options += "\n";
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmLocalVisualStudio6Generator
-::OutputObjects(cmTarget& target, const char* tool,
-                std::string& options)
-{
-  // VS 6 does not support per-config source locations so we
-  // list object library content on the link line instead.
-  cmGeneratorTarget* gt =
-    this->GlobalGenerator->GetGeneratorTarget(&target);
-  std::vector<std::string> objs;
-  gt->UseObjectLibraries(objs, "");
-  for(std::vector<std::string>::const_iterator
-        oi = objs.begin(); oi != objs.end(); ++oi)
-    {
-    options += "# ADD ";
-    options += tool;
-    options += "32 ";
-    options += this->ConvertToOutputFormat(oi->c_str(), SHELL);
-    options += "\n";
-    }
-}
-
-std::string
-cmLocalVisualStudio6Generator
-::GetTargetDirectory(cmGeneratorTarget const*) const
-{
-  // No per-target directory for this generator (yet).
-  return "";
-}
-
-//----------------------------------------------------------------------------
-std::string
-cmLocalVisualStudio6Generator
-::ComputeLongestObjectDirectory(cmTarget&) const
-{
-  // Compute the maximum length configuration name.
-  std::string config_max;
-  for(std::vector<std::string>::const_iterator
-        i = this->Configurations.begin();
-      i != this->Configurations.end(); ++i)
-    {
-    // Strip the subdirectory name out of the configuration name.
-    std::string config = this->GetConfigName(*i);
-    if(config.size() > config_max.size())
-      {
-      config_max = config;
-      }
-    }
-
-  // Compute the maximum length full path to the intermediate
-  // files directory for any configuration.  This is used to construct
-  // object file names that do not produce paths that are too long.
-  std::string dir_max;
-  dir_max += this->GetCurrentBinaryDirectory();
-  dir_max += "/";
-  dir_max += config_max;
-  dir_max += "/";
-  return dir_max;
-}
-
-std::string
-cmLocalVisualStudio6Generator
-::GetConfigName(std::string const& configuration) const
-{
-  // Strip the subdirectory name out of the configuration name.
-  std::string config = configuration;
-  std::string::size_type pos = config.find_last_of(" ");
-  config = config.substr(pos+1, std::string::npos);
-  config = config.substr(0, config.size()-1);
-  return config;
-}
-
-//----------------------------------------------------------------------------
-bool
-cmLocalVisualStudio6Generator
-::CheckDefinition(std::string const& define) const
-{
-  // Perform the standard check first.
-  if(!this->cmLocalGenerator::CheckDefinition(define))
-    {
-    return false;
-    }
-
-  // Now do the VS6-specific check.
-  if(define.find_first_of(" ") != define.npos &&
-     define.find_first_of("\"$;") != define.npos)
-    {
-    std::ostringstream e;
-    e << "WARNING: The VS6 IDE does not support preprocessor definition "
-      << "values with spaces and '\"', '$', or ';'.\n"
-      << "CMake is dropping a preprocessor definition: " << define << "\n"
-      << "Consider defining the macro in a (configured) header file.\n";
-    cmSystemTools::Message(e.str().c_str());
-    return false;
-    }
-
-  // Assume it is supported.
-  return true;
-}

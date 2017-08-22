@@ -1,3738 +1,2988 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
+/*-
+ * Copyright (c) 2004-2013 Tim Kientzle
+ * Copyright (c) 2011-2012,2014 Michihiro NAKAJIMA
+ * Copyright (c) 2013 Konrad Kleine
+ * All rights reserved.
  *
- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
-
-#include "curl_setup.h"
-
-#ifndef CURL_DISABLE_HTTP
-
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-#ifdef HAVE_NET_IF_H
-#include <net/if.h>
-#endif
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-
-#ifdef HAVE_SYS_PARAM_H
-#include <sys/param.h>
-#endif
-
-#include "urldata.h"
-#include <curl/curl.h>
-#include "transfer.h"
-#include "sendf.h"
-#include "formdata.h"
-#include "progress.h"
-#include "curl_base64.h"
-#include "cookie.h"
-#include "strequal.h"
-#include "vtls/vtls.h"
-#include "http_digest.h"
-#include "curl_ntlm.h"
-#include "curl_ntlm_wb.h"
-#include "http_negotiate.h"
-#include "url.h"
-#include "share.h"
-#include "hostip.h"
-#include "http.h"
-#include "select.h"
-#include "parsedate.h" /* for the week day and month names */
-#include "strtoofft.h"
-#include "multiif.h"
-#include "rawstr.h"
-#include "content_encoding.h"
-#include "http_proxy.h"
-#include "warnless.h"
-#include "non-ascii.h"
-#include "conncache.h"
-#include "pipeline.h"
-#include "http2.h"
-#include "connect.h"
-#include "curl_printf.h"
-
-/* The last #include files should be: */
-#include "curl_memory.h"
-#include "memdebug.h"
-
-/*
- * Forward declarations.
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-static int http_getsock_do(struct connectdata *conn,
-                           curl_socket_t *socks,
-                           int numsocks);
-static int http_should_fail(struct connectdata *conn);
-
-#ifdef USE_SSL
-static CURLcode https_connecting(struct connectdata *conn, bool *done);
-static int https_getsock(struct connectdata *conn,
-                         curl_socket_t *socks,
-                         int numsocks);
-#else
-#define https_connecting(x,y) CURLE_COULDNT_CONNECT
-#endif
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_zip.c 201102 2009-12-28 03:11:36Z kientzle $");
 
 /*
- * HTTP handler interface.
+ * The definitive documentation of the Zip file format is:
+ *   http://www.pkware.com/documents/casestudies/APPNOTE.TXT
+ *
+ * The Info-Zip project has pioneered various extensions to better
+ * support Zip on Unix, including the 0x5455 "UT", 0x5855 "UX", 0x7855
+ * "Ux", and 0x7875 "ux" extensions for time and ownership
+ * information.
+ *
+ * History of this code: The streaming Zip reader was first added to
+ * libarchive in January 2005.  Support for seekable input sources was
+ * added in Nov 2011.
  */
-const struct Curl_handler Curl_handler_http = {
-  "HTTP",                               /* scheme */
-  Curl_http_setup_conn,                 /* setup_connection */
-  Curl_http,                            /* do_it */
-  Curl_http_done,                       /* done */
-  ZERO_NULL,                            /* do_more */
-  Curl_http_connect,                    /* connect_it */
-  ZERO_NULL,                            /* connecting */
-  ZERO_NULL,                            /* doing */
-  ZERO_NULL,                            /* proto_getsock */
-  http_getsock_do,                      /* doing_getsock */
-  ZERO_NULL,                            /* domore_getsock */
-  ZERO_NULL,                            /* perform_getsock */
-  ZERO_NULL,                            /* disconnect */
-  ZERO_NULL,                            /* readwrite */
-  PORT_HTTP,                            /* defport */
-  CURLPROTO_HTTP,                       /* protocol */
-  PROTOPT_CREDSPERREQUEST               /* flags */
+
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
+#endif
+
+#include "archive.h"
+#include "archive_digest_private.h"
+#include "archive_cryptor_private.h"
+#include "archive_endian.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_hmac_private.h"
+#include "archive_private.h"
+#include "archive_rb.h"
+#include "archive_read_private.h"
+
+#ifndef HAVE_ZLIB_H
+#include "archive_crc32.h"
+#endif
+
+struct zip_entry {
+	struct archive_rb_node	node;
+	struct zip_entry	*next;
+	int64_t			local_header_offset;
+	int64_t			compressed_size;
+	int64_t			uncompressed_size;
+	int64_t			gid;
+	int64_t			uid;
+	struct archive_string	rsrcname;
+	time_t			mtime;
+	time_t			atime;
+	time_t			ctime;
+	uint32_t		crc32;
+	uint16_t		mode;
+	uint16_t		zip_flags; /* From GP Flags Field */
+	unsigned char		compression;
+	unsigned char		system; /* From "version written by" */
+	unsigned char		flags; /* Our extra markers. */
+	unsigned char		decdat;/* Used for Decryption check */
+
+	/* WinZip AES encryption extra field should be available
+	 * when compression is 99. */
+	struct {
+		/* Vendor version: AE-1 - 0x0001, AE-2 - 0x0002 */
+		unsigned	vendor;
+#define AES_VENDOR_AE_1	0x0001
+#define AES_VENDOR_AE_2	0x0002
+		/* AES encryption strength:
+		 * 1 - 128 bits, 2 - 192 bits, 2 - 256 bits. */
+		unsigned	strength;
+		/* Actual compression method. */
+		unsigned char	compression;
+	}			aes_extra;
 };
 
-#ifdef USE_SSL
-/*
- * HTTPS handler interface.
- */
-const struct Curl_handler Curl_handler_https = {
-  "HTTPS",                              /* scheme */
-  Curl_http_setup_conn,                 /* setup_connection */
-  Curl_http,                            /* do_it */
-  Curl_http_done,                       /* done */
-  ZERO_NULL,                            /* do_more */
-  Curl_http_connect,                    /* connect_it */
-  https_connecting,                     /* connecting */
-  ZERO_NULL,                            /* doing */
-  https_getsock,                        /* proto_getsock */
-  http_getsock_do,                      /* doing_getsock */
-  ZERO_NULL,                            /* domore_getsock */
-  ZERO_NULL,                            /* perform_getsock */
-  ZERO_NULL,                            /* disconnect */
-  ZERO_NULL,                            /* readwrite */
-  PORT_HTTPS,                           /* defport */
-  CURLPROTO_HTTPS,                      /* protocol */
-  PROTOPT_SSL | PROTOPT_CREDSPERREQUEST /* flags */
-};
-#endif
-
-
-CURLcode Curl_http_setup_conn(struct connectdata *conn)
-{
-  /* allocate the HTTP-specific struct for the SessionHandle, only to survive
-     during this request */
-  struct HTTP *http;
-  DEBUGASSERT(conn->data->req.protop == NULL);
-
-  http = calloc(1, sizeof(struct HTTP));
-  if(!http)
-    return CURLE_OUT_OF_MEMORY;
-
-  conn->data->req.protop = http;
-
-  Curl_http2_setup_conn(conn);
-  Curl_http2_setup_req(conn->data);
-
-  return CURLE_OK;
-}
-
-/*
- * checkheaders() checks the linked list of custom HTTP headers for a
- * particular header (prefix).
- *
- * Returns a pointer to the first matching header or NULL if none matched.
- */
-char *Curl_checkheaders(const struct connectdata *conn,
-                        const char *thisheader)
-{
-  struct curl_slist *head;
-  size_t thislen = strlen(thisheader);
-  struct SessionHandle *data = conn->data;
-
-  for(head = data->set.headers;head; head=head->next) {
-    if(Curl_raw_nequal(head->data, thisheader, thislen))
-      return head->data;
-  }
-  return NULL;
-}
-
-/*
- * checkProxyHeaders() checks the linked list of custom proxy headers
- * if proxy headers are not available, then it will lookup into http header
- * link list
- *
- * It takes a connectdata struct as input instead of the SessionHandle simply
- * to know if this is a proxy request or not, as it then might check a
- * different header list.
- *
- */
-char *Curl_checkProxyheaders(const struct connectdata *conn,
-                             const char *thisheader)
-{
-  struct curl_slist *head;
-  size_t thislen = strlen(thisheader);
-  struct SessionHandle *data = conn->data;
-
-  for(head = (conn->bits.proxy && data->set.sep_headers)?
-        data->set.proxyheaders:data->set.headers;
-      head; head=head->next) {
-    if(Curl_raw_nequal(head->data, thisheader, thislen))
-      return head->data;
-  }
-  return NULL;
-}
-
-/*
- * Strip off leading and trailing whitespace from the value in the
- * given HTTP header line and return a strdupped copy. Returns NULL in
- * case of allocation failure. Returns an empty string if the header value
- * consists entirely of whitespace.
- */
-char *Curl_copy_header_value(const char *header)
-{
-  const char *start;
-  const char *end;
-  char *value;
-  size_t len;
-
-  DEBUGASSERT(header);
-
-  /* Find the end of the header name */
-  while(*header && (*header != ':'))
-    ++header;
-
-  if(*header)
-    /* Skip over colon */
-    ++header;
-
-  /* Find the first non-space letter */
-  start = header;
-  while(*start && ISSPACE(*start))
-    start++;
-
-  /* data is in the host encoding so
-     use '\r' and '\n' instead of 0x0d and 0x0a */
-  end = strchr(start, '\r');
-  if(!end)
-    end = strchr(start, '\n');
-  if(!end)
-    end = strchr(start, '\0');
-  if(!end)
-    return NULL;
-
-  /* skip all trailing space letters */
-  while((end > start) && ISSPACE(*end))
-    end--;
-
-  /* get length of the type */
-  len = end - start + 1;
-
-  value = malloc(len + 1);
-  if(!value)
-    return NULL;
-
-  memcpy(value, start, len);
-  value[len] = 0; /* zero terminate */
-
-  return value;
-}
-
-/*
- * http_output_basic() sets up an Authorization: header (or the proxy version)
- * for HTTP Basic authentication.
- *
- * Returns CURLcode.
- */
-static CURLcode http_output_basic(struct connectdata *conn, bool proxy)
-{
-  size_t size = 0;
-  char *authorization = NULL;
-  struct SessionHandle *data = conn->data;
-  char **userp;
-  const char *user;
-  const char *pwd;
-  CURLcode result;
-
-  if(proxy) {
-    userp = &conn->allocptr.proxyuserpwd;
-    user = conn->proxyuser;
-    pwd = conn->proxypasswd;
-  }
-  else {
-    userp = &conn->allocptr.userpwd;
-    user = conn->user;
-    pwd = conn->passwd;
-  }
-
-  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
-
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
-
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
-
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy?"Proxy-":"",
-                   authorization);
-  free(authorization);
-  if(!*userp)
-    return CURLE_OUT_OF_MEMORY;
-
-  return CURLE_OK;
-}
-
-/* pickoneauth() selects the most favourable authentication method from the
- * ones available and the ones we want.
- *
- * return TRUE if one was picked
- */
-static bool pickoneauth(struct auth *pick)
-{
-  bool picked;
-  /* only deal with authentication we want */
-  unsigned long avail = pick->avail & pick->want;
-  picked = TRUE;
-
-  /* The order of these checks is highly relevant, as this will be the order
-     of preference in case of the existence of multiple accepted types. */
-  if(avail & CURLAUTH_NEGOTIATE)
-    pick->picked = CURLAUTH_NEGOTIATE;
-  else if(avail & CURLAUTH_DIGEST)
-    pick->picked = CURLAUTH_DIGEST;
-  else if(avail & CURLAUTH_NTLM)
-    pick->picked = CURLAUTH_NTLM;
-  else if(avail & CURLAUTH_NTLM_WB)
-    pick->picked = CURLAUTH_NTLM_WB;
-  else if(avail & CURLAUTH_BASIC)
-    pick->picked = CURLAUTH_BASIC;
-  else {
-    pick->picked = CURLAUTH_PICKNONE; /* we select to use nothing */
-    picked = FALSE;
-  }
-  pick->avail = CURLAUTH_NONE; /* clear it here */
-
-  return picked;
-}
-
-/*
- * Curl_http_perhapsrewind()
- *
- * If we are doing POST or PUT {
- *   If we have more data to send {
- *     If we are doing NTLM {
- *       Keep sending since we must not disconnect
- *     }
- *     else {
- *       If there is more than just a little data left to send, close
- *       the current connection by force.
- *     }
- *   }
- *   If we have sent any data {
- *     If we don't have track of all the data {
- *       call app to tell it to rewind
- *     }
- *     else {
- *       rewind internally so that the operation can restart fine
- *     }
- *   }
- * }
- */
-static CURLcode http_perhapsrewind(struct connectdata *conn)
-{
-  struct SessionHandle *data = conn->data;
-  struct HTTP *http = data->req.protop;
-  curl_off_t bytessent;
-  curl_off_t expectsend = -1; /* default is unknown */
-
-  if(!http)
-    /* If this is still NULL, we have not reach very far and we can safely
-       skip this rewinding stuff */
-    return CURLE_OK;
-
-  switch(data->set.httpreq) {
-  case HTTPREQ_GET:
-  case HTTPREQ_HEAD:
-    return CURLE_OK;
-  default:
-    break;
-  }
-
-  bytessent = http->writebytecount;
-
-  if(conn->bits.authneg) {
-    /* This is a state where we are known to be negotiating and we don't send
-       any data then. */
-    expectsend = 0;
-  }
-  else if(!conn->bits.protoconnstart) {
-    /* HTTP CONNECT in progress: there is no body */
-    expectsend = 0;
-  }
-  else {
-    /* figure out how much data we are expected to send */
-    switch(data->set.httpreq) {
-    case HTTPREQ_POST:
-      if(data->state.infilesize != -1)
-        expectsend = data->state.infilesize;
-      else if(data->set.postfields)
-        expectsend = (curl_off_t)strlen(data->set.postfields);
-      break;
-    case HTTPREQ_PUT:
-      if(data->state.infilesize != -1)
-        expectsend = data->state.infilesize;
-      break;
-    case HTTPREQ_POST_FORM:
-      expectsend = http->postsize;
-      break;
-    default:
-      break;
-    }
-  }
-
-  conn->bits.rewindaftersend = FALSE; /* default */
-
-  if((expectsend == -1) || (expectsend > bytessent)) {
-#if defined(USE_NTLM)
-    /* There is still data left to send */
-    if((data->state.authproxy.picked == CURLAUTH_NTLM) ||
-       (data->state.authhost.picked == CURLAUTH_NTLM) ||
-       (data->state.authproxy.picked == CURLAUTH_NTLM_WB) ||
-       (data->state.authhost.picked == CURLAUTH_NTLM_WB)) {
-      if(((expectsend - bytessent) < 2000) ||
-         (conn->ntlm.state != NTLMSTATE_NONE) ||
-         (conn->proxyntlm.state != NTLMSTATE_NONE)) {
-        /* The NTLM-negotiation has started *OR* there is just a little (<2K)
-           data left to send, keep on sending. */
-
-        /* rewind data when completely done sending! */
-        if(!conn->bits.authneg) {
-          conn->bits.rewindaftersend = TRUE;
-          infof(data, "Rewind stream after send\n");
-        }
-
-        return CURLE_OK;
-      }
-
-      if(conn->bits.close)
-        /* this is already marked to get closed */
-        return CURLE_OK;
-
-      infof(data, "NTLM send, close instead of sending %"
-            CURL_FORMAT_CURL_OFF_T " bytes\n",
-            (curl_off_t)(expectsend - bytessent));
-    }
-#endif
-
-    /* This is not NTLM or many bytes left to send: close */
-    connclose(conn, "Mid-auth HTTP and much data left to send");
-    data->req.size = 0; /* don't download any more than 0 bytes */
-
-    /* There still is data left to send, but this connection is marked for
-       closure so we can safely do the rewind right now */
-  }
-
-  if(bytessent)
-    /* we rewind now at once since if we already sent something */
-    return Curl_readrewind(conn);
-
-  return CURLE_OK;
-}
-
-/*
- * Curl_http_auth_act() gets called when all HTTP headers have been received
- * and it checks what authentication methods that are available and decides
- * which one (if any) to use. It will set 'newurl' if an auth method was
- * picked.
- */
-
-CURLcode Curl_http_auth_act(struct connectdata *conn)
-{
-  struct SessionHandle *data = conn->data;
-  bool pickhost = FALSE;
-  bool pickproxy = FALSE;
-  CURLcode result = CURLE_OK;
-
-  if(100 <= data->req.httpcode && 199 >= data->req.httpcode)
-    /* this is a transient response code, ignore */
-    return CURLE_OK;
-
-  if(data->state.authproblem)
-    return data->set.http_fail_on_error?CURLE_HTTP_RETURNED_ERROR:CURLE_OK;
-
-  if(conn->bits.user_passwd &&
-     ((data->req.httpcode == 401) ||
-      (conn->bits.authneg && data->req.httpcode < 300))) {
-    pickhost = pickoneauth(&data->state.authhost);
-    if(!pickhost)
-      data->state.authproblem = TRUE;
-  }
-  if(conn->bits.proxy_user_passwd &&
-     ((data->req.httpcode == 407) ||
-      (conn->bits.authneg && data->req.httpcode < 300))) {
-    pickproxy = pickoneauth(&data->state.authproxy);
-    if(!pickproxy)
-      data->state.authproblem = TRUE;
-  }
-
-  if(pickhost || pickproxy) {
-    /* In case this is GSS auth, the newurl field is already allocated so
-       we must make sure to free it before allocating a new one. As figured
-       out in bug #2284386 */
-    Curl_safefree(data->req.newurl);
-    data->req.newurl = strdup(data->change.url); /* clone URL */
-    if(!data->req.newurl)
-      return CURLE_OUT_OF_MEMORY;
-
-    if((data->set.httpreq != HTTPREQ_GET) &&
-       (data->set.httpreq != HTTPREQ_HEAD) &&
-       !conn->bits.rewindaftersend) {
-      result = http_perhapsrewind(conn);
-      if(result)
-        return result;
-    }
-  }
-
-  else if((data->req.httpcode < 300) &&
-          (!data->state.authhost.done) &&
-          conn->bits.authneg) {
-    /* no (known) authentication available,
-       authentication is not "done" yet and
-       no authentication seems to be required and
-       we didn't try HEAD or GET */
-    if((data->set.httpreq != HTTPREQ_GET) &&
-       (data->set.httpreq != HTTPREQ_HEAD)) {
-      data->req.newurl = strdup(data->change.url); /* clone URL */
-      if(!data->req.newurl)
-        return CURLE_OUT_OF_MEMORY;
-      data->state.authhost.done = TRUE;
-    }
-  }
-  if(http_should_fail(conn)) {
-    failf (data, "The requested URL returned error: %d",
-           data->req.httpcode);
-    result = CURLE_HTTP_RETURNED_ERROR;
-  }
-
-  return result;
-}
-
-
-/*
- * Output the correct authentication header depending on the auth type
- * and whether or not it is to a proxy.
- */
-static CURLcode
-output_auth_headers(struct connectdata *conn,
-                    struct auth *authstatus,
-                    const char *request,
-                    const char *path,
-                    bool proxy)
-{
-  const char *auth = NULL;
-  CURLcode result = CURLE_OK;
-#if defined(USE_SPNEGO) || !defined(CURL_DISABLE_VERBOSE_STRINGS)
-  struct SessionHandle *data = conn->data;
-#endif
-#ifdef USE_SPNEGO
-  struct negotiatedata *negdata = proxy?
-    &data->state.proxyneg:&data->state.negotiate;
-#endif
-
-#ifdef CURL_DISABLE_CRYPTO_AUTH
-  (void)request;
-  (void)path;
-#endif
-
-#ifdef USE_SPNEGO
-  negdata->state = GSS_AUTHNONE;
-  if((authstatus->picked == CURLAUTH_NEGOTIATE) &&
-     negdata->context && !GSS_ERROR(negdata->status)) {
-    auth="Negotiate";
-    result = Curl_output_negotiate(conn, proxy);
-    if(result)
-      return result;
-    authstatus->done = TRUE;
-    negdata->state = GSS_AUTHSENT;
-  }
-  else
-#endif
-#ifdef USE_NTLM
-  if(authstatus->picked == CURLAUTH_NTLM) {
-    auth="NTLM";
-    result = Curl_output_ntlm(conn, proxy);
-    if(result)
-      return result;
-  }
-  else
-#endif
-#if defined(USE_NTLM) && defined(NTLM_WB_ENABLED)
-  if(authstatus->picked == CURLAUTH_NTLM_WB) {
-    auth="NTLM_WB";
-    result = Curl_output_ntlm_wb(conn, proxy);
-    if(result)
-      return result;
-  }
-  else
-#endif
-#ifndef CURL_DISABLE_CRYPTO_AUTH
-  if(authstatus->picked == CURLAUTH_DIGEST) {
-    auth="Digest";
-    result = Curl_output_digest(conn,
-                                proxy,
-                                (const unsigned char *)request,
-                                (const unsigned char *)path);
-    if(result)
-      return result;
-  }
-  else
-#endif
-  if(authstatus->picked == CURLAUTH_BASIC) {
-    /* Basic */
-    if((proxy && conn->bits.proxy_user_passwd &&
-        !Curl_checkProxyheaders(conn, "Proxy-authorization:")) ||
-       (!proxy && conn->bits.user_passwd &&
-        !Curl_checkheaders(conn, "Authorization:"))) {
-      auth="Basic";
-      result = http_output_basic(conn, proxy);
-      if(result)
-        return result;
-    }
-    /* NOTE: this function should set 'done' TRUE, as the other auth
-       functions work that way */
-    authstatus->done = TRUE;
-  }
-
-  if(auth) {
-    infof(data, "%s auth using %s with user '%s'\n",
-          proxy?"Proxy":"Server", auth,
-          proxy?(conn->proxyuser?conn->proxyuser:""):
-                (conn->user?conn->user:""));
-    authstatus->multi = (!authstatus->done) ? TRUE : FALSE;
-  }
-  else
-    authstatus->multi = FALSE;
-
-  return CURLE_OK;
-}
-
-/**
- * Curl_http_output_auth() setups the authentication headers for the
- * host/proxy and the correct authentication
- * method. conn->data->state.authdone is set to TRUE when authentication is
- * done.
- *
- * @param conn all information about the current connection
- * @param request pointer to the request keyword
- * @param path pointer to the requested path
- * @param proxytunnel boolean if this is the request setting up a "proxy
- * tunnel"
- *
- * @returns CURLcode
- */
-CURLcode
-Curl_http_output_auth(struct connectdata *conn,
-                      const char *request,
-                      const char *path,
-                      bool proxytunnel) /* TRUE if this is the request setting
-                                           up the proxy tunnel */
-{
-  CURLcode result = CURLE_OK;
-  struct SessionHandle *data = conn->data;
-  struct auth *authhost;
-  struct auth *authproxy;
-
-  DEBUGASSERT(data);
-
-  authhost = &data->state.authhost;
-  authproxy = &data->state.authproxy;
-
-  if((conn->bits.httpproxy && conn->bits.proxy_user_passwd) ||
-     conn->bits.user_passwd)
-    /* continue please */;
-  else {
-    authhost->done = TRUE;
-    authproxy->done = TRUE;
-    return CURLE_OK; /* no authentication with no user or password */
-  }
-
-  if(authhost->want && !authhost->picked)
-    /* The app has selected one or more methods, but none has been picked
-       so far by a server round-trip. Then we set the picked one to the
-       want one, and if this is one single bit it'll be used instantly. */
-    authhost->picked = authhost->want;
-
-  if(authproxy->want && !authproxy->picked)
-    /* The app has selected one or more methods, but none has been picked so
-       far by a proxy round-trip. Then we set the picked one to the want one,
-       and if this is one single bit it'll be used instantly. */
-    authproxy->picked = authproxy->want;
-
-#ifndef CURL_DISABLE_PROXY
-  /* Send proxy authentication header if needed */
-  if(conn->bits.httpproxy &&
-      (conn->bits.tunnel_proxy == proxytunnel)) {
-    result = output_auth_headers(conn, authproxy, request, path, TRUE);
-    if(result)
-      return result;
-  }
-  else
-#else
-  (void)proxytunnel;
-#endif /* CURL_DISABLE_PROXY */
-    /* we have no proxy so let's pretend we're done authenticating
-       with it */
-    authproxy->done = TRUE;
-
-  /* To prevent the user+password to get sent to other than the original
-     host due to a location-follow, we do some weirdo checks here */
-  if(!data->state.this_is_a_follow ||
-     conn->bits.netrc ||
-     !data->state.first_host ||
-     data->set.http_disable_hostname_check_before_authentication ||
-     Curl_raw_equal(data->state.first_host, conn->host.name)) {
-    result = output_auth_headers(conn, authhost, request, path, FALSE);
-  }
-  else
-    authhost->done = TRUE;
-
-  return result;
-}
-
-
-/*
- * Curl_http_input_auth() deals with Proxy-Authenticate: and WWW-Authenticate:
- * headers. They are dealt with both in the transfer.c main loop and in the
- * proxy CONNECT loop.
- */
-
-CURLcode Curl_http_input_auth(struct connectdata *conn, bool proxy,
-                              const char *auth) /* the first non-space */
-{
-  /*
-   * This resource requires authentication
-   */
-  struct SessionHandle *data = conn->data;
-
-#ifdef USE_SPNEGO
-  struct negotiatedata *negdata = proxy?
-    &data->state.proxyneg:&data->state.negotiate;
-#endif
-  unsigned long *availp;
-  struct auth *authp;
-
-  if(proxy) {
-    availp = &data->info.proxyauthavail;
-    authp = &data->state.authproxy;
-  }
-  else {
-    availp = &data->info.httpauthavail;
-    authp = &data->state.authhost;
-  }
-
-  /*
-   * Here we check if we want the specific single authentication (using ==) and
-   * if we do, we initiate usage of it.
-   *
-   * If the provided authentication is wanted as one out of several accepted
-   * types (using &), we OR this authentication type to the authavail
-   * variable.
-   *
-   * Note:
-   *
-   * ->picked is first set to the 'want' value (one or more bits) before the
-   * request is sent, and then it is again set _after_ all response 401/407
-   * headers have been received but then only to a single preferred method
-   * (bit).
-   *
-   */
-
-  while(*auth) {
-#ifdef USE_SPNEGO
-    if(checkprefix("Negotiate", auth)) {
-      *availp |= CURLAUTH_NEGOTIATE;
-      authp->avail |= CURLAUTH_NEGOTIATE;
-
-      if(authp->picked == CURLAUTH_NEGOTIATE) {
-        if(negdata->state == GSS_AUTHSENT || negdata->state == GSS_AUTHNONE) {
-          CURLcode result = Curl_input_negotiate(conn, proxy, auth);
-          if(!result) {
-            DEBUGASSERT(!data->req.newurl);
-            data->req.newurl = strdup(data->change.url);
-            if(!data->req.newurl)
-              return CURLE_OUT_OF_MEMORY;
-            data->state.authproblem = FALSE;
-            /* we received a GSS auth token and we dealt with it fine */
-            negdata->state = GSS_AUTHRECV;
-          }
-          else
-            data->state.authproblem = TRUE;
-        }
-      }
-    }
-    else
-#endif
-#ifdef USE_NTLM
-      /* NTLM support requires the SSL crypto libs */
-      if(checkprefix("NTLM", auth)) {
-        *availp |= CURLAUTH_NTLM;
-        authp->avail |= CURLAUTH_NTLM;
-        if(authp->picked == CURLAUTH_NTLM ||
-           authp->picked == CURLAUTH_NTLM_WB) {
-          /* NTLM authentication is picked and activated */
-          CURLcode result = Curl_input_ntlm(conn, proxy, auth);
-          if(!result) {
-            data->state.authproblem = FALSE;
-#ifdef NTLM_WB_ENABLED
-            if(authp->picked == CURLAUTH_NTLM_WB) {
-              *availp &= ~CURLAUTH_NTLM;
-              authp->avail &= ~CURLAUTH_NTLM;
-              *availp |= CURLAUTH_NTLM_WB;
-              authp->avail |= CURLAUTH_NTLM_WB;
-
-              /* Get the challenge-message which will be passed to
-               * ntlm_auth for generating the type 3 message later */
-              while(*auth && ISSPACE(*auth))
-                auth++;
-              if(checkprefix("NTLM", auth)) {
-                auth += strlen("NTLM");
-                while(*auth && ISSPACE(*auth))
-                  auth++;
-                if(*auth)
-                  if((conn->challenge_header = strdup(auth)) == NULL)
-                    return CURLE_OUT_OF_MEMORY;
-              }
-            }
-#endif
-          }
-          else {
-            infof(data, "Authentication problem. Ignoring this.\n");
-            data->state.authproblem = TRUE;
-          }
-        }
-      }
-      else
-#endif
-#ifndef CURL_DISABLE_CRYPTO_AUTH
-        if(checkprefix("Digest", auth)) {
-          if((authp->avail & CURLAUTH_DIGEST) != 0) {
-            infof(data, "Ignoring duplicate digest auth header.\n");
-          }
-          else {
-            CURLcode result;
-            *availp |= CURLAUTH_DIGEST;
-            authp->avail |= CURLAUTH_DIGEST;
-
-            /* We call this function on input Digest headers even if Digest
-             * authentication isn't activated yet, as we need to store the
-             * incoming data from this header in case we are gonna use
-             * Digest. */
-            result = Curl_input_digest(conn, proxy, auth);
-            if(result) {
-              infof(data, "Authentication problem. Ignoring this.\n");
-              data->state.authproblem = TRUE;
-            }
-          }
-        }
-        else
-#endif
-          if(checkprefix("Basic", auth)) {
-            *availp |= CURLAUTH_BASIC;
-            authp->avail |= CURLAUTH_BASIC;
-            if(authp->picked == CURLAUTH_BASIC) {
-              /* We asked for Basic authentication but got a 40X back
-                 anyway, which basically means our name+password isn't
-                 valid. */
-              authp->avail = CURLAUTH_NONE;
-              infof(data, "Authentication problem. Ignoring this.\n");
-              data->state.authproblem = TRUE;
-            }
-          }
-
-    /* there may be multiple methods on one line, so keep reading */
-    while(*auth && *auth != ',') /* read up to the next comma */
-      auth++;
-    if(*auth == ',') /* if we're on a comma, skip it */
-      auth++;
-    while(*auth && ISSPACE(*auth))
-      auth++;
-  }
-  return CURLE_OK;
-}
-
-/**
- * http_should_fail() determines whether an HTTP response has gotten us
- * into an error state or not.
- *
- * @param conn all information about the current connection
- *
- * @retval 0 communications should continue
- *
- * @retval 1 communications should not continue
- */
-static int http_should_fail(struct connectdata *conn)
-{
-  struct SessionHandle *data;
-  int httpcode;
-
-  DEBUGASSERT(conn);
-  data = conn->data;
-  DEBUGASSERT(data);
-
-  httpcode = data->req.httpcode;
-
-  /*
-  ** If we haven't been asked to fail on error,
-  ** don't fail.
-  */
-  if(!data->set.http_fail_on_error)
-    return 0;
-
-  /*
-  ** Any code < 400 is never terminal.
-  */
-  if(httpcode < 400)
-    return 0;
-
-  /*
-  ** Any code >= 400 that's not 401 or 407 is always
-  ** a terminal error
-  */
-  if((httpcode != 401) &&
-      (httpcode != 407))
-    return 1;
-
-  /*
-  ** All we have left to deal with is 401 and 407
-  */
-  DEBUGASSERT((httpcode == 401) || (httpcode == 407));
-
-  /*
-  ** Examine the current authentication state to see if this
-  ** is an error.  The idea is for this function to get
-  ** called after processing all the headers in a response
-  ** message.  So, if we've been to asked to authenticate a
-  ** particular stage, and we've done it, we're OK.  But, if
-  ** we're already completely authenticated, it's not OK to
-  ** get another 401 or 407.
-  **
-  ** It is possible for authentication to go stale such that
-  ** the client needs to reauthenticate.  Once that info is
-  ** available, use it here.
-  */
-
-  /*
-  ** Either we're not authenticating, or we're supposed to
-  ** be authenticating something else.  This is an error.
-  */
-  if((httpcode == 401) && !conn->bits.user_passwd)
-    return TRUE;
-  if((httpcode == 407) && !conn->bits.proxy_user_passwd)
-    return TRUE;
-
-  return data->state.authproblem;
-}
-
-/*
- * readmoredata() is a "fread() emulation" to provide POST and/or request
- * data. It is used when a huge POST is to be made and the entire chunk wasn't
- * sent in the first send(). This function will then be called from the
- * transfer.c loop when more data is to be sent to the peer.
- *
- * Returns the amount of bytes it filled the buffer with.
- */
-static size_t readmoredata(char *buffer,
-                           size_t size,
-                           size_t nitems,
-                           void *userp)
-{
-  struct connectdata *conn = (struct connectdata *)userp;
-  struct HTTP *http = conn->data->req.protop;
-  size_t fullsize = size * nitems;
-
-  if(0 == http->postsize)
-    /* nothing to return */
-    return 0;
-
-  /* make sure that a HTTP request is never sent away chunked! */
-  conn->data->req.forbidchunk = (http->sending == HTTPSEND_REQUEST)?TRUE:FALSE;
-
-  if(http->postsize <= (curl_off_t)fullsize) {
-    memcpy(buffer, http->postdata, (size_t)http->postsize);
-    fullsize = (size_t)http->postsize;
-
-    if(http->backup.postsize) {
-      /* move backup data into focus and continue on that */
-      http->postdata = http->backup.postdata;
-      http->postsize = http->backup.postsize;
-      conn->data->set.fread_func = http->backup.fread_func;
-      conn->data->set.in = http->backup.fread_in;
-
-      http->sending++; /* move one step up */
-
-      http->backup.postsize=0;
-    }
-    else
-      http->postsize = 0;
-
-    return fullsize;
-  }
-
-  memcpy(buffer, http->postdata, fullsize);
-  http->postdata += fullsize;
-  http->postsize -= fullsize;
-
-  return fullsize;
-}
-
-/* ------------------------------------------------------------------------- */
-/* add_buffer functions */
-
-/*
- * Curl_add_buffer_init() sets up and returns a fine buffer struct
- */
-Curl_send_buffer *Curl_add_buffer_init(void)
-{
-  return calloc(1, sizeof(Curl_send_buffer));
-}
-
-/*
- * Curl_add_buffer_free() frees all associated resources.
- */
-void Curl_add_buffer_free(Curl_send_buffer *buff)
-{
-  if(buff) /* deal with NULL input */
-    free(buff->buffer);
-  free(buff);
-}
-
-/*
- * Curl_add_buffer_send() sends a header buffer and frees all associated
- * memory.  Body data may be appended to the header data if desired.
- *
- * Returns CURLcode
- */
-CURLcode Curl_add_buffer_send(Curl_send_buffer *in,
-                              struct connectdata *conn,
-
-                               /* add the number of sent bytes to this
-                                  counter */
-                              long *bytes_written,
-
-                               /* how much of the buffer contains body data */
-                              size_t included_body_bytes,
-                              int socketindex)
-
-{
-  ssize_t amount;
-  CURLcode result;
-  char *ptr;
-  size_t size;
-  struct HTTP *http = conn->data->req.protop;
-  size_t sendsize;
-  curl_socket_t sockfd;
-  size_t headersize;
-
-  DEBUGASSERT(socketindex <= SECONDARYSOCKET);
-
-  sockfd = conn->sock[socketindex];
-
-  /* The looping below is required since we use non-blocking sockets, but due
-     to the circumstances we will just loop and try again and again etc */
-
-  ptr = in->buffer;
-  size = in->size_used;
-
-  headersize = size - included_body_bytes; /* the initial part that isn't body
-                                              is header */
-
-  DEBUGASSERT(size > included_body_bytes);
-
-  result = Curl_convert_to_network(conn->data, ptr, headersize);
-  /* Curl_convert_to_network calls failf if unsuccessful */
-  if(result) {
-    /* conversion failed, free memory and return to the caller */
-    Curl_add_buffer_free(in);
-    return result;
-  }
-
-
-  if(conn->handler->flags & PROTOPT_SSL) {
-    /* We never send more than CURL_MAX_WRITE_SIZE bytes in one single chunk
-       when we speak HTTPS, as if only a fraction of it is sent now, this data
-       needs to fit into the normal read-callback buffer later on and that
-       buffer is using this size.
-    */
-
-    sendsize= (size > CURL_MAX_WRITE_SIZE)?CURL_MAX_WRITE_SIZE:size;
-
-    /* OpenSSL is very picky and we must send the SAME buffer pointer to the
-       library when we attempt to re-send this buffer. Sending the same data
-       is not enough, we must use the exact same address. For this reason, we
-       must copy the data to the uploadbuffer first, since that is the buffer
-       we will be using if this send is retried later.
-    */
-    memcpy(conn->data->state.uploadbuffer, ptr, sendsize);
-    ptr = conn->data->state.uploadbuffer;
-  }
-  else
-    sendsize = size;
-
-  result = Curl_write(conn, sockfd, ptr, sendsize, &amount);
-
-  if(!result) {
-    /*
-     * Note that we may not send the entire chunk at once, and we have a set
-     * number of data bytes at the end of the big buffer (out of which we may
-     * only send away a part).
-     */
-    /* how much of the header that was sent */
-    size_t headlen = (size_t)amount>headersize?headersize:(size_t)amount;
-    size_t bodylen = amount - headlen;
-
-    if(conn->data->set.verbose) {
-      /* this data _may_ contain binary stuff */
-      Curl_debug(conn->data, CURLINFO_HEADER_OUT, ptr, headlen, conn);
-      if(bodylen) {
-        /* there was body data sent beyond the initial header part, pass that
-           on to the debug callback too */
-        Curl_debug(conn->data, CURLINFO_DATA_OUT,
-                   ptr+headlen, bodylen, conn);
-      }
-    }
-    if(bodylen)
-      /* since we sent a piece of the body here, up the byte counter for it
-         accordingly */
-      http->writebytecount += bodylen;
-
-    /* 'amount' can never be a very large value here so typecasting it so a
-       signed 31 bit value should not cause problems even if ssize_t is
-       64bit */
-    *bytes_written += (long)amount;
-
-    if(http) {
-      if((size_t)amount != size) {
-        /* The whole request could not be sent in one system call. We must
-           queue it up and send it later when we get the chance. We must not
-           loop here and wait until it might work again. */
-
-        size -= amount;
-
-        ptr = in->buffer + amount;
-
-        /* backup the currently set pointers */
-        http->backup.fread_func = conn->data->set.fread_func;
-        http->backup.fread_in = conn->data->set.in;
-        http->backup.postdata = http->postdata;
-        http->backup.postsize = http->postsize;
-
-        /* set the new pointers for the request-sending */
-        conn->data->set.fread_func = (curl_read_callback)readmoredata;
-        conn->data->set.in = (void *)conn;
-        http->postdata = ptr;
-        http->postsize = (curl_off_t)size;
-
-        http->send_buffer = in;
-        http->sending = HTTPSEND_REQUEST;
-
-        return CURLE_OK;
-      }
-      http->sending = HTTPSEND_BODY;
-      /* the full buffer was sent, clean up and return */
-    }
-    else {
-      if((size_t)amount != size)
-        /* We have no continue-send mechanism now, fail. This can only happen
-           when this function is used from the CONNECT sending function. We
-           currently (stupidly) assume that the whole request is always sent
-           away in the first single chunk.
-
-           This needs FIXing.
-        */
-        return CURLE_SEND_ERROR;
-      else
-        Curl_pipeline_leave_write(conn);
-    }
-  }
-  Curl_add_buffer_free(in);
-
-  return result;
-}
-
-
-/*
- * add_bufferf() add the formatted input to the buffer.
- */
-CURLcode Curl_add_bufferf(Curl_send_buffer *in, const char *fmt, ...)
-{
-  char *s;
-  va_list ap;
-  va_start(ap, fmt);
-  s = vaprintf(fmt, ap); /* this allocs a new string to append */
-  va_end(ap);
-
-  if(s) {
-    CURLcode result = Curl_add_buffer(in, s, strlen(s));
-    free(s);
-    return result;
-  }
-  /* If we failed, we cleanup the whole buffer and return error */
-  free(in->buffer);
-  free(in);
-  return CURLE_OUT_OF_MEMORY;
-}
-
-/*
- * add_buffer() appends a memory chunk to the existing buffer
- */
-CURLcode Curl_add_buffer(Curl_send_buffer *in, const void *inptr, size_t size)
-{
-  char *new_rb;
-  size_t new_size;
-
-  if(~size < in->size_used) {
-    /* If resulting used size of send buffer would wrap size_t, cleanup
-       the whole buffer and return error. Otherwise the required buffer
-       size will fit into a single allocatable memory chunk */
-    Curl_safefree(in->buffer);
-    free(in);
-    return CURLE_OUT_OF_MEMORY;
-  }
-
-  if(!in->buffer ||
-     ((in->size_used + size) > (in->size_max - 1))) {
-
-    /* If current buffer size isn't enough to hold the result, use a
-       buffer size that doubles the required size. If this new size
-       would wrap size_t, then just use the largest possible one */
-
-    if((size > (size_t)-1/2) || (in->size_used > (size_t)-1/2) ||
-       (~(size*2) < (in->size_used*2)))
-      new_size = (size_t)-1;
-    else
-      new_size = (in->size_used+size)*2;
-
-    if(in->buffer)
-      /* we have a buffer, enlarge the existing one */
-      new_rb = realloc(in->buffer, new_size);
-    else
-      /* create a new buffer */
-      new_rb = malloc(new_size);
-
-    if(!new_rb) {
-      /* If we failed, we cleanup the whole buffer and return error */
-      Curl_safefree(in->buffer);
-      free(in);
-      return CURLE_OUT_OF_MEMORY;
-    }
-
-    in->buffer = new_rb;
-    in->size_max = new_size;
-  }
-  memcpy(&in->buffer[in->size_used], inptr, size);
-
-  in->size_used += size;
-
-  return CURLE_OK;
-}
-
-/* end of the add_buffer functions */
-/* ------------------------------------------------------------------------- */
-
-
-
-/*
- * Curl_compareheader()
- *
- * Returns TRUE if 'headerline' contains the 'header' with given 'content'.
- * Pass headers WITH the colon.
- */
-bool
-Curl_compareheader(const char *headerline, /* line to check */
-                   const char *header,  /* header keyword _with_ colon */
-                   const char *content) /* content string to find */
-{
-  /* RFC2616, section 4.2 says: "Each header field consists of a name followed
-   * by a colon (":") and the field value. Field names are case-insensitive.
-   * The field value MAY be preceded by any amount of LWS, though a single SP
-   * is preferred." */
-
-  size_t hlen = strlen(header);
-  size_t clen;
-  size_t len;
-  const char *start;
-  const char *end;
-
-  if(!Curl_raw_nequal(headerline, header, hlen))
-    return FALSE; /* doesn't start with header */
-
-  /* pass the header */
-  start = &headerline[hlen];
-
-  /* pass all white spaces */
-  while(*start && ISSPACE(*start))
-    start++;
-
-  /* find the end of the header line */
-  end = strchr(start, '\r'); /* lines end with CRLF */
-  if(!end) {
-    /* in case there's a non-standard compliant line here */
-    end = strchr(start, '\n');
-
-    if(!end)
-      /* hm, there's no line ending here, use the zero byte! */
-      end = strchr(start, '\0');
-  }
-
-  len = end-start; /* length of the content part of the input line */
-  clen = strlen(content); /* length of the word to find */
-
-  /* find the content string in the rest of the line */
-  for(;len>=clen;len--, start++) {
-    if(Curl_raw_nequal(start, content, clen))
-      return TRUE; /* match! */
-  }
-
-  return FALSE; /* no match */
-}
-
-/*
- * Curl_http_connect() performs HTTP stuff to do at connect-time, called from
- * the generic Curl_connect().
- */
-CURLcode Curl_http_connect(struct connectdata *conn, bool *done)
-{
-  CURLcode result;
-
-  /* We default to persistent connections. We set this already in this connect
-     function to make the re-use checks properly be able to check this bit. */
-  connkeep(conn, "HTTP default");
-
-  /* the CONNECT procedure might not have been completed */
-  result = Curl_proxy_connect(conn);
-  if(result)
-    return result;
-
-  if(conn->tunnel_state[FIRSTSOCKET] == TUNNEL_CONNECT)
-    /* nothing else to do except wait right now - we're not done here. */
-    return CURLE_OK;
-
-  if(conn->given->flags & PROTOPT_SSL) {
-    /* perform SSL initialization */
-    result = https_connecting(conn, done);
-    if(result)
-      return result;
-  }
-  else
-    *done = TRUE;
-
-  return CURLE_OK;
-}
-
-/* this returns the socket to wait for in the DO and DOING state for the multi
-   interface and then we're always _sending_ a request and thus we wait for
-   the single socket to become writable only */
-static int http_getsock_do(struct connectdata *conn,
-                           curl_socket_t *socks,
-                           int numsocks)
-{
-  /* write mode */
-  (void)numsocks; /* unused, we trust it to be at least 1 */
-  socks[0] = conn->sock[FIRSTSOCKET];
-  return GETSOCK_WRITESOCK(0);
-}
-
-#ifdef USE_SSL
-static CURLcode https_connecting(struct connectdata *conn, bool *done)
-{
-  CURLcode result;
-  DEBUGASSERT((conn) && (conn->handler->flags & PROTOPT_SSL));
-
-  /* perform SSL initialization for this socket */
-  result = Curl_ssl_connect_nonblocking(conn, FIRSTSOCKET, done);
-  if(result)
-    connclose(conn, "Failed HTTPS connection");
-
-  return result;
-}
-#endif
-
-#if defined(USE_OPENSSL) || defined(USE_GNUTLS) || defined(USE_SCHANNEL) || \
-    defined(USE_DARWINSSL) || defined(USE_POLARSSL) || defined(USE_NSS)
-/* This function is for OpenSSL, GnuTLS, darwinssl, schannel and polarssl only.
-   It should be made to query the generic SSL layer instead. */
-static int https_getsock(struct connectdata *conn,
-                         curl_socket_t *socks,
-                         int numsocks)
-{
-  if(conn->handler->flags & PROTOPT_SSL) {
-    struct ssl_connect_data *connssl = &conn->ssl[FIRSTSOCKET];
-
-    if(!numsocks)
-      return GETSOCK_BLANK;
-
-    if(connssl->connecting_state == ssl_connect_2_writing) {
-      /* write mode */
-      socks[0] = conn->sock[FIRSTSOCKET];
-      return GETSOCK_WRITESOCK(0);
-    }
-    else if(connssl->connecting_state == ssl_connect_2_reading) {
-      /* read mode */
-      socks[0] = conn->sock[FIRSTSOCKET];
-      return GETSOCK_READSOCK(0);
-    }
-  }
-  return CURLE_OK;
-}
-#else
-#ifdef USE_SSL
-static int https_getsock(struct connectdata *conn,
-                         curl_socket_t *socks,
-                         int numsocks)
-{
-  (void)conn;
-  (void)socks;
-  (void)numsocks;
-  return GETSOCK_BLANK;
-}
-#endif /* USE_SSL */
-#endif /* USE_OPENSSL || USE_GNUTLS || USE_SCHANNEL */
-
-/*
- * Curl_http_done() gets called from Curl_done() after a single HTTP request
- * has been performed.
- */
-
-CURLcode Curl_http_done(struct connectdata *conn,
-                        CURLcode status, bool premature)
-{
-  struct SessionHandle *data = conn->data;
-  struct HTTP *http = data->req.protop;
-#ifdef USE_NGHTTP2
-  struct http_conn *httpc = &conn->proto.httpc;
-#endif
-
-  Curl_unencode_cleanup(conn);
-
-#ifdef USE_SPNEGO
-  if(data->state.proxyneg.state == GSS_AUTHSENT ||
-     data->state.negotiate.state == GSS_AUTHSENT) {
-    /* add forbid re-use if http-code != 401/407 as a WA only needed for
-     * 401/407 that signal auth failure (empty) otherwise state will be RECV
-     * with current code */
-    if((data->req.httpcode != 401) && (data->req.httpcode != 407))
-      connclose(conn, "Negotiate transfer completed");
-    Curl_cleanup_negotiate(data);
-  }
-#endif
-
-  /* set the proper values (possibly modified on POST) */
-  conn->seek_func = data->set.seek_func; /* restore */
-  conn->seek_client = data->set.seek_client; /* restore */
-
-  if(http == NULL)
-    return CURLE_OK;
-
-  if(http->send_buffer) {
-    Curl_add_buffer_free(http->send_buffer);
-    http->send_buffer = NULL; /* clear the pointer */
-  }
-
-#ifdef USE_NGHTTP2
-  if(http->header_recvbuf) {
-    DEBUGF(infof(data, "free header_recvbuf!!\n"));
-    Curl_add_buffer_free(http->header_recvbuf);
-    http->header_recvbuf = NULL; /* clear the pointer */
-    for(; http->push_headers_used > 0; --http->push_headers_used) {
-      free(http->push_headers[http->push_headers_used - 1]);
-    }
-    free(http->push_headers);
-    http->push_headers = NULL;
-  }
-  if(http->stream_id) {
-    nghttp2_session_set_stream_user_data(httpc->h2, http->stream_id, 0);
-    http->stream_id = 0;
-  }
-#endif
-
-  if(HTTPREQ_POST_FORM == data->set.httpreq) {
-    data->req.bytecount = http->readbytecount + http->writebytecount;
-
-    Curl_formclean(&http->sendit); /* Now free that whole lot */
-    if(http->form.fp) {
-      /* a file being uploaded was left opened, close it! */
-      fclose(http->form.fp);
-      http->form.fp = NULL;
-    }
-  }
-  else if(HTTPREQ_PUT == data->set.httpreq)
-    data->req.bytecount = http->readbytecount + http->writebytecount;
-
-  if(status)
-    return status;
-
-  if(!premature && /* this check is pointless when DONE is called before the
-                      entire operation is complete */
-     !conn->bits.retry &&
-     !data->set.connect_only &&
-     ((http->readbytecount +
-       data->req.headerbytecount -
-       data->req.deductheadercount)) <= 0) {
-    /* If this connection isn't simply closed to be retried, AND nothing was
-       read from the HTTP server (that counts), this can't be right so we
-       return an error here */
-    failf(data, "Empty reply from server");
-    return CURLE_GOT_NOTHING;
-  }
-
-  return CURLE_OK;
-}
-
-
-/*
- * Determine if we should use HTTP 1.1 (OR BETTER) for this request. Reasons
- * to avoid it include:
- *
- * - if the user specifically requested HTTP 1.0
- * - if the server we are connected to only supports 1.0
- * - if any server previously contacted to handle this request only supports
- * 1.0.
- */
-static bool use_http_1_1plus(const struct SessionHandle *data,
-                             const struct connectdata *conn)
-{
-  return ((data->set.httpversion >= CURL_HTTP_VERSION_1_1) ||
-         ((data->set.httpversion != CURL_HTTP_VERSION_1_0) &&
-          ((conn->httpversion == 11) ||
-           ((conn->httpversion != 10) &&
-            (data->state.httpversion != 10))))) ? TRUE : FALSE;
-}
-
-/* check and possibly add an Expect: header */
-static CURLcode expect100(struct SessionHandle *data,
-                          struct connectdata *conn,
-                          Curl_send_buffer *req_buffer)
-{
-  CURLcode result = CURLE_OK;
-  const char *ptr;
-  data->state.expect100header = FALSE; /* default to false unless it is set
-                                          to TRUE below */
-  if(use_http_1_1plus(data, conn) &&
-     (conn->httpversion != 20)) {
-    /* if not doing HTTP 1.0 or version 2, or disabled explicitly, we add an
-       Expect: 100-continue to the headers which actually speeds up post
-       operations (as there is one packet coming back from the web server) */
-    ptr = Curl_checkheaders(conn, "Expect:");
-    if(ptr) {
-      data->state.expect100header =
-        Curl_compareheader(ptr, "Expect:", "100-continue");
-    }
-    else {
-      result = Curl_add_bufferf(req_buffer,
-                         "Expect: 100-continue\r\n");
-      if(!result)
-        data->state.expect100header = TRUE;
-    }
-  }
-  return result;
-}
-
-enum proxy_use {
-  HEADER_SERVER,  /* direct to server */
-  HEADER_PROXY,   /* regular request to proxy */
-  HEADER_CONNECT  /* sending CONNECT to a proxy */
+struct trad_enc_ctx {
+	uint32_t	keys[3];
 };
 
-CURLcode Curl_add_custom_headers(struct connectdata *conn,
-                                 bool is_connect,
-                                 Curl_send_buffer *req_buffer)
-{
-  char *ptr;
-  struct curl_slist *h[2];
-  struct curl_slist *headers;
-  int numlists=1; /* by default */
-  struct SessionHandle *data = conn->data;
-  int i;
+/* Bits used in zip_flags. */
+#define ZIP_ENCRYPTED	(1 << 0)
+#define ZIP_LENGTH_AT_END	(1 << 3)
+#define ZIP_STRONG_ENCRYPTED	(1 << 6)
+#define ZIP_UTF8_NAME	(1 << 11)
+/* See "7.2 Single Password Symmetric Encryption Method"
+   in http://www.pkware.com/documents/casestudies/APPNOTE.TXT */
+#define ZIP_CENTRAL_DIRECTORY_ENCRYPTED	(1 << 13)
 
-  enum proxy_use proxy;
-
-  if(is_connect)
-    proxy = HEADER_CONNECT;
-  else
-    proxy = conn->bits.httpproxy && !conn->bits.tunnel_proxy?
-      HEADER_PROXY:HEADER_SERVER;
-
-  switch(proxy) {
-  case HEADER_SERVER:
-    h[0] = data->set.headers;
-    break;
-  case HEADER_PROXY:
-    h[0] = data->set.headers;
-    if(data->set.sep_headers) {
-      h[1] = data->set.proxyheaders;
-      numlists++;
-    }
-    break;
-  case HEADER_CONNECT:
-    if(data->set.sep_headers)
-      h[0] = data->set.proxyheaders;
-    else
-      h[0] = data->set.headers;
-    break;
-  }
-
-  /* loop through one or two lists */
-  for(i=0; i < numlists; i++) {
-    headers = h[i];
-
-    while(headers) {
-      ptr = strchr(headers->data, ':');
-      if(ptr) {
-        /* we require a colon for this to be a true header */
-
-        ptr++; /* pass the colon */
-        while(*ptr && ISSPACE(*ptr))
-          ptr++;
-
-        if(*ptr) {
-          /* only send this if the contents was non-blank */
-
-          if(conn->allocptr.host &&
-             /* a Host: header was sent already, don't pass on any custom Host:
-                header as that will produce *two* in the same request! */
-             checkprefix("Host:", headers->data))
-            ;
-          else if(data->set.httpreq == HTTPREQ_POST_FORM &&
-                  /* this header (extended by formdata.c) is sent later */
-                  checkprefix("Content-Type:", headers->data))
-            ;
-          else if(conn->bits.authneg &&
-                  /* while doing auth neg, don't allow the custom length since
-                     we will force length zero then */
-                  checkprefix("Content-Length", headers->data))
-            ;
-          else if(conn->allocptr.te &&
-                  /* when asking for Transfer-Encoding, don't pass on a custom
-                     Connection: */
-                  checkprefix("Connection", headers->data))
-            ;
-          else {
-            CURLcode result = Curl_add_bufferf(req_buffer, "%s\r\n",
-                                               headers->data);
-            if(result)
-              return result;
-          }
-        }
-      }
-      else {
-        ptr = strchr(headers->data, ';');
-        if(ptr) {
-
-          ptr++; /* pass the semicolon */
-          while(*ptr && ISSPACE(*ptr))
-            ptr++;
-
-          if(*ptr) {
-            /* this may be used for something else in the future */
-          }
-          else {
-            if(*(--ptr) == ';') {
-              CURLcode result;
-
-              /* send no-value custom header if terminated by semicolon */
-              *ptr = ':';
-              result = Curl_add_bufferf(req_buffer, "%s\r\n",
-                                        headers->data);
-              if(result)
-                return result;
-            }
-          }
-        }
-      }
-      headers = headers->next;
-    }
-  }
-  return CURLE_OK;
-}
-
-CURLcode Curl_add_timecondition(struct SessionHandle *data,
-                                Curl_send_buffer *req_buffer)
-{
-  const struct tm *tm;
-  char *buf = data->state.buffer;
-  struct tm keeptime;
-  CURLcode result = Curl_gmtime(data->set.timevalue, &keeptime);
-  if(result) {
-    failf(data, "Invalid TIMEVALUE");
-    return result;
-  }
-  tm = &keeptime;
-
-  /* The If-Modified-Since header family should have their times set in
-   * GMT as RFC2616 defines: "All HTTP date/time stamps MUST be
-   * represented in Greenwich Mean Time (GMT), without exception. For the
-   * purposes of HTTP, GMT is exactly equal to UTC (Coordinated Universal
-   * Time)." (see page 20 of RFC2616).
-   */
-
-  /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-  snprintf(buf, BUFSIZE-1,
-           "%s, %02d %s %4d %02d:%02d:%02d GMT",
-           Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-           tm->tm_mday,
-           Curl_month[tm->tm_mon],
-           tm->tm_year + 1900,
-           tm->tm_hour,
-           tm->tm_min,
-           tm->tm_sec);
-
-  switch(data->set.timecondition) {
-  case CURL_TIMECOND_IFMODSINCE:
-  default:
-    result = Curl_add_bufferf(req_buffer,
-                              "If-Modified-Since: %s\r\n", buf);
-    break;
-  case CURL_TIMECOND_IFUNMODSINCE:
-    result = Curl_add_bufferf(req_buffer,
-                              "If-Unmodified-Since: %s\r\n", buf);
-    break;
-  case CURL_TIMECOND_LASTMOD:
-    result = Curl_add_bufferf(req_buffer,
-                              "Last-Modified: %s\r\n", buf);
-    break;
-  }
-
-  return result;
-}
+/* Bits used in flags. */
+#define LA_USED_ZIP64	(1 << 0)
+#define LA_FROM_CENTRAL_DIRECTORY (1 << 1)
 
 /*
- * Curl_http() gets called from the generic Curl_do() function when a HTTP
- * request is to be performed. This creates and sends a properly constructed
- * HTTP request.
+ * See "WinZip - AES Encryption Information"
+ *     http://www.winzip.com/aes_info.htm
  */
-CURLcode Curl_http(struct connectdata *conn, bool *done)
-{
-  struct SessionHandle *data = conn->data;
-  CURLcode result = CURLE_OK;
-  struct HTTP *http;
-  const char *ppath = data->state.path;
-  bool paste_ftp_userpwd = FALSE;
-  char ftp_typecode[sizeof("/;type=?")] = "";
-  const char *host = conn->host.name;
-  const char *te = ""; /* transfer-encoding */
-  const char *ptr;
-  const char *request;
-  Curl_HttpReq httpreq = data->set.httpreq;
-#if !defined(CURL_DISABLE_COOKIES)
-  char *addcookies = NULL;
-#endif
-  curl_off_t included_body = 0;
-  const char *httpstring;
-  Curl_send_buffer *req_buffer;
-  curl_off_t postsize = 0; /* curl_off_t to handle large file sizes */
-  int seekerr = CURL_SEEKFUNC_OK;
+/* Value used in compression method. */
+#define WINZIP_AES_ENCRYPTION	99
+/* Authentication code size. */
+#define AUTH_CODE_SIZE	10
+/**/
+#define MAX_DERIVED_KEY_BUF_SIZE	(AES_MAX_KEY_SIZE * 2 + 2)
 
-  /* Always consider the DO phase done after this function call, even if there
-     may be parts of the request that is not yet sent, since we can deal with
-     the rest of the request in the PERFORM phase. */
-  *done = TRUE;
+struct zip {
+	/* Structural information about the archive. */
+	struct archive_string	format_name;
+	int64_t			central_directory_offset;
+	size_t			central_directory_entries_total;
+	size_t			central_directory_entries_on_this_disk;
+	int			has_encrypted_entries;
 
-  if(conn->httpversion < 20) { /* unless the connection is re-used and already
-                                  http2 */
-    switch(conn->negnpn) {
-    case CURL_HTTP_VERSION_2_0:
-      conn->httpversion = 20; /* we know we're on HTTP/2 now */
-      result = Curl_http2_init(conn);
-      if(result)
-        return result;
+	/* List of entries (seekable Zip only) */
+	struct zip_entry	*zip_entries;
+	struct archive_rb_tree	tree;
+	struct archive_rb_tree	tree_rsrc;
 
-      result = Curl_http2_setup(conn);
-      if(result)
-        return result;
+	/* Bytes read but not yet consumed via __archive_read_consume() */
+	size_t			unconsumed;
 
-      result = Curl_http2_switched(conn, NULL, 0);
-      if(result)
-        return result;
-      break;
-    case CURL_HTTP_VERSION_1_1:
-      /* continue with HTTP/1.1 when explicitly requested */
-      break;
-    default:
-      /* and as fallback */
-      break;
-    }
-  }
-  else {
-    /* prepare for a http2 request */
-    result = Curl_http2_setup(conn);
-    if(result)
-      return result;
-  }
+	/* Information about entry we're currently reading. */
+	struct zip_entry	*entry;
+	int64_t			entry_bytes_remaining;
 
-  http = data->req.protop;
+	/* These count the number of bytes actually read for the entry. */
+	int64_t			entry_compressed_bytes_read;
+	int64_t			entry_uncompressed_bytes_read;
 
-  if(!data->state.this_is_a_follow) {
-    /* Free to avoid leaking memory on multiple requests*/
-    free(data->state.first_host);
+	/* Running CRC32 of the decompressed data */
+	unsigned long		entry_crc32;
+	unsigned long		(*crc32func)(unsigned long, const void *,
+				    size_t);
+	char			ignore_crc32;
 
-    data->state.first_host = strdup(conn->host.name);
-    if(!data->state.first_host)
-      return CURLE_OUT_OF_MEMORY;
-  }
-  http->writebytecount = http->readbytecount = 0;
+	/* Flags to mark progress of decompression. */
+	char			decompress_init;
+	char			end_of_entry;
 
-  if((conn->handler->protocol&(PROTO_FAMILY_HTTP|CURLPROTO_FTP)) &&
-     data->set.upload) {
-    httpreq = HTTPREQ_PUT;
-  }
-
-  /* Now set the 'request' pointer to the proper request string */
-  if(data->set.str[STRING_CUSTOMREQUEST])
-    request = data->set.str[STRING_CUSTOMREQUEST];
-  else {
-    if(data->set.opt_no_body)
-      request = "HEAD";
-    else {
-      DEBUGASSERT((httpreq > HTTPREQ_NONE) && (httpreq < HTTPREQ_LAST));
-      switch(httpreq) {
-      case HTTPREQ_POST:
-      case HTTPREQ_POST_FORM:
-        request = "POST";
-        break;
-      case HTTPREQ_PUT:
-        request = "PUT";
-        break;
-      default: /* this should never happen */
-      case HTTPREQ_GET:
-        request = "GET";
-        break;
-      case HTTPREQ_HEAD:
-        request = "HEAD";
-        break;
-      }
-    }
-  }
-
-  /* The User-Agent string might have been allocated in url.c already, because
-     it might have been used in the proxy connect, but if we have got a header
-     with the user-agent string specified, we erase the previously made string
-     here. */
-  if(Curl_checkheaders(conn, "User-Agent:")) {
-    free(conn->allocptr.uagent);
-    conn->allocptr.uagent=NULL;
-  }
-
-  /* setup the authentication headers */
-  result = Curl_http_output_auth(conn, request, ppath, FALSE);
-  if(result)
-    return result;
-
-  if((data->state.authhost.multi || data->state.authproxy.multi) &&
-     (httpreq != HTTPREQ_GET) &&
-     (httpreq != HTTPREQ_HEAD)) {
-    /* Auth is required and we are not authenticated yet. Make a PUT or POST
-       with content-length zero as a "probe". */
-    conn->bits.authneg = TRUE;
-  }
-  else
-    conn->bits.authneg = FALSE;
-
-  Curl_safefree(conn->allocptr.ref);
-  if(data->change.referer && !Curl_checkheaders(conn, "Referer:")) {
-    conn->allocptr.ref = aprintf("Referer: %s\r\n", data->change.referer);
-    if(!conn->allocptr.ref)
-      return CURLE_OUT_OF_MEMORY;
-  }
-  else
-    conn->allocptr.ref = NULL;
-
-#if !defined(CURL_DISABLE_COOKIES)
-  if(data->set.str[STRING_COOKIE] && !Curl_checkheaders(conn, "Cookie:"))
-    addcookies = data->set.str[STRING_COOKIE];
+#ifdef HAVE_ZLIB_H
+	unsigned char 		*uncompressed_buffer;
+	size_t 			uncompressed_buffer_size;
+	z_stream		stream;
+	char			stream_valid;
 #endif
 
-  if(!Curl_checkheaders(conn, "Accept-Encoding:") &&
-     data->set.str[STRING_ENCODING]) {
-    Curl_safefree(conn->allocptr.accept_encoding);
-    conn->allocptr.accept_encoding =
-      aprintf("Accept-Encoding: %s\r\n", data->set.str[STRING_ENCODING]);
-    if(!conn->allocptr.accept_encoding)
-      return CURLE_OUT_OF_MEMORY;
-  }
-
-#ifdef HAVE_LIBZ
-  /* we only consider transfer-encoding magic if libz support is built-in */
-
-  if(!Curl_checkheaders(conn, "TE:") &&
-     data->set.http_transfer_encoding) {
-    /* When we are to insert a TE: header in the request, we must also insert
-       TE in a Connection: header, so we need to merge the custom provided
-       Connection: header and prevent the original to get sent. Note that if
-       the user has inserted his/hers own TE: header we don't do this magic
-       but then assume that the user will handle it all! */
-    char *cptr = Curl_checkheaders(conn, "Connection:");
-#define TE_HEADER "TE: gzip\r\n"
-
-    Curl_safefree(conn->allocptr.te);
-
-    /* Create the (updated) Connection: header */
-    conn->allocptr.te = cptr? aprintf("%s, TE\r\n" TE_HEADER, cptr):
-      strdup("Connection: TE\r\n" TE_HEADER);
-
-    if(!conn->allocptr.te)
-      return CURLE_OUT_OF_MEMORY;
-  }
-#endif
-
-  if(conn->httpversion == 20)
-    /* In HTTP2 forbids Transfer-Encoding: chunked */
-    ptr = NULL;
-  else {
-    ptr = Curl_checkheaders(conn, "Transfer-Encoding:");
-    if(ptr) {
-      /* Some kind of TE is requested, check if 'chunked' is chosen */
-      data->req.upload_chunky =
-        Curl_compareheader(ptr, "Transfer-Encoding:", "chunked");
-    }
-    else {
-      if((conn->handler->protocol&PROTO_FAMILY_HTTP) &&
-         data->set.upload &&
-         (data->state.infilesize == -1)) {
-        if(conn->bits.authneg)
-          /* don't enable chunked during auth neg */
-          ;
-        else if(use_http_1_1plus(data, conn)) {
-          /* HTTP, upload, unknown file size and not HTTP 1.0 */
-          data->req.upload_chunky = TRUE;
-        }
-        else {
-          failf(data, "Chunky upload is not supported by HTTP 1.0");
-          return CURLE_UPLOAD_FAILED;
-        }
-      }
-      else {
-        /* else, no chunky upload */
-        data->req.upload_chunky = FALSE;
-      }
-
-      if(data->req.upload_chunky)
-        te = "Transfer-Encoding: chunked\r\n";
-    }
-  }
-
-  Curl_safefree(conn->allocptr.host);
-
-  ptr = Curl_checkheaders(conn, "Host:");
-  if(ptr && (!data->state.this_is_a_follow ||
-             Curl_raw_equal(data->state.first_host, conn->host.name))) {
-#if !defined(CURL_DISABLE_COOKIES)
-    /* If we have a given custom Host: header, we extract the host name in
-       order to possibly use it for cookie reasons later on. We only allow the
-       custom Host: header if this is NOT a redirect, as setting Host: in the
-       redirected request is being out on thin ice. Except if the host name
-       is the same as the first one! */
-    char *cookiehost = Curl_copy_header_value(ptr);
-    if(!cookiehost)
-      return CURLE_OUT_OF_MEMORY;
-    if(!*cookiehost)
-      /* ignore empty data */
-      free(cookiehost);
-    else {
-      /* If the host begins with '[', we start searching for the port after
-         the bracket has been closed */
-      int startsearch = 0;
-      if(*cookiehost == '[') {
-        char *closingbracket;
-        /* since the 'cookiehost' is an allocated memory area that will be
-           freed later we cannot simply increment the pointer */
-        memmove(cookiehost, cookiehost + 1, strlen(cookiehost) - 1);
-        closingbracket = strchr(cookiehost, ']');
-        if(closingbracket)
-          *closingbracket = 0;
-      }
-      else {
-        char *colon = strchr(cookiehost + startsearch, ':');
-        if(colon)
-          *colon = 0; /* The host must not include an embedded port number */
-      }
-      Curl_safefree(conn->allocptr.cookiehost);
-      conn->allocptr.cookiehost = cookiehost;
-    }
-#endif
-
-    if(strcmp("Host:", ptr)) {
-      conn->allocptr.host = aprintf("%s\r\n", ptr);
-      if(!conn->allocptr.host)
-        return CURLE_OUT_OF_MEMORY;
-    }
-    else
-      /* when clearing the header */
-      conn->allocptr.host = NULL;
-  }
-  else {
-    /* When building Host: headers, we must put the host name within
-       [brackets] if the host name is a plain IPv6-address. RFC2732-style. */
-
-    if(((conn->given->protocol&CURLPROTO_HTTPS) &&
-        (conn->remote_port == PORT_HTTPS)) ||
-       ((conn->given->protocol&CURLPROTO_HTTP) &&
-        (conn->remote_port == PORT_HTTP)) )
-      /* if(HTTPS on port 443) OR (HTTP on port 80) then don't include
-         the port number in the host string */
-      conn->allocptr.host = aprintf("Host: %s%s%s\r\n",
-                                    conn->bits.ipv6_ip?"[":"",
-                                    host,
-                                    conn->bits.ipv6_ip?"]":"");
-    else
-      conn->allocptr.host = aprintf("Host: %s%s%s:%hu\r\n",
-                                    conn->bits.ipv6_ip?"[":"",
-                                    host,
-                                    conn->bits.ipv6_ip?"]":"",
-                                    conn->remote_port);
-
-    if(!conn->allocptr.host)
-      /* without Host: we can't make a nice request */
-      return CURLE_OUT_OF_MEMORY;
-  }
-
-#ifndef CURL_DISABLE_PROXY
-  if(conn->bits.httpproxy && !conn->bits.tunnel_proxy)  {
-    /* Using a proxy but does not tunnel through it */
-
-    /* The path sent to the proxy is in fact the entire URL. But if the remote
-       host is a IDN-name, we must make sure that the request we produce only
-       uses the encoded host name! */
-    if(conn->host.dispname != conn->host.name) {
-      char *url = data->change.url;
-      ptr = strstr(url, conn->host.dispname);
-      if(ptr) {
-        /* This is where the display name starts in the URL, now replace this
-           part with the encoded name. TODO: This method of replacing the host
-           name is rather crude as I believe there's a slight risk that the
-           user has entered a user name or password that contain the host name
-           string. */
-        size_t currlen = strlen(conn->host.dispname);
-        size_t newlen = strlen(conn->host.name);
-        size_t urllen = strlen(url);
-
-        char *newurl;
-
-        newurl = malloc(urllen + newlen - currlen + 1);
-        if(newurl) {
-          /* copy the part before the host name */
-          memcpy(newurl, url, ptr - url);
-          /* append the new host name instead of the old */
-          memcpy(newurl + (ptr - url), conn->host.name, newlen);
-          /* append the piece after the host name */
-          memcpy(newurl + newlen + (ptr - url),
-                 ptr + currlen, /* copy the trailing zero byte too */
-                 urllen - (ptr-url) - currlen + 1);
-          if(data->change.url_alloc) {
-            Curl_safefree(data->change.url);
-            data->change.url_alloc = FALSE;
-          }
-          data->change.url = newurl;
-          data->change.url_alloc = TRUE;
-        }
-        else
-          return CURLE_OUT_OF_MEMORY;
-      }
-    }
-    ppath = data->change.url;
-    if(checkprefix("ftp://", ppath)) {
-      if(data->set.proxy_transfer_mode) {
-        /* when doing ftp, append ;type=<a|i> if not present */
-        char *type = strstr(ppath, ";type=");
-        if(type && type[6] && type[7] == 0) {
-          switch (Curl_raw_toupper(type[6])) {
-          case 'A':
-          case 'D':
-          case 'I':
-            break;
-          default:
-            type = NULL;
-          }
-        }
-        if(!type) {
-          char *p = ftp_typecode;
-          /* avoid sending invalid URLs like ftp://example.com;type=i if the
-           * user specified ftp://example.com without the slash */
-          if(!*data->state.path && ppath[strlen(ppath) - 1] != '/') {
-            *p++ = '/';
-          }
-          snprintf(p, sizeof(ftp_typecode) - 1, ";type=%c",
-                   data->set.prefer_ascii ? 'a' : 'i');
-        }
-      }
-      if(conn->bits.user_passwd && !conn->bits.userpwd_in_url)
-        paste_ftp_userpwd = TRUE;
-    }
-  }
-#endif /* CURL_DISABLE_PROXY */
-
-  if(HTTPREQ_POST_FORM == httpreq) {
-    /* we must build the whole post sequence first, so that we have a size of
-       the whole transfer before we start to send it */
-    result = Curl_getformdata(data, &http->sendit, data->set.httppost,
-                              Curl_checkheaders(conn, "Content-Type:"),
-                              &http->postsize);
-    if(result)
-      return result;
-  }
-
-  http->p_accept = Curl_checkheaders(conn, "Accept:")?NULL:"Accept: */*\r\n";
-
-  if(( (HTTPREQ_POST == httpreq) ||
-       (HTTPREQ_POST_FORM == httpreq) ||
-       (HTTPREQ_PUT == httpreq) ) &&
-     data->state.resume_from) {
-    /**********************************************************************
-     * Resuming upload in HTTP means that we PUT or POST and that we have
-     * got a resume_from value set. The resume value has already created
-     * a Range: header that will be passed along. We need to "fast forward"
-     * the file the given number of bytes and decrease the assume upload
-     * file size before we continue this venture in the dark lands of HTTP.
-     *********************************************************************/
-
-    if(data->state.resume_from < 0 ) {
-      /*
-       * This is meant to get the size of the present remote-file by itself.
-       * We don't support this now. Bail out!
-       */
-      data->state.resume_from = 0;
-    }
-
-    if(data->state.resume_from && !data->state.this_is_a_follow) {
-      /* do we still game? */
-
-      /* Now, let's read off the proper amount of bytes from the
-         input. */
-      if(conn->seek_func) {
-        seekerr = conn->seek_func(conn->seek_client, data->state.resume_from,
-                                  SEEK_SET);
-      }
-
-      if(seekerr != CURL_SEEKFUNC_OK) {
-        if(seekerr != CURL_SEEKFUNC_CANTSEEK) {
-          failf(data, "Could not seek stream");
-          return CURLE_READ_ERROR;
-        }
-        /* when seekerr == CURL_SEEKFUNC_CANTSEEK (can't seek to offset) */
-        else {
-          curl_off_t passed=0;
-          do {
-            size_t readthisamountnow =
-              (data->state.resume_from - passed > CURL_OFF_T_C(BUFSIZE)) ?
-              BUFSIZE : curlx_sotouz(data->state.resume_from - passed);
-
-            size_t actuallyread =
-              data->set.fread_func(data->state.buffer, 1, readthisamountnow,
-                                   data->set.in);
-
-            passed += actuallyread;
-            if((actuallyread == 0) || (actuallyread > readthisamountnow)) {
-              /* this checks for greater-than only to make sure that the
-                 CURL_READFUNC_ABORT return code still aborts */
-              failf(data, "Could only read %" CURL_FORMAT_CURL_OFF_T
-                    " bytes from the input", passed);
-              return CURLE_READ_ERROR;
-            }
-          } while(passed < data->state.resume_from);
-        }
-      }
-
-      /* now, decrease the size of the read */
-      if(data->state.infilesize>0) {
-        data->state.infilesize -= data->state.resume_from;
-
-        if(data->state.infilesize <= 0) {
-          failf(data, "File already completely uploaded");
-          return CURLE_PARTIAL_FILE;
-        }
-      }
-      /* we've passed, proceed as normal */
-    }
-  }
-  if(data->state.use_range) {
-    /*
-     * A range is selected. We use different headers whether we're downloading
-     * or uploading and we always let customized headers override our internal
-     * ones if any such are specified.
-     */
-    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
-       !Curl_checkheaders(conn, "Range:")) {
-      /* if a line like this was already allocated, free the previous one */
-      free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
-                                         data->state.range);
-    }
-    else if((httpreq != HTTPREQ_GET) &&
-            !Curl_checkheaders(conn, "Content-Range:")) {
-
-      /* if a line like this was already allocated, free the previous one */
-      free(conn->allocptr.rangeline);
-
-      if(data->set.set_resume_from < 0) {
-        /* Upload resume was asked for, but we don't know the size of the
-           remote part so we tell the server (and act accordingly) that we
-           upload the whole file (again) */
-        conn->allocptr.rangeline =
-          aprintf("Content-Range: bytes 0-%" CURL_FORMAT_CURL_OFF_T
-                  "/%" CURL_FORMAT_CURL_OFF_T "\r\n",
-                  data->state.infilesize - 1, data->state.infilesize);
-
-      }
-      else if(data->state.resume_from) {
-        /* This is because "resume" was selected */
-        curl_off_t total_expected_size=
-          data->state.resume_from + data->state.infilesize;
-        conn->allocptr.rangeline =
-          aprintf("Content-Range: bytes %s%" CURL_FORMAT_CURL_OFF_T
-                  "/%" CURL_FORMAT_CURL_OFF_T "\r\n",
-                  data->state.range, total_expected_size-1,
-                  total_expected_size);
-      }
-      else {
-        /* Range was selected and then we just pass the incoming range and
-           append total size */
-        conn->allocptr.rangeline =
-          aprintf("Content-Range: bytes %s/%" CURL_FORMAT_CURL_OFF_T "\r\n",
-                  data->state.range, data->state.infilesize);
-      }
-      if(!conn->allocptr.rangeline)
-        return CURLE_OUT_OF_MEMORY;
-    }
-  }
-
-  /* Use 1.1 unless the user specifically asked for 1.0 or the server only
-     supports 1.0 */
-  httpstring= use_http_1_1plus(data, conn)?"1.1":"1.0";
-
-  /* initialize a dynamic send-buffer */
-  req_buffer = Curl_add_buffer_init();
-
-  if(!req_buffer)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* add the main request stuff */
-  /* GET/HEAD/POST/PUT */
-  result = Curl_add_bufferf(req_buffer, "%s ", request);
-  if(result)
-    return result;
-
-  /* url */
-  if(paste_ftp_userpwd)
-    result = Curl_add_bufferf(req_buffer, "ftp://%s:%s@%s",
-                              conn->user, conn->passwd,
-                              ppath + sizeof("ftp://") - 1);
-  else
-    result = Curl_add_buffer(req_buffer, ppath, strlen(ppath));
-  if(result)
-    return result;
-
-  result =
-    Curl_add_bufferf(req_buffer,
-                     "%s" /* ftp typecode (;type=x) */
-                     " HTTP/%s\r\n" /* HTTP version */
-                     "%s" /* host */
-                     "%s" /* proxyuserpwd */
-                     "%s" /* userpwd */
-                     "%s" /* range */
-                     "%s" /* user agent */
-                     "%s" /* accept */
-                     "%s" /* TE: */
-                     "%s" /* accept-encoding */
-                     "%s" /* referer */
-                     "%s" /* Proxy-Connection */
-                     "%s",/* transfer-encoding */
-
-                     ftp_typecode,
-                     httpstring,
-                     (conn->allocptr.host?conn->allocptr.host:""),
-                     conn->allocptr.proxyuserpwd?
-                     conn->allocptr.proxyuserpwd:"",
-                     conn->allocptr.userpwd?conn->allocptr.userpwd:"",
-                     (data->state.use_range && conn->allocptr.rangeline)?
-                     conn->allocptr.rangeline:"",
-                     (data->set.str[STRING_USERAGENT] &&
-                      *data->set.str[STRING_USERAGENT] &&
-                      conn->allocptr.uagent)?
-                     conn->allocptr.uagent:"",
-                     http->p_accept?http->p_accept:"",
-                     conn->allocptr.te?conn->allocptr.te:"",
-                     (data->set.str[STRING_ENCODING] &&
-                      *data->set.str[STRING_ENCODING] &&
-                      conn->allocptr.accept_encoding)?
-                     conn->allocptr.accept_encoding:"",
-                     (data->change.referer && conn->allocptr.ref)?
-                     conn->allocptr.ref:"" /* Referer: <data> */,
-                     (conn->bits.httpproxy &&
-                      !conn->bits.tunnel_proxy &&
-                      !Curl_checkProxyheaders(conn, "Proxy-Connection:"))?
-                     "Proxy-Connection: Keep-Alive\r\n":"",
-                     te
-      );
-
-  /* clear userpwd to avoid re-using credentials from re-used connections */
-  Curl_safefree(conn->allocptr.userpwd);
-
-  /*
-   * Free proxyuserpwd for Negotiate/NTLM. Cannot reuse as it is associated
-   * with the connection and shouldn't be repeated over it either.
-   */
-  switch (data->state.authproxy.picked) {
-  case CURLAUTH_NEGOTIATE:
-  case CURLAUTH_NTLM:
-  case CURLAUTH_NTLM_WB:
-    Curl_safefree(conn->allocptr.proxyuserpwd);
-    break;
-  }
-
-  if(result)
-    return result;
-
-  if(!(conn->handler->flags&PROTOPT_SSL) &&
-     conn->httpversion != 20 &&
-     (data->set.httpversion == CURL_HTTP_VERSION_2_0)) {
-    /* append HTTP2 upgrade magic stuff to the HTTP request if it isn't done
-       over SSL */
-    result = Curl_http2_request_upgrade(req_buffer, conn);
-    if(result)
-      return result;
-  }
-
-#if !defined(CURL_DISABLE_COOKIES)
-  if(data->cookies || addcookies) {
-    struct Cookie *co=NULL; /* no cookies from start */
-    int count=0;
-
-    if(data->cookies) {
-      Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-      co = Curl_cookie_getlist(data->cookies,
-                               conn->allocptr.cookiehost?
-                               conn->allocptr.cookiehost:host,
-                               data->state.path,
-                               (conn->handler->protocol&CURLPROTO_HTTPS)?
-                               TRUE:FALSE);
-      Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
-    }
-    if(co) {
-      struct Cookie *store=co;
-      /* now loop through all cookies that matched */
-      while(co) {
-        if(co->value) {
-          if(0 == count) {
-            result = Curl_add_bufferf(req_buffer, "Cookie: ");
-            if(result)
-              break;
-          }
-          result = Curl_add_bufferf(req_buffer,
-                                    "%s%s=%s", count?"; ":"",
-                                    co->name, co->value);
-          if(result)
-            break;
-          count++;
-        }
-        co = co->next; /* next cookie please */
-      }
-      Curl_cookie_freelist(store, FALSE); /* free the cookie list */
-    }
-    if(addcookies && !result) {
-      if(!count)
-        result = Curl_add_bufferf(req_buffer, "Cookie: ");
-      if(!result) {
-        result = Curl_add_bufferf(req_buffer, "%s%s", count?"; ":"",
-                                  addcookies);
-        count++;
-      }
-    }
-    if(count && !result)
-      result = Curl_add_buffer(req_buffer, "\r\n", 2);
-
-    if(result)
-      return result;
-  }
-#endif
-
-  if(data->set.timecondition) {
-    result = Curl_add_timecondition(data, req_buffer);
-    if(result)
-      return result;
-  }
-
-  result = Curl_add_custom_headers(conn, FALSE, req_buffer);
-  if(result)
-    return result;
-
-  http->postdata = NULL;  /* nothing to post at this point */
-  Curl_pgrsSetUploadSize(data, -1); /* upload size is unknown atm */
-
-  /* If 'authdone' is FALSE, we must not set the write socket index to the
-     Curl_transfer() call below, as we're not ready to actually upload any
-     data yet. */
-
-  switch(httpreq) {
-
-  case HTTPREQ_POST_FORM:
-    if(!http->sendit || conn->bits.authneg) {
-      /* nothing to post! */
-      result = Curl_add_bufferf(req_buffer, "Content-Length: 0\r\n\r\n");
-      if(result)
-        return result;
-
-      result = Curl_add_buffer_send(req_buffer, conn,
-                                    &data->info.request_size, 0, FIRSTSOCKET);
-      if(result)
-        failf(data, "Failed sending POST request");
-      else
-        /* setup variables for the upcoming transfer */
-        Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE, &http->readbytecount,
-                            -1, NULL);
-      break;
-    }
-
-    if(Curl_FormInit(&http->form, http->sendit)) {
-      failf(data, "Internal HTTP POST error!");
-      return CURLE_HTTP_POST_ERROR;
-    }
-
-    /* Get the currently set callback function pointer and store that in the
-       form struct since we might want the actual user-provided callback later
-       on. The data->set.fread_func pointer itself will be changed for the
-       multipart case to the function that returns a multipart formatted
-       stream. */
-    http->form.fread_func = data->set.fread_func;
-
-    /* Set the read function to read from the generated form data */
-    data->set.fread_func = (curl_read_callback)Curl_FormReader;
-    data->set.in = &http->form;
-
-    http->sending = HTTPSEND_BODY;
-
-    if(!data->req.upload_chunky &&
-       !Curl_checkheaders(conn, "Content-Length:")) {
-      /* only add Content-Length if not uploading chunked */
-      result = Curl_add_bufferf(req_buffer,
-                                "Content-Length: %" CURL_FORMAT_CURL_OFF_T
-                                "\r\n", http->postsize);
-      if(result)
-        return result;
-    }
-
-    result = expect100(data, conn, req_buffer);
-    if(result)
-      return result;
-
-    {
-
-      /* Get Content-Type: line from Curl_formpostheader.
-       */
-      char *contentType;
-      size_t linelength=0;
-      contentType = Curl_formpostheader((void *)&http->form,
-                                        &linelength);
-      if(!contentType) {
-        failf(data, "Could not get Content-Type header line!");
-        return CURLE_HTTP_POST_ERROR;
-      }
-
-      result = Curl_add_buffer(req_buffer, contentType, linelength);
-      if(result)
-        return result;
-    }
-
-    /* make the request end in a true CRLF */
-    result = Curl_add_buffer(req_buffer, "\r\n", 2);
-    if(result)
-      return result;
-
-    /* set upload size to the progress meter */
-    Curl_pgrsSetUploadSize(data, http->postsize);
-
-    /* fire away the whole request to the server */
-    result = Curl_add_buffer_send(req_buffer, conn,
-                                  &data->info.request_size, 0, FIRSTSOCKET);
-    if(result)
-      failf(data, "Failed sending POST request");
-    else
-      /* setup variables for the upcoming transfer */
-      Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
-                          &http->readbytecount, FIRSTSOCKET,
-                          &http->writebytecount);
-
-    if(result) {
-      Curl_formclean(&http->sendit); /* free that whole lot */
-      return result;
-    }
-
-    /* convert the form data */
-    result = Curl_convert_form(data, http->sendit);
-    if(result) {
-      Curl_formclean(&http->sendit); /* free that whole lot */
-      return result;
-    }
-
-    break;
-
-  case HTTPREQ_PUT: /* Let's PUT the data to the server! */
-
-    if(conn->bits.authneg)
-      postsize = 0;
-    else
-      postsize = data->state.infilesize;
-
-    if((postsize != -1) && !data->req.upload_chunky &&
-       !Curl_checkheaders(conn, "Content-Length:")) {
-      /* only add Content-Length if not uploading chunked */
-      result = Curl_add_bufferf(req_buffer,
-                                "Content-Length: %" CURL_FORMAT_CURL_OFF_T
-                                "\r\n", postsize);
-      if(result)
-        return result;
-    }
-
-    if(postsize != 0) {
-      result = expect100(data, conn, req_buffer);
-      if(result)
-        return result;
-    }
-
-    result = Curl_add_buffer(req_buffer, "\r\n", 2); /* end of headers */
-    if(result)
-      return result;
-
-    /* set the upload size to the progress meter */
-    Curl_pgrsSetUploadSize(data, postsize);
-
-    /* this sends the buffer and frees all the buffer resources */
-    result = Curl_add_buffer_send(req_buffer, conn,
-                                  &data->info.request_size, 0, FIRSTSOCKET);
-    if(result)
-      failf(data, "Failed sending PUT request");
-    else
-      /* prepare for transfer */
-      Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
-                          &http->readbytecount, postsize?FIRSTSOCKET:-1,
-                          postsize?&http->writebytecount:NULL);
-    if(result)
-      return result;
-    break;
-
-  case HTTPREQ_POST:
-    /* this is the simple POST, using x-www-form-urlencoded style */
-
-    if(conn->bits.authneg)
-      postsize = 0;
-    else {
-      /* figure out the size of the postfields */
-      postsize = (data->state.infilesize != -1)?
-        data->state.infilesize:
-        (data->set.postfields? (curl_off_t)strlen(data->set.postfields):-1);
-    }
-
-    /* We only set Content-Length and allow a custom Content-Length if
-       we don't upload data chunked, as RFC2616 forbids us to set both
-       kinds of headers (Transfer-Encoding: chunked and Content-Length) */
-    if((postsize != -1) && !data->req.upload_chunky &&
-       !Curl_checkheaders(conn, "Content-Length:")) {
-      /* we allow replacing this header if not during auth negotiation,
-         although it isn't very wise to actually set your own */
-      result = Curl_add_bufferf(req_buffer,
-                                "Content-Length: %" CURL_FORMAT_CURL_OFF_T
-                                "\r\n", postsize);
-      if(result)
-        return result;
-    }
-
-    if(!Curl_checkheaders(conn, "Content-Type:")) {
-      result = Curl_add_bufferf(req_buffer,
-                                "Content-Type: application/"
-                                "x-www-form-urlencoded\r\n");
-      if(result)
-        return result;
-    }
-
-    /* For really small posts we don't use Expect: headers at all, and for
-       the somewhat bigger ones we allow the app to disable it. Just make
-       sure that the expect100header is always set to the preferred value
-       here. */
-    ptr = Curl_checkheaders(conn, "Expect:");
-    if(ptr) {
-      data->state.expect100header =
-        Curl_compareheader(ptr, "Expect:", "100-continue");
-    }
-    else if(postsize > TINY_INITIAL_POST_SIZE || postsize < 0) {
-      result = expect100(data, conn, req_buffer);
-      if(result)
-        return result;
-    }
-    else
-      data->state.expect100header = FALSE;
-
-    if(data->set.postfields) {
-
-      /* In HTTP2, we send request body in DATA frame regardless of
-         its size. */
-      if(conn->httpversion != 20 &&
-         !data->state.expect100header &&
-         (postsize < MAX_INITIAL_POST_SIZE))  {
-        /* if we don't use expect: 100  AND
-           postsize is less than MAX_INITIAL_POST_SIZE
-
-           then append the post data to the HTTP request header. This limit
-           is no magic limit but only set to prevent really huge POSTs to
-           get the data duplicated with malloc() and family. */
-
-        result = Curl_add_buffer(req_buffer, "\r\n", 2); /* end of headers! */
-        if(result)
-          return result;
-
-        if(!data->req.upload_chunky) {
-          /* We're not sending it 'chunked', append it to the request
-             already now to reduce the number if send() calls */
-          result = Curl_add_buffer(req_buffer, data->set.postfields,
-                                   (size_t)postsize);
-          included_body = postsize;
-        }
-        else {
-          if(postsize) {
-            /* Append the POST data chunky-style */
-            result = Curl_add_bufferf(req_buffer, "%x\r\n", (int)postsize);
-            if(!result) {
-              result = Curl_add_buffer(req_buffer, data->set.postfields,
-                                       (size_t)postsize);
-              if(!result)
-                result = Curl_add_buffer(req_buffer, "\r\n", 2);
-              included_body = postsize + 2;
-            }
-          }
-          if(!result)
-            result = Curl_add_buffer(req_buffer, "\x30\x0d\x0a\x0d\x0a", 5);
-          /* 0  CR  LF  CR  LF */
-          included_body += 5;
-        }
-        if(result)
-          return result;
-        /* Make sure the progress information is accurate */
-        Curl_pgrsSetUploadSize(data, postsize);
-      }
-      else {
-        /* A huge POST coming up, do data separate from the request */
-        http->postsize = postsize;
-        http->postdata = data->set.postfields;
-
-        http->sending = HTTPSEND_BODY;
-
-        data->set.fread_func = (curl_read_callback)readmoredata;
-        data->set.in = (void *)conn;
-
-        /* set the upload size to the progress meter */
-        Curl_pgrsSetUploadSize(data, http->postsize);
-
-        result = Curl_add_buffer(req_buffer, "\r\n", 2); /* end of headers! */
-        if(result)
-          return result;
-      }
-    }
-    else {
-      result = Curl_add_buffer(req_buffer, "\r\n", 2); /* end of headers! */
-      if(result)
-        return result;
-
-      if(data->req.upload_chunky && conn->bits.authneg) {
-        /* Chunky upload is selected and we're negotiating auth still, send
-           end-of-data only */
-        result = Curl_add_buffer(req_buffer,
-                                 "\x30\x0d\x0a\x0d\x0a", 5);
-        /* 0  CR  LF  CR  LF */
-        if(result)
-          return result;
-      }
-
-      else if(data->state.infilesize) {
-        /* set the upload size to the progress meter */
-        Curl_pgrsSetUploadSize(data, postsize?postsize:-1);
-
-        /* set the pointer to mark that we will send the post body using the
-           read callback, but only if we're not in authenticate
-           negotiation  */
-        if(!conn->bits.authneg) {
-          http->postdata = (char *)&http->postdata;
-          http->postsize = postsize;
-        }
-      }
-    }
-    /* issue the request */
-    result = Curl_add_buffer_send(req_buffer, conn, &data->info.request_size,
-                                  (size_t)included_body, FIRSTSOCKET);
-
-    if(result)
-      failf(data, "Failed sending HTTP POST request");
-    else
-      Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
-                          &http->readbytecount, http->postdata?FIRSTSOCKET:-1,
-                          http->postdata?&http->writebytecount:NULL);
-    break;
-
-  default:
-    result = Curl_add_buffer(req_buffer, "\r\n", 2);
-    if(result)
-      return result;
-
-    /* issue the request */
-    result = Curl_add_buffer_send(req_buffer, conn,
-                                  &data->info.request_size, 0, FIRSTSOCKET);
-
-    if(result)
-      failf(data, "Failed sending HTTP request");
-    else
-      /* HTTP GET/HEAD download: */
-      Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE, &http->readbytecount,
-                          http->postdata?FIRSTSOCKET:-1,
-                          http->postdata?&http->writebytecount:NULL);
-  }
-  if(result)
-    return result;
-
-  if(http->writebytecount) {
-    /* if a request-body has been sent off, we make sure this progress is noted
-       properly */
-    Curl_pgrsSetUploadCounter(data, http->writebytecount);
-    if(Curl_pgrsUpdate(conn))
-      result = CURLE_ABORTED_BY_CALLBACK;
-
-    if(http->writebytecount >= postsize) {
-      /* already sent the entire request body, mark the "upload" as
-         complete */
-      infof(data, "upload completely sent off: %" CURL_FORMAT_CURL_OFF_T
-            " out of %" CURL_FORMAT_CURL_OFF_T " bytes\n",
-            http->writebytecount, postsize);
-      data->req.upload_done = TRUE;
-      data->req.keepon &= ~KEEP_SEND; /* we're done writing */
-      data->req.exp100 = EXP100_SEND_DATA; /* already sent */
-    }
-  }
-
-  return result;
-}
+	struct archive_string_conv *sconv;
+	struct archive_string_conv *sconv_default;
+	struct archive_string_conv *sconv_utf8;
+	int			init_default_conversion;
+	int			process_mac_extensions;
+
+	char			init_decryption;
+
+	/* Decryption buffer. */
+	unsigned char 		*decrypted_buffer;
+	unsigned char 		*decrypted_ptr;
+	size_t 			decrypted_buffer_size;
+	size_t 			decrypted_bytes_remaining;
+	size_t 			decrypted_unconsumed_bytes;
+
+	/* Traditional PKWARE decryption. */
+	struct trad_enc_ctx	tctx;
+	char			tctx_valid;
+
+	/* WinZip AES decyption. */
+	/* Contexts used for AES decryption. */
+	archive_crypto_ctx	cctx;
+	char			cctx_valid;
+	archive_hmac_sha1_ctx	hctx;
+	char			hctx_valid;
+
+	/* Strong encryption's decryption header information. */
+	unsigned		iv_size;
+	unsigned		alg_id;
+	unsigned		bit_len;
+	unsigned		flags;
+	unsigned		erd_size;
+	unsigned		v_size;
+	unsigned		v_crc32;
+	uint8_t			*iv;
+	uint8_t			*erd;
+	uint8_t			*v_data;
+};
+
+/* Many systems define min or MIN, but not all. */
+#define	zipmin(a,b) ((a) < (b) ? (a) : (b))
+
+/* ------------------------------------------------------------------------ */
 
 /*
- * checkhttpprefix()
+  Traditional PKWARE Decryption functions.
+ */
+
+static void
+trad_enc_update_keys(struct trad_enc_ctx *ctx, uint8_t c)
+{
+	uint8_t t;
+#define CRC32(c, b) (crc32(c ^ 0xffffffffUL, &b, 1) ^ 0xffffffffUL)
+
+	ctx->keys[0] = CRC32(ctx->keys[0], c);
+	ctx->keys[1] = (ctx->keys[1] + (ctx->keys[0] & 0xff)) * 134775813L + 1;
+	t = (ctx->keys[1] >> 24) & 0xff;
+	ctx->keys[2] = CRC32(ctx->keys[2], t);
+#undef CRC32
+}
+
+static uint8_t
+trad_enc_decypt_byte(struct trad_enc_ctx *ctx)
+{
+	unsigned temp = ctx->keys[2] | 2;
+	return (uint8_t)((temp * (temp ^ 1)) >> 8) & 0xff;
+}
+
+static void
+trad_enc_decrypt_update(struct trad_enc_ctx *ctx, const uint8_t *in,
+    size_t in_len, uint8_t *out, size_t out_len)
+{
+	unsigned i, max;
+
+	max = (unsigned)((in_len < out_len)? in_len: out_len);
+
+	for (i = 0; i < max; i++) {
+		uint8_t t = in[i] ^ trad_enc_decypt_byte(ctx);
+		out[i] = t;
+		trad_enc_update_keys(ctx, t);
+	}
+}
+
+static int
+trad_enc_init(struct trad_enc_ctx *ctx, const char *pw, size_t pw_len,
+    const uint8_t *key, size_t key_len, uint8_t *crcchk)
+{
+	uint8_t header[12];
+
+	if (key_len < 12) {
+		*crcchk = 0xff;
+		return -1;
+	}
+
+	ctx->keys[0] = 305419896L;
+	ctx->keys[1] = 591751049L;
+	ctx->keys[2] = 878082192L;
+
+	for (;pw_len; --pw_len)
+		trad_enc_update_keys(ctx, *pw++);
+
+	trad_enc_decrypt_update(ctx, key, 12, header, 12);
+	/* Return the last byte for CRC check. */
+	*crcchk = header[11];
+	return 0;
+}
+
+#if 0
+static void
+crypt_derive_key_sha1(const void *p, int size, unsigned char *key,
+    int key_size)
+{
+#define MD_SIZE 20
+	archive_sha1_ctx ctx;
+	unsigned char md1[MD_SIZE];
+	unsigned char md2[MD_SIZE * 2];
+	unsigned char mkb[64];
+	int i;
+
+	archive_sha1_init(&ctx);
+	archive_sha1_update(&ctx, p, size);
+	archive_sha1_final(&ctx, md1);
+
+	memset(mkb, 0x36, sizeof(mkb));
+	for (i = 0; i < MD_SIZE; i++)
+		mkb[i] ^= md1[i];
+	archive_sha1_init(&ctx);
+	archive_sha1_update(&ctx, mkb, sizeof(mkb));
+	archive_sha1_final(&ctx, md2);
+
+	memset(mkb, 0x5C, sizeof(mkb));
+	for (i = 0; i < MD_SIZE; i++)
+		mkb[i] ^= md1[i];
+	archive_sha1_init(&ctx);
+	archive_sha1_update(&ctx, mkb, sizeof(mkb));
+	archive_sha1_final(&ctx, md2 + MD_SIZE);
+
+	if (key_size > 32)
+		key_size = 32;
+	memcpy(key, md2, key_size);
+#undef MD_SIZE
+}
+#endif
+
+/*
+ * Common code for streaming or seeking modes.
  *
- * Returns TRUE if member of the list matches prefix of string
+ * Includes code to read local file headers, decompress data
+ * from entry bodies, and common API.
  */
-static bool
-checkhttpprefix(struct SessionHandle *data,
-                const char *s)
+
+static unsigned long
+real_crc32(unsigned long crc, const void *buff, size_t len)
 {
-  struct curl_slist *head = data->set.http200aliases;
-  bool rc = FALSE;
-#ifdef CURL_DOES_CONVERSIONS
-  /* convert from the network encoding using a scratch area */
-  char *scratch = strdup(s);
-  if(NULL == scratch) {
-    failf (data, "Failed to allocate memory for conversion!");
-    return FALSE; /* can't return CURLE_OUT_OF_MEMORY so return FALSE */
-  }
-  if(CURLE_OK != Curl_convert_from_network(data, scratch, strlen(s)+1)) {
-    /* Curl_convert_from_network calls failf if unsuccessful */
-    free(scratch);
-    return FALSE; /* can't return CURLE_foobar so return FALSE */
-  }
-  s = scratch;
-#endif /* CURL_DOES_CONVERSIONS */
-
-  while(head) {
-    if(checkprefix(head->data, s)) {
-      rc = TRUE;
-      break;
-    }
-    head = head->next;
-  }
-
-  if(!rc && (checkprefix("HTTP/", s)))
-    rc = TRUE;
-
-#ifdef CURL_DOES_CONVERSIONS
-  free(scratch);
-#endif /* CURL_DOES_CONVERSIONS */
-  return rc;
+	return crc32(crc, buff, (unsigned int)len);
 }
 
-#ifndef CURL_DISABLE_RTSP
-static bool
-checkrtspprefix(struct SessionHandle *data,
-                const char *s)
+/* Used by "ignorecrc32" option to speed up tests. */
+static unsigned long
+fake_crc32(unsigned long crc, const void *buff, size_t len)
 {
-
-#ifdef CURL_DOES_CONVERSIONS
-  /* convert from the network encoding using a scratch area */
-  char *scratch = strdup(s);
-  if(NULL == scratch) {
-    failf (data, "Failed to allocate memory for conversion!");
-    return FALSE; /* can't return CURLE_OUT_OF_MEMORY so return FALSE */
-  }
-  if(CURLE_OK != Curl_convert_from_network(data, scratch, strlen(s)+1)) {
-    /* Curl_convert_from_network calls failf if unsuccessful */
-    free(scratch);
-    return FALSE; /* can't return CURLE_foobar so return FALSE */
-  }
-  s = scratch;
-#else
-  (void)data; /* unused */
-#endif /* CURL_DOES_CONVERSIONS */
-  if(checkprefix("RTSP/", s))
-    return TRUE;
-  else
-    return FALSE;
+	(void)crc; /* UNUSED */
+	(void)buff; /* UNUSED */
+	(void)len; /* UNUSED */
+	return 0;
 }
-#endif /* CURL_DISABLE_RTSP */
 
-static bool
-checkprotoprefix(struct SessionHandle *data, struct connectdata *conn,
-                 const char *s)
+static struct {
+	int id;
+	const char * name;
+} compression_methods[] = {
+	{0, "uncompressed"}, /* The file is stored (no compression) */
+	{1, "shrinking"}, /* The file is Shrunk */
+	{2, "reduced-1"}, /* The file is Reduced with compression factor 1 */
+	{3, "reduced-2"}, /* The file is Reduced with compression factor 2 */
+	{4, "reduced-3"}, /* The file is Reduced with compression factor 3 */
+	{5, "reduced-4"}, /* The file is Reduced with compression factor 4 */
+	{6, "imploded"},  /* The file is Imploded */
+	{7, "reserved"},  /* Reserved for Tokenizing compression algorithm */
+	{8, "deflation"}, /* The file is Deflated */
+	{9, "deflation-64-bit"}, /* Enhanced Deflating using Deflate64(tm) */
+	{10, "ibm-terse"},/* PKWARE Data Compression Library Imploding
+			   * (old IBM TERSE) */
+	{11, "reserved"}, /* Reserved by PKWARE */
+	{12, "bzip"},     /* File is compressed using BZIP2 algorithm */
+	{13, "reserved"}, /* Reserved by PKWARE */
+	{14, "lzma"},     /* LZMA (EFS) */
+	{15, "reserved"}, /* Reserved by PKWARE */
+	{16, "reserved"}, /* Reserved by PKWARE */
+	{17, "reserved"}, /* Reserved by PKWARE */
+	{18, "ibm-terse-new"}, /* File is compressed using IBM TERSE (new) */
+	{19, "ibm-lz777"},/* IBM LZ77 z Architecture (PFS) */
+	{97, "wav-pack"}, /* WavPack compressed data */
+	{98, "ppmd-1"},   /* PPMd version I, Rev 1 */
+	{99, "aes"}       /* WinZip AES encryption  */
+};
+
+static const char *
+compression_name(const int compression)
 {
-#ifndef CURL_DISABLE_RTSP
-  if(conn->handler->protocol & CURLPROTO_RTSP)
-    return checkrtspprefix(data, s);
-#else
-  (void)conn;
-#endif /* CURL_DISABLE_RTSP */
+	static const int num_compression_methods =
+		sizeof(compression_methods)/sizeof(compression_methods[0]);
+	int i=0;
 
-  return checkhttpprefix(data, s);
+	while(compression >= 0 && i < num_compression_methods) {
+		if (compression_methods[i].id == compression)
+			return compression_methods[i].name;
+		i++;
+	}
+	return "??";
+}
+
+/* Convert an MSDOS-style date/time into Unix-style time. */
+static time_t
+zip_time(const char *p)
+{
+	int msTime, msDate;
+	struct tm ts;
+
+	msTime = (0xff & (unsigned)p[0]) + 256 * (0xff & (unsigned)p[1]);
+	msDate = (0xff & (unsigned)p[2]) + 256 * (0xff & (unsigned)p[3]);
+
+	memset(&ts, 0, sizeof(ts));
+	ts.tm_year = ((msDate >> 9) & 0x7f) + 80; /* Years since 1900. */
+	ts.tm_mon = ((msDate >> 5) & 0x0f) - 1; /* Month number. */
+	ts.tm_mday = msDate & 0x1f; /* Day of month. */
+	ts.tm_hour = (msTime >> 11) & 0x1f;
+	ts.tm_min = (msTime >> 5) & 0x3f;
+	ts.tm_sec = (msTime << 1) & 0x3e;
+	ts.tm_isdst = -1;
+	return mktime(&ts);
 }
 
 /*
- * header_append() copies a chunk of data to the end of the already received
- * header. We make sure that the full string fit in the allocated header
- * buffer, or else we enlarge it.
+ * The extra data is stored as a list of
+ *	id1+size1+data1 + id2+size2+data2 ...
+ *  triplets.  id and size are 2 bytes each.
  */
-static CURLcode header_append(struct SessionHandle *data,
-                              struct SingleRequest *k,
-                              size_t length)
+static void
+process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
 {
-  if(k->hbuflen + length >= data->state.headersize) {
-    /* We enlarge the header buffer as it is too small */
-    char *newbuff;
-    size_t hbufp_index;
-    size_t newsize;
+	unsigned offset = 0;
 
-    if(k->hbuflen + length > CURL_MAX_HTTP_HEADER) {
-      /* The reason to have a max limit for this is to avoid the risk of a bad
-         server feeding libcurl with a never-ending header that will cause
-         reallocs infinitely */
-      failf (data, "Avoided giant realloc for header (max is %d)!",
-             CURL_MAX_HTTP_HEADER);
-      return CURLE_OUT_OF_MEMORY;
-    }
+	while (offset < extra_length - 4) {
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-    newsize=CURLMAX((k->hbuflen+ length)*3/2, data->state.headersize*2);
-    hbufp_index = k->hbufp - data->state.headerbuff;
-    newbuff = realloc(data->state.headerbuff, newsize);
-    if(!newbuff) {
-      failf (data, "Failed to alloc memory for big header!");
-      return CURLE_OUT_OF_MEMORY;
-    }
-    data->state.headersize=newsize;
-    data->state.headerbuff = newbuff;
-    k->hbufp = data->state.headerbuff + hbufp_index;
-  }
-  memcpy(k->hbufp, k->str_start, length);
-  k->hbufp += length;
-  k->hbuflen += length;
-  *k->hbufp = 0;
+		offset += 4;
+		if (offset + datasize > extra_length)
+			break;
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);
+#endif
+		switch (headerid) {
+		case 0x0001:
+			/* Zip64 extended information extra field. */
+			zip_entry->flags |= LA_USED_ZIP64;
+			if (zip_entry->uncompressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->uncompressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			if (zip_entry->compressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->compressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			if (zip_entry->local_header_offset == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->local_header_offset =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			/* archive_le32dec(p + offset) gives disk
+			 * on which file starts, but we don't handle
+			 * multi-volume Zip files. */
+			break;
+#ifdef DEBUG
+		case 0x0017:
+		{
+			/* Strong encryption field. */
+			if (archive_le16dec(p + offset) == 2) {
+				unsigned algId =
+					archive_le16dec(p + offset + 2);
+				unsigned bitLen =
+					archive_le16dec(p + offset + 4);
+				int	 flags =
+					archive_le16dec(p + offset + 6);
+				fprintf(stderr, "algId=0x%04x, bitLen=%u, "
+				    "flgas=%d\n", algId, bitLen,flags);
+			}
+			break;
+		}
+#endif
+		case 0x5455:
+		{
+			/* Extended time field "UT". */
+			int flags = p[offset];
+			offset++;
+			datasize--;
+			/* Flag bits indicate which dates are present. */
+			if (flags & 0x01)
+			{
+#ifdef DEBUG
+				fprintf(stderr, "mtime: %lld -> %d\n",
+				    (long long)zip_entry->mtime,
+				    archive_le32dec(p + offset));
+#endif
+				if (datasize < 4)
+					break;
+				zip_entry->mtime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x02)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->atime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x04)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->ctime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			break;
+		}
+		case 0x5855:
+		{
+			/* Info-ZIP Unix Extra Field (old version) "UX". */
+			if (datasize >= 8) {
+				zip_entry->atime = archive_le32dec(p + offset);
+				zip_entry->mtime =
+				    archive_le32dec(p + offset + 4);
+			}
+			if (datasize >= 12) {
+				zip_entry->uid =
+				    archive_le16dec(p + offset + 8);
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 10);
+			}
+			break;
+		}
+		case 0x6c78:
+		{
+			/* Experimental 'xl' field */
+			/*
+			 * Introduced Dec 2013 to provide a way to
+			 * include external file attributes (and other
+			 * fields that ordinarily appear only in
+			 * central directory) in local file header.
+			 * This provides file type and permission
+			 * information necessary to support full
+			 * streaming extraction.  Currently being
+			 * discussed with other Zip developers
+			 * ... subject to change.
+			 *
+			 * Format:
+			 *  The field starts with a bitmap that specifies
+			 *  which additional fields are included.  The
+			 *  bitmap is variable length and can be extended in
+			 *  the future.
+			 *
+			 *  n bytes - feature bitmap: first byte has low-order
+			 *    7 bits.  If high-order bit is set, a subsequent
+			 *    byte holds the next 7 bits, etc.
+			 *
+			 *  if bitmap & 1, 2 byte "version made by"
+			 *  if bitmap & 2, 2 byte "internal file attributes"
+			 *  if bitmap & 4, 4 byte "external file attributes"
+			 *  if bitmap * 7, 2 byte comment length + n byte comment
+			 */
+			int bitmap, bitmap_last;
 
-  return CURLE_OK;
-}
+			if (datasize < 1)
+				break;
+			bitmap_last = bitmap = 0xff & p[offset];
+			offset += 1;
+			datasize -= 1;
 
-static void print_http_error(struct SessionHandle *data)
-{
-  struct SingleRequest *k = &data->req;
-  char *beg = k->p;
+			/* We only support first 7 bits of bitmap; skip rest. */
+			while ((bitmap_last & 0x80) != 0
+			    && datasize >= 1) {
+				bitmap_last = p[offset];
+				offset += 1;
+				datasize -= 1;
+			}
 
-  /* make sure that data->req.p points to the HTTP status line */
-  if(!strncmp(beg, "HTTP", 4)) {
+			if (bitmap & 1) {
+				/* 2 byte "version made by" */
+				if (datasize < 2)
+					break;
+				zip_entry->system
+				    = archive_le16dec(p + offset) >> 8;
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 2) {
+				/* 2 byte "internal file attributes" */
+				uint32_t internal_attributes;
+				if (datasize < 2)
+					break;
+				internal_attributes
+				    = archive_le16dec(p + offset);
+				/* Not used by libarchive at present. */
+				(void)internal_attributes; /* UNUSED */
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 4) {
+				/* 4 byte "external file attributes" */
+				uint32_t external_attributes;
+				if (datasize < 4)
+					break;
+				external_attributes
+				    = archive_le32dec(p + offset);
+				if (zip_entry->system == 3) {
+					zip_entry->mode
+					    = external_attributes >> 16;
+				}
+				offset += 4;
+				datasize -= 4;
+			}
+			if (bitmap & 8) {
+				/* 2 byte comment length + comment */
+				uint32_t comment_length;
+				if (datasize < 2)
+					break;
+				comment_length
+				    = archive_le16dec(p + offset);
+				offset += 2;
+				datasize -= 2;
 
-    /* skip to HTTP status code */
-    beg = strchr(beg, ' ');
-    if(beg && *++beg) {
+				if (datasize < comment_length)
+					break;
+				/* Comment is not supported by libarchive */
+				offset += comment_length;
+				datasize -= comment_length;
+			}
+			break;
+		}
+		case 0x7855:
+			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
+#ifdef DEBUG
+			fprintf(stderr, "uid %d gid %d\n",
+			    archive_le16dec(p + offset),
+			    archive_le16dec(p + offset + 2));
+#endif
+			if (datasize >= 2)
+				zip_entry->uid = archive_le16dec(p + offset);
+			if (datasize >= 4)
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 2);
+			break;
+		case 0x7875:
+		{
+			/* Info-Zip Unix Extra Field (type 3) "ux". */
+			int uidsize = 0, gidsize = 0;
 
-      /* find trailing CR */
-      char end_char = '\r';
-      char *end = strchr(beg, end_char);
-      if(!end) {
-        /* try to find LF (workaround for non-compliant HTTP servers) */
-        end_char = '\n';
-        end = strchr(beg, end_char);
-      }
-
-      if(end) {
-        /* temporarily replace CR or LF by NUL and print the error message */
-        *end = '\0';
-        failf(data, "The requested URL returned error: %s", beg);
-
-        /* restore the previously replaced CR or LF */
-        *end = end_char;
-        return;
-      }
-    }
-  }
-
-  /* fall-back to printing the HTTP status code only */
-  failf(data, "The requested URL returned error: %d", k->httpcode);
+			/* TODO: support arbitrary uidsize/gidsize. */
+			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
+				if (datasize >= 4) {
+					/* get a uid size. */
+					uidsize = 0xff & (int)p[offset+1];
+					if (uidsize == 2)
+						zip_entry->uid =
+						    archive_le16dec(
+						        p + offset + 2);
+					else if (uidsize == 4 && datasize >= 6)
+						zip_entry->uid =
+						    archive_le32dec(
+						        p + offset + 2);
+				}
+				if (datasize >= (2 + uidsize + 3)) {
+					/* get a gid size. */
+					gidsize = 0xff & (int)p[offset+2+uidsize];
+					if (gidsize == 2)
+						zip_entry->gid =
+						    archive_le16dec(
+						        p+offset+2+uidsize+1);
+					else if (gidsize == 4 &&
+					    datasize >= (2 + uidsize + 5))
+						zip_entry->gid =
+						    archive_le32dec(
+						        p+offset+2+uidsize+1);
+				}
+			}
+			break;
+		}
+		case 0x9901:
+			/* WinZIp AES extra data field. */
+			if (p[offset + 2] == 'A' && p[offset + 3] == 'E') {
+				/* Vendor version. */
+				zip_entry->aes_extra.vendor =
+				    archive_le16dec(p + offset);
+				/* AES encryption strength. */
+				zip_entry->aes_extra.strength = p[offset + 4];
+				/* Actual compression method. */
+				zip_entry->aes_extra.compression =
+				    p[offset + 5];
+			}
+			break;
+		default:
+			break;
+		}
+		offset += datasize;
+	}
+#ifdef DEBUG
+	if (offset != extra_length)
+	{
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}
+#endif
 }
 
 /*
- * Read any HTTP header lines from the server and pass them to the client app.
+ * Assumes file pointer is at beginning of local file header.
  */
-CURLcode Curl_http_readwrite_headers(struct SessionHandle *data,
-                                       struct connectdata *conn,
-                                       ssize_t *nread,
-                                       bool *stop_reading)
+static int
+zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
+    struct zip *zip)
 {
-  CURLcode result;
-  struct SingleRequest *k = &data->req;
-
-  /* header line within buffer loop */
-  do {
-    size_t rest_length;
-    size_t full_length;
-    int writetype;
-
-    /* str_start is start of line within buf */
-    k->str_start = k->str;
-
-    /* data is in network encoding so use 0x0a instead of '\n' */
-    k->end_ptr = memchr(k->str_start, 0x0a, *nread);
-
-    if(!k->end_ptr) {
-      /* Not a complete header line within buffer, append the data to
-         the end of the headerbuff. */
-      result = header_append(data, k, *nread);
-      if(result)
-        return result;
-
-      if(!k->headerline && (k->hbuflen>5)) {
-        /* make a first check that this looks like a protocol header */
-        if(!checkprotoprefix(data, conn, data->state.headerbuff)) {
-          /* this is not the beginning of a protocol first header line */
-          k->header = FALSE;
-          k->badheader = HEADER_ALLBAD;
-          break;
-        }
-      }
-
-      break; /* read more and try again */
-    }
-
-    /* decrease the size of the remaining (supposed) header line */
-    rest_length = (k->end_ptr - k->str)+1;
-    *nread -= (ssize_t)rest_length;
-
-    k->str = k->end_ptr + 1; /* move past new line */
-
-    full_length = k->str - k->str_start;
-
-    result = header_append(data, k, full_length);
-    if(result)
-      return result;
-
-    k->end_ptr = k->hbufp;
-    k->p = data->state.headerbuff;
-
-    /****
-     * We now have a FULL header line that p points to
-     *****/
-
-    if(!k->headerline) {
-      /* the first read header */
-      if((k->hbuflen>5) &&
-         !checkprotoprefix(data, conn, data->state.headerbuff)) {
-        /* this is not the beginning of a protocol first header line */
-        k->header = FALSE;
-        if(*nread)
-          /* since there's more, this is a partial bad header */
-          k->badheader = HEADER_PARTHEADER;
-        else {
-          /* this was all we read so it's all a bad header */
-          k->badheader = HEADER_ALLBAD;
-          *nread = (ssize_t)rest_length;
-        }
-        break;
-      }
-    }
-
-    /* headers are in network encoding so
-       use 0x0a and 0x0d instead of '\n' and '\r' */
-    if((0x0a == *k->p) || (0x0d == *k->p)) {
-      size_t headerlen;
-      /* Zero-length header line means end of headers! */
-
-#ifdef CURL_DOES_CONVERSIONS
-      if(0x0d == *k->p) {
-        *k->p = '\r'; /* replace with CR in host encoding */
-        k->p++;       /* pass the CR byte */
-      }
-      if(0x0a == *k->p) {
-        *k->p = '\n'; /* replace with LF in host encoding */
-        k->p++;       /* pass the LF byte */
-      }
-#else
-      if('\r' == *k->p)
-        k->p++; /* pass the \r byte */
-      if('\n' == *k->p)
-        k->p++; /* pass the \n byte */
-#endif /* CURL_DOES_CONVERSIONS */
-
-      if(100 <= k->httpcode && 199 >= k->httpcode) {
-        /*
-         * We have made a HTTP PUT or POST and this is 1.1-lingo
-         * that tells us that the server is OK with this and ready
-         * to receive the data.
-         * However, we'll get more headers now so we must get
-         * back into the header-parsing state!
-         */
-        k->header = TRUE;
-        k->headerline = 0; /* restart the header line counter */
-
-        /* "A user agent MAY ignore unexpected 1xx status responses." */
-        switch(k->httpcode) {
-        case 100:
-          /* if we did wait for this do enable write now! */
-          if(k->exp100) {
-            k->exp100 = EXP100_SEND_DATA;
-            k->keepon |= KEEP_SEND;
-          }
-          break;
-        case 101:
-          /* Switching Protocols */
-          if(k->upgr101 == UPGR101_REQUESTED) {
-            infof(data, "Received 101\n");
-            k->upgr101 = UPGR101_RECEIVED;
-
-            /* switch to http2 now. The bytes after response headers
-               are also processed here, otherwise they are lost. */
-            result = Curl_http2_switched(conn, k->str, *nread);
-            if(result)
-              return result;
-            *nread = 0;
-          }
-          break;
-        default:
-          break;
-        }
-      }
-      else {
-        k->header = FALSE; /* no more header to parse! */
-
-        if((k->size == -1) && !k->chunk && !conn->bits.close &&
-           (conn->httpversion == 11) &&
-           !(conn->handler->protocol & CURLPROTO_RTSP) &&
-           data->set.httpreq != HTTPREQ_HEAD) {
-          /* On HTTP 1.1, when connection is not to get closed, but no
-             Content-Length nor Content-Encoding chunked have been
-             received, according to RFC2616 section 4.4 point 5, we
-             assume that the server will close the connection to
-             signal the end of the document. */
-          infof(data, "no chunk, no close, no size. Assume close to "
-                "signal end\n");
-          connclose(conn, "HTTP: No end-of-message indicator");
-        }
-      }
-
-      /* At this point we have some idea about the fate of the connection.
-         If we are closing the connection it may result auth failure. */
-#if defined(USE_NTLM)
-      if(conn->bits.close &&
-         (((data->req.httpcode == 401) &&
-           (conn->ntlm.state == NTLMSTATE_TYPE2)) ||
-          ((data->req.httpcode == 407) &&
-           (conn->proxyntlm.state == NTLMSTATE_TYPE2)))) {
-        infof(data, "Connection closure while negotiating auth (HTTP 1.0?)\n");
-        data->state.authproblem = TRUE;
-      }
-#endif
-
-      /*
-       * When all the headers have been parsed, see if we should give
-       * up and return an error.
-       */
-      if(http_should_fail(conn)) {
-        failf (data, "The requested URL returned error: %d",
-               k->httpcode);
-        return CURLE_HTTP_RETURNED_ERROR;
-      }
-
-      /* now, only output this if the header AND body are requested:
-       */
-      writetype = CLIENTWRITE_HEADER;
-      if(data->set.include_header)
-        writetype |= CLIENTWRITE_BODY;
-
-      headerlen = k->p - data->state.headerbuff;
-
-      result = Curl_client_write(conn, writetype,
-                                 data->state.headerbuff,
-                                 headerlen);
-      if(result)
-        return result;
-
-      data->info.header_size += (long)headerlen;
-      data->req.headerbytecount += (long)headerlen;
-
-      data->req.deductheadercount =
-        (100 <= k->httpcode && 199 >= k->httpcode)?data->req.headerbytecount:0;
-
-      if(!*stop_reading) {
-        /* Curl_http_auth_act() checks what authentication methods
-         * that are available and decides which one (if any) to
-         * use. It will set 'newurl' if an auth method was picked. */
-        result = Curl_http_auth_act(conn);
-
-        if(result)
-          return result;
-
-        if(k->httpcode >= 300) {
-          if((!conn->bits.authneg) && !conn->bits.close &&
-             !conn->bits.rewindaftersend) {
-            /*
-             * General treatment of errors when about to send data. Including :
-             * "417 Expectation Failed", while waiting for 100-continue.
-             *
-             * The check for close above is done simply because of something
-             * else has already deemed the connection to get closed then
-             * something else should've considered the big picture and we
-             * avoid this check.
-             *
-             * rewindaftersend indicates that something has told libcurl to
-             * continue sending even if it gets discarded
-             */
-
-            switch(data->set.httpreq) {
-            case HTTPREQ_PUT:
-            case HTTPREQ_POST:
-            case HTTPREQ_POST_FORM:
-              /* We got an error response. If this happened before the whole
-               * request body has been sent we stop sending and mark the
-               * connection for closure after we've read the entire response.
-               */
-              if(!k->upload_done) {
-                infof(data, "HTTP error before end of send, stop sending\n");
-                connclose(conn, "Stop sending data before everything sent");
-                k->upload_done = TRUE;
-                k->keepon &= ~KEEP_SEND; /* don't send */
-                if(data->state.expect100header)
-                  k->exp100 = EXP100_FAILED;
-              }
-              break;
-
-            default: /* default label present to avoid compiler warnings */
-              break;
-            }
-          }
-        }
-
-        if(conn->bits.rewindaftersend) {
-          /* We rewind after a complete send, so thus we continue
-             sending now */
-          infof(data, "Keep sending data to get tossed away!\n");
-          k->keepon |= KEEP_SEND;
-        }
-      }
-
-      if(!k->header) {
-        /*
-         * really end-of-headers.
-         *
-         * If we requested a "no body", this is a good time to get
-         * out and return home.
-         */
-        if(data->set.opt_no_body)
-          *stop_reading = TRUE;
-        else {
-          /* If we know the expected size of this document, we set the
-             maximum download size to the size of the expected
-             document or else, we won't know when to stop reading!
-
-             Note that we set the download maximum even if we read a
-             "Connection: close" header, to make sure that
-             "Content-Length: 0" still prevents us from attempting to
-             read the (missing) response-body.
-          */
-          /* According to RFC2616 section 4.4, we MUST ignore
-             Content-Length: headers if we are now receiving data
-             using chunked Transfer-Encoding.
-          */
-          if(k->chunk)
-            k->maxdownload = k->size = -1;
-        }
-        if(-1 != k->size) {
-          /* We do this operation even if no_body is true, since this
-             data might be retrieved later with curl_easy_getinfo()
-             and its CURLINFO_CONTENT_LENGTH_DOWNLOAD option. */
-
-          Curl_pgrsSetDownloadSize(data, k->size);
-          k->maxdownload = k->size;
-        }
-
-        /* If max download size is *zero* (nothing) we already
-           have nothing and can safely return ok now! */
-        if(0 == k->maxdownload)
-          *stop_reading = TRUE;
-
-        if(*stop_reading) {
-          /* we make sure that this socket isn't read more now */
-          k->keepon &= ~KEEP_RECV;
-        }
-
-        if(data->set.verbose)
-          Curl_debug(data, CURLINFO_HEADER_IN,
-                     k->str_start, headerlen, conn);
-        break;          /* exit header line loop */
-      }
-
-      /* We continue reading headers, so reset the line-based
-         header parsing variables hbufp && hbuflen */
-      k->hbufp = data->state.headerbuff;
-      k->hbuflen = 0;
-      continue;
-    }
-
-    /*
-     * Checks for special headers coming up.
-     */
-
-    if(!k->headerline++) {
-      /* This is the first header, it MUST be the error code line
-         or else we consider this to be the body right away! */
-      int httpversion_major;
-      int rtspversion_major;
-      int nc = 0;
-#ifdef CURL_DOES_CONVERSIONS
-#define HEADER1 scratch
-#define SCRATCHSIZE 21
-      CURLcode res;
-      char scratch[SCRATCHSIZE+1]; /* "HTTP/major.minor 123" */
-      /* We can't really convert this yet because we
-         don't know if it's the 1st header line or the body.
-         So we do a partial conversion into a scratch area,
-         leaving the data at k->p as-is.
-      */
-      strncpy(&scratch[0], k->p, SCRATCHSIZE);
-      scratch[SCRATCHSIZE] = 0; /* null terminate */
-      res = Curl_convert_from_network(data,
-                                      &scratch[0],
-                                      SCRATCHSIZE);
-      if(res)
-        /* Curl_convert_from_network calls failf if unsuccessful */
-        return res;
-#else
-#define HEADER1 k->p /* no conversion needed, just use k->p */
-#endif /* CURL_DOES_CONVERSIONS */
-
-      if(conn->handler->protocol & PROTO_FAMILY_HTTP) {
-        /*
-         * https://tools.ietf.org/html/rfc7230#section-3.1.2
-         *
-         * The reponse code is always a three-digit number in HTTP as the spec
-         * says. We try to allow any number here, but we cannot make
-         * guarantees on future behaviors since it isn't within the protocol.
-         */
-        nc = sscanf(HEADER1,
-                    " HTTP/%d.%d %d",
-                    &httpversion_major,
-                    &conn->httpversion,
-                    &k->httpcode);
-        if(nc==3) {
-          conn->httpversion += 10 * httpversion_major;
-
-          if(k->upgr101 == UPGR101_RECEIVED) {
-            /* supposedly upgraded to http2 now */
-            if(conn->httpversion != 20)
-              infof(data, "Lying server, not serving HTTP/2\n");
-          }
-        }
-        else {
-          /* this is the real world, not a Nirvana
-             NCSA 1.5.x returns this crap when asked for HTTP/1.1
-          */
-          nc=sscanf(HEADER1, " HTTP %3d", &k->httpcode);
-          conn->httpversion = 10;
-
-          /* If user has set option HTTP200ALIASES,
-             compare header line against list of aliases
-          */
-          if(!nc) {
-            if(checkhttpprefix(data, k->p)) {
-              nc = 1;
-              k->httpcode = 200;
-              conn->httpversion = 10;
-            }
-          }
-        }
-      }
-      else if(conn->handler->protocol & CURLPROTO_RTSP) {
-        nc = sscanf(HEADER1,
-                    " RTSP/%d.%d %3d",
-                    &rtspversion_major,
-                    &conn->rtspversion,
-                    &k->httpcode);
-        if(nc==3) {
-          conn->rtspversion += 10 * rtspversion_major;
-          conn->httpversion = 11; /* For us, RTSP acts like HTTP 1.1 */
-        }
-        else {
-          /* TODO: do we care about the other cases here? */
-          nc = 0;
-        }
-      }
-
-      if(nc) {
-        data->info.httpcode = k->httpcode;
-
-        data->info.httpversion = conn->httpversion;
-        if(!data->state.httpversion ||
-           data->state.httpversion > conn->httpversion)
-          /* store the lowest server version we encounter */
-          data->state.httpversion = conn->httpversion;
-
-        /*
-         * This code executes as part of processing the header.  As a
-         * result, it's not totally clear how to interpret the
-         * response code yet as that depends on what other headers may
-         * be present.  401 and 407 may be errors, but may be OK
-         * depending on how authentication is working.  Other codes
-         * are definitely errors, so give up here.
-         */
-        if(data->set.http_fail_on_error && (k->httpcode >= 400) &&
-           ((k->httpcode != 401) || !conn->bits.user_passwd) &&
-           ((k->httpcode != 407) || !conn->bits.proxy_user_passwd) ) {
-
-          if(data->state.resume_from &&
-             (data->set.httpreq==HTTPREQ_GET) &&
-             (k->httpcode == 416)) {
-            /* "Requested Range Not Satisfiable", just proceed and
-               pretend this is no error */
-          }
-          else {
-            /* serious error, go home! */
-            print_http_error(data);
-            return CURLE_HTTP_RETURNED_ERROR;
-          }
-        }
-
-        if(conn->httpversion == 10) {
-          /* Default action for HTTP/1.0 must be to close, unless
-             we get one of those fancy headers that tell us the
-             server keeps it open for us! */
-          infof(data, "HTTP 1.0, assume close after body\n");
-          connclose(conn, "HTTP/1.0 close after body");
-        }
-        else if(conn->httpversion == 20 ||
-                (k->upgr101 == UPGR101_REQUESTED && k->httpcode == 101)) {
-          DEBUGF(infof(data, "HTTP/2 found, allow multiplexing\n"));
-
-          /* HTTP/2 cannot blacklist multiplexing since it is a core
-             functionality of the protocol */
-          conn->bundle->multiuse = BUNDLE_MULTIPLEX;
-        }
-        else if(conn->httpversion >= 11 &&
-                !conn->bits.close) {
-          /* If HTTP version is >= 1.1 and connection is persistent
-             server supports pipelining. */
-          DEBUGF(infof(data,
-                       "HTTP 1.1 or later with persistent connection, "
-                       "pipelining supported\n"));
-          /* Activate pipelining if needed */
-          if(conn->bundle) {
-            if(!Curl_pipeline_site_blacklisted(data, conn))
-              conn->bundle->multiuse = BUNDLE_PIPELINING;
-          }
-        }
-
-        switch(k->httpcode) {
-        case 204:
-          /* (quote from RFC2616, section 10.2.5): The server has
-           * fulfilled the request but does not need to return an
-           * entity-body ... The 204 response MUST NOT include a
-           * message-body, and thus is always terminated by the first
-           * empty line after the header fields. */
-          /* FALLTHROUGH */
-        case 304:
-          /* (quote from RFC2616, section 10.3.5): The 304 response
-           * MUST NOT contain a message-body, and thus is always
-           * terminated by the first empty line after the header
-           * fields.  */
-          if(data->set.timecondition)
-            data->info.timecond = TRUE;
-          k->size=0;
-          k->maxdownload=0;
-          k->ignorecl = TRUE; /* ignore Content-Length headers */
-          break;
-        default:
-          /* nothing */
-          break;
-        }
-      }
-      else {
-        k->header = FALSE;   /* this is not a header line */
-        break;
-      }
-    }
-
-    result = Curl_convert_from_network(data, k->p, strlen(k->p));
-    /* Curl_convert_from_network calls failf if unsuccessful */
-    if(result)
-      return result;
-
-    /* Check for Content-Length: header lines to get size */
-    if(!k->ignorecl && !data->set.ignorecl &&
-       checkprefix("Content-Length:", k->p)) {
-      curl_off_t contentlength = curlx_strtoofft(k->p+15, NULL, 10);
-      if(data->set.max_filesize &&
-         contentlength > data->set.max_filesize) {
-        failf(data, "Maximum file size exceeded");
-        return CURLE_FILESIZE_EXCEEDED;
-      }
-      if(contentlength >= 0) {
-        k->size = contentlength;
-        k->maxdownload = k->size;
-        /* we set the progress download size already at this point
-           just to make it easier for apps/callbacks to extract this
-           info as soon as possible */
-        Curl_pgrsSetDownloadSize(data, k->size);
-      }
-      else {
-        /* Negative Content-Length is really odd, and we know it
-           happens for example when older Apache servers send large
-           files */
-        connclose(conn, "negative content-length");
-        infof(data, "Negative content-length: %" CURL_FORMAT_CURL_OFF_T
-              ", closing after transfer\n", contentlength);
-      }
-    }
-    /* check for Content-Type: header lines to get the MIME-type */
-    else if(checkprefix("Content-Type:", k->p)) {
-      char *contenttype = Curl_copy_header_value(k->p);
-      if(!contenttype)
-        return CURLE_OUT_OF_MEMORY;
-      if(!*contenttype)
-        /* ignore empty data */
-        free(contenttype);
-      else {
-        Curl_safefree(data->info.contenttype);
-        data->info.contenttype = contenttype;
-      }
-    }
-    else if(checkprefix("Server:", k->p)) {
-      if(conn->httpversion < 20) {
-        /* only do this for non-h2 servers */
-        char *server_name = Curl_copy_header_value(k->p);
-
-        /* Turn off pipelining if the server version is blacklisted  */
-        if(conn->bundle && (conn->bundle->multiuse == BUNDLE_PIPELINING)) {
-          if(Curl_pipeline_server_blacklisted(data, server_name))
-            conn->bundle->multiuse = BUNDLE_NO_MULTIUSE;
-        }
-        free(server_name);
-      }
-    }
-    else if((conn->httpversion == 10) &&
-            conn->bits.httpproxy &&
-            Curl_compareheader(k->p,
-                               "Proxy-Connection:", "keep-alive")) {
-      /*
-       * When a HTTP/1.0 reply comes when using a proxy, the
-       * 'Proxy-Connection: keep-alive' line tells us the
-       * connection will be kept alive for our pleasure.
-       * Default action for 1.0 is to close.
-       */
-      connkeep(conn, "Proxy-Connection keep-alive"); /* don't close */
-      infof(data, "HTTP/1.0 proxy connection set to keep alive!\n");
-    }
-    else if((conn->httpversion == 11) &&
-            conn->bits.httpproxy &&
-            Curl_compareheader(k->p,
-                               "Proxy-Connection:", "close")) {
-      /*
-       * We get a HTTP/1.1 response from a proxy and it says it'll
-       * close down after this transfer.
-       */
-      connclose(conn, "Proxy-Connection: asked to close after done");
-      infof(data, "HTTP/1.1 proxy connection set close!\n");
-    }
-    else if((conn->httpversion == 10) &&
-            Curl_compareheader(k->p, "Connection:", "keep-alive")) {
-      /*
-       * A HTTP/1.0 reply with the 'Connection: keep-alive' line
-       * tells us the connection will be kept alive for our
-       * pleasure.  Default action for 1.0 is to close.
-       *
-       * [RFC2068, section 19.7.1] */
-      connkeep(conn, "Connection keep-alive");
-      infof(data, "HTTP/1.0 connection set to keep alive!\n");
-    }
-    else if(Curl_compareheader(k->p, "Connection:", "close")) {
-      /*
-       * [RFC 2616, section 8.1.2.1]
-       * "Connection: close" is HTTP/1.1 language and means that
-       * the connection will close when this request has been
-       * served.
-       */
-      connclose(conn, "Connection: close used");
-    }
-    else if(checkprefix("Transfer-Encoding:", k->p)) {
-      /* One or more encodings. We check for chunked and/or a compression
-         algorithm. */
-      /*
-       * [RFC 2616, section 3.6.1] A 'chunked' transfer encoding
-       * means that the server will send a series of "chunks". Each
-       * chunk starts with line with info (including size of the
-       * coming block) (terminated with CRLF), then a block of data
-       * with the previously mentioned size. There can be any amount
-       * of chunks, and a chunk-data set to zero signals the
-       * end-of-chunks. */
-
-      char *start;
-
-      /* Find the first non-space letter */
-      start = k->p + 18;
-
-      for(;;) {
-        /* skip whitespaces and commas */
-        while(*start && (ISSPACE(*start) || (*start == ',')))
-          start++;
-
-        if(checkprefix("chunked", start)) {
-          k->chunk = TRUE; /* chunks coming our way */
-
-          /* init our chunky engine */
-          Curl_httpchunk_init(conn);
-
-          start += 7;
-        }
-
-        if(k->auto_decoding)
-          /* TODO: we only support the first mentioned compression for now */
-          break;
-
-        if(checkprefix("identity", start)) {
-          k->auto_decoding = IDENTITY;
-          start += 8;
-        }
-        else if(checkprefix("deflate", start)) {
-          k->auto_decoding = DEFLATE;
-          start += 7;
-        }
-        else if(checkprefix("gzip", start)) {
-          k->auto_decoding = GZIP;
-          start += 4;
-        }
-        else if(checkprefix("x-gzip", start)) {
-          k->auto_decoding = GZIP;
-          start += 6;
-        }
-        else
-          /* unknown! */
-          break;
-
-      }
-
-    }
-    else if(checkprefix("Content-Encoding:", k->p) &&
-            (data->set.str[STRING_ENCODING] ||
-             conn->httpversion == 20)) {
-      /*
-       * Process Content-Encoding. Look for the values: identity,
-       * gzip, deflate, compress, x-gzip and x-compress. x-gzip and
-       * x-compress are the same as gzip and compress. (Sec 3.5 RFC
-       * 2616). zlib cannot handle compress.  However, errors are
-       * handled further down when the response body is processed
-       */
-      char *start;
-
-      /* Find the first non-space letter */
-      start = k->p + 17;
-      while(*start && ISSPACE(*start))
-        start++;
-
-      /* Record the content-encoding for later use */
-      if(checkprefix("identity", start))
-        k->auto_decoding = IDENTITY;
-      else if(checkprefix("deflate", start))
-        k->auto_decoding = DEFLATE;
-      else if(checkprefix("gzip", start)
-              || checkprefix("x-gzip", start))
-        k->auto_decoding = GZIP;
-    }
-    else if(checkprefix("Content-Range:", k->p)) {
-      /* Content-Range: bytes [num]-
-         Content-Range: bytes: [num]-
-         Content-Range: [num]-
-         Content-Range: [asterisk]/[total]
-
-         The second format was added since Sun's webserver
-         JavaWebServer/1.1.1 obviously sends the header this way!
-         The third added since some servers use that!
-         The forth means the requested range was unsatisfied.
-      */
-
-      char *ptr = k->p + 14;
-
-      /* Move forward until first digit or asterisk */
-      while(*ptr && !ISDIGIT(*ptr) && *ptr != '*')
-        ptr++;
-
-      /* if it truly stopped on a digit */
-      if(ISDIGIT(*ptr)) {
-        k->offset = curlx_strtoofft(ptr, NULL, 10);
-
-        if(data->state.resume_from == k->offset)
-          /* we asked for a resume and we got it */
-          k->content_range = TRUE;
-      }
-      else
-        data->state.resume_from = 0; /* get everything */
-    }
-#if !defined(CURL_DISABLE_COOKIES)
-    else if(data->cookies &&
-            checkprefix("Set-Cookie:", k->p)) {
-      Curl_share_lock(data, CURL_LOCK_DATA_COOKIE,
-                      CURL_LOCK_ACCESS_SINGLE);
-      Curl_cookie_add(data,
-                      data->cookies, TRUE, k->p+11,
-                      /* If there is a custom-set Host: name, use it
-                         here, or else use real peer host name. */
-                      conn->allocptr.cookiehost?
-                      conn->allocptr.cookiehost:conn->host.name,
-                      data->state.path);
-      Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
-    }
-#endif
-    else if(checkprefix("Last-Modified:", k->p) &&
-            (data->set.timecondition || data->set.get_filetime) ) {
-      time_t secs=time(NULL);
-      k->timeofdoc = curl_getdate(k->p+strlen("Last-Modified:"),
-                                  &secs);
-      if(data->set.get_filetime)
-        data->info.filetime = (long)k->timeofdoc;
-    }
-    else if((checkprefix("WWW-Authenticate:", k->p) &&
-             (401 == k->httpcode)) ||
-            (checkprefix("Proxy-authenticate:", k->p) &&
-             (407 == k->httpcode))) {
-
-      bool proxy = (k->httpcode == 407) ? TRUE : FALSE;
-      char *auth = Curl_copy_header_value(k->p);
-      if(!auth)
-        return CURLE_OUT_OF_MEMORY;
-
-      result = Curl_http_input_auth(conn, proxy, auth);
-
-      free(auth);
-
-      if(result)
-        return result;
-    }
-    else if((k->httpcode >= 300 && k->httpcode < 400) &&
-            checkprefix("Location:", k->p) &&
-            !data->req.location) {
-      /* this is the URL that the server advises us to use instead */
-      char *location = Curl_copy_header_value(k->p);
-      if(!location)
-        return CURLE_OUT_OF_MEMORY;
-      if(!*location)
-        /* ignore empty data */
-        free(location);
-      else {
-        data->req.location = location;
-
-        if(data->set.http_follow_location) {
-          DEBUGASSERT(!data->req.newurl);
-          data->req.newurl = strdup(data->req.location); /* clone */
-          if(!data->req.newurl)
-            return CURLE_OUT_OF_MEMORY;
-
-          /* some cases of POST and PUT etc needs to rewind the data
-             stream at this point */
-          result = http_perhapsrewind(conn);
-          if(result)
-            return result;
-        }
-      }
-    }
-    else if(conn->handler->protocol & CURLPROTO_RTSP) {
-      result = Curl_rtsp_parseheader(conn, k->p);
-      if(result)
-        return result;
-    }
-
-    /*
-     * End of header-checks. Write them to the client.
-     */
-
-    writetype = CLIENTWRITE_HEADER;
-    if(data->set.include_header)
-      writetype |= CLIENTWRITE_BODY;
-
-    if(data->set.verbose)
-      Curl_debug(data, CURLINFO_HEADER_IN,
-                 k->p, (size_t)k->hbuflen, conn);
-
-    result = Curl_client_write(conn, writetype, k->p, k->hbuflen);
-    if(result)
-      return result;
-
-    data->info.header_size += (long)k->hbuflen;
-    data->req.headerbytecount += (long)k->hbuflen;
-
-    /* reset hbufp pointer && hbuflen */
-    k->hbufp = data->state.headerbuff;
-    k->hbuflen = 0;
-  }
-  while(!*stop_reading && *k->str); /* header line within buffer */
-
-  /* We might have reached the end of the header part here, but
-     there might be a non-header part left in the end of the read
-     buffer. */
-
-  return CURLE_OK;
+	const char *p;
+	const void *h;
+	const wchar_t *wp;
+	const char *cp;
+	size_t len, filename_length, extra_length;
+	struct archive_string_conv *sconv;
+	struct zip_entry *zip_entry = zip->entry;
+	struct zip_entry zip_entry_central_dir;
+	int ret = ARCHIVE_OK;
+	char version;
+
+	/* Save a copy of the original for consistency checks. */
+	zip_entry_central_dir = *zip_entry;
+
+	zip->decompress_init = 0;
+	zip->end_of_entry = 0;
+	zip->entry_uncompressed_bytes_read = 0;
+	zip->entry_compressed_bytes_read = 0;
+	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
+
+	/* Setup default conversion. */
+	if (zip->sconv == NULL && !zip->init_default_conversion) {
+		zip->sconv_default =
+		    archive_string_default_conversion_for_read(&(a->archive));
+		zip->init_default_conversion = 1;
+	}
+
+	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (memcmp(p, "PK\003\004", 4) != 0) {
+		archive_set_error(&a->archive, -1, "Damaged Zip archive");
+		return ARCHIVE_FATAL;
+	}
+	version = p[4];
+	zip_entry->system = p[5];
+	zip_entry->zip_flags = archive_le16dec(p + 6);
+	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		zip->has_encrypted_entries = 1;
+		archive_entry_set_is_data_encrypted(entry, 1);
+		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
+			archive_entry_set_is_metadata_encrypted(entry, 1);
+			return ARCHIVE_FATAL;
+		}
+	}
+	zip->init_decryption = (zip_entry->zip_flags & ZIP_ENCRYPTED);
+	zip_entry->compression = (char)archive_le16dec(p + 8);
+	zip_entry->mtime = zip_time(p + 10);
+	zip_entry->crc32 = archive_le32dec(p + 14);
+	if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+		zip_entry->decdat = p[11];
+	else
+		zip_entry->decdat = p[17];
+	zip_entry->compressed_size = archive_le32dec(p + 18);
+	zip_entry->uncompressed_size = archive_le32dec(p + 22);
+	filename_length = archive_le16dec(p + 26);
+	extra_length = archive_le16dec(p + 28);
+
+	__archive_read_consume(a, 30);
+
+	/* Read the filename. */
+	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
+		/* The filename is stored to be UTF-8. */
+		if (zip->sconv_utf8 == NULL) {
+			zip->sconv_utf8 =
+			    archive_string_conversion_from_charset(
+				&a->archive, "UTF-8", 1);
+			if (zip->sconv_utf8 == NULL)
+				return (ARCHIVE_FATAL);
+		}
+		sconv = zip->sconv_utf8;
+	} else if (zip->sconv != NULL)
+		sconv = zip->sconv;
+	else
+		sconv = zip->sconv_default;
+
+	if (archive_entry_copy_pathname_l(entry,
+	    h, filename_length, sconv) != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname cannot be converted "
+		    "from %s to current locale.",
+		    archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+	}
+	__archive_read_consume(a, filename_length);
+
+	/* Work around a bug in Info-Zip: When reading from a pipe, it
+	 * stats the pipe instead of synthesizing a file entry. */
+	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
+		zip_entry->mode &= ~ AE_IFMT;
+		zip_entry->mode |= AE_IFREG;
+	}
+
+	if ((zip_entry->mode & AE_IFMT) == 0) {
+		/* Especially in streaming mode, we can end up
+		   here without having seen proper mode information.
+		   Guess from the filename. */
+		wp = archive_entry_pathname_w(entry);
+		if (wp != NULL) {
+			len = wcslen(wp);
+			if (len > 0 && wp[len - 1] == L'/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		} else {
+			cp = archive_entry_pathname(entry);
+			len = (cp != NULL)?strlen(cp):0;
+			if (len > 0 && cp[len - 1] == '/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		}
+		if (zip_entry->mode == AE_IFDIR) {
+			zip_entry->mode |= 0775;
+		} else if (zip_entry->mode == AE_IFREG) {
+			zip_entry->mode |= 0664;
+		}
+	}
+
+	/* Read the extra data. */
+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+
+	process_extra(h, extra_length, zip_entry);
+	__archive_read_consume(a, extra_length);
+
+	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
+		/* If this came from the central dir, it's size info
+		 * is definitive, so ignore the length-at-end flag. */
+		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
+		/* If local header is missing a value, use the one from
+		   the central directory.  If both have it, warn about
+		   mismatches. */
+		if (zip_entry->crc32 == 0) {
+			zip_entry->crc32 = zip_entry_central_dir.crc32;
+		} else if (!zip->ignore_crc32
+		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent CRC32 values");
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->compressed_size == 0) {
+			zip_entry->compressed_size
+			    = zip_entry_central_dir.compressed_size;
+		} else if (zip_entry->compressed_size
+		    != zip_entry_central_dir.compressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent compressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.compressed_size,
+			    (intmax_t)zip_entry->compressed_size);
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->uncompressed_size == 0) {
+			zip_entry->uncompressed_size
+			    = zip_entry_central_dir.uncompressed_size;
+		} else if (zip_entry->uncompressed_size
+		    != zip_entry_central_dir.uncompressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent uncompressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.uncompressed_size,
+			    (intmax_t)zip_entry->uncompressed_size);
+			ret = ARCHIVE_WARN;
+		}
+	}
+
+	/* Populate some additional entry fields: */
+	archive_entry_set_mode(entry, zip_entry->mode);
+	archive_entry_set_uid(entry, zip_entry->uid);
+	archive_entry_set_gid(entry, zip_entry->gid);
+	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
+	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
+	archive_entry_set_atime(entry, zip_entry->atime, 0);
+
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		size_t linkname_length;
+
+		if (zip_entry->compressed_size > 64 * 1024) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Zip file with oversized link entry");
+			return ARCHIVE_FATAL;
+		}
+
+		linkname_length = (size_t)zip_entry->compressed_size;
+
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
+		}
+
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			sconv = zip->sconv_utf8;
+		if (sconv == NULL)
+			sconv = zip->sconv_default;
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    sconv) != 0) {
+			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			    archive_entry_copy_symlink_l(entry, p,
+				linkname_length, NULL);
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}
+			/*
+			 * Since there is no character-set regulation for
+			 * symlink name, do not report the conversion error
+			 * in an automatic conversion.
+			 */
+			if (sconv != zip->sconv_utf8 ||
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symlink cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+					sconv));
+				ret = ARCHIVE_WARN;
+			}
+		}
+		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
+
+		if (__archive_read_consume(a, linkname_length) < 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Read error skipping symlink target name");
+			return ARCHIVE_FATAL;
+		}
+	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    || zip_entry->uncompressed_size > 0) {
+		/* Set the size only if it's meaningful. */
+		archive_entry_set_size(entry, zip_entry->uncompressed_size);
+	}
+	zip->entry_bytes_remaining = zip_entry->compressed_size;
+
+	/* If there's no body, force read_data() to return EOF immediately. */
+	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < 1)
+		zip->end_of_entry = 1;
+
+	/* Set up a more descriptive format name. */
+	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));
+	a->archive.archive_format_name = zip->format_name.s;
+
+	return (ret);
 }
 
-#endif /* CURL_DISABLE_HTTP */
+static int
+check_authentication_code(struct archive_read *a, const void *_p)
+{
+	struct zip *zip = (struct zip *)(a->format->data);
+
+	/* Check authentication code. */
+	if (zip->hctx_valid) {
+		const void *p;
+		uint8_t hmac[20];
+		size_t hmac_len = 20;
+		int cmp;
+
+		archive_hmac_sha1_final(&zip->hctx, hmac, &hmac_len);
+		if (_p == NULL) {
+			/* Read authentication code. */
+			p = __archive_read_ahead(a, AUTH_CODE_SIZE, NULL);
+			if (p == NULL) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Truncated ZIP file data");
+				return (ARCHIVE_FATAL);
+			}
+		} else {
+			p = _p;
+		}
+		cmp = memcmp(hmac, p, AUTH_CODE_SIZE);
+		__archive_read_consume(a, AUTH_CODE_SIZE);
+		if (cmp != 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "ZIP bad Authentication code");
+			return (ARCHIVE_WARN);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Read "uncompressed" data.  There are three cases:
+ *  1) We know the size of the data.  This is always true for the
+ * seeking reader (we've examined the Central Directory already).
+ *  2) ZIP_LENGTH_AT_END was set, but only the CRC was deferred.
+ * Info-ZIP seems to do this; we know the size but have to grab
+ * the CRC from the data descriptor afterwards.
+ *  3) We're streaming and ZIP_LENGTH_AT_END was specified and
+ * we have no size information.  In this case, we can do pretty
+ * well by watching for the data descriptor record.  The data
+ * descriptor is 16 bytes and includes a computed CRC that should
+ * provide a strong check.
+ *
+ * TODO: Technically, the PK\007\010 signature is optional.
+ * In the original spec, the data descriptor contained CRC
+ * and size fields but had no leading signature.  In practice,
+ * newer writers seem to provide the signature pretty consistently.
+ *
+ * For uncompressed data, the PK\007\010 marker seems essential
+ * to be sure we've actually seen the end of the entry.
+ *
+ * Returns ARCHIVE_OK if successful, ARCHIVE_FATAL otherwise, sets
+ * zip->end_of_entry if it consumes all of the data.
+ */
+static int
+zip_read_data_none(struct archive_read *a, const void **_buff,
+    size_t *size, int64_t *offset)
+{
+	struct zip *zip;
+	const char *buff;
+	ssize_t bytes_avail;
+	int r;
+
+	(void)offset; /* UNUSED */
+
+	zip = (struct zip *)(a->format->data);
+
+	if (zip->entry->zip_flags & ZIP_LENGTH_AT_END) {
+		const char *p;
+		ssize_t grabbing_bytes = 24;
+
+		if (zip->hctx_valid)
+			grabbing_bytes += AUTH_CODE_SIZE;
+		/* Grab at least 24 bytes. */
+		buff = __archive_read_ahead(a, grabbing_bytes, &bytes_avail);
+		if (bytes_avail < grabbing_bytes) {
+			/* Zip archives have end-of-archive markers
+			   that are longer than this, so a failure to get at
+			   least 24 bytes really does indicate a truncated
+			   file. */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
+		}
+		/* Check for a complete PK\007\010 signature, followed
+		 * by the correct 4-byte CRC. */
+		p = buff;
+		if (zip->hctx_valid)
+			p += AUTH_CODE_SIZE;
+		if (p[0] == 'P' && p[1] == 'K'
+		    && p[2] == '\007' && p[3] == '\010'
+		    && (archive_le32dec(p + 4) == zip->entry_crc32
+			|| zip->ignore_crc32
+			|| (zip->hctx_valid
+			 && zip->entry->aes_extra.vendor == AES_VENDOR_AE_2))) {
+			if (zip->entry->flags & LA_USED_ZIP64) {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size =
+					archive_le64dec(p + 8);
+				zip->entry->uncompressed_size =
+					archive_le64dec(p + 16);
+				zip->unconsumed = 24;
+			} else {
+				zip->entry->crc32 = archive_le32dec(p + 4);
+				zip->entry->compressed_size =
+					archive_le32dec(p + 8);
+				zip->entry->uncompressed_size =
+					archive_le32dec(p + 12);
+				zip->unconsumed = 16;
+			}
+			if (zip->hctx_valid) {
+				r = check_authentication_code(a, buff);
+				if (r != ARCHIVE_OK)
+					return (r);
+			}
+			zip->end_of_entry = 1;
+			return (ARCHIVE_OK);
+		}
+		/* If not at EOF, ensure we consume at least one byte. */
+		++p;
+
+		/* Scan forward until we see where a PK\007\010 signature
+		 * might be. */
+		/* Return bytes up until that point.  On the next call,
+		 * the code above will verify the data descriptor. */
+		while (p < buff + bytes_avail - 4) {
+			if (p[3] == 'P') { p += 3; }
+			else if (p[3] == 'K') { p += 2; }
+			else if (p[3] == '\007') { p += 1; }
+			else if (p[3] == '\010' && p[2] == '\007'
+			    && p[1] == 'K' && p[0] == 'P') {
+				if (zip->hctx_valid)
+					p -= AUTH_CODE_SIZE;
+				break;
+			} else { p += 4; }
+		}
+		bytes_avail = p - buff;
+	} else {
+		if (zip->entry_bytes_remaining == 0) {
+			zip->end_of_entry = 1;
+			if (zip->hctx_valid) {
+				r = check_authentication_code(a, NULL);
+				if (r != ARCHIVE_OK)
+					return (r);
+			}
+			return (ARCHIVE_OK);
+		}
+		/* Grab a bunch of bytes. */
+		buff = __archive_read_ahead(a, 1, &bytes_avail);
+		if (bytes_avail <= 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file data");
+			return (ARCHIVE_FATAL);
+		}
+		if (bytes_avail > zip->entry_bytes_remaining)
+			bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	}
+	if (zip->tctx_valid || zip->cctx_valid) {
+		size_t dec_size = bytes_avail;
+
+		if (dec_size > zip->decrypted_buffer_size)
+			dec_size = zip->decrypted_buffer_size;
+		if (zip->tctx_valid) {
+			trad_enc_decrypt_update(&zip->tctx,
+			    (const uint8_t *)buff, dec_size,
+			    zip->decrypted_buffer, dec_size);
+		} else {
+			size_t dsize = dec_size;
+			archive_hmac_sha1_update(&zip->hctx,
+			    (const uint8_t *)buff, dec_size);
+			archive_decrypto_aes_ctr_update(&zip->cctx,
+			    (const uint8_t *)buff, dec_size,
+			    zip->decrypted_buffer, &dsize);
+		}
+		bytes_avail = dec_size;
+		buff = (const char *)zip->decrypted_buffer;
+	}
+	*size = bytes_avail;
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_uncompressed_bytes_read += bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
+	zip->unconsumed += bytes_avail;
+	*_buff = buff;
+	return (ARCHIVE_OK);
+}
+
+#ifdef HAVE_ZLIB_H
+static int
+zip_deflate_init(struct archive_read *a, struct zip *zip)
+{
+	int r;
+
+	/* If we haven't yet read any data, initialize the decompressor. */
+	if (!zip->decompress_init) {
+		if (zip->stream_valid)
+			r = inflateReset(&zip->stream);
+		else
+			r = inflateInit2(&zip->stream,
+			    -15 /* Don't check for zlib header */);
+		if (r != Z_OK) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize ZIP decompression.");
+			return (ARCHIVE_FATAL);
+		}
+		/* Stream structure has been set up. */
+		zip->stream_valid = 1;
+		/* We've initialized decompression for this stream. */
+		zip->decompress_init = 1;
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+zip_read_data_deflate(struct archive_read *a, const void **buff,
+    size_t *size, int64_t *offset)
+{
+	struct zip *zip;
+	ssize_t bytes_avail;
+	const void *compressed_buff, *sp;
+	int r;
+
+	(void)offset; /* UNUSED */
+
+	zip = (struct zip *)(a->format->data);
+
+	/* If the buffer hasn't been allocated, allocate it now. */
+	if (zip->uncompressed_buffer == NULL) {
+		zip->uncompressed_buffer_size = 256 * 1024;
+		zip->uncompressed_buffer
+		    = (unsigned char *)malloc(zip->uncompressed_buffer_size);
+		if (zip->uncompressed_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for ZIP decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	r = zip_deflate_init(a, zip);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/*
+	 * Note: '1' here is a performance optimization.
+	 * Recall that the decompression layer returns a count of
+	 * available bytes; asking for more than that forces the
+	 * decompressor to combine reads by copying data.
+	 */
+	compressed_buff = sp = __archive_read_ahead(a, 1, &bytes_avail);
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && bytes_avail > zip->entry_bytes_remaining) {
+		bytes_avail = (ssize_t)zip->entry_bytes_remaining;
+	}
+	if (bytes_avail <= 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file body");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (zip->tctx_valid || zip->cctx_valid) {
+		if (zip->decrypted_bytes_remaining < (size_t)bytes_avail) {
+			size_t buff_remaining = zip->decrypted_buffer_size
+			    - (zip->decrypted_ptr - zip->decrypted_buffer);
+
+			if (buff_remaining > (size_t)bytes_avail)
+				buff_remaining = (size_t)bytes_avail;
+
+			if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END) &&
+			      zip->entry_bytes_remaining > 0) {
+				if ((int64_t)(zip->decrypted_bytes_remaining
+				    + buff_remaining)
+				      > zip->entry_bytes_remaining) {
+					if (zip->entry_bytes_remaining <
+					      (int64_t)zip->decrypted_bytes_remaining)
+						buff_remaining = 0;
+					else
+						buff_remaining =
+						    (size_t)zip->entry_bytes_remaining
+						      - zip->decrypted_bytes_remaining;
+				}
+			}
+			if (buff_remaining > 0) {
+				if (zip->tctx_valid) {
+					trad_enc_decrypt_update(&zip->tctx,
+					    compressed_buff, buff_remaining,
+					    zip->decrypted_ptr
+					      + zip->decrypted_bytes_remaining,
+					    buff_remaining);
+				} else {
+					size_t dsize = buff_remaining;
+					archive_decrypto_aes_ctr_update(
+					    &zip->cctx,
+					    compressed_buff, buff_remaining,
+					    zip->decrypted_ptr
+					      + zip->decrypted_bytes_remaining,
+					    &dsize);
+				}
+				zip->decrypted_bytes_remaining += buff_remaining;
+			}
+		}
+		bytes_avail = zip->decrypted_bytes_remaining;
+		compressed_buff = (const char *)zip->decrypted_ptr;
+	}
+
+	/*
+	 * A bug in zlib.h: stream.next_in should be marked 'const'
+	 * but isn't (the library never alters data through the
+	 * next_in pointer, only reads it).  The result: this ugly
+	 * cast to remove 'const'.
+	 */
+	zip->stream.next_in = (Bytef *)(uintptr_t)(const void *)compressed_buff;
+	zip->stream.avail_in = (uInt)bytes_avail;
+	zip->stream.total_in = 0;
+	zip->stream.next_out = zip->uncompressed_buffer;
+	zip->stream.avail_out = (uInt)zip->uncompressed_buffer_size;
+	zip->stream.total_out = 0;
+
+	r = inflate(&zip->stream, 0);
+	switch (r) {
+	case Z_OK:
+		break;
+	case Z_STREAM_END:
+		zip->end_of_entry = 1;
+		break;
+	case Z_MEM_ERROR:
+		archive_set_error(&a->archive, ENOMEM,
+		    "Out of memory for ZIP decompression");
+		return (ARCHIVE_FATAL);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "ZIP decompression failed (%d)", r);
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Consume as much as the compressor actually used. */
+	bytes_avail = zip->stream.total_in;
+	if (zip->tctx_valid || zip->cctx_valid) {
+		zip->decrypted_bytes_remaining -= bytes_avail;
+		if (zip->decrypted_bytes_remaining == 0)
+			zip->decrypted_ptr = zip->decrypted_buffer;
+		else
+			zip->decrypted_ptr += bytes_avail;
+	}
+	/* Calculate compressed data as much as we used.*/
+	if (zip->hctx_valid)
+		archive_hmac_sha1_update(&zip->hctx, sp, bytes_avail);
+	__archive_read_consume(a, bytes_avail);
+	zip->entry_bytes_remaining -= bytes_avail;
+	zip->entry_compressed_bytes_read += bytes_avail;
+
+	*size = zip->stream.total_out;
+	zip->entry_uncompressed_bytes_read += zip->stream.total_out;
+	*buff = zip->uncompressed_buffer;
+
+	if (zip->end_of_entry && zip->hctx_valid) {
+		r = check_authentication_code(a, NULL);
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
+
+	if (zip->end_of_entry && (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
+		const char *p;
+
+		if (NULL == (p = __archive_read_ahead(a, 24, NULL))) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP end-of-file record");
+			return (ARCHIVE_FATAL);
+		}
+		/* Consume the optional PK\007\010 marker. */
+		if (p[0] == 'P' && p[1] == 'K' &&
+		    p[2] == '\007' && p[3] == '\010') {
+			p += 4;
+			zip->unconsumed = 4;
+		}
+		if (zip->entry->flags & LA_USED_ZIP64) {
+			zip->entry->crc32 = archive_le32dec(p);
+			zip->entry->compressed_size = archive_le64dec(p + 4);
+			zip->entry->uncompressed_size = archive_le64dec(p + 12);
+			zip->unconsumed += 20;
+		} else {
+			zip->entry->crc32 = archive_le32dec(p);
+			zip->entry->compressed_size = archive_le32dec(p + 4);
+			zip->entry->uncompressed_size = archive_le32dec(p + 8);
+			zip->unconsumed += 12;
+		}
+	}
+
+	return (ARCHIVE_OK);
+}
+#endif
+
+static int
+read_decryption_header(struct archive_read *a)
+{
+	struct zip *zip = (struct zip *)(a->format->data);
+	const char *p;
+	unsigned int remaining_size;
+	unsigned int ts;
+
+	/*
+	 * Read an initialization vector data field.
+	 */
+	p = __archive_read_ahead(a, 2, NULL);
+	if (p == NULL)
+		goto truncated;
+	ts = zip->iv_size;
+	zip->iv_size = archive_le16dec(p);
+	__archive_read_consume(a, 2);
+	if (ts < zip->iv_size) {
+		free(zip->iv);
+		zip->iv = NULL;
+	}
+	p = __archive_read_ahead(a, zip->iv_size, NULL);
+	if (p == NULL)
+		goto truncated;
+	if (zip->iv == NULL) {
+		zip->iv = malloc(zip->iv_size);
+		if (zip->iv == NULL)
+			goto nomem;
+	}
+	memcpy(zip->iv, p, zip->iv_size);
+	__archive_read_consume(a, zip->iv_size);
+
+	/*
+	 * Read a size of remaining decryption header field.
+	 */
+	p = __archive_read_ahead(a, 14, NULL);
+	if (p == NULL)
+		goto truncated;
+	remaining_size = archive_le32dec(p);
+	if (remaining_size < 16 || remaining_size > (1 << 18))
+		goto corrupted;
+
+	/* Check if format version is supported. */
+	if (archive_le16dec(p+4) != 3) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported encryption format version: %u",
+		    archive_le16dec(p+4));
+		return (ARCHIVE_FAILED);
+	}
+
+	/*
+	 * Read an encryption algorithm field.
+	 */
+	zip->alg_id = archive_le16dec(p+6);
+	switch (zip->alg_id) {
+	case 0x6601:/* DES */
+	case 0x6602:/* RC2 */
+	case 0x6603:/* 3DES 168 */
+	case 0x6609:/* 3DES 112 */
+	case 0x660E:/* AES 128 */
+	case 0x660F:/* AES 192 */
+	case 0x6610:/* AES 256 */
+	case 0x6702:/* RC2 (version >= 5.2) */
+	case 0x6720:/* Blowfish */
+	case 0x6721:/* Twofish */
+	case 0x6801:/* RC4 */
+		/* Suuported encryption algorithm. */
+		break;
+	default:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unknown encryption algorithm: %u", zip->alg_id);
+		return (ARCHIVE_FAILED);
+	}
+
+	/*
+	 * Read a bit length field.
+	 */
+	zip->bit_len = archive_le16dec(p+8);
+
+	/*
+	 * Read a flags field.
+	 */
+	zip->flags = archive_le16dec(p+10);
+	switch (zip->flags & 0xf000) {
+	case 0x0001: /* Password is required to decrypt. */
+	case 0x0002: /* Certificates only. */
+	case 0x0003: /* Password or certificate required to decrypt. */
+		break;
+	default:
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unknown encryption flag: %u", zip->flags);
+		return (ARCHIVE_FAILED);
+	}
+	if ((zip->flags & 0xf000) == 0 ||
+	    (zip->flags & 0xf000) == 0x4000) {
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unknown encryption flag: %u", zip->flags);
+		return (ARCHIVE_FAILED);
+	}
+
+	/*
+	 * Read an encrypted random data field.
+	 */
+	ts = zip->erd_size;
+	zip->erd_size = archive_le16dec(p+12);
+	__archive_read_consume(a, 14);
+	if ((zip->erd_size & 0xf) != 0 ||
+	    (zip->erd_size + 16) > remaining_size ||
+	    (zip->erd_size + 16) < zip->erd_size)
+		goto corrupted;
+
+	if (ts < zip->erd_size) {
+		free(zip->erd);
+		zip->erd = NULL;
+	}
+	p = __archive_read_ahead(a, zip->erd_size, NULL);
+	if (p == NULL)
+		goto truncated;
+	if (zip->erd == NULL) {
+		zip->erd = malloc(zip->erd_size);
+		if (zip->erd == NULL)
+			goto nomem;
+	}
+	memcpy(zip->erd, p, zip->erd_size);
+	__archive_read_consume(a, zip->erd_size);
+
+	/*
+	 * Read a reserved data field.
+	 */
+	p = __archive_read_ahead(a, 4, NULL);
+	if (p == NULL)
+		goto truncated;
+	/* Reserved data size should be zero. */
+	if (archive_le32dec(p) != 0)
+		goto corrupted;
+	__archive_read_consume(a, 4);
+
+	/*
+	 * Read a password validation data field.
+	 */
+	p = __archive_read_ahead(a, 2, NULL);
+	if (p == NULL)
+		goto truncated;
+	ts = zip->v_size;
+	zip->v_size = archive_le16dec(p);
+	__archive_read_consume(a, 2);
+	if ((zip->v_size & 0x0f) != 0 ||
+	    (zip->erd_size + zip->v_size + 16) > remaining_size ||
+	    (zip->erd_size + zip->v_size + 16) < (zip->erd_size + zip->v_size))
+		goto corrupted;
+	if (ts < zip->v_size) {
+		free(zip->v_data);
+		zip->v_data = NULL;
+	}
+	p = __archive_read_ahead(a, zip->v_size, NULL);
+	if (p == NULL)
+		goto truncated;
+	if (zip->v_data == NULL) {
+		zip->v_data = malloc(zip->v_size);
+		if (zip->v_data == NULL)
+			goto nomem;
+	}
+	memcpy(zip->v_data, p, zip->v_size);
+	__archive_read_consume(a, zip->v_size);
+
+	p = __archive_read_ahead(a, 4, NULL);
+	if (p == NULL)
+		goto truncated;
+	zip->v_crc32 = archive_le32dec(p);
+	__archive_read_consume(a, 4);
+
+	/*return (ARCHIVE_OK);
+	 * This is not fully implemnted yet.*/
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Encrypted file is unsupported");
+	return (ARCHIVE_FAILED);
+truncated:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated ZIP file data");
+	return (ARCHIVE_FATAL);
+corrupted:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Corrupted ZIP file data");
+	return (ARCHIVE_FATAL);
+nomem:
+	archive_set_error(&a->archive, ENOMEM,
+	    "No memory for ZIP decryption");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+zip_alloc_decryption_buffer(struct archive_read *a)
+{
+	struct zip *zip = (struct zip *)(a->format->data);
+	size_t bs = 256 * 1024;
+
+	if (zip->decrypted_buffer == NULL) {
+		zip->decrypted_buffer_size = bs;
+		zip->decrypted_buffer = malloc(bs);
+		if (zip->decrypted_buffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for ZIP decryption");
+			return (ARCHIVE_FATAL);
+		}
+	}
+	zip->decrypted_ptr = zip->decrypted_buffer;
+	return (ARCHIVE_OK);
+}
+
+static int
+init_traditional_PKWARE_decryption(struct archive_read *a)
+{
+	struct zip *zip = (struct zip *)(a->format->data);
+	const void *p;
+	int retry;
+	int r;
+
+	if (zip->tctx_valid)
+		return (ARCHIVE_OK);
+
+	/*
+	   Read the 12 bytes encryption header stored at
+	   the start of the data area.
+	 */
+#define ENC_HEADER_SIZE	12
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < ENC_HEADER_SIZE) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated Zip encrypted body: only %jd bytes available",
+		    (intmax_t)zip->entry_bytes_remaining);
+		return (ARCHIVE_FATAL);
+	}
+
+	p = __archive_read_ahead(a, ENC_HEADER_SIZE, NULL);
+	if (p == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file data");
+		return (ARCHIVE_FATAL);
+	}
+
+	for (retry = 0;; retry++) {
+		const char *passphrase;
+		uint8_t crcchk;
+
+		passphrase = __archive_read_next_passphrase(a);
+		if (passphrase == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    (retry > 0)?
+				"Incorrect passphrase":
+				"Passphrase required for this entry");
+			return (ARCHIVE_FAILED);
+		}
+
+		/*
+		 * Initialize ctx for Traditional PKWARE Decyption.
+		 */
+		r = trad_enc_init(&zip->tctx, passphrase, strlen(passphrase),
+			p, ENC_HEADER_SIZE, &crcchk);
+		if (r == 0 && crcchk == zip->entry->decdat)
+			break;/* The passphrase is OK. */
+		if (retry > 10000) {
+			/* Avoid infinity loop. */
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Too many incorrect passphrases");
+			return (ARCHIVE_FAILED);
+		}
+	}
+
+	__archive_read_consume(a, ENC_HEADER_SIZE);
+	zip->tctx_valid = 1;
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)) {
+	    zip->entry_bytes_remaining -= ENC_HEADER_SIZE;
+	}
+	/*zip->entry_uncompressed_bytes_read += ENC_HEADER_SIZE;*/
+	zip->entry_compressed_bytes_read += ENC_HEADER_SIZE;
+	zip->decrypted_bytes_remaining = 0;
+
+	return (zip_alloc_decryption_buffer(a));
+#undef ENC_HEADER_SIZE
+}
+
+static int
+init_WinZip_AES_decryption(struct archive_read *a)
+{
+	struct zip *zip = (struct zip *)(a->format->data);
+	const void *p;
+	const uint8_t *pv;
+	size_t key_len, salt_len;
+	uint8_t derived_key[MAX_DERIVED_KEY_BUF_SIZE];
+	int retry;
+	int r;
+
+	if (zip->cctx_valid || zip->hctx_valid)
+		return (ARCHIVE_OK);
+
+	switch (zip->entry->aes_extra.strength) {
+	case 1: salt_len = 8;  key_len = 16; break;
+	case 2: salt_len = 12; key_len = 24; break;
+	case 3: salt_len = 16; key_len = 32; break;
+	default: goto corrupted;
+	}
+	p = __archive_read_ahead(a, salt_len + 2, NULL);
+	if (p == NULL)
+		goto truncated;
+
+	for (retry = 0;; retry++) {
+		const char *passphrase;
+
+		passphrase = __archive_read_next_passphrase(a);
+		if (passphrase == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    (retry > 0)?
+				"Incorrect passphrase":
+				"Passphrase required for this entry");
+			return (ARCHIVE_FAILED);
+		}
+		memset(derived_key, 0, sizeof(derived_key));
+		r = archive_pbkdf2_sha1(passphrase, strlen(passphrase),
+		    p, salt_len, 1000, derived_key, key_len * 2 + 2);
+		if (r != 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Decryption is unsupported due to lack of "
+			    "crypto library");
+			return (ARCHIVE_FAILED);
+		}
+
+		/* Check password verification value. */
+		pv = ((const uint8_t *)p) + salt_len;
+		if (derived_key[key_len * 2] == pv[0] &&
+		    derived_key[key_len * 2 + 1] == pv[1])
+			break;/* The passphrase is OK. */
+		if (retry > 10000) {
+			/* Avoid infinity loop. */
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Too many incorrect passphrases");
+			return (ARCHIVE_FAILED);
+		}
+	}
+
+	r = archive_decrypto_aes_ctr_init(&zip->cctx, derived_key, key_len);
+	if (r != 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Decryption is unsupported due to lack of crypto library");
+		return (ARCHIVE_FAILED);
+	}
+	r = archive_hmac_sha1_init(&zip->hctx, derived_key + key_len, key_len);
+	if (r != 0) {
+		archive_decrypto_aes_ctr_release(&zip->cctx);
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to initialize HMAC-SHA1");
+		return (ARCHIVE_FAILED);
+	}
+	zip->cctx_valid = zip->hctx_valid = 1;
+	__archive_read_consume(a, salt_len + 2);
+	zip->entry_bytes_remaining -= salt_len + 2 + AUTH_CODE_SIZE;
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < 0)
+		goto corrupted;
+	zip->entry_compressed_bytes_read += salt_len + 2 + AUTH_CODE_SIZE;
+	zip->decrypted_bytes_remaining = 0;
+
+	zip->entry->compression = zip->entry->aes_extra.compression;
+	return (zip_alloc_decryption_buffer(a));
+
+truncated:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Truncated ZIP file data");
+	return (ARCHIVE_FATAL);
+corrupted:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+	    "Corrupted ZIP file data");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+archive_read_format_zip_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
+{
+	int r;
+	struct zip *zip = (struct zip *)(a->format->data);
+
+	if (zip->has_encrypted_entries ==
+			ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+		zip->has_encrypted_entries = 0;
+	}
+
+	*offset = zip->entry_uncompressed_bytes_read;
+	*size = 0;
+	*buff = NULL;
+
+	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
+	if (zip->end_of_entry)
+		return (ARCHIVE_EOF);
+
+	/* Return EOF immediately if this is a non-regular file. */
+	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
+		return (ARCHIVE_EOF);
+
+	__archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
+
+	if (zip->init_decryption) {
+		zip->has_encrypted_entries = 1;
+		if (zip->entry->zip_flags & ZIP_STRONG_ENCRYPTED)
+			r = read_decryption_header(a);
+		else if (zip->entry->compression == WINZIP_AES_ENCRYPTION)
+			r = init_WinZip_AES_decryption(a);
+		else
+			r = init_traditional_PKWARE_decryption(a);
+		if (r != ARCHIVE_OK)
+			return (r);
+		zip->init_decryption = 0;
+	}
+
+	switch(zip->entry->compression) {
+	case 0:  /* No compression. */
+		r =  zip_read_data_none(a, buff, size, offset);
+		break;
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+		r =  zip_read_data_deflate(a, buff, size, offset);
+		break;
+#endif
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(zip->entry->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_FAILED);
+		break;
+	}
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Update checksum */
+	if (*size)
+		zip->entry_crc32 = zip->crc32func(zip->entry_crc32, *buff,
+		    (unsigned)*size);
+	/* If we hit the end, swallow any end-of-data marker. */
+	if (zip->end_of_entry) {
+		/* Check file size, CRC against these values. */
+		if (zip->entry->compressed_size !=
+		    zip->entry_compressed_bytes_read) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP compressed data is wrong size "
+			    "(read %jd, expected %jd)",
+			    (intmax_t)zip->entry_compressed_bytes_read,
+			    (intmax_t)zip->entry->compressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Size field only stores the lower 32 bits of the actual
+		 * size. */
+		if ((zip->entry->uncompressed_size & UINT32_MAX)
+		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP uncompressed data is wrong size "
+			    "(read %jd, expected %jd)\n",
+			    (intmax_t)zip->entry_uncompressed_bytes_read,
+			    (intmax_t)zip->entry->uncompressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Check computed CRC against header */
+		if ((!zip->hctx_valid ||
+		      zip->entry->aes_extra.vendor != AES_VENDOR_AE_2) &&
+		   zip->entry->crc32 != zip->entry_crc32
+		    && !zip->ignore_crc32) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP bad CRC: 0x%lx should be 0x%lx",
+			    (unsigned long)zip->entry_crc32,
+			    (unsigned long)zip->entry->crc32);
+			return (ARCHIVE_WARN);
+		}
+	}
+
+	return (ARCHIVE_OK);
+}
+
+static int
+archive_read_format_zip_cleanup(struct archive_read *a)
+{
+	struct zip *zip;
+	struct zip_entry *zip_entry, *next_zip_entry;
+
+	zip = (struct zip *)(a->format->data);
+#ifdef HAVE_ZLIB_H
+	if (zip->stream_valid)
+		inflateEnd(&zip->stream);
+	free(zip->uncompressed_buffer);
+#endif
+	if (zip->zip_entries) {
+		zip_entry = zip->zip_entries;
+		while (zip_entry != NULL) {
+			next_zip_entry = zip_entry->next;
+			archive_string_free(&zip_entry->rsrcname);
+			free(zip_entry);
+			zip_entry = next_zip_entry;
+		}
+	}
+	free(zip->decrypted_buffer);
+	if (zip->cctx_valid)
+		archive_decrypto_aes_ctr_release(&zip->cctx);
+	if (zip->hctx_valid)
+		archive_hmac_sha1_cleanup(&zip->hctx);
+	free(zip->iv);
+	free(zip->erd);
+	free(zip->v_data);
+	archive_string_free(&zip->format_name);
+	free(zip);
+	(a->format->data) = NULL;
+	return (ARCHIVE_OK);
+}
+
+static int
+archive_read_format_zip_has_encrypted_entries(struct archive_read *_a)
+{
+	if (_a && _a->format) {
+		struct zip * zip = (struct zip *)_a->format->data;
+		if (zip) {
+			return zip->has_encrypted_entries;
+		}
+	}
+	return ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+}
+
+static int
+archive_read_format_zip_options(struct archive_read *a,
+    const char *key, const char *val)
+{
+	struct zip *zip;
+	int ret = ARCHIVE_FAILED;
+
+	zip = (struct zip *)(a->format->data);
+	if (strcmp(key, "compat-2x")  == 0) {
+		/* Handle filenames as libarchive 2.x */
+		zip->init_default_conversion = (val != NULL) ? 1 : 0;
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+		if (val == NULL || val[0] == 0)
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "zip: hdrcharset option needs a character-set name"
+			);
+		else {
+			zip->sconv = archive_string_conversion_from_charset(
+			    &a->archive, val, 0);
+			if (zip->sconv != NULL) {
+				if (strcmp(val, "UTF-8") == 0)
+					zip->sconv_utf8 = zip->sconv;
+				ret = ARCHIVE_OK;
+			} else
+				ret = ARCHIVE_FATAL;
+		}
+		return (ret);
+	} else if (strcmp(key, "ignorecrc32") == 0) {
+		/* Mostly useful for testing. */
+		if (val == NULL || val[0] == 0) {
+			zip->crc32func = real_crc32;
+			zip->ignore_crc32 = 0;
+		} else {
+			zip->crc32func = fake_crc32;
+			zip->ignore_crc32 = 1;
+		}
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "mac-ext") == 0) {
+		zip->process_mac_extensions = (val != NULL && val[0] != 0);
+		return (ARCHIVE_OK);
+	}
+
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+}
+
+int
+archive_read_support_format_zip(struct archive *a)
+{
+	int r;
+	r = archive_read_support_format_zip_streamable(a);
+	if (r != ARCHIVE_OK)
+		return r;
+	return (archive_read_support_format_zip_seekable(a));
+}
+
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Streaming-mode support
+ */
+
+
+static int
+archive_read_support_format_zip_capabilities_streamable(struct archive_read * a)
+{
+	(void)a; /* UNUSED */
+	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA |
+		ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
+}
+
+static int
+archive_read_format_zip_streamable_bid(struct archive_read *a, int best_bid)
+{
+	const char *p;
+
+	(void)best_bid; /* UNUSED */
+
+	if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
+		return (-1);
+
+	/*
+	 * Bid of 29 here comes from:
+	 *  + 16 bits for "PK",
+	 *  + next 16-bit field has 6 options so contributes
+	 *    about 16 - log_2(6) ~= 16 - 2.6 ~= 13 bits
+	 *
+	 * So we've effectively verified ~29 total bits of check data.
+	 */
+	if (p[0] == 'P' && p[1] == 'K') {
+		if ((p[2] == '\001' && p[3] == '\002')
+		    || (p[2] == '\003' && p[3] == '\004')
+		    || (p[2] == '\005' && p[3] == '\006')
+		    || (p[2] == '\006' && p[3] == '\006')
+		    || (p[2] == '\007' && p[3] == '\010')
+		    || (p[2] == '0' && p[3] == '0'))
+			return (29);
+	}
+
+	/* TODO: It's worth looking ahead a little bit for a valid
+	 * PK signature.  In particular, that would make it possible
+	 * to read some UUEncoded SFX files or SFX files coming from
+	 * a network socket. */
+
+	return (0);
+}
+
+static int
+archive_read_format_zip_streamable_read_header(struct archive_read *a,
+    struct archive_entry *entry)
+{
+	struct zip *zip;
+
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
+
+	zip = (struct zip *)(a->format->data);
+
+	/*
+	 * It should be sufficient to call archive_read_next_header() for
+	 * a reader to determine if an entry is encrypted or not. If the
+	 * encryption of an entry is only detectable when calling
+	 * archive_read_data(), so be it. We'll do the same check there
+	 * as well.
+	 */
+	if (zip->has_encrypted_entries ==
+			ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW)
+		zip->has_encrypted_entries = 0;
+
+	/* Make sure we have a zip_entry structure to use. */
+	if (zip->zip_entries == NULL) {
+		zip->zip_entries = malloc(sizeof(struct zip_entry));
+		if (zip->zip_entries == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Out  of memory");
+			return ARCHIVE_FATAL;
+		}
+	}
+	zip->entry = zip->zip_entries;
+	memset(zip->entry, 0, sizeof(struct zip_entry));
+
+	if (zip->cctx_valid)
+		archive_decrypto_aes_ctr_release(&zip->cctx);
+	if (zip->hctx_valid)
+		archive_hmac_sha1_cleanup(&zip->hctx);
+	zip->tctx_valid = zip->cctx_valid = zip->hctx_valid = 0;
+	__archive_read_reset_passphrase(a);
+
+	/* Search ahead for the next local file header. */
+	__archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
+	for (;;) {
+		int64_t skipped = 0;
+		const char *p, *end;
+		ssize_t bytes;
+
+		p = __archive_read_ahead(a, 4, &bytes);
+		if (p == NULL)
+			return (ARCHIVE_FATAL);
+		end = p + bytes;
+
+		while (p + 4 <= end) {
+			if (p[0] == 'P' && p[1] == 'K') {
+				if (p[2] == '\003' && p[3] == '\004') {
+					/* Regular file entry. */
+					__archive_read_consume(a, skipped);
+					return zip_read_local_file_header(a,
+					    entry, zip);
+				}
+
+                              /*
+                               * TODO: We cannot restore permissions
+                               * based only on the local file headers.
+                               * Consider scanning the central
+                               * directory and returning additional
+                               * entries for at least directories.
+                               * This would allow us to properly set
+                               * directory permissions.
+			       *
+			       * This won't help us fix symlinks
+			       * and may not help with regular file
+			       * permissions, either.  <sigh>
+                               */
+                              if (p[2] == '\001' && p[3] == '\002') {
+                                      return (ARCHIVE_EOF);
+                              }
+
+                              /* End of central directory?  Must be an
+                               * empty archive. */
+                              if ((p[2] == '\005' && p[3] == '\006')
+                                  || (p[2] == '\006' && p[3] == '\006'))
+                                      return (ARCHIVE_EOF);
+			}
+			++p;
+			++skipped;
+		}
+		__archive_read_consume(a, skipped);
+	}
+}
+
+static int
+archive_read_format_zip_read_data_skip_streamable(struct archive_read *a)
+{
+	struct zip *zip;
+	int64_t bytes_skipped;
+
+	zip = (struct zip *)(a->format->data);
+	bytes_skipped = __archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
+	if (bytes_skipped < 0)
+		return (ARCHIVE_FATAL);
+
+	/* If we've already read to end of data, we're done. */
+	if (zip->end_of_entry)
+		return (ARCHIVE_OK);
+
+	/* So we know we're streaming... */
+	if (0 == (zip->entry->zip_flags & ZIP_LENGTH_AT_END)
+	    || zip->entry->compressed_size > 0) {
+		/* We know the compressed length, so we can just skip. */
+		bytes_skipped = __archive_read_consume(a,
+					zip->entry_bytes_remaining);
+		if (bytes_skipped < 0)
+			return (ARCHIVE_FATAL);
+		return (ARCHIVE_OK);
+	}
+
+	if (zip->init_decryption) {
+		int r;
+
+		zip->has_encrypted_entries = 1;
+		if (zip->entry->zip_flags & ZIP_STRONG_ENCRYPTED)
+			r = read_decryption_header(a);
+		else if (zip->entry->compression == WINZIP_AES_ENCRYPTION)
+			r = init_WinZip_AES_decryption(a);
+		else
+			r = init_traditional_PKWARE_decryption(a);
+		if (r != ARCHIVE_OK)
+			return (r);
+		zip->init_decryption = 0;
+	}
+
+	/* We're streaming and we don't know the length. */
+	/* If the body is compressed and we know the format, we can
+	 * find an exact end-of-entry by decompressing it. */
+	switch (zip->entry->compression) {
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+		while (!zip->end_of_entry) {
+			int64_t offset = 0;
+			const void *buff = NULL;
+			size_t size = 0;
+			int r;
+			r =  zip_read_data_deflate(a, &buff, &size, &offset);
+			if (r != ARCHIVE_OK)
+				return (r);
+		}
+		return ARCHIVE_OK;
+#endif
+	default: /* Uncompressed or unknown. */
+		/* Scan for a PK\007\010 signature. */
+		for (;;) {
+			const char *p, *buff;
+			ssize_t bytes_avail;
+			buff = __archive_read_ahead(a, 16, &bytes_avail);
+			if (bytes_avail < 16) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Truncated ZIP file data");
+				return (ARCHIVE_FATAL);
+			}
+			p = buff;
+			while (p <= buff + bytes_avail - 16) {
+				if (p[3] == 'P') { p += 3; }
+				else if (p[3] == 'K') { p += 2; }
+				else if (p[3] == '\007') { p += 1; }
+				else if (p[3] == '\010' && p[2] == '\007'
+				    && p[1] == 'K' && p[0] == 'P') {
+					if (zip->entry->flags & LA_USED_ZIP64)
+						__archive_read_consume(a,
+						    p - buff + 24);
+					else
+						__archive_read_consume(a,
+						    p - buff + 16);
+					return ARCHIVE_OK;
+				} else { p += 4; }
+			}
+			__archive_read_consume(a, p - buff);
+		}
+	}
+}
+
+int
+archive_read_support_format_zip_streamable(struct archive *_a)
+{
+	struct archive_read *a = (struct archive_read *)_a;
+	struct zip *zip;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip");
+
+	zip = (struct zip *)calloc(1, sizeof(*zip));
+	if (zip == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Streamable reader doesn't support mac extensions. */
+	zip->process_mac_extensions = 0;
+
+	/*
+	 * Until enough data has been read, we cannot tell about
+	 * any encrypted entries yet.
+	 */
+	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+	zip->crc32func = real_crc32;
+
+	r = __archive_read_register_format(a,
+	    zip,
+	    "zip",
+	    archive_read_format_zip_streamable_bid,
+	    archive_read_format_zip_options,
+	    archive_read_format_zip_streamable_read_header,
+	    archive_read_format_zip_read_data,
+	    archive_read_format_zip_read_data_skip_streamable,
+	    NULL,
+	    archive_read_format_zip_cleanup,
+	    archive_read_support_format_zip_capabilities_streamable,
+	    archive_read_format_zip_has_encrypted_entries);
+
+	if (r != ARCHIVE_OK)
+		free(zip);
+	return (ARCHIVE_OK);
+}
+
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Seeking-mode support
+ */
+
+static int
+archive_read_support_format_zip_capabilities_seekable(struct archive_read * a)
+{
+	(void)a; /* UNUSED */
+	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA |
+		ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
+}
+
+/*
+ * TODO: This is a performance sink because it forces the read core to
+ * drop buffered data from the start of file, which will then have to
+ * be re-read again if this bidder loses.
+ *
+ * We workaround this a little by passing in the best bid so far so
+ * that later bidders can do nothing if they know they'll never
+ * outbid.  But we can certainly do better...
+ */
+static int
+read_eocd(struct zip *zip, const char *p, int64_t current_offset)
+{
+	/* Sanity-check the EOCD we've found. */
+
+	/* This must be the first volume. */
+	if (archive_le16dec(p + 4) != 0)
+		return 0;
+	/* Central directory must be on this volume. */
+	if (archive_le16dec(p + 4) != archive_le16dec(p + 6))
+		return 0;
+	/* All central directory entries must be on this volume. */
+	if (archive_le16dec(p + 10) != archive_le16dec(p + 8))
+		return 0;
+	/* Central directory can't extend beyond start of EOCD record. */
+	if (archive_le32dec(p + 16) + archive_le32dec(p + 12)
+	    > current_offset)
+		return 0;
+
+	/* Save the central directory location for later use. */
+	zip->central_directory_offset = archive_le32dec(p + 16);
+
+	/* This is just a tiny bit higher than the maximum
+	   returned by the streaming Zip bidder.  This ensures
+	   that the more accurate seeking Zip parser wins
+	   whenever seek is available. */
+	return 32;
+}
+
+/*
+ * Examine Zip64 EOCD locator:  If it's valid, store the information
+ * from it.
+ */
+static void
+read_zip64_eocd(struct archive_read *a, struct zip *zip, const char *p)
+{
+	int64_t eocd64_offset;
+	int64_t eocd64_size;
+
+	/* Sanity-check the locator record. */
+
+	/* Central dir must be on first volume. */
+	if (archive_le32dec(p + 4) != 0)
+		return;
+	/* Must be only a single volume. */
+	if (archive_le32dec(p + 16) != 1)
+		return;
+
+	/* Find the Zip64 EOCD record. */
+	eocd64_offset = archive_le64dec(p + 8);
+	if (__archive_read_seek(a, eocd64_offset, SEEK_SET) < 0)
+		return;
+	if ((p = __archive_read_ahead(a, 56, NULL)) == NULL)
+		return;
+	/* Make sure we can read all of it. */
+	eocd64_size = archive_le64dec(p + 4) + 12;
+	if (eocd64_size < 56 || eocd64_size > 16384)
+		return;
+	if ((p = __archive_read_ahead(a, (size_t)eocd64_size, NULL)) == NULL)
+		return;
+
+	/* Sanity-check the EOCD64 */
+	if (archive_le32dec(p + 16) != 0) /* Must be disk #0 */
+		return;
+	if (archive_le32dec(p + 20) != 0) /* CD must be on disk #0 */
+		return;
+	/* CD can't be split. */
+	if (archive_le64dec(p + 24) != archive_le64dec(p + 32))
+		return;
+
+	/* Save the central directory offset for later use. */
+	zip->central_directory_offset = archive_le64dec(p + 48);
+}
+
+static int
+archive_read_format_zip_seekable_bid(struct archive_read *a, int best_bid)
+{
+	struct zip *zip = (struct zip *)a->format->data;
+	int64_t file_size, current_offset;
+	const char *p;
+	int i, tail;
+
+	/* If someone has already bid more than 32, then avoid
+	   trashing the look-ahead buffers with a seek. */
+	if (best_bid > 32)
+		return (-1);
+
+	file_size = __archive_read_seek(a, 0, SEEK_END);
+	if (file_size <= 0)
+		return 0;
+
+	/* Search last 16k of file for end-of-central-directory
+	 * record (which starts with PK\005\006) */
+	tail = (int)zipmin(1024 * 16, file_size);
+	current_offset = __archive_read_seek(a, -tail, SEEK_END);
+	if (current_offset < 0)
+		return 0;
+	if ((p = __archive_read_ahead(a, (size_t)tail, NULL)) == NULL)
+		return 0;
+	/* Boyer-Moore search backwards from the end, since we want
+	 * to match the last EOCD in the file (there can be more than
+	 * one if there is an uncompressed Zip archive as a member
+	 * within this Zip archive). */
+	for (i = tail - 22; i > 0;) {
+		switch (p[i]) {
+		case 'P':
+			if (memcmp(p + i, "PK\005\006", 4) == 0) {
+				int ret = read_eocd(zip, p + i,
+				    current_offset + i);
+				if (ret > 0) {
+					/* Zip64 EOCD locator precedes
+					 * regular EOCD if present. */
+					if (i >= 20
+					    && memcmp(p + i - 20, "PK\006\007", 4) == 0) {
+						read_zip64_eocd(a, zip, p + i - 20);
+					}
+					return (ret);
+				}
+			}
+			i -= 4;
+			break;
+		case 'K': i -= 1; break;
+		case 005: i -= 2; break;
+		case 006: i -= 3; break;
+		default: i -= 4; break;
+		}
+	}
+	return 0;
+}
+
+/* The red-black trees are only used in seeking mode to manage
+ * the in-memory copy of the central directory. */
+
+static int
+cmp_node(const struct archive_rb_node *n1, const struct archive_rb_node *n2)
+{
+	const struct zip_entry *e1 = (const struct zip_entry *)n1;
+	const struct zip_entry *e2 = (const struct zip_entry *)n2;
+
+	if (e1->local_header_offset > e2->local_header_offset)
+		return -1;
+	if (e1->local_header_offset < e2->local_header_offset)
+		return 1;
+	return 0;
+}
+
+static int
+cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	/* This function won't be called */
+	(void)n; /* UNUSED */
+	(void)key; /* UNUSED */
+	return 1;
+}
+
+static const struct archive_rb_tree_ops rb_ops = {
+	&cmp_node, &cmp_key
+};
+
+static int
+rsrc_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct zip_entry *e1 = (const struct zip_entry *)n1;
+	const struct zip_entry *e2 = (const struct zip_entry *)n2;
+
+	return (strcmp(e2->rsrcname.s, e1->rsrcname.s));
+}
+
+static int
+rsrc_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct zip_entry *e = (const struct zip_entry *)n;
+	return (strcmp((const char *)key, e->rsrcname.s));
+}
+
+static const struct archive_rb_tree_ops rb_rsrc_ops = {
+	&rsrc_cmp_node, &rsrc_cmp_key
+};
+
+static const char *
+rsrc_basename(const char *name, size_t name_length)
+{
+	const char *s, *r;
+
+	r = s = name;
+	for (;;) {
+		s = memchr(s, '/', name_length - (s - name));
+		if (s == NULL)
+			break;
+		r = ++s;
+	}
+	return (r);
+}
+
+static void
+expose_parent_dirs(struct zip *zip, const char *name, size_t name_length)
+{
+	struct archive_string str;
+	struct zip_entry *dir;
+	char *s;
+
+	archive_string_init(&str);
+	archive_strncpy(&str, name, name_length);
+	for (;;) {
+		s = strrchr(str.s, '/');
+		if (s == NULL)
+			break;
+		*s = '\0';
+		/* Transfer the parent directory from zip->tree_rsrc RB
+		 * tree to zip->tree RB tree to expose. */
+		dir = (struct zip_entry *)
+		    __archive_rb_tree_find_node(&zip->tree_rsrc, str.s);
+		if (dir == NULL)
+			break;
+		__archive_rb_tree_remove_node(&zip->tree_rsrc, &dir->node);
+		archive_string_free(&dir->rsrcname);
+		__archive_rb_tree_insert_node(&zip->tree, &dir->node);
+	}
+	archive_string_free(&str);
+}
+
+static int
+slurp_central_directory(struct archive_read *a, struct zip *zip)
+{
+	ssize_t i;
+	unsigned found;
+	int64_t correction;
+	ssize_t bytes_avail;
+	const char *p;
+
+	/*
+	 * Find the start of the central directory.  The end-of-CD
+	 * record has our starting point, but there are lots of
+	 * Zip archives which have had other data prepended to the
+	 * file, which makes the recorded offsets all too small.
+	 * So we search forward from the specified offset until we
+	 * find the real start of the central directory.  Then we
+	 * know the correction we need to apply to account for leading
+	 * padding.
+	 */
+	if (__archive_read_seek(a, zip->central_directory_offset, SEEK_SET) < 0)
+		return ARCHIVE_FATAL;
+
+	found = 0;
+	while (!found) {
+		if ((p = __archive_read_ahead(a, 20, &bytes_avail)) == NULL)
+			return ARCHIVE_FATAL;
+		for (found = 0, i = 0; !found && i < bytes_avail - 4;) {
+			switch (p[i + 3]) {
+			case 'P': i += 3; break;
+			case 'K': i += 2; break;
+			case 001: i += 1; break;
+			case 002:
+				if (memcmp(p + i, "PK\001\002", 4) == 0) {
+					p += i;
+					found = 1;
+				} else
+					i += 4;
+				break;
+			case 005: i += 1; break;
+			case 006:
+				if (memcmp(p + i, "PK\005\006", 4) == 0) {
+					p += i;
+					found = 1;
+				} else if (memcmp(p + i, "PK\006\006", 4) == 0) {
+					p += i;
+					found = 1;
+				} else
+					i += 1;
+				break;
+			default: i += 4; break;
+			}
+		}
+		__archive_read_consume(a, i);
+	}
+	correction = archive_filter_bytes(&a->archive, 0)
+			- zip->central_directory_offset;
+
+	__archive_rb_tree_init(&zip->tree, &rb_ops);
+	__archive_rb_tree_init(&zip->tree_rsrc, &rb_rsrc_ops);
+
+	zip->central_directory_entries_total = 0;
+	while (1) {
+		struct zip_entry *zip_entry;
+		size_t filename_length, extra_length, comment_length;
+		uint32_t external_attributes;
+		const char *name, *r;
+
+		if ((p = __archive_read_ahead(a, 4, NULL)) == NULL)
+			return ARCHIVE_FATAL;
+		if (memcmp(p, "PK\006\006", 4) == 0
+		    || memcmp(p, "PK\005\006", 4) == 0) {
+			break;
+		} else if (memcmp(p, "PK\001\002", 4) != 0) {
+			archive_set_error(&a->archive,
+			    -1, "Invalid central directory signature");
+			return ARCHIVE_FATAL;
+		}
+		if ((p = __archive_read_ahead(a, 46, NULL)) == NULL)
+			return ARCHIVE_FATAL;
+
+		zip_entry = calloc(1, sizeof(struct zip_entry));
+		zip_entry->next = zip->zip_entries;
+		zip_entry->flags |= LA_FROM_CENTRAL_DIRECTORY;
+		zip->zip_entries = zip_entry;
+		zip->central_directory_entries_total++;
+
+		/* version = p[4]; */
+		zip_entry->system = p[5];
+		/* version_required = archive_le16dec(p + 6); */
+		zip_entry->zip_flags = archive_le16dec(p + 8);
+		if (zip_entry->zip_flags
+		      & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)){
+			zip->has_encrypted_entries = 1;
+		}
+		zip_entry->compression = (char)archive_le16dec(p + 10);
+		zip_entry->mtime = zip_time(p + 12);
+		zip_entry->crc32 = archive_le32dec(p + 16);
+		if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+			zip_entry->decdat = p[13];
+		else
+			zip_entry->decdat = p[19];
+		zip_entry->compressed_size = archive_le32dec(p + 20);
+		zip_entry->uncompressed_size = archive_le32dec(p + 24);
+		filename_length = archive_le16dec(p + 28);
+		extra_length = archive_le16dec(p + 30);
+		comment_length = archive_le16dec(p + 32);
+		/* disk_start = archive_le16dec(p + 34); */ /* Better be zero. */
+		/* internal_attributes = archive_le16dec(p + 36); */ /* text bit */
+		external_attributes = archive_le32dec(p + 38);
+		zip_entry->local_header_offset =
+		    archive_le32dec(p + 42) + correction;
+
+		/* If we can't guess the mode, leave it zero here;
+		   when we read the local file header we might get
+		   more information. */
+		zip_entry->mode = 0;
+		if (zip_entry->system == 3) {
+			zip_entry->mode = external_attributes >> 16;
+		}
+
+		/* We're done with the regular data; get the filename and
+		 * extra data. */
+		__archive_read_consume(a, 46);
+		p = __archive_read_ahead(a, filename_length + extra_length,
+			NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			return ARCHIVE_FATAL;
+		}
+		process_extra(p + filename_length, extra_length, zip_entry);
+
+		/*
+		 * Mac resource fork files are stored under the
+		 * "__MACOSX/" directory, so we should check if
+		 * it is.
+		 */
+		if (!zip->process_mac_extensions) {
+			/* Treat every entry as a regular entry. */
+			__archive_rb_tree_insert_node(&zip->tree,
+			    &zip_entry->node);
+		} else {
+			name = p;
+			r = rsrc_basename(name, filename_length);
+			if (filename_length >= 9 &&
+			    strncmp("__MACOSX/", name, 9) == 0) {
+				/* If this file is not a resource fork nor
+				 * a directory. We should treat it as a non
+				 * resource fork file to expose it. */
+				if (name[filename_length-1] != '/' &&
+				    (r - name < 3 || r[0] != '.' || r[1] != '_')) {
+					__archive_rb_tree_insert_node(
+					    &zip->tree, &zip_entry->node);
+					/* Expose its parent directories. */
+					expose_parent_dirs(zip, name,
+					    filename_length);
+				} else {
+					/* This file is a resource fork file or
+					 * a directory. */
+					archive_strncpy(&(zip_entry->rsrcname),
+					     name, filename_length);
+					__archive_rb_tree_insert_node(
+					    &zip->tree_rsrc, &zip_entry->node);
+				}
+			} else {
+				/* Generate resource fork name to find its
+				 * resource file at zip->tree_rsrc. */
+				archive_strcpy(&(zip_entry->rsrcname),
+				    "__MACOSX/");
+				archive_strncat(&(zip_entry->rsrcname),
+				    name, r - name);
+				archive_strcat(&(zip_entry->rsrcname), "._");
+				archive_strncat(&(zip_entry->rsrcname),
+				    name + (r - name),
+				    filename_length - (r - name));
+				/* Register an entry to RB tree to sort it by
+				 * file offset. */
+				__archive_rb_tree_insert_node(&zip->tree,
+				    &zip_entry->node);
+			}
+		}
+
+		/* Skip the comment too ... */
+		__archive_read_consume(a,
+		    filename_length + extra_length + comment_length);
+	}
+
+	return ARCHIVE_OK;
+}
+
+static ssize_t
+zip_get_local_file_header_size(struct archive_read *a, size_t extra)
+{
+	const char *p;
+	ssize_t filename_length, extra_length;
+
+	if ((p = __archive_read_ahead(a, extra + 30, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_WARN);
+	}
+	p += extra;
+
+	if (memcmp(p, "PK\003\004", 4) != 0) {
+		archive_set_error(&a->archive, -1, "Damaged Zip archive");
+		return ARCHIVE_WARN;
+	}
+	filename_length = archive_le16dec(p + 26);
+	extra_length = archive_le16dec(p + 28);
+
+	return (30 + filename_length + extra_length);
+}
+
+static int
+zip_read_mac_metadata(struct archive_read *a, struct archive_entry *entry,
+    struct zip_entry *rsrc)
+{
+	struct zip *zip = (struct zip *)a->format->data;
+	unsigned char *metadata, *mp;
+	int64_t offset = archive_filter_bytes(&a->archive, 0);
+	size_t remaining_bytes, metadata_bytes;
+	ssize_t hsize;
+	int ret = ARCHIVE_OK, eof;
+
+	switch(rsrc->compression) {
+	case 0:  /* No compression. */
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+#endif
+		break;
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(rsrc->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_WARN);
+	}
+
+	if (rsrc->uncompressed_size > (4 * 1024 * 1024)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Mac metadata is too large: %jd > 4M bytes",
+		    (intmax_t)rsrc->uncompressed_size);
+		return (ARCHIVE_WARN);
+	}
+
+	metadata = malloc((size_t)rsrc->uncompressed_size);
+	if (metadata == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory for Mac metadata");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (offset < rsrc->local_header_offset)
+		__archive_read_consume(a, rsrc->local_header_offset - offset);
+	else if (offset != rsrc->local_header_offset) {
+		__archive_read_seek(a, rsrc->local_header_offset, SEEK_SET);
+	}
+
+	hsize = zip_get_local_file_header_size(a, 0);
+	__archive_read_consume(a, hsize);
+
+	remaining_bytes = (size_t)rsrc->compressed_size;
+	metadata_bytes = (size_t)rsrc->uncompressed_size;
+	mp = metadata;
+	eof = 0;
+	while (!eof && remaining_bytes) {
+		const unsigned char *p;
+		ssize_t bytes_avail;
+		size_t bytes_used;
+
+		p = __archive_read_ahead(a, 1, &bytes_avail);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			ret = ARCHIVE_WARN;
+			goto exit_mac_metadata;
+		}
+		if ((size_t)bytes_avail > remaining_bytes)
+			bytes_avail = remaining_bytes;
+		switch(rsrc->compression) {
+		case 0:  /* No compression. */
+			memcpy(mp, p, bytes_avail);
+			bytes_used = (size_t)bytes_avail;
+			metadata_bytes -= bytes_used;
+			mp += bytes_used;
+			if (metadata_bytes == 0)
+				eof = 1;
+			break;
+#ifdef HAVE_ZLIB_H
+		case 8: /* Deflate compression. */
+		{
+			int r;
+
+			ret = zip_deflate_init(a, zip);
+			if (ret != ARCHIVE_OK)
+				goto exit_mac_metadata;
+			zip->stream.next_in =
+			    (Bytef *)(uintptr_t)(const void *)p;
+			zip->stream.avail_in = (uInt)bytes_avail;
+			zip->stream.total_in = 0;
+			zip->stream.next_out = mp;
+			zip->stream.avail_out = (uInt)metadata_bytes;
+			zip->stream.total_out = 0;
+
+			r = inflate(&zip->stream, 0);
+			switch (r) {
+			case Z_OK:
+				break;
+			case Z_STREAM_END:
+				eof = 1;
+				break;
+			case Z_MEM_ERROR:
+				archive_set_error(&a->archive, ENOMEM,
+				    "Out of memory for ZIP decompression");
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "ZIP decompression failed (%d)", r);
+				ret = ARCHIVE_FATAL;
+				goto exit_mac_metadata;
+			}
+			bytes_used = zip->stream.total_in;
+			metadata_bytes -= zip->stream.total_out;
+			mp += zip->stream.total_out;
+			break;
+		}
+#endif
+		default:
+			bytes_used = 0;
+			break;
+		}
+		__archive_read_consume(a, bytes_used);
+		remaining_bytes -= bytes_used;
+	}
+	archive_entry_copy_mac_metadata(entry, metadata,
+	    (size_t)rsrc->uncompressed_size - metadata_bytes);
+
+exit_mac_metadata:
+	__archive_read_seek(a, offset, SEEK_SET);
+	zip->decompress_init = 0;
+	free(metadata);
+	return (ret);
+}
+
+static int
+archive_read_format_zip_seekable_read_header(struct archive_read *a,
+	struct archive_entry *entry)
+{
+	struct zip *zip = (struct zip *)a->format->data;
+	struct zip_entry *rsrc;
+	int64_t offset;
+	int r, ret = ARCHIVE_OK;
+
+	/*
+	 * It should be sufficient to call archive_read_next_header() for
+	 * a reader to determine if an entry is encrypted or not. If the
+	 * encryption of an entry is only detectable when calling
+	 * archive_read_data(), so be it. We'll do the same check there
+	 * as well.
+	 */
+	if (zip->has_encrypted_entries ==
+			ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW)
+		zip->has_encrypted_entries = 0;
+
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	if (a->archive.archive_format_name == NULL)
+		a->archive.archive_format_name = "ZIP";
+
+	if (zip->zip_entries == NULL) {
+		r = slurp_central_directory(a, zip);
+		if (r != ARCHIVE_OK)
+			return r;
+		/* Get first entry whose local header offset is lower than
+		 * other entries in the archive file. */
+		zip->entry =
+		    (struct zip_entry *)ARCHIVE_RB_TREE_MIN(&zip->tree);
+	} else if (zip->entry != NULL) {
+		/* Get next entry in local header offset order. */
+		zip->entry = (struct zip_entry *)__archive_rb_tree_iterate(
+		    &zip->tree, &zip->entry->node, ARCHIVE_RB_DIR_RIGHT);
+	}
+
+	if (zip->entry == NULL)
+		return ARCHIVE_EOF;
+
+	if (zip->entry->rsrcname.s)
+		rsrc = (struct zip_entry *)__archive_rb_tree_find_node(
+		    &zip->tree_rsrc, zip->entry->rsrcname.s);
+	else
+		rsrc = NULL;
+
+	if (zip->cctx_valid)
+		archive_decrypto_aes_ctr_release(&zip->cctx);
+	if (zip->hctx_valid)
+		archive_hmac_sha1_cleanup(&zip->hctx);
+	zip->tctx_valid = zip->cctx_valid = zip->hctx_valid = 0;
+	__archive_read_reset_passphrase(a);
+
+	/* File entries are sorted by the header offset, we should mostly
+	 * use __archive_read_consume to advance a read point to avoid redundant
+	 * data reading.  */
+	offset = archive_filter_bytes(&a->archive, 0);
+	if (offset < zip->entry->local_header_offset)
+		__archive_read_consume(a,
+		    zip->entry->local_header_offset - offset);
+	else if (offset != zip->entry->local_header_offset) {
+		__archive_read_seek(a, zip->entry->local_header_offset,
+		    SEEK_SET);
+	}
+	zip->unconsumed = 0;
+	r = zip_read_local_file_header(a, entry, zip);
+	if (r != ARCHIVE_OK)
+		return r;
+	if (rsrc) {
+		int ret2 = zip_read_mac_metadata(a, entry, rsrc);
+		if (ret2 < ret)
+			ret = ret2;
+	}
+	return (ret);
+}
+
+/*
+ * We're going to seek for the next header anyway, so we don't
+ * need to bother doing anything here.
+ */
+static int
+archive_read_format_zip_read_data_skip_seekable(struct archive_read *a)
+{
+	struct zip *zip;
+	zip = (struct zip *)(a->format->data);
+
+	zip->unconsumed = 0;
+	return (ARCHIVE_OK);
+}
+
+int
+archive_read_support_format_zip_seekable(struct archive *_a)
+{
+	struct archive_read *a = (struct archive_read *)_a;
+	struct zip *zip;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip_seekable");
+
+	zip = (struct zip *)calloc(1, sizeof(*zip));
+	if (zip == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data");
+		return (ARCHIVE_FATAL);
+	}
+
+#ifdef HAVE_COPYFILE_H
+	/* Set this by default on Mac OS. */
+	zip->process_mac_extensions = 1;
+#endif
+
+	/*
+	 * Until enough data has been read, we cannot tell about
+	 * any encrypted entries yet.
+	 */
+	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
+	zip->crc32func = real_crc32;
+
+	r = __archive_read_register_format(a,
+	    zip,
+	    "zip",
+	    archive_read_format_zip_seekable_bid,
+	    archive_read_format_zip_options,
+	    archive_read_format_zip_seekable_read_header,
+	    archive_read_format_zip_read_data,
+	    archive_read_format_zip_read_data_skip_seekable,
+	    NULL,
+	    archive_read_format_zip_cleanup,
+	    archive_read_support_format_zip_capabilities_seekable,
+	    archive_read_format_zip_has_encrypted_entries);
+
+	if (r != ARCHIVE_OK)
+		free(zip);
+	return (ARCHIVE_OK);
+}

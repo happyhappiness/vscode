@@ -1,547 +1,689 @@
-/*-
- * Copyright (c) 2003-2010 Tim Kientzle
- * Copyright (c) 2009-2012 Michihiro NAKAJIMA
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+/*============================================================================
+  CMake - Cross Platform Makefile Generator
+  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
 
-#include "archive_platform.h"
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
-__FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_compression_xz.c 201108 2009-12-28 03:28:21Z kientzle $");
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#include "cmCoreTryCompile.h"
+#include "cmake.h"
+#include "cmOutputConverter.h"
+#include "cmGlobalGenerator.h"
+#include "cmAlgorithms.h"
+#include "cmExportTryCompileFileGenerator.h"
+#include <cmsys/Directory.hxx>
 
-#ifdef HAVE_ERRNO_H
-#include <errno.h>
-#endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
-#include <time.h>
-#ifdef HAVE_LZMA_H
-#include <lzma.h>
-#endif
+#include <assert.h>
 
-#include "archive.h"
-#include "archive_endian.h"
-#include "archive_private.h"
-#include "archive_write_private.h"
-
-#if ARCHIVE_VERSION_NUMBER < 4000000
-int
-archive_write_set_compression_lzip(struct archive *a)
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
 {
-	__archive_write_filters_free(a);
-	return (archive_write_add_filter_lzip(a));
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
+
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  std::string targetName;
+  std::vector<std::string> cmakeFlags;
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::string copyFileError;
+  std::vector<cmTarget const*> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+  bool didCopyFileError = false;
+  bool useSources = argv[2] == "SOURCES";
+  std::vector<std::string> sources;
+
+  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
+               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
+               DoingCopyFileError, DoingSources };
+  Doing doing = useSources? DoingSources : DoingNone;
+  for(size_t i=3; i < argv.size(); ++i)
+    {
+    if(argv[i] == "CMAKE_FLAGS")
+      {
+      doing = DoingCMakeFlags;
+      // CMAKE_FLAGS is the first argument because we need an argv[0] that
+      // is not used, so it matches regular command line parsing which has
+      // the program name as arg 0
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(argv[i] == "COMPILE_DEFINITIONS")
+      {
+      doing = DoingCompileDefinitions;
+      }
+    else if(argv[i] == "LINK_LIBRARIES")
+      {
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+      }
+    else if(argv[i] == "OUTPUT_VARIABLE")
+      {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+      }
+    else if(argv[i] == "COPY_FILE")
+      {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+      }
+    else if(argv[i] == "COPY_FILE_ERROR")
+      {
+      doing = DoingCopyFileError;
+      didCopyFileError = true;
+      }
+    else if(doing == DoingCMakeFlags)
+      {
+      cmakeFlags.push_back(argv[i]);
+      }
+    else if(doing == DoingCompileDefinitions)
+      {
+      compileDefs.push_back(argv[i]);
+      }
+    else if(doing == DoingLinkLibraries)
+      {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
+        {
+        switch(tgt->GetType())
+          {
+          case cmTarget::SHARED_LIBRARY:
+          case cmTarget::STATIC_LIBRARY:
+          case cmTarget::INTERFACE_LIBRARY:
+          case cmTarget::UNKNOWN_LIBRARY:
+            break;
+          case cmTarget::EXECUTABLE:
+            if (tgt->IsExecutableWithExports())
+              {
+              break;
+              }
+          default:
+            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile or try_run IMPORTED "
+              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
+              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
+          }
+        if (tgt->IsImported())
+          {
+          targets.push_back(tgt);
+          }
+        }
+      }
+    else if(doing == DoingOutputVariable)
+      {
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFile)
+      {
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingCopyFileError)
+      {
+      copyFileError = argv[i].c_str();
+      doing = DoingNone;
+      }
+    else if(doing == DoingSources)
+      {
+      sources.push_back(argv[i]);
+      }
+    else if(i == 3)
+      {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+      }
+    else if(i == 4 && !this->SrcFileSignature)
+      {
+      targetName = argv[i].c_str();
+      }
+    else
+      {
+      std::ostringstream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+      }
+    }
+
+  if(didCopyFile && copyFile.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE must be followed by a file path");
+    return -1;
+    }
+
+  if(didCopyFileError && copyFileError.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR must be followed by a variable name");
+    return -1;
+    }
+
+  if(didCopyFileError && !didCopyFile)
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR may be used only with COPY_FILE");
+    return -1;
+    }
+
+  if(didOutputVariable && outputVariable.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+    }
+
+  if(useSources && sources.empty())
+    {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+      "SOURCES must be followed by at least one source file");
+    return -1;
+    }
+
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature)
+    {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
+    }
+  else
+    {
+    // only valid for srcfile signatures
+    if (!compileDefs.empty())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    if (!copyFile.empty())
+      {
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
+      }
+    }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
+    {
+    std::ostringstream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
+    }
+
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature)
+    {
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile);
+
+    // Choose sources.
+    if(!useSources)
+      {
+      sources.push_back(argv[2]);
+      }
+
+    // Detect languages to enable.
+    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
+      if(!lang.empty())
+        {
+        testLangs.insert(lang);
+        }
+      else
+        {
+        std::ostringstream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n  ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        err << cmJoin(langs, " ");
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
+        }
+      }
+
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
+
+    // now create a CMakeLists.txt file in that directory
+    FILE *fout = cmsys::SystemTools::Fopen(outFileName,"w");
+    if (!fout)
+      {
+      std::ostringstream e;
+      e << "Failed to open\n"
+        << "  " << outFileName << "\n"
+        << cmSystemTools::GetLastSystemError();
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+      }
+
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if(def)
+      {
+      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
+      }
+
+    std::string projectLangs;
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if(const char* rulesOverridePath =
+         this->Makefile->GetDefinition(rulesOverrideLang))
+        {
+        fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideLang.c_str(), rulesOverridePath);
+        }
+      else if(const char* rulesOverridePath2 =
+              this->Makefile->GetDefinition(rulesOverrideBase))
+        {
+        fprintf(fout, "set(%s \"%s\")\n",
+                rulesOverrideBase.c_str(), rulesOverridePath2);
+        }
+      }
+    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for(std::set<std::string>::iterator li = testLangs.begin();
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmOutputConverter::EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
+      }
+    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0056))
+      {
+      case cmPolicies::WARN:
+        if(this->Makefile->PolicyOptionalWarningEnabled(
+             "CMAKE_POLICY_WARNING_CMP0056"))
+          {
+          std::ostringstream w;
+          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
+            "For compatibility with older versions of CMake, try_compile "
+            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
+            "in the test project."
+            ;
+          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+          }
+      case cmPolicies::OLD:
+        // OLD behavior is to do nothing.
+        break;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        this->Makefile->IssueMessage(
+          cmake::FATAL_ERROR,
+          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056)
+          );
+      case cmPolicies::NEW:
+        // NEW behavior is to pass linker flags.
+        {
+        const char* exeLinkFlags =
+          this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
+        fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+                cmOutputConverter::EscapeForCMake(
+                    exeLinkFlags ? exeLinkFlags : "").c_str());
+        } break;
+      }
+    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
+            " ${EXE_LINKER_FLAGS}\")\n");
+    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (!compileDefs.empty())
+      {
+      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
+      }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTC_%05x",
+            cmSystemTools::RandomSeed() & 0xFFFFF);
+    targetName = targetNameBuf;
+
+    if (!targets.empty())
+      {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg;
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetExports(targets);
+      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
+                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
+
+      if(!tcfg.GenerateImportFile())
+        {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
+        }
+      fprintf(fout,
+              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+      }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+      }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
+      {
+      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *cxxDef
+              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
+      {
+      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
+      flag += cxxDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *cDef
+                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
+      {
+      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
+      flag += cDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *tcxxDef = this->Makefile->GetDefinition(
+                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
+      {
+      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcxxDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *tcDef = this->Makefile->GetDefinition(
+                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
+      {
+      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcDef;
+      cmakeFlags.push_back(flag);
+      }
+    if (const char *rootDef
+              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
+      {
+      std::string flag="-DCMAKE_SYSROOT=";
+      flag += rootDef;
+      cmakeFlags.push_back(flag);
+      }
+    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
+      {
+      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+      }
+
+    /* Put the executable at a known location (for COPY_FILE).  */
+    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+            this->BinaryDirectory.c_str());
+    /* Create the actual executable.  */
+    fprintf(fout, "add_executable(%s", targetName.c_str());
+    for(std::vector<std::string>::iterator si = sources.begin();
+        si != sources.end(); ++si)
+      {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if(si->find("CMakeTmp") == si->npos)
+        {
+        this->Makefile->AddCMakeDependFile(*si);
+        }
+      }
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());
+      }
+    else
+      {
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName.c_str(),
+              libsToLink.c_str());
+      }
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
+    }
+
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(sourceDirectory,
+                                       this->BinaryDirectory,
+                                       projectName,
+                                       targetName,
+                                       this->SrcFileSignature,
+                                       &cmakeFlags,
+                                       output);
+  if ( erroroc )
+    {
+    cmSystemTools::SetErrorOccured();
+    }
+
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0],
+                                     (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmState::INTERNAL);
+
+  if (!outputVariable.empty())
+    {
+    this->Makefile->AddDefinition(outputVariable, output.c_str());
+    }
+
+  if (this->SrcFileSignature)
+    {
+    std::string copyFileErrorMessage;
+    this->FindOutputFile(targetName);
+
+    if ((res==0) && !copyFile.empty())
+      {
+      if(this->OutputFile.empty() ||
+         !cmSystemTools::CopyFileAlways(this->OutputFile,
+                                        copyFile))
+        {
+        std::ostringstream emsg;
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile << "'\n";
+        if(!this->FindErrorMessage.empty())
+          {
+          emsg << this->FindErrorMessage.c_str();
+          }
+        if(copyFileError.empty())
+          {
+          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+          return -1;
+          }
+        else
+          {
+          copyFileErrorMessage = emsg.str();
+          }
+        }
+      }
+
+    if(!copyFileError.empty())
+      {
+      this->Makefile->AddDefinition(copyFileError,
+                                    copyFileErrorMessage.c_str());
+      }
+    }
+  return res;
 }
 
-int
-archive_write_set_compression_lzma(struct archive *a)
+void cmCoreTryCompile::CleanupFiles(const char* binDir)
 {
-	__archive_write_filters_free(a);
-	return (archive_write_add_filter_lzma(a));
-}
+  if ( !binDir )
+    {
+    return;
+    }
 
-int
-archive_write_set_compression_xz(struct archive *a)
-{
-	__archive_write_filters_free(a);
-	return (archive_write_add_filter_xz(a));
-}
+  std::string bdir = binDir;
+  if(bdir.find("CMakeTmp") == std::string::npos)
+    {
+    cmSystemTools::Error(
+      "TRY_COMPILE attempt to remove -rf directory that does not contain "
+      "CMakeTmp:", binDir);
+    return;
+    }
 
-#endif
+  cmsys::Directory dir;
+  dir.Load(binDir);
+  size_t fileNum;
+  std::set<std::string> deletedFiles;
+  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
+    {
+    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
+        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
+      {
 
-#ifndef HAVE_LZMA_H
-int
-archive_write_add_filter_xz(struct archive *a)
-{
-	archive_set_error(a, ARCHIVE_ERRNO_MISC,
-	    "xz compression not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
-
-int
-archive_write_add_filter_lzma(struct archive *a)
-{
-	archive_set_error(a, ARCHIVE_ERRNO_MISC,
-	    "lzma compression not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
-
-int
-archive_write_add_filter_lzip(struct archive *a)
-{
-	archive_set_error(a, ARCHIVE_ERRNO_MISC,
-	    "lzma compression not supported on this platform");
-	return (ARCHIVE_FATAL);
-}
+      if(deletedFiles.find( dir.GetFile(static_cast<unsigned long>(fileNum)))
+         == deletedFiles.end())
+        {
+        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
+        std::string fullPath = binDir;
+        fullPath += "/";
+        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
+        if(cmSystemTools::FileIsDirectory(fullPath))
+          {
+          this->CleanupFiles(fullPath.c_str());
+          cmSystemTools::RemoveADirectory(fullPath);
+          }
+        else
+          {
+#ifdef _WIN32
+          // Sometimes anti-virus software hangs on to new files so we
+          // cannot delete them immediately.  Try a few times.
+          cmSystemTools::WindowsFileRetry retry =
+            cmSystemTools::GetWindowsFileRetry();
+          while(!cmSystemTools::RemoveFile(fullPath.c_str()) &&
+                --retry.Count && cmSystemTools::FileExists(fullPath.c_str()))
+            {
+            cmSystemTools::Delay(retry.Delay);
+            }
+          if(retry.Count == 0)
 #else
-/* Don't compile this if we don't have liblzma. */
-
-struct private_data {
-	int		 compression_level;
-	uint32_t	 threads;
-	lzma_stream	 stream;
-	lzma_filter	 lzmafilters[2];
-	lzma_options_lzma lzma_opt;
-	int64_t		 total_in;
-	unsigned char	*compressed;
-	size_t		 compressed_buffer_size;
-	int64_t		 total_out;
-	/* the CRC32 value of uncompressed data for lzip */
-	uint32_t	 crc32;
-};
-
-static int	archive_compressor_xz_options(struct archive_write_filter *,
-		    const char *, const char *);
-static int	archive_compressor_xz_open(struct archive_write_filter *);
-static int	archive_compressor_xz_write(struct archive_write_filter *,
-		    const void *, size_t);
-static int	archive_compressor_xz_close(struct archive_write_filter *);
-static int	archive_compressor_xz_free(struct archive_write_filter *);
-static int	drive_compressor(struct archive_write_filter *,
-		    struct private_data *, int finishing);
-
-struct option_value {
-	uint32_t dict_size;
-	uint32_t nice_len;
-	lzma_match_finder mf;
-};
-static const struct option_value option_values[] = {
-	{ 1 << 16, 32, LZMA_MF_HC3},
-	{ 1 << 20, 32, LZMA_MF_HC3},
-	{ 3 << 19, 32, LZMA_MF_HC4},
-	{ 1 << 21, 32, LZMA_MF_BT4},
-	{ 3 << 20, 32, LZMA_MF_BT4},
-	{ 1 << 22, 32, LZMA_MF_BT4},
-	{ 1 << 23, 64, LZMA_MF_BT4},
-	{ 1 << 24, 64, LZMA_MF_BT4},
-	{ 3 << 23, 64, LZMA_MF_BT4},
-	{ 1 << 25, 64, LZMA_MF_BT4}
-};
-
-static int
-common_setup(struct archive_write_filter *f)
-{
-	struct private_data *data;
-	struct archive_write *a = (struct archive_write *)f->archive;
-	data = calloc(1, sizeof(*data));
-	if (data == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	f->data = data;
-	data->compression_level = LZMA_PRESET_DEFAULT;
-	data->threads = 1;
-	f->open = &archive_compressor_xz_open;
-	f->close = archive_compressor_xz_close;
-	f->free = archive_compressor_xz_free;
-	f->options = &archive_compressor_xz_options;
-	return (ARCHIVE_OK);
-}
-
-/*
- * Add an xz compression filter to this write handle.
- */
-int
-archive_write_add_filter_xz(struct archive *_a)
-{
-	struct archive_write_filter *f;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_write_add_filter_xz");
-	f = __archive_write_allocate_filter(_a);
-	r = common_setup(f);
-	if (r == ARCHIVE_OK) {
-		f->code = ARCHIVE_FILTER_XZ;
-		f->name = "xz";
-	}
-	return (r);
-}
-
-/* LZMA is handled identically, we just need a different compression
- * code set.  (The liblzma setup looks at the code to determine
- * the one place that XZ and LZMA require different handling.) */
-int
-archive_write_add_filter_lzma(struct archive *_a)
-{
-	struct archive_write_filter *f;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_write_add_filter_lzma");
-	f = __archive_write_allocate_filter(_a);
-	r = common_setup(f);
-	if (r == ARCHIVE_OK) {
-		f->code = ARCHIVE_FILTER_LZMA;
-		f->name = "lzma";
-	}
-	return (r);
-}
-
-int
-archive_write_add_filter_lzip(struct archive *_a)
-{
-	struct archive_write_filter *f;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_write_add_filter_lzip");
-	f = __archive_write_allocate_filter(_a);
-	r = common_setup(f);
-	if (r == ARCHIVE_OK) {
-		f->code = ARCHIVE_FILTER_LZIP;
-		f->name = "lzip";
-	}
-	return (r);
-}
-
-static int
-archive_compressor_xz_init_stream(struct archive_write_filter *f,
-    struct private_data *data)
-{
-	static const lzma_stream lzma_stream_init_data = LZMA_STREAM_INIT;
-	int ret;
-#ifdef HAVE_LZMA_STREAM_ENCODER_MT
-	lzma_mt mt_options;
+          if(!cmSystemTools::RemoveFile(fullPath))
 #endif
+            {
+            std::string m = "Remove failed on file: " + fullPath;
+            cmSystemTools::ReportLastSystemError(m.c_str());
+            }
+          }
+        }
+      }
+    }
+}
 
-	data->stream = lzma_stream_init_data;
-	data->stream.next_out = data->compressed;
-	data->stream.avail_out = data->compressed_buffer_size;
-	if (f->code == ARCHIVE_FILTER_XZ) {
-#ifdef HAVE_LZMA_STREAM_ENCODER_MT
-		if (data->threads != 1) {
-			bzero(&mt_options, sizeof(mt_options));
-			mt_options.threads = data->threads;
-			mt_options.timeout = 300;
-			mt_options.filters = data->lzmafilters;
-			mt_options.check = LZMA_CHECK_CRC64;
-			ret = lzma_stream_encoder_mt(&(data->stream),
-			    &mt_options);
-		} else
+void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
+{
+  this->FindErrorMessage = "";
+  this->OutputFile = "";
+  std::string tmpOutputFile = "/";
+  tmpOutputFile += targetName;
+  tmpOutputFile +=this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
+
+  // a list of directories where to search for the compilation result
+  // at first directly in the binary dir
+  std::vector<std::string> searchDirs;
+  searchDirs.push_back("");
+
+  const char* config = this->Makefile->GetDefinition(
+                                            "CMAKE_TRY_COMPILE_CONFIGURATION");
+  // if a config was specified try that first
+  if (config && config[0])
+    {
+    std::string tmp = "/";
+    tmp += config;
+    searchDirs.push_back(tmp);
+    }
+  searchDirs.push_back("/Debug");
+#if defined(__APPLE__)
+  std::string app = "/Debug/" + targetName + ".app";
+  searchDirs.push_back(app);
 #endif
-			ret = lzma_stream_encoder(&(data->stream),
-			    data->lzmafilters, LZMA_CHECK_CRC64);
-	} else if (f->code == ARCHIVE_FILTER_LZMA) {
-		ret = lzma_alone_encoder(&(data->stream), &data->lzma_opt);
-	} else {	/* ARCHIVE_FILTER_LZIP */
-		int dict_size = data->lzma_opt.dict_size;
-		int ds, log2dic, wedges;
+  searchDirs.push_back("/Development");
 
-		/* Calculate a coded dictionary size */
-		if (dict_size < (1 << 12) || dict_size > (1 << 27)) {
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Unacceptable dictionary size for lzip: %d",
-			    dict_size);
-			return (ARCHIVE_FATAL);
-		}
-		for (log2dic = 27; log2dic >= 12; log2dic--) {
-			if (dict_size & (1 << log2dic))
-				break;
-		}
-		if (dict_size > (1 << log2dic)) {
-			log2dic++;
-			wedges =
-			    ((1 << log2dic) - dict_size) / (1 << (log2dic - 4));
-		} else
-			wedges = 0;
-		ds = ((wedges << 5) & 0xe0) | (log2dic & 0x1f);
+  for(std::vector<std::string>::const_iterator it = searchDirs.begin();
+      it != searchDirs.end();
+      ++it)
+    {
+    std::string command = this->BinaryDirectory;
+    command += *it;
+    command += tmpOutputFile;
+    if(cmSystemTools::FileExists(command.c_str()))
+      {
+      this->OutputFile = cmSystemTools::CollapseFullPath(command);
+      return;
+      }
+    }
 
-		data->crc32 = 0;
-		/* Make a header */
-		data->compressed[0] = 0x4C;
-		data->compressed[1] = 0x5A;
-		data->compressed[2] = 0x49;
-		data->compressed[3] = 0x50;
-		data->compressed[4] = 1;/* Version */
-		data->compressed[5] = (unsigned char)ds;
-		data->stream.next_out += 6;
-		data->stream.avail_out -= 6;
-
-		ret = lzma_raw_encoder(&(data->stream), data->lzmafilters);
-	}
-	if (ret == LZMA_OK)
-		return (ARCHIVE_OK);
-
-	switch (ret) {
-	case LZMA_MEM_ERROR:
-		archive_set_error(f->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "Cannot allocate memory");
-		break;
-	default:
-		archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "It's a bug in liblzma");
-		break;
-	}
-	return (ARCHIVE_FATAL);
+  std::ostringstream emsg;
+  emsg << "Unable to find the executable at any of:\n";
+  emsg << cmWrap("  " + this->BinaryDirectory,
+                 searchDirs,
+                 tmpOutputFile, "\n") << "\n";
+  this->FindErrorMessage = emsg.str();
+  return;
 }
-
-/*
- * Setup callback.
- */
-static int
-archive_compressor_xz_open(struct archive_write_filter *f)
-{
-	struct private_data *data = f->data;
-	int ret;
-
-	ret = __archive_write_open_filter(f->next_filter);
-	if (ret != ARCHIVE_OK)
-		return (ret);
-
-	if (data->compressed == NULL) {
-		size_t bs = 65536, bpb;
-		if (f->archive->magic == ARCHIVE_WRITE_MAGIC) {
-			/* Buffer size should be a multiple number of the of bytes
-			 * per block for performance. */
-			bpb = archive_write_get_bytes_per_block(f->archive);
-			if (bpb > bs)
-				bs = bpb;
-			else if (bpb != 0)
-				bs -= bs % bpb;
-		}
-		data->compressed_buffer_size = bs;
-		data->compressed
-		    = (unsigned char *)malloc(data->compressed_buffer_size);
-		if (data->compressed == NULL) {
-			archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate data for compression buffer");
-			return (ARCHIVE_FATAL);
-		}
-	}
-
-	f->write = archive_compressor_xz_write;
-
-	/* Initialize compression library. */
-	if (f->code == ARCHIVE_FILTER_LZIP) {
-		const struct option_value *val =
-		    &option_values[data->compression_level];
-
-		data->lzma_opt.dict_size = val->dict_size;
-		data->lzma_opt.preset_dict = NULL;
-		data->lzma_opt.preset_dict_size = 0;
-		data->lzma_opt.lc = LZMA_LC_DEFAULT;
-		data->lzma_opt.lp = LZMA_LP_DEFAULT;
-		data->lzma_opt.pb = LZMA_PB_DEFAULT;
-		data->lzma_opt.mode =
-		    data->compression_level<= 2? LZMA_MODE_FAST:LZMA_MODE_NORMAL;
-		data->lzma_opt.nice_len = val->nice_len;
-		data->lzma_opt.mf = val->mf;
-		data->lzma_opt.depth = 0;
-		data->lzmafilters[0].id = LZMA_FILTER_LZMA1;
-		data->lzmafilters[0].options = &data->lzma_opt;
-		data->lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
-	} else {
-		if (lzma_lzma_preset(&data->lzma_opt, data->compression_level)) {
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Internal error initializing compression library");
-		}
-		data->lzmafilters[0].id = LZMA_FILTER_LZMA2;
-		data->lzmafilters[0].options = &data->lzma_opt;
-		data->lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
-	}
-	ret = archive_compressor_xz_init_stream(f, data);
-	if (ret == LZMA_OK) {
-		f->data = data;
-		return (0);
-	}
-	return (ARCHIVE_FATAL);
-}
-
-/*
- * Set write options.
- */
-static int
-archive_compressor_xz_options(struct archive_write_filter *f,
-    const char *key, const char *value)
-{
-	struct private_data *data = (struct private_data *)f->data;
-
-	if (strcmp(key, "compression-level") == 0) {
-		if (value == NULL || !(value[0] >= '0' && value[0] <= '9') ||
-		    value[1] != '\0')
-			return (ARCHIVE_WARN);
-		data->compression_level = value[0] - '0';
-		if (data->compression_level > 6)
-			data->compression_level = 6;
-		return (ARCHIVE_OK);
-	} else if (strcmp(key, "threads") == 0) {
-		if (value == NULL)
-			return (ARCHIVE_WARN);
-		data->threads = (int)strtoul(value, NULL, 10);
-		if (data->threads == 0 && errno != 0) {
-			data->threads = 1;
-			return (ARCHIVE_WARN);
-		}
-		if (data->threads == 0) {
-#ifdef HAVE_LZMA_STREAM_ENCODER_MT
-			data->threads = lzma_cputhreads();
-#else
-			data->threads = 1;
-#endif
-		}
-		return (ARCHIVE_OK);
-	}
-
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
-
-/*
- * Write data to the compressed stream.
- */
-static int
-archive_compressor_xz_write(struct archive_write_filter *f,
-    const void *buff, size_t length)
-{
-	struct private_data *data = (struct private_data *)f->data;
-	int ret;
-
-	/* Update statistics */
-	data->total_in += length;
-	if (f->code == ARCHIVE_FILTER_LZIP)
-		data->crc32 = lzma_crc32(buff, length, data->crc32);
-
-	/* Compress input data to output buffer */
-	data->stream.next_in = buff;
-	data->stream.avail_in = length;
-	if ((ret = drive_compressor(f, data, 0)) != ARCHIVE_OK)
-		return (ret);
-
-	return (ARCHIVE_OK);
-}
-
-
-/*
- * Finish the compression...
- */
-static int
-archive_compressor_xz_close(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-	int ret, r1;
-
-	ret = drive_compressor(f, data, 1);
-	if (ret == ARCHIVE_OK) {
-		data->total_out +=
-		    data->compressed_buffer_size - data->stream.avail_out;
-		ret = __archive_write_filter(f->next_filter,
-		    data->compressed,
-		    data->compressed_buffer_size - data->stream.avail_out);
-		if (f->code == ARCHIVE_FILTER_LZIP && ret == ARCHIVE_OK) {
-			archive_le32enc(data->compressed, data->crc32);
-			archive_le64enc(data->compressed+4, data->total_in);
-			archive_le64enc(data->compressed+12, data->total_out + 20);
-			ret = __archive_write_filter(f->next_filter,
-			    data->compressed, 20);
-		}
-	}
-	lzma_end(&(data->stream));
-	r1 = __archive_write_close_filter(f->next_filter);
-	return (r1 < ret ? r1 : ret);
-}
-
-static int
-archive_compressor_xz_free(struct archive_write_filter *f)
-{
-	struct private_data *data = (struct private_data *)f->data;
-	free(data->compressed);
-	free(data);
-	f->data = NULL;
-	return (ARCHIVE_OK);
-}
-
-/*
- * Utility function to push input data through compressor,
- * writing full output blocks as necessary.
- *
- * Note that this handles both the regular write case (finishing ==
- * false) and the end-of-archive case (finishing == true).
- */
-static int
-drive_compressor(struct archive_write_filter *f,
-    struct private_data *data, int finishing)
-{
-	int ret;
-
-	for (;;) {
-		if (data->stream.avail_out == 0) {
-			data->total_out += data->compressed_buffer_size;
-			ret = __archive_write_filter(f->next_filter,
-			    data->compressed,
-			    data->compressed_buffer_size);
-			if (ret != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-			data->stream.next_out = data->compressed;
-			data->stream.avail_out = data->compressed_buffer_size;
-		}
-
-		/* If there's nothing to do, we're done. */
-		if (!finishing && data->stream.avail_in == 0)
-			return (ARCHIVE_OK);
-
-		ret = lzma_code(&(data->stream),
-		    finishing ? LZMA_FINISH : LZMA_RUN );
-
-		switch (ret) {
-		case LZMA_OK:
-			/* In non-finishing case, check if compressor
-			 * consumed everything */
-			if (!finishing && data->stream.avail_in == 0)
-				return (ARCHIVE_OK);
-			/* In finishing case, this return always means
-			 * there's more work */
-			break;
-		case LZMA_STREAM_END:
-			/* This return can only occur in finishing case. */
-			if (finishing)
-				return (ARCHIVE_OK);
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "lzma compression data error");
-			return (ARCHIVE_FATAL);
-		case LZMA_MEMLIMIT_ERROR:
-			archive_set_error(f->archive, ENOMEM,
-			    "lzma compression error: "
-			    "%ju MiB would have been needed",
-			    (uintmax_t)((lzma_memusage(&(data->stream))
-				    + 1024 * 1024 -1)
-				/ (1024 * 1024)));
-			return (ARCHIVE_FATAL);
-		default:
-			/* Any other return value indicates an error. */
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "lzma compression failed:"
-			    " lzma_code() call returned status %d",
-			    ret);
-			return (ARCHIVE_FATAL);
-		}
-	}
-}
-
-#endif /* HAVE_LZMA_H */

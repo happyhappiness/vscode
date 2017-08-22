@@ -1,22 +1,22 @@
-      fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);
-      }
+	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
+		return (ARCHIVE_EOF);
 
-    if (targetType == cmState::EXECUTABLE)
-      {
-      /* Put the executable at a known location (for COPY_FILE).  */
-      fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
-      /* Create the actual executable.  */
-      fprintf(fout, "add_executable(%s", targetName.c_str());
-      }
-    else // if (targetType == cmState::STATIC_LIBRARY)
-      {
-      /* Put the static library at a known location (for COPY_FILE).  */
-      fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
-              this->BinaryDirectory.c_str());
-      /* Create the actual static library.  */
-      fprintf(fout, "add_library(%s STATIC", targetName.c_str());
-      }
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
+	__archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
+
+	if (zip->init_decryption) {
+		zip->has_encrypted_entries = 1;
+		if (zip->entry->zip_flags & ZIP_STRONG_ENCRYPTED)
+			r = read_decryption_header(a);
+		else if (zip->entry->compression == WINZIP_AES_ENCRYPTION)
+			r = init_WinZip_AES_decryption(a);
+		else
+			r = init_traditional_PKWARE_decryption(a);
+		if (r != ARCHIVE_OK)
+			return (r);
+		zip->init_decryption = 0;
+	}
+
+	switch(zip->entry->compression) {
+	case 0:  /* No compression. */
+		r =  zip_read_data_none(a, buff, size, offset);

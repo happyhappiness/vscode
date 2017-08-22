@@ -1,7 +1,14 @@
-		zip->stream.opaque = Z_NULL;
-		zip->stream.next_out = zip->buf;
-		zip->stream.avail_out = (uInt)zip->len_buf;
-		if (deflateInit2(&zip->stream, zip->deflate_compression_level,
-		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't init deflate compressor");
+		return (r);
+	if ((size_t)r < size) {
+		archive_set_error(&a->archive, 0,
+		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
+		return (ARCHIVE_WARN);
+	}
+#if ARCHIVE_VERSION_NUMBER < 3999000
+	return (ARCHIVE_OK);
+#else
+	return (size);
+#endif
+}
+
+static ssize_t

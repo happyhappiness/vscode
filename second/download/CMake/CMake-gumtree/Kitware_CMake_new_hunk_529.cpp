@@ -1,7 +1,7 @@
-    if(res)
-      return res;
+              value, kwsysProcess_GetExitValue(kp));
+      }
+    }
 
-    free(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
+  if(kwsysProcess_GetState(kp) != state)
+    {
+    fprintf(stderr, "Mismatch in state.  "

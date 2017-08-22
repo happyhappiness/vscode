@@ -1,7 +1,7 @@
 
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Error reading from program: %s", data->program_name);
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
-		}
+        /* column is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" );
+
+    yycolumn = column_no;
+}

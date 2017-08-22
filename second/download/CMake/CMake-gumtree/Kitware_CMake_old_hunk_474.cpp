@@ -1,11 +1,7 @@
-			return (0);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		s = t;  /* Start of line? */
-		p = memchr(t, '\n', bytes_read);
-		/* If we found '\n', trim the read. */
-		if (p != NULL) {
-			bytes_read = 1 + ((const char *)p) - s;
-		}
-		if (total_size + bytes_read + 1 > limit) {
-			archive_set_error(&a->archive,
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << kwsys_ios::endl;
+      char argument[100];
+      sprintf(argument, "%s", sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )

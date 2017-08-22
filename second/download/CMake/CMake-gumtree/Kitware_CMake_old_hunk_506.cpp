@@ -1,12 +1,7 @@
-    if(res)
-      return res;
+    }
 
-    Curl_safefree(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
-    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
-    Curl_safefree(conn->response_header);
-    conn->response_header = NULL;
-    break;
-  case NTLMSTATE_TYPE2:
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init() != CURLE_OK) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }

@@ -1,15 +1,21 @@
-    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
-       !Curl_checkheaders(conn, "Range:")) {
-      /* if a line like this was already allocated, free the previous one */
-      free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
-                                         data->state.range);
-    }
-    else if((httpreq != HTTPREQ_GET) &&
-            !Curl_checkheaders(conn, "Content-Range:")) {
 
-      /* if a line like this was already allocated, free the previous one */
-      free(conn->allocptr.rangeline);
+  /* not set means empty */
+  if(!userp)
+    userp = "";
 
-      if(data->set.set_resume_from < 0) {
-        /* Upload resume was asked for, but we don't know the size of the
+  if(!passwdp)
+    passwdp = "";
+
+#if defined(USE_WINDOWS_SSPI)
+  have_chlg = digest->input_token ? TRUE : FALSE;
+#else
+  have_chlg = digest->nonce ? TRUE : FALSE;
+#endif
+
+  if(!have_chlg) {
+    authp->done = FALSE;
+    return CURLE_OK;
+  }
+
+  /* So IE browsers < v7 cut off the URI part at the query part when they
+     evaluate the MD5 and some (IIS?) servers work with them so we may need to

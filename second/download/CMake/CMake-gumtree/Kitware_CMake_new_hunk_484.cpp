@@ -1,14 +1,7 @@
-		return (r);
-	if ((size_t)r < size) {
-		archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
-		return (ARCHIVE_WARN);
-	}
-#if ARCHIVE_VERSION_NUMBER < 3999000
-	return (ARCHIVE_OK);
-#else
-	return (size);
-#endif
-}
+    }
 
-static ssize_t
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init()) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }

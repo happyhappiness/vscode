@@ -1,7 +1,9 @@
-
-	if (value == NULL)
-		return (ARCHIVE_OK);
-
-	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
-	if (r < 0) {
-		archive_set_error(&a->archive,
+        }
+        if(ptr) {
+          ftpc->newport = (unsigned short)(num & 0xffff);
+          ftpc->newhost = strdup(control_address(conn));
+          if(!ftpc->newhost)
+            return CURLE_OUT_OF_MEMORY;
+        }
+      }
+      else

@@ -1,9 +1,7 @@
-		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-		offset += 4;
-		if (offset + datasize > extra_length) {
-			break;
+		if (bytes_read == -1) {
+			archive_set_error(f->archive, errno,
+			    "Error reading from program: %s", data->program_name);
+			ret = ARCHIVE_FATAL;
+			goto cleanup;
 		}
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%04x, length %d\n",
-		    headerid, datasize);

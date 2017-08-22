@@ -1,7 +1,6 @@
-
-		if (bytes_read == -1) {
-			archive_set_error(f->archive, errno,
-			    "Error reading from program: %s", data->program_name);
-			ret = ARCHIVE_FATAL;
-			goto cleanup;
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
 		}
+
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))

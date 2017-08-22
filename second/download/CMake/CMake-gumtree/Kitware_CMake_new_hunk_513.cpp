@@ -1,19 +1,15 @@
-
-    /* we got OK from server */
-    if(data->set.ftp_skip_ip) {
-      /* told to ignore the remotely given IP but instead use the host we used
-         for the control connection */
-      infof(data, "Skip %d.%d.%d.%d for data connection, re-use %s instead\n",
-            ip[0], ip[1], ip[2], ip[3],
-            conn->host.name);
-      ftpc->newhost = strdup(control_address(conn));
+    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
+       !Curl_checkheaders(conn, "Range:")) {
+      /* if a line like this was already allocated, free the previous one */
+      free(conn->allocptr.rangeline);
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);
     }
-    else
-      ftpc->newhost = aprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+    else if((httpreq != HTTPREQ_GET) &&
+            !Curl_checkheaders(conn, "Content-Range:")) {
 
-    if(!ftpc->newhost)
-      return CURLE_OUT_OF_MEMORY;
+      /* if a line like this was already allocated, free the previous one */
+      free(conn->allocptr.rangeline);
 
-    ftpc->newport = (unsigned short)(((port[0]<<8) + port[1]) & 0xffff);
-  }
-  else if(ftpc->count1 == 0) {
+      if(data->set.set_resume_from < 0) {
+        /* Upload resume was asked for, but we don't know the size of the

@@ -1,5 +1,5 @@
 /*============================================================================
-  CMake - Cross Platform Makefile Generator
+  KWSys - Kitware System Library
   Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
@@ -9,979 +9,851 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmComputeLinkDepends.h"
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(CommandLineArguments.hxx)
 
-#include "cmAlgorithms.h"
-#include "cmComputeComponentGraph.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmMakefile.h"
-#include "cmTarget.h"
-#include "cmake.h"
+#include KWSYS_HEADER(Configure.hxx)
+#include KWSYS_HEADER(String.hxx)
 
-#include <assert.h>
+#include KWSYS_HEADER(stl/vector)
+#include KWSYS_HEADER(stl/map)
+#include KWSYS_HEADER(stl/set)
+#include KWSYS_HEADER(ios/sstream)
+#include KWSYS_HEADER(ios/iostream)
 
-/*
+// Work-around CMake dependency scanning limitation.  This must
+// duplicate the above list of headers.
+#if 0
+# include "CommandLineArguments.hxx.in"
+# include "Configure.hxx.in"
+# include "kwsys_stl.hxx.in"
+# include "kwsys_ios_sstream.h.in"
+# include "kwsys_ios_iostream.h.in"
+#endif
 
-This file computes an ordered list of link items to use when linking a
-single target in one configuration.  Each link item is identified by
-the string naming it.  A graph of dependencies is created in which
-each node corresponds to one item and directed edges lead from nodes to
-those which must *follow* them on the link line.  For example, the
-graph
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-  A -> B -> C
+#ifdef _MSC_VER
+# pragma warning (disable: 4786)
+#endif
 
-will lead to the link line order
+#if defined(__sgi) && !defined(__GNUC__)
+# pragma set woff 1375 /* base class destructor not virtual */
+#endif
 
-  A B C
+#if 0
+#  define CommandLineArguments_DEBUG(x) \
+  kwsys_ios::cout << __LINE__ << " CLA: " << x << kwsys_ios::endl
+#else
+#  define CommandLineArguments_DEBUG(x)
+#endif
 
-The set of items placed in the graph is formed with a breadth-first
-search of the link dependencies starting from the main target.
-
-There are two types of items: those with known direct dependencies and
-those without known dependencies.  We will call the two types "known
-items" and "unknown items", respectively.  Known items are those whose
-names correspond to targets (built or imported) and those for which an
-old-style <item>_LIB_DEPENDS variable is defined.  All other items are
-unknown and we must infer dependencies for them.  For items that look
-like flags (beginning with '-') we trivially infer no dependencies,
-and do not include them in the dependencies of other items.
-
-Known items have dependency lists ordered based on how the user
-specified them.  We can use this order to infer potential dependencies
-of unknown items.  For example, if link items A and B are unknown and
-items X and Y are known, then we might have the following dependency
-lists:
-
-  X: Y A B
-  Y: A B
-
-The explicitly known dependencies form graph edges
-
-  X -> Y  ,  X -> A  ,  X -> B  ,  Y -> A  ,  Y -> B
-
-We can also infer the edge
-
-  A -> B
-
-because *every* time A appears B is seen on its right.  We do not know
-whether A really needs symbols from B to link, but it *might* so we
-must preserve their order.  This is the case also for the following
-explicit lists:
-
-  X: A B Y
-  Y: A B
-
-Here, A is followed by the set {B,Y} in one list, and {B} in the other
-list.  The intersection of these sets is {B}, so we can infer that A
-depends on at most B.  Meanwhile B is followed by the set {Y} in one
-list and {} in the other.  The intersection is {} so we can infer that
-B has no dependencies.
-
-Let's make a more complex example by adding unknown item C and
-considering these dependency lists:
-
-  X: A B Y C
-  Y: A C B
-
-The explicit edges are
-
-  X -> Y  ,  X -> A  ,  X -> B  ,  X -> C  ,  Y -> A  ,  Y -> B  ,  Y -> C
-
-For the unknown items, we infer dependencies by looking at the
-"follow" sets:
-
-  A: intersect( {B,Y,C} , {C,B} ) = {B,C} ; infer edges  A -> B  ,  A -> C
-  B: intersect( {Y,C}   , {}    ) = {}    ; infer no edges
-  C: intersect( {}      , {B}   ) = {}    ; infer no edges
-
-Note that targets are never inferred as dependees because outside
-libraries should not depend on them.
-
-------------------------------------------------------------------------------
-
-The initial exploration of dependencies using a BFS associates an
-integer index with each link item.  When the graph is built outgoing
-edges are sorted by this index.
-
-After the initial exploration of the link interface tree, any
-transitive (dependent) shared libraries that were encountered and not
-included in the interface are processed in their own BFS.  This BFS
-follows only the dependent library lists and not the link interfaces.
-They are added to the link items with a mark indicating that the are
-transitive dependencies.  Then cmComputeLinkInformation deals with
-them on a per-platform basis.
-
-The complete graph formed from all known and inferred dependencies may
-not be acyclic, so an acyclic version must be created.
-The original graph is converted to a directed acyclic graph in which
-each node corresponds to a strongly connected component of the
-original graph.  For example, the dependency graph
-
-  X -> A -> B -> C -> A -> Y
-
-contains strongly connected components {X}, {A,B,C}, and {Y}.  The
-implied directed acyclic graph (DAG) is
-
-  {X} -> {A,B,C} -> {Y}
-
-We then compute a topological order for the DAG nodes to serve as a
-reference for satisfying dependencies efficiently.  We perform the DFS
-in reverse order and assign topological order indices counting down so
-that the result is as close to the original BFS order as possible
-without violating dependencies.
-
-------------------------------------------------------------------------------
-
-The final link entry order is constructed as follows.  We first walk
-through and emit the *original* link line as specified by the user.
-As each item is emitted, a set of pending nodes in the component DAG
-is maintained.  When a pending component has been completely seen, it
-is removed from the pending set and its dependencies (following edges
-of the DAG) are added.  A trivial component (those with one item) is
-complete as soon as its item is seen.  A non-trivial component (one
-with more than one item; assumed to be static libraries) is complete
-when *all* its entries have been seen *twice* (all entries seen once,
-then all entries seen again, not just each entry twice).  A pending
-component tracks which items have been seen and a count of how many
-times the component needs to be seen (once for trivial components,
-twice for non-trivial).  If at any time another component finishes and
-re-adds an already pending component, the pending component is reset
-so that it needs to be seen in its entirety again.  This ensures that
-all dependencies of a component are satisfied no matter where it
-appears.
-
-After the original link line has been completed, we append to it the
-remaining pending components and their dependencies.  This is done by
-repeatedly emitting the first item from the first pending component
-and following the same update rules as when traversing the original
-link line.  Since the pending components are kept in topological order
-they are emitted with minimal repeats (we do not want to emit a
-component just to have it added again when another component is
-completed later).  This process continues until no pending components
-remain.  We know it will terminate because the component graph is
-guaranteed to be acyclic.
-
-The final list of items produced by this procedure consists of the
-original user link line followed by minimal additional items needed to
-satisfy dependencies.  The final list is then filtered to de-duplicate
-items that we know the linker will re-use automatically (shared libs).
-
-*/
+namespace KWSYS_NAMESPACE
+{
 
 //----------------------------------------------------------------------------
-cmComputeLinkDepends
-::cmComputeLinkDepends(const cmGeneratorTarget* target,
-                       const std::string& config)
+//============================================================================
+struct CommandLineArgumentsCallbackStructure
 {
-  // Store context information.
-  this->Target = target;
-  this->Makefile = this->Target->Target->GetMakefile();
-  this->GlobalGenerator =
-      this->Target->GetLocalGenerator()->GetGlobalGenerator();
-  this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
+  const char* Argument;
+  int ArgumentType;
+  CommandLineArguments::CallbackType Callback;
+  void* CallData;
+  void* Variable;
+  int VariableType;
+  const char* Help;
+};
+ 
+class CommandLineArgumentsVectorOfStrings : 
+  public kwsys_stl::vector<kwsys::String> {};
+class CommandLineArgumentsSetOfStrings :
+  public kwsys_stl::set<kwsys::String> {};
+class CommandLineArgumentsMapOfStrucs : 
+  public kwsys_stl::map<kwsys::String,
+    CommandLineArgumentsCallbackStructure> {};
 
-  // The configuration being linked.
-  this->HasConfig = !config.empty();
-  this->Config = (this->HasConfig)? config : std::string();
-  std::vector<std::string> debugConfigs =
-    this->Makefile->GetCMakeInstance()->GetDebugConfigs();
-  this->LinkType = CMP0003_ComputeLinkType(this->Config, debugConfigs);
+class CommandLineArgumentsInternal
+{
+public:
+  CommandLineArgumentsInternal()
+    {
+    this->UnknownArgumentCallback = 0;
+    this->ClientData = 0;
+    this->LastArgument = 0;
+    }
 
-  // Enable debug mode if requested.
-  this->DebugMode = this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE");
+  typedef CommandLineArgumentsVectorOfStrings VectorOfStrings;
+  typedef CommandLineArgumentsMapOfStrucs CallbacksMap;
+  typedef kwsys::String String;
+  typedef CommandLineArgumentsSetOfStrings SetOfStrings;
 
-  // Assume no compatibility until set.
-  this->OldLinkDirMode = false;
+  VectorOfStrings Argv;
+  String Argv0;
+  CallbacksMap Callbacks;
 
-  // No computation has been done.
-  this->CCG = 0;
+  CommandLineArguments::ErrorCallbackType UnknownArgumentCallback;
+  void*             ClientData;
+
+  VectorOfStrings::size_type LastArgument;
+
+  VectorOfStrings UnusedArguments;
+};
+//============================================================================
+//----------------------------------------------------------------------------
+
+//----------------------------------------------------------------------------
+CommandLineArguments::CommandLineArguments()
+{
+  this->Internals = new CommandLineArguments::Internal;
+  this->Help = "";
+  this->LineLength = 80;
+  this->StoreUnusedArgumentsFlag = false;
 }
 
 //----------------------------------------------------------------------------
-cmComputeLinkDepends::~cmComputeLinkDepends()
+CommandLineArguments::~CommandLineArguments()
 {
-  cmDeleteAll(this->InferredDependSets);
-  delete this->CCG;
+  delete this->Internals;
 }
 
 //----------------------------------------------------------------------------
-void cmComputeLinkDepends::SetOldLinkDirMode(bool b)
+void CommandLineArguments::Initialize(int argc, const char* const argv[])
 {
-  this->OldLinkDirMode = b;
+  int cc;
+
+  this->Initialize();
+  this->Internals->Argv0 = argv[0];
+  for ( cc = 1; cc < argc; cc ++ )
+    {
+    this->ProcessArgument(argv[cc]);
+    }
 }
 
 //----------------------------------------------------------------------------
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+void CommandLineArguments::Initialize(int argc, char* argv[])
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
+  this->Initialize(argc, static_cast<const char* const*>(argv));
+}
 
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
+//----------------------------------------------------------------------------
+void CommandLineArguments::Initialize()
+{
+  this->Internals->Argv.clear();
+  this->Internals->LastArgument = 0;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::ProcessArgument(const char* arg)
+{
+  this->Internals->Argv.push_back(arg);
+}
+
+//----------------------------------------------------------------------------
+bool CommandLineArguments::GetMatchedArguments(
+  kwsys_stl::vector<kwsys_stl::string>* matches,
+  const kwsys_stl::string& arg)
+{
+  matches->clear();
+  CommandLineArguments::Internal::CallbacksMap::iterator it;
+
+  // Does the argument match to any we know about?
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
     {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
-
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
-    }
-
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
-
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
-
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
-
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName().c_str(),
-            this->HasConfig?this->Config.c_str():"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  // Iterate in reverse order so we can keep only the last occurrence
-  // of a shared library.
-  std::set<int> emmitted;
-  for(std::vector<int>::const_reverse_iterator
-        li = this->FinalLinkOrder.rbegin(),
-        le = this->FinalLinkOrder.rend();
-      li != le; ++li)
-    {
-    int i = *li;
-    LinkEntry const& e = this->EntryList[i];
-    cmGeneratorTarget const* t = e.Target;
-    // Entries that we know the linker will re-use do not need to be repeated.
-    bool uniquify = t && t->GetType() == cmState::SHARED_LIBRARY;
-    if(!uniquify || emmitted.insert(i).second)
+    const CommandLineArguments::Internal::String& parg = it->first;
+    CommandLineArgumentsCallbackStructure *cs = &it->second;
+    if (cs->ArgumentType == CommandLineArguments::NO_ARGUMENT ||
+      cs->ArgumentType == CommandLineArguments::SPACE_ARGUMENT) 
       {
-      this->FinalLinkEntries.push_back(e);
-      }
-    }
-  // Reverse the resulting order since we iterated in reverse.
-  std::reverse(this->FinalLinkEntries.begin(), this->FinalLinkEntries.end());
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
-}
-
-//----------------------------------------------------------------------------
-std::map<std::string, int>::iterator
-cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
-{
-  std::map<std::string, int>::value_type
-    index_entry(item, static_cast<int>(this->EntryList.size()));
-  std::map<std::string, int>::iterator
-    lei = this->LinkEntryIndex.insert(index_entry).first;
-  this->EntryList.push_back(LinkEntry());
-  this->InferredDependSets.push_back(0);
-  this->EntryConstraintGraph.push_back(EdgeList());
-  return lei;
-}
-
-//----------------------------------------------------------------------------
-int cmComputeLinkDepends::AddLinkEntry(cmLinkItem const& item)
-{
-  // Check if the item entry has already been added.
-  std::map<std::string, int>::iterator lei = this->LinkEntryIndex.find(item);
-  if(lei != this->LinkEntryIndex.end())
-    {
-    // Yes.  We do not need to follow the item's dependencies again.
-    return lei->second;
-    }
-
-  // Allocate a spot for the item entry.
-  lei = this->AllocateLinkEntry(item);
-
-  // Initialize the item entry.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-  entry.Item = item;
-  entry.Target = item.Target;
-  entry.IsFlag = (!entry.Target && item[0] == '-' && item[1] != 'l' &&
-                  item.substr(0, 10) != "-framework");
-
-  // If the item has dependencies queue it to follow them.
-  if(entry.Target)
-    {
-    // Target dependencies are always known.  Follow them.
-    BFSEntry qe = {index, 0};
-    this->BFSQueue.push(qe);
-    }
-  else
-    {
-    // Look for an old-style <item>_LIB_DEPENDS variable.
-    std::string var = entry.Item;
-    var += "_LIB_DEPENDS";
-    if(const char* val = this->Makefile->GetDefinition(var))
-      {
-      // The item dependencies are known.  Follow them.
-      BFSEntry qe = {index, val};
-      this->BFSQueue.push(qe);
-      }
-    else if(!entry.IsFlag)
-      {
-      // The item dependencies are not known.  We need to infer them.
-      this->InferredDependSets[index] = new DependSetList;
-      }
-    }
-
-  return index;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::FollowLinkEntry(BFSEntry const& qe)
-{
-  // Get this entry representation.
-  int depender_index = qe.Index;
-  LinkEntry const& entry = this->EntryList[depender_index];
-
-  // Follow the item's dependencies.
-  if(entry.Target)
-    {
-    // Follow the target dependencies.
-    if(cmLinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->Target))
-      {
-      const bool isIface =
-                      entry.Target->GetType() == cmState::INTERFACE_LIBRARY;
-      // This target provides its own link interface information.
-      this->AddLinkEntries(depender_index, iface->Libraries);
-
-      if (isIface)
+      if ( arg == parg )
         {
-        return;
-        }
-
-      // Handle dependent shared libraries.
-      this->FollowSharedDeps(depender_index, iface);
-
-      // Support for CMP0003.
-      for(std::vector<cmLinkItem>::const_iterator
-            oi = iface->WrongConfigLibraries.begin();
-          oi != iface->WrongConfigLibraries.end(); ++oi)
-        {
-        this->CheckWrongConfigItem(*oi);
+        matches->push_back(parg);
         }
       }
+    else if ( arg.find( parg ) == 0 )
+      {
+      matches->push_back(parg);
+      }
     }
-  else
-    {
-    // Follow the old-style dependency list.
-    this->AddVarLinkEntries(depender_index, qe.LibDepends);
-    }
+  return !matches->empty();
 }
 
 //----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::FollowSharedDeps(int depender_index, cmLinkInterface const* iface,
-                   bool follow_interface)
+int CommandLineArguments::Parse()
 {
-  // Follow dependencies if we have not followed them already.
-  if(this->SharedDepFollowed.insert(depender_index).second)
+  kwsys_stl::vector<kwsys_stl::string>::size_type cc;
+  kwsys_stl::vector<kwsys_stl::string> matches;
+  if ( this->StoreUnusedArgumentsFlag )
     {
-    if(follow_interface)
-      {
-      this->QueueSharedDependencies(depender_index, iface->Libraries);
-      }
-    this->QueueSharedDependencies(depender_index, iface->SharedDeps);
+    this->Internals->UnusedArguments.clear();
     }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::QueueSharedDependencies(int depender_index,
-                          std::vector<cmLinkItem> const& deps)
-{
-  for(std::vector<cmLinkItem>::const_iterator li = deps.begin();
-      li != deps.end(); ++li)
+  for ( cc = 0; cc < this->Internals->Argv.size(); cc ++ )
     {
-    SharedDepEntry qe;
-    qe.Item = *li;
-    qe.DependerIndex = depender_index;
-    this->SharedDepQueue.push(qe);
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
-{
-  // Check if the target already has an entry.
-  std::map<std::string, int>::iterator lei =
-    this->LinkEntryIndex.find(dep.Item);
-  if(lei == this->LinkEntryIndex.end())
-    {
-    // Allocate a spot for the item entry.
-    lei = this->AllocateLinkEntry(dep.Item);
-
-    // Initialize the item entry.
-    LinkEntry& entry = this->EntryList[lei->second];
-    entry.Item = dep.Item;
-    entry.Target = dep.Item.Target;
-
-    // This item was added specifically because it is a dependent
-    // shared library.  It may get special treatment
-    // in cmComputeLinkInformation.
-    entry.IsSharedDep = true;
-    }
-
-  // Get the link entry for this target.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-
-  // This shared library dependency must follow the item that listed
-  // it.
-  this->EntryConstraintGraph[dep.DependerIndex].push_back(index);
-
-  // Target items may have their own dependencies.
-  if(entry.Target)
-    {
-    if(cmLinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->Target))
+    const kwsys_stl::string& arg = this->Internals->Argv[cc]; 
+    CommandLineArguments_DEBUG("Process argument: " << arg);
+    this->Internals->LastArgument = cc;
+    if ( this->GetMatchedArguments(&matches, arg) )
       {
-      // Follow public and private dependencies transitively.
-      this->FollowSharedDeps(index, iface, true);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
-                                             const char* value)
-{
-  // This is called to add the dependencies named by
-  // <item>_LIB_DEPENDS.  The variable contains a semicolon-separated
-  // list.  The list contains link-type;item pairs and just items.
-  std::vector<std::string> deplist;
-  cmSystemTools::ExpandListArgument(value, deplist);
-
-  // Look for entries meant for this configuration.
-  std::vector<cmLinkItem> actual_libs;
-  cmTargetLinkLibraryType llt = GENERAL_LibraryType;
-  bool haveLLT = false;
-  for(std::vector<std::string>::const_iterator di = deplist.begin();
-      di != deplist.end(); ++di)
-    {
-    if(*di == "debug")
-      {
-      llt = DEBUG_LibraryType;
-      haveLLT = true;
-      }
-    else if(*di == "optimized")
-      {
-      llt = OPTIMIZED_LibraryType;
-      haveLLT = true;
-      }
-    else if(*di == "general")
-      {
-      llt = GENERAL_LibraryType;
-      haveLLT = true;
-      }
-    else if(!di->empty())
-      {
-      // If no explicit link type was given prior to this entry then
-      // check if the entry has its own link type variable.  This is
-      // needed for compatibility with dependency files generated by
-      // the export_library_dependencies command from CMake 2.4 and
-      // lower.
-      if(!haveLLT)
+      // Ok, we found one or more arguments that match what user specified.
+      // Let's find the longest one.
+      CommandLineArguments::Internal::VectorOfStrings::size_type kk;
+      CommandLineArguments::Internal::VectorOfStrings::size_type maxidx = 0;
+      CommandLineArguments::Internal::String::size_type maxlen = 0;
+      for ( kk = 0; kk < matches.size(); kk ++ )
         {
-        std::string var = *di;
-        var += "_LINK_TYPE";
-        if(const char* val = this->Makefile->GetDefinition(var))
+        if ( matches[kk].size() > maxlen )
           {
-          if(strcmp(val, "debug") == 0)
-            {
-            llt = DEBUG_LibraryType;
-            }
-          else if(strcmp(val, "optimized") == 0)
-            {
-            llt = OPTIMIZED_LibraryType;
-            }
+          maxlen = matches[kk].size();
+          maxidx = kk;
           }
         }
-
-      // If the library is meant for this link type then use it.
-      if(llt == GENERAL_LibraryType || llt == this->LinkType)
+      // So, the longest one is probably the right one. Now see if it has any
+      // additional value
+      CommandLineArgumentsCallbackStructure *cs 
+        = &this->Internals->Callbacks[matches[maxidx]];
+      const kwsys_stl::string& sarg = matches[maxidx];
+      if ( cs->Argument != sarg )
         {
-        cmLinkItem item(*di, this->FindTargetToLink(depender_index, *di));
-        actual_libs.push_back(item);
+        abort();
         }
-      else if(this->OldLinkDirMode)
+      switch ( cs->ArgumentType )
         {
-        cmLinkItem item(*di, this->FindTargetToLink(depender_index, *di));
-        this->CheckWrongConfigItem(item);
+      case NO_ARGUMENT:
+        // No value
+        if ( !this->PopulateVariable(cs, 0) )
+          {
+          return 0;
+          }
+        break;
+      case SPACE_ARGUMENT:
+        if ( cc == this->Internals->Argv.size()-1 )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        CommandLineArguments_DEBUG("This is a space argument: " << arg
+          << " value: " << this->Internals->Argv[cc+1]);
+        // Value is the next argument
+        if ( !this->PopulateVariable(cs, this->Internals->Argv[cc+1].c_str()) )
+          {
+          return 0;
+          }
+        cc ++;
+        break;
+      case EQUAL_ARGUMENT:
+        if ( arg.size() == sarg.size() || arg.at(sarg.size()) != '=' )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        // Value is everythng followed the '=' sign
+        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size() + 1) )
+          {
+          return 0;
+          }
+        break;
+      case CONCAT_ARGUMENT:
+        // Value is whatever follows the argument
+        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size()) )
+          {
+          return 0;
+          }
+        break;
+      case MULTI_ARGUMENT:
+        // Suck in all the rest of the arguments
+        CommandLineArguments_DEBUG("This is a multi argument: " << arg);
+        for (cc++; cc < this->Internals->Argv.size(); ++ cc )
+          {
+          const kwsys_stl::string& marg = this->Internals->Argv[cc];
+          CommandLineArguments_DEBUG(" check multi argument value: " << marg);
+          if ( this->GetMatchedArguments(&matches, marg) )
+            {
+            CommandLineArguments_DEBUG("End of multi argument " << arg << " with value: " << marg);
+            break;
+            }
+          CommandLineArguments_DEBUG(" populate multi argument value: " << marg);
+          if ( !this->PopulateVariable(cs, marg.c_str()) )
+            {
+            return 0;
+            }
+          }
+        if ( cc != this->Internals->Argv.size() )
+          {
+          CommandLineArguments_DEBUG("Again End of multi argument " << arg);
+          cc--;
+          continue;
+          }
+        break;
+      default:
+        kwsys_ios::cerr << "Got unknown argument type: \"" << cs->ArgumentType << "\"" << kwsys_ios::endl;
+        this->Internals->LastArgument --;
+        return 0;
         }
-
-      // Reset the link type until another explicit type is given.
-      llt = GENERAL_LibraryType;
-      haveLLT = false;
-      }
-    }
-
-  // Add the entries from this list.
-  this->AddLinkEntries(depender_index, actual_libs);
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddDirectLinkEntries()
-{
-  // Add direct link dependencies in this configuration.
-  cmLinkImplementation const* impl =
-    this->Target->GetLinkImplementation(this->Config);
-  this->AddLinkEntries(-1, impl->Libraries);
-  for(std::vector<cmLinkItem>::const_iterator
-        wi = impl->WrongConfigLibraries.begin();
-      wi != impl->WrongConfigLibraries.end(); ++wi)
-    {
-    this->CheckWrongConfigItem(*wi);
-    }
-}
-
-//----------------------------------------------------------------------------
-template <typename T>
-void
-cmComputeLinkDepends::AddLinkEntries(
-  int depender_index, std::vector<T> const& libs)
-{
-  // Track inferred dependency sets implied by this list.
-  std::map<int, DependSet> dependSets;
-
-  // Loop over the libraries linked directly by the depender.
-  for(typename std::vector<T>::const_iterator li = libs.begin();
-      li != libs.end(); ++li)
-    {
-    // Skip entries that will resolve to the target getting linked or
-    // are empty.
-    cmLinkItem const& item = *li;
-    if(item == this->Target->GetName() || item.empty())
-      {
-      continue;
-      }
-
-    // Add a link entry for this item.
-    int dependee_index = this->AddLinkEntry(*li);
-
-    // The dependee must come after the depender.
-    if(depender_index >= 0)
-      {
-      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
       }
     else
       {
-      // This is a direct dependency of the target being linked.
-      this->OriginalEntries.push_back(dependee_index);
-      }
-
-    // Update the inferred dependencies for earlier items.
-    for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-        dsi != dependSets.end(); ++dsi)
-      {
-      // Add this item to the inferred dependencies of other items.
-      // Target items are never inferred dependees because unknown
-      // items are outside libraries that should not be depending on
-      // targets.
-      if(!this->EntryList[dependee_index].Target &&
-         !this->EntryList[dependee_index].IsFlag &&
-         dependee_index != dsi->first)
+      // Handle unknown arguments
+      if ( this->Internals->UnknownArgumentCallback )
         {
-        dsi->second.insert(dependee_index);
+        if ( !this->Internals->UnknownArgumentCallback(arg.c_str(), 
+            this->Internals->ClientData) )
+          {
+          this->Internals->LastArgument --;
+          return 0;
+          }
+        return 1;
         }
-      }
-
-    // If this item needs to have dependencies inferred, do so.
-    if(this->InferredDependSets[dependee_index])
-      {
-      // Make sure an entry exists to hold the set for the item.
-      dependSets[dependee_index];
-      }
-    }
-
-  // Store the inferred dependency sets discovered for this list.
-  for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-      dsi != dependSets.end(); ++dsi)
-    {
-    this->InferredDependSets[dsi->first]->push_back(dsi->second);
-    }
-}
-
-//----------------------------------------------------------------------------
-cmGeneratorTarget const*
-cmComputeLinkDepends::FindTargetToLink(int depender_index,
-                                       const std::string& name)
-{
-  // Look for a target in the scope of the depender.
-  cmGeneratorTarget const* from = this->Target;
-  if(depender_index >= 0)
-    {
-    if(cmGeneratorTarget const* depender =
-       this->EntryList[depender_index].Target)
-      {
-      from = depender;
-      }
-    }
-  return from->FindTargetToLink(name);
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::InferDependencies()
-{
-  // The inferred dependency sets for each item list the possible
-  // dependencies.  The intersection of the sets for one item form its
-  // inferred dependencies.
-  for(unsigned int depender_index=0;
-      depender_index < this->InferredDependSets.size(); ++depender_index)
-    {
-    // Skip items for which dependencies do not need to be inferred or
-    // for which the inferred dependency sets are empty.
-    DependSetList* sets = this->InferredDependSets[depender_index];
-    if(!sets || sets->empty())
-      {
-      continue;
-      }
-
-    // Intersect the sets for this item.
-    DependSetList::const_iterator i = sets->begin();
-    DependSet common = *i;
-    for(++i; i != sets->end(); ++i)
-      {
-      DependSet intersection;
-      std::set_intersection
-        (common.begin(), common.end(), i->begin(), i->end(),
-         std::inserter(intersection, intersection.begin()));
-      common = intersection;
-      }
-
-    // Add the inferred dependencies to the graph.
-    cmGraphEdgeList& edges = this->EntryConstraintGraph[depender_index];
-    edges.insert(edges.end(), common.begin(), common.end());
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::CleanConstraintGraph()
-{
-  for(Graph::iterator i = this->EntryConstraintGraph.begin();
-      i != this->EntryConstraintGraph.end(); ++i)
-    {
-    // Sort the outgoing edges for each graph node so that the
-    // original order will be preserved as much as possible.
-    std::sort(i->begin(), i->end());
-
-    // Make the edge list unique.
-    i->erase(std::unique(i->begin(), i->end()), i->end());
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayConstraintGraph()
-{
-  // Display the graph nodes and their edges.
-  std::ostringstream e;
-  for(unsigned int i=0; i < this->EntryConstraintGraph.size(); ++i)
-    {
-    EdgeList const& nl = this->EntryConstraintGraph[i];
-    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
-    e << cmWrap("  item ", nl, " must follow it", "\n") << "\n";
-    }
-  fprintf(stderr, "%s\n", e.str().c_str());
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::OrderLinkEntires()
-{
-  // Compute the DAG of strongly connected components.  The algorithm
-  // used by cmComputeComponentGraph should identify the components in
-  // the same order in which the items were originally discovered in
-  // the BFS.  This should preserve the original order when no
-  // constraints disallow it.
-  this->CCG = new cmComputeComponentGraph(this->EntryConstraintGraph);
-
-  // The component graph is guaranteed to be acyclic.  Start a DFS
-  // from every entry to compute a topological order for the
-  // components.
-  Graph const& cgraph = this->CCG->GetComponentGraph();
-  int n = static_cast<int>(cgraph.size());
-  this->ComponentVisited.resize(cgraph.size(), 0);
-  this->ComponentOrder.resize(cgraph.size(), n);
-  this->ComponentOrderId = n;
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  for(int c = n-1; c >= 0; --c)
-    {
-    this->VisitComponent(c);
-    }
-
-  // Display the component graph.
-  if(this->DebugMode)
-    {
-    this->DisplayComponents();
-    }
-
-  // Start with the original link line.
-  for(std::vector<int>::const_iterator i = this->OriginalEntries.begin();
-      i != this->OriginalEntries.end(); ++i)
-    {
-    this->VisitEntry(*i);
-    }
-
-  // Now explore anything left pending.  Since the component graph is
-  // guaranteed to be acyclic we know this will terminate.
-  while(!this->PendingComponents.empty())
-    {
-    // Visit one entry from the first pending component.  The visit
-    // logic will update the pending components accordingly.  Since
-    // the pending components are kept in topological order this will
-    // not repeat one.
-    int e = *this->PendingComponents.begin()->second.Entries.begin();
-    this->VisitEntry(e);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends::DisplayComponents()
-{
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = this->CCG->GetComponents();
-  for(unsigned int c=0; c < components.size(); ++c)
-    {
-    fprintf(stderr, "Component (%u):\n", c);
-    NodeList const& nl = components[c];
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      int i = *oi;
-      fprintf(stderr, "  followed by Component (%d)\n", i);
-      }
-    fprintf(stderr, "  topo order index %d\n",
-            this->ComponentOrder[c]);
-    }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitComponent(unsigned int c)
-{
-  // Check if the node has already been visited.
-  if(this->ComponentVisited[c])
-    {
-    return;
-    }
-
-  // We are now visiting this component so mark it.
-  this->ComponentVisited[c] = 1;
-
-  // Visit the neighbors of the component first.
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  EdgeList const& nl = this->CCG->GetComponentGraphEdges(c);
-  for(EdgeList::const_reverse_iterator ni = nl.rbegin();
-      ni != nl.rend(); ++ni)
-    {
-    this->VisitComponent(*ni);
-    }
-
-  // Assign an ordering id to this component.
-  this->ComponentOrder[c] = --this->ComponentOrderId;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitEntry(int index)
-{
-  // Include this entry on the link line.
-  this->FinalLinkOrder.push_back(index);
-
-  // This entry has now been seen.  Update its component.
-  bool completed = false;
-  int component = this->CCG->GetComponentMap()[index];
-  std::map<int, PendingComponent>::iterator mi =
-    this->PendingComponents.find(this->ComponentOrder[component]);
-  if(mi != this->PendingComponents.end())
-    {
-    // The entry is in an already pending component.
-    PendingComponent& pc = mi->second;
-
-    // Remove the entry from those pending in its component.
-    pc.Entries.erase(index);
-    if(pc.Entries.empty())
-      {
-      // The complete component has been seen since it was last needed.
-      --pc.Count;
-
-      if(pc.Count == 0)
+      else if ( this->StoreUnusedArgumentsFlag )
         {
-        // The component has been completed.
-        this->PendingComponents.erase(mi);
-        completed = true;
+        CommandLineArguments_DEBUG("Store unused argument " << arg);
+        this->Internals->UnusedArguments.push_back(arg);
         }
       else
         {
-        // The whole component needs to be seen again.
-        NodeList const& nl = this->CCG->GetComponent(component);
-        assert(nl.size() > 1);
-        pc.Entries.insert(nl.begin(), nl.end());
+        kwsys_ios::cerr << "Got unknown argument: \"" << arg << "\"" << kwsys_ios::endl;
+        this->Internals->LastArgument --;
+        return 0;
         }
       }
     }
-  else
-    {
-    // The entry is not in an already pending component.
-    NodeList const& nl = this->CCG->GetComponent(component);
-    if(nl.size() > 1)
-      {
-      // This is a non-trivial component.  It is now pending.
-      PendingComponent& pc = this->MakePendingComponent(component);
-
-      // The starting entry has already been seen.
-      pc.Entries.erase(index);
-      }
-    else
-      {
-      // This is a trivial component, so it is already complete.
-      completed = true;
-      }
-    }
-
-  // If the entry completed a component, the component's dependencies
-  // are now pending.
-  if(completed)
-    {
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(component);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      // This entire component is now pending no matter whether it has
-      // been partially seen already.
-      this->MakePendingComponent(*oi);
-      }
-    }
+  return 1;
 }
 
 //----------------------------------------------------------------------------
-cmComputeLinkDepends::PendingComponent&
-cmComputeLinkDepends::MakePendingComponent(unsigned int component)
+void CommandLineArguments::GetRemainingArguments(int* argc, char*** argv)
 {
-  // Create an entry (in topological order) for the component.
-  PendingComponent& pc =
-    this->PendingComponents[this->ComponentOrder[component]];
-  pc.Id = component;
-  NodeList const& nl = this->CCG->GetComponent(component);
+  CommandLineArguments::Internal::VectorOfStrings::size_type size 
+    = this->Internals->Argv.size() - this->Internals->LastArgument + 1;
+  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
 
-  if(nl.size() == 1)
+  // Copy Argv0 as the first argument
+  char** args = new char*[ size ];
+  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
+  strcpy(args[0], this->Internals->Argv0.c_str());
+  int cnt = 1;
+
+  // Copy everything after the LastArgument, since that was not parsed.
+  for ( cc = this->Internals->LastArgument+1; 
+    cc < this->Internals->Argv.size(); cc ++ )
     {
-    // Trivial components need be seen only once.
-    pc.Count = 1;
+    args[cnt] = new char[ this->Internals->Argv[cc].size() + 1];
+    strcpy(args[cnt], this->Internals->Argv[cc].c_str());
+    cnt ++;
     }
-  else
-    {
-    // This is a non-trivial strongly connected component of the
-    // original graph.  It consists of two or more libraries
-    // (archives) that mutually require objects from one another.  In
-    // the worst case we may have to repeat the list of libraries as
-    // many times as there are object files in the biggest archive.
-    // For now we just list them twice.
-    //
-    // The list of items in the component has been sorted by the order
-    // of discovery in the original BFS of dependencies.  This has the
-    // advantage that the item directly linked by a target requiring
-    // this component will come first which minimizes the number of
-    // repeats needed.
-    pc.Count = this->ComputeComponentCount(nl);
-    }
-
-  // Store the entries to be seen.
-  pc.Entries.insert(nl.begin(), nl.end());
-
-  return pc;
+  *argc = cnt;
+  *argv = args;
 }
 
 //----------------------------------------------------------------------------
-int cmComputeLinkDepends::ComputeComponentCount(NodeList const& nl)
+void CommandLineArguments::GetUnusedArguments(int* argc, char*** argv)
 {
-  unsigned int count = 2;
-  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+  CommandLineArguments::Internal::VectorOfStrings::size_type size 
+    = this->Internals->UnusedArguments.size() + 1;
+  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
+
+  // Copy Argv0 as the first argument
+  char** args = new char*[ size ];
+  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
+  strcpy(args[0], this->Internals->Argv0.c_str());
+  int cnt = 1;
+
+  // Copy everything after the LastArgument, since that was not parsed.
+  for ( cc = 0;
+    cc < this->Internals->UnusedArguments.size(); cc ++ )
     {
-    if(cmGeneratorTarget const* target = this->EntryList[*ni].Target)
-      {
-      if(cmLinkInterface const* iface =
-         target->GetLinkInterface(this->Config, this->Target))
-        {
-        if(iface->Multiplicity > count)
-          {
-          count = iface->Multiplicity;
-          }
-        }
-      }
+    kwsys::String &str = this->Internals->UnusedArguments[cc];
+    args[cnt] = new char[ str.size() + 1];
+    strcpy(args[cnt], str.c_str());
+    cnt ++;
     }
-  return count;
+  *argc = cnt;
+  *argv = args;
 }
 
 //----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayFinalEntries()
+void CommandLineArguments::DeleteRemainingArguments(int argc, char*** argv)
 {
-  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
-  for(std::vector<LinkEntry>::const_iterator lei =
-        this->FinalLinkEntries.begin();
-      lei != this->FinalLinkEntries.end(); ++lei)
+  int cc;
+  for ( cc = 0; cc < argc; ++ cc )
     {
-    if(lei->Target)
-      {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
-      }
-    else
-      {
-      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
-      }
+    delete [] (*argv)[cc];
     }
-  fprintf(stderr, "\n");
+  delete [] *argv;
 }
 
 //----------------------------------------------------------------------------
-void cmComputeLinkDepends::CheckWrongConfigItem(cmLinkItem const& item)
+void CommandLineArguments::AddCallback(const char* argument, ArgumentTypeEnum type, 
+  CallbackType callback, void* call_data, const char* help)
 {
-  if(!this->OldLinkDirMode)
+  CommandLineArgumentsCallbackStructure s;
+  s.Argument     = argument;
+  s.ArgumentType = type;
+  s.Callback     = callback;
+  s.CallData     = call_data;
+  s.VariableType = CommandLineArguments::NO_VARIABLE_TYPE;
+  s.Variable     = 0;
+  s.Help         = help;
+
+  this->Internals->Callbacks[argument] = s;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
+  VariableTypeEnum vtype, void* variable, const char* help)
+{
+  CommandLineArgumentsCallbackStructure s;
+  s.Argument     = argument;
+  s.ArgumentType = type;
+  s.Callback     = 0;
+  s.CallData     = 0;
+  s.VariableType = vtype;
+  s.Variable     = variable;
+  s.Help         = help;
+
+  this->Internals->Callbacks[argument] = s;
+  this->GenerateHelp();
+}
+
+//----------------------------------------------------------------------------
+#define CommandLineArgumentsAddArgumentMacro(type, ctype) \
+  void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type, \
+    ctype* variable, const char* help) \
+  { \
+    this->AddArgument(argument, type, CommandLineArguments::type##_TYPE, variable, help); \
+  }
+
+CommandLineArgumentsAddArgumentMacro(BOOL,       bool)
+CommandLineArgumentsAddArgumentMacro(INT,        int)
+CommandLineArgumentsAddArgumentMacro(DOUBLE,     double)
+CommandLineArgumentsAddArgumentMacro(STRING,     char*)
+CommandLineArgumentsAddArgumentMacro(STL_STRING, kwsys_stl::string)
+
+CommandLineArgumentsAddArgumentMacro(VECTOR_BOOL,       kwsys_stl::vector<bool>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_INT,        kwsys_stl::vector<int>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_DOUBLE,     kwsys_stl::vector<double>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_STRING,     kwsys_stl::vector<char*>)
+CommandLineArgumentsAddArgumentMacro(VECTOR_STL_STRING, kwsys_stl::vector<kwsys_stl::string>)
+
+//----------------------------------------------------------------------------
+#define CommandLineArgumentsAddBooleanArgumentMacro(type, ctype) \
+  void CommandLineArguments::AddBooleanArgument(const char* argument, \
+    ctype* variable, const char* help) \
+  { \
+    this->AddArgument(argument, CommandLineArguments::NO_ARGUMENT, \
+      CommandLineArguments::type##_TYPE, variable, help); \
+  }
+
+CommandLineArgumentsAddBooleanArgumentMacro(BOOL,       bool)
+CommandLineArgumentsAddBooleanArgumentMacro(INT,        int)
+CommandLineArgumentsAddBooleanArgumentMacro(DOUBLE,     double)
+CommandLineArgumentsAddBooleanArgumentMacro(STRING,     char*)
+CommandLineArgumentsAddBooleanArgumentMacro(STL_STRING, kwsys_stl::string)
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetClientData(void* client_data)
+{
+  this->Internals->ClientData = client_data;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetUnknownArgumentCallback(
+  CommandLineArguments::ErrorCallbackType callback)
+{
+  this->Internals->UnknownArgumentCallback = callback;
+}
+
+//----------------------------------------------------------------------------
+const char* CommandLineArguments::GetHelp(const char* arg)
+{
+  CommandLineArguments::Internal::CallbacksMap::iterator it 
+    = this->Internals->Callbacks.find(arg);
+  if ( it == this->Internals->Callbacks.end() )
+    {
+    return 0;
+    }
+
+  // Since several arguments may point to the same argument, find the one this
+  // one point to if this one is pointing to another argument.
+  CommandLineArgumentsCallbackStructure *cs = &(it->second);
+  for(;;)
+    {
+    CommandLineArguments::Internal::CallbacksMap::iterator hit 
+      = this->Internals->Callbacks.find(cs->Help);
+    if ( hit == this->Internals->Callbacks.end() )
+      {
+      break;
+      }
+    cs = &(hit->second);
+    }
+  return cs->Help;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::SetLineLength(unsigned int ll)
+{
+  if ( ll < 9 || ll > 1000 )
     {
     return;
     }
+  this->LineLength = ll;
+  this->GenerateHelp();
+}
 
-  // For CMake 2.4 bug-compatibility we need to consider the output
-  // directories of targets linked in another configuration as link
-  // directories.
-  if(item.Target && !item.Target->IsImported())
+//----------------------------------------------------------------------------
+const char* CommandLineArguments::GetArgv0()
+{
+  return this->Internals->Argv0.c_str();
+}
+
+//----------------------------------------------------------------------------
+unsigned int CommandLineArguments::GetLastArgument()
+{
+  return static_cast<unsigned int>(this->Internals->LastArgument + 1);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::GenerateHelp()
+{
+  kwsys_ios::ostringstream str;
+  
+  // Collapse all arguments into the map of vectors of all arguments that do
+  // the same thing.
+  CommandLineArguments::Internal::CallbacksMap::iterator it;
+  typedef kwsys_stl::map<CommandLineArguments::Internal::String, 
+     CommandLineArguments::Internal::SetOfStrings > MapArgs;
+  MapArgs mp;
+  MapArgs::iterator mpit, smpit;
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
     {
-    this->OldWrongConfigItems.insert(item.Target);
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      mp[it->first].insert(it->first);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
+    }
+  for ( it = this->Internals->Callbacks.begin();
+    it != this->Internals->Callbacks.end();
+    it ++ )
+    {
+    CommandLineArgumentsCallbackStructure *cs = &(it->second);
+    mpit = mp.find(cs->Help);
+    if ( mpit != mp.end() )
+      {
+      mpit->second.insert(it->first);
+      smpit = mp.find(it->first);
+      CommandLineArguments::Internal::SetOfStrings::iterator sit;
+      for ( sit = smpit->second.begin(); sit != smpit->second.end(); sit++ )
+        {
+        mpit->second.insert(*sit);
+        }
+      mp.erase(smpit);
+      }
+    else
+      {
+      mp[it->first].insert(it->first);
+      }
+    }
+ 
+  // Find the length of the longest string
+  CommandLineArguments::Internal::String::size_type maxlen = 0;
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      CommandLineArguments::Internal::String::size_type clen = sit->size();
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT:     clen += 0; break;
+        case CommandLineArguments::CONCAT_ARGUMENT: clen += 3; break;
+        case CommandLineArguments::SPACE_ARGUMENT:  clen += 4; break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  clen += 4; break;
+        }
+      if ( clen > maxlen )
+        {
+        maxlen = clen;
+        }
+      }
+    }
+
+  // Create format for that string
+  char format[80];
+  sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));
+
+  maxlen += 4; // For the space before and after the option
+
+  // Print help for each option
+  for ( mpit = mp.begin();
+    mpit != mp.end();
+    mpit ++ )
+    {
+    CommandLineArguments::Internal::SetOfStrings::iterator sit;
+    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
+      {
+      str << kwsys_ios::endl;
+      char argument[100];
+      sprintf(argument, "%s", sit->c_str());
+      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+        {
+        case CommandLineArguments::NO_ARGUMENT: break;
+        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
+        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
+        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
+        case CommandLineArguments::MULTI_ARGUMENT:  strcat(argument, " opt opt ..."); break;
+        }
+      char buffer[80];
+      sprintf(buffer, format, argument);
+      str << buffer;
+      }
+    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
+    size_t len = strlen(ptr);
+    int cnt = 0;
+    while ( len > 0)
+      {
+      // If argument with help is longer than line length, split it on previous
+      // space (or tab) and continue on the next line
+      CommandLineArguments::Internal::String::size_type cc;
+      for ( cc = 0; ptr[cc]; cc ++ )
+        {
+        if ( *ptr == ' ' || *ptr == '\t' )
+          {
+          ptr ++;
+          len --;
+          }
+        }
+      if ( cnt > 0 )
+        {
+        for ( cc = 0; cc < maxlen; cc ++ )
+          {
+          str << " ";
+          }
+        }
+      CommandLineArguments::Internal::String::size_type skip = len;
+      if ( skip > this->LineLength - maxlen )
+        {
+        skip = this->LineLength - maxlen;
+        for ( cc = skip-1; cc > 0; cc -- )
+          {
+          if ( ptr[cc] == ' ' || ptr[cc] == '\t' )
+            {
+            break;
+            }
+          }
+        if ( cc != 0 )
+          {
+          skip = cc;
+          }
+        }
+      str.write(ptr, static_cast<kwsys_ios::streamsize>(skip));
+      str << kwsys_ios::endl;
+      ptr += skip;
+      len -= skip;
+      cnt ++;
+      }
+    }
+  /*
+  // This can help debugging help string
+  str << endl;
+  unsigned int cc;
+  for ( cc = 0; cc < this->LineLength; cc ++ )
+    {
+    str << cc % 10;
+    }
+  str << endl;
+  */
+  this->Help = str.str();
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  bool* variable, const kwsys_stl::string& value)
+{
+  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
+    value == "TRUE" || value == "true" || value == "True" ||
+    value == "yes" || value == "Yes" || value == "YES" )
+    {
+    *variable = true;
+    }
+  else
+    {
+    *variable = false;
     }
 }
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  int* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  *variable = static_cast<int>(strtol(value.c_str(), &res, 10));
+  //if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  double* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  *variable = strtod(value.c_str(), &res);
+  //if ( res && *res )
+  //  {
+  //  Can handle non-double
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  char** variable, const kwsys_stl::string& value)
+{
+  if ( *variable )
+    {
+    delete [] *variable;
+    *variable = 0;
+    }
+  *variable = new char[ value.size() + 1 ];
+  strcpy(*variable, value.c_str());
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::string* variable, const kwsys_stl::string& value)
+{
+  *variable = value;
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<bool>* variable, const kwsys_stl::string& value)
+{
+  bool val = false;
+  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
+    value == "TRUE" || value == "true" || value == "True" ||
+    value == "yes" || value == "Yes" || value == "YES" )
+    {
+    val = true;
+    }
+  variable->push_back(val);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<int>* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  variable->push_back(static_cast<int>(strtol(value.c_str(), &res, 10)));
+  //if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<double>* variable, const kwsys_stl::string& value)
+{
+  char* res = 0;
+  variable->push_back(strtod(value.c_str(), &res));
+  //if ( res && *res )
+  //  {
+  //  Can handle non-int
+  //  }
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<char*>* variable, const kwsys_stl::string& value)
+{
+  char* var = new char[ value.size() + 1 ];
+  strcpy(var, value.c_str());
+  variable->push_back(var);
+}
+
+//----------------------------------------------------------------------------
+void CommandLineArguments::PopulateVariable(
+  kwsys_stl::vector<kwsys_stl::string>* variable,
+  const kwsys_stl::string& value)
+{
+  variable->push_back(value);
+}
+
+//----------------------------------------------------------------------------
+bool CommandLineArguments::PopulateVariable(CommandLineArgumentsCallbackStructure* cs,
+  const char* value)
+{
+  // Call the callback
+  if ( cs->Callback )
+    {
+    if ( !cs->Callback(cs->Argument, value, cs->CallData) )
+      {
+      this->Internals->LastArgument --;
+      return 0;
+      }
+    }
+  CommandLineArguments_DEBUG("Set argument: " << cs->Argument << " to " << value);
+  if ( cs->Variable )
+    {
+    kwsys_stl::string var = "1";
+    if ( value )
+      {
+      var = value;
+      }
+    switch ( cs->VariableType )
+      {
+    case CommandLineArguments::INT_TYPE:
+      this->PopulateVariable(static_cast<int*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::DOUBLE_TYPE:
+      this->PopulateVariable(static_cast<double*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::STRING_TYPE:
+      this->PopulateVariable(static_cast<char**>(cs->Variable), var);
+      break;
+    case CommandLineArguments::STL_STRING_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::string*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::BOOL_TYPE:
+      this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_BOOL_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<bool>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_INT_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<int>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_DOUBLE_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<double>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_STRING_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<char*>*>(cs->Variable), var);
+      break;
+    case CommandLineArguments::VECTOR_STL_STRING_TYPE:
+      this->PopulateVariable(static_cast<kwsys_stl::vector<kwsys_stl::string>*>(cs->Variable), var);
+      break;
+    default:
+      kwsys_ios::cerr << "Got unknown variable type: \"" << cs->VariableType << "\"" << kwsys_ios::endl;
+      this->Internals->LastArgument --;
+      return 0;
+      }
+    }
+  return 1;
+}
+
+
+} // namespace KWSYS_NAMESPACE

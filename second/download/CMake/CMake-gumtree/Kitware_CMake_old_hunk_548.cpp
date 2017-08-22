@@ -1,7 +1,13 @@
+            }
+
+            while (isspace(symbol[0])) symbol.erase(0,1);
+#ifdef _MSC_VER
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (fort) {
+               std::string::size_type posAt = symbol.find('@');
+               if (posAt != std::string::npos) symbol.erase(posAt);
+            }
 #endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");  
-  fflush(stdout);
-  fflush(stderr);
-  assert(invalidAddress); /* Quiet Clang scan-build. */
+            if (fImportFlag) {
+               fImportFlag = 0;
+               fprintf(fout,"EXPORTS \n");

@@ -1,10 +1,14 @@
-		lha->entry_unconsumed = 0;
-	}
-	if (lha->end_of_entry) {
-		*offset = lha->entry_offset;
-		*size = 0;
-		*buff = NULL;
-		return (lha_end_of_entry(a));
-	}
 
-	if (lha->entry_is_compressed)
+void cmCTestScriptHandler::UpdateElapsedTime()
+{
+  if (this->Makefile)
+    {
+    // set the current elapsed time
+    char timeString[20];
+    int itime = static_cast<unsigned int>(cmSystemTools::GetTime()
+                                          - this->ScriptStartTime);
+    sprintf(timeString,"%i",itime);
+    this->Makefile->AddDefinition("CTEST_ELAPSED_TIME", timeString);
+    }
+}
+
