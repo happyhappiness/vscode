@@ -94,7 +94,7 @@ Gremlin.defineStep('getFile', [Vertex,Pipe], {  ->
 // output: basic block node controled by condition node
 Gremlin.defineStep('getAllConditionControledNodes', [Vertex,Pipe], { ->
  	_().transform{
-		g.V("type","Condition").gather{it[1..4]}.scatter()
+		g.V("type","Condition") //.gather{it[1..4]}.scatter()
 		.getControledNodes()
 		.as("node")
 		.getFile().as("file")

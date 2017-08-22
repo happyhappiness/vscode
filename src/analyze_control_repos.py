@@ -93,6 +93,8 @@ def fetch_basic_block(gumtree, joern):
     for record in records:
         file_name = record[my_constant.ANALYZE_REPOS_BASIC_BLOCK_FILE]
         loc = record[my_constant.ANALYZE_REPOS_BASIC_BLOCK_LOC]
+        record.remove(file_name)
+        record.remove(loc)
         gumtree.set_file(file_name)
         if gumtree.set_loc(int(loc) - 1):
             # get and save block
@@ -102,8 +104,9 @@ def fetch_basic_block(gumtree, joern):
             # get block feature
             gumtree.set_file(block_file_name)
             block_feature = json.dumps(gumtree.get_block_feature())
-            repos_basic_block_writer.writerow([file_name, loc, block, block_file_name, block_feature]\
-                + record[my_constant.ANALYZE_REPOS_BASIC_BLOCK_CONDITION_IFNO:])
+            record = [file_name, loc, block, block_file_name, block_feature] \
+                + record
+            repos_basic_block_writer.writerow(record)
             total_record += 1
             print 'have dealed with %d record' %(total_record)
 
