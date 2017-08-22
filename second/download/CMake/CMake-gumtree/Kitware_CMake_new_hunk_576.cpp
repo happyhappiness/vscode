@@ -1,7 +1,7 @@
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              cmOutputConverter::EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
+    }
+  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
+  fprintf(out, " %s ", tmp);
+  fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
+
+  /* Extra information for links. */
+  if (archive_entry_hardlink(entry)) /* Hard link */

@@ -1,13 +1,24 @@
-            }
-
-            while (isspace(symbol[0])) symbol.erase(0,1);
-#ifdef _MSC_VER
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (fort) {
-               std::string::size_type posAt = symbol.find('@');
-               if (posAt != std::string::npos) symbol.erase(posAt);
-            }
+  intptr_t srchHandle;
 #endif
-            if (fImportFlag) {
-               fImportFlag = 0;
-               fprintf(fout,"EXPORTS \n");
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
+    {
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( strchr(name, '\\') )
+      {
+      sprintf(buf, "%s\\*", name);
+      }
+    else
+      {
+      sprintf(buf, "%s/*", name);
+      }
+    }
+  struct _wfinddata_t data;      // data of current file

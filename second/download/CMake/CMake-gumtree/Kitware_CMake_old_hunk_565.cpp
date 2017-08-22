@@ -1,9 +1,13 @@
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], 0,
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1], 0);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
+static char *get_netscape_format(const struct Cookie *co)
+{
+  return aprintf(
+    "%s%s\t" /* domain */
+    "%s\t"   /* tailmatch */
+    "%s\t"   /* path */
+    "%s\t"   /* secure */
+    "%" FORMAT_OFF_T "\t"   /* expires */
+    "%s\t"   /* name */
+    "%s",    /* value */
+    /* Make sure all domains are prefixed with a dot if they allow
+       tailmatching. This is Mozilla-style. */
+    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",

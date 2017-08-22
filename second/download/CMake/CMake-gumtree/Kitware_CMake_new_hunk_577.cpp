@@ -1,13 +1,8 @@
-      << covLogFilename << std::endl);
-    return false;
-    }
-  return true;
+
 }
 
-//----------------------------------------------------------------------
-void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
-  int logFileCount)
+void CMakeMessageHandler(const char* message, const char* title, bool&,
+                         void* clientData)
 {
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
+  cmCursesForm* self = static_cast<cmCursesForm*>( clientData );
+  self->AddError(message, title);

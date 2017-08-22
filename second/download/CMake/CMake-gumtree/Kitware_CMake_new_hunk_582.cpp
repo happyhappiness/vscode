@@ -1,15 +1,7 @@
-  sprintf(temp, "%d", cmVersion::GetMinorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", temp,
-                      "Minor version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetMajorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", temp,
-                      "Major version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
-  sprintf(temp, "%d", cmVersion::GetPatchVersion());
-  this->AddCacheEntry("CMAKE_CACHE_PATCH_VERSION", temp,
-                      "Patch version of cmake used to create the "
-                      "current loaded cache", cmState::INTERNAL);
-
-  // Let us store the current working directory so that if somebody
-  // Copies it, he will not be surprised
+        li != testLangs.end(); ++li)
+      {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              lg->EscapeForCMake(flags?flags:"").c_str());
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"

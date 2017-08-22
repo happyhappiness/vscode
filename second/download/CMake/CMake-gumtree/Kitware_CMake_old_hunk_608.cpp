@@ -1,7 +1,9 @@
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
 
+  if (rar->file_flags & FHD_PASSWORD)
+  {
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR encryption support unavailable.");
+    return (ARCHIVE_FATAL);
+  }
+
+  if (rar->file_flags & FHD_LARGE)

@@ -1,13 +1,14 @@
-CURL_EXTERN int curl_mprintf(const char *format, ...);
-CURL_EXTERN int curl_mfprintf(FILE *fd, const char *format, ...);
-CURL_EXTERN int curl_msprintf(char *buffer, const char *format, ...);
-CURL_EXTERN int curl_msnprintf(char *buffer, size_t maxlength,
-                               const char *format, ...);
-CURL_EXTERN int curl_mvprintf(const char *format, va_list args);
-CURL_EXTERN int curl_mvfprintf(FILE *fd, const char *format, va_list args);
-CURL_EXTERN int curl_mvsprintf(char *buffer, const char *format, va_list args);
-CURL_EXTERN int curl_mvsnprintf(char *buffer, size_t maxlength,
-                                const char *format, va_list args);
-CURL_EXTERN char *curl_maprintf(const char *format, ...);
-CURL_EXTERN char *curl_mvaprintf(const char *format, va_list args);
 
+  if (rar->file_flags & FHD_PASSWORD)
+  {
+	archive_entry_set_is_data_encrypted(entry, 1);
+	rar->has_encrypted_entries = 1;
+    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                      "RAR encryption support unavailable.");
+    /* Since it is only the data part itself that is encrypted we can at least
+       extract information about the currently processed entry and don't need
+       to return ARCHIVE_FATAL here. */
+    /*return (ARCHIVE_FATAL);*/
+  }
+
+  if (rar->file_flags & FHD_LARGE)

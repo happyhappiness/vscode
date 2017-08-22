@@ -1,11 +1,15 @@
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!fImportFlag) {
-               fImportFlag = 1;
-               fprintf(fout,"IMPORTS \n");
-            }
-            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
-
+        fName = dirName;
+        fName += "/";
+        fName += args[i];
+        progFile = cmsys::SystemTools::Fopen(fName.c_str(),"w");
+        if (progFile)
+          {
+          fprintf(progFile,"empty");
+          fclose(progFile);
+          }
+        }
+      int fileNum = static_cast<int>
+        (cmsys::Directory::GetNumberOfFilesInDirectory(dirName.c_str()));
+      if (count > 0)
+        {
+        // print the progress

@@ -1,8 +1,12 @@
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
-  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Open file: "
-    << covLogFilename << std::endl);
-  if(!this->StartResultingXML(cmCTest::PartCoverage,
-                              covLogFilename, covLogFile))
-    {
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+      }
+    else
+      {
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName,
+              libsToLink.c_str());
+      }
+    fclose(fout);

@@ -1,0 +1,115 @@
+--- /dev/null
++++ /dev/null
+@@ -473,36 +255,27 @@
+            As far as I can see, it is set to true when the cookie says
+            .domain.com and to false when the domain is complete www.domain.com
+         */
+-        co->tailmatch = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
++        co->tailmatch=(bool)strequal(ptr, "TRUE"); /* store information */
+         break;
+       case 2:
+         /* It turns out, that sometimes the file format allows the path
+            field to remain not filled in, we try to detect this and work
+            around it! Andr�s Garc�a made us aware of this... */
+-        if(strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
++        if (strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
+           /* only if the path doesn't look like a boolean option! */
+           co->path = strdup(ptr);
+           if(!co->path)
+             badcookie = TRUE;
+-          else {
+-            co->spath = sanitize_cookie_path(co->path);
+-            if(!co->spath) {
+-              badcookie = TRUE; /* out of memory bad */
+-            }
+-          }
+           break;
+         }
+         /* this doesn't look like a path, make one up! */
+         co->path = strdup("/");
+         if(!co->path)
+           badcookie = TRUE;
+-        co->spath = strdup("/");
+-        if(!co->spath)
+-          badcookie = TRUE;
+         fields++; /* add a field and fall down to secure */
+         /* FALLTHROUGH */
+       case 3:
+-        co->secure = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
++        co->secure = (bool)strequal(ptr, "TRUE");
+         break;
+       case 4:
+         co->expires = curlx_strtoofft(ptr, NULL, 10);
+@@ -1001,63 +690,28 @@
+   struct Cookie *c;
+   char *line;
+ 
+-  if((data->cookies == NULL) ||
++  if ((data->cookies == NULL) ||
+       (data->cookies->numcookies == 0))
+     return NULL;
+ 
+   c = data->cookies->cookies;
+ 
+-  while(c) {
++  beg = list;
++  while (c) {
+     /* fill the list with _all_ the cookies we know */
+     line = get_netscape_format(c);
+-    if(!line) {
+-      curl_slist_free_all(list);
++    if (line == NULL) {
++      /* get_netscape_format returns null only if we run out of memory */
++
++      curl_slist_free_all(beg); /* free some memory */
+       return NULL;
+     }
+-    beg = Curl_slist_append_nodup(list, line);
+-    if(!beg) {
+-      free(line);
+-      curl_slist_free_all(list);
+-      return NULL;
+-    }
+-    list = beg;
++    list = curl_slist_append(list, line);
++    free(line);
+     c = c->next;
+   }
+ 
+   return list;
+ }
+ 
+-void Curl_flush_cookies(struct SessionHandle *data, int cleanup)
+-{
+-  if(data->set.str[STRING_COOKIEJAR]) {
+-    if(data->change.cookielist) {
+-      /* If there is a list of cookie files to read, do it first so that
+-         we have all the told files read before we write the new jar.
+-         Curl_cookie_loadfiles() LOCKS and UNLOCKS the share itself! */
+-      Curl_cookie_loadfiles(data);
+-    }
+-
+-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+-
+-    /* if we have a destination file for all the cookies to get dumped to */
+-    if(cookie_output(data->cookies, data->set.str[STRING_COOKIEJAR]))
+-      infof(data, "WARNING: failed to save cookies in %s\n",
+-            data->set.str[STRING_COOKIEJAR]);
+-  }
+-  else {
+-    if(cleanup && data->change.cookielist) {
+-      /* since nothing is written, we can just free the list of cookie file
+-         names */
+-      curl_slist_free_all(data->change.cookielist); /* clean up list */
+-      data->change.cookielist = NULL;
+-    }
+-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+-  }
+-
+-  if(cleanup && (!data->share || (data->cookies != data->share->cookies))) {
+-    Curl_cookie_cleanup(data->cookies);
+-  }
+-  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+-}
+-
+ 

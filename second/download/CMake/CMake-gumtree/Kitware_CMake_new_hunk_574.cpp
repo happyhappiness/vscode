@@ -1,13 +1,24 @@
-  for(int depender_index = 0; depender_index < n; ++depender_index)
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = name.size();
+  if ( *name.rbegin() == '/' || *name.rbegin() == '\\' )
     {
-    EdgeList const& nl = graph[depender_index];
-    cmGeneratorTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName().c_str());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name.c_str());
+    }
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( name.find('\\') != name.npos )
       {
-      int dependee_index = *ni;
-      cmGeneratorTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
+      sprintf(buf, "%s\\*", name.c_str());
       }
+    else
+      {
+      sprintf(buf, "%s/*", name.c_str());
+      }
+    }
+  struct _wfinddata_t data;      // data of current file

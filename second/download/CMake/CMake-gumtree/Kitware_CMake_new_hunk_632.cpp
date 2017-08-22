@@ -1,7 +1,13 @@
-		else
-			flags |= FILE_FLAG_SEQUENTIAL_SCAN;
-		t->entry_fh = CreateFileW(tree_current_access_path(t),
-		    GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, flags, NULL);
-		if (t->entry_fh == INVALID_HANDLE_VALUE) {
-			archive_set_error(&a->archive, errno,
-			    "Couldn't open %ls", tree_current_path(a->tree));
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());
+      }
+    else
+      {
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName.c_str(),
+              libsToLink.c_str());
+      }
+    fclose(fout);

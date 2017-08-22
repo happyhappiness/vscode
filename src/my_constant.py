@@ -10,30 +10,35 @@ REPOS = 'CMake'
 """
 stroed file name prefix
 """
+# parent
 BASE_DIR = '/usr/info/code/cpp/LogMonitor/LogMonitor'
 OLD_NEW_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '-old-new/'
 REPOS_PARENT_DIR = 'second/download/' + REPOS + '/' + REPOS + '/'
+# old new
 OLD_NEW_JOERN_DIR = OLD_NEW_PARENT_DIR + REPOS + '-old-new-joern/'
-REPOS_JOERN_DIR = 'second/download/' + REPOS + '/' + REPOS + '/' + REPOS + '-joern/'
+# repos
+REPOS_DIR = REPOS_PARENT_DIR + REPOS + '/'
+REPOS_JOERN_DIR = REPOS_PARENT_DIR + REPOS + '-joern/'
+# gumtree
 GUMTREE_DIR = 'second/download/' + REPOS + '/' + REPOS + '-gumtree/'
-
+# source file and patch file
 DOWNLOAD_OLD_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_old_file_'
 DOWNLOAD_NEW_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_new_file_'
 DOWNLOAD_PATCH_FILE = OLD_NEW_PARENT_DIR + REPOS + '-old-new/' + USER + '_' + REPOS + '_patch_'
+# hunk
 DOWNLOAD_OLD_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_old_hunk_'
 DOWNLOAD_NEW_HUNK = GUMTREE_DIR + USER + '_' + REPOS + '_new_hunk_'
+# log
 SAVE_REPOS_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_'
 SAVE_OLD_NEW_OLD_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_old_log_'
 SAVE_OLD_NEW_NEW_LOG = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_new_log_'
-SAVE_REPOS_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_block_'
+# block
+SAVE_REPOS_BASIC_BLOCK_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_basic_block_block_'
+SAVE_REPOS_LOG_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_repos_log_block_'
 SAVE_OLD_NEW_BLOCK = GUMTREE_DIR + USER + '_' + REPOS + '_old_new_block_'
+# function
 SAVE_REPOS_FUNCTION = REPOS_JOERN_DIR + USER + '_' + REPOS + '_repos_function_'
 SAVE_OLD_NEW_FUNCTION = OLD_NEW_JOERN_DIR + USER + '_' + REPOS + '_old_new_function_'
-
-"""
-repos dir
-"""
-REPOS_DIR = 'second/download/' + REPOS + '/' + REPOS + '/' + REPOS + '/'
 
 """
 file name
@@ -44,9 +49,9 @@ FETCH_PATCH_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_patch_fetch.csv'
 FETCH_HUNK_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_hunk_fetch.csv'
 FETCH_LOG_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_log_fetch.csv'
 ANALYZE_OLD_NEW_GUMTREE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_gumtree_analyze.csv'
-ANALYZE_REPOS_GUMTREE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_gumtree_analyze.csv'
+ANALYZE_REPOS_LOG_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_log_analyze.csv'
+ANALYZE_REPOS_BASIC_BLOCK_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_basic_block_analyze.csv'
 ANALYZE_OLD_NEW_JOERN_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_joern_analyze.csv'
-ANALYZE_REPOS_JOERN_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_repos_joern_analyze.csv'
 ANALYZE_CLONE_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_seek_clone.csv'
 STATISTICS_CLONE_NUM_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_clone_statistics.csv'
 STATISTICS_OLD_NEW_FILE_NAME = 'data/fetch/' + USER + '_' + REPOS + '_old_new_statistics.csv'
@@ -127,9 +132,13 @@ STATISTICS_OLD_NEW_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['old_log_type', 'old_l
 """
 analyze repos / cluster repos title and index
 """
-ANALYZE_REPOS_GUMTREE_TITLE = ['file', 'loc', 'log', 'log_file', 'block', 'block_file', 'block_feature', 'function_file', 'function_loc']
-ANALYZE_REPOS_FUNCTION_FILE = ANALYZE_REPOS_GUMTREE_TITLE.index('function_file')
-ANALYZE_REPOS_FUNCTION_LOC = ANALYZE_REPOS_GUMTREE_TITLE.index('function_loc')
+ANALYZE_REPOS_LOG_TITLE = ['file', 'loc', 'block', 'block_file', 'block_feature',\
+                             'log', 'log_file', 'ddg_feature', 'condition_info', \
+                             'normalized_condition', 'cdg_z3_feature', 'class_index']
+ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_LOG_TITLE.index('log_file')
+ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_LOG_TITLE.index('block_file')
+ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_LOG_TITLE.index('block_feature')
+ANALYZE_REPOS_CONDITION_INFO = ANALYZE_REPOS_LOG_TITLE.index('condition_info')
 # ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_TITLE.index('log_file')
 # ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_TITLE.index('block_file')
 # ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_TITLE.index('block_feature')
@@ -139,14 +148,15 @@ ANALYZE_REPOS_FUNCTION_LOC = ANALYZE_REPOS_GUMTREE_TITLE.index('function_loc')
 """
 analyze repos / cluster repos title and index
 """
-ANALYZE_REPOS_JOERN_TITLE = ANALYZE_REPOS_GUMTREE_TITLE + ['ddg_feature', 'cdg_feature']
-ANALYZE_REPOS_LOG_FILE = ANALYZE_REPOS_JOERN_TITLE.index('log_file')
-ANALYZE_REPOS_BLOCK_FILE = ANALYZE_REPOS_JOERN_TITLE.index('block_file')
-ANALYZE_REPOS_BLOCK_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('block_feature')
-ANALYZE_REPOS_DDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('ddg_feature')
-ANALYZE_REPOS_CDG_FEATURE = ANALYZE_REPOS_JOERN_TITLE.index('cdg_feature')
-CLUSTER_REPOS_TITLE = ANALYZE_REPOS_JOERN_TITLE + ['cdg_z3_feature', 'cluster_index']
-ANALYZE_REPOS_CLASS_TITLE = ANALYZE_REPOS_JOERN_TITLE + ['cdg_z3_feature', 'class_index', 'class_size']
+ANALYZE_REPOS_BASIC_BLOCK_TITLE = ['file', 'loc', 'block', 'block_file', 'block_feature', \
+                'condition_info', 'normalized_condition']
+ANALYZE_REPOS_BASIC_BLOCK_FILE = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('file')
+ANALYZE_REPOS_BASIC_BLOCK_LOC = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('loc')
+ANALYZE_REPOS_BASIC_BLOCK_CONDITION_IFNO = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('condition_info')
+ANALYZE_REPOS_BASIC_BLOCK_NORMALIZED_CONDITION = ANALYZE_REPOS_BASIC_BLOCK_TITLE.index('normalized_condition')
+CLUSTER_REPOS_TITLE = ANALYZE_REPOS_BASIC_BLOCK_TITLE + ['cdg_z3_feature', 'class_index']
+
+ANALYZE_REPOS_CLASS_TITLE = ANALYZE_REPOS_BASIC_BLOCK_TITLE + ['cdg_z3_feature', 'class_index', 'class_size']
 ANALYZE_REPOS_CLASS_INDEX = ANALYZE_REPOS_CLASS_TITLE.index('class_index')
 ANALYZE_REPOS_CLASS_SIZE = ANALYZE_REPOS_CLASS_TITLE.index('class_size')
 
@@ -154,7 +164,7 @@ ANALYZE_REPOS_CLASS_SIZE = ANALYZE_REPOS_CLASS_TITLE.index('class_size')
 """
 analyze clone title
 """
-ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['class_index', 'class_size']#ANALYZE_REPOS_JOERN_TITLE
+ANALYZE_CLONE_TITLE = ANALYZE_OLD_NEW_JOERN_TITLE + ['class_index', 'class_size']#ANALYZE_REPOS_BASIC_BLOCK_TITLE
 
 """
 flag type && log type
@@ -195,6 +205,7 @@ JOERN_DEFALUT = 0
 JOERN_ID = 0
 JOERN_CODE = 1
 JOERN_TYPE = 2
+JOERN_FILE = 2
 JOERN_LOCATION = 3
 JOERN_OPERATOR = 3
 JOERN_BOOL_OPERATOR = ['AndExpression', 'OrExpression', 'RelationalExpression', 'EqualityExpression']

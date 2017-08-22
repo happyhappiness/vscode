@@ -1,6 +1,6 @@
 /*============================================================================
   CMake - Cross Platform Makefile Generator
-  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
   see accompanying file Copyright.txt for details.
@@ -9,681 +9,622 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmCoreTryCompile.h"
-#include "cmake.h"
-#include "cmLocalGenerator.h"
+#include "cmComputeTargetDepends.h"
+
+#include "cmComputeComponentGraph.h"
 #include "cmGlobalGenerator.h"
-#include "cmAlgorithms.h"
-#include "cmExportTryCompileFileGenerator.h"
-#include <cmsys/Directory.hxx>
+#include "cmLocalGenerator.h"
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+#include <algorithm>
 
 #include <assert.h>
 
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+/*
+
+This class is meant to analyze inter-target dependencies globally
+during the generation step.  The goal is to produce a set of direct
+dependencies for each target such that no cycles are left and the
+build order is safe.
+
+For most target types cyclic dependencies are not allowed.  However
+STATIC libraries may depend on each other in a cyclic fashion.  In
+general the directed dependency graph forms a directed-acyclic-graph
+of strongly connected components.  All strongly connected components
+should consist of only STATIC_LIBRARY targets.
+
+In order to safely break dependency cycles we must preserve all other
+dependencies passing through the corresponding strongly connected component.
+The approach taken by this class is as follows:
+
+  - Collect all targets and form the original dependency graph
+  - Run Tarjan's algorithm to extract the strongly connected components
+    (error if any member of a non-trivial component is not STATIC)
+  - The original dependencies imply a DAG on the components.
+    Use the implied DAG to construct a final safe set of dependencies.
+
+The final dependency set is constructed as follows:
+
+  - For each connected component targets are placed in an arbitrary
+    order.  Each target depends on the target following it in the order.
+    The first target is designated the head and the last target the tail.
+    (most components will be just 1 target anyway)
+
+  - Original dependencies between targets in different components are
+    converted to connect the depender's component tail to the
+    dependee's component head.
+
+In most cases this will reproduce the original dependencies.  However
+when there are cycles of static libraries they will be broken in a
+safe manner.
+
+For example, consider targets A0, A1, A2, B0, B1, B2, and C with these
+dependencies:
+
+  A0 -> A1 -> A2 -> A0  ,  B0 -> B1 -> B2 -> B0 -> A0  ,  C -> B0
+
+Components may be identified as
+
+  Component 0: A0, A1, A2
+  Component 1: B0, B1, B2
+  Component 2: C
+
+Intra-component dependencies are:
+
+  0: A0 -> A1 -> A2   , head=A0, tail=A2
+  1: B0 -> B1 -> B2   , head=B0, tail=B2
+  2: head=C, tail=C
+
+The inter-component dependencies are converted as:
+
+  B0 -> A0  is component 1->0 and becomes  B2 -> A0
+  C  -> B0  is component 2->1 and becomes  C  -> B0
+
+This leads to the final target dependencies:
+
+  C -> B0 -> B1 -> B2 -> A0 -> A1 -> A2
+
+These produce a safe build order since C depends directly or
+transitively on all the static libraries it links.
+
+*/
+
+//----------------------------------------------------------------------------
+cmComputeTargetDepends::cmComputeTargetDepends(cmGlobalGenerator* gg)
 {
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
+  this->GlobalGenerator = gg;
+  cmake* cm = this->GlobalGenerator->GetCMakeInstance();
+  this->DebugMode = cm->GetPropertyAsBool("GLOBAL_DEPENDS_DEBUG_MODE");
+  this->NoCycles = cm->GetPropertyAsBool("GLOBAL_DEPENDS_NO_CYCLES");
+}
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  std::string targetName;
-  std::vector<std::string> cmakeFlags;
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::string copyFileError;
-  std::vector<cmTarget const*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool didCopyFileError = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
+//----------------------------------------------------------------------------
+cmComputeTargetDepends::~cmComputeTargetDepends()
+{
+}
 
-  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
-               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
-               DoingCopyFileError, DoingSources };
-  Doing doing = useSources? DoingSources : DoingNone;
-  for(size_t i=3; i < argv.size(); ++i)
+//----------------------------------------------------------------------------
+bool cmComputeTargetDepends::Compute()
+{
+  // Build the original graph.
+  this->CollectTargets();
+  this->CollectDepends();
+  if(this->DebugMode)
     {
-    if(argv[i] == "CMAKE_FLAGS")
+    this->DisplayGraph(this->InitialGraph, "initial");
+    }
+
+  // Identify components.
+  cmComputeComponentGraph ccg(this->InitialGraph);
+  if(this->DebugMode)
+    {
+    this->DisplayComponents(ccg);
+    }
+  if(!this->CheckComponents(ccg))
+    {
+    return false;
+    }
+
+  // Compute the final dependency graph.
+  if(!this->ComputeFinalDepends(ccg))
+    {
+    return false;
+    }
+  if(this->DebugMode)
+    {
+    this->DisplayGraph(this->FinalGraph, "final");
+    }
+
+  return true;
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends::GetTargetDirectDepends(cmTarget* t,
+                                               cmTargetDependSet& deps)
+{
+  // Lookup the index for this target.  All targets should be known by
+  // this point.
+  std::map<cmTarget*, int>::const_iterator tii = this->TargetIndex.find(t);
+  assert(tii != this->TargetIndex.end());
+  int i = tii->second;
+
+  // Get its final dependencies.
+  EdgeList const& nl = this->FinalGraph[i];
+  for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    {
+    cmTarget* dep = this->Targets[*ni];
+    cmTargetDependSet::iterator di = deps.insert(dep).first;
+    di->SetType(ni->IsStrong());
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectTargets()
+{
+  // Collect all targets from all generators.
+  std::vector<cmLocalGenerator*> const& lgens =
+    this->GlobalGenerator->GetLocalGenerators();
+  for(unsigned int i = 0; i < lgens.size(); ++i)
+    {
+    cmTargets& targets = lgens[i]->GetMakefile()->GetTargets();
+    for(cmTargets::iterator ti = targets.begin(); ti != targets.end(); ++ti)
       {
-      doing = DoingCMakeFlags;
-      // CMAKE_FLAGS is the first argument because we need an argv[0] that
-      // is not used, so it matches regular command line parsing which has
-      // the program name as arg 0
-      cmakeFlags.push_back(argv[i]);
+      cmTarget* target = &ti->second;
+      int index = static_cast<int>(this->Targets.size());
+      this->TargetIndex[target] = index;
+      this->Targets.push_back(target);
       }
-    else if(argv[i] == "COMPILE_DEFINITIONS")
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectDepends()
+{
+  // Allocate the dependency graph adjacency lists.
+  this->InitialGraph.resize(this->Targets.size());
+
+  // Compute each dependency list.
+  for(unsigned int i=0; i < this->Targets.size(); ++i)
+    {
+    this->CollectTargetDepends(i);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectTargetDepends(int depender_index)
+{
+  // Get the depender.
+  cmTarget* depender = this->Targets[depender_index];
+  if (depender->GetType() == cmTarget::INTERFACE_LIBRARY)
+    {
+    return;
+    }
+
+  // Loop over all targets linked directly in all configs.
+  // We need to make targets depend on the union of all config-specific
+  // dependencies in all targets, because the generated build-systems can't
+  // deal with config-specific dependencies.
+  {
+  std::set<cmStdString> emitted;
+  {
+  std::vector<std::string> tlibs;
+  depender->GetDirectLinkLibraries(0, tlibs, depender);
+  // A target should not depend on itself.
+  emitted.insert(depender->GetName());
+  for(std::vector<std::string>::const_iterator lib = tlibs.begin();
+      lib != tlibs.end(); ++lib)
+    {
+    // Don't emit the same library twice for this target.
+    if(emitted.insert(*lib).second)
       {
-      doing = DoingCompileDefinitions;
+      this->AddTargetDepend(depender_index, lib->c_str(), true);
+      this->AddInterfaceDepends(depender_index, lib->c_str(),
+                                true, emitted);
       }
-    else if(argv[i] == "LINK_LIBRARIES")
+    }
+  }
+  std::vector<std::string> configs;
+  depender->GetMakefile()->GetConfigurations(configs);
+  for (std::vector<std::string>::const_iterator it = configs.begin();
+    it != configs.end(); ++it)
+    {
+    std::vector<std::string> tlibs;
+    depender->GetDirectLinkLibraries(it->c_str(), tlibs, depender);
+
+    // A target should not depend on itself.
+    emitted.insert(depender->GetName());
+    for(std::vector<std::string>::const_iterator lib = tlibs.begin();
+        lib != tlibs.end(); ++lib)
       {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
-      }
-    else if(argv[i] == "OUTPUT_VARIABLE")
-      {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
-      }
-    else if(argv[i] == "COPY_FILE")
-      {
-      doing = DoingCopyFile;
-      didCopyFile = true;
-      }
-    else if(argv[i] == "COPY_FILE_ERROR")
-      {
-      doing = DoingCopyFileError;
-      didCopyFileError = true;
-      }
-    else if(doing == DoingCMakeFlags)
-      {
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(doing == DoingCompileDefinitions)
-      {
-      compileDefs.push_back(argv[i]);
-      }
-    else if(doing == DoingLinkLibraries)
-      {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
+      // Don't emit the same library twice for this target.
+      if(emitted.insert(*lib).second)
         {
-        switch(tgt->GetType())
-          {
-          case cmTarget::SHARED_LIBRARY:
-          case cmTarget::STATIC_LIBRARY:
-          case cmTarget::INTERFACE_LIBRARY:
-          case cmTarget::UNKNOWN_LIBRARY:
-            break;
-          case cmTarget::EXECUTABLE:
-            if (tgt->IsExecutableWithExports())
-              {
-              break;
-              }
-          default:
-            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile or try_run IMPORTED "
-              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
-          }
-        if (tgt->IsImported())
-          {
-          targets.push_back(tgt);
-          }
+        this->AddTargetDepend(depender_index, lib->c_str(), true);
+        this->AddInterfaceDepends(depender_index, lib->c_str(),
+                                  true, emitted);
         }
       }
-    else if(doing == DoingOutputVariable)
+    }
+  }
+
+  // Loop over all utility dependencies.
+  {
+  std::set<cmStdString> const& tutils = depender->GetUtilities();
+  std::set<cmStdString> emitted;
+  // A target should not depend on itself.
+  emitted.insert(depender->GetName());
+  for(std::set<cmStdString>::const_iterator util = tutils.begin();
+      util != tutils.end(); ++util)
+    {
+    // Don't emit the same utility twice for this target.
+    if(emitted.insert(*util).second)
       {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFile)
-      {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFileError)
-      {
-      copyFileError = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingSources)
-      {
-      sources.push_back(argv[i]);
-      }
-    else if(i == 3)
-      {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-      }
-    else if(i == 4 && !this->SrcFileSignature)
-      {
-      targetName = argv[i].c_str();
-      }
-    else
-      {
-      std::ostringstream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+      this->AddTargetDepend(depender_index, util->c_str(), false);
       }
     }
+  }
+}
 
-  if(didCopyFile && copyFile.empty())
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddInterfaceDepends(int depender_index,
+                                                 cmTarget* dependee,
+                                                 const char *config,
+                                               std::set<cmStdString> &emitted)
+{
+  cmTarget* depender = this->Targets[depender_index];
+  if(cmTarget::LinkInterface const* iface =
+                                dependee->GetLinkInterface(config, depender))
     {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE must be followed by a file path");
-    return -1;
+    for(std::vector<std::string>::const_iterator
+        lib = iface->Libraries.begin();
+        lib != iface->Libraries.end(); ++lib)
+      {
+      // Don't emit the same library twice for this target.
+      if(emitted.insert(*lib).second)
+        {
+        this->AddTargetDepend(depender_index, lib->c_str(), true);
+        this->AddInterfaceDepends(depender_index, lib->c_str(),
+                                  true, emitted);
+        }
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddInterfaceDepends(int depender_index,
+                                             const char* dependee_name,
+                                             bool linking,
+                                             std::set<cmStdString> &emitted)
+{
+  cmTarget* depender = this->Targets[depender_index];
+  cmTarget* dependee =
+    depender->GetMakefile()->FindTargetToUse(dependee_name);
+  // Skip targets that will not really be linked.  This is probably a
+  // name conflict between an external library and an executable
+  // within the project.
+  if(linking && dependee &&
+     dependee->GetType() == cmTarget::EXECUTABLE &&
+     !dependee->IsExecutableWithExports())
+    {
+    dependee = 0;
     }
 
-  if(didCopyFileError && copyFileError.empty())
+  if(dependee)
     {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR must be followed by a variable name");
-    return -1;
+    this->AddInterfaceDepends(depender_index, dependee, 0, emitted);
+    std::vector<std::string> configs;
+    depender->GetMakefile()->GetConfigurations(configs);
+    for (std::vector<std::string>::const_iterator it = configs.begin();
+      it != configs.end(); ++it)
+      {
+      // A target should not depend on itself.
+      emitted.insert(depender->GetName());
+      this->AddInterfaceDepends(depender_index, dependee,
+                                it->c_str(), emitted);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddTargetDepend(int depender_index,
+                                             const char* dependee_name,
+                                             bool linking)
+{
+  // Get the depender.
+  cmTarget* depender = this->Targets[depender_index];
+
+  // Check the target's makefile first.
+  cmTarget* dependee =
+    depender->GetMakefile()->FindTargetToUse(dependee_name);
+
+  // Skip targets that will not really be linked.  This is probably a
+  // name conflict between an external library and an executable
+  // within the project.
+  if(linking && dependee &&
+     dependee->GetType() == cmTarget::EXECUTABLE &&
+     !dependee->IsExecutableWithExports())
+    {
+    dependee = 0;
     }
 
-  if(didCopyFileError && !didCopyFile)
+  if(dependee)
     {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return -1;
+    this->AddTargetDepend(depender_index, dependee, linking);
     }
+}
 
-  if(didOutputVariable && outputVariable.empty())
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddTargetDepend(int depender_index,
+                                             cmTarget* dependee,
+                                             bool linking)
+{
+  if(dependee->IsImported())
     {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-    }
-
-  if(useSources && sources.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
+    // Skip imported targets but follow their utility dependencies.
+    std::set<cmStdString> const& utils = dependee->GetUtilities();
+    for(std::set<cmStdString>::const_iterator i = utils.begin();
+        i != utils.end(); ++i)
+      {
+      if(cmTarget* transitive_dependee =
+         dependee->GetMakefile()->FindTargetToUse(i->c_str()))
+        {
+        this->AddTargetDepend(depender_index, transitive_dependee, false);
+        }
+      }
     }
   else
     {
-    // only valid for srcfile signatures
-    if (!compileDefs.empty())
+    // Lookup the index for this target.  All targets should be known by
+    // this point.
+    std::map<cmTarget*, int>::const_iterator tii =
+      this->TargetIndex.find(dependee);
+    assert(tii != this->TargetIndex.end());
+    int dependee_index = tii->second;
+
+    // Add this entry to the dependency graph.
+    this->InitialGraph[depender_index].push_back(
+      cmGraphEdge(dependee_index, !linking));
+    }
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+{
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
+    {
+    EdgeList const& nl = graph[depender_index];
+    cmTarget* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (!copyFile.empty())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
+      int dependee_index = *ni;
+      cmTarget* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
+              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
       }
     }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+  fprintf(stderr, "\n");
+}
 
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends
+::DisplayComponents(cmComputeComponentGraph const& ccg)
+{
+  fprintf(stderr, "The strongly connected components are:\n");
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  int n = static_cast<int>(components.size());
+  for(int c = 0; c < n; ++c)
     {
-    std::ostringstream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
+    NodeList const& nl = components[c];
+    fprintf(stderr, "Component (%d):\n", c);
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int i = *ni;
+      fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());
+      }
     }
+  fprintf(stderr, "\n");
+}
 
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
+//----------------------------------------------------------------------------
+bool
+cmComputeTargetDepends
+::CheckComponents(cmComputeComponentGraph const& ccg)
+{
+  // All non-trivial components should consist only of static
+  // libraries.
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  int nc = static_cast<int>(components.size());
+  for(int c=0; c < nc; ++c)
     {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile);
+    // Get the current component.
+    NodeList const& nl = components[c];
 
-    // Choose sources.
-    if(!useSources)
+    // Skip trivial components.
+    if(nl.size() < 2)
       {
-      sources.push_back(argv[2]);
+      continue;
       }
 
-    // Detect languages to enable.
-    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
-    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
+    // Immediately complain if no cycles are allowed at all.
+    if(this->NoCycles)
       {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-      if(!lang.empty())
+      this->ComplainAboutBadComponent(ccg, c);
+      return false;
+      }
+
+    // Make sure the component is all STATIC_LIBRARY targets.
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      if(this->Targets[*ni]->GetType() != cmTarget::STATIC_LIBRARY)
         {
-        testLangs.insert(lang);
-        }
-      else
-        {
-        std::ostringstream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n  ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        err << cmJoin(langs, " ");
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
+        this->ComplainAboutBadComponent(ccg, c);
+        return false;
         }
       }
+    }
+  return true;
+}
 
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends
+::ComplainAboutBadComponent(cmComputeComponentGraph const& ccg, int c,
+                            bool strong)
+{
+  // Construct the error message.
+  cmOStringStream e;
+  e << "The inter-target dependency graph contains the following "
+    << "strongly connected component (cycle):\n";
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  std::vector<int> const& cmap = ccg.GetComponentMap();
+  NodeList const& cl = components[c];
+  for(NodeList::const_iterator ci = cl.begin(); ci != cl.end(); ++ci)
+    {
+    // Get the depender.
+    int i = *ci;
+    cmTarget* depender = this->Targets[i];
 
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = cmsys::SystemTools::Fopen(outFileName,"w");
-    if (!fout)
+    // Describe the depender.
+    e << "  \"" << depender->GetName() << "\" of type "
+      << cmTarget::GetTargetTypeName(depender->GetType()) << "\n";
+
+    // List its dependencies that are inside the component.
+    EdgeList const& nl = this->InitialGraph[i];
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      std::ostringstream e;
-      e << "Failed to open\n"
-        << "  " << outFileName << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
-      }
-
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang))
+      int j = *ni;
+      if(cmap[j] == c)
         {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
+        cmTarget* dependee = this->Targets[j];
+        e << "    depends on \"" << dependee->GetName() << "\""
+          << " (" << (ni->IsStrong()? "strong" : "weak") << ")\n";
         }
       }
-    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
+    }
+  if(strong)
+    {
+    // Custom command executable dependencies cannot occur within a
+    // component of static libraries.  The cycle must appear in calls
+    // to add_dependencies.
+    e << "The component contains at least one cycle consisting of strong "
+      << "dependencies (created by add_dependencies) that cannot be broken.";
+    }
+  else if(this->NoCycles)
+    {
+    e << "The GLOBAL_DEPENDS_NO_CYCLES global property is enabled, so "
+      << "cyclic dependencies are not allowed even among static libraries.";
+    }
+  else
+    {
+    e << "At least one of these targets is not a STATIC_LIBRARY.  "
+      << "Cyclic dependencies are allowed only among static libraries.";
+    }
+  cmSystemTools::Error(e.str().c_str());
+}
+
+//----------------------------------------------------------------------------
+bool
+cmComputeTargetDepends
+::IntraComponent(std::vector<int> const& cmap, int c, int i, int* head,
+                 std::set<int>& emitted, std::set<int>& visited)
+{
+  if(!visited.insert(i).second)
+    {
+    // Cycle in utility depends!
+    return false;
+    }
+  if(emitted.insert(i).second)
+    {
+    // Honor strong intra-component edges in the final order.
+    EdgeList const& el = this->InitialGraph[i];
+    for(EdgeList::const_iterator ei = el.begin(); ei != el.end(); ++ei)
       {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
-    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0056))
-      {
-      case cmPolicies::WARN:
-        if(this->Makefile->PolicyOptionalWarningEnabled(
-             "CMAKE_POLICY_WARNING_CMP0056"))
+      int j = *ei;
+      if(cmap[j] == c && ei->IsStrong())
+        {
+        this->FinalGraph[i].push_back(cmGraphEdge(j, true));
+        if(!this->IntraComponent(cmap, c, j, head, emitted, visited))
           {
-          std::ostringstream w;
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
-            "For compatibility with older versions of CMake, try_compile "
-            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
-            "in the test project."
-            ;
-          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+          return false;
           }
-      case cmPolicies::OLD:
-        // OLD behavior is to do nothing.
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        this->Makefile->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056)
-          );
-      case cmPolicies::NEW:
-        // NEW behavior is to pass linker flags.
-        {
-        const char* exeLinkFlags =
-          this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
-        fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
-                lg->EscapeForCMake(exeLinkFlags?exeLinkFlags:"").c_str());
-        } break;
-      }
-    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
-            " ${EXE_LINKER_FLAGS}\")\n");
-    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (!compileDefs.empty())
-      {
-      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
-      }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTC_%05x",
-            cmSystemTools::RandomSeed() & 0xFFFFF);
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cxxDef
-              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
-      flag += cxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cDef
-                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
-      flag += cDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcxxDef = this->Makefile->GetDefinition(
-                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcDef = this->Makefile->GetDefinition(
-                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *rootDef
-              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
-      {
-      std::string flag="-DCMAKE_SYSROOT=";
-      flag += rootDef;
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if(si->find("CMakeTmp") == si->npos)
-        {
-        this->Makefile->AddCMakeDependFile(*si);
         }
       }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs)
+
+    // Prepend to a linear linked-list of intra-component edges.
+    if(*head >= 0)
       {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
+      this->FinalGraph[i].push_back(cmGraphEdge(*head, false));
       }
     else
       {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName.c_str(),
-              libsToLink.c_str());
+      this->ComponentTail[c] = i;
       }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
+    *head = i;
     }
-
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory,
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0],
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmState::INTERNAL);
-
-  if (!outputVariable.empty())
-    {
-    this->Makefile->AddDefinition(outputVariable, output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && !copyFile.empty())
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile,
-                                        copyFile))
-        {
-        std::ostringstream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        if(copyFileError.empty())
-          {
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-          return -1;
-          }
-        else
-          {
-          copyFileErrorMessage = emsg.str();
-          }
-        }
-      }
-
-    if(!copyFileError.empty())
-      {
-      this->Makefile->AddDefinition(copyFileError,
-                                    copyFileErrorMessage.c_str());
-      }
-    }
-  return res;
+  return true;
 }
 
-void cmCoreTryCompile::CleanupFiles(const char* binDir)
+//----------------------------------------------------------------------------
+bool
+cmComputeTargetDepends
+::ComputeFinalDepends(cmComputeComponentGraph const& ccg)
 {
-  if ( !binDir )
-    {
-    return;
-    }
+  // Get the component graph information.
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  Graph const& cgraph = ccg.GetComponentGraph();
 
-  std::string bdir = binDir;
-  if(bdir.find("CMakeTmp") == std::string::npos)
-    {
-    cmSystemTools::Error(
-      "TRY_COMPILE attempt to remove -rf directory that does not contain "
-      "CMakeTmp:", binDir);
-    return;
-    }
+  // Allocate the final graph.
+  this->FinalGraph.resize(0);
+  this->FinalGraph.resize(this->InitialGraph.size());
 
-  cmsys::Directory dir;
-  dir.Load(binDir);
-  size_t fileNum;
-  std::set<std::string> deletedFiles;
-  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
+  // Choose intra-component edges to linearize dependencies.
+  std::vector<int> const& cmap = ccg.GetComponentMap();
+  this->ComponentHead.resize(components.size());
+  this->ComponentTail.resize(components.size());
+  int nc = static_cast<int>(components.size());
+  for(int c=0; c < nc; ++c)
     {
-    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
-        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
+    int head = -1;
+    std::set<int> emitted;
+    NodeList const& nl = components[c];
+    for(NodeList::const_reverse_iterator ni = nl.rbegin();
+        ni != nl.rend(); ++ni)
       {
-
-      if(deletedFiles.find( dir.GetFile(static_cast<unsigned long>(fileNum)))
-         == deletedFiles.end())
+      std::set<int> visited;
+      if(!this->IntraComponent(cmap, c, *ni, &head, emitted, visited))
         {
-        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
-        std::string fullPath = binDir;
-        fullPath += "/";
-        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
-        if(cmSystemTools::FileIsDirectory(fullPath))
-          {
-          this->CleanupFiles(fullPath.c_str());
-          cmSystemTools::RemoveADirectory(fullPath);
-          }
-        else
-          {
-#ifdef _WIN32
-          // Sometimes anti-virus software hangs on to new files so we
-          // cannot delete them immediately.  Try a few times.
-          cmSystemTools::WindowsFileRetry retry =
-            cmSystemTools::GetWindowsFileRetry();
-          while(!cmSystemTools::RemoveFile(fullPath.c_str()) &&
-                --retry.Count && cmSystemTools::FileExists(fullPath.c_str()))
-            {
-            cmSystemTools::Delay(retry.Delay);
-            }
-          if(retry.Count == 0)
-#else
-          if(!cmSystemTools::RemoveFile(fullPath))
-#endif
-            {
-            std::string m = "Remove failed on file: " + fullPath;
-            cmSystemTools::ReportLastSystemError(m.c_str());
-            }
-          }
+        // Cycle in add_dependencies within component!
+        this->ComplainAboutBadComponent(ccg, c, true);
+        return false;
         }
       }
+    this->ComponentHead[c] = head;
     }
-}
 
-void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
-{
-  this->FindErrorMessage = "";
-  this->OutputFile = "";
-  std::string tmpOutputFile = "/";
-  tmpOutputFile += targetName;
-  tmpOutputFile +=this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
-
-  // a list of directories where to search for the compilation result
-  // at first directly in the binary dir
-  std::vector<std::string> searchDirs;
-  searchDirs.push_back("");
-
-  const char* config = this->Makefile->GetDefinition(
-                                            "CMAKE_TRY_COMPILE_CONFIGURATION");
-  // if a config was specified try that first
-  if (config && config[0])
+  // Convert inter-component edges to connect component tails to heads.
+  int n = static_cast<int>(cgraph.size());
+  for(int depender_component=0; depender_component < n; ++depender_component)
     {
-    std::string tmp = "/";
-    tmp += config;
-    searchDirs.push_back(tmp);
-    }
-  searchDirs.push_back("/Debug");
-#if defined(__APPLE__)
-  std::string app = "/Debug/" + targetName + ".app";
-  searchDirs.push_back(app);
-#endif
-  searchDirs.push_back("/Development");
-
-  for(std::vector<std::string>::const_iterator it = searchDirs.begin();
-      it != searchDirs.end();
-      ++it)
-    {
-    std::string command = this->BinaryDirectory;
-    command += *it;
-    command += tmpOutputFile;
-    if(cmSystemTools::FileExists(command.c_str()))
+    int depender_component_tail = this->ComponentTail[depender_component];
+    EdgeList const& nl = cgraph[depender_component];
+    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
       {
-      this->OutputFile = cmSystemTools::CollapseFullPath(command);
-      return;
+      int dependee_component = *ni;
+      int dependee_component_head = this->ComponentHead[dependee_component];
+      this->FinalGraph[depender_component_tail]
+        .push_back(cmGraphEdge(dependee_component_head, ni->IsStrong()));
       }
     }
-
-  std::ostringstream emsg;
-  emsg << "Unable to find the executable at any of:\n";
-  emsg << cmWrap("  " + this->BinaryDirectory,
-                 searchDirs,
-                 tmpOutputFile, "\n") << "\n";
-  this->FindErrorMessage = emsg.str();
-  return;
+  return true;
 }

@@ -1,859 +1,783 @@
-/*============================================================================
-  KWSys - Kitware System Library
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2006, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ * $Id$
+ ***************************************************************************/
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "setup.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(CommandLineArguments.hxx)
-
-#include KWSYS_HEADER(Configure.hxx)
-#include KWSYS_HEADER(String.hxx)
-
-#include KWSYS_HEADER(stl/vector)
-#include KWSYS_HEADER(stl/map)
-#include KWSYS_HEADER(stl/set)
-#include KWSYS_HEADER(ios/sstream)
-#include KWSYS_HEADER(ios/iostream)
-
-// Work-around CMake dependency scanning limitation.  This must
-// duplicate the above list of headers.
-#if 0
-# include "CommandLineArguments.hxx.in"
-# include "Configure.hxx.in"
-# include "kwsys_stl.hxx.in"
-# include "kwsys_ios_sstream.h.in"
-# include "kwsys_ios_iostream.h.in"
+#ifndef WIN32
+/* headers for non-win32 */
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h> /* <netinet/tcp.h> may need it */
+#endif
+#ifdef HAVE_NETINET_TCP_H
+#include <netinet/tcp.h> /* for TCP_NODELAY */
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h> /* required for free() prototype, without it, this crashes
+                       on macos 68K */
+#endif
+#if (defined(HAVE_FIONBIO) && defined(__NOVELL_LIBC__))
+#include <sys/filio.h>
+#endif
+#if (defined(NETWARE) && defined(__NOVELL_LIBC__))
+#undef in_addr_t
+#define in_addr_t unsigned long
+#endif
+#ifdef VMS
+#include <in.h>
+#include <inet.h>
 #endif
 
+#endif
 #include <stdio.h>
-#include <stdlib.h>
+#include <errno.h>
 #include <string.h>
 
-#ifdef _MSC_VER
-# pragma warning (disable: 4786)
+#ifndef TRUE
+#define TRUE 1
+#define FALSE 0
 #endif
 
-#if defined(__sgi) && !defined(__GNUC__)
-# pragma set woff 1375 /* base class destructor not virtual */
+#ifdef USE_WINSOCK
+#define EINPROGRESS WSAEINPROGRESS
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EISCONN     WSAEISCONN
+#define ENOTSOCK    WSAENOTSOCK
+#define ECONNREFUSED WSAECONNREFUSED
 #endif
 
-#if 0
-#  define CommandLineArguments_DEBUG(x) \
-  kwsys_ios::cout << __LINE__ << " CLA: " << x << kwsys_ios::endl
+#include "urldata.h"
+#include "sendf.h"
+#include "if2ip.h"
+#include "strerror.h"
+#include "connect.h"
+#include "memory.h"
+#include "select.h"
+#include "url.h" /* for Curl_safefree() */
+#include "multiif.h"
+#include "sockaddr.h" /* required for Curl_sockaddr_storage */
+#include "inet_ntop.h"
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+static bool verifyconnect(curl_socket_t sockfd, int *error);
+
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                const Curl_addrinfo *ai, /* start connecting to this */
+                long timeout_ms,
+                bool *connected);
+
+/*
+ * Curl_sockerrno() returns the *socket-related* errno (or equivalent) on this
+ * platform to hide platform specific for the function that calls this.
+ */
+int Curl_sockerrno(void)
+{
+#ifdef USE_WINSOCK
+  return (int)WSAGetLastError();
 #else
-#  define CommandLineArguments_DEBUG(x)
+  return errno;
+#endif
+}
+
+/*
+ * Curl_nonblock() set the given socket to either blocking or non-blocking
+ * mode based on the 'nonblock' boolean argument. This function is highly
+ * portable.
+ */
+int Curl_nonblock(curl_socket_t sockfd,    /* operate on this */
+                  int nonblock   /* TRUE or FALSE */)
+{
+#undef SETBLOCK
+#define SETBLOCK 0
+#ifdef HAVE_O_NONBLOCK
+  /* most recent unix versions */
+  int flags;
+
+  flags = fcntl(sockfd, F_GETFL, 0);
+  if (TRUE == nonblock)
+    return fcntl(sockfd, F_SETFL, flags | O_NONBLOCK);
+  else
+    return fcntl(sockfd, F_SETFL, flags & (~O_NONBLOCK));
+#undef SETBLOCK
+#define SETBLOCK 1
 #endif
 
-namespace KWSYS_NAMESPACE
-{
+#if defined(HAVE_FIONBIO) && (SETBLOCK == 0)
+  /* older unix versions */
+  int flags;
 
-//----------------------------------------------------------------------------
-//============================================================================
-struct CommandLineArgumentsCallbackStructure
-{
-  const char* Argument;
-  int ArgumentType;
-  CommandLineArguments::CallbackType Callback;
-  void* CallData;
-  void* Variable;
-  int VariableType;
-  const char* Help;
-};
- 
-class CommandLineArgumentsVectorOfStrings : 
-  public kwsys_stl::vector<kwsys::String> {};
-class CommandLineArgumentsSetOfStrings :
-  public kwsys_stl::set<kwsys::String> {};
-class CommandLineArgumentsMapOfStrucs : 
-  public kwsys_stl::map<kwsys::String,
-    CommandLineArgumentsCallbackStructure> {};
+  flags = nonblock;
+  return ioctl(sockfd, FIONBIO, &flags);
+#undef SETBLOCK
+#define SETBLOCK 2
+#endif
 
-class CommandLineArgumentsInternal
-{
-public:
-  CommandLineArgumentsInternal()
-    {
-    this->UnknownArgumentCallback = 0;
-    this->ClientData = 0;
-    this->LastArgument = 0;
-    }
+#if defined(HAVE_IOCTLSOCKET) && (SETBLOCK == 0)
+  /* Windows? */
+  unsigned long flags;
+  flags = nonblock;
 
-  typedef CommandLineArgumentsVectorOfStrings VectorOfStrings;
-  typedef CommandLineArgumentsMapOfStrucs CallbacksMap;
-  typedef kwsys::String String;
-  typedef CommandLineArgumentsSetOfStrings SetOfStrings;
+  return ioctlsocket(sockfd, FIONBIO, &flags);
+#undef SETBLOCK
+#define SETBLOCK 3
+#endif
 
-  VectorOfStrings Argv;
-  String Argv0;
-  CallbacksMap Callbacks;
+#if defined(HAVE_IOCTLSOCKET_CASE) && (SETBLOCK == 0)
+  /* presumably for Amiga */
+  return IoctlSocket(sockfd, FIONBIO, (long)nonblock);
+#undef SETBLOCK
+#define SETBLOCK 4
+#endif
 
-  CommandLineArguments::ErrorCallbackType UnknownArgumentCallback;
-  void*             ClientData;
+#if defined(HAVE_SO_NONBLOCK) && (SETBLOCK == 0)
+  /* BeOS */
+  long b = nonblock ? 1 : 0;
+  return setsockopt(sockfd, SOL_SOCKET, SO_NONBLOCK, &b, sizeof(b));
+#undef SETBLOCK
+#define SETBLOCK 5
+#endif
 
-  VectorOfStrings::size_type LastArgument;
+#ifdef HAVE_DISABLED_NONBLOCKING
+  return 0; /* returns success */
+#undef SETBLOCK
+#define SETBLOCK 6
+#endif
 
-  VectorOfStrings UnusedArguments;
-};
-//============================================================================
-//----------------------------------------------------------------------------
-
-//----------------------------------------------------------------------------
-CommandLineArguments::CommandLineArguments()
-{
-  this->Internals = new CommandLineArguments::Internal;
-  this->Help = "";
-  this->LineLength = 80;
-  this->StoreUnusedArgumentsFlag = false;
+#if (SETBLOCK == 0)
+#error "no non-blocking method was found/used/set"
+#endif
 }
 
-//----------------------------------------------------------------------------
-CommandLineArguments::~CommandLineArguments()
+/*
+ * waitconnect() waits for a TCP connect on the given socket for the specified
+ * number if milliseconds. It returns:
+ * 0    fine connect
+ * -1   select() error
+ * 1    select() timeout
+ * 2    select() returned with an error condition fd_set
+ */
+
+#define WAITCONN_CONNECTED     0
+#define WAITCONN_SELECT_ERROR -1
+#define WAITCONN_TIMEOUT       1
+#define WAITCONN_FDSET_ERROR   2
+
+static
+int waitconnect(curl_socket_t sockfd, /* socket */
+                long timeout_msec)
 {
-  delete this->Internals;
+  int rc;
+#ifdef mpeix
+  /* Call this function once now, and ignore the results. We do this to
+     "clear" the error state on the socket so that we can later read it
+     reliably. This is reported necessary on the MPE/iX operating system. */
+  (void)verifyconnect(sockfd, NULL);
+#endif
+
+  /* now select() until we get connect or timeout */
+  rc = Curl_select(CURL_SOCKET_BAD, sockfd, (int)timeout_msec);
+  if(-1 == rc)
+    /* error, no connect here, try next */
+    return WAITCONN_SELECT_ERROR;
+
+  else if(0 == rc)
+    /* timeout, no connect today */
+    return WAITCONN_TIMEOUT;
+
+  if(rc & CSELECT_ERR)
+    /* error condition caught */
+    return WAITCONN_FDSET_ERROR;
+
+  /* we have a connect! */
+  return WAITCONN_CONNECTED;
 }
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize(int argc, const char* const argv[])
+static CURLcode bindlocal(struct connectdata *conn,
+                          curl_socket_t sockfd)
 {
-  int cc;
+  struct SessionHandle *data = conn->data;
+  struct sockaddr_in me;
+  struct sockaddr *sock = NULL;  /* bind to this address */
+  socklen_t socksize; /* size of the data sock points to */
+  unsigned short port = data->set.localport; /* use this port number, 0 for
+                                                "random" */
+  /* how many port numbers to try to bind to, increasing one at a time */
+  int portnum = data->set.localportrange;
 
-  this->Initialize();
-  this->Internals->Argv0 = argv[0];
-  for ( cc = 1; cc < argc; cc ++ )
-    {
-    this->ProcessArgument(argv[cc]);
-    }
-}
+  /*************************************************************
+   * Select device to bind socket to
+   *************************************************************/
+  if (data->set.device && (strlen(data->set.device)<255) ) {
+    struct Curl_dns_entry *h=NULL;
+    char myhost[256] = "";
+    in_addr_t in;
+    int rc;
+    bool was_iface = FALSE;
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize(int argc, char* argv[])
-{
-  this->Initialize(argc, static_cast<const char* const*>(argv));
-}
+    /* First check if the given name is an IP address */
+    in=inet_addr(data->set.device);
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize()
-{
-  this->Internals->Argv.clear();
-  this->Internals->LastArgument = 0;
-}
+    if((in == CURL_INADDR_NONE) &&
+       Curl_if2ip(data->set.device, myhost, sizeof(myhost))) {
+      /*
+       * We now have the numerical IPv4-style x.y.z.w in the 'myhost' buffer
+       */
+      rc = Curl_resolv(conn, myhost, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::ProcessArgument(const char* arg)
-{
-  this->Internals->Argv.push_back(arg);
-}
-
-//----------------------------------------------------------------------------
-bool CommandLineArguments::GetMatchedArguments(
-  kwsys_stl::vector<kwsys_stl::string>* matches,
-  const kwsys_stl::string& arg)
-{
-  matches->clear();
-  CommandLineArguments::Internal::CallbacksMap::iterator it;
-
-  // Does the argument match to any we know about?
-  for ( it = this->Internals->Callbacks.begin();
-    it != this->Internals->Callbacks.end();
-    it ++ )
-    {
-    const CommandLineArguments::Internal::String& parg = it->first;
-    CommandLineArgumentsCallbackStructure *cs = &it->second;
-    if (cs->ArgumentType == CommandLineArguments::NO_ARGUMENT ||
-      cs->ArgumentType == CommandLineArguments::SPACE_ARGUMENT) 
-      {
-      if ( arg == parg )
-        {
-        matches->push_back(parg);
-        }
+      if(h) {
+        was_iface = TRUE;
+        Curl_resolv_unlock(data, h);
       }
-    else if ( arg.find( parg ) == 0 )
-      {
-      matches->push_back(parg);
-      }
     }
-  return !matches->empty();
-}
 
-//----------------------------------------------------------------------------
-int CommandLineArguments::Parse()
-{
-  kwsys_stl::vector<kwsys_stl::string>::size_type cc;
-  kwsys_stl::vector<kwsys_stl::string> matches;
-  if ( this->StoreUnusedArgumentsFlag )
-    {
-    this->Internals->UnusedArguments.clear();
-    }
-  for ( cc = 0; cc < this->Internals->Argv.size(); cc ++ )
-    {
-    const kwsys_stl::string& arg = this->Internals->Argv[cc]; 
-    CommandLineArguments_DEBUG("Process argument: " << arg);
-    this->Internals->LastArgument = cc;
-    if ( this->GetMatchedArguments(&matches, arg) )
-      {
-      // Ok, we found one or more arguments that match what user specified.
-      // Let's find the longest one.
-      CommandLineArguments::Internal::VectorOfStrings::size_type kk;
-      CommandLineArguments::Internal::VectorOfStrings::size_type maxidx = 0;
-      CommandLineArguments::Internal::String::size_type maxlen = 0;
-      for ( kk = 0; kk < matches.size(); kk ++ )
-        {
-        if ( matches[kk].size() > maxlen )
-          {
-          maxlen = matches[kk].size();
-          maxidx = kk;
-          }
-        }
-      // So, the longest one is probably the right one. Now see if it has any
-      // additional value
-      CommandLineArgumentsCallbackStructure *cs 
-        = &this->Internals->Callbacks[matches[maxidx]];
-      const kwsys_stl::string& sarg = matches[maxidx];
-      if ( cs->Argument != sarg )
-        {
-        abort();
-        }
-      switch ( cs->ArgumentType )
-        {
-      case NO_ARGUMENT:
-        // No value
-        if ( !this->PopulateVariable(cs, 0) )
-          {
-          return 0;
-          }
-        break;
-      case SPACE_ARGUMENT:
-        if ( cc == this->Internals->Argv.size()-1 )
-          {
-          this->Internals->LastArgument --;
-          return 0;
-          }
-        CommandLineArguments_DEBUG("This is a space argument: " << arg
-          << " value: " << this->Internals->Argv[cc+1]);
-        // Value is the next argument
-        if ( !this->PopulateVariable(cs, this->Internals->Argv[cc+1].c_str()) )
-          {
-          return 0;
-          }
-        cc ++;
-        break;
-      case EQUAL_ARGUMENT:
-        if ( arg.size() == sarg.size() || arg.at(sarg.size()) != '=' )
-          {
-          this->Internals->LastArgument --;
-          return 0;
-          }
-        // Value is everythng followed the '=' sign
-        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size() + 1) )
-          {
-          return 0;
-          }
-        break;
-      case CONCAT_ARGUMENT:
-        // Value is whatever follows the argument
-        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size()) )
-          {
-          return 0;
-          }
-        break;
-      case MULTI_ARGUMENT:
-        // Suck in all the rest of the arguments
-        CommandLineArguments_DEBUG("This is a multi argument: " << arg);
-        for (cc++; cc < this->Internals->Argv.size(); ++ cc )
-          {
-          const kwsys_stl::string& marg = this->Internals->Argv[cc];
-          CommandLineArguments_DEBUG(" check multi argument value: " << marg);
-          if ( this->GetMatchedArguments(&matches, marg) )
-            {
-            CommandLineArguments_DEBUG("End of multi argument " << arg << " with value: " << marg);
-            break;
-            }
-          CommandLineArguments_DEBUG(" populate multi argument value: " << marg);
-          if ( !this->PopulateVariable(cs, marg.c_str()) )
-            {
-            return 0;
-            }
-          }
-        if ( cc != this->Internals->Argv.size() )
-          {
-          CommandLineArguments_DEBUG("Again End of multi argument " << arg);
-          cc--;
-          continue;
-          }
-        break;
-      default:
-        kwsys_ios::cerr << "Got unknown argument type: \"" << cs->ArgumentType << "\"" << kwsys_ios::endl;
-        this->Internals->LastArgument --;
-        return 0;
-        }
+    if(!was_iface) {
+      /*
+       * This was not an interface, resolve the name as a host name
+       * or IP number
+       */
+      rc = Curl_resolv(conn, data->set.device, 0, &h);
+      if(rc == CURLRESOLV_PENDING)
+        (void)Curl_wait_for_resolv(conn, &h);
+
+      if(h) {
+        if(in == CURL_INADDR_NONE)
+          /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
+          Curl_inet_ntop(h->addr->ai_addr->sa_family,
+                         &((struct sockaddr_in*)h->addr->ai_addr)->sin_addr,
+                         myhost, sizeof myhost);
+        else
+          /* we know data->set.device is shorter than the myhost array */
+          strcpy(myhost, data->set.device);
+        Curl_resolv_unlock(data, h);
       }
+    }
+
+    if(! *myhost) {
+      /* need to fix this
+         h=Curl_gethost(data,
+         getmyhost(*myhost,sizeof(myhost)),
+         hostent_buf,
+         sizeof(hostent_buf));
+      */
+      failf(data, "Couldn't bind to '%s'", data->set.device);
+      return CURLE_HTTP_PORT_FAILED;
+    }
+
+    infof(data, "Bind local address to %s\n", myhost);
+
+#ifdef SO_BINDTODEVICE
+    /* I am not sure any other OSs than Linux that provide this feature, and
+     * at the least I cannot test. --Ben
+     *
+     * This feature allows one to tightly bind the local socket to a
+     * particular interface.  This will force even requests to other local
+     * interfaces to go out the external interface.
+     *
+     */
+    if (was_iface) {
+      /* Only bind to the interface when specified as interface, not just as a
+       * hostname or ip address.
+       */
+      if (setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE,
+                     data->set.device, strlen(data->set.device)+1) != 0) {
+        /* printf("Failed to BINDTODEVICE, socket: %d  device: %s error: %s\n",
+           sockfd, data->set.device, Curl_strerror(Curl_sockerrno())); */
+        infof(data, "SO_BINDTODEVICE %s failed\n",
+              data->set.device);
+        /* This is typically "errno 1, error: Operation not permitted" if
+           you're not running as root or another suitable privileged user */
+      }
+    }
+#endif
+
+    in=inet_addr(myhost);
+    if (CURL_INADDR_NONE == in) {
+      failf(data,"couldn't find my own IP address (%s)", myhost);
+      return CURLE_HTTP_PORT_FAILED;
+    } /* end of inet_addr */
+
+    if ( h ) {
+      Curl_addrinfo *addr = h->addr;
+      sock = addr->ai_addr;
+      socksize = addr->ai_addrlen;
+    }
     else
-      {
-      // Handle unknown arguments
-      if ( this->Internals->UnknownArgumentCallback )
-        {
-        if ( !this->Internals->UnknownArgumentCallback(arg.c_str(), 
-            this->Internals->ClientData) )
-          {
-          this->Internals->LastArgument --;
-          return 0;
-          }
-        return 1;
-        }
-      else if ( this->StoreUnusedArgumentsFlag )
-        {
-        CommandLineArguments_DEBUG("Store unused argument " << arg);
-        this->Internals->UnusedArguments.push_back(arg);
-        }
-      else
-        {
-        kwsys_ios::cerr << "Got unknown argument: \"" << arg << "\"" << kwsys_ios::endl;
-        this->Internals->LastArgument --;
-        return 0;
-        }
-      }
-    }
-  return 1;
-}
+      return CURLE_HTTP_PORT_FAILED;
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::GetRemainingArguments(int* argc, char*** argv)
-{
-  CommandLineArguments::Internal::VectorOfStrings::size_type size 
-    = this->Internals->Argv.size() - this->Internals->LastArgument + 1;
-  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
-
-  // Copy Argv0 as the first argument
-  char** args = new char*[ size ];
-  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
-  strcpy(args[0], this->Internals->Argv0.c_str());
-  int cnt = 1;
-
-  // Copy everything after the LastArgument, since that was not parsed.
-  for ( cc = this->Internals->LastArgument+1; 
-    cc < this->Internals->Argv.size(); cc ++ )
-    {
-    args[cnt] = new char[ this->Internals->Argv[cc].size() + 1];
-    strcpy(args[cnt], this->Internals->Argv[cc].c_str());
-    cnt ++;
-    }
-  *argc = cnt;
-  *argv = args;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::GetUnusedArguments(int* argc, char*** argv)
-{
-  CommandLineArguments::Internal::VectorOfStrings::size_type size 
-    = this->Internals->UnusedArguments.size() + 1;
-  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
-
-  // Copy Argv0 as the first argument
-  char** args = new char*[ size ];
-  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
-  strcpy(args[0], this->Internals->Argv0.c_str());
-  int cnt = 1;
-
-  // Copy everything after the LastArgument, since that was not parsed.
-  for ( cc = 0;
-    cc < this->Internals->UnusedArguments.size(); cc ++ )
-    {
-    kwsys::String &str = this->Internals->UnusedArguments[cc];
-    args[cnt] = new char[ str.size() + 1];
-    strcpy(args[cnt], str.c_str());
-    cnt ++;
-    }
-  *argc = cnt;
-  *argv = args;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::DeleteRemainingArguments(int argc, char*** argv)
-{
-  int cc;
-  for ( cc = 0; cc < argc; ++ cc )
-    {
-    delete [] (*argv)[cc];
-    }
-  delete [] *argv;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::AddCallback(const char* argument, ArgumentTypeEnum type, 
-  CallbackType callback, void* call_data, const char* help)
-{
-  CommandLineArgumentsCallbackStructure s;
-  s.Argument     = argument;
-  s.ArgumentType = type;
-  s.Callback     = callback;
-  s.CallData     = call_data;
-  s.VariableType = CommandLineArguments::NO_VARIABLE_TYPE;
-  s.Variable     = 0;
-  s.Help         = help;
-
-  this->Internals->Callbacks[argument] = s;
-  this->GenerateHelp();
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
-  VariableTypeEnum vtype, void* variable, const char* help)
-{
-  CommandLineArgumentsCallbackStructure s;
-  s.Argument     = argument;
-  s.ArgumentType = type;
-  s.Callback     = 0;
-  s.CallData     = 0;
-  s.VariableType = vtype;
-  s.Variable     = variable;
-  s.Help         = help;
-
-  this->Internals->Callbacks[argument] = s;
-  this->GenerateHelp();
-}
-
-//----------------------------------------------------------------------------
-#define CommandLineArgumentsAddArgumentMacro(type, ctype) \
-  void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type, \
-    ctype* variable, const char* help) \
-  { \
-    this->AddArgument(argument, type, CommandLineArguments::type##_TYPE, variable, help); \
   }
+  else if(port) {
+    /* if a local port number is requested but no local IP, extract the
+       address from the socket */
+    memset(&me, 0, sizeof(struct sockaddr));
+    me.sin_family = AF_INET;
+    me.sin_addr.s_addr = INADDR_ANY;
 
-CommandLineArgumentsAddArgumentMacro(BOOL,       bool)
-CommandLineArgumentsAddArgumentMacro(INT,        int)
-CommandLineArgumentsAddArgumentMacro(DOUBLE,     double)
-CommandLineArgumentsAddArgumentMacro(STRING,     char*)
-CommandLineArgumentsAddArgumentMacro(STL_STRING, kwsys_stl::string)
+    sock = (struct sockaddr *)&me;
+    socksize = sizeof(struct sockaddr);
 
-CommandLineArgumentsAddArgumentMacro(VECTOR_BOOL,       kwsys_stl::vector<bool>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_INT,        kwsys_stl::vector<int>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_DOUBLE,     kwsys_stl::vector<double>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_STRING,     kwsys_stl::vector<char*>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_STL_STRING, kwsys_stl::vector<kwsys_stl::string>)
-
-//----------------------------------------------------------------------------
-#define CommandLineArgumentsAddBooleanArgumentMacro(type, ctype) \
-  void CommandLineArguments::AddBooleanArgument(const char* argument, \
-    ctype* variable, const char* help) \
-  { \
-    this->AddArgument(argument, CommandLineArguments::NO_ARGUMENT, \
-      CommandLineArguments::type##_TYPE, variable, help); \
   }
-
-CommandLineArgumentsAddBooleanArgumentMacro(BOOL,       bool)
-CommandLineArgumentsAddBooleanArgumentMacro(INT,        int)
-CommandLineArgumentsAddBooleanArgumentMacro(DOUBLE,     double)
-CommandLineArgumentsAddBooleanArgumentMacro(STRING,     char*)
-CommandLineArgumentsAddBooleanArgumentMacro(STL_STRING, kwsys_stl::string)
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetClientData(void* client_data)
-{
-  this->Internals->ClientData = client_data;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetUnknownArgumentCallback(
-  CommandLineArguments::ErrorCallbackType callback)
-{
-  this->Internals->UnknownArgumentCallback = callback;
-}
-
-//----------------------------------------------------------------------------
-const char* CommandLineArguments::GetHelp(const char* arg)
-{
-  CommandLineArguments::Internal::CallbacksMap::iterator it 
-    = this->Internals->Callbacks.find(arg);
-  if ( it == this->Internals->Callbacks.end() )
-    {
-    return 0;
-    }
-
-  // Since several arguments may point to the same argument, find the one this
-  // one point to if this one is pointing to another argument.
-  CommandLineArgumentsCallbackStructure *cs = &(it->second);
-  for(;;)
-    {
-    CommandLineArguments::Internal::CallbacksMap::iterator hit 
-      = this->Internals->Callbacks.find(cs->Help);
-    if ( hit == this->Internals->Callbacks.end() )
-      {
-      break;
-      }
-    cs = &(hit->second);
-    }
-  return cs->Help;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetLineLength(unsigned int ll)
-{
-  if ( ll < 9 || ll > 1000 )
-    {
-    return;
-    }
-  this->LineLength = ll;
-  this->GenerateHelp();
-}
-
-//----------------------------------------------------------------------------
-const char* CommandLineArguments::GetArgv0()
-{
-  return this->Internals->Argv0.c_str();
-}
-
-//----------------------------------------------------------------------------
-unsigned int CommandLineArguments::GetLastArgument()
-{
-  return static_cast<unsigned int>(this->Internals->LastArgument + 1);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::GenerateHelp()
-{
-  kwsys_ios::ostringstream str;
-  
-  // Collapse all arguments into the map of vectors of all arguments that do
-  // the same thing.
-  CommandLineArguments::Internal::CallbacksMap::iterator it;
-  typedef kwsys_stl::map<CommandLineArguments::Internal::String, 
-     CommandLineArguments::Internal::SetOfStrings > MapArgs;
-  MapArgs mp;
-  MapArgs::iterator mpit, smpit;
-  for ( it = this->Internals->Callbacks.begin();
-    it != this->Internals->Callbacks.end();
-    it ++ )
-    {
-    CommandLineArgumentsCallbackStructure *cs = &(it->second);
-    mpit = mp.find(cs->Help);
-    if ( mpit != mp.end() )
-      {
-      mpit->second.insert(it->first);
-      mp[it->first].insert(it->first);
-      }
-    else
-      {
-      mp[it->first].insert(it->first);
-      }
-    }
-  for ( it = this->Internals->Callbacks.begin();
-    it != this->Internals->Callbacks.end();
-    it ++ )
-    {
-    CommandLineArgumentsCallbackStructure *cs = &(it->second);
-    mpit = mp.find(cs->Help);
-    if ( mpit != mp.end() )
-      {
-      mpit->second.insert(it->first);
-      smpit = mp.find(it->first);
-      CommandLineArguments::Internal::SetOfStrings::iterator sit;
-      for ( sit = smpit->second.begin(); sit != smpit->second.end(); sit++ )
-        {
-        mpit->second.insert(*sit);
-        }
-      mp.erase(smpit);
-      }
-    else
-      {
-      mp[it->first].insert(it->first);
-      }
-    }
- 
-  // Find the length of the longest string
-  CommandLineArguments::Internal::String::size_type maxlen = 0;
-  for ( mpit = mp.begin();
-    mpit != mp.end();
-    mpit ++ )
-    {
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      CommandLineArguments::Internal::String::size_type clen = sit->size();
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
-        {
-        case CommandLineArguments::NO_ARGUMENT:     clen += 0; break;
-        case CommandLineArguments::CONCAT_ARGUMENT: clen += 3; break;
-        case CommandLineArguments::SPACE_ARGUMENT:  clen += 4; break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  clen += 4; break;
-        }
-      if ( clen > maxlen )
-        {
-        maxlen = clen;
-        }
-      }
-    }
-
-  // Create format for that string
-  char format[80];
-  sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));
-
-  maxlen += 4; // For the space before and after the option
-
-  // Print help for each option
-  for ( mpit = mp.begin();
-    mpit != mp.end();
-    mpit ++ )
-    {
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      str << kwsys_ios::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
-        {
-        case CommandLineArguments::NO_ARGUMENT: break;
-        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
-        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
-        case CommandLineArguments::MULTI_ARGUMENT:  strcat(argument, " opt opt ..."); break;
-        }
-      char buffer[80];
-      sprintf(buffer, format, argument);
-      str << buffer;
-      }
-    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
-    size_t len = strlen(ptr);
-    int cnt = 0;
-    while ( len > 0)
-      {
-      // If argument with help is longer than line length, split it on previous
-      // space (or tab) and continue on the next line
-      CommandLineArguments::Internal::String::size_type cc;
-      for ( cc = 0; ptr[cc]; cc ++ )
-        {
-        if ( *ptr == ' ' || *ptr == '\t' )
-          {
-          ptr ++;
-          len --;
-          }
-        }
-      if ( cnt > 0 )
-        {
-        for ( cc = 0; cc < maxlen; cc ++ )
-          {
-          str << " ";
-          }
-        }
-      CommandLineArguments::Internal::String::size_type skip = len;
-      if ( skip > this->LineLength - maxlen )
-        {
-        skip = this->LineLength - maxlen;
-        for ( cc = skip-1; cc > 0; cc -- )
-          {
-          if ( ptr[cc] == ' ' || ptr[cc] == '\t' )
-            {
-            break;
-            }
-          }
-        if ( cc != 0 )
-          {
-          skip = cc;
-          }
-        }
-      str.write(ptr, static_cast<kwsys_ios::streamsize>(skip));
-      str << kwsys_ios::endl;
-      ptr += skip;
-      len -= skip;
-      cnt ++;
-      }
-    }
-  /*
-  // This can help debugging help string
-  str << endl;
-  unsigned int cc;
-  for ( cc = 0; cc < this->LineLength; cc ++ )
-    {
-    str << cc % 10;
-    }
-  str << endl;
-  */
-  this->Help = str.str();
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  bool* variable, const kwsys_stl::string& value)
-{
-  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
-    value == "TRUE" || value == "true" || value == "True" ||
-    value == "yes" || value == "Yes" || value == "YES" )
-    {
-    *variable = true;
-    }
   else
-    {
-    *variable = false;
-    }
-}
+    /* no local kind of binding was requested */
+    return CURLE_OK;
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  int* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  *variable = static_cast<int>(strtol(value.c_str(), &res, 10));
-  //if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
+  do {
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  double* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  *variable = strtod(value.c_str(), &res);
-  //if ( res && *res )
-  //  {
-  //  Can handle non-double
-  //  }
-}
+    /* Set port number to bind to, 0 makes the system pick one */
+    if(sock->sa_family == AF_INET)
+      ((struct sockaddr_in *)sock)->sin_port = htons(port);
+#ifdef ENABLE_IPV6
+    else
+      ((struct sockaddr_in6 *)sock)->sin6_port = htons(port);
+#endif
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  char** variable, const kwsys_stl::string& value)
-{
-  if ( *variable )
-    {
-    delete [] *variable;
-    *variable = 0;
-    }
-  *variable = new char[ value.size() + 1 ];
-  strcpy(*variable, value.c_str());
-}
+    if( bind(sockfd, sock, socksize) >= 0) {
+      /* we succeeded to bind */
+      struct Curl_sockaddr_storage add;
+      socklen_t size;
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::string* variable, const kwsys_stl::string& value)
-{
-  *variable = value;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<bool>* variable, const kwsys_stl::string& value)
-{
-  bool val = false;
-  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
-    value == "TRUE" || value == "true" || value == "True" ||
-    value == "yes" || value == "Yes" || value == "YES" )
-    {
-    val = true;
-    }
-  variable->push_back(val);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<int>* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  variable->push_back(static_cast<int>(strtol(value.c_str(), &res, 10)));
-  //if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<double>* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  variable->push_back(strtod(value.c_str(), &res));
-  //if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<char*>* variable, const kwsys_stl::string& value)
-{
-  char* var = new char[ value.size() + 1 ];
-  strcpy(var, value.c_str());
-  variable->push_back(var);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<kwsys_stl::string>* variable,
-  const kwsys_stl::string& value)
-{
-  variable->push_back(value);
-}
-
-//----------------------------------------------------------------------------
-bool CommandLineArguments::PopulateVariable(CommandLineArgumentsCallbackStructure* cs,
-  const char* value)
-{
-  // Call the callback
-  if ( cs->Callback )
-    {
-    if ( !cs->Callback(cs->Argument, value, cs->CallData) )
-      {
-      this->Internals->LastArgument --;
-      return 0;
+      size = sizeof(add);
+      if(getsockname(sockfd, (struct sockaddr *) &add, &size) < 0) {
+        failf(data, "getsockname() failed");
+        return CURLE_HTTP_PORT_FAILED;
       }
+      /* We re-use/clobber the port variable here below */
+      if(((struct sockaddr *)&add)->sa_family == AF_INET)
+        port = ntohs(((struct sockaddr_in *)&add)->sin_port);
+#ifdef ENABLE_IPV6
+      else
+        port = ntohs(((struct sockaddr_in6 *)&add)->sin6_port);
+#endif
+      infof(data, "Local port: %d\n", port);
+      return CURLE_OK;
     }
-  CommandLineArguments_DEBUG("Set argument: " << cs->Argument << " to " << value);
-  if ( cs->Variable )
-    {
-    kwsys_stl::string var = "1";
-    if ( value )
-      {
-      var = value;
-      }
-    switch ( cs->VariableType )
-      {
-    case CommandLineArguments::INT_TYPE:
-      this->PopulateVariable(static_cast<int*>(cs->Variable), var);
+    if(--portnum > 0) {
+      infof(data, "Bind to local port %d failed, trying next\n", port);
+      port++; /* try next port */
+    }
+    else
       break;
-    case CommandLineArguments::DOUBLE_TYPE:
-      this->PopulateVariable(static_cast<double*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::STRING_TYPE:
-      this->PopulateVariable(static_cast<char**>(cs->Variable), var);
-      break;
-    case CommandLineArguments::STL_STRING_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::string*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::BOOL_TYPE:
-      this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_BOOL_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<bool>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_INT_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<int>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_DOUBLE_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<double>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_STRING_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<char*>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_STL_STRING_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<kwsys_stl::string>*>(cs->Variable), var);
+  } while(1);
+
+  data->state.os_errno = Curl_sockerrno();
+  failf(data, "bind failure: %s",
+        Curl_strerror(conn, data->state.os_errno));
+  return CURLE_HTTP_PORT_FAILED;
+
+}
+
+/*
+ * verifyconnect() returns TRUE if the connect really has happened.
+ */
+static bool verifyconnect(curl_socket_t sockfd, int *error)
+{
+  bool rc = TRUE;
+#ifdef SO_ERROR
+  int err = 0;
+  socklen_t errSize = sizeof(err);
+
+#ifdef WIN32
+  /*
+   * In October 2003 we effectively nullified this function on Windows due to
+   * problems with it using all CPU in multi-threaded cases.
+   *
+   * In May 2004, we bring it back to offer more info back on connect failures.
+   * Gisle Vanem could reproduce the former problems with this function, but
+   * could avoid them by adding this SleepEx() call below:
+   *
+   *    "I don't have Rational Quantify, but the hint from his post was
+   *    ntdll::NtRemoveIoCompletion(). So I'd assume the SleepEx (or maybe
+   *    just Sleep(0) would be enough?) would release whatever
+   *    mutex/critical-section the ntdll call is waiting on.
+   *
+   *    Someone got to verify this on Win-NT 4.0, 2000."
+   */
+
+#ifdef _WIN32_WCE
+  Sleep(0);
+#else
+  SleepEx(0, FALSE);
+#endif
+
+#endif
+
+  if( -1 == getsockopt(sockfd, SOL_SOCKET, SO_ERROR,
+                       (void *)&err, &errSize))
+    err = Curl_sockerrno();
+
+#ifdef _WIN32_WCE
+  /* Always returns this error, bug in CE? */
+  if(WSAENOPROTOOPT==err)
+    err=0;
+#endif
+
+  if ((0 == err) || (EISCONN == err))
+    /* we are connected, awesome! */
+    rc = TRUE;
+  else
+    /* This wasn't a successful connect */
+    rc = FALSE;
+  if (error)
+    *error = err;
+#else
+  (void)sockfd;
+  if (error)
+    *error = Curl_sockerrno();
+#endif
+  return rc;
+}
+
+CURLcode Curl_store_ip_addr(struct connectdata *conn)
+{
+  char addrbuf[256];
+  Curl_printable_address(conn->ip_addr, addrbuf, sizeof(addrbuf));
+
+  /* save the string */
+  Curl_safefree(conn->ip_addr_str);
+  conn->ip_addr_str = strdup(addrbuf);
+  if(!conn->ip_addr_str)
+    return CURLE_OUT_OF_MEMORY; /* FAIL */
+
+#ifdef PF_INET6
+  if(conn->ip_addr->ai_family == PF_INET6)
+    conn->bits.ipv6 = TRUE;
+#endif
+
+  return CURLE_OK;
+}
+
+/* Used within the multi interface. Try next IP address, return TRUE if no
+   more address exists */
+static bool trynextip(struct connectdata *conn,
+                      int sockindex,
+                      bool *connected)
+{
+  curl_socket_t sockfd;
+  Curl_addrinfo *ai;
+
+  /* first close the failed socket */
+  sclose(conn->sock[sockindex]);
+  conn->sock[sockindex] = CURL_SOCKET_BAD;
+  *connected = FALSE;
+
+  if(sockindex != FIRSTSOCKET)
+    return TRUE; /* no next */
+
+  /* try the next address */
+  ai = conn->ip_addr->ai_next;
+
+  while (ai) {
+    sockfd = singleipconnect(conn, ai, 0L, connected);
+    if(sockfd != CURL_SOCKET_BAD) {
+      /* store the new socket descriptor */
+      conn->sock[sockindex] = sockfd;
+      conn->ip_addr = ai;
+
+      Curl_store_ip_addr(conn);
+      return FALSE;
+    }
+    ai = ai->ai_next;
+  }
+  return TRUE;
+}
+
+/*
+ * Curl_is_connected() is used from the multi interface to check if the
+ * firstsocket has connected.
+ */
+
+CURLcode Curl_is_connected(struct connectdata *conn,
+                           int sockindex,
+                           bool *connected)
+{
+  int rc;
+  struct SessionHandle *data = conn->data;
+  CURLcode code = CURLE_OK;
+  curl_socket_t sockfd = conn->sock[sockindex];
+  long allow = DEFAULT_CONNECT_TIMEOUT;
+  long allow_total = 0;
+  long has_passed;
+
+  curlassert(sockindex >= FIRSTSOCKET && sockindex <= SECONDARYSOCKET);
+
+  *connected = FALSE; /* a very negative world view is best */
+
+  /* Evaluate in milliseconds how much time that has passed */
+  has_passed = Curl_tvdiff(Curl_tvnow(), data->progress.t_startsingle);
+
+  /* subtract the most strict timeout of the ones */
+  if(data->set.timeout && data->set.connecttimeout) {
+    if (data->set.timeout < data->set.connecttimeout)
+      allow_total = allow = data->set.timeout*1000;
+    else
+      allow = data->set.connecttimeout*1000;
+  }
+  else if(data->set.timeout) {
+    allow_total = allow = data->set.timeout*1000;
+  }
+  else if(data->set.connecttimeout) {
+    allow = data->set.connecttimeout*1000;
+  }
+
+  if(has_passed > allow ) {
+    /* time-out, bail out, go home */
+    failf(data, "Connection time-out after %ld ms", has_passed);
+    return CURLE_OPERATION_TIMEOUTED;
+  }
+  if(conn->bits.tcpconnect) {
+    /* we are connected already! */
+    Curl_expire(data, allow_total);
+    *connected = TRUE;
+    return CURLE_OK;
+  }
+
+  Curl_expire(data, allow);
+
+  /* check for connect without timeout as we want to return immediately */
+  rc = waitconnect(sockfd, 0);
+
+  if(WAITCONN_CONNECTED == rc) {
+    int error;
+    if (verifyconnect(sockfd, &error)) {
+      /* we are connected, awesome! */
+      *connected = TRUE;
+      return CURLE_OK;
+    }
+    /* nope, not connected for real */
+    data->state.os_errno = error;
+    infof(data, "Connection failed\n");
+    if(trynextip(conn, sockindex, connected)) {
+      code = CURLE_COULDNT_CONNECT;
+    }
+  }
+  else if(WAITCONN_TIMEOUT != rc) {
+    int error = 0;
+
+    /* nope, not connected  */
+    if (WAITCONN_FDSET_ERROR == rc) {
+      (void)verifyconnect(sockfd, &error);
+      data->state.os_errno = error;
+      infof(data, "%s\n",Curl_strerror(conn,error));
+    }
+    else
+      infof(data, "Connection failed\n");
+
+    if(trynextip(conn, sockindex, connected)) {
+      error = Curl_sockerrno();
+      data->state.os_errno = error;
+      failf(data, "Failed connect to %s:%d; %s",
+            conn->host.name, conn->port, Curl_strerror(conn,error));
+      code = CURLE_COULDNT_CONNECT;
+    }
+  }
+  /*
+   * If the connection failed here, we should attempt to connect to the "next
+   * address" for the given host.
+   */
+
+  return code;
+}
+
+static void tcpnodelay(struct connectdata *conn,
+                       curl_socket_t sockfd)
+{
+#ifdef TCP_NODELAY
+  struct SessionHandle *data= conn->data;
+  socklen_t onoff = (socklen_t) data->set.tcp_nodelay;
+  int proto = IPPROTO_TCP;
+
+#ifdef HAVE_GETPROTOBYNAME
+  struct protoent *pe = getprotobyname("tcp");
+  if (pe)
+    proto = pe->p_proto;
+#endif
+
+  if(setsockopt(sockfd, proto, TCP_NODELAY, (void *)&onoff,
+                sizeof(onoff)) < 0)
+    infof(data, "Could not set TCP_NODELAY: %s\n",
+          Curl_strerror(conn, Curl_sockerrno()));
+  else
+    infof(data,"TCP_NODELAY set\n");
+#else
+  (void)conn;
+  (void)sockfd;
+#endif
+}
+
+#ifdef SO_NOSIGPIPE
+/* The preferred method on Mac OS X (10.2 and later) to prevent SIGPIPEs when
+   sending data to a dead peer (instead of relying on the 4th argument to send
+   being MSG_NOSIGNAL). Possibly also existing and in use on other BSD
+   systems? */
+static void nosigpipe(struct connectdata *conn,
+                      curl_socket_t sockfd)
+{
+  struct SessionHandle *data= conn->data;
+  int onoff = 1;
+  if(setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&onoff,
+                sizeof(onoff)) < 0)
+    infof(data, "Could not set SO_NOSIGPIPE: %s\n",
+          Curl_strerror(conn, Curl_sockerrno()));
+}
+#else
+#define nosigpipe(x,y)
+#endif
+
+/* singleipconnect() connects to the given IP only, and it may return without
+   having connected if used from the multi interface. */
+static curl_socket_t
+singleipconnect(struct connectdata *conn,
+                const Curl_addrinfo *ai,
+                long timeout_ms,
+                bool *connected)
+{
+  char addr_buf[128];
+  int rc;
+  int error;
+  bool isconnected;
+  struct SessionHandle *data = conn->data;
+  curl_socket_t sockfd;
+  CURLcode res;
+
+  sockfd = socket(ai->ai_family, conn->socktype, ai->ai_protocol);
+  if (sockfd == CURL_SOCKET_BAD)
+    return CURL_SOCKET_BAD;
+
+  *connected = FALSE; /* default is not connected */
+
+  Curl_printable_address(ai, addr_buf, sizeof(addr_buf));
+  infof(data, "  Trying %s... ", addr_buf);
+
+  if(data->set.tcp_nodelay)
+    tcpnodelay(conn, sockfd);
+
+  nosigpipe(conn, sockfd);
+
+  if(data->set.fsockopt) {
+    /* activate callback for setting socket options */
+    error = data->set.fsockopt(data->set.sockopt_client,
+                               sockfd,
+                               CURLSOCKTYPE_IPCXN);
+    if (error) {
+      sclose(sockfd); /* close the socket and bail out */
+      return CURL_SOCKET_BAD;
+    }
+  }
+
+  /* possibly bind the local end to an IP, interface or port */
+  res = bindlocal(conn, sockfd);
+  if(res) {
+    sclose(sockfd); /* close socket and bail out */
+    return CURL_SOCKET_BAD;
+  }
+
+  /* set socket non-blocking */
+  Curl_nonblock(sockfd, TRUE);
+
+  /* Connect TCP sockets, bind UDP */
+  if(conn->socktype == SOCK_STREAM)
+    rc = connect(sockfd, ai->ai_addr, ai->ai_addrlen);
+  else
+    rc = 0;
+
+  if(-1 == rc) {
+    error = Curl_sockerrno();
+
+    switch (error) {
+    case EINPROGRESS:
+    case EWOULDBLOCK:
+#if defined(EAGAIN) && EAGAIN != EWOULDBLOCK
+      /* On some platforms EAGAIN and EWOULDBLOCK are the
+       * same value, and on others they are different, hence
+       * the odd #if
+       */
+    case EAGAIN:
+#endif
+      rc = waitconnect(sockfd, timeout_ms);
       break;
     default:
-      kwsys_ios::cerr << "Got unknown variable type: \"" << cs->VariableType << "\"" << kwsys_ios::endl;
-      this->Internals->LastArgument --;
-      return 0;
-      }
+      /* unknown error, fallthrough and try another address! */
+      failf(data, "Failed to connect to %s: %s",
+            addr_buf, Curl_strerror(conn,error));
+      data->state.os_errno = error;
+      break;
     }
-  return 1;
-}
+  }
 
+  /* The 'WAITCONN_TIMEOUT == rc' comes from the waitconnect(), and not from
+     connect(). We can be sure of this since connect() cannot return 1. */
+  if((WAITCONN_TIMEOUT == rc) &&
+     (data->state.used_interface == Curl_if_multi)) {
+    /* Timeout when running the multi interface */
+    return sockfd;
+  }
 
-} // namespace KWSYS_NAMESPACE
+  isconnected = verifyconnect(sockfd, &error);
+
+  if(!rc && isconnected) {
+    /* we are connected, awesome! */
+    *connected = TRUE; /* this is a true connect */
+    infof(data, "connected\n");
+    return sockfd;
+  }
+  else if(WAITCONN_TIMEOUT == rc)
+    infof(data, "Timeout\n");
+  else {
+    data->state.os_errno = error;
+    infof(data, "%s\n", Curl_strerror(conn, error));
+  }
+
+  /* connect failed or timed out */
+  sclose(sockfd);
+
+  return CURL_SOCKET_BAD;

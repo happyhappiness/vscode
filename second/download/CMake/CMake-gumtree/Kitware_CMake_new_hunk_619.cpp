@@ -1,14 +1,8 @@
-                            sizeof(rar->reserved2));
-      }
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName().c_str(),
+            this->HasConfig?this->Config.c_str():"noconfig");
+    this->DisplayConstraintGraph();
+    }
 
-      /* Main header is password encrytped, so we cannot read any
-         file names or any other info about files from the header. */
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_entry_set_is_metadata_encrypted(entry, 1);
-        archive_entry_set_is_data_encrypted(entry, 1);
-        rar->has_encrypted_entries = 1;
-         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }

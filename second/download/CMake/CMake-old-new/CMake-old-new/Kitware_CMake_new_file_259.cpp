@@ -9,1317 +9,422 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "../cmSystemTools.h"
-#include "../cmVersion.h"
-#include "../cmake.h"
-#include "cmCursesMainForm.h"
-#include "cmCursesStringWidget.h"
-#include "cmCursesLabelWidget.h"
-#include "cmCursesBoolWidget.h"
-#include "cmCursesPathWidget.h"
-#include "cmCursesFilePathWidget.h"
-#include "cmCursesDummyWidget.h"
-#include "cmCursesCacheEntryComposite.h"
-#include "cmCursesLongMessageForm.h"
-#include "cmAlgorithms.h"
-#include "cmState.h"
+#include "cmFindCommon.h"
+#include <functional>
+#include <algorithm>
 
+//----------------------------------------------------------------------------
+cmFindCommon::PathGroup cmFindCommon::PathGroup::All("ALL");
+cmFindCommon::PathLabel cmFindCommon::PathLabel::CMake("CMAKE");
+cmFindCommon::PathLabel
+  cmFindCommon::PathLabel::CMakeEnvironment("CMAKE_ENVIRONMENT");
+cmFindCommon::PathLabel cmFindCommon::PathLabel::Hints("HINTS");
+cmFindCommon::PathLabel
+  cmFindCommon::PathLabel::SystemEnvironment("SYSTM_ENVIRONMENT");
+cmFindCommon::PathLabel cmFindCommon::PathLabel::CMakeSystem("CMAKE_SYSTEM");
+cmFindCommon::PathLabel cmFindCommon::PathLabel::Guess("GUESS");
 
-inline int ctrl(int z)
+//----------------------------------------------------------------------------
+cmFindCommon::cmFindCommon()
 {
-    return (z&037);
+  this->FindRootPathMode = RootPathModeBoth;
+  this->NoDefaultPath = false;
+  this->NoCMakePath = false;
+  this->NoCMakeEnvironmentPath = false;
+  this->NoSystemEnvironmentPath = false;
+  this->NoCMakeSystemPath = false;
+
+  // OS X Bundle and Framework search policy.  The default is to
+  // search frameworks first on apple.
+#if defined(__APPLE__)
+  this->SearchFrameworkFirst = true;
+  this->SearchAppBundleFirst = true;
+#else
+  this->SearchFrameworkFirst = false;
+  this->SearchAppBundleFirst = false;
+#endif
+  this->SearchFrameworkOnly = false;
+  this->SearchFrameworkLast = false;
+  this->SearchAppBundleOnly = false;
+  this->SearchAppBundleLast = false;
+
+  this->InitializeSearchPathGroups();
 }
 
-cmCursesMainForm::cmCursesMainForm(std::vector<std::string> const& args,
-                                   int initWidth) :
-  Args(args), InitialWidth(initWidth)
+//----------------------------------------------------------------------------
+cmFindCommon::~cmFindCommon()
 {
-  this->NumberOfPages = 0;
-  this->Fields = 0;
-  this->Entries = 0;
-  this->AdvancedMode = false;
-  this->NumberOfVisibleEntries = 0;
-  this->OkToGenerate = false;
-  this->HelpMessage.push_back("Welcome to ccmake, curses based user interface for CMake.");
-  this->HelpMessage.push_back("");
-  this->HelpMessage.push_back(s_ConstHelpMessage);
-  this->CMakeInstance = new cmake;
-  this->CMakeInstance->SetCMakeEditCommand(
-    cmSystemTools::GetCMakeCursesCommand());
-
-  // create the arguments for the cmake object
-  std::string whereCMake = cmSystemTools::GetProgramPath(this->Args[0]);
-  whereCMake += "/cmake";
-  this->Args[0] = whereCMake;
-  this->CMakeInstance->SetArgs(this->Args);
-  this->SearchString = "";
-  this->OldSearchString = "";
-  this->SearchMode = false;
 }
 
-cmCursesMainForm::~cmCursesMainForm()
+//----------------------------------------------------------------------------
+void cmFindCommon::InitializeSearchPathGroups()
 {
-  if (this->Form)
-    {
-    unpost_form(this->Form);
-    free_form(this->Form);
-    this->Form = 0;
-    }
-  delete[] this->Fields;
+  std::vector<PathLabel>* labels;
 
-  // Clean-up composites
-  if (this->Entries)
+  // Define the varoius different groups of path types
+
+  // All search paths
+  labels = &this->PathGroupLabelMap[PathGroup::All];
+  labels->push_back(PathLabel::CMake);
+  labels->push_back(PathLabel::CMakeEnvironment);
+  labels->push_back(PathLabel::Hints);
+  labels->push_back(PathLabel::SystemEnvironment);
+  labels->push_back(PathLabel::CMakeSystem);
+  labels->push_back(PathLabel::Guess);
+
+  // Define the search group order
+  this->PathGroupOrder.push_back(PathGroup::All);
+
+  // Create the idividual labeld search paths
+  this->LabeledPaths.insert(std::make_pair(PathLabel::CMake,
+    cmSearchPath(this)));
+  this->LabeledPaths.insert(std::make_pair(PathLabel::CMakeEnvironment,
+    cmSearchPath(this)));
+  this->LabeledPaths.insert(std::make_pair(PathLabel::Hints,
+    cmSearchPath(this)));
+  this->LabeledPaths.insert(std::make_pair(PathLabel::SystemEnvironment,
+    cmSearchPath(this)));
+  this->LabeledPaths.insert(std::make_pair(PathLabel::CMakeSystem,
+    cmSearchPath(this)));
+  this->LabeledPaths.insert(std::make_pair(PathLabel::Guess,
+    cmSearchPath(this)));
+}
+
+//----------------------------------------------------------------------------
+void cmFindCommon::SelectDefaultRootPathMode()
+{
+  // Check the policy variable for this find command type.
+  std::string findRootPathVar = "CMAKE_FIND_ROOT_PATH_MODE_";
+  findRootPathVar += this->CMakePathName;
+  std::string rootPathMode =
+    this->Makefile->GetSafeDefinition(findRootPathVar);
+  if (rootPathMode=="NEVER")
     {
-    cmDeleteAll(*this->Entries);
+    this->FindRootPathMode = RootPathModeNever;
     }
-  delete this->Entries;
-  if (this->CMakeInstance)
+  else if (rootPathMode=="ONLY")
     {
-    delete this->CMakeInstance;
-    this->CMakeInstance = 0;
+    this->FindRootPathMode = RootPathModeOnly;
+    }
+  else if (rootPathMode=="BOTH")
+    {
+    this->FindRootPathMode = RootPathModeBoth;
     }
 }
 
-// See if a cache entry is in the list of entries in the ui.
-bool cmCursesMainForm::LookForCacheEntry(const std::string& key)
+//----------------------------------------------------------------------------
+void cmFindCommon::SelectDefaultMacMode()
 {
-  if (!this->Entries)
+  std::string ff = this->Makefile->GetSafeDefinition("CMAKE_FIND_FRAMEWORK");
+  if(ff == "NEVER")
     {
-    return false;
+    this->SearchFrameworkLast = false;
+    this->SearchFrameworkFirst = false;
+    this->SearchFrameworkOnly = false;
+    }
+  else if(ff == "ONLY")
+    {
+    this->SearchFrameworkLast = false;
+    this->SearchFrameworkFirst = false;
+    this->SearchFrameworkOnly = true;
+    }
+  else if(ff == "FIRST")
+    {
+    this->SearchFrameworkLast = false;
+    this->SearchFrameworkFirst = true;
+    this->SearchFrameworkOnly = false;
+    }
+  else if(ff == "LAST")
+    {
+    this->SearchFrameworkLast = true;
+    this->SearchFrameworkFirst = false;
+    this->SearchFrameworkOnly = false;
     }
 
-  std::vector<cmCursesCacheEntryComposite*>::iterator it;
-  for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
+  std::string fab = this->Makefile->GetSafeDefinition("CMAKE_FIND_APPBUNDLE");
+  if(fab == "NEVER")
     {
-    if (key == (*it)->Key)
+    this->SearchAppBundleLast = false;
+    this->SearchAppBundleFirst = false;
+    this->SearchAppBundleOnly = false;
+    }
+  else if(fab == "ONLY")
+    {
+    this->SearchAppBundleLast = false;
+    this->SearchAppBundleFirst = false;
+    this->SearchAppBundleOnly = true;
+    }
+  else if(fab == "FIRST")
+    {
+    this->SearchAppBundleLast = false;
+    this->SearchAppBundleFirst = true;
+    this->SearchAppBundleOnly = false;
+    }
+  else if(fab == "LAST")
+    {
+    this->SearchAppBundleLast = true;
+    this->SearchAppBundleFirst = false;
+    this->SearchAppBundleOnly = false;
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
+{
+#if 0
+  for(std::vector<std::string>::const_iterator i = paths.begin();
+      i != paths.end(); ++i)
+    {
+    fprintf(stderr, "[%s]\n", i->c_str());
+    }
+#endif
+  // Short-circuit if there is nothing to do.
+  if(this->FindRootPathMode == RootPathModeNever)
+    {
+    return;
+    }
+
+  const char* sysroot =
+    this->Makefile->GetDefinition("CMAKE_SYSROOT");
+  const char* rootPath =
+    this->Makefile->GetDefinition("CMAKE_FIND_ROOT_PATH");
+  const bool noSysroot = !sysroot || !*sysroot;
+  const bool noRootPath = !rootPath || !*rootPath;
+  if(noSysroot && noRootPath)
+    {
+    return;
+    }
+
+  // Construct the list of path roots with no trailing slashes.
+  std::vector<std::string> roots;
+  if (rootPath)
+    {
+    cmSystemTools::ExpandListArgument(rootPath, roots);
+    }
+  if (sysroot)
+    {
+    roots.push_back(sysroot);
+    }
+  for(std::vector<std::string>::iterator ri = roots.begin();
+      ri != roots.end(); ++ri)
+    {
+    cmSystemTools::ConvertToUnixSlashes(*ri);
+    }
+
+  const char* stagePrefix =
+      this->Makefile->GetDefinition("CMAKE_STAGING_PREFIX");
+
+  // Copy the original set of unrooted paths.
+  std::vector<std::string> unrootedPaths = paths;
+  paths.clear();
+
+  for(std::vector<std::string>::const_iterator ri = roots.begin();
+      ri != roots.end(); ++ri)
+    {
+    for(std::vector<std::string>::const_iterator ui = unrootedPaths.begin();
+        ui != unrootedPaths.end(); ++ui)
       {
-      return true;
+      // Place the unrooted path under the current root if it is not
+      // already inside.  Skip the unrooted path if it is relative to
+      // a user home directory or is empty.
+      std::string rootedDir;
+      if(cmSystemTools::IsSubDirectory(*ui, *ri)
+          || (stagePrefix
+            && cmSystemTools::IsSubDirectory(*ui, stagePrefix)))
+        {
+        rootedDir = *ui;
+        }
+      else if(!ui->empty() && (*ui)[0] != '~')
+        {
+        // Start with the new root.
+        rootedDir = *ri;
+        rootedDir += "/";
+
+        // Append the original path with its old root removed.
+        rootedDir += cmSystemTools::SplitPathRootComponent(*ui);
+        }
+
+      // Store the new path.
+      paths.push_back(rootedDir);
       }
     }
 
-  return false;
+  // If searching both rooted and unrooted paths add the original
+  // paths again.
+  if(this->FindRootPathMode == RootPathModeBoth)
+    {
+    paths.insert(paths.end(), unrootedPaths.begin(), unrootedPaths.end());
+    }
 }
 
-// Create new cmCursesCacheEntryComposite entries from the cache
-void cmCursesMainForm::InitializeUI()
+//----------------------------------------------------------------------------
+void cmFindCommon::FilterPaths(const std::vector<std::string>& inPaths,
+                               const std::set<std::string>& ignore,
+                               std::vector<std::string>& outPaths)
 {
-  // Create a vector of cmCursesCacheEntryComposite's
-  // which contain labels, entries and new entry markers
-  std::vector<cmCursesCacheEntryComposite*>* newEntries =
-    new std::vector<cmCursesCacheEntryComposite*>;
-  std::vector<std::string> cacheKeys =
-      this->CMakeInstance->GetState()->GetCacheEntryKeys();
-  newEntries->reserve(cacheKeys.size());
-
-  // Count non-internal and non-static entries
-  int count=0;
-
-  for(std::vector<std::string>::const_iterator it = cacheKeys.begin();
-      it != cacheKeys.end(); ++it)
+  for(std::vector<std::string>::const_iterator i = inPaths.begin();
+      i != inPaths.end(); ++i)
     {
-    cmState::CacheEntryType t = this->CMakeInstance->GetState()
-        ->GetCacheEntryType(*it);
-    if (t != cmState::INTERNAL &&
-        t != cmState::STATIC &&
-        t != cmState::UNINITIALIZED)
+    if(ignore.count(*i) == 0)
       {
-      ++count;
+      outPaths.push_back(*i);
       }
     }
-
-  int entrywidth = this->InitialWidth - 35;
-
-  cmCursesCacheEntryComposite* comp;
-  if ( count == 0 )
-    {
-    // If cache is empty, display a label saying so and a
-    // dummy entry widget (does not respond to input)
-    comp = new cmCursesCacheEntryComposite("EMPTY CACHE", 30, 30);
-    comp->Entry = new cmCursesDummyWidget(1, 1, 1, 1);
-    newEntries->push_back(comp);
-    }
-  else
-    {
-    // Create the composites.
-
-    // First add entries which are new
-    for(std::vector<std::string>::const_iterator it = cacheKeys.begin();
-        it != cacheKeys.end(); ++it)
-      {
-      std::string key = *it;
-      cmState::CacheEntryType t = this->CMakeInstance->GetState()
-          ->GetCacheEntryType(*it);
-      if (t == cmState::INTERNAL ||
-          t == cmState::STATIC ||
-          t == cmState::UNINITIALIZED )
-        {
-        continue;
-        }
-
-      if (!this->LookForCacheEntry(key))
-        {
-        newEntries->push_back(new cmCursesCacheEntryComposite(key,
-                                                          this->CMakeInstance,
-                                                          true, 30,
-                                                          entrywidth));
-        this->OkToGenerate = false;
-        }
-      }
-
-    // then add entries which are old
-    for(std::vector<std::string>::const_iterator it = cacheKeys.begin();
-        it != cacheKeys.end(); ++it)
-      {
-      std::string key = *it;
-      cmState::CacheEntryType t = this->CMakeInstance->GetState()
-          ->GetCacheEntryType(*it);
-      if (t == cmState::INTERNAL ||
-          t == cmState::STATIC ||
-          t == cmState::UNINITIALIZED )
-        {
-        continue;
-        }
-
-      if (this->LookForCacheEntry(key))
-        {
-        newEntries->push_back(new cmCursesCacheEntryComposite(key,
-                                                          this->CMakeInstance,
-                                                          false, 30,
-                                                          entrywidth));
-        }
-      }
-    }
-
-  // Clean old entries
-  if (this->Entries)
-    {
-    cmDeleteAll(*this->Entries);
-    }
-  delete this->Entries;
-  this->Entries = newEntries;
-
-  // Compute fields from composites
-  this->RePost();
 }
 
-
-void cmCursesMainForm::RePost()
+//----------------------------------------------------------------------------
+void cmFindCommon::GetIgnoredPaths(std::vector<std::string>& ignore)
 {
-  // Create the fields to be passed to the form.
-  if (this->Form)
-    {
-    unpost_form(this->Form);
-    free_form(this->Form);
-    this->Form = 0;
-    }
-  delete[] this->Fields;
-  if (this->AdvancedMode)
-    {
-    this->NumberOfVisibleEntries = this->Entries->size();
-    }
-  else
-    {
-    // If normal mode, count only non-advanced entries
-    this->NumberOfVisibleEntries = 0;
-    std::vector<cmCursesCacheEntryComposite*>::iterator it;
-    for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
-      {
-      const char* existingValue =
-          this->CMakeInstance->GetState()
-              ->GetCacheEntryValue((*it)->GetValue());
-      bool advanced =
-          this->CMakeInstance->GetState()
-              ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
-      if (!existingValue || (!this->AdvancedMode && advanced))
-        {
-        continue;
-        }
-      this->NumberOfVisibleEntries++;
-      }
-    }
-  // there is always one even if it is the dummy one
-  if(this->NumberOfVisibleEntries == 0)
-    {
-    this->NumberOfVisibleEntries = 1;
-    }
-  // Assign the fields: 3 for each entry: label, new entry marker
-  // ('*' or ' ') and entry widget
-  this->Fields = new FIELD*[3*this->NumberOfVisibleEntries+1];
-  size_t cc;
-  for ( cc = 0; cc < 3 * this->NumberOfVisibleEntries+1; cc ++ )
-    {
-    this->Fields[cc] = 0;
-    }
+  // null-terminated list of paths.
+  static const char *paths[] =
+    { "CMAKE_SYSTEM_IGNORE_PATH", "CMAKE_IGNORE_PATH", 0 };
 
-  // Assign fields
-  int j=0;
-  std::vector<cmCursesCacheEntryComposite*>::iterator it;
-  for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
+  // Construct the list of path roots with no trailing slashes.
+  for(const char **pathName = paths; *pathName; ++pathName)
     {
-    const char* existingValue =
-        this->CMakeInstance->GetState()
-            ->GetCacheEntryValue((*it)->GetValue());
-    bool advanced =
-        this->CMakeInstance->GetState()
-            ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
-    if (!existingValue || (!this->AdvancedMode && advanced))
+    // Get the list of paths to ignore from the variable.
+    const char* ignorePath = this->Makefile->GetDefinition(*pathName);
+    if((ignorePath == 0) || (strlen(ignorePath) == 0))
       {
       continue;
       }
-    this->Fields[3*j]    = (*it)->Label->Field;
-    this->Fields[3*j+1]  = (*it)->IsNewLabel->Field;
-    this->Fields[3*j+2]  = (*it)->Entry->Field;
-    j++;
+
+    cmSystemTools::ExpandListArgument(ignorePath, ignore);
     }
-  // if no cache entries there should still be one dummy field
-  if(j == 0)
+
+  for(std::vector<std::string>::iterator i = ignore.begin();
+      i != ignore.end(); ++i)
     {
-    it = this->Entries->begin();
-    this->Fields[0]    = (*it)->Label->Field;
-    this->Fields[1]  = (*it)->IsNewLabel->Field;
-    this->Fields[2]  = (*it)->Entry->Field;
-    this->NumberOfVisibleEntries = 1;
+    cmSystemTools::ConvertToUnixSlashes(*i);
     }
-  // Has to be null terminated.
-  this->Fields[3*this->NumberOfVisibleEntries] = 0;
 }
 
-void cmCursesMainForm::Render(int left, int top, int width, int height)
+
+//----------------------------------------------------------------------------
+void cmFindCommon::GetIgnoredPaths(std::set<std::string>& ignore)
 {
+  std::vector<std::string> ignoreVec;
+  GetIgnoredPaths(ignoreVec);
+  ignore.insert(ignoreVec.begin(), ignoreVec.end());
+}
 
-  if (this->Form)
+//----------------------------------------------------------------------------
+bool cmFindCommon::CheckCommonArgument(std::string const& arg)
+{
+  if(arg == "NO_DEFAULT_PATH")
     {
-    FIELD* currentField = current_field(this->Form);
-    cmCursesWidget* cw = reinterpret_cast<cmCursesWidget*>
-      (field_userptr(currentField));
-    // If in edit mode, get out of it
-    if ( cw->GetType() == cmState::STRING ||
-         cw->GetType() == cmState::PATH   ||
-         cw->GetType() == cmState::FILEPATH )
-      {
-      cmCursesStringWidget* sw = static_cast<cmCursesStringWidget*>(cw);
-      sw->SetInEdit(false);
-      }
-    // Delete the previous form
-    unpost_form(this->Form);
-    free_form(this->Form);
-    this->Form = 0;
+    this->NoDefaultPath = true;
     }
-
-  // Wrong window size
-  if ( width < cmCursesMainForm::MIN_WIDTH  ||
-       width < this->InitialWidth               ||
-       height < cmCursesMainForm::MIN_HEIGHT )
+  else if(arg == "NO_CMAKE_ENVIRONMENT_PATH")
     {
-    return;
+    this->NoCMakeEnvironmentPath = true;
     }
-
-  // Leave room for toolbar
-  height -= 7;
-
-  if (this->AdvancedMode)
+  else if(arg == "NO_CMAKE_PATH")
     {
-    this->NumberOfVisibleEntries = this->Entries->size();
+    this->NoCMakePath = true;
+    }
+  else if(arg == "NO_SYSTEM_ENVIRONMENT_PATH")
+    {
+    this->NoSystemEnvironmentPath = true;
+    }
+  else if(arg == "NO_CMAKE_SYSTEM_PATH")
+    {
+    this->NoCMakeSystemPath = true;
+    }
+    else if(arg == "NO_CMAKE_FIND_ROOT_PATH")
+    {
+    this->FindRootPathMode = RootPathModeNever;
+    }
+  else if(arg == "ONLY_CMAKE_FIND_ROOT_PATH")
+    {
+    this->FindRootPathMode = RootPathModeOnly;
+    }
+  else if(arg == "CMAKE_FIND_ROOT_PATH_BOTH")
+    {
+    this->FindRootPathMode = RootPathModeBoth;
     }
   else
     {
-    // If normal, display only non-advanced entries
-    this->NumberOfVisibleEntries = 0;
-    std::vector<cmCursesCacheEntryComposite*>::iterator it;
-    for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
-      {
-      const char* existingValue =
-          this->CMakeInstance->GetState()
-              ->GetCacheEntryValue((*it)->GetValue());
-      bool advanced =
-          this->CMakeInstance->GetState()
-              ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
-      if (!existingValue || (!this->AdvancedMode && advanced))
-        {
-        continue;
-        }
-      this->NumberOfVisibleEntries++;
-      }
+    // The argument is not one of the above.
+    return false;
     }
 
-  // Re-adjust the fields according to their place
-  this->NumberOfPages = 1;
-  if (height > 0)
-    {
-    bool isNewPage;
-    int i=0;
-    std::vector<cmCursesCacheEntryComposite*>::iterator it;
-    for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
-      {
-      const char* existingValue =
-          this->CMakeInstance->GetState()
-              ->GetCacheEntryValue((*it)->GetValue());
-      bool advanced =
-          this->CMakeInstance->GetState()
-              ->GetCacheEntryPropertyAsBool((*it)->GetValue(), "ADVANCED");
-      if (!existingValue || (!this->AdvancedMode && advanced))
-        {
-        continue;
-        }
-      int row = (i % height) + 1;
-      int page = (i / height) + 1;
-      isNewPage = ( page > 1 ) && ( row == 1 );
-
-      if (isNewPage)
-        {
-        this->NumberOfPages++;
-        }
-      (*it)->Label->Move(left, top+row-1, isNewPage);
-      (*it)->IsNewLabel->Move(left+32, top+row-1, false);
-      (*it)->Entry->Move(left+33, top+row-1, false);
-      (*it)->Entry->SetPage(this->NumberOfPages);
-      i++;
-      }
-    }
-
-  // Post the form
-  this->Form = new_form(this->Fields);
-  post_form(this->Form);
-  // Update toolbar
-  this->UpdateStatusBar();
-  this->PrintKeys();
-
-  touchwin(stdscr);
-  refresh();
+  // The argument is one of the above.
+  return true;
 }
 
-void cmCursesMainForm::PrintKeys(int process /* = 0 */)
+//----------------------------------------------------------------------------
+void cmFindCommon::AddPathSuffix(std::string const& arg)
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  if ( x < cmCursesMainForm::MIN_WIDTH  ||
-       x < this->InitialWidth               ||
-       y < cmCursesMainForm::MIN_HEIGHT )
+  std::string suffix = arg;
+
+  // Strip leading and trailing slashes.
+  if(suffix.empty())
+    {
+    return;
+    }
+  if(suffix[0] == '/')
+    {
+    suffix = suffix.substr(1, suffix.npos);
+    }
+  if(suffix.empty())
+    {
+    return;
+    }
+  if(suffix[suffix.size()-1] == '/')
+    {
+    suffix = suffix.substr(0, suffix.size()-1);
+    }
+  if(suffix.empty())
     {
     return;
     }
 
-  // Give the current widget (if it exists), a chance to print keys
-  cmCursesWidget* cw = 0;
-  if (this->Form)
-    {
-    FIELD* currentField = current_field(this->Form);
-    cw = reinterpret_cast<cmCursesWidget*>(field_userptr(currentField));
-    }
-
-  if (cw)
-    {
-    cw->PrintKeys();
-    }
-
-//    {
-//    }
-//  else
-//    {
-  char firstLine[512]="";
-  char secondLine[512]="";
-  char thirdLine[512]="";
-  if (process)
-    {
-    const char* clearLine =
-      "                                                                    ";
-    strcpy(firstLine, clearLine);
-    strcpy(secondLine, clearLine);
-    strcpy(thirdLine, clearLine);
-    }
-  else
-    {
-    if (this->OkToGenerate)
-      {
-      sprintf(firstLine,
-              "Press [c] to configure       Press [g] to generate and exit");
-      }
-    else
-      {
-      sprintf(firstLine,  "Press [c] to configure                                   ");
-      }
-    {
-      const char* toggleKeyInstruction =
-        "Press [t] to toggle advanced mode (Currently %s)";
-      sprintf(thirdLine,
-              toggleKeyInstruction,
-              this->AdvancedMode ? "On" : "Off");
-    }
-    sprintf(secondLine,
-            "Press [h] for help           "
-            "Press [q] to quit without generating");
-    }
-
-  curses_move(y-4,0);
-  char fmt_s[] = "%s";
-  char fmt[512] = "Press [enter] to edit option";
-  if ( process )
-    {
-    strcpy(fmt, "                           ");
-    }
-  printw(fmt_s, fmt);
-  curses_move(y-3,0);
-  printw(fmt_s, firstLine);
-  curses_move(y-2,0);
-  printw(fmt_s, secondLine);
-  curses_move(y-1,0);
-  printw(fmt_s, thirdLine);
-
-  if (cw)
-    {
-    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
-    curses_move(0,65-static_cast<unsigned int>(strlen(firstLine))-1);
-    printw(fmt_s, firstLine);
-    }
-//    }
-
-  pos_form_cursor(this->Form);
-
+  // Store the suffix.
+  this->SearchPathSuffixes.push_back(suffix);
 }
 
-// Print the key of the current entry and the CMake version
-// on the status bar. Designed for a width of 80 chars.
-void cmCursesMainForm::UpdateStatusBar(const char* message)
+//----------------------------------------------------------------------------
+void AddTrailingSlash(std::string& s)
 {
-  int x,y;
-  getmaxyx(stdscr, y, x);
-  // If window size is too small, display error and return
-  if ( x < cmCursesMainForm::MIN_WIDTH  ||
-       x < this->InitialWidth               ||
-       y < cmCursesMainForm::MIN_HEIGHT )
+  if(!s.empty() && *s.rbegin() != '/')
     {
-    curses_clear();
-    curses_move(0,0);
-    char fmt[] = "Window is too small. A size of at least %dx%d is required.";
-    printw(fmt,
-           (cmCursesMainForm::MIN_WIDTH < this->InitialWidth ?
-            this->InitialWidth : cmCursesMainForm::MIN_WIDTH),
-           cmCursesMainForm::MIN_HEIGHT);
-    touchwin(stdscr);
-    wrefresh(stdscr);
-    return;
+    s += '/';
     }
-
-  // Get the key of the current entry
-  FIELD* cur = current_field(this->Form);
-  int findex = field_index(cur);
-  cmCursesWidget* lbl = 0;
-  if ( findex >= 0 )
-    {
-    lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(this->Fields[findex-2]));
-    }
-  char help[128] = "";
-  const char* curField = "";
-  if ( lbl )
-    {
-    curField = lbl->GetValue();
-
-    // Get the help string of the current entry
-    // and add it to the help string
-    const char* existingValue =
-        this->CMakeInstance->GetState()->GetCacheEntryValue(curField);
-    if (existingValue)
-      {
-      const char* hs = this->CMakeInstance->GetState()
-                           ->GetCacheEntryProperty(curField, "HELPSTRING");
-      if ( hs )
-        {
-        strncpy(help, hs, 127);
-        help[127] = '\0';
-        }
-      else
-        {
-        help[0] = 0;
-        }
-      }
-    else
-      {
-      sprintf(help," ");
-      }
-    }
-
-  // Join the key, help string and pad with spaces
-  // (or truncate) as necessary
-  char bar[cmCursesMainForm::MAX_WIDTH];
-  size_t i, curFieldLen = strlen(curField);
-  size_t helpLen = strlen(help);
-
-  size_t width;
-  if (x < cmCursesMainForm::MAX_WIDTH )
-    {
-    width = x;
-    }
-  else
-    {
-    width = cmCursesMainForm::MAX_WIDTH;
-    }
-
-  if ( message )
-    {
-    curField = message;
-    curFieldLen = strlen(message);
-    if ( curFieldLen < width )
-      {
-      strcpy(bar, curField);
-      for(i=curFieldLen; i < width; ++i)
-        {
-        bar[i] = ' ';
-        }
-      }
-    else
-      {
-      strncpy(bar, curField, width);
-      }
-   }
-  else
-    {
-    if (curFieldLen >= width)
-      {
-      strncpy(bar, curField, width);
-      }
-    else
-      {
-      strcpy(bar, curField);
-      bar[curFieldLen] = ':';
-      bar[curFieldLen+1] = ' ';
-      if (curFieldLen + helpLen + 2 >= width)
-        {
-        strncpy(bar+curFieldLen+2, help, width
-                - curFieldLen - 2);
-        }
-      else
-        {
-        strcpy(bar+curFieldLen+2, help);
-        for(i=curFieldLen+helpLen+2; i < width; ++i)
-          {
-          bar[i] = ' ';
-          }
-        }
-      }
-    }
-
-
-  bar[width] = '\0';
-
-
-  // Display CMake version info on the next line
-  // We want to display this on the right
-  char version[cmCursesMainForm::MAX_WIDTH];
-  char vertmp[128];
-  sprintf(vertmp,"CMake Version %s", cmVersion::GetCMakeVersion());
-  size_t sideSpace = (width-strlen(vertmp));
-  for(i=0; i<sideSpace; i++) { version[i] = ' '; }
-  sprintf(version+sideSpace, "%s", vertmp);
-  version[width] = '\0';
-
-  // Now print both lines
-  char fmt_s[] = "%s";
-  curses_move(y-5,0);
-  attron(A_STANDOUT);
-  printw(fmt_s, bar);
-  attroff(A_STANDOUT);
-  curses_move(y-4,0);
-  printw(fmt_s, version);
-  pos_form_cursor(this->Form);
 }
-
-void cmCursesMainForm::UpdateProgress(const char *msg, float prog, void* vp)
+void cmFindCommon::ComputeFinalPaths()
 {
-  cmCursesMainForm* cm = static_cast<cmCursesMainForm*>(vp);
-  if ( !cm )
+  // Filter out ignored paths from the prefix list
+  std::set<std::string> ignored;
+  this->GetIgnoredPaths(ignored);
+
+  // Combine the seperate path types, filtering out ignores
+  this->SearchPaths.clear();
+  std::vector<PathLabel>& allLabels = this->PathGroupLabelMap[PathGroup::All];
+  for(std::vector<PathLabel>::const_iterator l = allLabels.begin();
+      l != allLabels.end(); ++l)
     {
-    return;
+    this->LabeledPaths[*l].ExtractWithout(ignored, this->SearchPaths);
     }
-  char tmp[1024];
-  const char *cmsg = tmp;
-  if ( prog >= 0 )
-    {
-    sprintf(tmp, "%s %i%%",msg,(int)(100*prog));
-    }
-  else
-    {
-    cmsg = msg;
-    }
-  cm->UpdateStatusBar(cmsg);
-  cm->PrintKeys(1);
-  curses_move(1,1);
-  touchwin(stdscr);
-  refresh();
+
+  // Expand list of paths inside all search roots.
+  this->RerootPaths(this->SearchPaths);
+
+  // Add a trailing slash to all paths to aid the search process.
+  std::for_each(this->SearchPaths.begin(), this->SearchPaths.end(),
+                &AddTrailingSlash);
 }
 
-int cmCursesMainForm::Configure(int noconfigure)
+//----------------------------------------------------------------------------
+void cmFindCommon::SetMakefile(cmMakefile* makefile)
 {
-  int xi,yi;
-  getmaxyx(stdscr, yi, xi);
+  cmCommand::SetMakefile(makefile);
 
-  curses_move(1,1);
-  this->UpdateStatusBar("Configuring, please wait...");
-  this->PrintKeys(1);
-  touchwin(stdscr);
-  refresh();
-  this->CMakeInstance->SetProgressCallback(cmCursesMainForm::UpdateProgress, this);
-
-  // always save the current gui values to disk
-  this->FillCacheManagerFromUI();
-  this->CMakeInstance->SaveCache(
-    this->CMakeInstance->GetHomeOutputDirectory());
-  this->LoadCache(0);
-
-  // Get rid of previous errors
-  this->Errors = std::vector<std::string>();
-
-  // run the generate process
-  this->OkToGenerate = true;
-  int retVal;
-  if ( noconfigure )
+  // If we are building for Apple (OSX or also iphone), make sure
+  // that frameworks and bundles are searched first.
+  if(this->Makefile->IsOn("APPLE"))
     {
-    retVal = this->CMakeInstance->DoPreConfigureChecks();
-    this->OkToGenerate = false;
-    if ( retVal > 0 )
-      {
-      retVal = 0;
-      }
-    }
-  else
-    {
-    retVal = this->CMakeInstance->Configure();
-    }
-  this->CMakeInstance->SetProgressCallback(0, 0);
-
-  keypad(stdscr,TRUE); /* Use key symbols as
-                          KEY_DOWN*/
-
-  if( retVal != 0 || !this->Errors.empty())
-    {
-    // see if there was an error
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      this->OkToGenerate = false;
-      }
-    int xx,yy;
-    getmaxyx(stdscr, yy, xx);
-    cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(
-      this->Errors,
-      cmSystemTools::GetErrorOccuredFlag()
-      ? "Errors occurred during the last pass." :
-      "CMake produced the following output.");
-    // reset error condition
-    cmSystemTools::ResetErrorOccuredFlag();
-    CurrentForm = msgs;
-    msgs->Render(1,1,xx,yy);
-    msgs->HandleInput();
-    // If they typed the wrong source directory, we report
-    // an error and exit
-    if ( retVal == -2 )
-      {
-      return retVal;
-      }
-    CurrentForm = this;
-    this->Render(1,1,xx,yy);
-    }
-
-  this->InitializeUI();
-  this->Render(1, 1, xi, yi);
-
-  return 0;
-}
-
-int cmCursesMainForm::Generate()
-{
-  int xi,yi;
-  getmaxyx(stdscr, yi, xi);
-
-  curses_move(1,1);
-  this->UpdateStatusBar("Generating, please wait...");
-  this->PrintKeys(1);
-  touchwin(stdscr);
-  refresh();
-  this->CMakeInstance->SetProgressCallback(cmCursesMainForm::UpdateProgress, this);
-
-  // Get rid of previous errors
-  this->Errors = std::vector<std::string>();
-
-  // run the generate process
-  int retVal = this->CMakeInstance->Generate();
-
-  this->CMakeInstance->SetProgressCallback(0, 0);
-  keypad(stdscr,TRUE); /* Use key symbols as
-                          KEY_DOWN*/
-
-  if( retVal != 0 || !this->Errors.empty())
-    {
-    // see if there was an error
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      this->OkToGenerate = false;
-      }
-    // reset error condition
-    cmSystemTools::ResetErrorOccuredFlag();
-    int xx,yy;
-    getmaxyx(stdscr, yy, xx);
-    const char* title = "Messages during last pass.";
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      title = "Errors occurred during the last pass.";
-      }
-    cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(this->Errors,
-                                                                title);
-    CurrentForm = msgs;
-    msgs->Render(1,1,xx,yy);
-    msgs->HandleInput();
-    // If they typed the wrong source directory, we report
-    // an error and exit
-    if ( retVal == -2 )
-      {
-      return retVal;
-      }
-    CurrentForm = this;
-    this->Render(1,1,xx,yy);
-    }
-
-  this->InitializeUI();
-  this->Render(1, 1, xi, yi);
-
-  return 0;
-}
-
-void cmCursesMainForm::AddError(const char* message, const char*)
-{
-  this->Errors.push_back(message);
-}
-
-void cmCursesMainForm::RemoveEntry(const char* value)
-{
-  if (!value)
-    {
-    return;
-    }
-
-  std::vector<cmCursesCacheEntryComposite*>::iterator it;
-  for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
-    {
-    const char* val = (*it)->GetValue();
-    if (  val && !strcmp(value, val) )
-      {
-      this->CMakeInstance->UnwatchUnusedCli(value);
-      this->Entries->erase(it);
-      break;
-      }
+    this->SearchFrameworkFirst = true;
+    this->SearchAppBundleFirst = true;
     }
 }
-
-// copy from the list box to the cache manager
-void cmCursesMainForm::FillCacheManagerFromUI()
-{
-  size_t size = this->Entries->size();
-  for(size_t i=0; i < size; i++)
-    {
-    std::string cacheKey = (*this->Entries)[i]->Key;
-      const char* existingValue = this->CMakeInstance->GetState()
-        ->GetCacheEntryValue(cacheKey);
-    if (existingValue)
-      {
-      std::string oldValue = existingValue;
-      std::string newValue = (*this->Entries)[i]->Entry->GetValue();
-      std::string fixedOldValue;
-      std::string fixedNewValue;
-      cmState::CacheEntryType t =
-          this->CMakeInstance->GetState()
-              ->GetCacheEntryType(cacheKey);
-      this->FixValue(t, oldValue, fixedOldValue);
-      this->FixValue(t, newValue, fixedNewValue);
-
-      if(!(fixedOldValue == fixedNewValue))
-        {
-        // The user has changed the value.  Mark it as modified.
-        this->CMakeInstance->GetState()
-            ->SetCacheEntryBoolProperty(cacheKey, "MODIFIED", true);
-        this->CMakeInstance->GetState()
-            ->SetCacheEntryValue(cacheKey, fixedNewValue);
-        }
-      }
-    }
-}
-
-void cmCursesMainForm::FixValue(cmState::CacheEntryType type,
-                                const std::string& in, std::string& out) const
-{
-  out = in.substr(0,in.find_last_not_of(" ")+1);
-  if(type == cmState::PATH || type == cmState::FILEPATH)
-    {
-    cmSystemTools::ConvertToUnixSlashes(out);
-    }
-  if(type == cmState::BOOL)
-    {
-    if(cmSystemTools::IsOff(out.c_str()))
-      {
-      out = "OFF";
-      }
-    else
-      {
-      out = "ON";
-      }
-    }
-}
-
-#include <unistd.h>
-
-void cmCursesMainForm::HandleInput()
-{
-  int x=0,y=0;
-
-  if (!this->Form)
-    {
-    return;
-    }
-
-  FIELD* currentField;
-  cmCursesWidget* currentWidget;
-
-  char debugMessage[128];
-
-  for(;;)
-    {
-    this->UpdateStatusBar();
-    this->PrintKeys();
-    if ( this->SearchMode )
-      {
-      std::string searchstr = "Search: " + this->SearchString;
-      this->UpdateStatusBar( searchstr.c_str() );
-      this->PrintKeys(1);
-      curses_move(y-5,static_cast<unsigned int>(searchstr.size()));
-      //curses_move(1,1);
-      touchwin(stdscr);
-      refresh();
-      }
-    int key = getch();
-
-    getmaxyx(stdscr, y, x);
-    // If window too small, handle 'q' only
-    if ( x < cmCursesMainForm::MIN_WIDTH  ||
-         y < cmCursesMainForm::MIN_HEIGHT )
-      {
-      // quit
-      if ( key == 'q' )
-        {
-        break;
-        }
-      else
-        {
-        continue;
-        }
-      }
-
-    currentField = current_field(this->Form);
-    currentWidget = reinterpret_cast<cmCursesWidget*>(field_userptr(
-      currentField));
-
-    bool widgetHandled=false;
-
-    if ( this->SearchMode )
-      {
-      if ( key == 10 || key == KEY_ENTER )
-        {
-        this->SearchMode = false;
-        if (!this->SearchString.empty())
-          {
-          this->JumpToCacheEntry(this->SearchString.c_str());
-          this->OldSearchString = this->SearchString;
-          }
-        this->SearchString = "";
-        }
-      /*
-      else if ( key == KEY_ESCAPE )
-        {
-        this->SearchMode = false;
-        }
-      */
-      else if ((key >= 'a' && key <= 'z') ||
-               (key >= 'A' && key <= 'Z') ||
-               (key >= '0' && key <= '9') ||
-               (key == '_' ))
-        {
-        if ( this->SearchString.size() < static_cast<std::string::size_type>(x-10) )
-          {
-          this->SearchString += static_cast<char>(key);
-          }
-        }
-      else if ( key == ctrl('h') || key == KEY_BACKSPACE || key == KEY_DC )
-        {
-        if (!this->SearchString.empty())
-          {
-          this->SearchString.resize(this->SearchString.size()-1);
-          }
-        }
-      }
-    else if (currentWidget && !this->SearchMode)
-      {
-      // Ask the current widget if it wants to handle input
-      widgetHandled = currentWidget->HandleInput(key, this, stdscr);
-      if (widgetHandled)
-        {
-        this->OkToGenerate = false;
-        this->UpdateStatusBar();
-        this->PrintKeys();
-        }
-      }
-    if ((!currentWidget || !widgetHandled) && !this->SearchMode)
-      {
-      // If the current widget does not want to handle input,
-      // we handle it.
-      sprintf(debugMessage, "Main form handling input, key: %d", key);
-      cmCursesForm::LogMessage(debugMessage);
-      // quit
-      if ( key == 'q' )
-        {
-        break;
-        }
-      // if not end of page, next field otherwise next page
-      // each entry consists of fields: label, isnew, value
-      // therefore, the label field for the prev. entry is index-5
-      // and the label field for the next entry is index+1
-      // (index always corresponds to the value field)
-      else if ( key == KEY_DOWN || key == ctrl('n') )
-        {
-        FIELD* cur = current_field(this->Form);
-        size_t findex = field_index(cur);
-        if ( findex == 3*this->NumberOfVisibleEntries-1 )
-          {
-          continue;
-          }
-        if (new_page(this->Fields[findex+1]))
-          {
-          form_driver(this->Form, REQ_NEXT_PAGE);
-          }
-        else
-          {
-          form_driver(this->Form, REQ_NEXT_FIELD);
-          }
-        }
-      // if not beginning of page, previous field, otherwise previous page
-      // each entry consists of fields: label, isnew, value
-      // therefore, the label field for the prev. entry is index-5
-      // and the label field for the next entry is index+1
-      // (index always corresponds to the value field)
-      else if ( key == KEY_UP || key == ctrl('p') )
-        {
-        FIELD* cur = current_field(this->Form);
-        int findex = field_index(cur);
-        if ( findex == 2 )
-          {
-          continue;
-          }
-        if ( new_page(this->Fields[findex-2]) )
-          {
-          form_driver(this->Form, REQ_PREV_PAGE);
-          set_current_field(this->Form, this->Fields[findex-3]);
-          }
-        else
-          {
-          form_driver(this->Form, REQ_PREV_FIELD);
-          }
-        }
-      // pg down
-      else if ( key == KEY_NPAGE || key == ctrl('d') )
-        {
-        form_driver(this->Form, REQ_NEXT_PAGE);
-        }
-      // pg up
-      else if ( key == KEY_PPAGE || key == ctrl('u') )
-        {
-        form_driver(this->Form, REQ_PREV_PAGE);
-        }
-      // configure
-      else if ( key == 'c' )
-        {
-        this->Configure();
-        }
-      // display help
-      else if ( key == 'h' )
-        {
-        getmaxyx(stdscr, y, x);
-
-        FIELD* cur = current_field(this->Form);
-        int findex = field_index(cur);
-        cmCursesWidget* lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(
-          this->Fields[findex-2]));
-        const char* curField = lbl->GetValue();
-        const char* helpString = 0;
-
-        const char* existingValue =
-            this->CMakeInstance->GetState()
-                ->GetCacheEntryValue(curField);
-        if (existingValue)
-          {
-          helpString = this->CMakeInstance->GetState()
-                           ->GetCacheEntryProperty(curField, "HELPSTRING");
-          }
-        if (helpString)
-          {
-          char* message = new char[strlen(curField)+strlen(helpString)
-                                  +strlen("Current option is: \n Help string for this option is: \n")+10];
-          sprintf(message,"Current option is: %s\nHelp string for this option is: %s\n", curField, helpString);
-          this->HelpMessage[1] = message;
-          delete[] message;
-          }
-        else
-          {
-          this->HelpMessage[1] = "";
-          }
-
-        cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(this->HelpMessage,
-                                                                    "Help.");
-        CurrentForm = msgs;
-        msgs->Render(1,1,x,y);
-        msgs->HandleInput();
-        CurrentForm = this;
-        this->Render(1,1,x,y);
-        set_current_field(this->Form, cur);
-        }
-      // display last errors
-      else if ( key == 'l' )
-        {
-        getmaxyx(stdscr, y, x);
-        cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(this->Errors,
-                                                                    "Errors occurred during the last pass.");
-        CurrentForm = msgs;
-        msgs->Render(1,1,x,y);
-        msgs->HandleInput();
-        CurrentForm = this;
-        this->Render(1,1,x,y);
-        }
-      else if ( key == '/' )
-        {
-        this->SearchMode = true;
-        this->UpdateStatusBar("Search");
-        this->PrintKeys(1);
-        touchwin(stdscr);
-        refresh();
-        }
-      else if ( key == 'n' )
-        {
-        if (!this->OldSearchString.empty())
-          {
-          this->JumpToCacheEntry(this->OldSearchString.c_str());
-          }
-        }
-      // switch advanced on/off
-      else if ( key == 't' )
-        {
-        if (this->AdvancedMode)
-          {
-          this->AdvancedMode = false;
-          }
-        else
-          {
-          this->AdvancedMode = true;
-          }
-        getmaxyx(stdscr, y, x);
-        this->RePost();
-        this->Render(1, 1, x, y);
-        }
-      // generate and exit
-      else if ( key == 'g' )
-        {
-        if ( this->OkToGenerate )
-          {
-          this->Generate();
-          break;
-          }
-        }
-      // delete cache entry
-      else if ( key == 'd' && this->NumberOfVisibleEntries )
-        {
-        this->OkToGenerate = false;
-        FIELD* cur = current_field(this->Form);
-        size_t findex = field_index(cur);
-
-        // make the next or prev. current field after deletion
-        // each entry consists of fields: label, isnew, value
-        // therefore, the label field for the prev. entry is findex-5
-        // and the label field for the next entry is findex+1
-        // (findex always corresponds to the value field)
-        FIELD* nextCur;
-        if ( findex == 2 )
-          {
-          nextCur=0;
-          }
-        else if ( findex == 3*this->NumberOfVisibleEntries-1 )
-          {
-          nextCur = this->Fields[findex-5];
-          }
-        else
-          {
-          nextCur = this->Fields[findex+1];
-          }
-
-        // Get the label widget
-        // each entry consists of fields: label, isnew, value
-        // therefore, the label field for the is findex-2
-        // (findex always corresponds to the value field)
-        cmCursesWidget* lbl
-          = reinterpret_cast<cmCursesWidget*>(
-            field_userptr(this->Fields[findex-2]));
-        if ( lbl )
-          {
-          this->CMakeInstance->GetState()->RemoveCacheEntry(lbl->GetValue());
-
-          std::string nextVal;
-          if (nextCur)
-            {
-            nextVal = (reinterpret_cast<cmCursesWidget*>(field_userptr(nextCur))->GetValue());
-            }
-
-          getmaxyx(stdscr, y, x);
-          this->RemoveEntry(lbl->GetValue());
-          this->RePost();
-          this->Render(1, 1, x, y);
-
-          if (nextCur)
-            {
-            // make the next or prev. current field after deletion
-            nextCur = 0;
-            std::vector<cmCursesCacheEntryComposite*>::iterator it;
-            for (it = this->Entries->begin(); it != this->Entries->end(); ++it)
-              {
-              if (nextVal == (*it)->Key)
-                {
-                nextCur = (*it)->Entry->Field;
-                }
-              }
-
-            if (nextCur)
-              {
-              set_current_field(this->Form, nextCur);
-              }
-            }
-          }
-        }
-      }
-
-    touchwin(stdscr);
-    wrefresh(stdscr);
-    }
-}
-
-int cmCursesMainForm::LoadCache(const char *)
-
-{
-  int r = this->CMakeInstance->LoadCache();
-  if(r < 0)
-    {
-    return r;
-    }
-  this->CMakeInstance->SetCacheArgs(this->Args);
-  this->CMakeInstance->PreLoadCMakeFiles();
-  return r;
-}
-
-void cmCursesMainForm::JumpToCacheEntry(const char* astr)
-{
-  std::string str;
-  if ( astr )
-    {
-    str = cmSystemTools::LowerCase(astr);
-    }
-
-  if(str.empty())
-    {
-    return;
-    }
-  FIELD* cur = current_field(this->Form);
-  int start_index = field_index(cur);
-  int findex = start_index;
-  for(;;)
-    {
-    if (!str.empty())
-      {
-      cmCursesWidget* lbl = 0;
-      if ( findex >= 0 )
-        {
-        lbl = reinterpret_cast<cmCursesWidget*>(field_userptr(this->Fields[findex-2]));
-        }
-      if ( lbl )
-        {
-        const char* curField = lbl->GetValue();
-        if ( curField )
-          {
-          std::string cfld = cmSystemTools::LowerCase(curField);
-          if ( cfld.find(str) != cfld.npos && findex != start_index )
-            {
-            break;
-            }
-          }
-        }
-      }
-    if ( size_t(findex) >= 3* this->NumberOfVisibleEntries-1 )
-      {
-      set_current_field(this->Form, this->Fields[2]);
-      }
-    else if (new_page(this->Fields[findex+1]))
-      {
-      form_driver(this->Form, REQ_NEXT_PAGE);
-      }
-    else
-      {
-      form_driver(this->Form, REQ_NEXT_FIELD);
-      }
-    /*
-    char buffer[1024];
-    sprintf(buffer, "Line: %d != %d / %d\n", findex, idx, this->NumberOfVisibleEntries);
-    touchwin(stdscr);
-    refresh();
-    this->UpdateStatusBar( buffer );
-    usleep(100000);
-    */
-    cur = current_field(this->Form);
-    findex = field_index(cur);
-    if ( findex == start_index )
-      {
-      break;
-      }
-    }
-}
-
-
-const char* cmCursesMainForm::s_ConstHelpMessage =
-"CMake is used to configure and generate build files for software projects. "
-"The basic steps for configuring a project with ccmake are as follows:\n\n"
-"1. Run ccmake in the directory where you want the object and executable files to be placed (build directory). If the source directory is not the same as this build directory, you have to specify it as an argument on the command line.\n\n"
-"2. When ccmake is run, it will read the configuration files and display the current build options. "
-"If you have run CMake before and have updated the configuration files since then, any new entries will be displayed on top and will be marked with a *. "
-"On the other hand, the first time you run ccmake, all build options will be new and will be marked as such. "
-"At this point, you can modify any options (see keys below) you want to change. "
-"When you are satisfied with your changes, press 'c' to have CMake process the configuration files. "
-"Please note that changing some options may cause new ones to appear. These will be shown on top and will be marked with *. "
-"Repeat this procedure until you are satisfied with all the options and there are no new entries. "
-"At this point, a new command will appear: G)enerate and Exit. You can now hit 'g' to have CMake generate all the build files (i.e. makefiles or project files) and exit. "
-"At any point during the process, you can exit ccmake with 'q'. However, this will not generate/change any build files.\n\n"
-"ccmake KEYS:\n\n"
-"Navigation: "
-"You can use the arrow keys and page up, down to navigate the options. Alternatively, you can use the following keys: \n"
-" C-n : next option\n"
-" C-p : previous options\n"
-" C-d : down one page\n"
-" C-u : up one page\n\n"
-"Editing options: "
-"To change an option  press enter or return. If the current options is a boolean, this will toggle it's value. "
-"Otherwise, ccmake will enter edit mode. In this mode you can edit an option using arrow keys and backspace. Alternatively, you can use the following keys:\n"
-" C-b : back one character\n"
-" C-f : forward one character\n"
-" C-a : go to the beginning of the field\n"
-" C-e : go to the end of the field\n"
-" C-d : delete previous character\n"
-" C-k : kill the rest of the field\n"
-" Esc : Restore field (discard last changes)\n"
-" Enter : Leave edit mode\n"
-"You can also delete an option by pressing 'd'\n\n"
-"Commands:\n"
-" q : quit ccmake without generating build files\n"
-" h : help, shows this screen\n"
-" c : process the configuration files with the current options\n"
-" g : generate build files and exit, only available when there are no "
-"new options and no errors have been detected during last configuration.\n"
-" l : shows last errors\n"
-" t : toggles advanced mode. In normal mode, only the most important options are shown. In advanced mode, all options are shown. We recommend using normal mode unless you are an expert.\n"
-" / : search for a variable name.\n";

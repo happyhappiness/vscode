@@ -1,7 +1,14 @@
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (!compileDefs.empty())
+                            sizeof(rar->reserved2));
+      }
+
+      /* Main header is password encrytped, so we cannot read any
+         file names or any other info about files from the header. */
+      if (rar->main_flags & MHD_PASSWORD)
       {
-      fprintf(fout, "add_definitions( ");
-      for (size_t i = 0; i < compileDefs.size(); ++i)
+        archive_entry_set_is_metadata_encrypted(entry, 1);
+        archive_entry_set_is_data_encrypted(entry, 1);
+        rar->has_encrypted_entries = 1;
+         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }

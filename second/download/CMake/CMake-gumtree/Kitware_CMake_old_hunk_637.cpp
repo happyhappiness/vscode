@@ -1,13 +1,12 @@
-    ret = read_data_compressed(a, buff, size, offset);
-    if (ret != ARCHIVE_OK && ret != ARCHIVE_WARN)
-      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
-    break; 
+  // do not check the return value here
+  // if the list var is not found varArgsExpanded will have size 0
+  // and we will return 0
+  this->GetList(varArgsExpanded, listName.c_str());
+  size_t length = varArgsExpanded.size();
+  char buffer[1024];
+  sprintf(buffer, "%d", static_cast<int>(length));
 
-  default:
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Unsupported compression method for RAR file.");
-    ret = ARCHIVE_FATAL;
-    break; 
-  }
-  return (ret);
+  this->Makefile->AddDefinition(variableName.c_str(), buffer);
+  return true;
 }
+

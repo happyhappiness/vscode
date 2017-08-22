@@ -1,8 +1,6 @@
-      }
-    char realBuf[1024];
-    sprintf(realBuf, "%6.2f sec", (double)(clock_finish - clock_start));
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\nTotal Test time (real) = "
-               << realBuf << "\n" );
-
-    if (!failed.empty())
-      {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unexpected codec ID: %lX", zip->codec);
+		return (ARCHIVE_FAILED);
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Unknown codec ID: %lX", zip->codec);
