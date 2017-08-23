@@ -52,7 +52,7 @@
         },
         "workbench.action.closeWindow": {
             "id": "workbench.action.closeWindow",
-            "label": "Ctrl+Shift+W",
+            "label": "Ctrl+W",
             "isNative": true
         },
         "workbench.action.closeFolder": {
@@ -424,28 +424,21 @@
             "id": "editor.debug.action.toggleColumnBreakpoint",
             "label": "Shift+F9",
             "isNative": true
-        },
-        "workbench.action.tasks.build": {
-            "id": "workbench.action.tasks.build",
-            "label": "Ctrl+Shift+B",
-            "isNative": true
         }
     },
-    "telemetry.machineId": "4aa5a078e5f01e6bfdfdaa7cf55a7d0cbbd6be4d060e9391a65c404c47001c35",
+    "telemetry.machineId": "b3b4169f91887f807d0cf696e3e1af58faeeafce8e49c668623e8524a16a8675",
     "theme": "vs-dark vscode-theme-defaults-themes-dark_plus-json",
     "themeBackground": "#1e1e1e",
     "windowsState": {
-        "openedWindows": [],
         "openedFolders": [],
         "lastActiveWindow": {
             "uiState": {
                 "mode": 1,
-                "x": 288,
-                "y": 98,
+                "x": 255,
+                "y": 124,
                 "width": 1024,
                 "height": 768
-            },
-            "backupPath": "/usr/info/code/cpp/LogMonitor/LogMonitor/.exit/Backups/1501170784475"
+            }
         }
     }
 }

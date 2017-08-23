@@ -1,14 +1,12 @@
-file,loc,log,log_file
-second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzlib.c,42,"fprintf(stderr, 
-      ""\n\nbzip2/libbzip2: internal error number %d.\n""
-      ""This is a bug in bzip2/libbzip2, %s.\n""
-      ""Please report it to me at: jseward@bzip.org.  If this happened\n""
-      ""when you were using some program which uses libbzip2 as a\n""
-      ""component, you should also report this bug to the author(s)\n""
-      ""of that program.  Please make an effort to report this bug;\n""
-      ""timely and accurate bug reports eventually lead to higher\n""
-      ""quality software.  Thanks.  Julian Seward, 10 December 2007.\n\n"",
-      errcode,
-      BZ2_bzlibVersion()
-   );",second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_0.cpp
-second/download/CMake/CMake/CMake/Utilities/cmbzip2/bzlib.c,56,,second/download/CMake/CMake-old-new/Kitware_CMake_repos_log_1.cpp
+cdg_test
+"[""func_a_ret""]"
+"[""func_a_ret"", ""!""]"
+"[""func_a_ret"", ""!"",  ""!""]"
+"[""func_a_ret"", ""null"",  ""==""]"
+"[""func_a_ret"", ""null"", ""!=""]"
+"[""null"", ""func_a_ret"", ""!=""]"
+"[""null"", ""func_a_ret"", ""==""]"
+"[""null"", ""func_a_ret"", ""!="", ""int"",  ""int"", ""=="",  ""||"", ""int"",  ""int"", ""=="", ""&&""]"
+"[""null"",""func_a_ret"",  ""!="", ""int"", ""int"", ""=="", ""&&"", ""int"", ""int"",""=="", ""int"", ""int"", ""=="", ""&&"", ""||""]"
+"[""null"", ""func_a_ret"", ""!="", ""int"", ""int"", "">"", ""&&"", ""int"", ""int"",""=="", ""int"", ""int"", "">"", ""&&"", ""||""]"
+"[""null"",  ""func_a_ret"", ""!="", ""int"", ""int"", ""<"", ""&&"", ""int"", ""int"",""=="", ""int"", ""int"", ""<"", ""&&"", ""||""]"

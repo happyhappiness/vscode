@@ -1,0 +1,1 @@
+bftpd_log("Processing command: %s\n", str);

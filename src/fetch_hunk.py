@@ -57,17 +57,13 @@ def deal_patch(patch_info, patch, total_hunk, writer):
                 total_hunk += 1
                 # write old hunk file to temp file
                 old_hunk_name = my_constant.DOWNLOAD_OLD_HUNK + str(total_hunk) + '.cpp'
-                temp_file = open(old_hunk_name, 'wb')
-                temp_file.write(old_hunk)
-                temp_file.close()
+                myUtil.save_file(old_hunk, old_hunk_name)
 
                 # write new hunk file to temp file
                 new_hunk_name = my_constant.DOWNLOAD_NEW_HUNK + str(total_hunk) + '.cpp'
-                temp_file = open(new_hunk_name, 'wb')
-                temp_file.write(new_hunk)
-                temp_file.close()
+                myUtil.save_file(new_hunk, new_hunk_name)
 
-                writer.writerow(patch_info + [ old_hunk_name, new_hunk_name, old_hunk, new_hunk, \
+                writer.writerow(patch_info + [ old_hunk_name, new_hunk_name, \
                 old_hunk_loc, new_hunk_loc, json.dumps(old_log_loc), json.dumps(new_log_loc)])
             # initialize hunk info
             old_hunk = ''
@@ -82,12 +78,15 @@ def deal_patch(patch_info, patch, total_hunk, writer):
 
         # record change type flag
         change_type = line[0]
+        # decide if it belongs to log change
+        is_log_change = re.search(log_function, line, re.I)
         if change_type != '-':
             new_hunk += (line[1:]) + '\n'
+            if is_log_change:
+                new_log_loc.append(new_loc)
+            new_loc += 1
         if change_type != '+':
             old_hunk += (line[1:]) + '\n'
-            # decide if it belongs to log change
-            is_log_change = re.search(log_function, line, re.I)
             if is_log_change:
                 old_log_loc.append(old_loc)
             old_loc += 1
@@ -139,11 +138,36 @@ def filter_file(changed_file):
         return False
 
 """
+@ param
+@ return
+@ involve read from fetched patch records and deal with each patch file
+"""
+def fetch_patch():
+
+    # initiate csvfile
+    patch_file = file(my_constant.FETCH_PATCH_FILE_NAME, 'rb')
+    patch_records = csv.reader(patch_file)
+    hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
+    hunk_writer = csv.writer(hunk_file)
+    hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
+
+    total_hunk = 0
+    for patch_info in islice(patch_records, 1, None):
+        curr_patch_file = patch_info[my_constant.FETCH_PATCH_PATCH_FILE]
+        curr_patch_file = open(curr_patch_file, 'rb')
+        patch = curr_patch_file.readlines()
+        total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
+        curr_patch_file.close()
+
+    hunk_file.close()
+    patch_file.close()
+
+"""
 @ param gh and sha and four counters and fileWriter
 @ return total hunk, total_log_cpp, total_cpp and total file 
 @ involve deal with commit and involved changed file
 """
-def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, writer):
+def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_writer, patch_writer):
 
     # filter sha by message and retrieve info if pass
     commit, commit_info = filter_commit(gh, sha)
@@ -161,16 +185,18 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, write
                 # old/new_store_name
                 old_store_name = my_constant.DOWNLOAD_OLD_FILE + str(total_log_cpp) + '.cpp'
                 new_store_name = my_constant.DOWNLOAD_NEW_FILE + str(total_log_cpp) + '.cpp'
+                patch_store_name = my_constant.DOWNLOAD_PATCH_FILE + str(total_log_cpp) + '.cpp'
                 # patch info
-                patch_info = commit_info + [changed_file.filename, old_store_name, new_store_name]
+                patch_info = commit_info + [changed_file.filename, old_store_name, new_store_name, patch_store_name]
                 try:
                     patch = changed_file.patch
                 except AttributeError as e:
                     print e
                     continue
                 # call deal_patch to deal with the patch file
-                has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, writer)
+                has_log, total_hunk = deal_patch(patch_info, patch, total_hunk, hunk_writer)
                 if has_log:
+                    patch_writer.writerow(patch_info)
                     # increment the file count
                     total_log_cpp += 1
 
@@ -180,20 +206,15 @@ def deal_commit(gh, sha, total_hunk, total_log_cpp, total_cpp, total_file, write
                     source = base64.b64decode(source)
 
                     # write new file to temp file
-                    temp_file = open(new_store_name, 'wb')
-                    temp_file.write(source)
-                    temp_file.close()
+                    myUtil.save_file(source, new_store_name)
 
                     # write patch file to temp file
-                    patch_store_name = 'second/download/temp.cpp'
-                    temp_file = open(patch_store_name, 'wb')
-                    temp_file.write(changed_file.patch)
-                    temp_file.close()
+                    myUtil.save_file(changed_file.patch, patch_store_name)
 
                     # get old file with patch cmd and write back
                     output = commands.getoutput('patch -R ' + new_store_name \
                             + ' -i ' + patch_store_name + ' -o ' + old_store_name)
-                    output = commands.getoutput('rm ' + patch_store_name)
+                    # output = commands.getoutput('rm ' + patch_store_name)
 
 
     return total_hunk, total_log_cpp, total_cpp, total_file
@@ -214,9 +235,14 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
         hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'wb')
         hunk_writer = csv.writer(hunk_file)
         hunk_writer.writerow(my_constant.FETCH_HUNK_TITLE)
+        patch_file = file(my_constant.FETCH_PATCH_FILE_NAME, 'wb')
+        patch_writer = csv.writer(patch_file)
+        patch_writer.writerow(my_constant.FETCH_PATCH_TITLE)
     else:
         hunk_file = file(my_constant.FETCH_HUNK_FILE_NAME, 'ab')
         hunk_writer = csv.writer(hunk_file)
+        patch_file = file(my_constant.FETCH_PATCH_FILE_NAME, 'ab')
+        patch_writer = csv.writer(patch_file)
 
     # fetch all the commits of given repos
     commits = gh.repos.commits.list(sha=commit_sha)
@@ -224,16 +250,25 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
     total_cpp = start_cpp
     total_log_cpp = start_log_cpp
     total_hunk = start_hunk
-    for commit in commits.iterator():
+    if isFromStart:
+        is_ignore_first = 0
+    else:
+        is_ignore_first = 1
+    for commit in islice(commits.iterator(), is_ignore_first, None):
+        # print commit.sha
         # call deal_commit function to deal with each commit
         total_hunk, total_log_cpp, total_cpp, total_file = deal_commit \
-                            (gh, commit.sha, total_hunk, total_log_cpp, total_cpp, total_file, hunk_writer)
+            (gh, commit.sha, total_hunk, total_log_cpp, total_cpp, total_file, \
+            hunk_writer, patch_writer)
         if total_file % 10 == 0:
-            print 'now have deal with %d file ; find cpp %d file ;\
-have saved %d log cpp file, %d hunk' %(total_file, total_cpp, total_log_cpp, total_hunk)
+#             print 'now have dealed with commit: %s \nnow have deal with %d file ;\
+# find cpp %d file ;have saved %d log cpp file, %d hunk' \
+            print '\'%s\', %d, %d, %d, %d' %(commit.sha, \
+                total_file, total_cpp, total_log_cpp, total_hunk)
     print "end of commit"
     # close the commit file
     hunk_file.close()
+    patch_file.close()
 
 """
 main function
@@ -245,9 +280,11 @@ if __name__ == "__main__":
     # user = 'torvalds'
     # repos = 'linux'
 
-    sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
+    # sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
     # with function to retieve all the commits of given path
-    fetch_commit(False, sha, 0, 0, 376, 710)
+    fetch_commit(False, '038e3a4f718bcf6936065beecf886f7c1fc178cc', 14070, 7078, 156, 352)
+    # fetch_commit()
+    # fetch_patch()
 
     # re.match(r'^@@.*-(.*),.*\+(.*),.*@@', 'test statement')
     # log_functions = myUtil.retrieveLogFunction(my_constant.LOG_CALL_FILE_NAME)

@@ -116,6 +116,7 @@ def deal_commit(gh, sha, file_count, writer):
                 source = gh.git_data.blobs.get(changed_file.sha).content
                 # decode to retrieve the source file
                 source = base64.b64decode(source)
+                
                 temp_file = open(store_name, 'wb')
                 temp_file.write(source)
                 temp_file.close()
