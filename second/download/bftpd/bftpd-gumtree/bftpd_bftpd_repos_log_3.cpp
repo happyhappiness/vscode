@@ -1,0 +1,1 @@
+bftpd_log("Caught HUP signal. Re-reading config file.\n");

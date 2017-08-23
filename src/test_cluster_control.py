@@ -4,8 +4,9 @@ import sys
 import re
 import commands
 import json
-import analyze_control_clone
 from itertools import islice
+from z3_api import Z3_api
+import analyze_control_clone
 import block
 import myUtil
 import my_constant
@@ -155,7 +156,7 @@ def cluster_record(context_lists, cluster_similarity = 0.95):
 def cluster():
 
     # initialize read file
-    analyze_control = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'rb')
+    analyze_control = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
     records = csv.reader(analyze_control)
     # initialize write file
     cluster_control = file(my_constant.CLUSTER_REPOS_FILE_NAME, 'wb')
@@ -166,14 +167,15 @@ def cluster():
     # traverse the fetch csv file to record cond_lists of each log statement to cdg_lists
     for record in islice(records, 1, None):  # remove the table title
         # store cond_lists(index 6)
-        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_BLOCK_FEATURE])
+        cdg_list = json.loads(record[my_constant.ANALYZE_REPOS_CDG_Z3_FEATURE])
         context_lists.append(cdg_list)
 
     # cluster log statement based on cdg_list and ddg_list
+    # cluster_lists = context_lists
     cluster_lists = cluster_record(context_lists, 0.95)
     # record cluster index of each log statement
     analyze_control.close()
-    analyze_control = file(my_constant.ANALYZE_REPOS_FILE_NAME, 'rb')
+    analyze_control = file(my_constant.ANALYZE_REPOS_JOERN_FILE_NAME, 'rb')
     records = csv.reader(analyze_control)
     index = 0
     for record in islice(records, 1, None):

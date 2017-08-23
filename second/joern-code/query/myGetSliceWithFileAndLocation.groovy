@@ -81,9 +81,172 @@ Gremlin.defineStep('getStatementByFileNameAndLoc', [Vertex,Pipe], { filename, lo
 Gremlin.defineStep('getLogByFileAndLoc', [Vertex,Pipe], { file, loc ->
  	_().transform{
 		g.V("type","File").filter{ it.filepath.contains(file) } 
-		.out('IS_FILE_OF').functionToStatements().has("location").filter{ it.location.startsWith(loc) }.as("log")
-		.select(['log']){ [it.id, it.type] }
+		.out("IS_FILE_OF").functionToStatements().has("location").filter{ it.location.startsWith(loc) }.as("log")
+		.select(["log"]){ [it.id, it.code, it.type, it.location] }
 	 }.scatter()
+});
+
+// input: start v and end v
+// output: flow to edge (control) of in node id 
+Gremlin.defineStep('getControlLabel', [Vertex,Pipe], { startV, endV, order ->
+ 	_().transform{
+		g.V[startV].as("start")
+		.inE("FLOWS_TO").as("label") // from destation to get flow label (just condition)
+		.outV()
+		.loop("start"){ it.object.id != endV  && it.loops < order}{ it.object.id == endV }
+		.select(["label"]){ it.flowLabel }.toSet()
+	}.scatter()
+});
+ 
+
+// input: log id and loop order
+// output: id, code and type of control node
+Gremlin.defineStep('getControlDependence', [Vertex,Pipe], { log, loopOrder -> // int, int 
+ 	_().transform{
+		g.V[log].as("start") // get log
+		.in("CONTROLS")
+		.loop("start"){ it.loops < loopOrder }{ it.object.type == "Condition" }
+		.order{it.a.id <=> it.b.id}
+		.as("control")
+		.select(["control"]){ [it.id, it.code, it.type, it.location] }
+		.toSet() // select type, id, code, type
+	}
+});
+
+/*
+----------"IdentifierDeclStatement", "Parameter", "ExpressionStatement"
+=--- "IdentifierDeclType"
+=--- "ParameterType" 
+----------children() + "childNum"
+=--- "PrimaryExpression", "CallExpression", "Identifier"
+=--- "Callee"
+*/
+
+// input: log id
+// output: id, code and type of control node
+Gremlin.defineStep('getDefDependence', [Vertex,Pipe], { startV -> // int, int 
+ 	_().transform{
+		g.V[startV]
+		.inE("REACHES").as("var")
+		.outV		
+		// .order{it.a.id <=> it.b.id}
+		.as("def")
+		.select(["var","def"])
+		{ it.var }{ [it.id, it.code, it.type, it.location] } // select type, id, code, type
+	}
+});
+
+// input node id [parameter or identifier decl]
+// output var type
+Gremlin.defineStep('getVarTypeForParaOrDecl', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id].ifThenElse{ it.type == "Parameter" }
+		{ it.out().has("type","ParameterType") } // for parameter
+		{ it.has("type","IdentifierDeclStatement").astNodes().has("type","IdentifierDeclType") }// for decl statement
+		.code
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output right value type
+Gremlin.defineStep('getRightValue', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children() // asssignment Expr
+		.loop(1){it.object.type != 'AssignmentExpr'}{it.object.type == 'AssignmentExpr'}
+		.children().has("childNum", "1")
+		.as("result")
+		.select(["result"])
+		{[it.id, it.code, it.type]}
+	}.scatter()
+});
+
+// input node id [assignement]
+// output right value type
+Gremlin.defineStep('getRightValueForAssignment', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children().has("childNum", "1")
+		.as("result")
+		.select(["result"])
+		{[it.id, it.code, it.type]}
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output Callee
+Gremlin.defineStep('getCallee', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.astNodes()
+		.has("type", "Callee")
+		.code
+	}.scatter()
+});
+
+// input node id AndExpression, OrExpression, UnaryOp, // RelationalExpression 
+// output sub expression
+Gremlin.defineStep('getSubExpressions', [Vertex,Pipe], { node_id ->
+	_().transform{
+		BOOL_OPERATOR_LIST = ['AndExpression', 'OrExpression', 'InclusiveOrExpression', 'EqualityExpression', 'UnaryOp', 'RelationalExpression']
+		g.V[node_id] // condition statement
+		.children()
+		.loop(1){ it.object.has("type", T.in, BOOL_OPERATOR_LIST).count() != 0 }
+		{ it.object.type != 'UnaryOperator' }
+		.order{ it.b.id <=> it.a.id }.as("result")
+		.select(["result"]){ [it.id, it.code, it.type, it.operator]}
+	}.scatter()
+});
+
+
+// input node id 
+// output Argument
+Gremlin.defineStep('getArguments', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children()
+		.loop(1){it.object.type != "Argument"}{ it.object.type == "Argument"}
+		.children().as("result")
+		.select(["result"]){ [it.id, it.code, it.type]}
+	}.scatter()
+});
+
+// input node id 
+// output Argument
+Gremlin.defineStep('getOperations', [Vertex,Pipe], { node_id ->
+	_().transform{
+		ALG_OPERATOR_LIST = ['MultiplicativeExpression', 'AdditiveExpression', 'UnaryOp']
+		g.V[node_id] // expression statement
+		.children()
+		.loop(1){ it.object.has("type", T.in, ALG_OPERATOR_LIST).count() != 0 }
+		{ it.object.type != 'UnaryOperator' }
+		.as("result")
+		.select(["result"]){ [it.id, it.code, it.type]}
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output right children with primary Expression
+Gremlin.defineStep('getIdentifier', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children()
+		.loop(1){ it.object.type != "CallExpression" }
+		{ it.object.type == 'Identifier' }
+		.code
+	}.scatter()
+});
+
+// input node id [expression statement]
+// output right children with primary Expression
+Gremlin.defineStep('getPrimaryExpression', [Vertex,Pipe], { node_id ->
+	_().transform{
+		g.V[node_id] // expression statement
+		.children()
+		.loop(1){ it.object.type != "CallExpression" }
+		{ it.object.type == "PrimaryExpression" }
+		.code
+	}.scatter()
 });
 
 // input: 
@@ -96,7 +259,7 @@ Gremlin.defineStep('getFlowlabel', [Vertex,Pipe], {
 		{ it.object.flowLabel != "" } // emit node with right out id	
 	 }	
 });
- 
+
 // input: log id and loop order
 // output: type of flow, id, code and type of control node
 Gremlin.defineStep('getCFGControlByLog', [Vertex,Pipe], { log, order -> // int, int 
@@ -106,17 +269,6 @@ Gremlin.defineStep('getCFGControlByLog', [Vertex,Pipe], { log, order -> // int, 
 		.back("start").in("CONTROLS")
 		.has("type", "Condition").as("node")// get control edge
 		.loop("start"){ it.loops < order }{ true } // loop to get type and node [FLOWS_TO]
-		.select(["type","node"]){ it.flowLabel }{ [it.id, it.isCFGNode, it.code, it.type] } // select type, id, code, type
-	}
-});
-
-// input: log id and loop order
-// output: type of flow, id, code and type of control node
-Gremlin.defineStep('getCFGStatementByLog', [Vertex,Pipe], { log, order -> // int, int 
- 	_().transform{
-		g.V[log].as("start") // get log
-		.inE("FLOWS_TO").as("type").outV().as("node")
-		.loop("start"){ it.loops < order }{ it.object.type != "Condition" } // loop to get type and node [FLOWS_TO] // has entry
 		.select(["type","node"]){ it.flowLabel }{ [it.id, it.isCFGNode, it.code, it.type] } // select type, id, code, type
 	}
 });

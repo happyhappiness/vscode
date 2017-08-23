@@ -55,22 +55,55 @@ class Gumtree:
     """
     def get_old_log(self):
         return Gumtree.gumtree.getOldLog() + ';'
-
+      
     """
     @ param 
     @ return
+    @ involve judge if log in old location has been edited
+    """
+    def is_old_log_edited(self):
+        return Gumtree.gumtree.isOldLogEdited()
+
+    """
+    @ param line
+    @ return flag about whether find new log
+    @ involve set line for inserted node
+    """
+    def set_new_loc(self, line):
+        return Gumtree.gumtree.setNewLoc(line)
+
+    """
+    @ param 
+    @ return line
+    @ involve get old loc for the inserted node
+    """
+    def get_old_loc(self):
+        return Gumtree.gumtree.getOldLoc()
+
+    """
+    @ param old log locations
+    @ return
     @ involve add log node into log nodes
     """
-    def add_log_nodes(self, lines):
+    def add_old_log_nodes(self, lines):
         for line in lines:
-            Gumtree.gumtree.addLogNode(line)
+            Gumtree.gumtree.addOldLogNode(line)
+
+    """
+    @ param new log locations
+    @ return
+    @ involve add log node into log nodes
+    """
+    def add_new_log_nodes(self, lines):
+        for line in lines:
+            Gumtree.gumtree.addNewLogNode(line)
 
     """
     @ param 
     @ return
     @ involve get action type
     """
-    def get_action_type(self):
+    def get_hunk_edited_type(self):
         return Gumtree.gumtree.getActionType()
 
     """
@@ -104,6 +137,22 @@ class Gumtree:
     """
     def get_block(self):
         return Gumtree.gumtree.getBlock()
+
+    """
+    @ param
+    @ return
+    @ involve get block which contains log
+    """
+    def get_function(self):
+        return Gumtree.gumtree.getFunction()
+
+    """
+    @ param
+    @ return
+    @ involve get block which contains log
+    """
+    def get_function_loc(self):
+        return Gumtree.gumtree.getFunctionLoc()
 
     """
     @ param

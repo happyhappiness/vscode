@@ -35,25 +35,51 @@ def deal_hunk( hunk_record, writer, gumtree, total_log):
 
     hunk_info = hunk_record[:-2]
     gumtree.set_old_new_file(old_hunk_file, new_hunk_file)
-    gumtree.add_log_nodes(old_log_loc)
+    gumtree.add_old_log_nodes(old_log_loc)
+    gumtree.add_new_log_nodes(new_log_loc)
+    action_type = gumtree.get_hunk_edited_type()
 
+    # deal with log existing in old file
     for old_loc in old_log_loc:
-        # old_loc = int(old_loc)
-        # set old loc
         if gumtree.set_old_loc(old_loc):
             # get old loc and old log
-            old_loc = old_hunk_loc + old_loc
+            old_loc = old_hunk_loc + old_loc - 1
             old_log = gumtree.get_old_log()
 
             # get new loc and new log
             new_loc = gumtree.get_new_loc()
             # -1 if no map
             if new_loc != -1:
-                new_loc = new_hunk_loc + new_loc
-            new_log = gumtree.get_new_log() # none if no map
+                # remove mapping new_log_loc
+                if new_loc in new_log_loc:
+                    new_log_loc.remove(new_loc)
+                new_loc = new_hunk_loc + new_loc - 1
+            new_log = gumtree.get_new_log()
+            # whether this old log is edited
+            curr_action_type = action_type + gumtree.is_old_log_edited()
 
-            # from line in hunk to get action type
-            action_type = gumtree.get_action_type()
+            writer.writerow(hunk_info + [old_loc, new_loc, old_log, new_log, curr_action_type])
+            total_log += 1
+
+    # deal with inserted log
+    for new_loc in new_log_loc:
+        if gumtree.set_new_loc(new_loc):
+            # get new loc and new log
+            new_loc = new_hunk_loc + new_loc - 1
+            new_log = gumtree.get_new_log()
+
+            # get old loc
+            old_loc = gumtree.get_old_loc()
+            # -1 if no map
+            if old_loc != -1:
+                old_loc = old_hunk_loc + old_loc - 1
+                # whether this old log is edited
+                curr_action_type = action_type + 1
+            else:
+                curr_action_type = action_type
+            # old log is None
+            old_log = None
+
             writer.writerow(hunk_info + [old_loc, new_loc, old_log, new_log, action_type])
             total_log += 1
 
@@ -76,7 +102,7 @@ def fetch_hunk():
     total_log = 0
     total_hunk = 0
     gumtree = Gumtree()
-    for hunk_record in islice(hunk_records, 1, None):
+    for hunk_record in islice(hunk_records, 20, None):
         total_hunk += 1
         total_log = deal_hunk(hunk_record, log_writer, gumtree, total_log)
         if total_hunk % 10 == 0:

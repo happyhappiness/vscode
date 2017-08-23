@@ -1,0 +1,1 @@
+control_printf(SL_FAILURE, "421 User %s is already logged in %i times.", user, maxusers);

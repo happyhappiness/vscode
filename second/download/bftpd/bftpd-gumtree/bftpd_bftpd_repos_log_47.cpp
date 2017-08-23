@@ -1,0 +1,1 @@
+bftpd_log("Successfully logged in as user '%s'.\n", user);

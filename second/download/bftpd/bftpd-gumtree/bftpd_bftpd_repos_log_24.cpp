@@ -1,0 +1,1 @@
+control_printf(SL_FAILURE, "530-Server disabled.\r\n421 Reason: %s", foo);

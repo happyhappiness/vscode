@@ -8,6 +8,8 @@ void test()
     if (i == 1)
     {
         printf("1");
+        printf("\t 2");
+        i = 1;
     }
     else if(i == 3)
     {

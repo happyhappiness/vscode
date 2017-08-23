@@ -1,0 +1,1 @@
+bftpd_log("Kicked from the server due to data connection timeout.\n");
