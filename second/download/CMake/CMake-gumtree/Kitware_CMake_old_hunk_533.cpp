@@ -1,11 +1,24 @@
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-#if defined(_WIN32)
-  Sleep(15000);
-#else
-  sleep(15);
-#endif
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
+    }
+
+  curses_move(y-4,0);
+  char fmt[512] = "Press [enter] to edit option";
+  if ( process )
+    {
+    strcpy(fmt, "                           ");
+    }
+  printw(fmt);
+  curses_move(y-3,0);
+  printw(firstLine);
+  curses_move(y-2,0);
+  printw(secondLine);
+  curses_move(y-1,0);
+  printw(thirdLine);
+
+  if (cw)
+    {
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+    curses_move(0,65-static_cast<unsigned int>(strlen(firstLine))-1);
+    printw(firstLine);
+    }
+//    }
+

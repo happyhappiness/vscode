@@ -1,0 +1,3 @@
+(!node->isArray()) {
+        // Error: node is not an array at position ...
+      }

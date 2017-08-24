@@ -1,0 +1,1 @@
+dicsize -= (dicsize / 16) * (h[5] >> 5)

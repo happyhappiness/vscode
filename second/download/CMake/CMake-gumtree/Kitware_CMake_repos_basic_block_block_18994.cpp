@@ -1,0 +1,1 @@
+uv__fsevents_reschedule(s->handle, s->type)

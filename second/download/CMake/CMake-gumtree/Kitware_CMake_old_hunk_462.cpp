@@ -1,6 +1,13 @@
-			en = create_filesystem_object(a);
-		} else if (!S_ISDIR(a->mode)) {
-			/* A dir is in the way of a non-dir, rmdir it. */
-			if (rmdir(a->name) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Can't replace existing directory with non-directory");
+	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
+		/* Reject entries over 4GB. */
+		if (archive_entry_size_is_set(entry)
+		    && (archive_entry_size(entry) > 0xffffffff)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Files > 4GB require Zip64 extensions");
+			return ARCHIVE_FAILED;
+		}
+		/* Reject entries if archive is > 4GB. */
+		if (zip->written_bytes > 0xffffffff) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Archives > 4GB require Zip64 extensions");
+			return ARCHIVE_FAILED;

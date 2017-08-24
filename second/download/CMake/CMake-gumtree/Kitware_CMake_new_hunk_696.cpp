@@ -1,10 +1,18 @@
-    buf = new char[n + 2 + 1];
-    sprintf(buf, "%s/*", name);
+                           target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName().c_str(), count);
+  const char* comment = origCommand.GetComment();
+  if(!comment && origCommand.GetOutputs().empty())
+    {
+    comment = "<hack>";
     }
-  struct _wfinddata_t data;      // data of current file
 
-  // Now put them into the file array
-  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
-  delete [] buf;
-
-  if ( srchHandle == -1 )
+  // Add the rule with the given dependencies and commands.
+  std::string no_main_dependency = "";
+  if(cmSourceFile* outsf =
+     this->Makefile->AddCustomCommandToOutput(
+       output, depends, no_main_dependency,
+       origCommand.GetCommandLines(), comment,
+       origCommand.GetWorkingDirectory().c_str()))
+    {
+    target.AddSourceFile(outsf);

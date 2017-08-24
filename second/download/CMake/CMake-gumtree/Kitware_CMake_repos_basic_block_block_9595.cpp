@@ -1,0 +1,1 @@
+size = getxattr(accpath, name, NULL, 0)

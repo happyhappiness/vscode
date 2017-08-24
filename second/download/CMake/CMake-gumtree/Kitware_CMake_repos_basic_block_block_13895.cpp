@@ -1,0 +1,4 @@
+{
+		free(sc);
+		return (NULL);
+	}

@@ -1,0 +1,1 @@
+*p = state->out_block

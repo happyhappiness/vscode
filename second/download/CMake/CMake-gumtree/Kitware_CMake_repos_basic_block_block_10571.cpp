@@ -1,0 +1,1 @@
+zip->end_of_entry = 1

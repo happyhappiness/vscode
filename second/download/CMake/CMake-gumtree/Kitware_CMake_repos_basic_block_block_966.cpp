@@ -1,0 +1,3 @@
+{
+    return strerror(errno);
+  }

@@ -1,0 +1,1 @@
+return (error_nomem(a));

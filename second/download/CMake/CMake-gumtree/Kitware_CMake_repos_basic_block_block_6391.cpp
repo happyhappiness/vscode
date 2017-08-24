@@ -1,0 +1,1 @@
+return CURLE_LOGIN_DENIED;

@@ -1,0 +1,1 @@
+size += strlen(argv[i]) + 1

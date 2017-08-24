@@ -1,0 +1,2 @@
+(r != ARCHIVE_OK)
+			ret = ARCHIVE_WARN

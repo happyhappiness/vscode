@@ -1,0 +1,1 @@
+free(hd->folder_array[i].cfdata.memimage)

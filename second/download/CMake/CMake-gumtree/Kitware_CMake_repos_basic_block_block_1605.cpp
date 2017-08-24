@@ -1,0 +1,1 @@
+nextch = *OPERAND(next)

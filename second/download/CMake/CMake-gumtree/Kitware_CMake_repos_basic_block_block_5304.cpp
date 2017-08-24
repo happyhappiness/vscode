@@ -1,0 +1,1 @@
+share->lockfunc(data, type, accesstype, share->clientdata)

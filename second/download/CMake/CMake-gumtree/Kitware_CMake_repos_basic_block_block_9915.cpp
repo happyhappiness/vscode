@@ -1,0 +1,1 @@
+archive_entry_copy_uname(entry, name)

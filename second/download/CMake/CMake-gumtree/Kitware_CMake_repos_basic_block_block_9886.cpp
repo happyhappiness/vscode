@@ -1,0 +1,1 @@
+buffbytes = (DWORD)t->current_sparse->length

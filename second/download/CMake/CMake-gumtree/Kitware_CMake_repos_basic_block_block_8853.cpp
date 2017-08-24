@@ -1,0 +1,1 @@
+memcpy(out, ctx->hash, *out_len)

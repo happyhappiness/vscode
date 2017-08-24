@@ -1,0 +1,1 @@
+memset(ds->pt.freq, 0, sizeof(ds->pt.freq))

@@ -1,0 +1,1 @@
+*curlcode = CURLE_AGAIN

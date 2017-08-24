@@ -1,0 +1,1 @@
+bittree_reset(coder->pos_slot[i], POS_SLOT_BITS)

@@ -1,7 +1,23 @@
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
+		 * impact.
+		 */
+		if (lchmod(a->name, mode) != 0) {
+			switch (errno) {
+			case ENOTSUP:
+			case ENOSYS:
+#if ENOTSUP != EOPNOTSUPP
+			case EOPNOTSUPP:
+#endif
+				/*
+				 * if lchmod is defined but the platform
+				 * doesn't support it, silently ignore
+				 * error
+				 */
+				break;
+			default:
+				archive_set_error(&a->archive, errno,
+				    "Can't set permissions to 0%o", (int)mode);
+				r = ARCHIVE_WARN;
+			}
+		}
+#endif
+	} else if (!S_ISDIR(a->mode)) {

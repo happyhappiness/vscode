@@ -1,0 +1,2 @@
+(errno != EEXIST)
+      rc = -errno

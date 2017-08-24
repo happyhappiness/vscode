@@ -1,0 +1,1 @@
+return (cpio->ino_list[i].new);

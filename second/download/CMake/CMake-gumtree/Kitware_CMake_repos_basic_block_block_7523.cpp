@@ -1,0 +1,1 @@
+attlistDeclHandler = attdecl

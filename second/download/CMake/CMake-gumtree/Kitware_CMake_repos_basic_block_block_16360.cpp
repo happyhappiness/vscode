@@ -1,0 +1,4 @@
+{
+					xdot = dot;
+					dot = p;
+				}

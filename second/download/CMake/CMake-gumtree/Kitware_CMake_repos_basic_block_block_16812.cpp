@@ -1,0 +1,1 @@
+archive_sha256_update(&mtree->sha256ctx, buff, n)

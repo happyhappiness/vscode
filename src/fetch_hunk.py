@@ -260,11 +260,11 @@ def fetch_commit(isFromStart=True, commit_sha='', start_file=0, start_cpp=0, sta
         total_hunk, total_log_cpp, total_cpp, total_file = deal_commit \
             (gh, commit.sha, total_hunk, total_log_cpp, total_cpp, total_file, \
             hunk_writer, patch_writer)
-        if total_file % 10 == 0:
+        # if total_file % 10 == 0:
 #             print 'now have dealed with commit: %s \nnow have deal with %d file ;\
 # find cpp %d file ;have saved %d log cpp file, %d hunk' \
-            print '\'%s\', %d, %d, %d, %d' %(commit.sha, \
-                total_file, total_cpp, total_log_cpp, total_hunk)
+        print '\'%s\', %d, %d, %d, %d' %(commit.sha, \
+            total_file, total_cpp, total_log_cpp, total_hunk)
     print "end of commit"
     # close the commit file
     hunk_file.close()
@@ -282,7 +282,7 @@ if __name__ == "__main__":
 
     # sha = 'a0f91f1daa7765066a784e4479da7e231374a065'
     # with function to retieve all the commits of given path
-    fetch_commit(False, 'f69606d3354701c2e4ef4ed0718802e1fa6b7fd5', 44160, 21334, 309, 654)
+    fetch_commit(False, 'f0ab852000b5c1ea17509c6e57e61942ba878984', 72470, 33041, 504, 1064)
     # fetch_commit()
     # fetch_patch()
 

@@ -1,0 +1,4 @@
+{
+    SetEvent(event);
+    CloseHandle(event);
+  }

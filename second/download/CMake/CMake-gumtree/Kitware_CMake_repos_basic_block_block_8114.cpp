@@ -1,0 +1,2 @@
+(!prefix->binding)
+      continue;

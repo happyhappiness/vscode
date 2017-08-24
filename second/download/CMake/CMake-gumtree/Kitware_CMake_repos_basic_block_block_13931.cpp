@@ -1,0 +1,1 @@
+flag |= SCONV_BEST_EFFORT

@@ -1,0 +1,2 @@
+(isspace(*p))
+			return res;

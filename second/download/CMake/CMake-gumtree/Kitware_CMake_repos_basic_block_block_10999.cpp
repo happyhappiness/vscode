@@ -1,0 +1,1 @@
+limit = outSize - outPos

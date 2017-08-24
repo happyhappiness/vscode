@@ -1,109 +1,258 @@
-@@ -128,6 +128,9 @@ struct mtree_entry {
- 	unsigned long fflags_clear;
- 	dev_t rdevmajor;
- 	dev_t rdevminor;
-+	dev_t devmajor;
-+	dev_t devminor;
-+	int64_t ino;
- };
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -22,122 +22,89 @@
  
- struct mtree_writer {
-@@ -210,6 +213,9 @@ struct mtree_writer {
- #define	F_SHA256	0x00800000		/* SHA-256 digest */
- #define	F_SHA384	0x01000000		/* SHA-384 digest */
- #define	F_SHA512	0x02000000		/* SHA-512 digest */
-+#define	F_INO		0x04000000		/* inode number */
-+#define	F_RESDEV	0x08000000		/* device ID on which the
-+						 * entry resides */
+ #include "curl_setup.h"
  
- 	/* Options */
- 	int dironly;		/* If it is set, ignore all files except
-@@ -823,8 +829,11 @@ mtree_entry_new(struct archive_write *a, struct archive_entry *entry,
- 	archive_entry_fflags(entry, &me->fflags_set, &me->fflags_clear);
- 	me->mtime = archive_entry_mtime(entry);
- 	me->mtime_nsec = archive_entry_mtime_nsec(entry);
--	me->rdevmajor =	archive_entry_rdevmajor(entry);
-+	me->rdevmajor = archive_entry_rdevmajor(entry);
- 	me->rdevminor = archive_entry_rdevminor(entry);
-+	me->devmajor = archive_entry_devmajor(entry);
-+	me->devminor = archive_entry_devminor(entry);
-+	me->ino = archive_entry_ino(entry);
- 	me->size = archive_entry_size(entry);
- 	if (me->filetype == AE_IFDIR) {
- 		me->dir_info = calloc(1, sizeof(*me->dir_info));
-@@ -882,7 +891,7 @@ archive_write_mtree_header(struct archive_write *a,
- 		mtree->first = 0;
- 		archive_strcat(&mtree->buf, "#mtree\n");
- 		if ((mtree->keys & SET_KEYS) == 0)
--			mtree->output_global_set = 0;/* Disalbed. */
-+			mtree->output_global_set = 0;/* Disabled. */
- 	}
+-#ifdef HAVE_GSSAPI
+-#ifdef HAVE_OLD_GSSMIT
+-#define GSS_C_NT_HOSTBASED_SERVICE gss_nt_service_name
+-#define NCOMPAT 1
+-#endif
+-
+-#ifndef CURL_DISABLE_HTTP
++#if defined(HAVE_GSSAPI) && !defined(CURL_DISABLE_HTTP) && defined(USE_SPNEGO)
  
- 	mtree->entry_bytes_remaining = archive_entry_size(entry);
-@@ -983,6 +992,15 @@ write_mtree_entry(struct archive_write *a, struct mtree_entry *me)
- 	if ((keys & F_UID) != 0)
- 		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+ #include "urldata.h"
+ #include "sendf.h"
+ #include "curl_gssapi.h"
+ #include "rawstr.h"
+ #include "curl_base64.h"
+ #include "http_negotiate.h"
+-#include "curl_memory.h"
++#include "curl_sasl.h"
+ #include "url.h"
++#include "curl_printf.h"
  
-+	if ((keys & F_INO) != 0)
-+		archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
-+	if ((keys & F_RESDEV) != 0) {
-+		archive_string_sprintf(str,
-+		    " resdevice=native,%ju,%ju",
-+		    (uintmax_t)me->devmajor,
-+		    (uintmax_t)me->devminor);
-+	}
+-#define _MPRINTF_REPLACE /* use our functions only */
+-#include <curl/mprintf.h>
+-
+-/* The last #include file should be: */
++/* The last #include files should be: */
++#include "curl_memory.h"
+ #include "memdebug.h"
+ 
+-static int
+-get_gss_name(struct connectdata *conn, bool proxy, gss_name_t *server)
+-{
+-  OM_uint32 major_status, minor_status;
+-  gss_buffer_desc token = GSS_C_EMPTY_BUFFER;
+-  char name[2048];
+-  const char* service = "HTTP";
+-
+-  token.length = strlen(service) + 1 + strlen(proxy ? conn->proxy.name :
+-                                              conn->host.name) + 1;
+-  if(token.length + 1 > sizeof(name))
+-    return EMSGSIZE;
+-
+-  snprintf(name, sizeof(name), "%s@%s", service, proxy ? conn->proxy.name :
+-           conn->host.name);
+-
+-  token.value = (void *) name;
+-  major_status = gss_import_name(&minor_status,
+-                                 &token,
+-                                 GSS_C_NT_HOSTBASED_SERVICE,
+-                                 server);
+-
+-  return GSS_ERROR(major_status) ? -1 : 0;
+-}
+-
+-static void
+-log_gss_error(struct connectdata *conn, OM_uint32 error_status,
+-              const char *prefix)
+-{
+-  OM_uint32 maj_stat, min_stat;
+-  OM_uint32 msg_ctx = 0;
+-  gss_buffer_desc status_string;
+-  char buf[1024];
+-  size_t len;
+-
+-  snprintf(buf, sizeof(buf), "%s", prefix);
+-  len = strlen(buf);
+-  do {
+-    maj_stat = gss_display_status(&min_stat,
+-                                  error_status,
+-                                  GSS_C_MECH_CODE,
+-                                  GSS_C_NO_OID,
+-                                  &msg_ctx,
+-                                  &status_string);
+-      if(sizeof(buf) > len + status_string.length + 1) {
+-        snprintf(buf + len, sizeof(buf) - len,
+-                 ": %s", (char*) status_string.value);
+-      len += status_string.length;
+-    }
+-    gss_release_buffer(&min_stat, &status_string);
+-  } while(!GSS_ERROR(maj_stat) && msg_ctx != 0);
+-
+-  infof(conn->data, "%s\n", buf);
+-}
+-
+-/* returning zero (0) means success, everything else is treated as "failure"
+-   with no care exactly what the failure was */
+-int Curl_input_negotiate(struct connectdata *conn, bool proxy,
+-                         const char *header)
++CURLcode Curl_input_negotiate(struct connectdata *conn, bool proxy,
++                              const char *header)
+ {
+   struct SessionHandle *data = conn->data;
+   struct negotiatedata *neg_ctx = proxy?&data->state.proxyneg:
+     &data->state.negotiate;
+   OM_uint32 major_status, minor_status, discard_st;
++  gss_buffer_desc spn_token = GSS_C_EMPTY_BUFFER;
+   gss_buffer_desc input_token = GSS_C_EMPTY_BUFFER;
+   gss_buffer_desc output_token = GSS_C_EMPTY_BUFFER;
+-  int ret;
+   size_t len;
+   size_t rawlen = 0;
+-  CURLcode error;
++  CURLcode result;
+ 
+   if(neg_ctx->context && neg_ctx->status == GSS_S_COMPLETE) {
+     /* We finished successfully our part of authentication, but server
+      * rejected it (since we're again here). Exit with an error since we
+      * can't invent anything better */
+     Curl_cleanup_negotiate(data);
+-    return -1;
++    return CURLE_LOGIN_DENIED;
+   }
+ 
+-  if(neg_ctx->server_name == NULL &&
+-      (ret = get_gss_name(conn, proxy, &neg_ctx->server_name)))
+-    return ret;
++  if(!neg_ctx->server_name) {
++    /* Generate our SPN */
++    char *spn = Curl_sasl_build_gssapi_spn(
++      proxy ? data->set.str[STRING_PROXY_SERVICE_NAME] :
++      data->set.str[STRING_SERVICE_NAME],
++      proxy ? conn->proxy.name : conn->host.name);
++    if(!spn)
++      return CURLE_OUT_OF_MEMORY;
 +
- 	switch (me->filetype) {
- 	case AE_IFLNK:
- 		if ((keys & F_TYPE) != 0)
-@@ -1117,7 +1135,7 @@ write_mtree_entry_tree(struct archive_write *a)
- 		} else {
- 			/* Whenever output_global_set is enabled
- 			 * output global value(/set keywords)
--			 * even if the directory entry is not allowd
-+			 * even if the directory entry is not allowed
- 			 * to be written because the global values
- 			 * can be used for the children. */
- 			if (mtree->output_global_set)
-@@ -1296,6 +1314,8 @@ archive_write_mtree_options(struct archive_write *a, const char *key,
- 		if (strcmp(key, "indent") == 0) {
- 			mtree->indent = (value != NULL)? 1: 0;
- 			return (ARCHIVE_OK);
-+		} else if (strcmp(key, "inode") == 0) {
-+			keybit = F_INO;
- 		}
- 		break;
- 	case 'l':
-@@ -1314,7 +1334,9 @@ archive_write_mtree_options(struct archive_write *a, const char *key,
- 			keybit = F_NLINK;
- 		break;
- 	case 'r':
--		if (strcmp(key, "ripemd160digest") == 0 ||
-+		if (strcmp(key, "resdevice") == 0) {
-+			keybit = F_RESDEV;
-+		} else if (strcmp(key, "ripemd160digest") == 0 ||
- 		    strcmp(key, "rmd160") == 0 ||
- 		    strcmp(key, "rmd160digest") == 0)
- 			keybit = F_RMD160;
-@@ -1855,9 +1877,9 @@ mtree_entry_setup_filenames(struct archive_write *a, struct mtree_entry *file,
- 		return (ret);
- 	}
++    /* Populate the SPN structure */
++    spn_token.value = spn;
++    spn_token.length = strlen(spn);
++
++    /* Import the SPN */
++    major_status = gss_import_name(&minor_status, &spn_token,
++                                   GSS_C_NT_HOSTBASED_SERVICE,
++                                   &neg_ctx->server_name);
++    if(GSS_ERROR(major_status)) {
++      Curl_gss_log_error(data, minor_status, "gss_import_name() failed: ");
++
++      free(spn);
++
++      return CURLE_OUT_OF_MEMORY;
++    }
++
++    free(spn);
++  }
  
--	/* Make a basename from dirname and slash */
-+	/* Make a basename from file->parentdir.s and slash */
- 	*slash  = '\0';
--	file->parentdir.length = slash - dirname;
-+	file->parentdir.length = slash - file->parentdir.s;
- 	archive_strcpy(&(file->basename),  slash + 1);
- 	return (ret);
- }
-@@ -2198,6 +2220,9 @@ mtree_entry_exchange_same_entry(struct archive_write *a, struct mtree_entry *np,
- 	np->mtime_nsec = file->mtime_nsec;
- 	np->rdevmajor = file->rdevmajor;
- 	np->rdevminor = file->rdevminor;
-+	np->devmajor = file->devmajor;
-+	np->devminor = file->devminor;
-+	np->ino = file->ino;
+   header += strlen("Negotiate");
+   while(*header && ISSPACE(*header))
+     header++;
  
- 	return (ARCHIVE_WARN);
+   len = strlen(header);
+   if(len > 0) {
+-    error = Curl_base64_decode(header,
+-                               (unsigned char **)&input_token.value, &rawlen);
+-    if(error || rawlen == 0)
+-      return -1;
++    result = Curl_base64_decode(header, (unsigned char **)&input_token.value,
++                                &rawlen);
++    if(result)
++      return result;
++
++    if(!rawlen) {
++      infof(data, "Negotiate handshake failure (empty challenge message)\n");
++
++      return CURLE_BAD_CONTENT_ENCODING;
++    }
++
+     input_token.length = rawlen;
+ 
+     DEBUGASSERT(input_token.value != NULL);
+@@ -151,27 +118,29 @@ int Curl_input_negotiate(struct connectdata *conn, bool proxy,
+                                            GSS_C_NO_CHANNEL_BINDINGS,
+                                            &input_token,
+                                            &output_token,
++                                           TRUE,
+                                            NULL);
+   Curl_safefree(input_token.value);
+ 
+   neg_ctx->status = major_status;
+   if(GSS_ERROR(major_status)) {
+     if(output_token.value)
+       gss_release_buffer(&discard_st, &output_token);
+-    log_gss_error(conn, minor_status, "gss_init_sec_context() failed: ");
+-    return -1;
++    Curl_gss_log_error(conn->data, minor_status,
++                       "gss_init_sec_context() failed: ");
++    return CURLE_OUT_OF_MEMORY;
+   }
+ 
+   if(!output_token.value || !output_token.length) {
+     if(output_token.value)
+       gss_release_buffer(&discard_st, &output_token);
+-    return -1;
++    return CURLE_OUT_OF_MEMORY;
+   }
+ 
+   neg_ctx->output_token = output_token;
+-  return 0;
+-}
+ 
++  return CURLE_OK;
++}
+ 
+ CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+ {
+@@ -180,18 +149,18 @@ CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+   char *encoded = NULL;
+   size_t len = 0;
+   char *userp;
+-  CURLcode error;
++  CURLcode result;
+   OM_uint32 discard_st;
+ 
+-  error = Curl_base64_encode(conn->data,
+-                             neg_ctx->output_token.value,
+-                             neg_ctx->output_token.length,
+-                             &encoded, &len);
+-  if(error) {
++  result = Curl_base64_encode(conn->data,
++                              neg_ctx->output_token.value,
++                              neg_ctx->output_token.length,
++                              &encoded, &len);
++  if(result) {
+     gss_release_buffer(&discard_st, &neg_ctx->output_token);
+     neg_ctx->output_token.value = NULL;
+     neg_ctx->output_token.length = 0;
+-    return error;
++    return result;
+   }
+ 
+   if(!encoded || !len) {
+@@ -212,7 +181,7 @@ CURLcode Curl_output_negotiate(struct connectdata *conn, bool proxy)
+     conn->allocptr.userpwd = userp;
+   }
+ 
+-  Curl_safefree(encoded);
++  free(encoded);
+ 
+   return (userp == NULL) ? CURLE_OUT_OF_MEMORY : CURLE_OK;
  }
+@@ -238,6 +207,4 @@ void Curl_cleanup_negotiate(struct SessionHandle *data)
+   cleanup(&data->state.proxyneg);
+ }
+ 
+-
+-#endif
+-#endif
++#endif /* HAVE_GSSAPI && !CURL_DISABLE_HTTP && USE_SPNEGO */

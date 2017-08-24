@@ -1,0 +1,3 @@
+{
+            this->OSRelease = "Vista";
+          }

@@ -1,0 +1,2 @@
+(errno != ENOENT)
+              abort()

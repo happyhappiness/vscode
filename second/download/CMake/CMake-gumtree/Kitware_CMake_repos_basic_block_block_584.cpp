@@ -1,0 +1,1 @@
+ret_val = EOB_ACT_CONTINUE_SCAN

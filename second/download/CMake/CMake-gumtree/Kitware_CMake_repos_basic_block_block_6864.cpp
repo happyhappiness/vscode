@@ -1,0 +1,1 @@
+infof(data, "warning: CURLOPT_CAPATH not a directory (%s)\n", capath)

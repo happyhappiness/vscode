@@ -1,0 +1,3 @@
+{
+    putc(c, stdout);
+  }

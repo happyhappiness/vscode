@@ -1,0 +1,3 @@
+{
+    QApplication::addLibraryPath(pluginDir.path());
+  }

@@ -1,0 +1,2 @@
+(isControlCharacter(*(str++)))
+      return true;

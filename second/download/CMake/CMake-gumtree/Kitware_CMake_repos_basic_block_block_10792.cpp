@@ -1,0 +1,1 @@
+entries[i].mode = AE_IFREG | 0666

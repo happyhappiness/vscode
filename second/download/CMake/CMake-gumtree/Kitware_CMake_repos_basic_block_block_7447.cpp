@@ -1,0 +1,1 @@
+return get_hash_secret_salt(parser->m_parentParser);

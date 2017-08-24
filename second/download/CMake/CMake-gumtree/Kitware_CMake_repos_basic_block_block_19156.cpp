@@ -1,0 +1,1 @@
+inferred_model = ci[model_idx - 1].model

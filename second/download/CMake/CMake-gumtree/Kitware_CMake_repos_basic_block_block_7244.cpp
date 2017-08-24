@@ -1,0 +1,1 @@
+stripped_pem[stripped_pem_count++] = pem[pem_count]

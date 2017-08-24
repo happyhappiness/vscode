@@ -1,0 +1,1 @@
+ret = hfs_set_compressed_fflag(a)

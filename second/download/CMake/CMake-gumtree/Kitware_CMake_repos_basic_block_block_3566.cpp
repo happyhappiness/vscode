@@ -1,0 +1,1 @@
+(parent[k] >= 0) { k = parent[k]; j++; }

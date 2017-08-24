@@ -1,0 +1,1 @@
+Curl_pgrsTime(conn->data, TIMER_APPCONNECT)

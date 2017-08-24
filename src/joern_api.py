@@ -1,5 +1,6 @@
 import re
 from joern.all import JoernSteps
+from py2neo.packages.httpstream import http
 import my_constant
 
 class Joern_api:
@@ -38,15 +39,19 @@ class Joern_api:
     @ involve get condition and controled statements and its condition info
     """
     def get_all_condition(self):
-        nodes_query = '_().getAllConditionControledNodes()'
-        nodes = Joern_api.joern_instance.runGremlinQuery(nodes_query)
-        conditions = []
-        if nodes is not None:
-            for node in nodes:
-                node_id = str(node[0][my_constant.JOERN_ID])
-                loc = node[0][my_constant.JOERN_LOCATION]
-                loc = loc[0:loc.index(':')]
-                file_name = node[1]
+        # set time out
+        # http.socket_timeout = 9999
+        conditions_query = '_().getAllConditions()'
+        conditions = Joern_api.joern_instance.runGremlinQuery(conditions_query)
+        condition_list = []
+        if conditions is not None:
+            print 'conditions size: %d' %(len(conditions))
+            index = 0
+            for condition in conditions:
+                condition_id = str(condition)
+                node_id, loc, file_name = self.__get_controled_node_for_condition(condition_id)
+                if node_id is None:
+                    continue
                 # get condition and normalized condition for each node
                 condition_info = self.__get_control_dependence_for_node(node_id)
                 normalized_condition = []
@@ -56,10 +61,31 @@ class Joern_api:
                         normalized_condition = node_std_code
                     else:
                         normalized_condition = node_std_code + normalized_condition + ['&&']
-                # append this condition info to conditions
-                conditions.append([file_name, loc, condition_info, normalized_condition])
-        return conditions
-                
+                # append this condition info to condition_list
+                condition_list.append([file_name, loc, condition_info, normalized_condition])
+                if index % 10 == 0:
+                    print 'now processing condition %d' %(index)
+                index += 1
+        return condition_list
+     
+    """
+    @ param condition_id
+    @ return node_id, location and file
+    @ involve get controled node info for given condition node
+    """
+    def __get_controled_node_for_condition(self, condition_id):
+        node_query = '_().getControledNodeForCondition(' + condition_id + ')'
+        node = Joern_api.joern_instance.runGremlinQuery(node_query)
+        node_id = loc = file_name = None
+        if node is not None and len(node) != 0:
+            node = node[my_constant.JOERN_DEFALUT]
+            node_id = str(node[0][my_constant.JOERN_ID])
+            loc = node[0][my_constant.JOERN_LOCATION]
+            # if loc is None:
+            #     print "condition id is %s, node id is %s" %(condition_id, node_id)
+            loc = loc[0:loc.index(':')]
+            file_name = node[1]
+        return node_id, loc, file_name
     """
     @ param node_id
     @ return [condition id + flag], normalized condition info

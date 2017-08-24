@@ -1,0 +1,1 @@
+*trivialp = 1

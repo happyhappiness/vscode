@@ -1,0 +1,1 @@
+file->size = strlen(archive_entry_symlink(entry))

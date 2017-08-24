@@ -1,0 +1,1 @@
+(tmp->link != NULL) tmp = tmp->link

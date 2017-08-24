@@ -1,949 +1,1393 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at https://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+/***
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
 
-#include "cmCPackDebGenerator.h"
+RECEIVING COOKIE INFORMATION
+============================
 
-#include "cmArchiveWrite.h"
-#include "cmCPackLog.h"
-#include "cmGeneratedFileStream.h"
-#include "cmMakefile.h"
-#include "cmSystemTools.h"
+struct CookieInfo *Curl_cookie_init(struct Curl_easy *data,
+                    const char *file, struct CookieInfo *inc, bool newsession);
 
-#include <cmsys/Glob.hxx>
-#include <cmsys/SystemTools.hxx>
+        Inits a cookie struct to store data in a local file. This is always
+        called before any cookies are set.
 
-#include <limits.h> // USHRT_MAX
-#include <sys/stat.h>
+struct Cookie *Curl_cookie_add(struct Curl_easy *data,
+                 struct CookieInfo *c, bool httpheader, char *lineptr,
+                 const char *domain, const char *path);
 
-// NOTE:
-// A debian package .deb is simply an 'ar' archive. The only subtle difference
-// is that debian uses the BSD ar style archive whereas most Linux distro have
-// a GNU ar.
-// See http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=161593 for more info
-// Therefore we provide our own implementation of a BSD-ar:
-static int ar_append(const char* archive,
-                     const std::vector<std::string>& files);
+        The 'lineptr' parameter is a full "Set-cookie:" line as
+        received from a server.
 
-cmCPackDebGenerator::cmCPackDebGenerator()
+        The function need to replace previously stored lines that this new
+        line superceeds.
+
+        It may remove lines that are expired.
+
+        It should return an indication of success/error.
+
+
+SENDING COOKIE INFORMATION
+==========================
+
+struct Cookies *Curl_cookie_getlist(struct CookieInfo *cookie,
+                                    char *host, char *path, bool secure);
+
+        For a given host and path, return a linked list of cookies that
+        the client should send to the server if used now. The secure
+        boolean informs the cookie if a secure connection is achieved or
+        not.
+
+        It shall only return cookies that haven't expired.
+
+
+Example set of cookies:
+
+    Set-cookie: PRODUCTINFO=webxpress; domain=.fidelity.com; path=/; secure
+    Set-cookie: PERSONALIZE=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/ftgw; secure
+    Set-cookie: FidHist=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: FidOrder=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: DisPend=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: FidDis=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie:
+    Session_Key@6791a9e0-901a-11d0-a1c8-9b012c88aa77=none;expires=Monday,
+    13-Jun-1988 03:04:55 GMT; domain=.fidelity.com; path=/; secure
+****/
+
+
+#include "curl_setup.h"
+
+#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
+
+#ifdef USE_LIBPSL
+# include <libpsl.h>
+#endif
+
+#include "urldata.h"
+#include "cookie.h"
+#include "strequal.h"
+#include "strtok.h"
+#include "sendf.h"
+#include "slist.h"
+#include "share.h"
+#include "strtoofft.h"
+#include "rawstr.h"
+#include "curl_memrchr.h"
+#include "inet_pton.h"
+
+/* The last 3 #include files should be in this order */
+#include "curl_printf.h"
+#include "curl_memory.h"
+#include "memdebug.h"
+
+static void freecookie(struct Cookie *co)
 {
+  free(co->expirestr);
+  free(co->domain);
+  free(co->path);
+  free(co->spath);
+  free(co->name);
+  free(co->value);
+  free(co->maxage);
+  free(co->version);
+  free(co);
 }
 
-cmCPackDebGenerator::~cmCPackDebGenerator()
+static bool tailmatch(const char *cooke_domain, const char *hostname)
 {
+  size_t cookie_domain_len = strlen(cooke_domain);
+  size_t hostname_len = strlen(hostname);
+
+  if(hostname_len < cookie_domain_len)
+    return FALSE;
+
+  if(!Curl_raw_equal(cooke_domain, hostname+hostname_len-cookie_domain_len))
+    return FALSE;
+
+  /* A lead char of cookie_domain is not '.'.
+     RFC6265 4.1.2.3. The Domain Attribute says:
+       For example, if the value of the Domain attribute is
+       "example.com", the user agent will include the cookie in the Cookie
+       header when making HTTP requests to example.com, www.example.com, and
+       www.corp.example.com.
+   */
+  if(hostname_len == cookie_domain_len)
+    return TRUE;
+  if('.' == *(hostname + hostname_len - cookie_domain_len - 1))
+    return TRUE;
+  return FALSE;
 }
 
-int cmCPackDebGenerator::InitializeInternal()
+/*
+ * matching cookie path and url path
+ * RFC6265 5.1.4 Paths and Path-Match
+ */
+static bool pathmatch(const char* cookie_path, const char* request_uri)
 {
-  this->SetOptionIfNotSet("CPACK_PACKAGING_INSTALL_PREFIX", "/usr");
-  if (cmSystemTools::IsOff(this->GetOption("CPACK_SET_DESTDIR"))) {
-    this->SetOption("CPACK_SET_DESTDIR", "I_ON");
+  size_t cookie_path_len;
+  size_t uri_path_len;
+  char* uri_path = NULL;
+  char* pos;
+  bool ret = FALSE;
+
+  /* cookie_path must not have last '/' separator. ex: /sample */
+  cookie_path_len = strlen(cookie_path);
+  if(1 == cookie_path_len) {
+    /* cookie_path must be '/' */
+    return TRUE;
   }
-  return this->Superclass::InitializeInternal();
+
+  uri_path = strdup(request_uri);
+  if(!uri_path)
+    return FALSE;
+  pos = strchr(uri_path, '?');
+  if(pos)
+    *pos = 0x0;
+
+  /* #-fragments are already cut off! */
+  if(0 == strlen(uri_path) || uri_path[0] != '/') {
+    free(uri_path);
+    uri_path = strdup("/");
+    if(!uri_path)
+      return FALSE;
+  }
+
+  /* here, RFC6265 5.1.4 says
+     4. Output the characters of the uri-path from the first character up
+        to, but not including, the right-most %x2F ("/").
+     but URL path /hoge?fuga=xxx means /hoge/index.cgi?fuga=xxx in some site
+     without redirect.
+     Ignore this algorithm because /hoge is uri path for this case
+     (uri path is not /).
+   */
+
+  uri_path_len = strlen(uri_path);
+
+  if(uri_path_len < cookie_path_len) {
+    ret = FALSE;
+    goto pathmatched;
+  }
+
+  /* not using checkprefix() because matching should be case-sensitive */
+  if(strncmp(cookie_path, uri_path, cookie_path_len)) {
+    ret = FALSE;
+    goto pathmatched;
+  }
+
+  /* The cookie-path and the uri-path are identical. */
+  if(cookie_path_len == uri_path_len) {
+    ret = TRUE;
+    goto pathmatched;
+  }
+
+  /* here, cookie_path_len < url_path_len */
+  if(uri_path[cookie_path_len] == '/') {
+    ret = TRUE;
+    goto pathmatched;
+  }
+
+  ret = FALSE;
+
+pathmatched:
+  free(uri_path);
+  return ret;
 }
 
-int cmCPackDebGenerator::PackageOnePack(std::string initialTopLevel,
-                                        std::string packageName)
+/*
+ * cookie path sanitize
+ */
+static char *sanitize_cookie_path(const char *cookie_path)
 {
-  int retval = 1;
-  // Begin the archive for this pack
-  std::string localToplevel(initialTopLevel);
-  std::string packageFileName(cmSystemTools::GetParentDirectory(toplevel));
-  std::string outputFileName(cmsys::SystemTools::LowerCase(std::string(
-                               this->GetOption("CPACK_PACKAGE_FILE_NAME"))) +
-                             "-" + packageName + this->GetOutputExtension());
+  size_t len;
+  char *new_path = strdup(cookie_path);
+  if(!new_path)
+    return NULL;
 
-  localToplevel += "/" + packageName;
-  /* replace the TEMP DIRECTORY with the component one */
-  this->SetOption("CPACK_TEMPORARY_DIRECTORY", localToplevel.c_str());
-  packageFileName += "/" + outputFileName;
-  /* replace proposed CPACK_OUTPUT_FILE_NAME */
-  this->SetOption("CPACK_OUTPUT_FILE_NAME", outputFileName.c_str());
-  /* replace the TEMPORARY package file name */
-  this->SetOption("CPACK_TEMPORARY_PACKAGE_FILE_NAME",
-                  packageFileName.c_str());
-  // Tell CPackDeb.cmake the name of the component GROUP.
-  this->SetOption("CPACK_DEB_PACKAGE_COMPONENT", packageName.c_str());
-  // Tell CPackDeb.cmake the path where the component is.
-  std::string component_path = "/";
-  component_path += packageName;
-  this->SetOption("CPACK_DEB_PACKAGE_COMPONENT_PART_PATH",
-                  component_path.c_str());
-  if (!this->ReadListFile("CPackDeb.cmake")) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Error while execution CPackDeb.cmake"
-                    << std::endl);
-    retval = 0;
-    return retval;
+  /* some stupid site sends path attribute with '"'. */
+  len = strlen(new_path);
+  if(new_path[0] == '\"') {
+    memmove((void *)new_path, (const void *)(new_path + 1), len);
+    len--;
+  }
+  if(len && (new_path[len - 1] == '\"')) {
+    new_path[len - 1] = 0x0;
+    len--;
   }
 
-  cmsys::Glob gl;
-  std::string findExpr(this->GetOption("GEN_WDIR"));
-  findExpr += "/*";
-  gl.RecurseOn();
-  gl.SetRecurseListDirs(true);
-  if (!gl.FindFiles(findExpr)) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR,
-                  "Cannot find any files in the installed directory"
-                    << std::endl);
-    return 0;
+  /* RFC6265 5.2.4 The Path Attribute */
+  if(new_path[0] != '/') {
+    /* Let cookie-path be the default-path. */
+    free(new_path);
+    new_path = strdup("/");
+    return new_path;
   }
-  packageFiles = gl.GetFiles();
 
-  int res = createDeb();
-  if (res != 1) {
-    retval = 0;
+  /* convert /hoge/ to /hoge */
+  if(len && new_path[len - 1] == '/') {
+    new_path[len - 1] = 0x0;
   }
-  // add the generated package to package file names list
-  packageFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
-  packageFileName += "/";
-  packageFileName += this->GetOption("GEN_CPACK_OUTPUT_FILE_NAME");
-  packageFileNames.push_back(packageFileName);
-  return retval;
+
+  return new_path;
 }
 
-int cmCPackDebGenerator::PackageComponents(bool ignoreGroup)
+/*
+ * Load cookies from all given cookie files (CURLOPT_COOKIEFILE).
+ *
+ * NOTE: OOM or cookie parsing failures are ignored.
+ */
+void Curl_cookie_loadfiles(struct Curl_easy *data)
 {
-  int retval = 1;
-  /* Reset package file name list it will be populated during the
-   * component packaging run*/
-  packageFileNames.clear();
-  std::string initialTopLevel(this->GetOption("CPACK_TEMPORARY_DIRECTORY"));
-
-  // The default behavior is to have one package by component group
-  // unless CPACK_COMPONENTS_IGNORE_GROUP is specified.
-  if (!ignoreGroup) {
-    std::map<std::string, cmCPackComponentGroup>::iterator compGIt;
-    for (compGIt = this->ComponentGroups.begin();
-         compGIt != this->ComponentGroups.end(); ++compGIt) {
-      cmCPackLogger(cmCPackLog::LOG_VERBOSE, "Packaging component group: "
-                      << compGIt->first << std::endl);
-      // Begin the archive for this group
-      retval &= PackageOnePack(initialTopLevel, compGIt->first);
+  struct curl_slist *list = data->change.cookielist;
+  if(list) {
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+    while(list) {
+      struct CookieInfo *newcookies = Curl_cookie_init(data,
+                                        list->data,
+                                        data->cookies,
+                                        data->set.cookiesession);
+      if(!newcookies)
+        /* Failure may be due to OOM or a bad cookie; both are ignored
+         * but only the first should be
+         */
+        infof(data, "ignoring failed cookie_init for %s\n", list->data);
+      else
+        data->cookies = newcookies;
+      list = list->next;
     }
-    // Handle Orphan components (components not belonging to any groups)
-    std::map<std::string, cmCPackComponent>::iterator compIt;
-    for (compIt = this->Components.begin(); compIt != this->Components.end();
-         ++compIt) {
-      // Does the component belong to a group?
-      if (compIt->second.Group == NULL) {
-        cmCPackLogger(
-          cmCPackLog::LOG_VERBOSE, "Component <"
-            << compIt->second.Name
-            << "> does not belong to any group, package it separately."
-            << std::endl);
-        // Begin the archive for this orphan component
-        retval &= PackageOnePack(initialTopLevel, compIt->first);
+    curl_slist_free_all(data->change.cookielist); /* clean up list */
+    data->change.cookielist = NULL; /* don't do this again! */
+    Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+  }
+}
+
+/*
+ * strstore() makes a strdup() on the 'newstr' and if '*str' is non-NULL
+ * that will be freed before the allocated string is stored there.
+ *
+ * It is meant to easily replace strdup()
+ */
+static void strstore(char **str, const char *newstr)
+{
+  free(*str);
+  *str = strdup(newstr);
+}
+
+/*
+ * remove_expired() removes expired cookies.
+ */
+static void remove_expired(struct CookieInfo *cookies)
+{
+  struct Cookie *co, *nx, *pv;
+  curl_off_t now = (curl_off_t)time(NULL);
+
+  co = cookies->cookies;
+  pv = NULL;
+  while(co) {
+    nx = co->next;
+    if(co->expires && co->expires < now) {
+      if(co == cookies->cookies) {
+        cookies->cookies = co->next;
       }
+      else {
+        pv->next = co->next;
+      }
+      cookies->numcookies--;
+      freecookie(co);
     }
-  }
-  // CPACK_COMPONENTS_IGNORE_GROUPS is set
-  // We build 1 package per component
-  else {
-    std::map<std::string, cmCPackComponent>::iterator compIt;
-    for (compIt = this->Components.begin(); compIt != this->Components.end();
-         ++compIt) {
-      retval &= PackageOnePack(initialTopLevel, compIt->first);
-    }
-  }
-  return retval;
-}
-
-//----------------------------------------------------------------------
-int cmCPackDebGenerator::PackageComponentsAllInOne(
-  const std::string& compInstDirName)
-{
-  int retval = 1;
-  /* Reset package file name list it will be populated during the
-   * component packaging run*/
-  packageFileNames.clear();
-  std::string initialTopLevel(this->GetOption("CPACK_TEMPORARY_DIRECTORY"));
-
-  cmCPackLogger(cmCPackLog::LOG_VERBOSE,
-                "Packaging all groups in one package..."
-                "(CPACK_COMPONENTS_ALL_[GROUPS_]IN_ONE_PACKAGE is set)"
-                  << std::endl);
-
-  // The ALL GROUPS in ONE package case
-  std::string localToplevel(initialTopLevel);
-  std::string packageFileName(cmSystemTools::GetParentDirectory(toplevel));
-  std::string outputFileName(cmsys::SystemTools::LowerCase(std::string(
-                               this->GetOption("CPACK_PACKAGE_FILE_NAME"))) +
-                             this->GetOutputExtension());
-  // all GROUP in one vs all COMPONENT in one
-  localToplevel += "/" + compInstDirName;
-
-  /* replace the TEMP DIRECTORY with the component one */
-  this->SetOption("CPACK_TEMPORARY_DIRECTORY", localToplevel.c_str());
-  packageFileName += "/" + outputFileName;
-  /* replace proposed CPACK_OUTPUT_FILE_NAME */
-  this->SetOption("CPACK_OUTPUT_FILE_NAME", outputFileName.c_str());
-  /* replace the TEMPORARY package file name */
-  this->SetOption("CPACK_TEMPORARY_PACKAGE_FILE_NAME",
-                  packageFileName.c_str());
-
-  if (!compInstDirName.empty()) {
-    // Tell CPackDeb.cmake the path where the component is.
-    std::string component_path = "/";
-    component_path += compInstDirName;
-    this->SetOption("CPACK_DEB_PACKAGE_COMPONENT_PART_PATH",
-                    component_path.c_str());
-  }
-  if (!this->ReadListFile("CPackDeb.cmake")) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR, "Error while execution CPackDeb.cmake"
-                    << std::endl);
-    retval = 0;
-    return retval;
-  }
-
-  cmsys::Glob gl;
-  std::string findExpr(this->GetOption("GEN_WDIR"));
-  findExpr += "/*";
-  gl.RecurseOn();
-  gl.SetRecurseListDirs(true);
-  if (!gl.FindFiles(findExpr)) {
-    cmCPackLogger(cmCPackLog::LOG_ERROR,
-                  "Cannot find any files in the installed directory"
-                    << std::endl);
-    return 0;
-  }
-  packageFiles = gl.GetFiles();
-
-  int res = createDeb();
-  if (res != 1) {
-    retval = 0;
-  }
-  // add the generated package to package file names list
-  packageFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
-  packageFileName += "/";
-  packageFileName += this->GetOption("GEN_CPACK_OUTPUT_FILE_NAME");
-  packageFileNames.push_back(packageFileName);
-  return retval;
-}
-
-int cmCPackDebGenerator::PackageFiles()
-{
-  /* Are we in the component packaging case */
-  if (WantsComponentInstallation()) {
-    // CASE 1 : COMPONENT ALL-IN-ONE package
-    // If ALL GROUPS or ALL COMPONENTS in ONE package has been requested
-    // then the package file is unique and should be open here.
-    if (componentPackageMethod == ONE_PACKAGE) {
-      return PackageComponentsAllInOne("ALL_COMPONENTS_IN_ONE");
-    }
-    // CASE 2 : COMPONENT CLASSICAL package(s) (i.e. not all-in-one)
-    // There will be 1 package for each component group
-    // however one may require to ignore component group and
-    // in this case you'll get 1 package for each component.
     else {
-      return PackageComponents(componentPackageMethod ==
-                               ONE_PACKAGE_PER_COMPONENT);
+      pv = co;
     }
-  }
-  // CASE 3 : NON COMPONENT package.
-  else {
-    return PackageComponentsAllInOne("");
+    co = nx;
   }
 }
 
-int cmCPackDebGenerator::createDeb()
+/*
+ * Return true if the given string is an IP(v4|v6) address.
+ */
+static bool isip(const char *domain)
 {
-  // debian-binary file
-  const std::string strGenWDIR(this->GetOption("GEN_WDIR"));
-  const std::string dbfilename = strGenWDIR + "/debian-binary";
-  { // the scope is needed for cmGeneratedFileStream
-    cmGeneratedFileStream out(dbfilename.c_str());
-    out << "2.0";
-    out << std::endl; // required for valid debian package
+  struct in_addr addr;
+#ifdef ENABLE_IPV6
+  struct in6_addr addr6;
+#endif
+
+  if(Curl_inet_pton(AF_INET, domain, &addr)
+#ifdef ENABLE_IPV6
+     || Curl_inet_pton(AF_INET6, domain, &addr6)
+#endif
+    ) {
+    /* domain name given as IP address */
+    return TRUE;
   }
 
-  // control file
-  std::string ctlfilename = strGenWDIR + "/control";
+  return FALSE;
+}
 
-  // debian policy enforce lower case for package name
-  // mandatory entries:
-  std::string debian_pkg_name = cmsys::SystemTools::LowerCase(
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_NAME"));
-  const char* debian_pkg_version =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_VERSION");
-  const char* debian_pkg_section =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SECTION");
-  const char* debian_pkg_priority =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PRIORITY");
-  const char* debian_pkg_arch =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_ARCHITECTURE");
-  const char* maintainer =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_MAINTAINER");
-  const char* desc = this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_DESCRIPTION");
+/****************************************************************************
+ *
+ * Curl_cookie_add()
+ *
+ * Add a single cookie line to the cookie keeping object.
+ *
+ * Be aware that sometimes we get an IP-only host name, and that might also be
+ * a numerical IPv6 address.
+ *
+ * Returns NULL on out of memory or invalid cookie. This is suboptimal,
+ * as they should be treated separately.
+ ***************************************************************************/
 
-  // optional entries
-  const char* debian_pkg_dep =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_DEPENDS");
-  const char* debian_pkg_rec =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_RECOMMENDS");
-  const char* debian_pkg_sug =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SUGGESTS");
-  const char* debian_pkg_url =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_HOMEPAGE");
-  const char* debian_pkg_predep =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PREDEPENDS");
-  const char* debian_pkg_enhances =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_ENHANCES");
-  const char* debian_pkg_breaks =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_BREAKS");
-  const char* debian_pkg_conflicts =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_CONFLICTS");
-  const char* debian_pkg_provides =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_PROVIDES");
-  const char* debian_pkg_replaces =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_REPLACES");
-  const char* debian_pkg_source =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SOURCE");
+struct Cookie *
+Curl_cookie_add(struct Curl_easy *data,
+                /* The 'data' pointer here may be NULL at times, and thus
+                   must only be used very carefully for things that can deal
+                   with data being NULL. Such as infof() and similar */
 
-  { // the scope is needed for cmGeneratedFileStream
-    cmGeneratedFileStream out(ctlfilename.c_str());
-    out << "Package: " << debian_pkg_name << "\n";
-    out << "Version: " << debian_pkg_version << "\n";
-    out << "Section: " << debian_pkg_section << "\n";
-    out << "Priority: " << debian_pkg_priority << "\n";
-    out << "Architecture: " << debian_pkg_arch << "\n";
-    if (debian_pkg_source && *debian_pkg_source) {
-      out << "Source: " << debian_pkg_source << "\n";
+                struct CookieInfo *c,
+                bool httpheader, /* TRUE if HTTP header-style line */
+                char *lineptr,   /* first character of the line */
+                const char *domain, /* default domain */
+                const char *path)   /* full path used when this cookie is set,
+                                       used to get default path for the cookie
+                                       unless set */
+{
+  struct Cookie *clist;
+  char name[MAX_NAME];
+  struct Cookie *co;
+  struct Cookie *lastc=NULL;
+  time_t now = time(NULL);
+  bool replace_old = FALSE;
+  bool badcookie = FALSE; /* cookies are good by default. mmmmm yummy */
+
+#ifdef USE_LIBPSL
+  const psl_ctx_t *psl;
+#endif
+
+#ifdef CURL_DISABLE_VERBOSE_STRINGS
+  (void)data;
+#endif
+
+  /* First, alloc and init a new struct for it */
+  co = calloc(1, sizeof(struct Cookie));
+  if(!co)
+    return NULL; /* bail out if we're this low on memory */
+
+  if(httpheader) {
+    /* This line was read off a HTTP-header */
+    const char *ptr;
+    const char *semiptr;
+    char *what;
+
+    what = malloc(MAX_COOKIE_LINE);
+    if(!what) {
+      free(co);
+      return NULL;
     }
-    if (debian_pkg_dep && *debian_pkg_dep) {
-      out << "Depends: " << debian_pkg_dep << "\n";
-    }
-    if (debian_pkg_rec && *debian_pkg_rec) {
-      out << "Recommends: " << debian_pkg_rec << "\n";
-    }
-    if (debian_pkg_sug && *debian_pkg_sug) {
-      out << "Suggests: " << debian_pkg_sug << "\n";
-    }
-    if (debian_pkg_url && *debian_pkg_url) {
-      out << "Homepage: " << debian_pkg_url << "\n";
-    }
-    if (debian_pkg_predep && *debian_pkg_predep) {
-      out << "Pre-Depends: " << debian_pkg_predep << "\n";
-    }
-    if (debian_pkg_enhances && *debian_pkg_enhances) {
-      out << "Enhances: " << debian_pkg_enhances << "\n";
-    }
-    if (debian_pkg_breaks && *debian_pkg_breaks) {
-      out << "Breaks: " << debian_pkg_breaks << "\n";
-    }
-    if (debian_pkg_conflicts && *debian_pkg_conflicts) {
-      out << "Conflicts: " << debian_pkg_conflicts << "\n";
-    }
-    if (debian_pkg_provides && *debian_pkg_provides) {
-      out << "Provides: " << debian_pkg_provides << "\n";
-    }
-    if (debian_pkg_replaces && *debian_pkg_replaces) {
-      out << "Replaces: " << debian_pkg_replaces << "\n";
-    }
-    unsigned long totalSize = 0;
-    {
-      std::string dirName = this->GetOption("CPACK_TEMPORARY_DIRECTORY");
-      dirName += '/';
-      for (std::vector<std::string>::const_iterator fileIt =
-             packageFiles.begin();
-           fileIt != packageFiles.end(); ++fileIt) {
-        totalSize += cmSystemTools::FileLength(*fileIt);
+
+    semiptr=strchr(lineptr, ';'); /* first, find a semicolon */
+
+    while(*lineptr && ISBLANK(*lineptr))
+      lineptr++;
+
+    ptr = lineptr;
+    do {
+      /* we have a <what>=<this> pair or a stand-alone word here */
+      name[0]=what[0]=0; /* init the buffers */
+      if(1 <= sscanf(ptr, "%" MAX_NAME_TXT "[^;\r\n=] =%"
+                     MAX_COOKIE_LINE_TXT "[^;\r\n]",
+                     name, what)) {
+        /* Use strstore() below to properly deal with received cookie
+           headers that have the same string property set more than once,
+           and then we use the last one. */
+        const char *whatptr;
+        bool done = FALSE;
+        bool sep;
+        size_t len=strlen(what);
+        size_t nlen = strlen(name);
+        const char *endofn = &ptr[ nlen ];
+
+        /* name ends with a '=' ? */
+        sep = (*endofn == '=')?TRUE:FALSE;
+
+        if(nlen) {
+          endofn--; /* move to the last character */
+          if(ISBLANK(*endofn)) {
+            /* skip trailing spaces in name */
+            while(*endofn && ISBLANK(*endofn) && nlen) {
+              endofn--;
+              nlen--;
+            }
+            name[nlen]=0; /* new end of name */
+          }
+        }
+
+        /* Strip off trailing whitespace from the 'what' */
+        while(len && ISBLANK(what[len-1])) {
+          what[len-1]=0;
+          len--;
+        }
+
+        /* Skip leading whitespace from the 'what' */
+        whatptr=what;
+        while(*whatptr && ISBLANK(*whatptr))
+          whatptr++;
+
+        if(!co->name && sep) {
+          /* The very first name/value pair is the actual cookie name */
+          co->name = strdup(name);
+          co->value = strdup(whatptr);
+          if(!co->name || !co->value) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(!len) {
+          /* this was a "<name>=" with no content, and we must allow
+             'secure' and 'httponly' specified this weirdly */
+          done = TRUE;
+          if(Curl_raw_equal("secure", name))
+            co->secure = TRUE;
+          else if(Curl_raw_equal("httponly", name))
+            co->httponly = TRUE;
+          else if(sep)
+            /* there was a '=' so we're not done parsing this field */
+            done = FALSE;
+        }
+        if(done)
+          ;
+        else if(Curl_raw_equal("path", name)) {
+          strstore(&co->path, whatptr);
+          if(!co->path) {
+            badcookie = TRUE; /* out of memory bad */
+            break;
+          }
+          co->spath = sanitize_cookie_path(co->path);
+          if(!co->spath) {
+            badcookie = TRUE; /* out of memory bad */
+            break;
+          }
+        }
+        else if(Curl_raw_equal("domain", name)) {
+          bool is_ip;
+          const char *dotp;
+
+          /* Now, we make sure that our host is within the given domain,
+             or the given domain is not valid and thus cannot be set. */
+
+          if('.' == whatptr[0])
+            whatptr++; /* ignore preceding dot */
+
+          is_ip = isip(domain ? domain : whatptr);
+
+          /* check for more dots */
+          dotp = strchr(whatptr, '.');
+          if(!dotp)
+            domain=":";
+
+          if(!domain
+             || (is_ip && !strcmp(whatptr, domain))
+             || (!is_ip && tailmatch(whatptr, domain))) {
+            strstore(&co->domain, whatptr);
+            if(!co->domain) {
+              badcookie = TRUE;
+              break;
+            }
+            if(!is_ip)
+              co->tailmatch=TRUE; /* we always do that if the domain name was
+                                     given */
+          }
+          else {
+            /* we did not get a tailmatch and then the attempted set domain
+               is not a domain to which the current host belongs. Mark as
+               bad. */
+            badcookie=TRUE;
+            infof(data, "skipped cookie with bad tailmatch domain: %s\n",
+                  whatptr);
+          }
+        }
+        else if(Curl_raw_equal("version", name)) {
+          strstore(&co->version, whatptr);
+          if(!co->version) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(Curl_raw_equal("max-age", name)) {
+          /* Defined in RFC2109:
+
+             Optional.  The Max-Age attribute defines the lifetime of the
+             cookie, in seconds.  The delta-seconds value is a decimal non-
+             negative integer.  After delta-seconds seconds elapse, the
+             client should discard the cookie.  A value of zero means the
+             cookie should be discarded immediately.
+
+          */
+          strstore(&co->maxage, whatptr);
+          if(!co->maxage) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(Curl_raw_equal("expires", name)) {
+          strstore(&co->expirestr, whatptr);
+          if(!co->expirestr) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        /*
+          else this is the second (or more) name we don't know
+          about! */
       }
-    }
-    out << "Installed-Size: " << (totalSize + 1023) / 1024 << "\n";
-    out << "Maintainer: " << maintainer << "\n";
-    out << "Description: " << desc << "\n";
-    out << std::endl;
-  }
-
-  const std::string shlibsfilename = strGenWDIR + "/shlibs";
-
-  const char* debian_pkg_shlibs =
-    this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_SHLIBS");
-  const bool gen_shibs = this->IsOn("CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS") &&
-    debian_pkg_shlibs && *debian_pkg_shlibs;
-  if (gen_shibs) {
-    cmGeneratedFileStream out(shlibsfilename.c_str());
-    out << debian_pkg_shlibs;
-    out << std::endl;
-  }
-
-  const std::string postinst = strGenWDIR + "/postinst";
-  const std::string postrm = strGenWDIR + "/postrm";
-  if (this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTINST")) {
-    cmGeneratedFileStream out(postinst.c_str());
-    out << "#!/bin/sh\n\n"
-           "set -e\n\n"
-           "if [ \"$1\" = \"configure\" ]; then\n"
-           "\tldconfig\n"
-           "fi\n";
-  }
-  if (this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTRM")) {
-    cmGeneratedFileStream out(postrm.c_str());
-    out << "#!/bin/sh\n\n"
-           "set -e\n\n"
-           "if [ \"$1\" = \"remove\" ]; then\n"
-           "\tldconfig\n"
-           "fi\n";
-  }
-
-  cmArchiveWrite::Compress tar_compression_type = cmArchiveWrite::CompressGZip;
-  const char* debian_compression_type =
-    this->GetOption("GEN_CPACK_DEBIAN_COMPRESSION_TYPE");
-  if (!debian_compression_type) {
-    debian_compression_type = "gzip";
-  }
-
-  std::string compression_suffix;
-  if (!strcmp(debian_compression_type, "lzma")) {
-    compression_suffix = ".lzma";
-    tar_compression_type = cmArchiveWrite::CompressLZMA;
-  } else if (!strcmp(debian_compression_type, "xz")) {
-    compression_suffix = ".xz";
-    tar_compression_type = cmArchiveWrite::CompressXZ;
-  } else if (!strcmp(debian_compression_type, "bzip2")) {
-    compression_suffix = ".bz2";
-    tar_compression_type = cmArchiveWrite::CompressBZip2;
-  } else if (!strcmp(debian_compression_type, "gzip")) {
-    compression_suffix = ".gz";
-    tar_compression_type = cmArchiveWrite::CompressGZip;
-  } else if (!strcmp(debian_compression_type, "none")) {
-    compression_suffix = "";
-    tar_compression_type = cmArchiveWrite::CompressNone;
-  } else {
-    cmCPackLogger(cmCPackLog::LOG_ERROR,
-                  "Error unrecognized compression type: "
-                    << debian_compression_type << std::endl);
-  }
-
-  std::string filename_data_tar =
-    strGenWDIR + "/data.tar" + compression_suffix;
-
-  // atomic file generation for data.tar
-  {
-    cmGeneratedFileStream fileStream_data_tar;
-    fileStream_data_tar.Open(filename_data_tar.c_str(), false, true);
-    if (!fileStream_data_tar) {
-      cmCPackLogger(cmCPackLog::LOG_ERROR, "Error opening the file \""
-                      << filename_data_tar << "\" for writing" << std::endl);
-      return 0;
-    }
-    cmArchiveWrite data_tar(fileStream_data_tar, tar_compression_type, "paxr");
-
-    // uid/gid should be the one of the root user, and this root user has
-    // always uid/gid equal to 0.
-    data_tar.SetUIDAndGID(0u, 0u);
-    data_tar.SetUNAMEAndGNAME("root", "root");
-
-    // now add all directories which have to be compressed
-    // collect all top level install dirs for that
-    // e.g. /opt/bin/foo, /usr/bin/bar and /usr/bin/baz would
-    // give /usr and /opt
-    size_t topLevelLength = strGenWDIR.length();
-    cmCPackLogger(cmCPackLog::LOG_DEBUG, "WDIR: \""
-                    << strGenWDIR << "\", length = " << topLevelLength
-                    << std::endl);
-    std::set<std::string> orderedFiles;
-
-    // we have to reconstruct the parent folders as well
-
-    for (std::vector<std::string>::const_iterator fileIt =
-           packageFiles.begin();
-         fileIt != packageFiles.end(); ++fileIt) {
-      std::string currentPath = *fileIt;
-      while (currentPath != strGenWDIR) {
-        // the last one IS strGenWDIR, but we do not want this one:
-        // XXX/application/usr/bin/myprogram with GEN_WDIR=XXX/application
-        // should not add XXX/application
-        orderedFiles.insert(currentPath);
-        currentPath = cmSystemTools::CollapseCombinedPath(currentPath, "..");
+      else {
+        /* this is an "illegal" <what>=<this> pair */
       }
-    }
 
-    for (std::set<std::string>::const_iterator fileIt = orderedFiles.begin();
-         fileIt != orderedFiles.end(); ++fileIt) {
-      cmCPackLogger(cmCPackLog::LOG_DEBUG, "FILEIT: \"" << *fileIt << "\""
-                                                        << std::endl);
-      std::string::size_type slashPos = fileIt->find('/', topLevelLength + 1);
-      std::string relativeDir =
-        fileIt->substr(topLevelLength, slashPos - topLevelLength);
-      cmCPackLogger(cmCPackLog::LOG_DEBUG, "RELATIVEDIR: \""
-                      << relativeDir << "\"" << std::endl);
-
-      // do not recurse because the loop will do it
-      if (!data_tar.Add(*fileIt, topLevelLength, ".", false)) {
-        cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem adding file to tar:"
-                        << std::endl
-                        << "#top level directory: " << strGenWDIR << std::endl
-                        << "#file: " << *fileIt << std::endl
-                        << "#error:" << data_tar.GetError() << std::endl);
-        return 0;
-      }
-    }
-  } // scope for file generation
-
-  std::string md5filename = strGenWDIR + "/md5sums";
-  {
-    // the scope is needed for cmGeneratedFileStream
-    cmGeneratedFileStream out(md5filename.c_str());
-
-    std::string topLevelWithTrailingSlash =
-      this->GetOption("CPACK_TEMPORARY_DIRECTORY");
-    topLevelWithTrailingSlash += '/';
-    for (std::vector<std::string>::const_iterator fileIt =
-           packageFiles.begin();
-         fileIt != packageFiles.end(); ++fileIt) {
-      // hash only regular files
-      if (cmSystemTools::FileIsDirectory(*fileIt) ||
-          cmSystemTools::FileIsSymlink(*fileIt)) {
+      if(!semiptr || !*semiptr) {
+        /* we already know there are no more cookies */
+        semiptr = NULL;
         continue;
       }
 
-      char md5sum[33];
-      if (!cmSystemTools::ComputeFileMD5(*fileIt, md5sum)) {
-        cmCPackLogger(cmCPackLog::LOG_ERROR, "Problem computing the md5 of "
-                        << *fileIt << std::endl);
+      ptr=semiptr+1;
+      while(*ptr && ISBLANK(*ptr))
+        ptr++;
+      semiptr=strchr(ptr, ';'); /* now, find the next semicolon */
+
+      if(!semiptr && *ptr)
+        /* There are no more semicolons, but there's a final name=value pair
+           coming up */
+        semiptr=strchr(ptr, '\0');
+    } while(semiptr);
+
+    if(co->maxage) {
+      co->expires =
+        curlx_strtoofft((*co->maxage=='\"')?
+                        &co->maxage[1]:&co->maxage[0], NULL, 10);
+      if(CURL_OFF_T_MAX - now < co->expires)
+        /* avoid overflow */
+        co->expires = CURL_OFF_T_MAX;
+      else
+        co->expires += now;
+    }
+    else if(co->expirestr) {
+      /* Note that if the date couldn't get parsed for whatever reason,
+         the cookie will be treated as a session cookie */
+      co->expires = curl_getdate(co->expirestr, NULL);
+
+      /* Session cookies have expires set to 0 so if we get that back
+         from the date parser let's add a second to make it a
+         non-session cookie */
+      if(co->expires == 0)
+        co->expires = 1;
+      else if(co->expires < 0)
+        co->expires = 0;
+    }
+
+    if(!badcookie && !co->domain) {
+      if(domain) {
+        /* no domain was given in the header line, set the default */
+        co->domain=strdup(domain);
+        if(!co->domain)
+          badcookie = TRUE;
       }
-
-      md5sum[32] = 0;
-
-      std::string output(md5sum);
-      output += "  " + *fileIt + "\n";
-      // debian md5sums entries are like this:
-      // 014f3604694729f3bf19263bac599765  usr/bin/ccmake
-      // thus strip the full path (with the trailing slash)
-      cmSystemTools::ReplaceString(output, topLevelWithTrailingSlash.c_str(),
-                                   "");
-      out << output;
     }
-    // each line contains a eol.
-    // Do not end the md5sum file with yet another (invalid)
+
+    if(!badcookie && !co->path && path) {
+      /* No path was given in the header line, set the default.
+         Note that the passed-in path to this function MAY have a '?' and
+         following part that MUST not be stored as part of the path. */
+      char *queryp = strchr(path, '?');
+
+      /* queryp is where the interesting part of the path ends, so now we
+         want to the find the last */
+      char *endslash;
+      if(!queryp)
+        endslash = strrchr(path, '/');
+      else
+        endslash = memrchr(path, '/', (size_t)(queryp - path));
+      if(endslash) {
+        size_t pathlen = (size_t)(endslash-path+1); /* include ending slash */
+        co->path=malloc(pathlen+1); /* one extra for the zero byte */
+        if(co->path) {
+          memcpy(co->path, path, pathlen);
+          co->path[pathlen]=0; /* zero terminate */
+          co->spath = sanitize_cookie_path(co->path);
+          if(!co->spath)
+            badcookie = TRUE; /* out of memory bad */
+        }
+        else
+          badcookie = TRUE;
+      }
+    }
+
+    free(what);
+
+    if(badcookie || !co->name) {
+      /* we didn't get a cookie name or a bad one,
+         this is an illegal line, bail out */
+      freecookie(co);
+      return NULL;
+    }
+
   }
+  else {
+    /* This line is NOT a HTTP header style line, we do offer support for
+       reading the odd netscape cookies-file format here */
+    char *ptr;
+    char *firstptr;
+    char *tok_buf=NULL;
+    int fields;
 
-  std::string filename_control_tar = strGenWDIR + "/control.tar.gz";
-  // atomic file generation for control.tar
-  {
-    cmGeneratedFileStream fileStream_control_tar;
-    fileStream_control_tar.Open(filename_control_tar.c_str(), false, true);
-    if (!fileStream_control_tar) {
-      cmCPackLogger(cmCPackLog::LOG_ERROR, "Error opening the file \""
-                      << filename_control_tar << "\" for writing"
-                      << std::endl);
-      return 0;
-    }
-    cmArchiveWrite control_tar(fileStream_control_tar,
-                               cmArchiveWrite::CompressGZip, "paxr");
-
-    // sets permissions and uid/gid for the files
-    control_tar.SetUIDAndGID(0u, 0u);
-    control_tar.SetUNAMEAndGNAME("root", "root");
-
-    /* permissions are set according to
-    https://www.debian.org/doc/debian-policy/ch-files.html#s-permissions-owners
-    and
-    https://lintian.debian.org/tags/control-file-has-bad-permissions.html
+    /* IE introduced HTTP-only cookies to prevent XSS attacks. Cookies
+       marked with httpOnly after the domain name are not accessible
+       from javascripts, but since curl does not operate at javascript
+       level, we include them anyway. In Firefox's cookie files, these
+       lines are preceded with #HttpOnly_ and then everything is
+       as usual, so we skip 10 characters of the line..
     */
-    const mode_t permission644 = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-    const mode_t permissionExecute = S_IXUSR | S_IXGRP | S_IXOTH;
-    const mode_t permission755 = permission644 | permissionExecute;
-
-    // for md5sum and control (that we have generated here), we use 644
-    // (RW-R--R--)
-    // so that deb lintian doesn't warn about it
-    control_tar.SetPermissions(permission644);
-
-    // adds control and md5sums
-    if (!control_tar.Add(md5filename, strGenWDIR.length(), ".") ||
-        !control_tar.Add(strGenWDIR + "/control", strGenWDIR.length(), ".")) {
-      cmCPackLogger(cmCPackLog::LOG_ERROR, "Error adding file to tar:"
-                      << std::endl
-                      << "#top level directory: " << strGenWDIR << std::endl
-                      << "#file: \"control\" or \"md5sums\"" << std::endl
-                      << "#error:" << control_tar.GetError() << std::endl);
-      return 0;
+    if(strncmp(lineptr, "#HttpOnly_", 10) == 0) {
+      lineptr += 10;
+      co->httponly = TRUE;
     }
 
-    // adds generated shlibs file
-    if (gen_shibs) {
-      if (!control_tar.Add(shlibsfilename, strGenWDIR.length(), ".")) {
-        cmCPackLogger(cmCPackLog::LOG_ERROR, "Error adding file to tar:"
-                        << std::endl
-                        << "#top level directory: " << strGenWDIR << std::endl
-                        << "#file: \"shlibs\"" << std::endl
-                        << "#error:" << control_tar.GetError() << std::endl);
-        return 0;
-      }
+    if(lineptr[0]=='#') {
+      /* don't even try the comments */
+      free(co);
+      return NULL;
     }
+    /* strip off the possible end-of-line characters */
+    ptr=strchr(lineptr, '\r');
+    if(ptr)
+      *ptr=0; /* clear it */
+    ptr=strchr(lineptr, '\n');
+    if(ptr)
+      *ptr=0; /* clear it */
 
-    // adds LDCONFIG related files
-    if (this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTINST")) {
-      control_tar.SetPermissions(permission755);
-      if (!control_tar.Add(postinst, strGenWDIR.length(), ".")) {
-        cmCPackLogger(cmCPackLog::LOG_ERROR, "Error adding file to tar:"
-                        << std::endl
-                        << "#top level directory: " << strGenWDIR << std::endl
-                        << "#file: \"postinst\"" << std::endl
-                        << "#error:" << control_tar.GetError() << std::endl);
-        return 0;
-      }
-      control_tar.SetPermissions(permission644);
-    }
+    firstptr=strtok_r(lineptr, "\t", &tok_buf); /* tokenize it on the TAB */
 
-    if (this->IsOn("GEN_CPACK_DEBIAN_GENERATE_POSTRM")) {
-      control_tar.SetPermissions(permission755);
-      if (!control_tar.Add(postrm, strGenWDIR.length(), ".")) {
-        cmCPackLogger(cmCPackLog::LOG_ERROR, "Error adding file to tar:"
-                        << std::endl
-                        << "#top level directory: " << strGenWDIR << std::endl
-                        << "#file: \"postinst\"" << std::endl
-                        << "#error:" << control_tar.GetError() << std::endl);
-        return 0;
-      }
-      control_tar.SetPermissions(permission644);
-    }
+    /* Now loop through the fields and init the struct we already have
+       allocated */
+    for(ptr=firstptr, fields=0; ptr && !badcookie;
+        ptr=strtok_r(NULL, "\t", &tok_buf), fields++) {
+      switch(fields) {
+      case 0:
+        if(ptr[0]=='.') /* skip preceding dots */
+          ptr++;
+        co->domain = strdup(ptr);
+        if(!co->domain)
+          badcookie = TRUE;
+        break;
+      case 1:
+        /* This field got its explanation on the 23rd of May 2001 by
+           Andrés García:
 
-    // for the other files, we use
-    // -either the original permission on the files
-    // -either a permission strictly defined by the Debian policies
-    const char* controlExtra =
-      this->GetOption("GEN_CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA");
-    if (controlExtra) {
-      // permissions are now controlled by the original file permissions
+           flag: A TRUE/FALSE value indicating if all machines within a given
+           domain can access the variable. This value is set automatically by
+           the browser, depending on the value you set for the domain.
 
-      const bool permissionStrictPolicy =
-        this->IsSet("GEN_CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION");
-
-      static const char* strictFiles[] = { "config", "postinst", "postrm",
-                                           "preinst", "prerm" };
-      std::set<std::string> setStrictFiles(
-        strictFiles,
-        strictFiles + sizeof(strictFiles) / sizeof(strictFiles[0]));
-
-      // default
-      control_tar.ClearPermissions();
-
-      std::vector<std::string> controlExtraList;
-      cmSystemTools::ExpandListArgument(controlExtra, controlExtraList);
-      for (std::vector<std::string>::iterator i = controlExtraList.begin();
-           i != controlExtraList.end(); ++i) {
-        std::string filenamename = cmsys::SystemTools::GetFilenameName(*i);
-        std::string localcopy = strGenWDIR + "/" + filenamename;
-
-        if (permissionStrictPolicy) {
-          control_tar.SetPermissions(setStrictFiles.count(filenamename)
-                                       ? permission755
-                                       : permission644);
+           As far as I can see, it is set to true when the cookie says
+           .domain.com and to false when the domain is complete www.domain.com
+        */
+        co->tailmatch = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
+        break;
+      case 2:
+        /* It turns out, that sometimes the file format allows the path
+           field to remain not filled in, we try to detect this and work
+           around it! Andrés García made us aware of this... */
+        if(strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
+          /* only if the path doesn't look like a boolean option! */
+          co->path = strdup(ptr);
+          if(!co->path)
+            badcookie = TRUE;
+          else {
+            co->spath = sanitize_cookie_path(co->path);
+            if(!co->spath) {
+              badcookie = TRUE; /* out of memory bad */
+            }
+          }
+          break;
         }
+        /* this doesn't look like a path, make one up! */
+        co->path = strdup("/");
+        if(!co->path)
+          badcookie = TRUE;
+        co->spath = strdup("/");
+        if(!co->spath)
+          badcookie = TRUE;
+        fields++; /* add a field and fall down to secure */
+        /* FALLTHROUGH */
+      case 3:
+        co->secure = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
+        break;
+      case 4:
+        co->expires = curlx_strtoofft(ptr, NULL, 10);
+        break;
+      case 5:
+        co->name = strdup(ptr);
+        if(!co->name)
+          badcookie = TRUE;
+        break;
+      case 6:
+        co->value = strdup(ptr);
+        if(!co->value)
+          badcookie = TRUE;
+        break;
+      }
+    }
+    if(6 == fields) {
+      /* we got a cookie with blank contents, fix it */
+      co->value = strdup("");
+      if(!co->value)
+        badcookie = TRUE;
+      else
+        fields++;
+    }
 
-        // if we can copy the file, it means it does exist, let's add it:
-        if (cmsys::SystemTools::CopyFileIfDifferent(*i, localcopy)) {
-          control_tar.Add(localcopy, strGenWDIR.length(), ".");
+    if(!badcookie && (7 != fields))
+      /* we did not find the sufficient number of fields */
+      badcookie = TRUE;
+
+    if(badcookie) {
+      freecookie(co);
+      return NULL;
+    }
+
+  }
+
+  if(!c->running &&    /* read from a file */
+     c->newsession &&  /* clean session cookies */
+     !co->expires) {   /* this is a session cookie since it doesn't expire! */
+    freecookie(co);
+    return NULL;
+  }
+
+  co->livecookie = c->running;
+
+  /* now, we have parsed the incoming line, we must now check if this
+     superceeds an already existing cookie, which it may if the previous have
+     the same domain and path as this */
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+#ifdef USE_LIBPSL
+  /* Check if the domain is a Public Suffix and if yes, ignore the cookie.
+     This needs a libpsl compiled with builtin data. */
+  if(domain && co->domain && !isip(co->domain)) {
+    if(((psl = psl_builtin()) != NULL)
+        && !psl_is_cookie_domain_acceptable(psl, domain, co->domain)) {
+      infof(data,
+            "cookie '%s' dropped, domain '%s' must not set cookies for '%s'\n",
+            co->name, domain, co->domain);
+      freecookie(co);
+      return NULL;
+    }
+  }
+#endif
+
+  clist = c->cookies;
+  replace_old = FALSE;
+  while(clist) {
+    if(Curl_raw_equal(clist->name, co->name)) {
+      /* the names are identical */
+
+      if(clist->domain && co->domain) {
+        if(Curl_raw_equal(clist->domain, co->domain))
+          /* The domains are identical */
+          replace_old=TRUE;
+      }
+      else if(!clist->domain && !co->domain)
+        replace_old = TRUE;
+
+      if(replace_old) {
+        /* the domains were identical */
+
+        if(clist->spath && co->spath) {
+          if(Curl_raw_equal(clist->spath, co->spath)) {
+            replace_old = TRUE;
+          }
+          else
+            replace_old = FALSE;
+        }
+        else if(!clist->spath && !co->spath)
+          replace_old = TRUE;
+        else
+          replace_old = FALSE;
+
+      }
+
+      if(replace_old && !co->livecookie && clist->livecookie) {
+        /* Both cookies matched fine, except that the already present
+           cookie is "live", which means it was set from a header, while
+           the new one isn't "live" and thus only read from a file. We let
+           live cookies stay alive */
+
+        /* Free the newcomer and get out of here! */
+        freecookie(co);
+        return NULL;
+      }
+
+      if(replace_old) {
+        co->next = clist->next; /* get the next-pointer first */
+
+        /* then free all the old pointers */
+        free(clist->name);
+        free(clist->value);
+        free(clist->domain);
+        free(clist->path);
+        free(clist->spath);
+        free(clist->expirestr);
+        free(clist->version);
+        free(clist->maxage);
+
+        *clist = *co;  /* then store all the new data */
+
+        free(co);   /* free the newly alloced memory */
+        co = clist; /* point to the previous struct instead */
+
+        /* We have replaced a cookie, now skip the rest of the list but
+           make sure the 'lastc' pointer is properly set */
+        do {
+          lastc = clist;
+          clist = clist->next;
+        } while(clist);
+        break;
+      }
+    }
+    lastc = clist;
+    clist = clist->next;
+  }
+
+  if(c->running)
+    /* Only show this when NOT reading the cookies from a file */
+    infof(data, "%s cookie %s=\"%s\" for domain %s, path %s, "
+          "expire %" CURL_FORMAT_CURL_OFF_T "\n",
+          replace_old?"Replaced":"Added", co->name, co->value,
+          co->domain, co->path, co->expires);
+
+  if(!replace_old) {
+    /* then make the last item point on this new one */
+    if(lastc)
+      lastc->next = co;
+    else
+      c->cookies = co;
+    c->numcookies++; /* one more cookie in the jar */
+  }
+
+  return co;
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_init()
+ *
+ * Inits a cookie struct to read data from a local file. This is always
+ * called before any cookies are set. File may be NULL.
+ *
+ * If 'newsession' is TRUE, discard all "session cookies" on read from file.
+ *
+ * Returns NULL on out of memory. Invalid cookies are ignored.
+ ****************************************************************************/
+struct CookieInfo *Curl_cookie_init(struct Curl_easy *data,
+                                    const char *file,
+                                    struct CookieInfo *inc,
+                                    bool newsession)
+{
+  struct CookieInfo *c;
+  FILE *fp = NULL;
+  bool fromfile=TRUE;
+  char *line = NULL;
+
+  if(NULL == inc) {
+    /* we didn't get a struct, create one */
+    c = calloc(1, sizeof(struct CookieInfo));
+    if(!c)
+      return NULL; /* failed to get memory */
+    c->filename = strdup(file?file:"none"); /* copy the name just in case */
+    if(!c->filename)
+      goto fail; /* failed to get memory */
+  }
+  else {
+    /* we got an already existing one, use that */
+    c = inc;
+  }
+  c->running = FALSE; /* this is not running, this is init */
+
+  if(file && strequal(file, "-")) {
+    fp = stdin;
+    fromfile=FALSE;
+  }
+  else if(file && !*file) {
+    /* points to a "" string */
+    fp = NULL;
+  }
+  else
+    fp = file?fopen(file, FOPEN_READTEXT):NULL;
+
+  c->newsession = newsession; /* new session? */
+
+  if(fp) {
+    char *lineptr;
+    bool headerline;
+
+    line = malloc(MAX_COOKIE_LINE);
+    if(!line)
+      goto fail;
+    while(fgets(line, MAX_COOKIE_LINE, fp)) {
+      if(checkprefix("Set-Cookie:", line)) {
+        /* This is a cookie line, get it! */
+        lineptr=&line[11];
+        headerline=TRUE;
+      }
+      else {
+        lineptr=line;
+        headerline=FALSE;
+      }
+      while(*lineptr && ISBLANK(*lineptr))
+        lineptr++;
+
+      Curl_cookie_add(data, c, headerline, lineptr, NULL, NULL);
+    }
+    free(line); /* free the line buffer */
+
+    if(fromfile)
+      fclose(fp);
+  }
+
+  c->running = TRUE;          /* now, we're running */
+
+  return c;
+
+fail:
+  free(line);
+  if(!inc)
+    /* Only clean up if we allocated it here, as the original could still be in
+     * use by a share handle */
+    Curl_cookie_cleanup(c);
+  if(fromfile && fp)
+    fclose(fp);
+  return NULL; /* out of memory */
+}
+
+/* sort this so that the longest path gets before the shorter path */
+static int cookie_sort(const void *p1, const void *p2)
+{
+  struct Cookie *c1 = *(struct Cookie **)p1;
+  struct Cookie *c2 = *(struct Cookie **)p2;
+  size_t l1, l2;
+
+  /* 1 - compare cookie path lengths */
+  l1 = c1->path ? strlen(c1->path) : 0;
+  l2 = c2->path ? strlen(c2->path) : 0;
+
+  if(l1 != l2)
+    return (l2 > l1) ? 1 : -1 ; /* avoid size_t <=> int conversions */
+
+  /* 2 - compare cookie domain lengths */
+  l1 = c1->domain ? strlen(c1->domain) : 0;
+  l2 = c2->domain ? strlen(c2->domain) : 0;
+
+  if(l1 != l2)
+    return (l2 > l1) ? 1 : -1 ;  /* avoid size_t <=> int conversions */
+
+  /* 3 - compare cookie names */
+  if(c1->name && c2->name)
+    return strcmp(c1->name, c2->name);
+
+  /* sorry, can't be more deterministic */
+  return 0;
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_getlist()
+ *
+ * For a given host and path, return a linked list of cookies that the
+ * client should send to the server if used now. The secure boolean informs
+ * the cookie if a secure connection is achieved or not.
+ *
+ * It shall only return cookies that haven't expired.
+ *
+ ****************************************************************************/
+
+struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
+                                   const char *host, const char *path,
+                                   bool secure)
+{
+  struct Cookie *newco;
+  struct Cookie *co;
+  time_t now = time(NULL);
+  struct Cookie *mainco=NULL;
+  size_t matches = 0;
+  bool is_ip;
+
+  if(!c || !c->cookies)
+    return NULL; /* no cookie struct or no cookies in the struct */
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+  /* check if host is an IP(v4|v6) address */
+  is_ip = isip(host);
+
+  co = c->cookies;
+
+  while(co) {
+    /* only process this cookie if it is not expired or had no expire
+       date AND that if the cookie requires we're secure we must only
+       continue if we are! */
+    if((!co->expires || (co->expires > now)) &&
+       (co->secure?secure:TRUE)) {
+
+      /* now check if the domain is correct */
+      if(!co->domain ||
+         (co->tailmatch && !is_ip && tailmatch(co->domain, host)) ||
+         ((!co->tailmatch || is_ip) && Curl_raw_equal(host, co->domain)) ) {
+        /* the right part of the host matches the domain stuff in the
+           cookie data */
+
+        /* now check the left part of the path with the cookies path
+           requirement */
+        if(!co->spath || pathmatch(co->spath, path) ) {
+
+          /* and now, we know this is a match and we should create an
+             entry for the return-linked-list */
+
+          newco = malloc(sizeof(struct Cookie));
+          if(newco) {
+            /* first, copy the whole source cookie: */
+            memcpy(newco, co, sizeof(struct Cookie));
+
+            /* then modify our next */
+            newco->next = mainco;
+
+            /* point the main to us */
+            mainco = newco;
+
+            matches++;
+          }
+          else {
+            fail:
+            /* failure, clear up the allocated chain and return NULL */
+            while(mainco) {
+              co = mainco->next;
+              free(mainco);
+              mainco = co;
+            }
+
+            return NULL;
+          }
         }
       }
     }
+    co = co->next;
   }
 
-  // ar -r your-package-name.deb debian-binary control.tar.* data.tar.*
-  // since debian packages require BSD ar (most Linux distros and even
-  // FreeBSD and NetBSD ship GNU ar) we use a copy of OpenBSD ar here.
-  std::vector<std::string> arFiles;
-  std::string topLevelString = strGenWDIR + "/";
-  arFiles.push_back(topLevelString + "debian-binary");
-  arFiles.push_back(topLevelString + "control.tar.gz");
-  arFiles.push_back(topLevelString + "data.tar" + compression_suffix);
-  std::string outputFileName = this->GetOption("CPACK_TOPLEVEL_DIRECTORY");
-  outputFileName += "/";
-  outputFileName += this->GetOption("GEN_CPACK_OUTPUT_FILE_NAME");
-  int res = ar_append(outputFileName.c_str(), arFiles);
-  if (res != 0) {
-    std::string tmpFile =
-      this->GetOption("GEN_CPACK_TEMPORARY_PACKAGE_FILE_NAME");
-    tmpFile += "/Deb.log";
-    cmGeneratedFileStream ofs(tmpFile.c_str());
-    ofs << "# Problem creating archive using: " << res << std::endl;
-    return 0;
+  if(matches) {
+    /* Now we need to make sure that if there is a name appearing more than
+       once, the longest specified path version comes first. To make this
+       the swiftest way, we just sort them all based on path length. */
+    struct Cookie **array;
+    size_t i;
+
+    /* alloc an array and store all cookie pointers */
+    array = malloc(sizeof(struct Cookie *) * matches);
+    if(!array)
+      goto fail;
+
+    co = mainco;
+
+    for(i=0; co; co = co->next)
+      array[i++] = co;
+
+    /* now sort the cookie pointers in path length order */
+    qsort(array, matches, sizeof(struct Cookie *), cookie_sort);
+
+    /* remake the linked list order according to the new order */
+
+    mainco = array[0]; /* start here */
+    for(i=0; i<matches-1; i++)
+      array[i]->next = array[i+1];
+    array[matches-1]->next = NULL; /* terminate the list */
+
+    free(array); /* remove the temporary data again */
   }
-  return 1;
+
+  return mainco; /* return the new list */
 }
 
-bool cmCPackDebGenerator::SupportsComponentInstallation() const
+/*****************************************************************************
+ *
+ * Curl_cookie_clearall()
+ *
+ * Clear all existing cookies and reset the counter.
+ *
+ ****************************************************************************/
+void Curl_cookie_clearall(struct CookieInfo *cookies)
 {
-  if (IsOn("CPACK_DEB_COMPONENT_INSTALL")) {
-    return true;
-  } else {
-    return false;
+  if(cookies) {
+    Curl_cookie_freelist(cookies->cookies, TRUE);
+    cookies->cookies = NULL;
+    cookies->numcookies = 0;
   }
 }
 
-std::string cmCPackDebGenerator::GetComponentInstallDirNameSuffix(
-  const std::string& componentName)
+/*****************************************************************************
+ *
+ * Curl_cookie_freelist()
+ *
+ * Free a list of cookies previously returned by Curl_cookie_getlist();
+ *
+ * The 'cookiestoo' argument tells this function whether to just free the
+ * list or actually also free all cookies within the list as well.
+ *
+ ****************************************************************************/
+
+void Curl_cookie_freelist(struct Cookie *co, bool cookiestoo)
 {
-  if (componentPackageMethod == ONE_PACKAGE_PER_COMPONENT) {
-    return componentName;
-  }
-
-  if (componentPackageMethod == ONE_PACKAGE) {
-    return std::string("ALL_COMPONENTS_IN_ONE");
-  }
-  // We have to find the name of the COMPONENT GROUP
-  // the current COMPONENT belongs to.
-  std::string groupVar =
-    "CPACK_COMPONENT_" + cmSystemTools::UpperCase(componentName) + "_GROUP";
-  if (NULL != GetOption(groupVar)) {
-    return std::string(GetOption(groupVar));
-  } else {
-    return componentName;
+  struct Cookie *next;
+  while(co) {
+    next = co->next;
+    if(cookiestoo)
+      freecookie(co);
+    else
+      free(co); /* we only free the struct since the "members" are all just
+                   pointed out in the main cookie list! */
+    co = next;
   }
 }
 
-// The following code is taken from OpenBSD ar:
-// http://www.openbsd.org/cgi-bin/cvsweb/src/usr.bin/ar/
-// It has been slightly modified:
-// -return error codes instead exit() in functions
-// -use the stdio file I/O functions instead the file descriptor based ones
-// -merged into one cxx file
-// -no additional options supported
-// The coding style hasn't been modified.
 
-/*-
- * Copyright (c) 1990, 1993, 1994
- *      The Regents of the University of California.  All rights reserved.
+/*****************************************************************************
  *
- * This code is derived from software contributed to Berkeley by
- * Hugh Smith at The University of Guelph.
+ * Curl_cookie_clearsess()
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- * 3. Neither the name of the University nor the names of its contributors
- *    may be used to endorse or promote products derived from this software
- *    without specific prior written permission.
+ * Free all session cookies in the cookies list.
  *
- * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ ****************************************************************************/
+void Curl_cookie_clearsess(struct CookieInfo *cookies)
+{
+  struct Cookie *first, *curr, *next, *prev = NULL;
+
+  if(!cookies || !cookies->cookies)
+    return;
+
+  first = curr = prev = cookies->cookies;
+
+  for(; curr; curr = next) {
+    next = curr->next;
+    if(!curr->expires) {
+      if(first == curr)
+        first = next;
+
+      if(prev == curr)
+        prev = next;
+      else
+        prev->next = next;
+
+      freecookie(curr);
+      cookies->numcookies--;
+    }
+    else
+      prev = curr;
+  }
+
+  cookies->cookies = first;
+}
+
+
+/*****************************************************************************
+ *
+ * Curl_cookie_cleanup()
+ *
+ * Free a "cookie object" previous created with Curl_cookie_init().
+ *
+ ****************************************************************************/
+void Curl_cookie_cleanup(struct CookieInfo *c)
+{
+  if(c) {
+    free(c->filename);
+    Curl_cookie_freelist(c->cookies, TRUE);
+    free(c); /* free the base struct as well */
+  }
+}
+
+/* get_netscape_format()
+ *
+ * Formats a string for Netscape output file, w/o a newline at the end.
+ *
+ * Function returns a char * to a formatted line. Has to be free()d
+*/
+static char *get_netscape_format(const struct Cookie *co)
+{
+  return aprintf(
+    "%s"     /* httponly preamble */
+    "%s%s\t" /* domain */
+    "%s\t"   /* tailmatch */
+    "%s\t"   /* path */
+    "%s\t"   /* secure */
+    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
+    "%s\t"   /* name */
+    "%s",    /* value */
+    co->httponly?"#HttpOnly_":"",
+    /* Make sure all domains are prefixed with a dot if they allow
+       tailmatching. This is Mozilla-style. */
+    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+    co->domain?co->domain:"unknown",
+    co->tailmatch?"TRUE":"FALSE",
+    co->path?co->path:"/",
+    co->secure?"TRUE":"FALSE",
+    co->expires,
+    co->name,
+    co->value?co->value:"");
+}
+
+/*
+ * cookie_output()
+ *
+ * Writes all internally known cookies to the specified file. Specify
+ * "-" as file name to write to stdout.
+ *
+ * The function returns non-zero on write failure.
  */
-
-#include <sys/types.h>
-// include sys/stat.h after sys/types.h
-#include <sys/stat.h>
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#define ARMAG "!<arch>\n" /* ar "magic number" */
-#define SARMAG 8          /* strlen(ARMAG); */
-
-#define AR_EFMT1 "#1/" /* extended format #1 */
-#define ARFMAG "`\n"
-
-/* Header format strings. */
-#define HDR1 "%s%-13d%-12ld%-6u%-6u%-8o%-10lld%2s"
-#define HDR2 "%-16.16s%-12ld%-6u%-6u%-8o%-10lld%2s"
-
-struct ar_hdr
+static int cookie_output(struct CookieInfo *c, const char *dumphere)
 {
-  char ar_name[16]; /* name */
-  char ar_date[12]; /* modification time */
-  char ar_uid[6];   /* user id */
-  char ar_gid[6];   /* group id */
-  char ar_mode[8];  /* octal file permissions */
-  char ar_size[10]; /* size in bytes */
-  char ar_fmag[2];  /* consistency check */
-};
+  struct Cookie *co;
+  FILE *out;
+  bool use_stdout=FALSE;
+  char *format_ptr;
 
-/* Set up file copy. */
-#define SETCF(from, fromname, to, toname, pad)                                \
-  {                                                                           \
-    cf.rFile = from;                                                          \
-    cf.rname = fromname;                                                      \
-    cf.wFile = to;                                                            \
-    cf.wname = toname;                                                        \
-    cf.flags = pad;                                                           \
-  }
-
-/* File copy structure. */
-typedef struct
-{
-  FILE* rFile;        /* read file descriptor */
-  const char* rname;  /* read name */
-  FILE* wFile;        /* write file descriptor */
-  const char* wname;  /* write name */
-#define NOPAD 0x00    /* don't pad */
-#define WPAD 0x02     /* pad on writes */
-  unsigned int flags; /* pad flags */
-} CF;
-
-/* misc.c */
-
-static const char* ar_rname(const char* path)
-{
-  const char* ind = strrchr(path, '/');
-  return (ind) ? ind + 1 : path;
-}
-
-/* archive.c */
-
-typedef struct ar_hdr HDR;
-static char ar_hb[sizeof(HDR) + 1]; /* real header */
-
-static size_t ar_already_written;
-
-/* copy_ar --
- *      Copy size bytes from one file to another - taking care to handle the
- *      extra byte (for odd size files) when reading archives and writing an
- *      extra byte if necessary when adding files to archive.  The length of
- *      the object is the long name plus the object itself; the variable
- *      already_written gets set if a long name was written.
- *
- *      The padding is really unnecessary, and is almost certainly a remnant
- *      of early archive formats where the header included binary data which
- *      a PDP-11 required to start on an even byte boundary.  (Or, perhaps,
- *      because 16-bit word addressed copies were faster?)  Anyhow, it should
- *      have been ripped out long ago.
- */
-static int copy_ar(CF* cfp, off_t size)
-{
-  static char pad = '\n';
-  off_t sz = size;
-  size_t nr, nw;
-  char buf[8 * 1024];
-
-  if (sz == 0)
+  if((NULL == c) || (0 == c->numcookies))
+    /* If there are no known cookies, we don't write or even create any
+       destination file */
     return 0;
 
-  FILE* from = cfp->rFile;
-  FILE* to = cfp->wFile;
-  while (sz &&
-         (nr = fread(buf, 1, sz < static_cast<off_t>(sizeof(buf))
-                       ? static_cast<size_t>(sz)
-                       : sizeof(buf),
-                     from)) > 0) {
-    sz -= nr;
-    for (size_t off = 0; off < nr; nr -= off, off += nw)
-      if ((nw = fwrite(buf + off, 1, nr, to)) < nr)
-        return -1;
-  }
-  if (sz)
-    return -2;
+  /* at first, remove expired cookies */
+  remove_expired(c);
 
-  if (cfp->flags & WPAD && (size + ar_already_written) & 1 &&
-      fwrite(&pad, 1, 1, to) != 1)
-    return -4;
+  if(strequal("-", dumphere)) {
+    /* use stdout */
+    out = stdout;
+    use_stdout=TRUE;
+  }
+  else {
+    out = fopen(dumphere, FOPEN_WRITETEXT);
+    if(!out)
+      return 1; /* failure */
+  }
+
+  fputs("# Netscape HTTP Cookie File\n"
+        "# https://curl.haxx.se/docs/http-cookies.html\n"
+        "# This file was generated by libcurl! Edit at your own risk.\n\n",
+        out);
+
+  for(co = c->cookies; co; co = co->next) {
+    if(!co->domain)
+      continue;
+    format_ptr = get_netscape_format(co);
+    if(format_ptr == NULL) {
+      fprintf(out, "#\n# Fatal libcurl error\n");
+      if(!use_stdout)
+        fclose(out);
+      return 1;
+    }
+    fprintf(out, "%s\n", format_ptr);
+    free(format_ptr);
+  }
+
+  if(!use_stdout)
+    fclose(out);
 
   return 0;
 }
 
-/* put_arobj --  Write an archive member to a file. */
-static int put_arobj(CF* cfp, struct stat* sb)
+struct curl_slist *Curl_cookie_list(struct Curl_easy *data)
 {
-  int result = 0;
-  struct ar_hdr* hdr;
+  struct curl_slist *list = NULL;
+  struct curl_slist *beg;
+  struct Cookie *c;
+  char *line;
 
-  /* If passed an sb structure, reading a file from disk.  Get stat(2)
-   * information, build a name and construct a header.  (Files are named
-   * by their last component in the archive.) */
-  const char* name = ar_rname(cfp->rname);
-  (void)stat(cfp->rname, sb);
+  if((data->cookies == NULL) ||
+      (data->cookies->numcookies == 0))
+    return NULL;
 
-  /* If not truncating names and the name is too long or contains
-   * a space, use extended format 1.   */
-  size_t lname = strlen(name);
-  uid_t uid = sb->st_uid;
-  gid_t gid = sb->st_gid;
-  if (uid > USHRT_MAX) {
-    uid = USHRT_MAX;
-  }
-  if (gid > USHRT_MAX) {
-    gid = USHRT_MAX;
-  }
-  if (lname > sizeof(hdr->ar_name) || strchr(name, ' '))
-    (void)sprintf(ar_hb, HDR1, AR_EFMT1, (int)lname, (long int)sb->st_mtime,
-                  (unsigned)uid, (unsigned)gid, (unsigned)sb->st_mode,
-                  (long long)sb->st_size + lname, ARFMAG);
-  else {
-    lname = 0;
-    (void)sprintf(ar_hb, HDR2, name, (long int)sb->st_mtime, (unsigned)uid,
-                  (unsigned)gid, (unsigned)sb->st_mode, (long long)sb->st_size,
-                  ARFMAG);
-  }
-  off_t size = sb->st_size;
-
-  if (fwrite(ar_hb, 1, sizeof(HDR), cfp->wFile) != sizeof(HDR))
-    return -1;
-
-  if (lname) {
-    if (fwrite(name, 1, lname, cfp->wFile) != lname)
-      return -2;
-    ar_already_written = lname;
-  }
-  result = copy_ar(cfp, size);
-  ar_already_written = 0;
-  return result;
-}
-
-/* append.c */
-
-/* append --
- *      Append files to the archive - modifies original archive or creates
- *      a new archive if named archive does not exist.
- */
-static int ar_append(const char* archive,
-                     const std::vector<std::string>& files)
-{
-  int eval = 0;
-  FILE* aFile = cmSystemTools::Fopen(archive, "wb+");
-  if (aFile != NULL) {
-    fwrite(ARMAG, SARMAG, 1, aFile);
-    if (fseek(aFile, 0, SEEK_END) != -1) {
-      CF cf;
-      struct stat sb;
-      /* Read from disk, write to an archive; pad on write. */
-      SETCF(NULL, 0, aFile, archive, WPAD);
-      for (std::vector<std::string>::const_iterator fileIt = files.begin();
-           fileIt != files.end(); ++fileIt) {
-        const char* filename = fileIt->c_str();
-        FILE* file = cmSystemTools::Fopen(filename, "rb");
-        if (file == NULL) {
-          eval = -1;
-          continue;
-        }
-        cf.rFile = file;
-        cf.rname = filename;
-        int result = put_arobj(&cf, &sb);
-        (void)fclose(file);
-        if (result != 0) {
-          eval = -2;
-          break;
-        }
-      }
-    } else {
-      eval = -3;
+  for(c = data->cookies->cookies; c; c = c->next) {
+    if(!c->domain)
+      continue;
+    line = get_netscape_format(c);
+    if(!line) {
+      curl_slist_free_all(list);
+      return NULL;
     }
-    fclose(aFile);
-  } else {
-    eval = -4;
+    beg = Curl_slist_append_nodup(list, line);
+    if(!beg) {
+      free(line);
+      curl_slist_free_all(list);
+      return NULL;
+    }
+    list = beg;
   }
-  return eval;
+
+  return list;
 }
+
+void Curl_flush_cookies(struct Curl_easy *data, int cleanup)
+{
+  if(data->set.str[STRING_COOKIEJAR]) {
+    if(data->change.cookielist) {
+      /* If there is a list of cookie files to read, do it first so that
+         we have all the told files read before we write the new jar.
+         Curl_cookie_loadfiles() LOCKS and UNLOCKS the share itself! */
+      Curl_cookie_loadfiles(data);
+    }
+
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+
+    /* if we have a destination file for all the cookies to get dumped to */
+    if(cookie_output(data->cookies, data->set.str[STRING_COOKIEJAR]))
+      infof(data, "WARNING: failed to save cookies in %s\n",
+            data->set.str[STRING_COOKIEJAR]);
+  }
+  else {
+    if(cleanup && data->change.cookielist) {
+      /* since nothing is written, we can just free the list of cookie file
+         names */
+      curl_slist_free_all(data->change.cookielist); /* clean up list */
+      data->change.cookielist = NULL;
+    }
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+  }
+
+  if(cleanup && (!data->share || (data->cookies != data->share->cookies))) {
+    Curl_cookie_cleanup(data->cookies);
+  }
+  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+}
+
+#endif /* CURL_DISABLE_HTTP || CURL_DISABLE_COOKIES */

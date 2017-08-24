@@ -1,0 +1,1 @@
+(result) me64_to_le_str(result, ctx->hash, digest_length)

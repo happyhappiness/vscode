@@ -1,0 +1,1 @@
+buf[decoded_len - 1] = '\0'

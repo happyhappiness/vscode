@@ -1,729 +1,547 @@
-/*============================================================================
-  KWSys - Kitware System Library
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
-
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
-
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(Process.h)
-#include KWSYS_HEADER(Encoding.h)
-
-/* Work-around CMake dependency scanning limitation.  This must
-   duplicate the above list of headers.  */
-#if 0
-# include "Process.h.in"
-# include "Encoding.h.in"
-#endif
-
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#if defined(_WIN32)
-# include <windows.h>
-#else
-# include <unistd.h>
-# include <signal.h>
-#endif
-
-#if defined(__BORLANDC__)
-# pragma warn -8060 /* possibly incorrect assignment */
-#endif
-
-/* Platform-specific sleep functions. */
-
-#if defined(__BEOS__) && !defined(__ZETA__)
-/* BeOS 5 doesn't have usleep(), but it has snooze(), which is identical. */
-# include <be/kernel/OS.h>
-static inline void testProcess_usleep(unsigned int usec)
-{
-  snooze(usec);
-}
-#elif defined(_WIN32)
-/* Windows can only sleep in millisecond intervals. */
-static void testProcess_usleep(unsigned int usec)
-{
-  Sleep(usec / 1000);
-}
-#else
-# define testProcess_usleep usleep
-#endif
-
-#if defined(_WIN32)
-static void testProcess_sleep(unsigned int sec)
-{
-  Sleep(sec*1000);
-}
-#else
-static void testProcess_sleep(unsigned int sec)
-{
-  sleep(sec);
-}
-#endif
-
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout, int poll,
-             int repeat, int disown, int createNewGroup,
-             unsigned int interruptDelay);
-
-static int test1(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 0.\n");
-  fprintf(stderr, "Output on stderr from test returning 0.\n");
-  return 0;
-}
-
-static int test2(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from test returning 123.\n");
-  fprintf(stderr, "Output on stderr from test returning 123.\n");
-  return 123;
-}
-
-static int test3(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  testProcess_sleep(15);
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
-}
-
-static int test4(int argc, const char* argv[])
-{
-  /* Prepare a pointer to an invalid address.  Don't use null, because
-  dereferencing null is undefined behaviour and compilers are free to
-  do whatever they want. ex: Clang will warn at compile time, or even
-  optimize away the write. We hope to 'outsmart' them by using
-  'volatile' and a slightly larger address, based on a runtime value. */
-  volatile int* invalidAddress = 0;
-  invalidAddress += argc?1:2;
-
-#if defined(_WIN32)
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
-#elif defined(__BEOS__) || defined(__HAIKU__)
-  /* Avoid error diagnostic popups since we are crashing on purpose.  */
-  disable_debugger(1);
-#endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  assert(invalidAddress); /* Quiet Clang scan-build. */
-  /* Provoke deliberate crash by writing to the invalid address. */
-  *invalidAddress = 0;
-  fprintf(stdout, "Output after crash on stdout from crash test.\n");
-  fprintf(stderr, "Output after crash on stderr from crash test.\n");
-  return 0;
-}
-
-static int test5(int argc, const char* argv[])
-{
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "4";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before recursive test.\n");
-  fprintf(stderr, "Output on stderr before recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-#define TEST6_SIZE (4096*2)
-static void test6(int argc, const char* argv[])
-{
-  int i;
-  char runaway[TEST6_SIZE+1];
-  (void)argc; (void)argv;
-  for(i=0;i < TEST6_SIZE;++i)
-    {
-    runaway[i] = '.';
-    }
-  runaway[TEST6_SIZE] = '\n';
-
-  /* Generate huge amounts of output to test killing.  */
-  for(;;)
-    {
-    fwrite(runaway, 1, TEST6_SIZE+1, stdout);
-    fflush(stdout);
-    }
-}
-
-/* Define MINPOLL to be one more than the number of times output is
-   written.  Define MAXPOLL to be the largest number of times a loop
-   delaying 1/10th of a second should ever have to poll.  */
-#define MINPOLL 5
-#define MAXPOLL 20
-static int test7(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-static int test8(int argc, const char* argv[])
-{
-  /* Create a disowned grandchild to test handling of processes
-     that exit before their children.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "108";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
-               1, 1, 1, 0, 10, 0, 1, 1, 0, 0);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-static int test8_grandchild(int argc, const char* argv[])
-{
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* TODO: Instead of closing pipes here leave them open to make sure
-     the grandparent can stop listening when the parent exits.  This
-     part of the test cannot be enabled until the feature is
-     implemented.  */
-  fclose(stdout);
-  fclose(stderr);
-  testProcess_sleep(15);
-  return 0;
-}
-
-static int test9(int argc, const char* argv[])
-{
-  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
-     process.  Here, we start a child process that sleeps for a long time
-     while ignoring signals.  The test is successful if this process waits
-     for the child to return before exiting from the Ctrl+C handler.
-
-     WARNING:  This test will falsely pass if the share parameter of runChild
-     was set to 0 when invoking the test9 process.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "109";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exited,
-               kwsysProcess_Exception_None,
-               0, 1, 1, 0, 30, 0, 1, 0, 0, 0);
-  /* This sleep will avoid a race condition between this function exiting
-     normally and our Ctrl+C handler exiting abnormally after the process
-     exits.  */
-  testProcess_sleep(1);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-#if defined(_WIN32)
-static BOOL WINAPI test9_grandchild_handler(DWORD dwCtrlType)
-{
-  /* Ignore all Ctrl+C/Break signals.  We must use an actual handler function
-     instead of using SetConsoleCtrlHandler(NULL, TRUE) so that we can also
-     ignore Ctrl+Break in addition to Ctrl+C.  */
-  (void)dwCtrlType;
-  return TRUE;
-}
-#endif
-
-static int test9_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds while ignoring signals.  */
-  (void)argc; (void)argv;
-#if defined(_WIN32)
-  if(!SetConsoleCtrlHandler(test9_grandchild_handler, TRUE))
-    {
-    return 1;
-    }
-#else
-  struct sigaction sa;
-  memset(&sa, 0, sizeof(sa));
-  sa.sa_handler = SIG_IGN;
-  sigemptyset(&sa.sa_mask);
-  if(sigaction(SIGINT, &sa, 0) < 0)
-    {
-    return 1;
-    }
-#endif
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 9 seconds.  */
-  testProcess_sleep(9);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-static int test10(int argc, const char* argv[])
-{
-  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
-     process.  Here, we start a child process that sleeps for a long time and
-     processes signals normally.  However, this grandchild is created in a new
-     process group - ensuring that Ctrl+C we receive is sent to our process
-     groups.  We make sure it exits anyway.  */
-  int r;
-  const char* cmd[4];
-  (void)argc;
-  cmd[0] = argv[0];
-  cmd[1] = "run";
-  cmd[2] = "110";
-  cmd[3] = 0;
-  fprintf(stdout, "Output on stdout before grandchild test.\n");
-  fprintf(stderr, "Output on stderr before grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Interrupt,
-               0, 1, 1, 0, 30, 0, 1, 0, 1, 0);
-  fprintf(stdout, "Output on stdout after grandchild test.\n");
-  fprintf(stderr, "Output on stderr after grandchild test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
-}
-
-static int test10_grandchild(int argc, const char* argv[])
-{
-  /* The grandchild just sleeps for a few seconds and handles signals.  */
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 6 seconds.  */
-  testProcess_sleep(6);
-  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
-  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
-}
-
-static int runChild2(kwsysProcess* kp,
-              const char* cmd[], int state, int exception, int value,
-              int share, int output, int delay, double timeout,
-              int poll, int disown, int createNewGroup,
-              unsigned int interruptDelay)
-{
-  int result = 0;
-  char* data = 0;
-  int length = 0;
-  double userTimeout = 0;
-  double* pUserTimeout = 0;
-  kwsysProcess_SetCommand(kp, cmd);
-  if(timeout >= 0)
-    {
-    kwsysProcess_SetTimeout(kp, timeout);
-    }
-  if(share)
-    {
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
-    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
-    }
-  if(disown)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_Detach, 1);
-    }
-  if(createNewGroup)
-    {
-    kwsysProcess_SetOption(kp, kwsysProcess_Option_CreateProcessGroup, 1);
-    }
-  kwsysProcess_Execute(kp);
-
-  if(poll)
-    {
-    pUserTimeout = &userTimeout;
-    }
-
-  if(interruptDelay)
-    {
-    testProcess_sleep(interruptDelay);
-    kwsysProcess_Interrupt(kp);
-    }
-
-  if(!share && !disown)
-    {
-    int p;
-    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
-      {
-      if(output)
-        {
-        if(poll && p == kwsysProcess_Pipe_Timeout)
-          {
-          fprintf(stdout, "WaitForData timeout reached.\n");
-          fflush(stdout);
-
-          /* Count the number of times we polled without getting data.
-             If it is excessive then kill the child and fail.  */
-          if(++poll >= MAXPOLL)
-            {
-            fprintf(stdout, "Poll count reached limit %d.\n",
-                    MAXPOLL);
-            kwsysProcess_Kill(kp);
-            }
-          }
-        else
-          {
-          fwrite(data, 1, (size_t) length, stdout);
-          fflush(stdout);
-          }
-        }
-      if(poll)
-        {
-        /* Delay to avoid busy loop during polling.  */
-        testProcess_usleep(100000);
-        }
-      if(delay)
-        {
-        /* Purposely sleeping only on Win32 to let pipe fill up.  */
-#if defined(_WIN32)
-        testProcess_usleep(100000);
-#endif
-        }
-      }
-    }
-
-  if(disown)
-    {
-    kwsysProcess_Disown(kp);
-    }
-  else
-    {
-    kwsysProcess_WaitForExit(kp, 0);
-    }
-
-  switch (kwsysProcess_GetState(kp))
-    {
-    case kwsysProcess_State_Starting:
-      printf("No process has been executed.\n"); break;
-    case kwsysProcess_State_Executing:
-      printf("The process is still executing.\n"); break;
-    case kwsysProcess_State_Expired:
-      printf("Child was killed when timeout expired.\n"); break;
-    case kwsysProcess_State_Exited:
-      printf("Child exited with value = %d\n",
-             kwsysProcess_GetExitValue(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Killed:
-      printf("Child was killed by parent.\n"); break;
-    case kwsysProcess_State_Exception:
-      printf("Child terminated abnormally: %s\n",
-             kwsysProcess_GetExceptionString(kp));
-      result = ((exception != kwsysProcess_GetExitException(kp)) ||
-                (value != kwsysProcess_GetExitValue(kp))); break;
-    case kwsysProcess_State_Disowned:
-      printf("Child was disowned.\n"); break;
-    case kwsysProcess_State_Error:
-      printf("Error in administrating child process: [%s]\n",
-             kwsysProcess_GetErrorString(kp)); break;
-    };
-
-  if(result)
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
-      {
-      fprintf(stderr, "Mismatch in exit exception.  "
-              "Should have been %d, was %d.\n",
-              exception, kwsysProcess_GetExitException(kp));
-      }
-    if(value != kwsysProcess_GetExitValue(kp))
-      {
-      fprintf(stderr, "Mismatch in exit value.  "
-              "Should have been %d, was %d.\n",
-              value, kwsysProcess_GetExitValue(kp));
-      }
-    }
-
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  "
-            "Should have been %d, was %d.\n",
-            state, kwsysProcess_GetState(kp));
-    result = 1;
-    }
-
-  /* We should have polled more times than there were data if polling
-     was enabled.  */
-  if(poll && poll < MINPOLL)
-    {
-    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
-            poll, MINPOLL);
-    result = 1;
-    }
-
-  return result;
-}
-
-/**
- * Runs a child process and blocks until it returns.  Arguments as follows:
+/*-
+ * Copyright (c) 2003-2010 Tim Kientzle
+ * Copyright (c) 2009-2012 Michihiro NAKAJIMA
+ * All rights reserved.
  *
- * cmd            = Command line to run.
- * state          = Expected return value of kwsysProcess_GetState after exit.
- * exception      = Expected return value of kwsysProcess_GetExitException.
- * value          = Expected return value of kwsysProcess_GetExitValue.
- * share          = Whether to share stdout/stderr child pipes with our pipes
- *                  by way of kwsysProcess_SetPipeShared.  If false, new pipes
- *                  are created.
- * output         = If !share && !disown, whether to write the child's stdout
- *                  and stderr output to our stdout.
- * delay          = If !share && !disown, adds an additional short delay to
- *                  the pipe loop to allow the pipes to fill up; Windows only.
- * timeout        = Non-zero to sets a timeout in seconds via
- *                  kwsysProcess_SetTimeout.
- * poll           = If !share && !disown, we count the number of 0.1 second
- *                  intervals where the child pipes had no new data.  We fail
- *                  if not in the bounds of MINPOLL/MAXPOLL.
- * repeat         = Number of times to run the process.
- * disown         = If set, the process is disowned.
- * createNewGroup = If set, the process is created in a new process group.
- * interruptDelay = If non-zero, number of seconds to delay before
- *                  interrupting the process.  Note that this delay will occur
- *                  BEFORE any reading/polling of pipes occurs and before any
- *                  detachment occurs.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, int output, int delay, double timeout,
-             int poll, int repeat, int disown, int createNewGroup,
-             unsigned int interruptDelay)
+
+#include "archive_platform.h"
+
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_compression_xz.c 201108 2009-12-28 03:28:21Z kientzle $");
+
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#include <time.h>
+#ifdef HAVE_LZMA_H
+#include <cm_lzma.h>
+#endif
+
+#include "archive.h"
+#include "archive_endian.h"
+#include "archive_private.h"
+#include "archive_write_private.h"
+
+#if ARCHIVE_VERSION_NUMBER < 4000000
+int
+archive_write_set_compression_lzip(struct archive *a)
 {
-  int result = 1;
-  kwsysProcess* kp = kwsysProcess_New();
-  if(!kp)
-    {
-    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
-    return 1;
-    }
-  while(repeat-- > 0)
-    {
-    result = runChild2(kp, cmd, state, exception, value, share,
-                       output, delay, timeout, poll, disown, createNewGroup,
-                       interruptDelay);
-    }
-  kwsysProcess_Delete(kp);
-  return result;
+	__archive_write_filters_free(a);
+	return (archive_write_add_filter_lzip(a));
 }
 
-int main(int argc, const char* argv[])
+int
+archive_write_set_compression_lzma(struct archive *a)
 {
-  int n = 0;
+	__archive_write_filters_free(a);
+	return (archive_write_add_filter_lzma(a));
+}
 
-#ifdef _WIN32
-  int i;
-  char new_args[10][_MAX_PATH];
-  LPWSTR* w_av = CommandLineToArgvW(GetCommandLineW(), &argc);
-  for(i=0; i<argc; i++)
-  {
-    kwsysEncoding_wcstombs(new_args[i], w_av[i], _MAX_PATH);
-    argv[i] = new_args[i];
-  }
-  LocalFree(w_av);
+int
+archive_write_set_compression_xz(struct archive *a)
+{
+	__archive_write_filters_free(a);
+	return (archive_write_add_filter_xz(a));
+}
+
 #endif
 
-#if 0
-    {
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_OUTPUT_HANDLE, out);
-    }
-    {
-    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
-    DuplicateHandle(GetCurrentProcess(), out,
-                    GetCurrentProcess(), &out, 0, FALSE,
-                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
-    SetStdHandle(STD_ERROR_HANDLE, out);
-    }
-#endif
-  if(argc == 2)
-    {
-    n = atoi(argv[1]);
-    }
-  else if(argc == 3 && strcmp(argv[1], "run") == 0)
-    {
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(((n >= 1 && n <= 10) || n == 108 || n == 109 || n == 110) && argc == 3)
-    {
-    /* This is the child process for a requested test number.  */
-    switch (n)
-      {
-      case 1: return test1(argc, argv);
-      case 2: return test2(argc, argv);
-      case 3: return test3(argc, argv);
-      case 4: return test4(argc, argv);
-      case 5: return test5(argc, argv);
-      case 6: test6(argc, argv); return 0;
-      case 7: return test7(argc, argv);
-      case 8: return test8(argc, argv);
-      case 9: return test9(argc, argv);
-      case 10: return test10(argc, argv);
-      case 108: return test8_grandchild(argc, argv);
-      case 109: return test9_grandchild(argc, argv);
-      case 110: return test10_grandchild(argc, argv);
-      }
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
-    }
-  else if(n >= 1 && n <= 10)
-    {
-    /* This is the parent process for a requested test number.  */
-    int states[10] =
-    {
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exception,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Exited,
-      kwsysProcess_State_Expired, /* Ctrl+C handler test */
-      kwsysProcess_State_Exception /* Process group test */
-    };
-    int exceptions[10] =
-    {
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Fault,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_None,
-      kwsysProcess_Exception_Interrupt
-    };
-    int values[10] = {0, 123, 1, 1, 0, 0, 0, 0, 1, 1};
-    int shares[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
-    int outputs[10] = {1, 1, 1, 1, 1, 0, 1, 1, 1, 1};
-    int delays[10] = {0, 0, 0, 0, 0, 1, 0, 0, 0, 0};
-    double timeouts[10] = {10, 10, 10, 30, 30, 10, -1, 10, 6, 4};
-    int polls[10] = {0, 0, 0, 0, 0, 0, 1, 0, 0, 0};
-    int repeat[10] = {2, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-    int createNewGroups[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
-    unsigned int interruptDelays[10] = {0, 0, 0, 0, 0, 0, 0, 0, 3, 2};
-    int r;
-    const char* cmd[4];
-#ifdef _WIN32
-    char* argv0 = 0;
-    if(n == 0 && (argv0 = strdup(argv[0])))
-      {
-      /* Try converting to forward slashes to see if it works.  */
-      char* c;
-      for(c=argv0; *c; ++c)
-        {
-        if(*c == '\\')
-          {
-          *c = '/';
-          }
-        }
-      cmd[0] = argv0;
-      }
-    else
-      {
-      cmd[0] = argv[0];
-      }
+#ifndef HAVE_LZMA_H
+int
+archive_write_add_filter_xz(struct archive *a)
+{
+	archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "xz compression not supported on this platform");
+	return (ARCHIVE_FATAL);
+}
+
+int
+archive_write_add_filter_lzma(struct archive *a)
+{
+	archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "lzma compression not supported on this platform");
+	return (ARCHIVE_FATAL);
+}
+
+int
+archive_write_add_filter_lzip(struct archive *a)
+{
+	archive_set_error(a, ARCHIVE_ERRNO_MISC,
+	    "lzma compression not supported on this platform");
+	return (ARCHIVE_FATAL);
+}
 #else
-    cmd[0] = argv[0];
-#endif
-    cmd[1] = "run";
-    cmd[2] = argv[1];
-    cmd[3] = 0;
-    fprintf(stdout, "Output on stdout before test %d.\n", n);
-    fprintf(stderr, "Output on stderr before test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], shares[n-1],
-                 outputs[n-1], delays[n-1], timeouts[n-1],
-                 polls[n-1], repeat[n-1], 0, createNewGroups[n-1],
-                 interruptDelays[n-1]);
-    fprintf(stdout, "Output on stdout after test %d.\n", n);
-    fprintf(stderr, "Output on stderr after test %d.\n", n);
-    fflush(stdout);
-    fflush(stderr);
-#if defined(_WIN32)
-    if(argv0) { free(argv0); }
-#endif
-    return r;
-    }
-  else if(argc > 2 && strcmp(argv[1], "0") == 0)
-    {
-    /* This is the special debugging test to run a given command
-       line.  */
-    const char** cmd = argv+2;
-    int state = kwsysProcess_State_Exited;
-    int exception = kwsysProcess_Exception_None;
-    int value = 0;
-    double timeout = 0;
-    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout,
-      0, 1, 0, 0, 0);
-    return r;
-    }
-  else
-    {
-    /* Improper usage.  */
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
-    }
+/* Don't compile this if we don't have liblzma. */
+
+struct private_data {
+	int		 compression_level;
+	uint32_t	 threads;
+	lzma_stream	 stream;
+	lzma_filter	 lzmafilters[2];
+	lzma_options_lzma lzma_opt;
+	int64_t		 total_in;
+	unsigned char	*compressed;
+	size_t		 compressed_buffer_size;
+	int64_t		 total_out;
+	/* the CRC32 value of uncompressed data for lzip */
+	uint32_t	 crc32;
+};
+
+static int	archive_compressor_xz_options(struct archive_write_filter *,
+		    const char *, const char *);
+static int	archive_compressor_xz_open(struct archive_write_filter *);
+static int	archive_compressor_xz_write(struct archive_write_filter *,
+		    const void *, size_t);
+static int	archive_compressor_xz_close(struct archive_write_filter *);
+static int	archive_compressor_xz_free(struct archive_write_filter *);
+static int	drive_compressor(struct archive_write_filter *,
+		    struct private_data *, int finishing);
+
+struct option_value {
+	uint32_t dict_size;
+	uint32_t nice_len;
+	lzma_match_finder mf;
+};
+static const struct option_value option_values[] = {
+	{ 1 << 16, 32, LZMA_MF_HC3},
+	{ 1 << 20, 32, LZMA_MF_HC3},
+	{ 3 << 19, 32, LZMA_MF_HC4},
+	{ 1 << 21, 32, LZMA_MF_BT4},
+	{ 3 << 20, 32, LZMA_MF_BT4},
+	{ 1 << 22, 32, LZMA_MF_BT4},
+	{ 1 << 23, 64, LZMA_MF_BT4},
+	{ 1 << 24, 64, LZMA_MF_BT4},
+	{ 3 << 23, 64, LZMA_MF_BT4},
+	{ 1 << 25, 64, LZMA_MF_BT4}
+};
+
+static int
+common_setup(struct archive_write_filter *f)
+{
+	struct private_data *data;
+	struct archive_write *a = (struct archive_write *)f->archive;
+	data = calloc(1, sizeof(*data));
+	if (data == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+	f->data = data;
+	data->compression_level = LZMA_PRESET_DEFAULT;
+	data->threads = 1;
+	f->open = &archive_compressor_xz_open;
+	f->close = archive_compressor_xz_close;
+	f->free = archive_compressor_xz_free;
+	f->options = &archive_compressor_xz_options;
+	return (ARCHIVE_OK);
 }
+
+/*
+ * Add an xz compression filter to this write handle.
+ */
+int
+archive_write_add_filter_xz(struct archive *_a)
+{
+	struct archive_write_filter *f;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_add_filter_xz");
+	f = __archive_write_allocate_filter(_a);
+	r = common_setup(f);
+	if (r == ARCHIVE_OK) {
+		f->code = ARCHIVE_FILTER_XZ;
+		f->name = "xz";
+	}
+	return (r);
+}
+
+/* LZMA is handled identically, we just need a different compression
+ * code set.  (The liblzma setup looks at the code to determine
+ * the one place that XZ and LZMA require different handling.) */
+int
+archive_write_add_filter_lzma(struct archive *_a)
+{
+	struct archive_write_filter *f;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_add_filter_lzma");
+	f = __archive_write_allocate_filter(_a);
+	r = common_setup(f);
+	if (r == ARCHIVE_OK) {
+		f->code = ARCHIVE_FILTER_LZMA;
+		f->name = "lzma";
+	}
+	return (r);
+}
+
+int
+archive_write_add_filter_lzip(struct archive *_a)
+{
+	struct archive_write_filter *f;
+	int r;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_add_filter_lzip");
+	f = __archive_write_allocate_filter(_a);
+	r = common_setup(f);
+	if (r == ARCHIVE_OK) {
+		f->code = ARCHIVE_FILTER_LZIP;
+		f->name = "lzip";
+	}
+	return (r);
+}
+
+static int
+archive_compressor_xz_init_stream(struct archive_write_filter *f,
+    struct private_data *data)
+{
+	static const lzma_stream lzma_stream_init_data = LZMA_STREAM_INIT;
+	int ret;
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+	lzma_mt mt_options;
+#endif
+
+	data->stream = lzma_stream_init_data;
+	data->stream.next_out = data->compressed;
+	data->stream.avail_out = data->compressed_buffer_size;
+	if (f->code == ARCHIVE_FILTER_XZ) {
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+		if (data->threads != 1) {
+			bzero(&mt_options, sizeof(mt_options));
+			mt_options.threads = data->threads;
+			mt_options.timeout = 300;
+			mt_options.filters = data->lzmafilters;
+			mt_options.check = LZMA_CHECK_CRC64;
+			ret = lzma_stream_encoder_mt(&(data->stream),
+			    &mt_options);
+		} else
+#endif
+			ret = lzma_stream_encoder(&(data->stream),
+			    data->lzmafilters, LZMA_CHECK_CRC64);
+	} else if (f->code == ARCHIVE_FILTER_LZMA) {
+		ret = lzma_alone_encoder(&(data->stream), &data->lzma_opt);
+	} else {	/* ARCHIVE_FILTER_LZIP */
+		int dict_size = data->lzma_opt.dict_size;
+		int ds, log2dic, wedges;
+
+		/* Calculate a coded dictionary size */
+		if (dict_size < (1 << 12) || dict_size > (1 << 27)) {
+			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Unacceptable dictionary size for lzip: %d",
+			    dict_size);
+			return (ARCHIVE_FATAL);
+		}
+		for (log2dic = 27; log2dic >= 12; log2dic--) {
+			if (dict_size & (1 << log2dic))
+				break;
+		}
+		if (dict_size > (1 << log2dic)) {
+			log2dic++;
+			wedges =
+			    ((1 << log2dic) - dict_size) / (1 << (log2dic - 4));
+		} else
+			wedges = 0;
+		ds = ((wedges << 5) & 0xe0) | (log2dic & 0x1f);
+
+		data->crc32 = 0;
+		/* Make a header */
+		data->compressed[0] = 0x4C;
+		data->compressed[1] = 0x5A;
+		data->compressed[2] = 0x49;
+		data->compressed[3] = 0x50;
+		data->compressed[4] = 1;/* Version */
+		data->compressed[5] = (unsigned char)ds;
+		data->stream.next_out += 6;
+		data->stream.avail_out -= 6;
+
+		ret = lzma_raw_encoder(&(data->stream), data->lzmafilters);
+	}
+	if (ret == LZMA_OK)
+		return (ARCHIVE_OK);
+
+	switch (ret) {
+	case LZMA_MEM_ERROR:
+		archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");
+		break;
+	default:
+		archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "It's a bug in liblzma");
+		break;
+	}
+	return (ARCHIVE_FATAL);
+}
+
+/*
+ * Setup callback.
+ */
+static int
+archive_compressor_xz_open(struct archive_write_filter *f)
+{
+	struct private_data *data = f->data;
+	int ret;
+
+	ret = __archive_write_open_filter(f->next_filter);
+	if (ret != ARCHIVE_OK)
+		return (ret);
+
+	if (data->compressed == NULL) {
+		size_t bs = 65536, bpb;
+		if (f->archive->magic == ARCHIVE_WRITE_MAGIC) {
+			/* Buffer size should be a multiple number of the of bytes
+			 * per block for performance. */
+			bpb = archive_write_get_bytes_per_block(f->archive);
+			if (bpb > bs)
+				bs = bpb;
+			else if (bpb != 0)
+				bs -= bs % bpb;
+		}
+		data->compressed_buffer_size = bs;
+		data->compressed
+		    = (unsigned char *)malloc(data->compressed_buffer_size);
+		if (data->compressed == NULL) {
+			archive_set_error(f->archive, ENOMEM,
+			    "Can't allocate data for compression buffer");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	f->write = archive_compressor_xz_write;
+
+	/* Initialize compression library. */
+	if (f->code == ARCHIVE_FILTER_LZIP) {
+		const struct option_value *val =
+		    &option_values[data->compression_level];
+
+		data->lzma_opt.dict_size = val->dict_size;
+		data->lzma_opt.preset_dict = NULL;
+		data->lzma_opt.preset_dict_size = 0;
+		data->lzma_opt.lc = LZMA_LC_DEFAULT;
+		data->lzma_opt.lp = LZMA_LP_DEFAULT;
+		data->lzma_opt.pb = LZMA_PB_DEFAULT;
+		data->lzma_opt.mode =
+		    data->compression_level<= 2? LZMA_MODE_FAST:LZMA_MODE_NORMAL;
+		data->lzma_opt.nice_len = val->nice_len;
+		data->lzma_opt.mf = val->mf;
+		data->lzma_opt.depth = 0;
+		data->lzmafilters[0].id = LZMA_FILTER_LZMA1;
+		data->lzmafilters[0].options = &data->lzma_opt;
+		data->lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
+	} else {
+		if (lzma_lzma_preset(&data->lzma_opt, data->compression_level)) {
+			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Internal error initializing compression library");
+		}
+		data->lzmafilters[0].id = LZMA_FILTER_LZMA2;
+		data->lzmafilters[0].options = &data->lzma_opt;
+		data->lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
+	}
+	ret = archive_compressor_xz_init_stream(f, data);
+	if (ret == LZMA_OK) {
+		f->data = data;
+		return (0);
+	}
+	return (ARCHIVE_FATAL);
+}
+
+/*
+ * Set write options.
+ */
+static int
+archive_compressor_xz_options(struct archive_write_filter *f,
+    const char *key, const char *value)
+{
+	struct private_data *data = (struct private_data *)f->data;
+
+	if (strcmp(key, "compression-level") == 0) {
+		if (value == NULL || !(value[0] >= '0' && value[0] <= '9') ||
+		    value[1] != '\0')
+			return (ARCHIVE_WARN);
+		data->compression_level = value[0] - '0';
+		if (data->compression_level > 6)
+			data->compression_level = 6;
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "threads") == 0) {
+		if (value == NULL)
+			return (ARCHIVE_WARN);
+		data->threads = (int)strtoul(value, NULL, 10);
+		if (data->threads == 0 && errno != 0) {
+			data->threads = 1;
+			return (ARCHIVE_WARN);
+		}
+		if (data->threads == 0) {
+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
+			data->threads = lzma_cputhreads();
+#else
+			data->threads = 1;
+#endif
+		}
+		return (ARCHIVE_OK);
+	}
+
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+}
+
+/*
+ * Write data to the compressed stream.
+ */
+static int
+archive_compressor_xz_write(struct archive_write_filter *f,
+    const void *buff, size_t length)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	int ret;
+
+	/* Update statistics */
+	data->total_in += length;
+	if (f->code == ARCHIVE_FILTER_LZIP)
+		data->crc32 = lzma_crc32(buff, length, data->crc32);
+
+	/* Compress input data to output buffer */
+	data->stream.next_in = buff;
+	data->stream.avail_in = length;
+	if ((ret = drive_compressor(f, data, 0)) != ARCHIVE_OK)
+		return (ret);
+
+	return (ARCHIVE_OK);
+}
+
+
+/*
+ * Finish the compression...
+ */
+static int
+archive_compressor_xz_close(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	int ret, r1;
+
+	ret = drive_compressor(f, data, 1);
+	if (ret == ARCHIVE_OK) {
+		data->total_out +=
+		    data->compressed_buffer_size - data->stream.avail_out;
+		ret = __archive_write_filter(f->next_filter,
+		    data->compressed,
+		    data->compressed_buffer_size - data->stream.avail_out);
+		if (f->code == ARCHIVE_FILTER_LZIP && ret == ARCHIVE_OK) {
+			archive_le32enc(data->compressed, data->crc32);
+			archive_le64enc(data->compressed+4, data->total_in);
+			archive_le64enc(data->compressed+12, data->total_out + 20);
+			ret = __archive_write_filter(f->next_filter,
+			    data->compressed, 20);
+		}
+	}
+	lzma_end(&(data->stream));
+	r1 = __archive_write_close_filter(f->next_filter);
+	return (r1 < ret ? r1 : ret);
+}
+
+static int
+archive_compressor_xz_free(struct archive_write_filter *f)
+{
+	struct private_data *data = (struct private_data *)f->data;
+	free(data->compressed);
+	free(data);
+	f->data = NULL;
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Utility function to push input data through compressor,
+ * writing full output blocks as necessary.
+ *
+ * Note that this handles both the regular write case (finishing ==
+ * false) and the end-of-archive case (finishing == true).
+ */
+static int
+drive_compressor(struct archive_write_filter *f,
+    struct private_data *data, int finishing)
+{
+	int ret;
+
+	for (;;) {
+		if (data->stream.avail_out == 0) {
+			data->total_out += data->compressed_buffer_size;
+			ret = __archive_write_filter(f->next_filter,
+			    data->compressed,
+			    data->compressed_buffer_size);
+			if (ret != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			data->stream.next_out = data->compressed;
+			data->stream.avail_out = data->compressed_buffer_size;
+		}
+
+		/* If there's nothing to do, we're done. */
+		if (!finishing && data->stream.avail_in == 0)
+			return (ARCHIVE_OK);
+
+		ret = lzma_code(&(data->stream),
+		    finishing ? LZMA_FINISH : LZMA_RUN );
+
+		switch (ret) {
+		case LZMA_OK:
+			/* In non-finishing case, check if compressor
+			 * consumed everything */
+			if (!finishing && data->stream.avail_in == 0)
+				return (ARCHIVE_OK);
+			/* In finishing case, this return always means
+			 * there's more work */
+			break;
+		case LZMA_STREAM_END:
+			/* This return can only occur in finishing case. */
+			if (finishing)
+				return (ARCHIVE_OK);
+			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "lzma compression data error");
+			return (ARCHIVE_FATAL);
+		case LZMA_MEMLIMIT_ERROR:
+			archive_set_error(f->archive, ENOMEM,
+			    "lzma compression error: "
+			    "%ju MiB would have been needed",
+			    (uintmax_t)((lzma_memusage(&(data->stream))
+				    + 1024 * 1024 -1)
+				/ (1024 * 1024)));
+			return (ARCHIVE_FATAL);
+		default:
+			/* Any other return value indicates an error. */
+			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "lzma compression failed:"
+			    " lzma_code() call returned status %d",
+			    ret);
+			return (ARCHIVE_FATAL);
+		}
+	}
+}
+
+#endif /* HAVE_LZMA_H */

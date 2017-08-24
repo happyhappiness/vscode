@@ -1,0 +1,3 @@
+(arch) {
+    this->OSPlatform = arch;
+  }

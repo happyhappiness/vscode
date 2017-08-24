@@ -1,1365 +1,1447 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+/*============================================================================
+  CMake - Cross Platform Makefile Generator
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
-/***
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#include "cmcmd.h"
+#include "cmMakefile.h"
+#include "cmLocalGenerator.h"
+#include "cmGlobalGenerator.h"
+#include "cmQtAutoGenerators.h"
+#include "cmVersion.h"
 
-RECEIVING COOKIE INFORMATION
-============================
-
-struct CookieInfo *cookie_init(char *file);
-
-        Inits a cookie struct to store data in a local file. This is always
-        called before any cookies are set.
-
-int cookies_set(struct CookieInfo *cookie, char *cookie_line);
-
-        The 'cookie_line' parameter is a full "Set-cookie:" line as
-        received from a server.
-
-        The function need to replace previously stored lines that this new
-        line superceeds.
-
-        It may remove lines that are expired.
-
-        It should return an indication of success/error.
-
-
-SENDING COOKIE INFORMATION
-==========================
-
-struct Cookies *cookie_getlist(struct CookieInfo *cookie,
-                               char *host, char *path, bool secure);
-
-        For a given host and path, return a linked list of cookies that
-        the client should send to the server if used now. The secure
-        boolean informs the cookie if a secure connection is achieved or
-        not.
-
-        It shall only return cookies that haven't expired.
-
-
-Example set of cookies:
-
-    Set-cookie: PRODUCTINFO=webxpress; domain=.fidelity.com; path=/; secure
-    Set-cookie: PERSONALIZE=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/ftgw; secure
-    Set-cookie: FidHist=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: FidOrder=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: DisPend=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie: FidDis=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
-    domain=.fidelity.com; path=/; secure
-    Set-cookie:
-    Session_Key@6791a9e0-901a-11d0-a1c8-9b012c88aa77=none;expires=Monday,
-    13-Jun-1988 03:04:55 GMT; domain=.fidelity.com; path=/; secure
-****/
-
-
-#include "curl_setup.h"
-
-#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
-
-#define _MPRINTF_REPLACE
-#include <curl/mprintf.h>
-
-#include "urldata.h"
-#include "cookie.h"
-#include "strequal.h"
-#include "strtok.h"
-#include "sendf.h"
-#include "slist.h"
-#include "curl_memory.h"
-#include "share.h"
-#include "strtoofft.h"
-#include "rawstr.h"
-#include "curl_memrchr.h"
-#include "inet_pton.h"
-
-/* The last #include file should be: */
-#include "memdebug.h"
-
-static void freecookie(struct Cookie *co)
-{
-  if(co->expirestr)
-    free(co->expirestr);
-  if(co->domain)
-    free(co->domain);
-  if(co->path)
-    free(co->path);
-  if(co->spath)
-    free(co->spath);
-  if(co->name)
-    free(co->name);
-  if(co->value)
-    free(co->value);
-  if(co->maxage)
-    free(co->maxage);
-  if(co->version)
-    free(co->version);
-
-  free(co);
-}
-
-static bool tailmatch(const char *cooke_domain, const char *hostname)
-{
-  size_t cookie_domain_len = strlen(cooke_domain);
-  size_t hostname_len = strlen(hostname);
-
-  if(hostname_len < cookie_domain_len)
-    return FALSE;
-
-  if(!Curl_raw_equal(cooke_domain, hostname+hostname_len-cookie_domain_len))
-    return FALSE;
-
-  /* A lead char of cookie_domain is not '.'.
-     RFC6265 4.1.2.3. The Domain Attribute says:
-       For example, if the value of the Domain attribute is
-       "example.com", the user agent will include the cookie in the Cookie
-       header when making HTTP requests to example.com, www.example.com, and
-       www.corp.example.com.
-   */
-  if(hostname_len == cookie_domain_len)
-    return TRUE;
-  if('.' == *(hostname + hostname_len - cookie_domain_len - 1))
-    return TRUE;
-  return FALSE;
-}
-
-/*
- * matching cookie path and url path
- * RFC6265 5.1.4 Paths and Path-Match
- */
-static bool pathmatch(const char* cookie_path, const char* request_uri)
-{
-  size_t cookie_path_len;
-  size_t uri_path_len;
-  char* uri_path = NULL;
-  char* pos;
-  bool ret = FALSE;
-
-  /* cookie_path must not have last '/' separator. ex: /sample */
-  cookie_path_len = strlen(cookie_path);
-  if(1 == cookie_path_len) {
-    /* cookie_path must be '/' */
-    return TRUE;
-  }
-
-  uri_path = strdup(request_uri);
-  if(!uri_path)
-    return FALSE;
-  pos = strchr(uri_path, '?');
-  if(pos)
-    *pos = 0x0;
-
-  /* #-fragments are already cut off! */
-  if(0 == strlen(uri_path) || uri_path[0] != '/') {
-    free(uri_path);
-    uri_path = strdup("/");
-    if(!uri_path)
-      return FALSE;
-  }
-
-  /* here, RFC6265 5.1.4 says
-     4. Output the characters of the uri-path from the first character up
-        to, but not including, the right-most %x2F ("/").
-     but URL path /hoge?fuga=xxx means /hoge/index.cgi?fuga=xxx in some site
-     without redirect.
-     Ignore this algorithm because /hoge is uri path for this case
-     (uri path is not /).
-   */
-
-  uri_path_len = strlen(uri_path);
-
-  if(uri_path_len < cookie_path_len) {
-    ret = FALSE;
-    goto pathmatched;
-  }
-
-  /* not using checkprefix() because matching should be case-sensitive */
-  if(strncmp(cookie_path, uri_path, cookie_path_len)) {
-    ret = FALSE;
-    goto pathmatched;
-  }
-
-  /* The cookie-path and the uri-path are identical. */
-  if(cookie_path_len == uri_path_len) {
-    ret = TRUE;
-    goto pathmatched;
-  }
-
-  /* here, cookie_path_len < url_path_len */
-  if(uri_path[cookie_path_len] == '/') {
-    ret = TRUE;
-    goto pathmatched;
-  }
-
-  ret = FALSE;
-
-pathmatched:
-  free(uri_path);
-  return ret;
-}
-
-/*
- * cookie path sanitize
- */
-static char *sanitize_cookie_path(const char *cookie_path)
-{
-  size_t len;
-  char *new_path = strdup(cookie_path);
-  if(!new_path)
-    return NULL;
-
-  /* some stupid site sends path attribute with '"'. */
-  if(new_path[0] == '\"') {
-    memmove((void *)new_path, (const void *)(new_path + 1), strlen(new_path));
-  }
-  if(new_path[strlen(new_path) - 1] == '\"') {
-    new_path[strlen(new_path) - 1] = 0x0;
-  }
-
-  /* RFC6265 5.2.4 The Path Attribute */
-  if(new_path[0] != '/') {
-    /* Let cookie-path be the default-path. */
-    free(new_path);
-    new_path = strdup("/");
-    return new_path;
-  }
-
-  /* convert /hoge/ to /hoge */
-  len = strlen(new_path);
-  if(1 < len && new_path[len - 1] == '/') {
-    new_path[len - 1] = 0x0;
-  }
-
-  return new_path;
-}
-
-/*
- * Load cookies from all given cookie files (CURLOPT_COOKIEFILE).
- */
-void Curl_cookie_loadfiles(struct SessionHandle *data)
-{
-  struct curl_slist *list = data->change.cookielist;
-  if(list) {
-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-    while(list) {
-      data->cookies = Curl_cookie_init(data,
-                                       list->data,
-                                       data->cookies,
-                                       data->set.cookiesession);
-      list = list->next;
-    }
-    curl_slist_free_all(data->change.cookielist); /* clean up list */
-    data->change.cookielist = NULL; /* don't do this again! */
-    Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
-  }
-}
-
-/*
- * strstore() makes a strdup() on the 'newstr' and if '*str' is non-NULL
- * that will be freed before the allocated string is stored there.
- *
- * It is meant to easily replace strdup()
- */
-static void strstore(char **str, const char *newstr)
-{
-  if(*str)
-    free(*str);
-  *str = strdup(newstr);
-}
-
-/*
- * remove_expired() removes expired cookies.
- */
-static void remove_expired(struct CookieInfo *cookies)
-{
-  struct Cookie *co, *nx, *pv;
-  curl_off_t now = (curl_off_t)time(NULL);
-
-  co = cookies->cookies;
-  pv = NULL;
-  while(co) {
-    nx = co->next;
-    if((co->expirestr || co->maxage) && co->expires < now) {
-      if(co == cookies->cookies) {
-        cookies->cookies = co->next;
-      }
-      else {
-        pv->next = co->next;
-      }
-      cookies->numcookies--;
-      freecookie(co);
-    }
-    else {
-      pv = co;
-    }
-    co = nx;
-  }
-}
-
-/*
- * Return true if the given string is an IP(v4|v6) address.
- */
-static bool isip(const char *domain)
-{
-  struct in_addr addr;
-#ifdef ENABLE_IPV6
-  struct in6_addr addr6;
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+# include "cmDependsFortran.h" // For -E cmake_copy_f90_mod callback.
+# include <cmsys/Terminal.h>
 #endif
 
-  if(Curl_inet_pton(AF_INET, domain, &addr)
-#ifdef ENABLE_IPV6
-     || Curl_inet_pton(AF_INET6, domain, &addr6)
-#endif
-    ) {
-    /* domain name given as IP address */
-    return TRUE;
-  }
+#include <cmsys/Directory.hxx>
+#include <cmsys/Process.h>
+#include <cmsys/FStream.hxx>
 
-  return FALSE;
-}
-
-/****************************************************************************
- *
- * Curl_cookie_add()
- *
- * Add a single cookie line to the cookie keeping object.
- *
- * Be aware that sometimes we get an IP-only host name, and that might also be
- * a numerical IPv6 address.
- *
- ***************************************************************************/
-
-struct Cookie *
-Curl_cookie_add(struct SessionHandle *data,
-                /* The 'data' pointer here may be NULL at times, and thus
-                   must only be used very carefully for things that can deal
-                   with data being NULL. Such as infof() and similar */
-
-                struct CookieInfo *c,
-                bool httpheader, /* TRUE if HTTP header-style line */
-                char *lineptr,   /* first character of the line */
-                const char *domain, /* default domain */
-                const char *path)   /* full path used when this cookie is set,
-                                       used to get default path for the cookie
-                                       unless set */
-{
-  struct Cookie *clist;
-  char name[MAX_NAME];
-  struct Cookie *co;
-  struct Cookie *lastc=NULL;
-  time_t now = time(NULL);
-  bool replace_old = FALSE;
-  bool badcookie = FALSE; /* cookies are good by default. mmmmm yummy */
-
-#ifdef CURL_DISABLE_VERBOSE_STRINGS
-  (void)data;
+#if defined(CMAKE_HAVE_VS_GENERATORS)
+#include "cmCallVisualStudioMacro.h"
+#include "cmVisualStudioWCEPlatformParser.h"
 #endif
 
-  /* First, alloc and init a new struct for it */
-  co = calloc(1, sizeof(struct Cookie));
-  if(!co)
-    return NULL; /* bail out if we're this low on memory */
+#include <time.h>
 
-  if(httpheader) {
-    /* This line was read off a HTTP-header */
-    const char *ptr;
-    const char *semiptr;
-    char *what;
+#include <stdlib.h> // required for atoi
 
-    what = malloc(MAX_COOKIE_LINE);
-    if(!what) {
-      free(co);
-      return NULL;
-    }
+void CMakeCommandUsage(const char* program)
+{
+  cmOStringStream errorStream;
 
-    semiptr=strchr(lineptr, ';'); /* first, find a semicolon */
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  errorStream
+    << "cmake version " << cmVersion::GetCMakeVersion() << "\n";
+#else
+  errorStream
+    << "cmake bootstrap\n";
+#endif
+  // If you add new commands, change here,
+  // and in cmakemain.cxx in the options table
+  errorStream
+    << "Usage: " << program << " -E [command] [arguments ...]\n"
+    << "Available commands: \n"
+    << "  chdir dir cmd [args]...   - run command in a given directory\n"
+    << "  compare_files file1 file2 - check if file1 is same as file2\n"
+    << "  copy file destination     - copy file to destination (either file "
+       "or directory)\n"
+    << "  copy_directory source destination   - copy directory 'source' "
+       "content to directory 'destination'\n"
+    << "  copy_if_different in-file out-file  - copy file if input has "
+       "changed\n"
+    << "  echo [string]...          - displays arguments as text\n"
+    << "  echo_append [string]...   - displays arguments as text but no new "
+       "line\n"
+    << "  env [--unset=NAME]... [NAME=VALUE]... COMMAND [ARG]...\n"
+    << "                            - run command in a modified environment\n"
+    << "  environment               - display the current environment\n"
+    << "  make_directory dir        - create a directory\n"
+    << "  md5sum file1 [...]        - compute md5sum of files\n"
+    << "  remove [-f] file1 file2 ... - remove the file(s), use -f to force "
+       "it\n"
+    << "  remove_directory dir      - remove a directory and its contents\n"
+    << "  rename oldname newname    - rename a file or directory "
+       "(on one volume)\n"
+    << "  tar [cxt][vfz][cvfj] file.tar [file/dir1 file/dir2 ...]\n"
+    << "                            - create or extract a tar or zip archive\n"
+    << "  sleep <number>...         - sleep for given number of seconds\n"
+    << "  time command [args] ...   - run command and return elapsed time\n"
+    << "  touch file                - touch a file.\n"
+    << "  touch_nocreate file       - touch a file but do not create it.\n"
+#if defined(_WIN32) && !defined(__CYGWIN__)
+    << "Available on Windows only:\n"
+    << "  delete_regv key           - delete registry value\n"
+    << "  env_vs8_wince sdkname     - displays a batch file which sets the "
+       "environment for the provided Windows CE SDK installed in VS2005\n"
+    << "  env_vs9_wince sdkname     - displays a batch file which sets the "
+       "environment for the provided Windows CE SDK installed in VS2008\n"
+    << "  write_regv key value      - write registry value\n"
+#else
+    << "Available on UNIX only:\n"
+    << "  create_symlink old new    - create a symbolic link new -> old\n"
+#endif
+    ;
 
-    while(*lineptr && ISBLANK(*lineptr))
-      lineptr++;
-
-    ptr = lineptr;
-    do {
-      /* we have a <what>=<this> pair or a stand-alone word here */
-      name[0]=what[0]=0; /* init the buffers */
-      if(1 <= sscanf(ptr, "%" MAX_NAME_TXT "[^;\r\n =]=%"
-                     MAX_COOKIE_LINE_TXT "[^;\r\n]",
-                     name, what)) {
-        /* Use strstore() below to properly deal with received cookie
-           headers that have the same string property set more than once,
-           and then we use the last one. */
-        const char *whatptr;
-        bool done = FALSE;
-        bool sep;
-        size_t len=strlen(what);
-        const char *endofn = &ptr[ strlen(name) ];
-
-        /* skip trailing spaces in name */
-        while(*endofn && ISBLANK(*endofn))
-          endofn++;
-
-        /* name ends with a '=' ? */
-        sep = (*endofn == '=')?TRUE:FALSE;
-
-        /* Strip off trailing whitespace from the 'what' */
-        while(len && ISBLANK(what[len-1])) {
-          what[len-1]=0;
-          len--;
-        }
-
-        /* Skip leading whitespace from the 'what' */
-        whatptr=what;
-        while(*whatptr && ISBLANK(*whatptr))
-          whatptr++;
-
-        if(!len) {
-          /* this was a "<name>=" with no content, and we must allow
-             'secure' and 'httponly' specified this weirdly */
-          done = TRUE;
-          if(Curl_raw_equal("secure", name))
-            co->secure = TRUE;
-          else if(Curl_raw_equal("httponly", name))
-            co->httponly = TRUE;
-          else if(sep)
-            /* there was a '=' so we're not done parsing this field */
-            done = FALSE;
-        }
-        if(done)
-          ;
-        else if(Curl_raw_equal("path", name)) {
-          strstore(&co->path, whatptr);
-          if(!co->path) {
-            badcookie = TRUE; /* out of memory bad */
-            break;
-          }
-          co->spath = sanitize_cookie_path(co->path);
-          if(!co->spath) {
-            badcookie = TRUE; /* out of memory bad */
-            break;
-          }
-        }
-        else if(Curl_raw_equal("domain", name)) {
-          bool is_ip;
-          const char *dotp;
-
-          /* Now, we make sure that our host is within the given domain,
-             or the given domain is not valid and thus cannot be set. */
-
-          if('.' == whatptr[0])
-            whatptr++; /* ignore preceding dot */
-
-          is_ip = isip(domain ? domain : whatptr);
-
-          /* check for more dots */
-          dotp = strchr(whatptr, '.');
-          if(!dotp)
-            domain=":";
-
-          if(!domain
-             || (is_ip && !strcmp(whatptr, domain))
-             || (!is_ip && tailmatch(whatptr, domain))) {
-            strstore(&co->domain, whatptr);
-            if(!co->domain) {
-              badcookie = TRUE;
-              break;
-            }
-            if(!is_ip)
-              co->tailmatch=TRUE; /* we always do that if the domain name was
-                                     given */
-          }
-          else {
-            /* we did not get a tailmatch and then the attempted set domain
-               is not a domain to which the current host belongs. Mark as
-               bad. */
-            badcookie=TRUE;
-            infof(data, "skipped cookie with bad tailmatch domain: %s\n",
-                  whatptr);
-          }
-        }
-        else if(Curl_raw_equal("version", name)) {
-          strstore(&co->version, whatptr);
-          if(!co->version) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        else if(Curl_raw_equal("max-age", name)) {
-          /* Defined in RFC2109:
-
-             Optional.  The Max-Age attribute defines the lifetime of the
-             cookie, in seconds.  The delta-seconds value is a decimal non-
-             negative integer.  After delta-seconds seconds elapse, the
-             client should discard the cookie.  A value of zero means the
-             cookie should be discarded immediately.
-
-          */
-          strstore(&co->maxage, whatptr);
-          if(!co->maxage) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        else if(Curl_raw_equal("expires", name)) {
-          strstore(&co->expirestr, whatptr);
-          if(!co->expirestr) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        else if(!co->name) {
-          co->name = strdup(name);
-          co->value = strdup(whatptr);
-          if(!co->name || !co->value) {
-            badcookie = TRUE;
-            break;
-          }
-        }
-        /*
-          else this is the second (or more) name we don't know
-          about! */
-      }
-      else {
-        /* this is an "illegal" <what>=<this> pair */
-      }
-
-      if(!semiptr || !*semiptr) {
-        /* we already know there are no more cookies */
-        semiptr = NULL;
-        continue;
-      }
-
-      ptr=semiptr+1;
-      while(*ptr && ISBLANK(*ptr))
-        ptr++;
-      semiptr=strchr(ptr, ';'); /* now, find the next semicolon */
-
-      if(!semiptr && *ptr)
-        /* There are no more semicolons, but there's a final name=value pair
-           coming up */
-        semiptr=strchr(ptr, '\0');
-    } while(semiptr);
-
-    if(co->maxage) {
-      co->expires =
-        curlx_strtoofft((*co->maxage=='\"')?
-                        &co->maxage[1]:&co->maxage[0], NULL, 10);
-      if(CURL_OFF_T_MAX - now < co->expires)
-        /* avoid overflow */
-        co->expires = CURL_OFF_T_MAX;
-      else
-        co->expires += now;
-    }
-    else if(co->expirestr) {
-      /* Note that if the date couldn't get parsed for whatever reason,
-         the cookie will be treated as a session cookie */
-      co->expires = curl_getdate(co->expirestr, NULL);
-
-      /* Session cookies have expires set to 0 so if we get that back
-         from the date parser let's add a second to make it a
-         non-session cookie */
-      if(co->expires == 0)
-        co->expires = 1;
-      else if(co->expires < 0)
-        co->expires = 0;
-    }
-
-    if(!badcookie && !co->domain) {
-      if(domain) {
-        /* no domain was given in the header line, set the default */
-        co->domain=strdup(domain);
-        if(!co->domain)
-          badcookie = TRUE;
-      }
-    }
-
-    if(!badcookie && !co->path && path) {
-      /* No path was given in the header line, set the default.
-         Note that the passed-in path to this function MAY have a '?' and
-         following part that MUST not be stored as part of the path. */
-      char *queryp = strchr(path, '?');
-
-      /* queryp is where the interesting part of the path ends, so now we
-         want to the find the last */
-      char *endslash;
-      if(!queryp)
-        endslash = strrchr(path, '/');
-      else
-        endslash = memrchr(path, '/', (size_t)(queryp - path));
-      if(endslash) {
-        size_t pathlen = (size_t)(endslash-path+1); /* include ending slash */
-        co->path=malloc(pathlen+1); /* one extra for the zero byte */
-        if(co->path) {
-          memcpy(co->path, path, pathlen);
-          co->path[pathlen]=0; /* zero terminate */
-          co->spath = sanitize_cookie_path(co->path);
-          if(!co->spath)
-            badcookie = TRUE; /* out of memory bad */
-        }
-        else
-          badcookie = TRUE;
-      }
-    }
-
-    free(what);
-
-    if(badcookie || !co->name) {
-      /* we didn't get a cookie name or a bad one,
-         this is an illegal line, bail out */
-      freecookie(co);
-      return NULL;
-    }
-
-  }
-  else {
-    /* This line is NOT a HTTP header style line, we do offer support for
-       reading the odd netscape cookies-file format here */
-    char *ptr;
-    char *firstptr;
-    char *tok_buf=NULL;
-    int fields;
-
-    /* IE introduced HTTP-only cookies to prevent XSS attacks. Cookies
-       marked with httpOnly after the domain name are not accessible
-       from javascripts, but since curl does not operate at javascript
-       level, we include them anyway. In Firefox's cookie files, these
-       lines are preceded with #HttpOnly_ and then everything is
-       as usual, so we skip 10 characters of the line..
-    */
-    if(strncmp(lineptr, "#HttpOnly_", 10) == 0) {
-      lineptr += 10;
-      co->httponly = TRUE;
-    }
-
-    if(lineptr[0]=='#') {
-      /* don't even try the comments */
-      free(co);
-      return NULL;
-    }
-    /* strip off the possible end-of-line characters */
-    ptr=strchr(lineptr, '\r');
-    if(ptr)
-      *ptr=0; /* clear it */
-    ptr=strchr(lineptr, '\n');
-    if(ptr)
-      *ptr=0; /* clear it */
-
-    firstptr=strtok_r(lineptr, "\t", &tok_buf); /* tokenize it on the TAB */
-
-    /* Now loop through the fields and init the struct we already have
-       allocated */
-    for(ptr=firstptr, fields=0; ptr && !badcookie;
-        ptr=strtok_r(NULL, "\t", &tok_buf), fields++) {
-      switch(fields) {
-      case 0:
-        if(ptr[0]=='.') /* skip preceding dots */
-          ptr++;
-        co->domain = strdup(ptr);
-        if(!co->domain)
-          badcookie = TRUE;
-        break;
-      case 1:
-        /* This field got its explanation on the 23rd of May 2001 by
-           Andrés García:
-
-           flag: A TRUE/FALSE value indicating if all machines within a given
-           domain can access the variable. This value is set automatically by
-           the browser, depending on the value you set for the domain.
-
-           As far as I can see, it is set to true when the cookie says
-           .domain.com and to false when the domain is complete www.domain.com
-        */
-        co->tailmatch = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
-        break;
-      case 2:
-        /* It turns out, that sometimes the file format allows the path
-           field to remain not filled in, we try to detect this and work
-           around it! Andrés García made us aware of this... */
-        if(strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
-          /* only if the path doesn't look like a boolean option! */
-          co->path = strdup(ptr);
-          if(!co->path)
-            badcookie = TRUE;
-          else {
-            co->spath = sanitize_cookie_path(co->path);
-            if(!co->spath) {
-              badcookie = TRUE; /* out of memory bad */
-            }
-          }
-          break;
-        }
-        /* this doesn't look like a path, make one up! */
-        co->path = strdup("/");
-        if(!co->path)
-          badcookie = TRUE;
-        co->spath = strdup("/");
-        if(!co->spath)
-          badcookie = TRUE;
-        fields++; /* add a field and fall down to secure */
-        /* FALLTHROUGH */
-      case 3:
-        co->secure = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
-        break;
-      case 4:
-        co->expires = curlx_strtoofft(ptr, NULL, 10);
-        break;
-      case 5:
-        co->name = strdup(ptr);
-        if(!co->name)
-          badcookie = TRUE;
-        break;
-      case 6:
-        co->value = strdup(ptr);
-        if(!co->value)
-          badcookie = TRUE;
-        break;
-      }
-    }
-    if(6 == fields) {
-      /* we got a cookie with blank contents, fix it */
-      co->value = strdup("");
-      if(!co->value)
-        badcookie = TRUE;
-      else
-        fields++;
-    }
-
-    if(!badcookie && (7 != fields))
-      /* we did not find the sufficient number of fields */
-      badcookie = TRUE;
-
-    if(badcookie) {
-      freecookie(co);
-      return NULL;
-    }
-
-  }
-
-  if(!c->running &&    /* read from a file */
-     c->newsession &&  /* clean session cookies */
-     !co->expires) {   /* this is a session cookie since it doesn't expire! */
-    freecookie(co);
-    return NULL;
-  }
-
-  co->livecookie = c->running;
-
-  /* now, we have parsed the incoming line, we must now check if this
-     superceeds an already existing cookie, which it may if the previous have
-     the same domain and path as this */
-
-  /* at first, remove expired cookies */
-  remove_expired(c);
-
-  clist = c->cookies;
-  replace_old = FALSE;
-  while(clist) {
-    if(Curl_raw_equal(clist->name, co->name)) {
-      /* the names are identical */
-
-      if(clist->domain && co->domain) {
-        if(Curl_raw_equal(clist->domain, co->domain))
-          /* The domains are identical */
-          replace_old=TRUE;
-      }
-      else if(!clist->domain && !co->domain)
-        replace_old = TRUE;
-
-      if(replace_old) {
-        /* the domains were identical */
-
-        if(clist->spath && co->spath) {
-          if(Curl_raw_equal(clist->spath, co->spath)) {
-            replace_old = TRUE;
-          }
-          else
-            replace_old = FALSE;
-        }
-        else if(!clist->spath && !co->spath)
-          replace_old = TRUE;
-        else
-          replace_old = FALSE;
-
-      }
-
-      if(replace_old && !co->livecookie && clist->livecookie) {
-        /* Both cookies matched fine, except that the already present
-           cookie is "live", which means it was set from a header, while
-           the new one isn't "live" and thus only read from a file. We let
-           live cookies stay alive */
-
-        /* Free the newcomer and get out of here! */
-        freecookie(co);
-        return NULL;
-      }
-
-      if(replace_old) {
-        co->next = clist->next; /* get the next-pointer first */
-
-        /* then free all the old pointers */
-        free(clist->name);
-        if(clist->value)
-          free(clist->value);
-        if(clist->domain)
-          free(clist->domain);
-        if(clist->path)
-          free(clist->path);
-        if(clist->spath)
-          free(clist->spath);
-        if(clist->expirestr)
-          free(clist->expirestr);
-
-        if(clist->version)
-          free(clist->version);
-        if(clist->maxage)
-          free(clist->maxage);
-
-        *clist = *co;  /* then store all the new data */
-
-        free(co);   /* free the newly alloced memory */
-        co = clist; /* point to the previous struct instead */
-
-        /* We have replaced a cookie, now skip the rest of the list but
-           make sure the 'lastc' pointer is properly set */
-        do {
-          lastc = clist;
-          clist = clist->next;
-        } while(clist);
-        break;
-      }
-    }
-    lastc = clist;
-    clist = clist->next;
-  }
-
-  if(c->running)
-    /* Only show this when NOT reading the cookies from a file */
-    infof(data, "%s cookie %s=\"%s\" for domain %s, path %s, "
-          "expire %" CURL_FORMAT_CURL_OFF_T "\n",
-          replace_old?"Replaced":"Added", co->name, co->value,
-          co->domain, co->path, co->expires);
-
-  if(!replace_old) {
-    /* then make the last item point on this new one */
-    if(lastc)
-      lastc->next = co;
-    else
-      c->cookies = co;
-    c->numcookies++; /* one more cookie in the jar */
-  }
-
-  return co;
+  cmSystemTools::Error(errorStream.str().c_str());
 }
 
-/*****************************************************************************
- *
- * Curl_cookie_init()
- *
- * Inits a cookie struct to read data from a local file. This is always
- * called before any cookies are set. File may be NULL.
- *
- * If 'newsession' is TRUE, discard all "session cookies" on read from file.
- *
- ****************************************************************************/
-struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
-                                    const char *file,
-                                    struct CookieInfo *inc,
-                                    bool newsession)
+int cmcmd::ExecuteCMakeCommand(std::vector<std::string>& args)
 {
-  struct CookieInfo *c;
-  FILE *fp;
-  bool fromfile=TRUE;
-
-  if(NULL == inc) {
-    /* we didn't get a struct, create one */
-    c = calloc(1, sizeof(struct CookieInfo));
-    if(!c)
-      return NULL; /* failed to get memory */
-    c->filename = strdup(file?file:"none"); /* copy the name just in case */
-  }
-  else {
-    /* we got an already existing one, use that */
-    c = inc;
-  }
-  c->running = FALSE; /* this is not running, this is init */
-
-  if(file && strequal(file, "-")) {
-    fp = stdin;
-    fromfile=FALSE;
-  }
-  else if(file && !*file) {
-    /* points to a "" string */
-    fp = NULL;
-  }
-  else
-    fp = file?fopen(file, "r"):NULL;
-
-  c->newsession = newsession; /* new session? */
-
-  if(fp) {
-    char *lineptr;
-    bool headerline;
-
-    char *line = malloc(MAX_COOKIE_LINE);
-    if(line) {
-      while(fgets(line, MAX_COOKIE_LINE, fp)) {
-        if(checkprefix("Set-Cookie:", line)) {
-          /* This is a cookie line, get it! */
-          lineptr=&line[11];
-          headerline=TRUE;
-        }
-        else {
-          lineptr=line;
-          headerline=FALSE;
-        }
-        while(*lineptr && ISBLANK(*lineptr))
-          lineptr++;
-
-        Curl_cookie_add(data, c, headerline, lineptr, NULL, NULL);
-      }
-      free(line); /* free the line buffer */
-    }
-    if(fromfile)
-      fclose(fp);
-  }
-
-  c->running = TRUE;          /* now, we're running */
-
-  return c;
-}
-
-/* sort this so that the longest path gets before the shorter path */
-static int cookie_sort(const void *p1, const void *p2)
-{
-  struct Cookie *c1 = *(struct Cookie **)p1;
-  struct Cookie *c2 = *(struct Cookie **)p2;
-  size_t l1, l2;
-
-  /* 1 - compare cookie path lengths */
-  l1 = c1->path ? strlen(c1->path) : 0;
-  l2 = c2->path ? strlen(c2->path) : 0;
-
-  if(l1 != l2)
-    return (l2 > l1) ? 1 : -1 ; /* avoid size_t <=> int conversions */
-
-  /* 2 - compare cookie domain lengths */
-  l1 = c1->domain ? strlen(c1->domain) : 0;
-  l2 = c2->domain ? strlen(c2->domain) : 0;
-
-  if(l1 != l2)
-    return (l2 > l1) ? 1 : -1 ;  /* avoid size_t <=> int conversions */
-
-  /* 3 - compare cookie names */
-  if(c1->name && c2->name)
-    return strcmp(c1->name, c2->name);
-
-  /* sorry, can't be more deterministic */
-  return 0;
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_getlist()
- *
- * For a given host and path, return a linked list of cookies that the
- * client should send to the server if used now. The secure boolean informs
- * the cookie if a secure connection is achieved or not.
- *
- * It shall only return cookies that haven't expired.
- *
- ****************************************************************************/
-
-struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
-                                   const char *host, const char *path,
-                                   bool secure)
-{
-  struct Cookie *newco;
-  struct Cookie *co;
-  time_t now = time(NULL);
-  struct Cookie *mainco=NULL;
-  size_t matches = 0;
-  bool is_ip;
-
-  if(!c || !c->cookies)
-    return NULL; /* no cookie struct or no cookies in the struct */
-
-  /* at first, remove expired cookies */
-  remove_expired(c);
-
-  /* check if host is an IP(v4|v6) address */
-  is_ip = isip(host);
-
-  co = c->cookies;
-
-  while(co) {
-    /* only process this cookie if it is not expired or had no expire
-       date AND that if the cookie requires we're secure we must only
-       continue if we are! */
-    if((!co->expires || (co->expires > now)) &&
-       (co->secure?secure:TRUE)) {
-
-      /* now check if the domain is correct */
-      if(!co->domain ||
-         (co->tailmatch && !is_ip && tailmatch(co->domain, host)) ||
-         ((!co->tailmatch || is_ip) && Curl_raw_equal(host, co->domain)) ) {
-        /* the right part of the host matches the domain stuff in the
-           cookie data */
-
-        /* now check the left part of the path with the cookies path
-           requirement */
-        if(!co->spath || pathmatch(co->spath, path) ) {
-
-          /* and now, we know this is a match and we should create an
-             entry for the return-linked-list */
-
-          newco = malloc(sizeof(struct Cookie));
-          if(newco) {
-            /* first, copy the whole source cookie: */
-            memcpy(newco, co, sizeof(struct Cookie));
-
-            /* then modify our next */
-            newco->next = mainco;
-
-            /* point the main to us */
-            mainco = newco;
-
-            matches++;
-          }
-          else {
-            fail:
-            /* failure, clear up the allocated chain and return NULL */
-            while(mainco) {
-              co = mainco->next;
-              free(mainco);
-              mainco = co;
-            }
-
-            return NULL;
-          }
-        }
-      }
-    }
-    co = co->next;
-  }
-
-  if(matches) {
-    /* Now we need to make sure that if there is a name appearing more than
-       once, the longest specified path version comes first. To make this
-       the swiftest way, we just sort them all based on path length. */
-    struct Cookie **array;
-    size_t i;
-
-    /* alloc an array and store all cookie pointers */
-    array = malloc(sizeof(struct Cookie *) * matches);
-    if(!array)
-      goto fail;
-
-    co = mainco;
-
-    for(i=0; co; co = co->next)
-      array[i++] = co;
-
-    /* now sort the cookie pointers in path length order */
-    qsort(array, matches, sizeof(struct Cookie *), cookie_sort);
-
-    /* remake the linked list order according to the new order */
-
-    mainco = array[0]; /* start here */
-    for(i=0; i<matches-1; i++)
-      array[i]->next = array[i+1];
-    array[matches-1]->next = NULL; /* terminate the list */
-
-    free(array); /* remove the temporary data again */
-  }
-
-  return mainco; /* return the new list */
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_clearall()
- *
- * Clear all existing cookies and reset the counter.
- *
- ****************************************************************************/
-void Curl_cookie_clearall(struct CookieInfo *cookies)
-{
-  if(cookies) {
-    Curl_cookie_freelist(cookies->cookies, TRUE);
-    cookies->cookies = NULL;
-    cookies->numcookies = 0;
-  }
-}
-
-/*****************************************************************************
- *
- * Curl_cookie_freelist()
- *
- * Free a list of cookies previously returned by Curl_cookie_getlist();
- *
- * The 'cookiestoo' argument tells this function whether to just free the
- * list or actually also free all cookies within the list as well.
- *
- ****************************************************************************/
-
-void Curl_cookie_freelist(struct Cookie *co, bool cookiestoo)
-{
-  struct Cookie *next;
-  if(co) {
-    while(co) {
-      next = co->next;
-      if(cookiestoo)
-        freecookie(co);
-      else
-        free(co); /* we only free the struct since the "members" are all just
-                     pointed out in the main cookie list! */
-      co = next;
-    }
-  }
-}
-
-
-/*****************************************************************************
- *
- * Curl_cookie_clearsess()
- *
- * Free all session cookies in the cookies list.
- *
- ****************************************************************************/
-void Curl_cookie_clearsess(struct CookieInfo *cookies)
-{
-  struct Cookie *first, *curr, *next, *prev = NULL;
-
-  if(!cookies || !cookies->cookies)
-    return;
-
-  first = curr = prev = cookies->cookies;
-
-  for(; curr; curr = next) {
-    next = curr->next;
-    if(!curr->expires) {
-      if(first == curr)
-        first = next;
-
-      if(prev == curr)
-        prev = next;
-      else
-        prev->next = next;
-
-      freecookie(curr);
-      cookies->numcookies--;
-    }
-    else
-      prev = curr;
-  }
-
-  cookies->cookies = first;
-}
-
-
-/*****************************************************************************
- *
- * Curl_cookie_cleanup()
- *
- * Free a "cookie object" previous created with cookie_init().
- *
- ****************************************************************************/
-void Curl_cookie_cleanup(struct CookieInfo *c)
-{
-  struct Cookie *co;
-  struct Cookie *next;
-  if(c) {
-    if(c->filename)
-      free(c->filename);
-    co = c->cookies;
-
-    while(co) {
-      next = co->next;
-      freecookie(co);
-      co = next;
-    }
-    free(c); /* free the base struct as well */
-  }
-}
-
-/* get_netscape_format()
- *
- * Formats a string for Netscape output file, w/o a newline at the end.
- *
- * Function returns a char * to a formatted line. Has to be free()d
-*/
-static char *get_netscape_format(const struct Cookie *co)
-{
-  return aprintf(
-    "%s"     /* httponly preamble */
-    "%s%s\t" /* domain */
-    "%s\t"   /* tailmatch */
-    "%s\t"   /* path */
-    "%s\t"   /* secure */
-    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
-    "%s\t"   /* name */
-    "%s",    /* value */
-    co->httponly?"#HttpOnly_":"",
-    /* Make sure all domains are prefixed with a dot if they allow
-       tailmatching. This is Mozilla-style. */
-    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
-    co->domain?co->domain:"unknown",
-    co->tailmatch?"TRUE":"FALSE",
-    co->path?co->path:"/",
-    co->secure?"TRUE":"FALSE",
-    co->expires,
-    co->name,
-    co->value?co->value:"");
-}
-
-/*
- * cookie_output()
- *
- * Writes all internally known cookies to the specified file. Specify
- * "-" as file name to write to stdout.
- *
- * The function returns non-zero on write failure.
- */
-static int cookie_output(struct CookieInfo *c, const char *dumphere)
-{
-  struct Cookie *co;
-  FILE *out;
-  bool use_stdout=FALSE;
-
-  if((NULL == c) || (0 == c->numcookies))
-    /* If there are no known cookies, we don't write or even create any
-       destination file */
-    return 0;
-
-  /* at first, remove expired cookies */
-  remove_expired(c);
-
-  if(strequal("-", dumphere)) {
-    /* use stdout */
-    out = stdout;
-    use_stdout=TRUE;
-  }
-  else {
-    out = fopen(dumphere, "w");
-    if(!out)
-      return 1; /* failure */
-  }
-
-  if(c) {
-    char *format_ptr;
-
-    fputs("# Netscape HTTP Cookie File\n"
-          "# http://curl.haxx.se/docs/http-cookies.html\n"
-          "# This file was generated by libcurl! Edit at your own risk.\n\n",
-          out);
-    co = c->cookies;
-
-    while(co) {
-      format_ptr = get_netscape_format(co);
-      if(format_ptr == NULL) {
-        fprintf(out, "#\n# Fatal libcurl error\n");
-        if(!use_stdout)
-          fclose(out);
+  // IF YOU ADD A NEW COMMAND, DOCUMENT IT ABOVE and in cmakemain.cxx
+  if (args.size() > 1)
+    {
+    // Copy file
+    if (args[1] == "copy" && args.size() == 4)
+      {
+      if(!cmSystemTools::cmCopyFile(args[2].c_str(), args[3].c_str()))
+        {
+        std::cerr << "Error copying file \"" << args[2]
+                  << "\" to \"" << args[3] << "\".\n";
         return 1;
+        }
+      return 0;
       }
-      fprintf(out, "%s\n", format_ptr);
-      free(format_ptr);
-      co=co->next;
-    }
-  }
 
-  if(!use_stdout)
-    fclose(out);
+    // Copy file if different.
+    if (args[1] == "copy_if_different" && args.size() == 4)
+      {
+      if(!cmSystemTools::CopyFileIfDifferent(args[2].c_str(),
+          args[3].c_str()))
+        {
+        std::cerr << "Error copying file (if different) from \""
+                  << args[2] << "\" to \"" << args[3]
+                  << "\".\n";
+        return 1;
+        }
+      return 0;
+      }
+
+    // Copy directory content
+    if (args[1] == "copy_directory" && args.size() == 4)
+      {
+      if(!cmSystemTools::CopyADirectory(args[2], args[3]))
+        {
+        std::cerr << "Error copying directory from \""
+                  << args[2] << "\" to \"" << args[3]
+                  << "\".\n";
+        return 1;
+        }
+      return 0;
+      }
+
+    // Rename a file or directory
+    if (args[1] == "rename" && args.size() == 4)
+      {
+      if(!cmSystemTools::RenameFile(args[2].c_str(), args[3].c_str()))
+        {
+        std::string e = cmSystemTools::GetLastSystemError();
+        std::cerr << "Error renaming from \""
+                  << args[2] << "\" to \"" << args[3]
+                  << "\": " << e << "\n";
+        return 1;
+        }
+      return 0;
+      }
+
+    // Compare files
+    if (args[1] == "compare_files" && args.size() == 4)
+      {
+      if(cmSystemTools::FilesDiffer(args[2], args[3]))
+        {
+        std::cerr << "Files \""
+                  << args[2] << "\" to \"" << args[3]
+                  << "\" are different.\n";
+        return 1;
+        }
+      return 0;
+      }
+
+    // Echo string
+    else if (args[1] == "echo" )
+      {
+      unsigned int cc;
+      const char* space = "";
+      for ( cc = 2; cc < args.size(); cc ++ )
+        {
+        std::cout << space << args[cc];
+        space = " ";
+        }
+      std::cout << std::endl;
+      return 0;
+      }
+
+    // Echo string no new line
+    else if (args[1] == "echo_append" )
+      {
+      unsigned int cc;
+      const char* space = "";
+      for ( cc = 2; cc < args.size(); cc ++ )
+        {
+        std::cout << space << args[cc];
+        space = " ";
+        }
+      return 0;
+      }
+
+    else if (args[1] == "env" )
+      {
+      std::vector<std::string>::const_iterator ai = args.begin() + 2;
+      std::vector<std::string>::const_iterator ae = args.end();
+      for(; ai != ae; ++ai)
+        {
+        std::string const& a = *ai;
+        if(cmHasLiteralPrefix(a, "--unset="))
+          {
+          // Unset environment variable.
+          cmSystemTools::UnPutEnv(a.c_str() + 8);
+          }
+        else if(!a.empty() && a[0] == '-')
+          {
+          // Environment variable and command names cannot start in '-',
+          // so this must be an unknown option.
+          std::cerr << "cmake -E env: unknown option '" << a << "'"
+                    << std::endl;
+          return 1;
+          }
+        else if(a.find("=") != a.npos)
+          {
+          // Set environment variable.
+          cmSystemTools::PutEnv(a.c_str());
+          }
+        else
+          {
+          // This is the beginning of the command.
+          break;
+          }
+        }
+
+      if(ai == ae)
+        {
+        std::cerr << "cmake -E env: no command given" << std::endl;
+        return 1;
+        }
+
+      // Execute command from remaining arguments.
+      std::vector<std::string> cmd(ai, ae);
+      int retval;
+      if(cmSystemTools::RunSingleCommand(
+           cmd, 0, &retval, NULL, cmSystemTools::OUTPUT_PASSTHROUGH))
+        {
+        return retval;
+        }
+      return 1;
+      }
+
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+    // Command to create a symbolic link.  Fails on platforms not
+    // supporting them.
+    else if (args[1] == "environment" )
+      {
+      std::vector<std::string> env = cmSystemTools::GetEnvironmentVariables();
+      std::vector<std::string>::iterator it;
+      for ( it = env.begin(); it != env.end(); ++ it )
+        {
+        std::cout << *it << std::endl;
+        }
+      return 0;
+      }
+#endif
+
+    else if (args[1] == "make_directory" && args.size() == 3)
+      {
+      if(!cmSystemTools::MakeDirectory(args[2].c_str()))
+        {
+        std::cerr << "Error making directory \"" << args[2]
+                  << "\".\n";
+        return 1;
+        }
+      return 0;
+      }
+
+    else if (args[1] == "remove_directory" && args.size() == 3)
+      {
+      if(cmSystemTools::FileIsDirectory(args[2]) &&
+         !cmSystemTools::RemoveADirectory(args[2]))
+        {
+        std::cerr << "Error removing directory \"" << args[2]
+                  << "\".\n";
+        return 1;
+        }
+      return 0;
+      }
+
+    // Remove file
+    else if (args[1] == "remove" && args.size() > 2)
+      {
+      bool force = false;
+      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
+        {
+        if(args[cc] == "\\-f" || args[cc] == "-f")
+          {
+          force = true;
+          }
+        else
+          {
+          // Complain if the file could not be removed, still exists,
+          // and the -f option was not given.
+          if(!cmSystemTools::RemoveFile(args[cc]) && !force &&
+             cmSystemTools::FileExists(args[cc].c_str()))
+            {
+            return 1;
+            }
+          }
+        }
+      return 0;
+      }
+    // Touch file
+    else if (args[1] == "touch" && args.size() > 2)
+      {
+      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
+        {
+        // Complain if the file could not be removed, still exists,
+        // and the -f option was not given.
+        if(!cmSystemTools::Touch(args[cc], true))
+          {
+          return 1;
+          }
+        }
+      return 0;
+      }
+    // Touch file
+    else if (args[1] == "touch_nocreate" && args.size() > 2)
+      {
+      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
+        {
+        // Complain if the file could not be removed, still exists,
+        // and the -f option was not given.
+        if(!cmSystemTools::Touch(args[cc], false))
+          {
+          return 1;
+          }
+        }
+      return 0;
+      }
+
+    // Sleep command
+    else if (args[1] == "sleep" && args.size() > 2)
+      {
+      double total = 0;
+      for(size_t i = 2; i < args.size(); ++i)
+        {
+        double num = 0.0;
+        char unit;
+        char extra;
+        int n = sscanf(args[i].c_str(), "%lg%c%c", &num, &unit, &extra);
+        if((n == 1 || (n == 2 && unit == 's')) && num >= 0)
+          {
+          total += num;
+          }
+        else
+          {
+          std::cerr << "Unknown sleep time format \"" << args[i] << "\".\n";
+          return 1;
+          }
+        }
+      if(total > 0)
+        {
+        cmSystemTools::Delay(static_cast<unsigned int>(total*1000));
+        }
+      return 0;
+      }
+
+    // Clock command
+    else if (args[1] == "time" && args.size() > 2)
+      {
+      std::string command = args[2];
+      for (std::string::size_type cc = 3; cc < args.size(); cc ++)
+        {
+        command += " ";
+        command += args[cc];
+        }
+
+      clock_t clock_start, clock_finish;
+      time_t time_start, time_finish;
+
+      time(&time_start);
+      clock_start = clock();
+      int ret =0;
+      cmSystemTools::RunSingleCommand(command.c_str(), 0, &ret);
+
+      clock_finish = clock();
+      time(&time_finish);
+
+      double clocks_per_sec = static_cast<double>(CLOCKS_PER_SEC);
+      std::cout << "Elapsed time: "
+        << static_cast<long>(time_finish - time_start) << " s. (time)"
+        << ", "
+        << static_cast<double>(clock_finish - clock_start) / clocks_per_sec
+        << " s. (clock)"
+        << "\n";
+      return ret;
+      }
+    // Command to calculate the md5sum of a file
+    else if (args[1] == "md5sum" && args.size() >= 3)
+      {
+      char md5out[32];
+      int retval = 0;
+      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
+        {
+        const char *filename = args[cc].c_str();
+        // Cannot compute md5sum of a directory
+        if(cmSystemTools::FileIsDirectory(filename))
+          {
+          std::cerr << "Error: " << filename << " is a directory" << std::endl;
+          retval++;
+          }
+        else if(!cmSystemTools::ComputeFileMD5(filename, md5out))
+          {
+          // To mimic md5sum behavior in a shell:
+          std::cerr << filename << ": No such file or directory" << std::endl;
+          retval++;
+          }
+        else
+          {
+          std::cout << std::string(md5out,32) << "  " << filename << std::endl;
+          }
+        }
+      return retval;
+      }
+
+    // Command to change directory and run a program.
+    else if (args[1] == "chdir" && args.size() >= 4)
+      {
+      std::string directory = args[2];
+      if(!cmSystemTools::FileExists(directory.c_str()))
+        {
+        cmSystemTools::Error("Directory does not exist for chdir command: ",
+                             args[2].c_str());
+        return 1;
+        }
+
+      std::string command = "\"";
+      command += args[3];
+      command += "\"";
+      for (std::string::size_type cc = 4; cc < args.size(); cc ++)
+        {
+        command += " \"";
+        command += args[cc];
+        command += "\"";
+        }
+      int retval = 0;
+      int timeout = 0;
+      if ( cmSystemTools::RunSingleCommand(command.c_str(), 0, &retval,
+             directory.c_str(), cmSystemTools::OUTPUT_NORMAL, timeout) )
+        {
+        return retval;
+        }
+
+      return 1;
+      }
+
+    // Command to start progress for a build
+    else if (args[1] == "cmake_progress_start" && args.size() == 4)
+      {
+      // basically remove the directory
+      std::string dirName = args[2];
+      dirName += "/Progress";
+      cmSystemTools::RemoveADirectory(dirName);
+
+      // is the last argument a filename that exists?
+      FILE *countFile = cmsys::SystemTools::Fopen(args[3],"r");
+      int count;
+      if (countFile)
+        {
+        if (1!=fscanf(countFile,"%i",&count))
+          {
+          cmSystemTools::Message("Could not read from count file.");
+          }
+        fclose(countFile);
+        }
+      else
+        {
+        count = atoi(args[3].c_str());
+        }
+      if (count)
+        {
+        cmSystemTools::MakeDirectory(dirName.c_str());
+        // write the count into the directory
+        std::string fName = dirName;
+        fName += "/count.txt";
+        FILE *progFile = cmsys::SystemTools::Fopen(fName,"w");
+        if (progFile)
+          {
+          fprintf(progFile,"%i\n",count);
+          fclose(progFile);
+          }
+        }
+      return 0;
+      }
+
+    // Command to report progress for a build
+    else if (args[1] == "cmake_progress_report" && args.size() >= 3)
+      {
+      std::string dirName = args[2];
+      dirName += "/Progress";
+      std::string fName;
+      FILE *progFile;
+
+      // read the count
+      fName = dirName;
+      fName += "/count.txt";
+      progFile = cmsys::SystemTools::Fopen(fName,"r");
+      int count = 0;
+      if (!progFile)
+        {
+        return 0;
+        }
+      else
+        {
+        if (1!=fscanf(progFile,"%i",&count))
+          {
+          cmSystemTools::Message("Could not read from progress file.");
+          }
+        fclose(progFile);
+        }
+      unsigned int i;
+      for (i = 3; i < args.size(); ++i)
+        {
+        fName = dirName;
+        fName += "/";
+        fName += args[i];
+        progFile = cmsys::SystemTools::Fopen(fName,"w");
+        if (progFile)
+          {
+          fprintf(progFile,"empty");
+          fclose(progFile);
+          }
+        }
+      int fileNum = static_cast<int>
+        (cmsys::Directory::GetNumberOfFilesInDirectory(dirName));
+      if (count > 0)
+        {
+        // print the progress
+        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+        }
+      return 0;
+      }
+
+    // Command to create a symbolic link.  Fails on platforms not
+    // supporting them.
+    else if (args[1] == "create_symlink" && args.size() == 4)
+      {
+      const char* destinationFileName = args[3].c_str();
+      if((cmSystemTools::FileExists(destinationFileName) ||
+          cmSystemTools::FileIsSymlink(destinationFileName)) &&
+         !cmSystemTools::RemoveFile(destinationFileName))
+        {
+        std::string emsg = cmSystemTools::GetLastSystemError();
+        std::cerr <<
+          "failed to create symbolic link '" << destinationFileName <<
+          "' because existing path cannot be removed: " << emsg << "\n";
+        return 1;
+        }
+      if(!cmSystemTools::CreateSymlink(args[2].c_str(), args[3].c_str()))
+        {
+        std::string emsg = cmSystemTools::GetLastSystemError();
+        std::cerr <<
+          "failed to create symbolic link '" << destinationFileName <<
+          "': " << emsg << "\n";
+        return 1;
+        }
+      return 0;
+      }
+
+    // Internal CMake shared library support.
+    else if (args[1] == "cmake_symlink_library" && args.size() == 5)
+      {
+      return cmcmd::SymlinkLibrary(args);
+      }
+    // Internal CMake versioned executable support.
+    else if (args[1] == "cmake_symlink_executable" && args.size() == 4)
+      {
+      return cmcmd::SymlinkExecutable(args);
+      }
+
+#if defined(CMAKE_HAVE_VS_GENERATORS)
+    // Internal CMake support for calling Visual Studio macros.
+    else if (args[1] == "cmake_call_visual_studio_macro" && args.size() >= 4)
+      {
+      // args[2] = full path to .sln file or "ALL"
+      // args[3] = name of Visual Studio macro to call
+      // args[4..args.size()-1] = [optional] args for Visual Studio macro
+
+      std::string macroArgs;
+
+      if (args.size() > 4)
+        {
+        macroArgs = args[4];
+
+        for (size_t i = 5; i < args.size(); ++i)
+          {
+          macroArgs += " ";
+          macroArgs += args[i];
+          }
+        }
+
+      return cmCallVisualStudioMacro::CallMacro(args[2], args[3],
+        macroArgs, true);
+      }
+#endif
+
+    // Internal CMake dependency scanning support.
+    else if (args[1] == "cmake_depends" && args.size() >= 6)
+      {
+      // Use the make system's VERBOSE environment variable to enable
+      // verbose output. This can be skipped by also setting CMAKE_NO_VERBOSE
+      // (which is set by the Eclipse and KDevelop generators).
+      bool verbose = ((cmSystemTools::GetEnv("VERBOSE") != 0)
+                       && (cmSystemTools::GetEnv("CMAKE_NO_VERBOSE") == 0));
+
+      // Create a cmake object instance to process dependencies.
+      cmake cm;
+      std::string gen;
+      std::string homeDir;
+      std::string startDir;
+      std::string homeOutDir;
+      std::string startOutDir;
+      std::string depInfo;
+      bool color = false;
+      if(args.size() >= 8)
+        {
+        // Full signature:
+        //
+        //   -E cmake_depends <generator>
+        //                    <home-src-dir> <start-src-dir>
+        //                    <home-out-dir> <start-out-dir>
+        //                    <dep-info> [--color=$(COLOR)]
+        //
+        // All paths are provided.
+        gen = args[2];
+        homeDir = args[3];
+        startDir = args[4];
+        homeOutDir = args[5];
+        startOutDir = args[6];
+        depInfo = args[7];
+        if(args.size() >= 9 &&
+           args[8].length() >= 8 &&
+           args[8].substr(0, 8) == "--color=")
+          {
+          // Enable or disable color based on the switch value.
+          color = (args[8].size() == 8 ||
+                   cmSystemTools::IsOn(args[8].substr(8).c_str()));
+          }
+        }
+      else
+        {
+        // Support older signature for existing makefiles:
+        //
+        //   -E cmake_depends <generator>
+        //                    <home-out-dir> <start-out-dir>
+        //                    <dep-info>
+        //
+        // Just pretend the source directories are the same as the
+        // binary directories so at least scanning will work.
+        gen = args[2];
+        homeDir = args[3];
+        startDir = args[4];
+        homeOutDir = args[3];
+        startOutDir = args[3];
+        depInfo = args[5];
+        }
+
+      // Create a local generator configured for the directory in
+      // which dependencies will be scanned.
+      homeDir = cmSystemTools::CollapseFullPath(homeDir);
+      startDir = cmSystemTools::CollapseFullPath(startDir);
+      homeOutDir = cmSystemTools::CollapseFullPath(homeOutDir);
+      startOutDir = cmSystemTools::CollapseFullPath(startOutDir);
+      cm.SetHomeDirectory(homeDir);
+      cm.SetStartDirectory(startDir);
+      cm.SetHomeOutputDirectory(homeOutDir);
+      cm.SetStartOutputDirectory(startOutDir);
+      if(cmGlobalGenerator* ggd = cm.CreateGlobalGenerator(gen))
+        {
+        cm.SetGlobalGenerator(ggd);
+        cmsys::auto_ptr<cmLocalGenerator> lgd(ggd->CreateLocalGenerator());
+        lgd->GetMakefile()->SetStartDirectory(startDir);
+        lgd->GetMakefile()->SetStartOutputDirectory(startOutDir);
+        lgd->GetMakefile()->MakeStartDirectoriesCurrent();
+
+        // Actually scan dependencies.
+        return lgd->UpdateDependencies(depInfo.c_str(),
+                                       verbose, color)? 0 : 2;
+        }
+      return 1;
+      }
+
+    // Internal CMake link script support.
+    else if (args[1] == "cmake_link_script" && args.size() >= 3)
+      {
+      return cmcmd::ExecuteLinkScript(args);
+      }
+
+    // Internal CMake unimplemented feature notification.
+    else if (args[1] == "cmake_unimplemented_variable")
+      {
+      std::cerr << "Feature not implemented for this platform.";
+      if(args.size() == 3)
+        {
+        std::cerr << "  Variable " << args[2] << " is not set.";
+        }
+      std::cerr << std::endl;
+      return 1;
+      }
+    else if (args[1] == "vs_link_exe")
+      {
+      return cmcmd::VisualStudioLink(args, 1);
+      }
+    else if (args[1] == "vs_link_dll")
+      {
+      return cmcmd::VisualStudioLink(args, 2);
+      }
+#ifdef CMAKE_BUILD_WITH_CMAKE
+    // Internal CMake color makefile support.
+    else if (args[1] == "cmake_echo_color")
+      {
+      return cmcmd::ExecuteEchoColor(args);
+      }
+    else if (args[1] == "cmake_autogen" && args.size() >= 4)
+      {
+        cmQtAutoGenerators autogen;
+        std::string const& config = args[3];
+        bool autogenSuccess = autogen.Run(args[2], config);
+        return autogenSuccess ? 0 : 1;
+      }
+#endif
+
+    // Tar files
+    else if (args[1] == "tar" && args.size() > 3)
+      {
+      std::string flags = args[2];
+      std::string outFile = args[3];
+      std::vector<std::string> files;
+      for (std::string::size_type cc = 4; cc < args.size(); cc ++)
+        {
+        files.push_back(args[cc]);
+        }
+      bool gzip = false;
+      bool bzip2 = false;
+      bool verbose = false;
+      if ( flags.find_first_of('j') != flags.npos )
+        {
+        bzip2 = true;
+        }
+      if ( flags.find_first_of('z') != flags.npos )
+        {
+        gzip = true;
+        }
+      if ( flags.find_first_of('v') != flags.npos )
+        {
+        verbose = true;
+        }
+
+      if ( flags.find_first_of('t') != flags.npos )
+        {
+        if ( !cmSystemTools::ListTar(outFile.c_str(), gzip, verbose) )
+          {
+          cmSystemTools::Error("Problem creating tar: ", outFile.c_str());
+          return 1;
+          }
+        }
+      else if ( flags.find_first_of('c') != flags.npos )
+        {
+        if ( !cmSystemTools::CreateTar(
+               outFile.c_str(), files, gzip, bzip2, verbose) )
+          {
+          cmSystemTools::Error("Problem creating tar: ", outFile.c_str());
+          return 1;
+          }
+        }
+      else if ( flags.find_first_of('x') != flags.npos )
+        {
+        if ( !cmSystemTools::ExtractTar(
+            outFile.c_str(), gzip, verbose) )
+          {
+          cmSystemTools::Error("Problem extracting tar: ", outFile.c_str());
+          return 1;
+          }
+#ifdef WIN32
+        // OK, on windows 7 after we untar some files,
+        // sometimes we can not rename the directory after
+        // the untar is done. This breaks the external project
+        // untar and rename code.  So, by default we will wait
+        // 1/10th of a second after the untar.  If CMAKE_UNTAR_DELAY
+        // is set in the env, its value will be used instead of 100.
+        int delay = 100;
+        const char* delayVar = cmSystemTools::GetEnv("CMAKE_UNTAR_DELAY");
+        if(delayVar)
+          {
+          delay = atoi(delayVar);
+          }
+        if(delay)
+          {
+          cmSystemTools::Delay(delay);
+          }
+#endif
+        }
+      return 0;
+      }
+
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+    // Internal CMake Fortran module support.
+    else if (args[1] == "cmake_copy_f90_mod" && args.size() >= 4)
+      {
+      return cmDependsFortran::CopyModule(args)? 0 : 1;
+      }
+#endif
+
+#if defined(_WIN32) && !defined(__CYGWIN__)
+    // Write registry value
+    else if (args[1] == "write_regv" && args.size() > 3)
+      {
+      return cmSystemTools::WriteRegistryValue(args[2].c_str(),
+                                               args[3].c_str()) ? 0 : 1;
+      }
+
+    // Delete registry value
+    else if (args[1] == "delete_regv" && args.size() > 2)
+      {
+      return cmSystemTools::DeleteRegistryValue(args[2].c_str()) ? 0 : 1;
+      }
+    // Remove file
+    else if (args[1] == "comspec" && args.size() > 2)
+      {
+      std::cerr << "Win9x helper \"cmake -E comspec\" no longer supported\n";
+      return 1;
+      }
+    else if (args[1] == "env_vs8_wince" && args.size() == 3)
+      {
+      return cmcmd::WindowsCEEnvironment("8.0", args[2]);
+      }
+    else if (args[1] == "env_vs9_wince" && args.size() == 3)
+      {
+      return cmcmd::WindowsCEEnvironment("9.0", args[2]);
+      }
+#endif
+    }
+
+  ::CMakeCommandUsage(args[0].c_str());
+  return 1;
+}
+
+//----------------------------------------------------------------------------
+int cmcmd::SymlinkLibrary(std::vector<std::string>& args)
+{
+  int result = 0;
+  std::string realName = args[2];
+  std::string soName = args[3];
+  std::string name = args[4];
+  if(soName != realName)
+    {
+    if(!cmcmd::SymlinkInternal(realName, soName))
+      {
+      cmSystemTools::ReportLastSystemError("cmake_symlink_library");
+      result = 1;
+      }
+    }
+  if(name != soName)
+    {
+    if(!cmcmd::SymlinkInternal(soName, name))
+      {
+      cmSystemTools::ReportLastSystemError("cmake_symlink_library");
+      result = 1;
+      }
+    }
+  return result;
+}
+
+//----------------------------------------------------------------------------
+int cmcmd::SymlinkExecutable(std::vector<std::string>& args)
+{
+  int result = 0;
+  std::string realName = args[2];
+  std::string name = args[3];
+  if(name != realName)
+    {
+    if(!cmcmd::SymlinkInternal(realName, name))
+      {
+      cmSystemTools::ReportLastSystemError("cmake_symlink_executable");
+      result = 1;
+      }
+    }
+  return result;
+}
+
+//----------------------------------------------------------------------------
+bool cmcmd::SymlinkInternal(std::string const& file, std::string const& link)
+{
+  if(cmSystemTools::FileExists(link.c_str()) ||
+     cmSystemTools::FileIsSymlink(link))
+    {
+    cmSystemTools::RemoveFile(link);
+    }
+#if defined(_WIN32) && !defined(__CYGWIN__)
+  return cmSystemTools::CopyFileAlways(file.c_str(), link.c_str());
+#else
+  std::string linktext = cmSystemTools::GetFilenameName(file);
+  return cmSystemTools::CreateSymlink(linktext.c_str(), link.c_str());
+#endif
+}
+
+//----------------------------------------------------------------------------
+#ifdef CMAKE_BUILD_WITH_CMAKE
+int cmcmd::ExecuteEchoColor(std::vector<std::string>& args)
+{
+  // The arguments are
+  //   argv[0] == <cmake-executable>
+  //   argv[1] == cmake_echo_color
+
+  bool enabled = true;
+  int color = cmsysTerminal_Color_Normal;
+  bool newline = true;
+  for(unsigned int i=2; i < args.size(); ++i)
+    {
+    if(args[i].find("--switch=") == 0)
+      {
+      // Enable or disable color based on the switch value.
+      std::string value = args[i].substr(9);
+      if(!value.empty())
+        {
+        if(cmSystemTools::IsOn(value.c_str()))
+          {
+          enabled = true;
+          }
+        else
+          {
+          enabled = false;
+          }
+        }
+      }
+    else if(args[i] == "--normal")
+      {
+      color = cmsysTerminal_Color_Normal;
+      }
+    else if(args[i] == "--black")
+      {
+      color = cmsysTerminal_Color_ForegroundBlack;
+      }
+    else if(args[i] == "--red")
+      {
+      color = cmsysTerminal_Color_ForegroundRed;
+      }
+    else if(args[i] == "--green")
+      {
+      color = cmsysTerminal_Color_ForegroundGreen;
+      }
+    else if(args[i] == "--yellow")
+      {
+      color = cmsysTerminal_Color_ForegroundYellow;
+      }
+    else if(args[i] == "--blue")
+      {
+      color = cmsysTerminal_Color_ForegroundBlue;
+      }
+    else if(args[i] == "--magenta")
+      {
+      color = cmsysTerminal_Color_ForegroundMagenta;
+      }
+    else if(args[i] == "--cyan")
+      {
+      color = cmsysTerminal_Color_ForegroundCyan;
+      }
+    else if(args[i] == "--white")
+      {
+      color = cmsysTerminal_Color_ForegroundWhite;
+      }
+    else if(args[i] == "--bold")
+      {
+      color |= cmsysTerminal_Color_ForegroundBold;
+      }
+    else if(args[i] == "--no-newline")
+      {
+      newline = false;
+      }
+    else if(args[i] == "--newline")
+      {
+      newline = true;
+      }
+    else
+      {
+      // Color is enabled.  Print with the current color.
+      cmSystemTools::MakefileColorEcho(color, args[i].c_str(),
+                                       newline, enabled);
+      }
+    }
 
   return 0;
 }
-
-struct curl_slist *Curl_cookie_list(struct SessionHandle *data)
+#else
+int cmcmd::ExecuteEchoColor(std::vector<std::string>&)
 {
-  struct curl_slist *list = NULL;
-  struct curl_slist *beg;
-  struct Cookie *c;
-  char *line;
+  return 1;
+}
+#endif
 
-  if((data->cookies == NULL) ||
-      (data->cookies->numcookies == 0))
-    return NULL;
-
-  c = data->cookies->cookies;
-
-  while(c) {
-    /* fill the list with _all_ the cookies we know */
-    line = get_netscape_format(c);
-    if(!line) {
-      curl_slist_free_all(list);
-      return NULL;
+//----------------------------------------------------------------------------
+int cmcmd::ExecuteLinkScript(std::vector<std::string>& args)
+{
+  // The arguments are
+  //   argv[0] == <cmake-executable>
+  //   argv[1] == cmake_link_script
+  //   argv[2] == <link-script-name>
+  //   argv[3] == --verbose=?
+  bool verbose = false;
+  if(args.size() >= 4)
+    {
+    if(args[3].find("--verbose=") == 0)
+      {
+      if(!cmSystemTools::IsOff(args[3].substr(10).c_str()))
+        {
+        verbose = true;
+        }
+      }
     }
-    beg = Curl_slist_append_nodup(list, line);
-    if(!beg) {
-      free(line);
-      curl_slist_free_all(list);
-      return NULL;
-    }
-    list = beg;
-    c = c->next;
-  }
 
-  return list;
+  // Allocate a process instance.
+  cmsysProcess* cp = cmsysProcess_New();
+  if(!cp)
+    {
+    std::cerr << "Error allocating process instance in link script."
+              << std::endl;
+    return 1;
+    }
+
+  // Children should share stdout and stderr with this process.
+  cmsysProcess_SetPipeShared(cp, cmsysProcess_Pipe_STDOUT, 1);
+  cmsysProcess_SetPipeShared(cp, cmsysProcess_Pipe_STDERR, 1);
+
+  // Run the command lines verbatim.
+  cmsysProcess_SetOption(cp, cmsysProcess_Option_Verbatim, 1);
+
+  // Read command lines from the script.
+  cmsys::ifstream fin(args[2].c_str());
+  if(!fin)
+    {
+    std::cerr << "Error opening link script \""
+              << args[2] << "\"" << std::endl;
+    return 1;
+    }
+
+  // Run one command at a time.
+  std::string command;
+  int result = 0;
+  while(result == 0 && cmSystemTools::GetLineFromStream(fin, command))
+    {
+    // Skip empty command lines.
+    if(command.find_first_not_of(" \t") == command.npos)
+      {
+      continue;
+      }
+
+    // Setup this command line.
+    const char* cmd[2] = {command.c_str(), 0};
+    cmsysProcess_SetCommand(cp, cmd);
+
+    // Report the command if verbose output is enabled.
+    if(verbose)
+      {
+      std::cout << command << std::endl;
+      }
+
+    // Run the command and wait for it to exit.
+    cmsysProcess_Execute(cp);
+    cmsysProcess_WaitForExit(cp, 0);
+
+    // Report failure if any.
+    switch(cmsysProcess_GetState(cp))
+      {
+      case cmsysProcess_State_Exited:
+        {
+        int value = cmsysProcess_GetExitValue(cp);
+        if(value != 0)
+          {
+          result = value;
+          }
+        }
+        break;
+      case cmsysProcess_State_Exception:
+        std::cerr << "Error running link command: "
+                  << cmsysProcess_GetExceptionString(cp) << std::endl;
+        result = 1;
+        break;
+      case cmsysProcess_State_Error:
+        std::cerr << "Error running link command: "
+                  << cmsysProcess_GetErrorString(cp) << std::endl;
+        result = 2;
+        break;
+      default:
+        break;
+      };
+    }
+
+  // Free the process instance.
+  cmsysProcess_Delete(cp);
+
+  // Return the final resulting return value.
+  return result;
 }
 
-void Curl_flush_cookies(struct SessionHandle *data, int cleanup)
+//----------------------------------------------------------------------------
+int cmcmd::WindowsCEEnvironment(const char* version, const std::string& name)
 {
-  if(data->set.str[STRING_COOKIEJAR]) {
-    if(data->change.cookielist) {
-      /* If there is a list of cookie files to read, do it first so that
-         we have all the told files read before we write the new jar.
-         Curl_cookie_loadfiles() LOCKS and UNLOCKS the share itself! */
-      Curl_cookie_loadfiles(data);
+#if defined(CMAKE_HAVE_VS_GENERATORS)
+  cmVisualStudioWCEPlatformParser parser(name.c_str());
+  parser.ParseVersion(version);
+  if (parser.Found())
+    {
+    std::cout << "@echo off" << std::endl;
+    std::cout << "echo Environment Selection: " << name << std::endl;
+    std::cout << "set PATH=" << parser.GetPathDirectories() << std::endl;
+    std::cout << "set INCLUDE=" << parser.GetIncludeDirectories() <<std::endl;
+    std::cout << "set LIB=" << parser.GetLibraryDirectories() <<std::endl;
+    return 0;
     }
+#else
+  (void)version;
+#endif
 
-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-
-    /* if we have a destination file for all the cookies to get dumped to */
-    if(cookie_output(data->cookies, data->set.str[STRING_COOKIEJAR]))
-      infof(data, "WARNING: failed to save cookies in %s\n",
-            data->set.str[STRING_COOKIEJAR]);
-  }
-  else {
-    if(cleanup && data->change.cookielist) {
-      /* since nothing is written, we can just free the list of cookie file
-         names */
-      curl_slist_free_all(data->change.cookielist); /* clean up list */
-      data->change.cookielist = NULL;
-    }
-    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
-  }
-
-  if(cleanup && (!data->share || (data->cookies != data->share->cookies))) {
-    Curl_cookie_cleanup(data->cookies);
-  }
-  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+  std::cerr << "Could not find " << name;
+  return -1;
 }
 
-#endif /* CURL_DISABLE_HTTP || CURL_DISABLE_COOKIES */
+// For visual studio 2005 and newer manifest files need to be embedded into
+// exe and dll's.  This code does that in such a way that incremental linking
+// still works.
+int cmcmd::VisualStudioLink(std::vector<std::string>& args, int type)
+{
+  if(args.size() < 2)
+    {
+    return -1;
+    }
+  bool verbose = false;
+  if(cmSystemTools::GetEnv("VERBOSE"))
+    {
+    verbose = true;
+    }
+  std::vector<std::string> expandedArgs;
+  for(std::vector<std::string>::iterator i = args.begin();
+      i != args.end(); ++i)
+    {
+    // check for nmake temporary files
+    if((*i)[0] == '@' && i->find("@CMakeFiles") != 0 )
+      {
+      cmsys::ifstream fin(i->substr(1).c_str());
+      std::string line;
+      while(cmSystemTools::GetLineFromStream(fin,
+                                             line))
+        {
+        cmSystemTools::ParseWindowsCommandLine(line.c_str(), expandedArgs);
+        }
+      }
+    else
+      {
+      expandedArgs.push_back(*i);
+      }
+    }
+  bool hasIncremental = false;
+  bool hasManifest = true;
+  for(std::vector<std::string>::iterator i = expandedArgs.begin();
+      i != expandedArgs.end(); ++i)
+    {
+    if(cmSystemTools::Strucmp(i->c_str(), "/INCREMENTAL:YES") == 0)
+      {
+      hasIncremental = true;
+      }
+    if(cmSystemTools::Strucmp(i->c_str(), "/INCREMENTAL") == 0)
+      {
+      hasIncremental = true;
+      }
+    if(cmSystemTools::Strucmp(i->c_str(), "/MANIFEST:NO") == 0)
+      {
+      hasManifest = false;
+      }
+    }
+  if(hasIncremental && hasManifest)
+    {
+    if(verbose)
+      {
+      std::cout << "Visual Studio Incremental Link with embedded manifests\n";
+      }
+    return cmcmd::VisualStudioLinkIncremental(expandedArgs, type, verbose);
+    }
+  if(verbose)
+    {
+    if(!hasIncremental)
+      {
+      std::cout << "Visual Studio Non-Incremental Link\n";
+      }
+    else
+      {
+      std::cout << "Visual Studio Incremental Link without manifests\n";
+      }
+    }
+  return cmcmd::VisualStudioLinkNonIncremental(expandedArgs,
+                                               type, hasManifest, verbose);
+}
+
+int cmcmd::ParseVisualStudioLinkCommand(std::vector<std::string>& args,
+                                        std::vector<std::string>& command,
+                                        std::string& targetName)
+{
+  std::vector<std::string>::iterator i = args.begin();
+  i++; // skip -E
+  i++; // skip vs_link_dll or vs_link_exe
+  command.push_back(*i);
+  i++; // move past link command
+  for(; i != args.end(); ++i)
+    {
+    command.push_back(*i);
+    if(i->find("/Fe") == 0)
+      {
+      targetName = i->substr(3);
+      }
+    if(i->find("/out:") == 0)
+      {
+      targetName = i->substr(5);
+      }
+    }
+  if(targetName.size() == 0 || command.size() == 0)
+    {
+    return -1;
+    }
+  return 0;
+}
+
+bool cmcmd::RunCommand(const char* comment,
+                       std::vector<std::string>& command,
+                       bool verbose,
+                       int* retCodeOut)
+{
+  if(verbose)
+    {
+    std::cout << comment << ":\n";
+    for(std::vector<std::string>::iterator i = command.begin();
+        i != command.end(); ++i)
+      {
+      std::cout << *i << " ";
+      }
+    std::cout << "\n";
+    }
+  std::string output;
+  int retCode =0;
+  // use rc command to create .res file
+  cmSystemTools::RunSingleCommand(command,
+                                  &output,
+                                  &retCode, 0, cmSystemTools::OUTPUT_NONE);
+  // always print the output of the command, unless
+  // it is the dumb rc command banner, but if the command
+  // returned an error code then print the output anyway as
+  // the banner may be mixed with some other important information.
+  if(output.find("Resource Compiler Version") == output.npos
+     || retCode !=0)
+    {
+    std::cout << output;
+    }
+  // if retCodeOut is requested then always return true
+  // and set the retCodeOut to retCode
+  if(retCodeOut)
+    {
+    *retCodeOut = retCode;
+    return true;
+    }
+  if(retCode != 0)
+    {
+    std::cout << comment << " failed. with " << retCode << "\n";
+    }
+  return retCode == 0;
+}
+
+int cmcmd::VisualStudioLinkIncremental(std::vector<std::string>& args,
+                                       int type, bool verbose)
+{
+  // This follows the steps listed here:
+  // http://blogs.msdn.com/zakramer/archive/2006/05/22/603558.aspx
+
+  //    1.  Compiler compiles the application and generates the *.obj files.
+  //    2.  An empty manifest file is generated if this is a clean build and if
+  //    not the previous one is reused.
+  //    3.  The resource compiler (rc.exe) compiles the *.manifest file to a
+  //    *.res file.
+  //    4.  Linker generates the binary (EXE or DLL) with the /incremental
+  //    switch and embeds the dummy manifest file. The linker also generates
+  //    the real manifest file based on the binaries that your binary depends
+  //    on.
+  //    5.  The manifest tool (mt.exe) is then used to generate the final
+  //    manifest.
+
+  // If the final manifest is changed, then 6 and 7 are run, if not
+  // they are skipped, and it is done.
+
+  //    6.  The resource compiler is invoked one more time.
+  //    7.  Finally, the Linker does another incremental link, but since the
+  //    only thing that has changed is the *.res file that contains the
+  //    manifest it is a short link.
+  std::vector<std::string> linkCommand;
+  std::string targetName;
+  if(cmcmd::ParseVisualStudioLinkCommand(args, linkCommand, targetName) == -1)
+    {
+    return -1;
+    }
+  std::string manifestArg = "/MANIFESTFILE:";
+  std::vector<std::string> rcCommand;
+  rcCommand.push_back(cmSystemTools::FindProgram("rc.exe"));
+  std::vector<std::string> mtCommand;
+  mtCommand.push_back(cmSystemTools::FindProgram("mt.exe"));
+  std::string tempManifest;
+  tempManifest = targetName;
+  tempManifest += ".intermediate.manifest";
+  std::string resourceInputFile = targetName;
+  resourceInputFile += ".resource.txt";
+  if(verbose)
+    {
+    std::cout << "Create " << resourceInputFile << "\n";
+    }
+  // Create input file for rc command
+  cmsys::ofstream fout(resourceInputFile.c_str());
+  if(!fout)
+    {
+    return -1;
+    }
+  std::string manifestFile = targetName;
+  manifestFile += ".embed.manifest";
+  std::string fullPath= cmSystemTools::CollapseFullPath(manifestFile);
+  fout << type << " /* CREATEPROCESS_MANIFEST_RESOURCE_ID "
+    "*/ 24 /* RT_MANIFEST */ " << "\"" << fullPath << "\"";
+  fout.close();
+  manifestArg += tempManifest;
+  // add the manifest arg to the linkCommand
+  linkCommand.push_back("/MANIFEST");
+  linkCommand.push_back(manifestArg);
+  // if manifestFile is not yet created, create an
+  // empty one
+  if(!cmSystemTools::FileExists(manifestFile.c_str()))
+    {
+    if(verbose)
+      {
+      std::cout << "Create empty: " << manifestFile << "\n";
+      }
+    cmsys::ofstream foutTmp(manifestFile.c_str());
+    }
+  std::string resourceFile = manifestFile;
+  resourceFile += ".res";
+  // add the resource file to the end of the link command
+  linkCommand.push_back(resourceFile);
+  std::string outputOpt = "/fo";
+  outputOpt += resourceFile;
+  rcCommand.push_back(outputOpt);
+  rcCommand.push_back(resourceInputFile);
+  // Run rc command to create resource
+  if(!cmcmd::RunCommand("RC Pass 1", rcCommand, verbose))
+    {
+    return -1;
+    }
+  // Now run the link command to link and create manifest
+  if(!cmcmd::RunCommand("LINK Pass 1", linkCommand, verbose))
+    {
+    return -1;
+    }
+  // create mt command
+  std::string outArg("/out:");
+  outArg+= manifestFile;
+  mtCommand.push_back("/nologo");
+  mtCommand.push_back(outArg);
+  mtCommand.push_back("/notify_update");
+  mtCommand.push_back("/manifest");
+  mtCommand.push_back(tempManifest);
+  //  now run mt.exe to create the final manifest file
+  int mtRet =0;
+  cmcmd::RunCommand("MT", mtCommand, verbose, &mtRet);
+  // if mt returns 0, then the manifest was not changed and
+  // we do not need to do another link step
+  if(mtRet == 0)
+    {
+    return 0;
+    }
+  // check for magic mt return value if mt returns the magic number
+  // 1090650113 then it means that it updated the manifest file and we need
+  // to do the final link.  If mt has any value other than 0 or 1090650113
+  // then there was some problem with the command itself and there was an
+  // error so return the error code back out of cmake so make can report it.
+  // (when hosted on a posix system the value is 187)
+  if(mtRet != 1090650113 && mtRet != 187)
+    {
+    return mtRet;
+    }
+  // update the resource file with the new manifest from the mt command.
+  if(!cmcmd::RunCommand("RC Pass 2", rcCommand, verbose))
+    {
+    return -1;
+    }
+  // Run the final incremental link that will put the new manifest resource
+  // into the file incrementally.
+  if(!cmcmd::RunCommand("FINAL LINK", linkCommand, verbose))
+    {
+    return -1;
+    }
+  return 0;
+}
+
+int cmcmd::VisualStudioLinkNonIncremental(std::vector<std::string>& args,
+                                          int type,
+                                          bool hasManifest,
+                                          bool verbose)
+{
+  std::vector<std::string> linkCommand;
+  std::string targetName;
+  if(cmcmd::ParseVisualStudioLinkCommand(args, linkCommand, targetName) == -1)
+    {
+    return -1;
+    }
+  // Run the link command as given
+  if (hasManifest)
+    {
+    linkCommand.push_back("/MANIFEST");
+    }
+  if(!cmcmd::RunCommand("LINK", linkCommand, verbose))
+    {
+    return -1;
+    }
+  if(!hasManifest)
+    {
+    return 0;
+    }
+  std::vector<std::string> mtCommand;
+  mtCommand.push_back(cmSystemTools::FindProgram("mt.exe"));
+  mtCommand.push_back("/nologo");
+  mtCommand.push_back("/manifest");
+  std::string manifestFile = targetName;
+  manifestFile += ".manifest";
+  mtCommand.push_back(manifestFile);
+  std::string outresource = "/outputresource:";
+  outresource += targetName;
+  outresource += ";#";
+  if(type == 1)
+    {
+    outresource += "1";
+    }
+  else if(type == 2)
+    {
+    outresource += "2";
+    }
+  mtCommand.push_back(outresource);
+  // Now use the mt tool to embed the manifest into the exe or dll
+  if(!cmcmd::RunCommand("MT", mtCommand, verbose))
+    {
+    return -1;
+    }
+  return 0;
+}

@@ -1,0 +1,1 @@
+zisofs_detect_magic(a, buff, ws)

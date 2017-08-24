@@ -1,0 +1,2 @@
+(isoent == NULL)
+		return (NULL);

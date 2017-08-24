@@ -1,0 +1,3 @@
+{
+    sprintf(cmd, "/aha/fs/modDir.monFactory");
+  }

@@ -1,0 +1,1 @@
+infof(data, "schannel: Curl_read_plain returned CURLE_AGAIN\n")

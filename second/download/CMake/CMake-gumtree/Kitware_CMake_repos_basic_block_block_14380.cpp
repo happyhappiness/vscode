@@ -1,0 +1,1 @@
+r = archive_write_close(&a->archive)

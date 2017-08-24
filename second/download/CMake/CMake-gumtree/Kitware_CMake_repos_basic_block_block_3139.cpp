@@ -1,0 +1,1 @@
+(ferror(stream)) goto errhandler_io;

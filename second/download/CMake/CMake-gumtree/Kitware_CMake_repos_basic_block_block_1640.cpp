@@ -1,0 +1,3 @@
+{
+    free(buffer_begin);
+  }

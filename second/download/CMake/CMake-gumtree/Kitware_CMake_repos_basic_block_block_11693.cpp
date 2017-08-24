@@ -1,0 +1,1 @@
+free(iso9660->pending_files.files)

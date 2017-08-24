@@ -1,0 +1,1 @@
+(ISFLAG("--version"))           license()

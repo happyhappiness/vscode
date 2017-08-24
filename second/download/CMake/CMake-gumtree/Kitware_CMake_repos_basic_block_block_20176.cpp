@@ -1,0 +1,3 @@
+{
+    overlapped_ptr = NULL;
+  }

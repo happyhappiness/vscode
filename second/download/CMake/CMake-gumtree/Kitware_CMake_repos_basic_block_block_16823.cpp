@@ -1,0 +1,1 @@
+archive_md5_final(&mtree->md5ctx, reg->buf_md5)

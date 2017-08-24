@@ -1,0 +1,2 @@
+(!np->dir)
+				continue;

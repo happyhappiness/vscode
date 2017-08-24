@@ -1,0 +1,1 @@
+(fg_color & 4) info.wAttributes |= FOREGROUND_BLUE

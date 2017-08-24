@@ -1,0 +1,1 @@
+(j > maxLen) tooLong = True

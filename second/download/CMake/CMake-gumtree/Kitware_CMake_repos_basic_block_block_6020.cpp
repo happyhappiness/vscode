@@ -1,0 +1,1 @@
+namelen = strlen(name)

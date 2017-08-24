@@ -1,0 +1,1 @@
+utf16_buffer = uv__malloc(max_len)

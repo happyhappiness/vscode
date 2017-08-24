@@ -1,33 +1,14 @@
-
-/*
- * Device entries have one of the following forms:
- * raw dev_t
- * format,major,minor[,subdevice]
- *
- * Just use major and minor, no translation etc is done
- * between formats.
- */
-static int
-parse_device(struct archive *a, struct archive_entry *entry, char *val)
-{
-	char *comma1, *comma2;
-
-	comma1 = strchr(val, ',');
-	if (comma1 == NULL) {
-		archive_entry_set_dev(entry, (dev_t)mtree_atol10(&val));
-		return (ARCHIVE_OK);
-	}
-	++comma1;
-	comma2 = strchr(comma1, ',');
-	if (comma2 == NULL) {
-		archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed device attribute");
-		return (ARCHIVE_WARN);
-	}
-	++comma2;
-	archive_entry_set_rdevmajor(entry, (dev_t)mtree_atol(&comma1));
-	archive_entry_set_rdevminor(entry, (dev_t)mtree_atol(&comma2));
-	return (ARCHIVE_OK);
-}
-
-/*
+                symbol.compare(0, 4, vectorPrefix) )
+            {
+               SectChar =
+                pSectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
+               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
+                  // Read only (i.e. constants) must be excluded
+                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
+               } else {
+                  if ( pSymbolTable->Type  ||
+                       !(SectChar & IMAGE_SCN_MEM_READ)) {
+                     fprintf(fout, "\t%s\n", symbol.c_str());
+                  } else {
+                     // printf(" strange symbol: %s \n",symbol.c_str());
+                  }

@@ -1,0 +1,3 @@
+{ /* NOLINT */
+    return NULL;            /* NOLINT */
+  }

@@ -1,0 +1,1 @@
+__msan_unpoison(events, sizeof(events[0]) * result)

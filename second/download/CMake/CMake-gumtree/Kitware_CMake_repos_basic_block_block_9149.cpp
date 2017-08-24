@@ -1,0 +1,1 @@
+p->Code = (p->Code << 8) | p->Stream->Read((void *)p->Stream)

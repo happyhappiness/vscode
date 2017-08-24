@@ -1,0 +1,1 @@
+archive_entry_set_gid(entry, st->st_gid)

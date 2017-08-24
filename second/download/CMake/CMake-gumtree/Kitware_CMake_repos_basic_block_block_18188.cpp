@@ -1,0 +1,1 @@
+return lzma_fastpos[pos];

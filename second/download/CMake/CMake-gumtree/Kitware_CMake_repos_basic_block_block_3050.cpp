@@ -1,0 +1,1 @@
+ftab[(j << 8) + ss] |= SETMASK

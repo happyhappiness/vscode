@@ -1,23 +1,24 @@
-    // package has been requested.
-    std::string ver = this->Name;
-    ver += "_FIND_VERSION";
-    this->AddFindDefinition(ver.c_str(), this->Version.c_str());
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMajor);
-    this->AddFindDefinition((ver+"_MAJOR").c_str(), buf);
-    sprintf(buf, "%u", this->VersionMinor);
-    this->AddFindDefinition((ver+"_MINOR").c_str(), buf);
-    sprintf(buf, "%u", this->VersionPatch);
-    this->AddFindDefinition((ver+"_PATCH").c_str(), buf);
-    sprintf(buf, "%u", this->VersionTweak);
-    this->AddFindDefinition((ver+"_TWEAK").c_str(), buf);
-    sprintf(buf, "%u", this->VersionCount);
-    this->AddFindDefinition((ver+"_COUNT").c_str(), buf);
-
-    // Tell the module whether an exact version has been requested.
-    std::string exact = this->Name;
-    exact += "_FIND_VERSION_EXACT";
-    this->AddFindDefinition(exact.c_str(), this->VersionExact? "1":"0");
-   }
+  return _findclose(srchHandle) != -1;
 }
+
+unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
+{
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' )
+    {
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }
+  struct _wfinddata_t data;      // data of current file
 

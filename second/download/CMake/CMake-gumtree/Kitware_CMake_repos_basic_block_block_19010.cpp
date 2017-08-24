@@ -1,0 +1,1 @@
+req->hostname = memcpy(buf + len, hostname, hostname_len)

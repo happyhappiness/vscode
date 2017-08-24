@@ -1,124 +1,57 @@
-@@ -14,16 +14,18 @@
- #include <algorithm>
- 
- //----------------------------------------------------------------------------
-+cmFindCommon::PathGroup cmFindCommon::PathGroup::All("ALL");
-+cmFindCommon::PathLabel cmFindCommon::PathLabel::CMake("CMAKE");
-+cmFindCommon::PathLabel
-+  cmFindCommon::PathLabel::CMakeEnvironment("CMAKE_ENVIRONMENT");
-+cmFindCommon::PathLabel cmFindCommon::PathLabel::Hints("HINTS");
-+cmFindCommon::PathLabel
-+  cmFindCommon::PathLabel::SystemEnvironment("SYSTM_ENVIRONMENT");
-+cmFindCommon::PathLabel cmFindCommon::PathLabel::CMakeSystem("CMAKE_SYSTEM");
-+cmFindCommon::PathLabel cmFindCommon::PathLabel::Guess("GUESS");
-+
-+//----------------------------------------------------------------------------
- cmFindCommon::cmFindCommon()
--: CMakeVariablePaths(this, "CMAKE"),
--  CMakeEnvironmentPaths(this, "CMAKE_ENVIRONMENT"),
--  UserHintsPaths(this, "HINTS"),
--  SystemEnvironmentPaths(this, "SYSTEM_ENVIRONMENT"),
--  UserRegistryPaths(this, "USER_REGISTRY"),
--  BuildPaths(this, "BUILD"),
--  CMakeSystemVariablePaths(this, "CMAKE_SYSTEM_VARIABLE"),
--  SystemRegistryPaths(this, "SYSTEM_REGISTRY"),
--  UserGuessPaths(this, "GUESS")
+@@ -111,14 +111,14 @@ void cmLocalVisualStudio6Generator::Generate()
+ void cmLocalVisualStudio6Generator::OutputDSPFile()
  {
-   this->FindRootPathMode = RootPathModeBoth;
-   this->NoDefaultPath = false;
-@@ -45,6 +47,8 @@ cmFindCommon::cmFindCommon()
-   this->SearchFrameworkLast = false;
-   this->SearchAppBundleOnly = false;
-   this->SearchAppBundleLast = false;
-+
-+  this->InitializeSearchPathGroups();
- }
+   // If not an in source build, then create the output directory
+-  if(strcmp(this->Makefile->GetCurrentBinaryDirectory(),
++  if(strcmp(this->GetCurrentBinaryDirectory(),
+             this->GetSourceDirectory()) != 0)
+     {
+     if(!cmSystemTools::MakeDirectory
+-       (this->Makefile->GetCurrentBinaryDirectory()))
++       (this->GetCurrentBinaryDirectory()))
+       {
+       cmSystemTools::Error("Error creating directory ",
+-                           this->Makefile->GetCurrentBinaryDirectory());
++                           this->GetCurrentBinaryDirectory());
+       }
+     }
  
- //----------------------------------------------------------------------------
-@@ -53,6 +57,40 @@ cmFindCommon::~cmFindCommon()
- }
+@@ -163,7 +163,7 @@ void cmLocalVisualStudio6Generator::OutputDSPFile()
+       std::string::size_type pos = l->first.rfind('/');
+       if(pos != std::string::npos)
+         {
+-        std::string dir = this->Makefile->GetCurrentBinaryDirectory();
++        std::string dir = this->GetCurrentBinaryDirectory();
+         dir += "/";
+         dir += l->first.substr(0, pos);
+         if(!cmSystemTools::MakeDirectory(dir.c_str()))
+@@ -189,7 +189,7 @@ void cmLocalVisualStudio6Generator::CreateSingleDSP(const std::string& lname,
  
- //----------------------------------------------------------------------------
-+void cmFindCommon::InitializeSearchPathGroups()
-+{
-+  std::vector<PathLabel>* labels;
-+
-+  // Define the varoius different groups of path types
-+
-+  // All search paths
-+  labels = &this->PathGroupLabelMap[PathGroup::All];
-+  labels->push_back(PathLabel::CMake);
-+  labels->push_back(PathLabel::CMakeEnvironment);
-+  labels->push_back(PathLabel::Hints);
-+  labels->push_back(PathLabel::SystemEnvironment);
-+  labels->push_back(PathLabel::CMakeSystem);
-+  labels->push_back(PathLabel::Guess);
-+
-+  // Define the search group order
-+  this->PathGroupOrder.push_back(PathGroup::All);
-+
-+  // Create the idividual labeld search paths
-+  this->LabeledPaths.insert(std::make_pair(PathLabel::CMake,
-+    cmSearchPath(this)));
-+  this->LabeledPaths.insert(std::make_pair(PathLabel::CMakeEnvironment,
-+    cmSearchPath(this)));
-+  this->LabeledPaths.insert(std::make_pair(PathLabel::Hints,
-+    cmSearchPath(this)));
-+  this->LabeledPaths.insert(std::make_pair(PathLabel::SystemEnvironment,
-+    cmSearchPath(this)));
-+  this->LabeledPaths.insert(std::make_pair(PathLabel::CMakeSystem,
-+    cmSearchPath(this)));
-+  this->LabeledPaths.insert(std::make_pair(PathLabel::Guess,
-+    cmSearchPath(this)));
-+}
-+
-+//----------------------------------------------------------------------------
- void cmFindCommon::SelectDefaultRootPathMode()
+   // create the dsp.cmake file
+   std::string fname;
+-  fname = this->Makefile->GetCurrentBinaryDirectory();
++  fname = this->GetCurrentBinaryDirectory();
+   fname += "/";
+   fname += pname;
+   fname += ".dsp";
+@@ -578,9 +578,9 @@ ::AddUtilityCommandHack(cmTarget& target, int count,
+                         const cmCustomCommand& origCommand)
  {
-   // Check the policy variable for this find command type.
-@@ -140,12 +178,12 @@ void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
-     fprintf(stderr, "[%s]\n", i->c_str());
-     }
- #endif
--
-   // Short-circuit if there is nothing to do.
-   if(this->FindRootPathMode == RootPathModeNever)
-     {
-     return;
-     }
-+
-   const char* sysroot =
-     this->Makefile->GetDefinition("CMAKE_SYSROOT");
-   const char* rootPath =
-@@ -293,7 +331,7 @@ bool cmFindCommon::CheckCommonArgument(std::string const& arg)
-     {
-     this->NoCMakeSystemPath = true;
-     }
--  else if(arg == "NO_CMAKE_FIND_ROOT_PATH")
-+    else if(arg == "NO_CMAKE_FIND_ROOT_PATH")
-     {
-     this->FindRootPathMode = RootPathModeNever;
-     }
-@@ -361,15 +399,13 @@ void cmFindCommon::ComputeFinalPaths()
-   this->GetIgnoredPaths(ignored);
- 
-   // Combine the seperate path types, filtering out ignores
--  this->CMakeVariablePaths.ExtractWithout(ignored, this->SearchPaths, true);
--  this->CMakeEnvironmentPaths.ExtractWithout(ignored, this->SearchPaths);
--  this->UserHintsPaths.ExtractWithout(ignored, this->SearchPaths);
--  this->SystemEnvironmentPaths.ExtractWithout(ignored, this->SearchPaths);
--  this->UserRegistryPaths.ExtractWithout(ignored, this->SearchPaths);
--  this->BuildPaths.ExtractWithout(ignored, this->SearchPaths);
--  this->CMakeSystemVariablePaths.ExtractWithout(ignored, this->SearchPaths);
--  this->SystemRegistryPaths.ExtractWithout(ignored, this->SearchPaths);
--  this->UserGuessPaths.ExtractWithout(ignored, this->SearchPaths);
-+  this->SearchPaths.clear();
-+  std::vector<PathLabel>& allLabels = this->PathGroupLabelMap[PathGroup::All];
-+  for(std::vector<PathLabel>::const_iterator l = allLabels.begin();
-+      l != allLabels.end(); ++l)
-+    {
-+    this->LabeledPaths[*l].ExtractWithout(ignored, this->SearchPaths);
-+    }
- 
-   // Expand list of paths inside all search roots.
-   this->RerootPaths(this->SearchPaths);
+   // Create a fake output that forces the rule to run.
+-  char* output = new char[(strlen(this->Makefile->GetCurrentBinaryDirectory())
++  char* output = new char[(strlen(this->GetCurrentBinaryDirectory())
+                            + target.GetName().size() + 30)];
+-  sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
++  sprintf(output,"%s/%s_force_%i", this->GetCurrentBinaryDirectory(),
+           target.GetName().c_str(), count);
+   const char* comment = origCommand.GetComment();
+   if(!comment && origCommand.GetOutputs().empty())
+@@ -1964,7 +1964,7 @@ ::ComputeLongestObjectDirectory(cmTarget&) const
+   // files directory for any configuration.  This is used to construct
+   // object file names that do not produce paths that are too long.
+   std::string dir_max;
+-  dir_max += this->Makefile->GetCurrentBinaryDirectory();
++  dir_max += this->GetCurrentBinaryDirectory();
+   dir_max += "/";
+   dir_max += config_max;
+   dir_max += "/";

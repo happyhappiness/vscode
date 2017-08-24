@@ -1,0 +1,1 @@
+state->section_end_code = state->maxcode

@@ -1,703 +1,1007 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
+/*-
+ * Copyright (c) 2008 Anselm Strauss
+ * Copyright (c) 2009 Joerg Sonnenberger
+ * Copyright (c) 2011-2012 Michihiro NAKAJIMA
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+/*
+ * Development supported by Google Summer of Code 2008.
+ */
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "cmCoreTryCompile.h"
-#include "cmake.h"
-#include "cmCacheManager.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmExportTryCompileFileGenerator.h"
-#include <cmsys/Directory.hxx>
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_format_zip.c 201168 2009-12-29 06:15:32Z kientzle $");
 
-#include <assert.h>
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_LANGINFO_H
+#include <langinfo.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_ZLIB_H
+#include <zlib.h>
+#endif
 
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-{
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
+#include "archive.h"
+#include "archive_endian.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_private.h"
+#include "archive_write_private.h"
 
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  std::string targetName;
-  std::vector<std::string> cmakeFlags;
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::string copyFileError;
-  std::vector<cmTarget const*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool didCopyFileError = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
+#ifndef HAVE_ZLIB_H
+#include "archive_crc32.h"
+#endif
 
-  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
-               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
-               DoingCopyFileError, DoingSources };
-  Doing doing = useSources? DoingSources : DoingNone;
-  for(size_t i=3; i < argv.size(); ++i)
-    {
-    if(argv[i] == "CMAKE_FLAGS")
-      {
-      doing = DoingCMakeFlags;
-      // CMAKE_FLAGS is the first argument because we need an argv[0] that
-      // is not used, so it matches regular command line parsing which has
-      // the program name as arg 0
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(argv[i] == "COMPILE_DEFINITIONS")
-      {
-      doing = DoingCompileDefinitions;
-      }
-    else if(argv[i] == "LINK_LIBRARIES")
-      {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
-      }
-    else if(argv[i] == "OUTPUT_VARIABLE")
-      {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
-      }
-    else if(argv[i] == "COPY_FILE")
-      {
-      doing = DoingCopyFile;
-      didCopyFile = true;
-      }
-    else if(argv[i] == "COPY_FILE_ERROR")
-      {
-      doing = DoingCopyFileError;
-      didCopyFileError = true;
-      }
-    else if(doing == DoingCMakeFlags)
-      {
-      cmakeFlags.push_back(argv[i]);
-      }
-    else if(doing == DoingCompileDefinitions)
-      {
-      compileDefs.push_back(argv[i]);
-      }
-    else if(doing == DoingLinkLibraries)
-      {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
-        {
-        switch(tgt->GetType())
-          {
-          case cmTarget::SHARED_LIBRARY:
-          case cmTarget::STATIC_LIBRARY:
-          case cmTarget::INTERFACE_LIBRARY:
-          case cmTarget::UNKNOWN_LIBRARY:
-            break;
-          case cmTarget::EXECUTABLE:
-            if (tgt->IsExecutableWithExports())
-              {
-              break;
-              }
-          default:
-            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile IMPORTED "
-              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
-          }
-        if (tgt->IsImported())
-          {
-          targets.push_back(tgt);
-          }
-        }
-      }
-    else if(doing == DoingOutputVariable)
-      {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFile)
-      {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFileError)
-      {
-      copyFileError = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingSources)
-      {
-      sources.push_back(argv[i]);
-      }
-    else if(i == 3)
-      {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-      }
-    else if(i == 4 && !this->SrcFileSignature)
-      {
-      targetName = argv[i].c_str();
-      }
-    else
-      {
-      std::ostringstream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
-      }
-    }
+#define ZIP_ENTRY_FLAG_LENGTH_AT_END	(1<<3)
+#define ZIP_ENTRY_FLAG_UTF8_NAME	(1 << 11)
 
-  if(didCopyFile && copyFile.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE must be followed by a file path");
-    return -1;
-    }
 
-  if(didCopyFileError && copyFileError.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR must be followed by a variable name");
-    return -1;
-    }
+enum compression {
+	COMPRESSION_UNSPECIFIED = -1,
+	COMPRESSION_STORE = 0,
+	COMPRESSION_DEFLATE = 8
+};
 
-  if(didCopyFileError && !didCopyFile)
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return -1;
-    }
-
-  if(didOutputVariable && outputVariable.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-    }
-
-  if(useSources && sources.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (compileDefs.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    std::ostringstream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
-
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile);
-
-    // Choose sources.
-    if(!useSources)
-      {
-      sources.push_back(argv[2]);
-      }
-
-    // Detect languages to enable.
-    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
-    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-      if(!lang.empty())
-        {
-        testLangs.insert(lang);
-        }
-      else
-        {
-        std::ostringstream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        for(std::vector<std::string>::iterator l = langs.begin();
-            l != langs.end(); ++l)
-          {
-          err << " " << *l;
-          }
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
-        }
-      }
-
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
-
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = cmsys::SystemTools::Fopen(outFileName,"w");
-    if (!fout)
-      {
-      std::ostringstream e;
-      e << "Failed to open\n"
-        << "  " << outFileName << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);
-      }
-
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
-        }
-      }
-    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
-    switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0056))
-      {
-      case cmPolicies::WARN:
-        if(this->Makefile->PolicyOptionalWarningEnabled(
-             "CMAKE_POLICY_WARNING_CMP0056"))
-          {
-          std::ostringstream w;
-          w << (this->Makefile->GetCMakeInstance()->GetPolicies()
-                ->GetPolicyWarning(cmPolicies::CMP0056)) << "\n"
-            "For compatibility with older versions of CMake, try_compile "
-            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
-            "in the test project."
-            ;
-          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-          }
-      case cmPolicies::OLD:
-        // OLD behavior is to do nothing.
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        this->Makefile->IssueMessage(
-          cmake::FATAL_ERROR,
-          this->Makefile->GetCMakeInstance()->GetPolicies()
-          ->GetRequiredPolicyError(cmPolicies::CMP0056)
-          );
-      case cmPolicies::NEW:
-        // NEW behavior is to pass linker flags.
-        {
-        const char* exeLinkFlags =
-          this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
-        fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
-                lg->EscapeForCMake(exeLinkFlags?exeLinkFlags:"").c_str());
-        } break;
-      }
-    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
-            " ${EXE_LINKER_FLAGS}\")\n");
-    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileDefs.size())
-      {
-      fprintf(fout, "add_definitions( ");
-      for (size_t i = 0; i < compileDefs.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileDefs[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cxxDef
-              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
-      flag += cxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cDef
-                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
-      flag += cDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcxxDef = this->Makefile->GetDefinition(
-                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcDef = this->Makefile->GetDefinition(
-                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *rootDef
-              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
-      {
-      std::string flag="-DCMAKE_SYSROOT=";
-      flag += rootDef;
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if(si->find("CMakeTmp") == si->npos)
-        {
-        this->Makefile->AddCMakeDependFile(*si);
-        }
-      }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
-      }
-    else
-      {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName.c_str(),
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
-    }
-
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory,
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       output);
-  if ( erroroc )
-    {
-    cmSystemTools::SetErrorOccured();
-    }
-
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0],
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
-
-  if (!outputVariable.empty())
-    {
-    this->Makefile->AddDefinition(outputVariable, output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile,
-                                        copyFile))
-        {
-        std::ostringstream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        if(copyFileError.empty())
-          {
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-          return -1;
-          }
-        else
-          {
-          copyFileErrorMessage = emsg.str();
-          }
-        }
-      }
-
-    if(!copyFileError.empty())
-      {
-      this->Makefile->AddDefinition(copyFileError,
-                                    copyFileErrorMessage.c_str());
-      }
-    }
-  return res;
-}
-
-void cmCoreTryCompile::CleanupFiles(const char* binDir)
-{
-  if ( !binDir )
-    {
-    return;
-    }
-
-  std::string bdir = binDir;
-  if(bdir.find("CMakeTmp") == std::string::npos)
-    {
-    cmSystemTools::Error(
-      "TRY_COMPILE attempt to remove -rf directory that does not contain "
-      "CMakeTmp:", binDir);
-    return;
-    }
-
-  cmsys::Directory dir;
-  dir.Load(binDir);
-  size_t fileNum;
-  std::set<std::string> deletedFiles;
-  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
-    {
-    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
-        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
-      {
-
-      if(deletedFiles.find( dir.GetFile(static_cast<unsigned long>(fileNum)))
-         == deletedFiles.end())
-        {
-        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
-        std::string fullPath = binDir;
-        fullPath += "/";
-        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
-        if(cmSystemTools::FileIsDirectory(fullPath))
-          {
-          this->CleanupFiles(fullPath.c_str());
-          cmSystemTools::RemoveADirectory(fullPath);
-          }
-        else
-          {
-#ifdef _WIN32
-          // Sometimes anti-virus software hangs on to new files so we
-          // cannot delete them immediately.  Try a few times.
-          cmSystemTools::WindowsFileRetry retry =
-            cmSystemTools::GetWindowsFileRetry();
-          while(!cmSystemTools::RemoveFile(fullPath.c_str()) &&
-                --retry.Count && cmSystemTools::FileExists(fullPath.c_str()))
-            {
-            cmSystemTools::Delay(retry.Delay);
-            }
-          if(retry.Count == 0)
+#ifdef HAVE_ZLIB_H
+#define COMPRESSION_DEFAULT	COMPRESSION_DEFLATE
 #else
-          if(!cmSystemTools::RemoveFile(fullPath))
+#define COMPRESSION_DEFAULT	COMPRESSION_STORE
 #endif
-            {
-            std::string m = "Remove failed on file: " + fullPath;
-            cmSystemTools::ReportLastSystemError(m.c_str());
-            }
-          }
-        }
-      }
-    }
-}
 
-void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
+struct cd_segment {
+	struct cd_segment *next;
+	size_t buff_size;
+	unsigned char *buff;
+	unsigned char *p;
+};
+
+/* Bits used to enable/disable certain experimental features. */
+#define	EXPERIMENT_LA 1
+#define	EXPERIMENTS_ALL 0xffff
+
+struct zip {
+
+	int64_t entry_offset;
+	int64_t entry_compressed_size;
+	int64_t entry_uncompressed_size;
+	int64_t entry_compressed_written;
+	int64_t entry_uncompressed_written;
+	int64_t entry_uncompressed_limit;
+	struct archive_entry *entry;
+	uint32_t entry_crc32;
+	enum compression entry_compression;
+	int entry_flags;
+	int entry_uses_zip64;
+	int experiments;
+
+	unsigned char *file_header;
+	size_t file_header_extra_offset;
+	unsigned long (*crc32func)(unsigned long crc, const void *buff, size_t len);
+
+	struct cd_segment *central_directory;
+	struct cd_segment *central_directory_last;
+	size_t central_directory_bytes;
+	size_t central_directory_entries;
+
+	int64_t written_bytes; /* Overall position in file. */
+
+	struct archive_string_conv *opt_sconv;
+	struct archive_string_conv *sconv_default;
+	enum compression requested_compression;
+	int init_default_conversion;
+
+#define ZIP_FLAG_AVOID_ZIP64 1
+#define ZIP_FLAG_FORCE_ZIP64 2
+#define ZIP_FLAG_EXPERIMENT_EL 4
+	int flags;
+
+#ifdef HAVE_ZLIB_H
+	z_stream stream;
+	size_t len_buf;
+	unsigned char *buf;
+#endif
+};
+
+/* Don't call this min or MIN, since those are already defined
+   on lots of platforms (but not all). */
+#define zipmin(a, b) ((a) > (b) ? (b) : (a))
+
+static ssize_t archive_write_zip_data(struct archive_write *,
+		   const void *buff, size_t s);
+static int archive_write_zip_close(struct archive_write *);
+static int archive_write_zip_free(struct archive_write *);
+static int archive_write_zip_finish_entry(struct archive_write *);
+static int archive_write_zip_header(struct archive_write *,
+	      struct archive_entry *);
+static int archive_write_zip_options(struct archive_write *,
+	      const char *, const char *);
+static unsigned int dos_time(const time_t);
+static size_t path_length(struct archive_entry *);
+static int write_path(struct archive_entry *, struct archive_write *);
+static void copy_path(struct archive_entry *, unsigned char *);
+static struct archive_string_conv *get_sconv(struct archive_write *, struct zip *);
+
+static unsigned char *
+cd_alloc(struct zip *zip, size_t length)
 {
-  this->FindErrorMessage = "";
-  this->OutputFile = "";
-  std::string tmpOutputFile = "/";
-  tmpOutputFile += targetName;
-  tmpOutputFile +=this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
+	unsigned char *p;
 
-  // a list of directories where to search for the compilation result
-  // at first directly in the binary dir
-  std::vector<std::string> searchDirs;
-  searchDirs.push_back("");
+	if (zip->central_directory == NULL
+	    || (zip->central_directory_last->p + length
+		> zip->central_directory_last->buff + zip->central_directory_last->buff_size)) {
+		struct cd_segment *segment = calloc(1, sizeof(*segment));
+		if (segment == NULL)
+			return NULL;
+		segment->buff_size = 64 * 1024;
+		segment->buff = malloc(segment->buff_size);
+		if (segment->buff == NULL) {
+			free(segment);
+			return NULL;
+		}
+		segment->p = segment->buff;
 
-  const char* config = this->Makefile->GetDefinition(
-                                            "CMAKE_TRY_COMPILE_CONFIGURATION");
-  // if a config was specified try that first
-  if (config && config[0])
-    {
-    std::string tmp = "/";
-    tmp += config;
-    searchDirs.push_back(tmp);
-    }
-  searchDirs.push_back("/Debug");
-#if defined(__APPLE__)
-  std::string app = "/Debug/" + targetName + ".app";
-  searchDirs.push_back(app);
-#endif
-  searchDirs.push_back("/Development");
+		if (zip->central_directory == NULL) {
+			zip->central_directory
+			    = zip->central_directory_last
+			    = segment;
+		} else {
+			zip->central_directory_last->next = segment;
+			zip->central_directory_last = segment;
+		}
+	}
 
-  for(std::vector<std::string>::const_iterator it = searchDirs.begin();
-      it != searchDirs.end();
-      ++it)
-    {
-    std::string command = this->BinaryDirectory;
-    command += *it;
-    command += tmpOutputFile;
-    if(cmSystemTools::FileExists(command.c_str()))
-      {
-      tmpOutputFile = cmSystemTools::CollapseFullPath(command);
-      this->OutputFile = tmpOutputFile;
-      return;
-      }
-    }
-
-  std::ostringstream emsg;
-  emsg << "Unable to find the executable at any of:\n";
-  for (unsigned int i = 0; i < searchDirs.size(); ++i)
-    {
-    emsg << "  " << this->BinaryDirectory << searchDirs[i]
-         << tmpOutputFile << "\n";
-    }
-  this->FindErrorMessage = emsg.str();
-  return;
+	p = zip->central_directory_last->p;
+	zip->central_directory_last->p += length;
+	zip->central_directory_bytes += length;
+	return (p);
 }
+
+static unsigned long
+real_crc32(unsigned long crc, const void *buff, size_t len)
+{
+	return crc32(crc, buff, len);
+}
+
+static unsigned long
+fake_crc32(unsigned long crc, const void *buff, size_t len)
+{
+	(void)crc; /* UNUSED */
+	(void)buff; /* UNUSED */
+	(void)len; /* UNUSED */
+	return 0;
+}
+
+static int
+archive_write_zip_options(struct archive_write *a, const char *key,
+    const char *val)
+{
+	struct zip *zip = a->format_data;
+	int ret = ARCHIVE_FAILED;
+
+	if (strcmp(key, "compression") == 0) {
+		/*
+		 * Set compression to use on all future entries.
+		 * This only affects regular files.
+		 */
+		if (val == NULL || val[0] == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: compression option needs a compression name",
+			    a->format_name);
+		} else if (strcmp(val, "deflate") == 0) {
+#ifdef HAVE_ZLIB_H
+			zip->requested_compression = COMPRESSION_DEFLATE;
+			ret = ARCHIVE_OK;
+#else
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "deflate compression not supported");
+#endif
+		} else if (strcmp(val, "store") == 0) {
+			zip->requested_compression = COMPRESSION_STORE;
+			ret = ARCHIVE_OK;
+		}
+		return (ret);
+	} else if (strcmp(key, "experimental") == 0) {
+		if (val == NULL || val[0] == 0) {
+			zip->flags &= ~ ZIP_FLAG_EXPERIMENT_EL;
+		} else {
+			zip->flags |= ZIP_FLAG_EXPERIMENT_EL;
+		}
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "fakecrc32") == 0) {
+		/*
+		 * FOR TESTING ONLY:  disable CRC calculation to speed up
+		 * certain complex tests.
+		 */
+		if (val == NULL || val[0] == 0) {
+			zip->crc32func = real_crc32;
+		} else {
+			zip->crc32func = fake_crc32;
+		}
+		return (ARCHIVE_OK);
+	} else if (strcmp(key, "hdrcharset")  == 0) {
+		/*
+		 * Set the character set used in translating filenames.
+		 */
+		if (val == NULL || val[0] == 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%s: hdrcharset option needs a character-set name",
+			    a->format_name);
+		} else {
+			zip->opt_sconv = archive_string_conversion_to_charset(
+			    &a->archive, val, 0);
+			if (zip->opt_sconv != NULL)
+				ret = ARCHIVE_OK;
+			else
+				ret = ARCHIVE_FATAL;
+		}
+		return (ret);
+	} else if (strcmp(key, "zip64") == 0) {
+		/*
+		 * Bias decisions about Zip64: force them to be
+		 * generated in certain cases where they are not
+		 * forbidden or avoid them in certain cases where they
+		 * are not strictly required.
+		 */
+		if (val != NULL && *val != '\0') {
+			zip->flags |= ZIP_FLAG_FORCE_ZIP64;
+			zip->flags &= ~ZIP_FLAG_AVOID_ZIP64;
+		} else {
+			zip->flags &= ~ZIP_FLAG_FORCE_ZIP64;
+			zip->flags |= ZIP_FLAG_AVOID_ZIP64;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+}
+
+int
+archive_write_zip_set_compression_deflate(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	int ret = ARCHIVE_FAILED;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+		"archive_write_zip_set_compression_deflate");
+	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		"Can only use archive_write_zip_set_compression_deflate"
+		" with zip format");
+		ret = ARCHIVE_FATAL;
+	} else {
+#ifdef HAVE_ZLIB_H
+		struct zip *zip = a->format_data;
+		zip->requested_compression = COMPRESSION_DEFLATE;
+		ret = ARCHIVE_OK;
+#else
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"deflate compression not supported");
+		ret = ARCHIVE_FAILED;
+#endif
+	}
+	return (ret);
+}
+
+int
+archive_write_zip_set_compression_store(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	struct zip *zip = a->format_data;
+	int ret = ARCHIVE_FAILED;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+		ARCHIVE_STATE_NEW | ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+		"archive_write_zip_set_compression_deflate");
+	if (a->archive.archive_format != ARCHIVE_FORMAT_ZIP) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"Can only use archive_write_zip_set_compression_store"
+			" with zip format");
+		ret = ARCHIVE_FATAL;
+	} else {
+		zip->requested_compression = COMPRESSION_STORE;
+		ret = ARCHIVE_OK;
+	}
+	return (ret);
+}
+
+int
+archive_write_set_format_zip(struct archive *_a)
+{
+	struct archive_write *a = (struct archive_write *)_a;
+	struct zip *zip;
+
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_set_format_zip");
+
+	/* If another format was already registered, unregister it. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
+
+	zip = (struct zip *) calloc(1, sizeof(*zip));
+	if (zip == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip data");
+		return (ARCHIVE_FATAL);
+	}
+
+	/* "Unspecified" lets us choose the appropriate compression. */
+	zip->requested_compression = COMPRESSION_UNSPECIFIED;
+	zip->crc32func = real_crc32;
+
+#ifdef HAVE_ZLIB_H
+	zip->len_buf = 65536;
+	zip->buf = malloc(zip->len_buf);
+	if (zip->buf == NULL) {
+		free(zip);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate compression buffer");
+		return (ARCHIVE_FATAL);
+	}
+#endif
+
+	a->format_data = zip;
+	a->format_name = "zip";
+	a->format_options = archive_write_zip_options;
+	a->format_write_header = archive_write_zip_header;
+	a->format_write_data = archive_write_zip_data;
+	a->format_finish_entry = archive_write_zip_finish_entry;
+	a->format_close = archive_write_zip_close;
+	a->format_free = archive_write_zip_free;
+	a->archive.archive_format = ARCHIVE_FORMAT_ZIP;
+	a->archive.archive_format_name = "ZIP";
+
+	return (ARCHIVE_OK);
+}
+
+static int
+is_all_ascii(const char *p)
+{
+	const unsigned char *pp = (const unsigned char *)p;
+
+	while (*pp) {
+		if (*pp++ > 127)
+			return (0);
+	}
+	return (1);
+}
+
+static int
+archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+{
+	unsigned char local_header[32];
+	unsigned char local_extra[128];
+	struct zip *zip = a->format_data;
+	unsigned char *e;
+	unsigned char *cd_extra;
+	size_t filename_length;
+	const char *slink = NULL;
+	size_t slink_size = 0;
+	struct archive_string_conv *sconv = get_sconv(a, zip);
+	int ret, ret2 = ARCHIVE_OK;
+	int64_t size;
+	mode_t type;
+	int version_needed = 10;
+
+	/* Ignore types of entries that we don't support. */
+	type = archive_entry_filetype(entry);
+	if (type != AE_IFREG && type != AE_IFDIR && type != AE_IFLNK) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Filetype not supported");
+		return ARCHIVE_FAILED;
+	};
+
+	/* If we're not using Zip64, reject large files. */
+	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
+		/* Reject entries over 4GB. */
+		if (archive_entry_size_is_set(entry)
+		    && (archive_entry_size(entry) > 0xffffffff)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Files > 4GB require Zip64 extensions");
+			return ARCHIVE_FAILED;
+		}
+		/* Reject entries if archive is > 4GB. */
+		if (zip->written_bytes > 0xffffffff) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Archives > 4GB require Zip64 extensions");
+			return ARCHIVE_FAILED;
+		}
+	}
+
+	/* Only regular files can have size > 0. */
+	if (type != AE_IFREG)
+		archive_entry_set_size(entry, 0);
+
+
+	/* Reset information from last entry. */
+	zip->entry_offset = zip->written_bytes;
+	zip->entry_uncompressed_limit = INT64_MAX;
+	zip->entry_compressed_size = 0;
+	zip->entry_uncompressed_size = 0;
+	zip->entry_compressed_written = 0;
+	zip->entry_uncompressed_written = 0;
+	zip->entry_flags = 0;
+	zip->entry_uses_zip64 = 0;
+	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
+	if (zip->entry != NULL) {
+		archive_entry_free(zip->entry);
+		zip->entry = NULL;
+	}
+
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	/* Make sure the path separators in pahtname, hardlink and symlink
+	 * are all slash '/', not the Windows path separator '\'. */
+	zip->entry = __la_win_entry_in_posix_pathseparator(entry);
+	if (zip->entry == entry)
+		zip->entry = archive_entry_clone(entry);
+#else
+	zip->entry = archive_entry_clone(entry);
+#endif
+	if (zip->entry == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (sconv != NULL) {
+		const char *p;
+		size_t len;
+
+		if (archive_entry_pathname_l(entry, &p, &len, sconv) != 0) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Pathname");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Can't translate Pathname '%s' to %s",
+			    archive_entry_pathname(entry),
+			    archive_string_conversion_charset_name(sconv));
+			ret2 = ARCHIVE_WARN;
+		}
+		if (len > 0)
+			archive_entry_set_pathname(zip->entry, p);
+
+		/*
+		 * There is no standard for symlink handling; we convert
+		 * it using the same character-set translation that we use
+		 * for filename.
+		 */
+		if (type == AE_IFLNK) {
+			if (archive_entry_symlink_l(entry, &p, &len, sconv)) {
+				if (errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory "
+					    " for Symlink");
+					return (ARCHIVE_FATAL);
+				}
+				/* No error if we can't convert. */
+			} else if (len > 0)
+				archive_entry_set_symlink(zip->entry, p);
+		}
+	}
+
+	/* If filename isn't ASCII and we can use UTF-8, set the UTF-8 flag. */
+	if (!is_all_ascii(archive_entry_pathname(zip->entry))) {
+		if (zip->opt_sconv != NULL) {
+			if (strcmp(archive_string_conversion_charset_name(
+					zip->opt_sconv), "UTF-8") == 0)
+				zip->entry_flags |= ZIP_ENTRY_FLAG_UTF8_NAME;
+#if HAVE_NL_LANGINFO
+		} else if (strcmp(nl_langinfo(CODESET), "UTF-8") == 0) {
+			zip->entry_flags |= ZIP_ENTRY_FLAG_UTF8_NAME;
+#endif
+		}
+	}
+	filename_length = path_length(zip->entry);
+
+	/* Determine appropriate compression and size for this entry. */
+	if (type == AE_IFLNK) {
+		slink = archive_entry_symlink(zip->entry);
+		if (slink != NULL)
+			slink_size = strlen(slink);
+		else
+			slink_size = 0;
+		zip->entry_uncompressed_limit = slink_size;
+		zip->entry_compressed_size = slink_size;
+		zip->entry_uncompressed_size = slink_size;
+		zip->entry_crc32 = zip->crc32func(zip->entry_crc32,
+		    (const unsigned char *)slink, slink_size);
+		zip->entry_compression = COMPRESSION_STORE;
+		version_needed = 20;
+	} else if (type != AE_IFREG) {
+		zip->entry_compression = COMPRESSION_STORE;
+		zip->entry_uncompressed_limit = 0;
+		size = 0;
+		version_needed = 20;
+	} else if (archive_entry_size_is_set(zip->entry)) {
+		size = archive_entry_size(zip->entry);
+		zip->entry_uncompressed_limit = size;
+		zip->entry_compression = zip->requested_compression;
+		if (zip->entry_compression == COMPRESSION_UNSPECIFIED) {
+			zip->entry_compression = COMPRESSION_DEFAULT;
+		}
+		if (zip->entry_compression == COMPRESSION_STORE) {
+			zip->entry_compressed_size = size;
+			zip->entry_uncompressed_size = size;
+			version_needed = 10;
+		} else {
+			zip->entry_uncompressed_size = size;
+			version_needed = 20;
+		}
+		if ((zip->flags & ZIP_FLAG_FORCE_ZIP64) /* User asked. */
+		    || (zip->entry_uncompressed_size > 0xffffffffLL)) { /* Large entry. */
+			zip->entry_uses_zip64 = 1;
+			version_needed = 45;
+		}
+
+		/* We may know the size, but never the CRC. */
+		zip->entry_flags |= ZIP_ENTRY_FLAG_LENGTH_AT_END;
+	} else {
+		/* Prefer deflate if it's available, because deflate
+		 * has a clear end-of-data marker that makes
+		 * length-at-end more reliable. */
+		zip->entry_compression = COMPRESSION_DEFAULT;
+		zip->entry_flags |= ZIP_ENTRY_FLAG_LENGTH_AT_END;
+		if ((zip->flags & ZIP_FLAG_AVOID_ZIP64) == 0) {
+			zip->entry_uses_zip64 = 1;
+			version_needed = 45;
+		} else if (zip->entry_compression == COMPRESSION_STORE) {
+			version_needed = 10;
+		} else {
+			version_needed = 20;
+		}
+	}
+
+	/* Format the local header. */
+	memset(local_header, 0, sizeof(local_header));
+	memcpy(local_header, "PK\003\004", 4);
+	archive_le16enc(local_header + 4, version_needed);
+	archive_le16enc(local_header + 6, zip->entry_flags);
+	archive_le16enc(local_header + 8, zip->entry_compression);
+	archive_le32enc(local_header + 10, dos_time(archive_entry_mtime(zip->entry)));
+	archive_le32enc(local_header + 14, zip->entry_crc32);
+	if (zip->entry_uses_zip64) {
+		/* Zip64 data in the local header "must" include both
+		 * compressed and uncompressed sizes AND those fields
+		 * are included only if these are 0xffffffff;
+		 * THEREFORE these must be set this way, even if we
+		 * know one of them is smaller. */
+		archive_le32enc(local_header + 18, 0xffffffffLL);
+		archive_le32enc(local_header + 22, 0xffffffffLL);
+	} else {
+		archive_le32enc(local_header + 18, zip->entry_compressed_size);
+		archive_le32enc(local_header + 22, zip->entry_uncompressed_size);
+	}
+	archive_le16enc(local_header + 26, filename_length);
+
+	/* Format as much of central directory file header as we can: */
+	zip->file_header = cd_alloc(zip, 46);
+	/* If (zip->file_header == NULL) XXXX */
+	++zip->central_directory_entries;
+	memset(zip->file_header, 0, 46);
+	memcpy(zip->file_header, "PK\001\002", 4);
+	/* "Made by PKZip 2.0 on Unix." */
+	archive_le16enc(zip->file_header + 4, 3 * 256 + version_needed);
+	archive_le16enc(zip->file_header + 6, version_needed);
+	archive_le16enc(zip->file_header + 8, zip->entry_flags);
+	archive_le16enc(zip->file_header + 10, zip->entry_compression);
+	archive_le32enc(zip->file_header + 12, dos_time(archive_entry_mtime(zip->entry)));
+	archive_le16enc(zip->file_header + 28, filename_length);
+	/* Following Info-Zip, store mode in the "external attributes" field. */
+	archive_le32enc(zip->file_header + 38,
+	    archive_entry_mode(zip->entry) << 16);
+	e = cd_alloc(zip, filename_length);
+	/* If (e == NULL) XXXX */
+	copy_path(zip->entry, e);
+
+	/* Format extra data. */
+	memset(local_extra, 0, sizeof(local_extra));
+	e = local_extra;
+
+	/* First, extra blocks that are the same between
+	 * the local file header and the central directory.
+	 * We format them once and then duplicate them. */
+
+	/* UT timestamp, length depends on what timestamps are set. */
+	memcpy(e, "UT", 2);
+	archive_le16enc(e + 2,
+	    1
+	    + (archive_entry_mtime_is_set(entry) ? 4 : 0)
+	    + (archive_entry_atime_is_set(entry) ? 4 : 0)
+	    + (archive_entry_ctime_is_set(entry) ? 4 : 0));
+	e += 4;
+	*e++ =
+	    (archive_entry_mtime_is_set(entry) ? 1 : 0)
+	    | (archive_entry_atime_is_set(entry) ? 2 : 0)
+	    | (archive_entry_ctime_is_set(entry) ? 4 : 0);
+	if (archive_entry_mtime_is_set(entry)) {
+		archive_le32enc(e, (uint32_t)archive_entry_mtime(entry));
+		e += 4;
+	}
+	if (archive_entry_atime_is_set(entry)) {
+		archive_le32enc(e, (uint32_t)archive_entry_atime(entry));
+		e += 4;
+	}
+	if (archive_entry_ctime_is_set(entry)) {
+		archive_le32enc(e, (uint32_t)archive_entry_ctime(entry));
+		e += 4;
+	}
+
+	/* ux Unix extra data, length 11, version 1 */
+	/* TODO: If uid < 64k, use 2 bytes, ditto for gid. */
+	memcpy(e, "ux\013\000\001", 5);
+	e += 5;
+	*e++ = 4; /* Length of following UID */
+	archive_le32enc(e, (uint32_t)archive_entry_uid(entry));
+	e += 4;
+	*e++ = 4; /* Length of following GID */
+	archive_le32enc(e, (uint32_t)archive_entry_gid(entry));
+	e += 4;
+
+	/* Copy UT and ux into central directory as well. */
+	zip->file_header_extra_offset = zip->central_directory_bytes;
+	cd_extra = cd_alloc(zip, e - local_extra);
+	memcpy(cd_extra, local_extra, e - local_extra);
+
+	/*
+	 * Following extra blocks vary between local header and
+	 * central directory. These are the local header versions.
+	 * Central directory versions get formatted in
+	 * archive_write_zip_finish_entry() below.
+	 */
+
+	/* "[Zip64 entry] in the local header MUST include BOTH
+	 * original [uncompressed] and compressed size fields." */
+	if (zip->entry_uses_zip64) {
+		unsigned char *zip64_start = e;
+		memcpy(e, "\001\000\020\000", 4);
+		e += 4;
+		archive_le64enc(e, zip->entry_uncompressed_size);
+		e += 8;
+		archive_le64enc(e, zip->entry_compressed_size);
+		e += 8;
+		archive_le16enc(zip64_start + 2, e - (zip64_start + 4));
+	}
+
+	if (zip->flags & ZIP_FLAG_EXPERIMENT_EL) {
+		/* Experimental 'el' extension to improve streaming. */
+		unsigned char *external_info = e;
+		int included = 7;
+		memcpy(e, "el\000\000", 4); // 0x6c65 + 2-byte length
+		e += 4;
+		e[0] = included; /* bitmap of included fields */
+		e += 1;
+		if (included & 1) {
+			archive_le16enc(e, /* "Version created by" */
+			    3 * 256 + version_needed);
+			e += 2;
+		}
+		if (included & 2) {
+			archive_le16enc(e, 0); /* internal file attributes */
+			e += 2;
+		}
+		if (included & 4) {
+			archive_le32enc(e,  /* external file attributes */
+			    archive_entry_mode(zip->entry) << 16);
+			e += 4;
+		}
+		if (included & 8) {
+			// Libarchive does not currently support file comments.
+		}
+		archive_le16enc(external_info + 2, e - (external_info + 4));
+	}
+
+	/* Update local header with size of extra data and write it all out: */
+	archive_le16enc(local_header + 28, e - local_extra);
+
+	ret = __archive_write_output(a, local_header, 30);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += 30;
+
+	ret = write_path(zip->entry, a);
+	if (ret <= ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += ret;
+
+	ret = __archive_write_output(a, local_extra, e - local_extra);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += e - local_extra;
+
+	/* For symlinks, write the body now. */
+	if (slink != NULL) {
+		ret = __archive_write_output(a, slink, slink_size);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		zip->entry_compressed_written += slink_size;
+		zip->entry_uncompressed_written += slink_size;
+		zip->written_bytes += slink_size;
+	}
+
+#ifdef HAVE_ZLIB_H
+	if (zip->entry_compression == COMPRESSION_DEFLATE) {
+		zip->stream.zalloc = Z_NULL;
+		zip->stream.zfree = Z_NULL;
+		zip->stream.opaque = Z_NULL;
+		zip->stream.next_out = zip->buf;
+		zip->stream.avail_out = (uInt)zip->len_buf;
+		if (deflateInit2(&zip->stream, Z_DEFAULT_COMPRESSION,
+		    Z_DEFLATED, -15, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't init deflate compressor");
+			return (ARCHIVE_FATAL);
+		}
+	}
+#endif
+
+	return (ret2);
+}
+
+static ssize_t
+archive_write_zip_data(struct archive_write *a, const void *buff, size_t s)
+{
+	int ret;
+	struct zip *zip = a->format_data;
+
+	if ((int64_t)s > zip->entry_uncompressed_limit)
+		s = (size_t)zip->entry_uncompressed_limit;
+	zip->entry_uncompressed_written += s;
+
+	if (s == 0) return 0;
+
+	switch (zip->entry_compression) {
+	case COMPRESSION_STORE:
+		ret = __archive_write_output(a, buff, s);
+		if (ret != ARCHIVE_OK)
+			return (ret);
+		zip->written_bytes += s;
+		zip->entry_compressed_written += s;
+		break;
+#if HAVE_ZLIB_H
+	case COMPRESSION_DEFLATE:
+		zip->stream.next_in = (unsigned char*)(uintptr_t)buff;
+		zip->stream.avail_in = (uInt)s;
+		do {
+			ret = deflate(&zip->stream, Z_NO_FLUSH);
+			if (ret == Z_STREAM_ERROR)
+				return (ARCHIVE_FATAL);
+			if (zip->stream.avail_out == 0) {
+				ret = __archive_write_output(a, zip->buf,
+					zip->len_buf);
+				if (ret != ARCHIVE_OK)
+					return (ret);
+				zip->entry_compressed_written += zip->len_buf;
+				zip->written_bytes += zip->len_buf;
+				zip->stream.next_out = zip->buf;
+				zip->stream.avail_out = (uInt)zip->len_buf;
+			}
+		} while (zip->stream.avail_in != 0);
+		break;
+#endif
+
+	default:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid ZIP compression type");
+		return ARCHIVE_FATAL;
+	}
+
+	zip->entry_uncompressed_limit -= s;
+	zip->entry_crc32 = zip->crc32func(zip->entry_crc32, buff, (unsigned)s);
+	return (s);
+
+}
+
+static int
+archive_write_zip_finish_entry(struct archive_write *a)
+{
+	struct zip *zip = a->format_data;
+	int ret;
+
+#if HAVE_ZLIB_H
+	if (zip->entry_compression == COMPRESSION_DEFLATE) {
+		for (;;) {
+			size_t remainder;
+			ret = deflate(&zip->stream, Z_FINISH);
+			if (ret == Z_STREAM_ERROR)
+				return (ARCHIVE_FATAL);
+			remainder = zip->len_buf - zip->stream.avail_out;
+			ret = __archive_write_output(a, zip->buf, remainder);
+			if (ret != ARCHIVE_OK)
+				return (ret);
+			zip->entry_compressed_written += remainder;
+			zip->written_bytes += remainder;
+			zip->stream.next_out = zip->buf;
+			if (zip->stream.avail_out != 0)
+				break;
+			zip->stream.avail_out = (uInt)zip->len_buf;
+		}
+		deflateEnd(&zip->stream);
+	}
+#endif
+
+	/* Write trailing data descriptor. */
+	if ((zip->entry_flags & ZIP_ENTRY_FLAG_LENGTH_AT_END) != 0) {
+		char d[24];
+		memcpy(d, "PK\007\010", 4);
+		archive_le32enc(d + 4, zip->entry_crc32);
+		if (zip->entry_uses_zip64) {
+			archive_le64enc(d + 8, (uint64_t)zip->entry_compressed_written);
+			archive_le64enc(d + 16, (uint64_t)zip->entry_uncompressed_written);
+			ret = __archive_write_output(a, d, 24);
+			zip->written_bytes += 24;
+		} else {
+			archive_le32enc(d + 8, (uint32_t)zip->entry_compressed_written);
+			archive_le32enc(d + 12, (uint32_t)zip->entry_uncompressed_written);
+			ret = __archive_write_output(a, d, 16);
+			zip->written_bytes += 16;
+		}
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Append Zip64 extra data to central directory information. */
+	if (zip->entry_compressed_written > 0xffffffffLL
+	    || zip->entry_uncompressed_written > 0xffffffffLL
+	    || zip->entry_offset > 0xffffffffLL) {
+		unsigned char zip64[32];
+		unsigned char *z = zip64, *zd;
+		memcpy(z, "\001\000\000\000", 4);
+		z += 4;
+		if (zip->entry_uncompressed_written >= 0xffffffffLL) {
+			archive_le64enc(z, zip->entry_uncompressed_written);
+			z += 8;
+		}
+		if (zip->entry_compressed_written >= 0xffffffffLL) {
+			archive_le64enc(z, zip->entry_compressed_written);
+			z += 8;
+		}
+		if (zip->entry_offset >= 0xffffffffLL) {
+			archive_le64enc(z, zip->entry_offset);
+			z += 8;
+		}
+		archive_le16enc(zip64 + 2, z - (zip64 + 4));
+		zd = cd_alloc(zip, z - zip64);
+		if (zd == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+				"Can't allocate zip data");
+			return (ARCHIVE_FATAL);
+		}
+		memcpy(zd, zip64, z - zip64);
+		/* Zip64 means version needs to be set to at least 4.5 */
+		if (archive_le16dec(zip->file_header + 6) < 45)
+			archive_le16enc(zip->file_header + 6, 45);
+	}
+
+	/* Fix up central directory file header. */
+	archive_le32enc(zip->file_header + 16, zip->entry_crc32);
+	archive_le32enc(zip->file_header + 20,
+	    zipmin(zip->entry_compressed_written, 0xffffffffLL));
+	archive_le32enc(zip->file_header + 24,
+	    zipmin(zip->entry_uncompressed_written, 0xffffffffLL));
+	archive_le16enc(zip->file_header + 30,
+	    zip->central_directory_bytes - zip->file_header_extra_offset);
+	archive_le32enc(zip->file_header + 42,
+	    zipmin(zip->entry_offset, 0xffffffffLL));
+
+	return (ARCHIVE_OK);
+}
+
+static int
+archive_write_zip_close(struct archive_write *a)
+{
+	uint8_t buff[64];
+	int64_t offset_start, offset_end;
+	struct zip *zip = a->format_data;
+	struct cd_segment *segment;
+	int ret;
+
+	offset_start = zip->written_bytes;
+	segment = zip->central_directory;
+	while (segment != NULL) {
+		ret = __archive_write_output(a,
+		    segment->buff, segment->p - segment->buff);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		zip->written_bytes += segment->p - segment->buff;
+		segment = segment->next;
+	}
+	offset_end = zip->written_bytes;
+
+	/* If central dir info is too large, write Zip64 end-of-cd */
+	if (offset_end - offset_start > 0xffffffffLL
+	    || offset_start > 0xffffffffLL
+	    || zip->central_directory_entries > 0xffffUL
+	    || (zip->flags & ZIP_FLAG_FORCE_ZIP64)) {
+	  /* Zip64 end-of-cd record */
+	  memset(buff, 0, 56);
+	  memcpy(buff, "PK\006\006", 4);
+	  archive_le64enc(buff + 4, 44);
+	  archive_le16enc(buff + 12, 45);
+	  archive_le16enc(buff + 14, 45);
+	  /* This is disk 0 of 0. */
+	  archive_le64enc(buff + 24, zip->central_directory_entries);
+	  archive_le64enc(buff + 32, zip->central_directory_entries);
+	  archive_le64enc(buff + 40, offset_end - offset_start);
+	  archive_le64enc(buff + 48, offset_start);
+	  ret = __archive_write_output(a, buff, 56);
+	  if (ret != ARCHIVE_OK)
+		  return (ARCHIVE_FATAL);
+	  zip->written_bytes += 56;
+
+	  /* Zip64 end-of-cd locator record. */
+	  memset(buff, 0, 20);
+	  memcpy(buff, "PK\006\007", 4);
+	  archive_le32enc(buff + 4, 0);
+	  archive_le64enc(buff + 8, offset_end);
+	  archive_le32enc(buff + 16, 1);
+	  ret = __archive_write_output(a, buff, 20);
+	  if (ret != ARCHIVE_OK)
+		  return (ARCHIVE_FATAL);
+	  zip->written_bytes += 20;
+
+	}
+
+	/* Format and write end of central directory. */
+	memset(buff, 0, sizeof(buff));
+	memcpy(buff, "PK\005\006", 4);
+	archive_le16enc(buff + 8, zipmin(0xffffU, zip->central_directory_entries));
+	archive_le16enc(buff + 10, zipmin(0xffffU, zip->central_directory_entries));
+	archive_le32enc(buff + 12, (uint32_t)zipmin(0xffffffffLL, (offset_end - offset_start)));
+	archive_le32enc(buff + 16, (uint32_t)zipmin(0xffffffffLL, offset_start));
+	ret = __archive_write_output(a, buff, 22);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+	zip->written_bytes += 22;
+	return (ARCHIVE_OK);
+}
+
+static int
+archive_write_zip_free(struct archive_write *a)
+{
+	struct zip *zip;
+	struct cd_segment *segment;
+
+	zip = a->format_data;
+	while (zip->central_directory != NULL) {
+		segment = zip->central_directory;
+		zip->central_directory = segment->next;
+		free(segment->buff);
+		free(segment);
+	}
+#ifdef HAVE_ZLIB_H
+	free(zip->buf);
+#endif
+	archive_entry_free(zip->entry);

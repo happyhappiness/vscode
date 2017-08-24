@@ -1,0 +1,1 @@
+result = CURLE_OK

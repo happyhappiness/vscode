@@ -1,0 +1,1 @@
+sum_write(str, me->reg_info)

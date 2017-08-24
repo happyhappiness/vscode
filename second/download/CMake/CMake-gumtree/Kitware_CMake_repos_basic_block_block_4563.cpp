@@ -1,0 +1,1 @@
+CryptReleaseContext(ctx->hCryptProv, 0)

@@ -1,0 +1,2 @@
+(yyres)
+              yyres[yyn] = *yyp

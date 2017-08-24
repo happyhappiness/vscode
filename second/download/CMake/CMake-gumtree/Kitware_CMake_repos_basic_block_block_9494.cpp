@@ -1,0 +1,1 @@
+acl_get(accpath, 0, &acl)

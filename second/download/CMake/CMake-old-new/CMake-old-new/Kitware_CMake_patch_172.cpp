@@ -1,123 +1,65 @@
-@@ -148,9 +148,12 @@ get_time_t_max(void)
- 		return (~(time_t)0);
- 	} else {
- 		/* Time_t is signed. */
--		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
--		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
--		return (time_t)max_signed_time_t;
-+		/* Assume it's the same as int64_t or int32_t */
-+		if (sizeof(time_t) == sizeof(int64_t)) {
-+			return (time_t)INT64_MAX;
-+		} else {
-+			return (time_t)INT32_MAX;
-+		}
- 	}
- #endif
+@@ -5,12 +5,12 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 2012, Linus Nielsen Feltzing, <linus@haxx.se>
++ * Copyright (C) 2012, 2016, Linus Nielsen Feltzing, <linus@haxx.se>
+  * Copyright (C) 2012 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+- * are also available at http://curl.haxx.se/docs/copyright.html.
++ * are also available at https://curl.haxx.se/docs/copyright.html.
+  *
+  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+  * copies of the Software, and permit persons to whom the Software is
+@@ -32,10 +32,9 @@
+ #include "sendf.h"
+ #include "rawstr.h"
+ #include "conncache.h"
++/* The last 3 #include files should be in this order */
+ #include "curl_printf.h"
+-
+ #include "curl_memory.h"
+-/* The last #include file should be: */
+ #include "memdebug.h"
+ 
+ static void conn_llist_dtor(void *user, void *element)
+@@ -46,7 +45,7 @@ static void conn_llist_dtor(void *user, void *element)
+   data->bundle = NULL;
  }
-@@ -166,10 +169,11 @@ get_time_t_min(void)
- 		return (time_t)0;
- 	} else {
- 		/* Time_t is signed. */
--		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
--		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
--		const intmax_t min_signed_time_t = (intmax_t)~max_signed_time_t;
--		return (time_t)min_signed_time_t;
-+		if (sizeof(time_t) == sizeof(int64_t)) {
-+			return (time_t)INT64_MIN;
-+		} else {
-+			return (time_t)INT32_MIN;
-+		}
- 	}
- #endif
+ 
+-static CURLcode bundle_create(struct SessionHandle *data,
++static CURLcode bundle_create(struct Curl_easy *data,
+                               struct connectbundle **cb_ptr)
+ {
+   (void)data;
+@@ -132,9 +131,16 @@ void Curl_conncache_destroy(struct conncache *connc)
+ /* returns an allocated key to find a bundle for this connection */
+ static char *hashkey(struct connectdata *conn)
+ {
+-  return aprintf("%s:%d",
+-                 conn->bits.proxy?conn->proxy.name:conn->host.name,
+-                 conn->localport);
++  const char *hostname;
++
++  if(conn->bits.proxy)
++    hostname = conn->proxy.name;
++  else if(conn->bits.conn_to_host)
++    hostname = conn->conn_to_host.name;
++  else
++    hostname = conn->host.name;
++
++  return aprintf("%s:%d", hostname, conn->port);
  }
-@@ -852,8 +856,8 @@ process_add_entry(struct archive_read *a, struct mtree *mtree,
- 	struct mtree_entry *entry;
- 	struct mtree_option *iter;
- 	const char *next, *eq, *name, *end;
--	size_t len;
--	int r;
-+	size_t name_len, len;
-+	int r, i;
  
- 	if ((entry = malloc(sizeof(*entry))) == NULL) {
- 		archive_set_error(&a->archive, errno, "Can't allocate memory");
-@@ -873,43 +877,48 @@ process_add_entry(struct archive_read *a, struct mtree *mtree,
- 	*last_entry = entry;
+ /* Look up the bundle with all the connections to the same host this
+@@ -193,7 +199,7 @@ CURLcode Curl_conncache_add_conn(struct conncache *connc,
+   CURLcode result;
+   struct connectbundle *bundle;
+   struct connectbundle *new_bundle = NULL;
+-  struct SessionHandle *data = conn->data;
++  struct Curl_easy *data = conn->data;
  
- 	if (is_form_d) {
--		/*
--		 * This form places the file name as last parameter.
--		 */
--		name = line + line_len -1;
-+		/* Filename is last item on line. */
-+		/* Adjust line_len to trim trailing whitespace */
- 		while (line_len > 0) {
--			if (*name != '\r' && *name != '\n' &&
--			    *name != '\t' && *name != ' ')
-+			char last_character = line[line_len - 1];
-+			if (last_character == '\r'
-+			    || last_character == '\n'
-+			    || last_character == '\t'
-+			    || last_character == ' ') {
-+				line_len--;
-+			} else {
- 				break;
--			name--;
--			line_len--;
-+			}
- 		}
--		len = 0;
--		while (line_len > 0) {
--			if (*name == '\r' || *name == '\n' ||
--			    *name == '\t' || *name == ' ') {
--				name++;
--				break;
-+		/* Name starts after the last whitespace separator */
-+		name = line;
-+		for (i = 0; i < line_len; i++) {
-+			if (line[i] == '\r'
-+			    || line[i] == '\n'
-+			    || line[i] == '\t'
-+			    || line[i] == ' ') {
-+				name = line + i + 1;
- 			}
--			name--;
--			line_len--;
--			len++;
- 		}
-+		name_len = line + line_len - name;
- 		end = name;
- 	} else {
--		len = strcspn(line, " \t\r\n");
-+		/* Filename is first item on line */
-+		name_len = strcspn(line, " \t\r\n");
- 		name = line;
--		line += len;
-+		line += name_len;
- 		end = line + line_len;
- 	}
-+	/* name/name_len is the name within the line. */
-+	/* line..end brackets the entire line except the name */
- 
--	if ((entry->name = malloc(len + 1)) == NULL) {
-+	if ((entry->name = malloc(name_len + 1)) == NULL) {
- 		archive_set_error(&a->archive, errno, "Can't allocate memory");
- 		return (ARCHIVE_FATAL);
- 	}
- 
--	memcpy(entry->name, name, len);
--	entry->name[len] = '\0';
-+	memcpy(entry->name, name, name_len);
-+	entry->name[name_len] = '\0';
- 	parse_escapes(entry->name, entry);
- 
- 	for (iter = *global; iter != NULL; iter = iter->next) {
-@@ -1561,7 +1570,7 @@ parse_keyword(struct archive_read *a, struct mtree *mtree,
- 			int64_t m;
- 			int64_t my_time_t_max = get_time_t_max();
- 			int64_t my_time_t_min = get_time_t_min();
--			long ns;
-+			long ns = 0;
- 
- 			*parsed_kws |= MTREE_HAS_MTIME;
- 			m = mtree_atol10(&val);
+   bundle = Curl_conncache_find_bundle(conn, data->state.conn_cache);
+   if(!bundle) {

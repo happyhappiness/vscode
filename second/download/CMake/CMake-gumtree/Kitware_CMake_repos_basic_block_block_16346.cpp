@@ -1,0 +1,1 @@
+xdoff = (int)(xdot - p)

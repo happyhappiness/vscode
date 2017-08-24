@@ -1,0 +1,1 @@
+index = index * 10 + ArrayIndex(*current - '0')

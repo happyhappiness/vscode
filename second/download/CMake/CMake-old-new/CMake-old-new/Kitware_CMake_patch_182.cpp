@@ -1,201 +1,276 @@
-@@ -101,16 +101,17 @@ archive_read_new(void)
- {
- 	struct archive_read *a;
- 
--	a = (struct archive_read *)malloc(sizeof(*a));
-+	a = (struct archive_read *)calloc(1, sizeof(*a));
- 	if (a == NULL)
- 		return (NULL);
--	memset(a, 0, sizeof(*a));
- 	a->archive.magic = ARCHIVE_READ_MAGIC;
- 
- 	a->archive.state = ARCHIVE_STATE_NEW;
- 	a->entry = archive_entry_new2(&a->archive);
- 	a->archive.vtable = archive_read_vtable();
- 
-+	a->passphrases.last = &a->passphrases.first;
-+
- 	return (&a->archive);
- }
- 
-@@ -194,10 +195,12 @@ client_skip_proxy(struct archive_read_filter *self, int64_t request)
- 				ask = skip_limit;
- 			get = (self->archive->client.skipper)
- 				(&self->archive->archive, self->data, ask);
--			if (get == 0)
-+			total += get;
-+			if (get == 0 || get == request)
- 				return (total);
-+			if (get > request)
-+				return ARCHIVE_FATAL;
- 			request -= get;
--			total += get;
- 		}
- 	} else if (self->archive->client.seeker != NULL
- 		&& request > 64 * 1024) {
-@@ -230,8 +233,11 @@ client_seek_proxy(struct archive_read_filter *self, int64_t offset, int whence)
- 	 * other libarchive code that assumes a successful forward
- 	 * seek means it can also seek backwards.
- 	 */
--	if (self->archive->client.seeker == NULL)
-+	if (self->archive->client.seeker == NULL) {
-+		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-+		    "Current client reader does not support seeking a device");
- 		return (ARCHIVE_FAILED);
-+	}
- 	return (self->archive->client.seeker)(&self->archive->archive,
- 	    self->data, offset, whence);
- }
-@@ -454,7 +460,7 @@ archive_read_open1(struct archive *_a)
- {
- 	struct archive_read *a = (struct archive_read *)_a;
- 	struct archive_read_filter *filter, *tmp;
--	int slot, e;
-+	int slot, e = ARCHIVE_OK;
- 	unsigned int i;
- 
- 	archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
-@@ -544,13 +550,13 @@ archive_read_open1(struct archive *_a)
- static int
- choose_filters(struct archive_read *a)
- {
--	int number_bidders, i, bid, best_bid;
-+	int number_bidders, i, bid, best_bid, n;
- 	struct archive_read_filter_bidder *bidder, *best_bidder;
- 	struct archive_read_filter *filter;
- 	ssize_t avail;
- 	int r;
- 
--	for (;;) {
-+	for (n = 0; n < 25; ++n) {
- 		number_bidders = sizeof(a->bidders) / sizeof(a->bidders[0]);
- 
- 		best_bid = 0;
-@@ -596,6 +602,9 @@ choose_filters(struct archive_read *a)
- 			return (ARCHIVE_FATAL);
- 		}
- 	}
-+	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-+	    "Input requires too many filters for decoding");
-+	return (ARCHIVE_FATAL);
- }
- 
- /*
-@@ -658,16 +667,14 @@ _archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
- 		break;
- 	}
- 
--	a->read_data_output_offset = 0;
--	a->read_data_remaining = 0;
--	a->read_data_is_posix_read = 0;
--	a->read_data_requested = 0;
-+	__archive_reset_read_data(&a->archive);
-+
- 	a->data_start_node = a->client.cursor;
- 	/* EOF always wins; otherwise return the worst error. */
- 	return (r2 < r1 || r2 == ARCHIVE_EOF) ? r2 : r1;
- }
- 
--int
-+static int
- _archive_read_next_header(struct archive *_a, struct archive_entry **entryp)
- {
- 	int ret;
-@@ -813,7 +820,7 @@ archive_read_format_capabilities(struct archive *_a)
- ssize_t
- archive_read_data(struct archive *_a, void *buff, size_t s)
- {
--	struct archive_read *a = (struct archive_read *)_a;
-+	struct archive *a = (struct archive *)_a;
- 	char	*dest;
- 	const void *read_buf;
- 	size_t	 bytes_read;
-@@ -828,7 +835,7 @@ archive_read_data(struct archive *_a, void *buff, size_t s)
- 			read_buf = a->read_data_block;
- 			a->read_data_is_posix_read = 1;
- 			a->read_data_requested = s;
--			r = _archive_read_data_block(&a->archive, &read_buf,
-+			r = archive_read_data_block(a, &read_buf,
- 			    &a->read_data_remaining, &a->read_data_offset);
- 			a->read_data_block = read_buf;
- 			if (r == ARCHIVE_EOF)
-@@ -843,7 +850,7 @@ archive_read_data(struct archive *_a, void *buff, size_t s)
- 		}
- 
- 		if (a->read_data_offset < a->read_data_output_offset) {
--			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
- 			    "Encountered out-of-order sparse blocks");
- 			return (ARCHIVE_RETRY);
- 		}
-@@ -887,6 +894,21 @@ archive_read_data(struct archive *_a, void *buff, size_t s)
- }
- 
- /*
-+ * Reset the read_data_* variables, used for starting a new entry.
-+ */
-+void __archive_reset_read_data(struct archive * a)
-+{
-+	a->read_data_output_offset = 0;
-+	a->read_data_remaining = 0;
-+	a->read_data_is_posix_read = 0;
-+	a->read_data_requested = 0;
-+
-+   /* extra resets, from rar.c */
-+   a->read_data_block = NULL;
-+   a->read_data_offset = 0;
-+}
-+
-+/*
-  * Skip over all remaining data in this entry.
+@@ -5,11 +5,11 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1999 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1999 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+- * are also available at http://curl.haxx.se/docs/copyright.html.
++ * are also available at https://curl.haxx.se/docs/copyright.html.
+  *
+  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+  * copies of the Software, and permit persons to whom the Software is
+@@ -32,15 +32,10 @@
+  *
+  * If you ever want truly portable and good *printf() clones, the project that
+  * took on from here is named 'Trio' and you find more details on the trio web
+- * page at http://daniel.haxx.se/trio/
++ * page at https://daniel.haxx.se/projects/trio/
   */
- int
-@@ -953,7 +975,7 @@ _archive_read_data_block(struct archive *_a,
- 	if (a->format->read_data == NULL) {
- 		archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
- 		    "Internal error: "
--		    "No format_read_data_block function registered");
-+		    "No format->read_data function registered");
- 		return (ARCHIVE_FATAL);
- 	}
  
-@@ -1040,6 +1062,7 @@ static int
- _archive_read_free(struct archive *_a)
- {
- 	struct archive_read *a = (struct archive_read *)_a;
-+	struct archive_read_passphrase *p;
- 	int i, n;
- 	int slots;
- 	int r = ARCHIVE_OK;
-@@ -1077,9 +1100,20 @@ _archive_read_free(struct archive *_a)
- 		}
- 	}
+ #include "curl_setup.h"
+-
+-#if defined(DJGPP) && (DJGPP_MINOR < 4)
+-#undef _MPRINTF_REPLACE /* don't use x_was_used() here */
+-#endif
+-
+ #include <curl/mprintf.h>
  
-+	/* Release passphrase list. */
-+	p = a->passphrases.first;
-+	while (p != NULL) {
-+		struct archive_read_passphrase *np = p->next;
+ #include "curl_memory.h"
+@@ -461,34 +456,40 @@ static long dprintf_Pass1(const char *format, va_stack_t *vto, char **endpos,
+       if(flags & FLAGS_WIDTHPARAM) {
+         /* we have the width specified from a parameter, so we make that
+            parameter's info setup properly */
+-        vto[i].width = width - 1;
+-        i = width - 1;
+-        vto[i].type = FORMAT_WIDTH;
+-        vto[i].flags = FLAGS_NEW;
+-        vto[i].precision = vto[i].width = 0; /* can't use width or precision
+-                                                of width! */
++        long k = width - 1;
++        vto[i].width = k;
++        vto[k].type = FORMAT_WIDTH;
++        vto[k].flags = FLAGS_NEW;
++        /* can't use width or precision of width! */
++        vto[k].width = 0;
++        vto[k].precision = 0;
+       }
+       if(flags & FLAGS_PRECPARAM) {
+         /* we have the precision specified from a parameter, so we make that
+            parameter's info setup properly */
+-        vto[i].precision = precision - 1;
+-        i = precision - 1;
+-        vto[i].type = FORMAT_WIDTH;
+-        vto[i].flags = FLAGS_NEW;
+-        vto[i].precision = vto[i].width = 0; /* can't use width or precision
+-                                                of width! */
++        long k = precision - 1;
++        vto[i].precision = k;
++        vto[k].type = FORMAT_WIDTH;
++        vto[k].flags = FLAGS_NEW;
++        /* can't use width or precision of width! */
++        vto[k].width = 0;
++        vto[k].precision = 0;
+       }
+       *endpos++ = fmt + 1; /* end of this sequence */
+     }
+   }
+ 
+   /* Read the arg list parameters into our data list */
+   for(i=0; i<max_param; i++) {
+-    if((i + 1 < max_param) && (vto[i + 1].type == FORMAT_WIDTH)) {
+-      /* Width/precision arguments must be read before the main argument
+-       * they are attached to
+-       */
+-      vto[i + 1].data.num.as_signed = (mp_intmax_t)va_arg(arglist, int);
++    /* Width/precision arguments must be read before the main argument
++       they are attached to */
++    if(vto[i].flags & FLAGS_WIDTHPARAM) {
++      vto[vto[i].width].data.num.as_signed =
++        (mp_intmax_t)va_arg(arglist, int);
++    }
++    if(vto[i].flags & FLAGS_PRECPARAM) {
++      vto[vto[i].precision].data.num.as_signed =
++        (mp_intmax_t)va_arg(arglist, int);
+     }
+ 
+     switch (vto[i].type) {
+@@ -576,6 +577,11 @@ static int dprintf_formatf(
+ 
+   va_stack_t *p;
+ 
++  /* 'workend' points to the final buffer byte position, but with an extra
++     byte as margin to avoid the (false?) warning Coverity gives us
++     otherwise */
++  char *workend = &work[sizeof(work) - 2];
 +
-+		/* A passphrase should be cleaned. */
-+		memset(p->passphrase, 0, strlen(p->passphrase));
-+		free(p->passphrase);
-+		free(p);
-+		p = np;
-+	}
+   /* Do the actual %-code parsing */
+   dprintf_Pass1(format, vto, endpos, ap_save);
+ 
+@@ -605,6 +611,8 @@ static int dprintf_formatf(
+     /* Used to convert negative in positive.  */
+     mp_intmax_t signed_num;
+ 
++    char *w;
 +
- 	archive_string_free(&a->archive.error_string);
--	if (a->entry)
--		archive_entry_free(a->entry);
-+	archive_entry_free(a->entry);
- 	a->archive.magic = 0;
- 	__archive_clean(&a->archive);
- 	free(a->client.dataset);
-@@ -1451,6 +1485,8 @@ __archive_read_filter_consume(struct archive_read_filter * filter,
- {
- 	int64_t skipped;
+     if(*f != '%') {
+       /* This isn't a format spec, so write everything out until the next one
+          OR end of string is reached.  */
+@@ -641,16 +649,30 @@ static int dprintf_formatf(
+     p = &vto[param];
  
-+	if (request < 0)
-+		return ARCHIVE_FATAL;
- 	if (request == 0)
- 		return 0;
+     /* pick up the specified width */
+-    if(p->flags & FLAGS_WIDTHPARAM)
++    if(p->flags & FLAGS_WIDTHPARAM) {
+       width = (long)vto[p->width].data.num.as_signed;
++      param_num++; /* since the width is extracted from a parameter, we
++                      must skip that to get to the next one properly */
++      if(width < 0) {
++        /* "A negative field width is taken as a '-' flag followed by a
++           positive field width." */
++        width = -width;
++        p->flags |= FLAGS_LEFT;
++        p->flags &= ~FLAGS_PAD_NIL;
++      }
++    }
+     else
+       width = p->width;
  
+     /* pick up the specified precision */
+     if(p->flags & FLAGS_PRECPARAM) {
+       prec = (long)vto[p->precision].data.num.as_signed;
+-      param_num++; /* since the precision is extraced from a parameter, we
++      param_num++; /* since the precision is extracted from a parameter, we
+                       must skip that to get to the next one properly */
++      if(prec < 0)
++        /* "A negative precision is taken as if the precision were
++           omitted." */
++        prec = -1;
+     }
+     else if(p->flags & FLAGS_PREC)
+       prec = p->precision;
+@@ -711,72 +733,68 @@ static int dprintf_formatf(
+ 
+       number:
+       /* Number of base BASE.  */
+-      {
+-        char *workend = &work[sizeof(work) - 1];
+-        char *w;
+-
+-        /* Supply a default precision if none was given.  */
+-        if(prec == -1)
+-          prec = 1;
+-
+-        /* Put the number in WORK.  */
+-        w = workend;
+-        while(num > 0) {
+-          *w-- = digits[num % base];
+-          num /= base;
+-        }
+-        width -= (long)(workend - w);
+-        prec -= (long)(workend - w);
+ 
+-        if(is_alt && base == 8 && prec <= 0) {
+-          *w-- = '0';
+-          --width;
+-        }
++      /* Supply a default precision if none was given.  */
++      if(prec == -1)
++        prec = 1;
+ 
+-        if(prec > 0) {
+-          width -= prec;
+-          while(prec-- > 0)
+-            *w-- = '0';
+-        }
++      /* Put the number in WORK.  */
++      w = workend;
++      while(num > 0) {
++        *w-- = digits[num % base];
++        num /= base;
++      }
++      width -= (long)(workend - w);
++      prec -= (long)(workend - w);
+ 
+-        if(is_alt && base == 16)
+-          width -= 2;
++      if(is_alt && base == 8 && prec <= 0) {
++        *w-- = '0';
++        --width;
++      }
+ 
+-        if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
+-          --width;
++      if(prec > 0) {
++        width -= prec;
++        while(prec-- > 0)
++          *w-- = '0';
++      }
+ 
+-        if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
+-          while(width-- > 0)
+-            OUTCHAR(' ');
++      if(is_alt && base == 16)
++        width -= 2;
+ 
+-        if(is_neg)
+-          OUTCHAR('-');
+-        else if(p->flags & FLAGS_SHOWSIGN)
+-          OUTCHAR('+');
+-        else if(p->flags & FLAGS_SPACE)
+-          OUTCHAR(' ');
++      if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
++        --width;
+ 
+-        if(is_alt && base == 16) {
+-          OUTCHAR('0');
+-          if(p->flags & FLAGS_UPPER)
+-            OUTCHAR('X');
+-          else
+-            OUTCHAR('x');
+-        }
++      if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
++        while(width-- > 0)
++          OUTCHAR(' ');
+ 
+-        if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
+-          while(width-- > 0)
+-            OUTCHAR('0');
++      if(is_neg)
++        OUTCHAR('-');
++      else if(p->flags & FLAGS_SHOWSIGN)
++        OUTCHAR('+');
++      else if(p->flags & FLAGS_SPACE)
++        OUTCHAR(' ');
++
++      if(is_alt && base == 16) {
++        OUTCHAR('0');
++        if(p->flags & FLAGS_UPPER)
++          OUTCHAR('X');
++        else
++          OUTCHAR('x');
++      }
+ 
+-        /* Write the number.  */
+-        while(++w <= workend) {
+-          OUTCHAR(*w);
+-        }
++      if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
++        while(width-- > 0)
++          OUTCHAR('0');
+ 
+-        if(p->flags & FLAGS_LEFT)
+-          while(width-- > 0)
+-            OUTCHAR(' ');
++      /* Write the number.  */
++      while(++w <= workend) {
++        OUTCHAR(*w);
+       }
++
++      if(p->flags & FLAGS_LEFT)
++        while(width-- > 0)
++          OUTCHAR(' ');
+       break;
+ 
+     case FORMAT_STRING:
+@@ -805,7 +823,7 @@ static int dprintf_formatf(
+         else
+           len = strlen(str);
+ 
+-        width -= (long)len;
++        width -= (len > LONG_MAX) ? LONG_MAX : (long)len;
+ 
+         if(p->flags & FLAGS_ALT)
+           OUTCHAR('"');

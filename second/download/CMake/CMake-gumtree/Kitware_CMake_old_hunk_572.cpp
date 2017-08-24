@@ -1,24 +1,19 @@
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = strlen(name);
-  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name);
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( strchr(name, '\\') )
-      {
-      sprintf(buf, "%s\\*", name);
+        }
+        if(ptr) {
+          ftpc->newport = (unsigned short)(num & 0xffff);
+
+          if(conn->bits.tunnel_proxy ||
+             conn->proxytype == CURLPROXY_SOCKS5 ||
+             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
+             conn->proxytype == CURLPROXY_SOCKS4 ||
+             conn->proxytype == CURLPROXY_SOCKS4A)
+            /* proxy tunnel -> use other host info because ip_addr_str is the
+               proxy address not the ftp host */
+            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
+                     conn->host.name);
+          else
+            /* use the same IP we are already connected to */
+            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
+        }
       }
-    else
-      {
-      sprintf(buf, "%s/*", name);
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
+      else

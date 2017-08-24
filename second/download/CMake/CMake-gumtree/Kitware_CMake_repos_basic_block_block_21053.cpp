@@ -1,0 +1,1 @@
+uv_tty_default_bg_color |= 2

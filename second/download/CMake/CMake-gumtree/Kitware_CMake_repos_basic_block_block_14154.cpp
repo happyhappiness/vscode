@@ -1,0 +1,1 @@
+archive_be16enc(u16, *s)

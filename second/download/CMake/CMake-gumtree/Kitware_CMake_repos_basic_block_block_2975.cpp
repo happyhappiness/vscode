@@ -1,0 +1,1 @@
+ftab[i] += ftab[i-1]

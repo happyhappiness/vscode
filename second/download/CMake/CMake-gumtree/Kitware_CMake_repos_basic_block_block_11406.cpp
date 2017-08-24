@@ -1,0 +1,1 @@
+memset(hf->bitlen, 0, len_size *  sizeof(hf->bitlen[0]))

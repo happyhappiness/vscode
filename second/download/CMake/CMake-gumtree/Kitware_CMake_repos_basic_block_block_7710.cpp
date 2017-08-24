@@ -1,0 +1,1 @@
+((XML_Char *)(appAtts[i]))[-1] = 0

@@ -1,0 +1,1 @@
+endCdataSectionHandler = end

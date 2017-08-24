@@ -1,3 +1,3 @@
 {
-    return *av[0];
+    printf("%p CC: %d\n", args, cc);
   }

@@ -1,0 +1,1 @@
+zip->opt_compression = _7Z_DEFLATE

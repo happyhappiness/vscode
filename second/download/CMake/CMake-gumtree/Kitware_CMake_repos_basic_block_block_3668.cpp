@@ -1,0 +1,1 @@
+Curl_freeaddrinfo(tsd->res)

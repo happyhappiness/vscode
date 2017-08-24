@@ -1,0 +1,1 @@
+pUseAccurateCaseForPaths(1)

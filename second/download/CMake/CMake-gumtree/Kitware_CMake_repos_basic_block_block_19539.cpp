@@ -1,0 +1,2 @@
+(r == sizeof(buf))
+          continue;

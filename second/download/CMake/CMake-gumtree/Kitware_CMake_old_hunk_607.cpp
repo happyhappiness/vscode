@@ -1,13 +1,29 @@
-    ret = read_data_compressed(a, buff, size, offset);
-    if (ret != ARCHIVE_OK && ret != ARCHIVE_WARN)
-      __archive_ppmd7_functions.Ppmd7_Free(&rar->ppmd7_context, &g_szalloc);
-    break; 
+      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 
-  default:
-    archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                      "Unsupported compression method for RAR file.");
-    ret = ARCHIVE_FATAL;
-    break; 
-  }
-  return (ret);
-}
+   if (hFile == INVALID_HANDLE_VALUE) {
+      fprintf(stderr, "Couldn't open file with CreateFile()\n");
+      return;
+   }
+
+   hFileMapping = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
+   if (hFileMapping == 0) {
+      CloseHandle(hFile);
+      fprintf(stderr, "Couldn't open file mapping with CreateFileMapping()\n");
+      return;
+   }
+
+   lpFileBase = MapViewOfFile(hFileMapping, FILE_MAP_READ, 0, 0, 0);
+   if (lpFileBase == 0) {
+      CloseHandle(hFileMapping);
+      CloseHandle(hFile);
+      fprintf(stderr, "Couldn't map view of file with MapViewOfFile()\n");
+      return;
+   }
+
+   dosHeader = (PIMAGE_DOS_HEADER)lpFileBase;
+   if (dosHeader->e_magic == IMAGE_DOS_SIGNATURE) {
+      fprintf(stderr, "File is an executable.  I don't dump those.\n");
+      return;
+   }
+   /* Does it look like a i386 COFF OBJ file??? */
+   else if (

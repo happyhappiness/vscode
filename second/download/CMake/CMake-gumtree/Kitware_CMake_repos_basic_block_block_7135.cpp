@@ -1,0 +1,1 @@
+connssl->recv_sspi_close_notify = true

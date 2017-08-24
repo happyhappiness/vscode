@@ -1,0 +1,3 @@
+{
+    RemoveDirectoryW(new_path);
+  }

@@ -1,0 +1,1 @@
+mine->use_lseek = 1

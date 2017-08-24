@@ -1,0 +1,1 @@
+dtd->keepProcessing = dtd->standalone

@@ -1,0 +1,1 @@
+loop->signal_io_watcher.cb(loop, &loop->signal_io_watcher, POLLIN)

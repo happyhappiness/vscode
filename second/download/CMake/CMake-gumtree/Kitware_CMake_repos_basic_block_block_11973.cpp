@@ -1,0 +1,1 @@
+*crc = lha_crc16(*crc, h, extdsize)

@@ -1,0 +1,1 @@
+(src < end) *(dst++) = bswap_32( *(src++) )

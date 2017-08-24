@@ -1,0 +1,1 @@
+flags = r | FD_CLOEXEC

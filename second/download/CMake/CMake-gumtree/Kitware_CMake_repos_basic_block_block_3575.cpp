@@ -1,0 +1,1 @@
+base[i] = ((limit[i-1] + 1) << 1) - base[i]

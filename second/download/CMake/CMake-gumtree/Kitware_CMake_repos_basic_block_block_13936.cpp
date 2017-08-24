@@ -1,0 +1,1 @@
+return (sc->from_charset);

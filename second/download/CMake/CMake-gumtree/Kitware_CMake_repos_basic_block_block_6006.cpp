@@ -1,0 +1,1 @@
+s->range = strdup(data->set.str[STRING_SET_RANGE])

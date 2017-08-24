@@ -1,0 +1,1 @@
+entry_main = archive_entry_clone(entry_original)

@@ -1,0 +1,12 @@
+--- /dev/null
++++ /dev/null
+@@ -383,7 +365,8 @@
+   if(Curl_pgrsUpdate(conn))
+     res = CURLE_ABORTED_BY_CALLBACK;
+ 
++  close(fd);
++
+   return res;
+ }
+-
+ 

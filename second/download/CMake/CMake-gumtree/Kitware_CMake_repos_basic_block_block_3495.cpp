@@ -1,0 +1,1 @@
+s->unzftab[i] = 0

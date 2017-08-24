@@ -1,8 +1,11 @@
-                                      (unsigned char **)&_gssresp.value,
-                                      &_gssresp.length);
-          if(result) {
-            Curl_failf(data, "base64-decoding: %s",
-                       curl_easy_strerror(result));
-            ret = AUTH_CONTINUE;
-            break;
-          }
+		/* We're done with the regular data; get the filename and
+		 * extra data. */
+		__archive_read_consume(a, 46);
+		p = __archive_read_ahead(a, filename_length + extra_length,
+			NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			return ARCHIVE_FATAL;
+		}

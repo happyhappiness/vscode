@@ -1,0 +1,1 @@
+ret = LZMA_DATA_ERROR

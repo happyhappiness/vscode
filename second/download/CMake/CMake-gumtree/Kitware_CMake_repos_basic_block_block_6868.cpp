@@ -1,0 +1,1 @@
+result = nss_load_cert(&conn->ssl[sockindex], cafile, PR_TRUE)

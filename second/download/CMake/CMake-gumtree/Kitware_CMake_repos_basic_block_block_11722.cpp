@@ -1,0 +1,1 @@
+file->mode = AE_IFREG | 0400

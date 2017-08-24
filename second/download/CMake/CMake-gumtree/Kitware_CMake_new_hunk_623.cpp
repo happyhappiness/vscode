@@ -1,7 +1,9 @@
-        li != testLangs.end(); ++li)
+    // Command to report progress for a build
+    else if (args[1] == "cmake_progress_report" && args.size() >= 3)
       {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags);
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+      // This has been superseded by cmake_echo_color --progress-*
+      // options.  We leave it here to avoid errors if somehow this
+      // is invoked by an existing makefile without regenerating.
+      return 0;
+      }
+

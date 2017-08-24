@@ -1,0 +1,1 @@
+archive_hmac_sha1_update(&zip->hctx, sp, bytes_avail)

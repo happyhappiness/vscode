@@ -1,0 +1,1 @@
+return Curl_resolv(conn, hostname, port, entry);

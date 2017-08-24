@@ -1,0 +1,1 @@
+memmove(uudecode->in_buff, b, len)

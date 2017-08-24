@@ -1,0 +1,1 @@
+*avail = filter->client_avail

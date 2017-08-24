@@ -1,301 +1,181 @@
-@@ -69,7 +69,11 @@ __FBSDID("$FreeBSD$");
- #define _7Z_BZ2		0x040202
- #define _7Z_PPMD	0x030401
- #define _7Z_DELTA	0x03
--#define _7Z_CRYPTO	0x06F10701
-+#define _7Z_CRYPTO_MAIN_ZIP			0x06F10101 /* Main Zip crypto algo */
-+#define _7Z_CRYPTO_RAR_29			0x06F10303 /* Rar29 AES-128 + (modified SHA-1) */
-+#define _7Z_CRYPTO_AES_256_SHA_256	0x06F10701 /* AES-256 + SHA-256 */
-+
-+
- #define _7Z_X86		0x03030103
- #define _7Z_X86_BCJ2	0x0303011B
- #define _7Z_POWERPC	0x03030205
-@@ -322,8 +326,13 @@ struct _7zip {
- 	struct archive_string_conv *sconv;
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -59,14 +59,12 @@
+ #include "getinfo.h"
+ #include "transfer.h"
+ #include "url.h"
+-#include "curl_memory.h"
+ #include "parsedate.h" /* for the week day and month names */
+ #include "warnless.h"
++#include "curl_printf.h"
  
- 	char			 format_name[64];
-+
-+	/* Custom value that is non-zero if this archive contains encrypted entries. */
-+	int			 has_encrypted_entries;
- };
+-#define _MPRINTF_REPLACE /* use our functions only */
+-#include <curl/mprintf.h>
+-
+-/* The last #include file should be: */
++/* The last #include files should be: */
++#include "curl_memory.h"
+ #include "memdebug.h"
  
-+static int	archive_read_format_7zip_has_encrypted_entries(struct archive_read *);
-+static int	archive_read_support_format_7zip_capabilities(struct archive_read *a);
- static int	archive_read_format_7zip_bid(struct archive_read *, int);
- static int	archive_read_format_7zip_cleanup(struct archive_read *);
- static int	archive_read_format_7zip_read_data(struct archive_read *,
-@@ -401,6 +410,13 @@ archive_read_support_format_7zip(struct archive *_a)
- 		return (ARCHIVE_FATAL);
- 	}
+ #if defined(WIN32) || defined(MSDOS) || defined(__EMX__) || \
+@@ -196,8 +194,9 @@ static CURLcode file_connect(struct connectdata *conn, bool *done)
+   int i;
+   char *actual_path;
+ #endif
++  int real_path_len;
  
-+	/*
-+	 * Until enough data has been read, we cannot tell about
-+	 * any encrypted entries yet.
-+	 */
-+	zip->has_encrypted_entries = ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-+
-+
- 	r = __archive_read_register_format(a,
- 	    zip,
- 	    "7zip",
-@@ -410,14 +426,37 @@ archive_read_support_format_7zip(struct archive *_a)
- 	    archive_read_format_7zip_read_data,
- 	    archive_read_format_7zip_read_data_skip,
- 	    NULL,
--	    archive_read_format_7zip_cleanup);
-+	    archive_read_format_7zip_cleanup,
-+	    archive_read_support_format_7zip_capabilities,
-+	    archive_read_format_7zip_has_encrypted_entries);
+-  real_path = curl_easy_unescape(data, data->state.path, 0, NULL);
++  real_path = curl_easy_unescape(data, data->state.path, 0, &real_path_len);
+   if(!real_path)
+     return CURLE_OUT_OF_MEMORY;
  
- 	if (r != ARCHIVE_OK)
- 		free(zip);
- 	return (ARCHIVE_OK);
+@@ -222,16 +221,23 @@ static CURLcode file_connect(struct connectdata *conn, bool *done)
+      (actual_path[2] == ':' || actual_path[2] == '|')) {
+     actual_path[2] = ':';
+     actual_path++;
++    real_path_len--;
+   }
+ 
+   /* change path separators from '/' to '\\' for DOS, Windows and OS/2 */
+-  for(i=0; actual_path[i] != '\0'; ++i)
++  for(i=0; i < real_path_len; ++i)
+     if(actual_path[i] == '/')
+       actual_path[i] = '\\';
++    else if(!actual_path[i]) /* binary zero */
++      return CURLE_URL_MALFORMAT;
+ 
+   fd = open_readonly(actual_path, O_RDONLY|O_BINARY);
+   file->path = actual_path;
+ #else
++  if(memchr(real_path, 0, real_path_len))
++    /* binary zeroes indicate foul play */
++    return CURLE_URL_MALFORMAT;
++
+   fd = open_readonly(real_path, O_RDONLY);
+   file->path = real_path;
+ #endif
+@@ -295,7 +301,7 @@ static CURLcode file_upload(struct connectdata *conn)
+   const char *dir = strchr(file->path, DIRSEP);
+   int fd;
+   int mode;
+-  CURLcode res=CURLE_OK;
++  CURLcode result = CURLE_OK;
+   struct SessionHandle *data = conn->data;
+   char *buf = data->state.buffer;
+   size_t nread;
+@@ -309,8 +315,6 @@ static CURLcode file_upload(struct connectdata *conn)
+    * Since FILE: doesn't do the full init, we need to provide some extra
+    * assignments here.
+    */
+-  conn->fread_func = data->set.fread_func;
+-  conn->fread_in = data->set.in;
+   conn->data->req.upload_fromhere = buf;
+ 
+   if(!dir)
+@@ -351,10 +355,10 @@ static CURLcode file_upload(struct connectdata *conn)
+       data->state.resume_from = (curl_off_t)file_stat.st_size;
+   }
+ 
+-  while(res == CURLE_OK) {
++  while(!result) {
+     int readcount;
+-    res = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
+-    if(res)
++    result = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
++    if(result)
+       break;
+ 
+     if(readcount <= 0)  /* fix questionable compare error. curlvms */
+@@ -381,7 +385,7 @@ static CURLcode file_upload(struct connectdata *conn)
+     /* write the data to the target */
+     nwrite = write(fd, buf2, nread);
+     if(nwrite != nread) {
+-      res = CURLE_SEND_ERROR;
++      result = CURLE_SEND_ERROR;
+       break;
+     }
+ 
+@@ -390,16 +394,16 @@ static CURLcode file_upload(struct connectdata *conn)
+     Curl_pgrsSetUploadCounter(data, bytecount);
+ 
+     if(Curl_pgrsUpdate(conn))
+-      res = CURLE_ABORTED_BY_CALLBACK;
++      result = CURLE_ABORTED_BY_CALLBACK;
+     else
+-      res = Curl_speedcheck(data, now);
++      result = Curl_speedcheck(data, now);
+   }
+-  if(!res && Curl_pgrsUpdate(conn))
+-    res = CURLE_ABORTED_BY_CALLBACK;
++  if(!result && Curl_pgrsUpdate(conn))
++    result = CURLE_ABORTED_BY_CALLBACK;
+ 
+   close(fd);
+ 
+-  return res;
++  return result;
  }
  
- static int
-+archive_read_support_format_7zip_capabilities(struct archive_read * a)
-+{
-+	(void)a; /* UNUSED */
-+	return (ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_DATA |
-+			ARCHIVE_READ_FORMAT_CAPS_ENCRYPT_METADATA);
-+}
-+
-+
-+static int
-+archive_read_format_7zip_has_encrypted_entries(struct archive_read *_a)
-+{
-+	if (_a && _a->format) {
-+		struct _7zip * zip = (struct _7zip *)_a->format->data;
-+		if (zip) {
-+			return zip->has_encrypted_entries;
-+		}
-+	}
-+	return ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW;
-+}
-+
-+static int
- archive_read_format_7zip_bid(struct archive_read *a, int best_bid)
- {
- 	const char *p;
-@@ -476,23 +515,23 @@ check_7zip_header_in_sfx(const char *p)
- 	switch ((unsigned char)p[5]) {
- 	case 0x1C:
- 		if (memcmp(p, _7ZIP_SIGNATURE, 6) != 0)
--			return (6); 
-+			return (6);
- 		/*
- 		 * Test the CRC because its extraction code has 7-Zip
- 		 * Magic Code, so we should do this in order not to
- 		 * make a mis-detection.
- 		 */
- 		if (crc32(0, (const unsigned char *)p + 12, 20)
- 			!= archive_le32dec(p + 8))
--			return (6); 
-+			return (6);
- 		/* Hit the header! */
- 		return (0);
--	case 0x37: return (5); 
--	case 0x7A: return (4); 
--	case 0xBC: return (3); 
--	case 0xAF: return (2); 
--	case 0x27: return (1); 
--	default: return (6); 
-+	case 0x37: return (5);
-+	case 0x7A: return (4);
-+	case 0xBC: return (3);
-+	case 0xAF: return (2);
-+	case 0x27: return (1);
-+	default: return (6);
- 	}
+ /*
+@@ -417,7 +421,7 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
+      are supported. This means that files on remotely mounted directories
+      (via NFS, Samba, NT sharing) can be accessed through a file:// URL
+   */
+-  CURLcode res = CURLE_OK;
++  CURLcode result = CURLE_OK;
+   struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
+                           Windows version to have a different struct without
+                           having to redefine the simple word 'stat' */
+@@ -464,7 +468,6 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
+      information. Which for FILE can't be much more than the file size and
+      date. */
+   if(data->set.opt_no_body && data->set.include_header && fstated) {
+-    CURLcode result;
+     snprintf(buf, sizeof(data->state.buffer),
+              "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+     result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+@@ -546,7 +549,7 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
+ 
+   Curl_pgrsTime(data, TIMER_STARTTRANSFER);
+ 
+-  while(res == CURLE_OK) {
++  while(!result) {
+     /* Don't fill a whole buffer if we want less than all data */
+     size_t bytestoread =
+       (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
+@@ -563,21 +566,21 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
+     bytecount += nread;
+     expected_size -= nread;
+ 
+-    res = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
+-    if(res)
+-      return res;
++    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
++    if(result)
++      return result;
+ 
+     Curl_pgrsSetDownloadCounter(data, bytecount);
+ 
+     if(Curl_pgrsUpdate(conn))
+-      res = CURLE_ABORTED_BY_CALLBACK;
++      result = CURLE_ABORTED_BY_CALLBACK;
+     else
+-      res = Curl_speedcheck(data, now);
++      result = Curl_speedcheck(data, now);
+   }
+   if(Curl_pgrsUpdate(conn))
+-    res = CURLE_ABORTED_BY_CALLBACK;
++    result = CURLE_ABORTED_BY_CALLBACK;
+ 
+-  return res;
++  return result;
  }
  
-@@ -568,6 +607,19 @@ archive_read_format_7zip_read_header(struct archive_read *a,
- 	struct _7zip *zip = (struct _7zip *)a->format->data;
- 	struct _7zip_entry *zip_entry;
- 	int r, ret = ARCHIVE_OK;
-+	struct _7z_folder *folder = 0;
-+	uint64_t fidx = 0;
-+
-+	/*
-+	 * It should be sufficient to call archive_read_next_header() for
-+	 * a reader to determine if an entry is encrypted or not. If the
-+	 * encryption of an entry is only detectable when calling
-+	 * archive_read_data(), so be it. We'll do the same check there
-+	 * as well.
-+	 */
-+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-+		zip->has_encrypted_entries = 0;
-+	}
- 
- 	a->archive.archive_format = ARCHIVE_FORMAT_7ZIP;
- 	if (a->archive.archive_format_name == NULL)
-@@ -604,6 +656,32 @@ archive_read_format_7zip_read_header(struct archive_read *a,
- 			return (ARCHIVE_FATAL);
- 	}
- 
-+	/* Figure out if the entry is encrypted by looking at the folder
-+	   that is associated to the current 7zip entry. If the folder
-+	   has a coder with a _7Z_CRYPTO codec then the folder is encrypted.
-+	   Hence the entry must also be encrypted. */
-+	if (zip_entry && zip_entry->folderIndex < zip->si.ci.numFolders) {
-+		folder = &(zip->si.ci.folders[zip_entry->folderIndex]);
-+		for (fidx=0; folder && fidx<folder->numCoders; fidx++) {
-+			switch(folder->coders[fidx].codec) {
-+				case _7Z_CRYPTO_MAIN_ZIP:
-+				case _7Z_CRYPTO_RAR_29:
-+				case _7Z_CRYPTO_AES_256_SHA_256: {
-+					archive_entry_set_is_data_encrypted(entry, 1);
-+					zip->has_encrypted_entries = 1;
-+					break;
-+				}
-+			}
-+		}
-+	}
-+
-+	/* Now that we've checked for encryption, if there were still no
-+	 * encrypted entries found we can say for sure that there are none.
-+	 */
-+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-+		zip->has_encrypted_entries = 0;
-+	}
-+
- 	if (archive_entry_copy_pathname_l(entry,
- 	    (const char *)zip_entry->utf16name,
- 	    zip_entry->name_len, zip->sconv) != 0) {
-@@ -707,6 +785,10 @@ archive_read_format_7zip_read_data(struct archive_read *a,
- 
- 	zip = (struct _7zip *)(a->format->data);
- 
-+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-+		zip->has_encrypted_entries = 0;
-+	}
-+
- 	if (zip->pack_stream_bytes_unconsumed)
- 		read_consume(a);
- 
-@@ -969,7 +1051,7 @@ init_decompression(struct archive_read *a, struct _7zip *zip,
- 	{
- 		lzma_options_delta delta_opt;
- 		lzma_filter filters[LZMA_FILTERS_MAX];
--#if LZMA_VERSION < 50000030
-+#if LZMA_VERSION < 50010000
- 		lzma_filter *ff;
  #endif
- 		int fi = 0;
-@@ -994,7 +1076,7 @@ init_decompression(struct archive_read *a, struct _7zip *zip,
- 		 * for BCJ+LZMA. If we were able to tell the uncompressed
- 		 * size to liblzma when using lzma_raw_decoder() liblzma
- 		 * could correctly deal with BCJ+LZMA. But unfortunately
--		 * there is no way to do that. 
-+		 * there is no way to do that.
- 		 * Discussion about this can be found at XZ Utils forum.
- 		 */
- 		if (coder2 != NULL) {
-@@ -1056,7 +1138,7 @@ init_decompression(struct archive_read *a, struct _7zip *zip,
- 		else
- 			filters[fi].id = LZMA_FILTER_LZMA1;
- 		filters[fi].options = NULL;
--#if LZMA_VERSION < 50000030
-+#if LZMA_VERSION < 50010000
- 		ff = &filters[fi];
- #endif
- 		r = lzma_properties_decode(&filters[fi], NULL,
-@@ -1070,7 +1152,7 @@ init_decompression(struct archive_read *a, struct _7zip *zip,
- 		filters[fi].id = LZMA_VLI_UNKNOWN;
- 		filters[fi].options = NULL;
- 		r = lzma_raw_decoder(&(zip->lzstream), filters);
--#if LZMA_VERSION < 50000030
-+#if LZMA_VERSION < 50010000
- 		free(ff->options);
- #endif
- 		if (r != LZMA_OK) {
-@@ -1203,6 +1285,17 @@ init_decompression(struct archive_read *a, struct _7zip *zip,
- 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
- 		    "Unexpected codec ID: %lX", zip->codec);
- 		return (ARCHIVE_FAILED);
-+	case _7Z_CRYPTO_MAIN_ZIP:
-+	case _7Z_CRYPTO_RAR_29:
-+	case _7Z_CRYPTO_AES_256_SHA_256:
-+		if (a->entry) {
-+			archive_entry_set_is_metadata_encrypted(a->entry, 1);
-+			archive_entry_set_is_data_encrypted(a->entry, 1);
-+			zip->has_encrypted_entries = 1;
-+		}
-+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-+		    "Crypto codec not supported yet (ID: 0x%lX)", zip->codec);
-+		return (ARCHIVE_FAILED);
- 	default:
- 		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
- 		    "Unknown codec ID: %lX", zip->codec);
-@@ -1426,7 +1519,7 @@ decompress(struct archive_read *a, struct _7zip *zip,
- 
- 		do {
- 			int sym;
--			
-+
- 			sym = __archive_ppmd7_functions.Ppmd7_DecodeSymbol(
- 				&(zip->ppmd7_context), &(zip->range_dec.p));
- 			if (sym < 0) {
-@@ -2755,6 +2848,7 @@ slurp_central_directory(struct archive_read *a, struct _7zip *zip,
- 	zip->header_crc32 = 0;
- 	zip->header_is_encoded = 0;
- 	zip->header_is_being_read = 1;
-+	zip->has_encrypted_entries = 0;
- 	check_header_crc = 1;
- 
- 	if ((p = header_bytes(a, 1)) == NULL) {
-@@ -3170,7 +3264,7 @@ read_stream(struct archive_read *a, const void **buff, size_t size,
- 		return (r);
- 
- 	/*
--	 * Skip the bytes we alrady has skipped in skip_stream(). 
-+	 * Skip the bytes we alrady has skipped in skip_stream().
- 	 */
- 	while (skip_bytes) {
- 		ssize_t skipped;
-@@ -3235,16 +3329,36 @@ setup_decode_folder(struct archive_read *a, struct _7z_folder *folder,
- 	 * Check coder types.
- 	 */
- 	for (i = 0; i < folder->numCoders; i++) {
--		if (folder->coders[i].codec == _7Z_CRYPTO) {
--			archive_set_error(&(a->archive),
--			    ARCHIVE_ERRNO_MISC,
--			    "The %s is encrypted, "
--			    "but currently not supported", cname);
--			return (ARCHIVE_FATAL);
-+		switch(folder->coders[i].codec) {
-+			case _7Z_CRYPTO_MAIN_ZIP:
-+			case _7Z_CRYPTO_RAR_29:
-+			case _7Z_CRYPTO_AES_256_SHA_256: {
-+				/* For entry that is associated with this folder, mark
-+				   it as encrypted (data+metadata). */
-+				zip->has_encrypted_entries = 1;
-+				if (a->entry) {
-+					archive_entry_set_is_data_encrypted(a->entry, 1);
-+					archive_entry_set_is_metadata_encrypted(a->entry, 1);
-+				}
-+				archive_set_error(&(a->archive),
-+					ARCHIVE_ERRNO_MISC,
-+					"The %s is encrypted, "
-+					"but currently not supported", cname);
-+				return (ARCHIVE_FATAL);
-+			}
-+			case _7Z_X86_BCJ2: {
-+				found_bcj2++;
-+				break;
-+			}
- 		}
--		if (folder->coders[i].codec == _7Z_X86_BCJ2)
--			found_bcj2++;
- 	}
-+	/* Now that we've checked for encryption, if there were still no
-+	 * encrypted entries found we can say for sure that there are none.
-+	 */
-+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
-+		zip->has_encrypted_entries = 0;
-+	}
-+
- 	if ((folder->numCoders > 2 && !found_bcj2) || found_bcj2 > 1) {
- 		archive_set_error(&(a->archive),
- 		    ARCHIVE_ERRNO_MISC,

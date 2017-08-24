@@ -1,2699 +1,1983 @@
-/*============================================================================
-  KWSys - Kitware System Library
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/*-
+ * Copyright (c) 2003-2009 Tim Kientzle
+ * Copyright (c) 2010-2011 Michihiro NAKAJIMA
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer
+ *    in this position and unchanged.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+#include "archive_platform.h"
+__FBSDID("$FreeBSD$");
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#if defined(_WIN32) && !defined(__CYGWIN__)
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(Process.h)
-#include KWSYS_HEADER(System.h)
-
-/* Work-around CMake dependency scanning limitation.  This must
-   duplicate the above list of headers.  */
-#if 0
-# include "Process.h.in"
-# include "System.h.in"
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
 #endif
+#ifdef HAVE_SYS_MOUNT_H
+#include <sys/mount.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#ifdef HAVE_SYS_STATVFS_H
+#include <sys/statvfs.h>
+#endif
+#ifdef HAVE_SYS_VFS_H
+#include <sys/vfs.h>
+#endif
+#ifdef HAVE_LINUX_MAGIC_H
+#include <linux/magic.h>
+#endif
+#ifdef HAVE_DIRECT_H
+#include <direct.h>
+#endif
+#ifdef HAVE_DIRENT_H
+#include <dirent.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#ifdef HAVE_STRING_H
+#include <string.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#if defined(HAVE_WINIOCTL_H) && !defined(__CYGWIN__)
+#include <winioctl.h>
+#endif
+
+#include "archive.h"
+#include "archive_string.h"
+#include "archive_entry.h"
+#include "archive_private.h"
+#include "archive_read_disk_private.h"
+
+#ifndef O_BINARY
+#define O_BINARY	0
+#endif
+#ifndef IO_REPARSE_TAG_SYMLINK
+/* Old SDKs do not provide IO_REPARSE_TAG_SYMLINK */
+#define	IO_REPARSE_TAG_SYMLINK 0xA000000CL
+#endif
+
+static BOOL SetFilePointerEx_perso(HANDLE hFile,
+                             LARGE_INTEGER liDistanceToMove,
+                             PLARGE_INTEGER lpNewFilePointer,
+                             DWORD dwMoveMethod)
+{
+	LARGE_INTEGER li;
+	li.QuadPart = liDistanceToMove.QuadPart;
+	li.LowPart = SetFilePointer(
+	    hFile, li.LowPart, &li.HighPart, dwMoveMethod);
+	if(lpNewFilePointer) {
+		lpNewFilePointer->QuadPart = li.QuadPart;
+	}
+	return li.LowPart != -1 || GetLastError() == NO_ERROR;
+}
+
+/*-
+ * This is a new directory-walking system that addresses a number
+ * of problems I've had with fts(3).  In particular, it has no
+ * pathname-length limits (other than the size of 'int'), handles
+ * deep logical traversals, uses considerably less memory, and has
+ * an opaque interface (easier to modify in the future).
+ *
+ * Internally, it keeps a single list of "tree_entry" items that
+ * represent filesystem objects that require further attention.
+ * Non-directories are not kept in memory: they are pulled from
+ * readdir(), returned to the client, then freed as soon as possible.
+ * Any directory entry to be traversed gets pushed onto the stack.
+ *
+ * There is surprisingly little information that needs to be kept for
+ * each item on the stack.  Just the name, depth (represented here as the
+ * string length of the parent directory's pathname), and some markers
+ * indicating how to get back to the parent (via chdir("..") for a
+ * regular dir or via fchdir(2) for a symlink).
+ */
+/*
+ * TODO:
+ *    1) Loop checking.
+ *    3) Arbitrary logical traversals by closing/reopening intermediate fds.
+ */
+
+struct restore_time {
+	const wchar_t		*full_path;
+	FILETIME		 lastWriteTime;
+	FILETIME		 lastAccessTime;
+	mode_t			 filetype;
+};
+
+struct tree_entry {
+	int			 depth;
+	struct tree_entry	*next;
+	struct tree_entry	*parent;
+	size_t			 full_path_dir_length;
+	struct archive_wstring	 name;
+	struct archive_wstring	 full_path;
+	size_t			 dirname_length;
+	int64_t			 dev;
+	int64_t			 ino;
+	int			 flags;
+	int			 filesystem_id;
+	/* How to restore time of a directory. */
+	struct restore_time	 restore_time;
+};
+
+struct filesystem {
+	int64_t		dev;
+	int		synthetic;
+	int		remote;
+};
+
+/* Definitions for tree_entry.flags bitmap. */
+#define	isDir		1  /* This entry is a regular directory. */
+#define	isDirLink	2  /* This entry is a symbolic link to a directory. */
+#define	needsFirstVisit	4  /* This is an initial entry. */
+#define	needsDescent	8  /* This entry needs to be previsited. */
+#define	needsOpen	16 /* This is a directory that needs to be opened. */
+#define	needsAscent	32 /* This entry needs to be postvisited. */
 
 /*
+ * On Windows, "first visit" is handled as a pattern to be handed to
+ * _findfirst().  This is consistent with Windows conventions that
+ * file patterns are handled within the application.  On Posix,
+ * "first visit" is just returned to the client.
+ */
 
-Implementation for Windows
+/*
+ * Local data for this package.
+ */
+struct tree {
+	struct tree_entry	*stack;
+	struct tree_entry	*current;
+	HANDLE d;
+#define	INVALID_DIR_HANDLE INVALID_HANDLE_VALUE
+	WIN32_FIND_DATAW	_findData;
+	WIN32_FIND_DATAW	*findData;
+	int			 flags;
+	int			 visit_type;
+	/* Error code from last failed operation. */
+	int			 tree_errno;
 
-On windows, a thread is created to wait for data on each pipe.  The
-threads are synchronized with the main thread to simulate the use of
-a UNIX-style select system call.
+	/* A full path with "\\?\" prefix. */
+	struct archive_wstring	 full_path;
+	size_t			 full_path_dir_length;
+	/* Dynamically-sized buffer for holding path */
+	struct archive_wstring	 path;
 
-*/
+	/* Last path element */
+	const wchar_t		*basename;
+	/* Leading dir length */
+	size_t			 dirname_length;
 
-#ifdef _MSC_VER
-#pragma warning (push, 1)
-#endif
-#include <windows.h> /* Windows API */
-#include <string.h>  /* strlen, strdup */
-#include <stdio.h>   /* sprintf */
-#include <io.h>      /* _unlink */
-#ifdef __WATCOMC__
-#define _unlink unlink
-#endif
+	int	 depth;
 
-#ifndef _MAX_FNAME
-#define _MAX_FNAME 4096
-#endif
-#ifndef _MAX_PATH
-#define _MAX_PATH 4096
-#endif
+	BY_HANDLE_FILE_INFORMATION	lst;
+	BY_HANDLE_FILE_INFORMATION	st;
+	int			 descend;
+	/* How to restore time of a file. */
+	struct restore_time	restore_time;
 
-#ifdef _MSC_VER
-#pragma warning (pop)
-#pragma warning (disable: 4514)
-#pragma warning (disable: 4706)
-#endif
+	struct entry_sparse {
+		int64_t		 length;
+		int64_t		 offset;
+	}			*sparse_list, *current_sparse;
+	int			 sparse_count;
+	int			 sparse_list_size;
 
-#if defined(__BORLANDC__)
-# pragma warn -8004 /* assigned a value that is never used  */
-# pragma warn -8060 /* Assignment inside if() condition.  */
-#endif
+	char			 initial_symlink_mode;
+	char			 symlink_mode;
+	struct filesystem	*current_filesystem;
+	struct filesystem	*filesystem_table;
+	int			 current_filesystem_id;
+	int			 max_filesystem_id;
+	int			 allocated_filesytem;
 
-/* There are pipes for the process pipeline's stdout and stderr.  */
-#define KWSYSPE_PIPE_COUNT 2
-#define KWSYSPE_PIPE_STDOUT 0
-#define KWSYSPE_PIPE_STDERR 1
+	HANDLE			 entry_fh;
+	int			 entry_eof;
+	int64_t			 entry_remaining_bytes;
+	int64_t			 entry_total;
+	unsigned char		*entry_buff;
+	size_t			 entry_buff_size;
+};
 
-/* The maximum amount to read from a pipe at a time.  */
-#define KWSYSPE_PIPE_BUFFER_SIZE 1024
+#define bhfi_dev(bhfi)	((bhfi)->dwVolumeSerialNumber)
+/* Treat FileIndex as i-node. We should remove a sequence number
+ * which is high-16-bits of nFileIndexHigh. */
+#define bhfi_ino(bhfi)	\
+	((((int64_t)((bhfi)->nFileIndexHigh & 0x0000FFFFUL)) << 32) \
+    + (bhfi)->nFileIndexLow)
 
-/* Debug output macro.  */
-#if 0
-# define KWSYSPE_DEBUG(x) \
-( \
-  (void*)cp == (void*)0x00226DE0? \
-  ( \
-    fprintf(stderr, "%d/%p/%d ", (int)GetCurrentProcessId(), cp, __LINE__), \
-    fprintf x, \
-    fflush(stderr), \
-    1 \
-  ) : (1) \
-)
+/* Definitions for tree.flags bitmap. */
+#define	hasStat		16 /* The st entry is valid. */
+#define	hasLstat	32 /* The lst entry is valid. */
+#define	needsRestoreTimes 128
+
+static int
+tree_dir_next_windows(struct tree *t, const wchar_t *pattern);
+
+#ifdef HAVE_DIRENT_D_NAMLEN
+/* BSD extension; avoids need for a strlen() call. */
+#define	D_NAMELEN(dp)	(dp)->d_namlen
 #else
-# define KWSYSPE_DEBUG(x) (void)1
+#define	D_NAMELEN(dp)	(strlen((dp)->d_name))
 #endif
 
-typedef LARGE_INTEGER kwsysProcessTime;
-
-typedef struct kwsysProcessCreateInformation_s
-{
-  /* Windows child startup control data.  */
-  STARTUPINFO StartupInfo;
-} kwsysProcessCreateInformation;
-
-/*--------------------------------------------------------------------------*/
-typedef struct kwsysProcessPipeData_s kwsysProcessPipeData;
-static DWORD WINAPI kwsysProcessPipeThreadRead(LPVOID ptd);
-static void kwsysProcessPipeThreadReadPipe(kwsysProcess* cp,
-                                           kwsysProcessPipeData* td);
-static DWORD WINAPI kwsysProcessPipeThreadWake(LPVOID ptd);
-static void kwsysProcessPipeThreadWakePipe(kwsysProcess* cp,
-                                           kwsysProcessPipeData* td);
-static int kwsysProcessInitialize(kwsysProcess* cp);
-static int kwsysProcessCreate(kwsysProcess* cp, int index,
-                              kwsysProcessCreateInformation* si,
-                              PHANDLE readEnd);
-static void kwsysProcessDestroy(kwsysProcess* cp, int event);
-static int kwsysProcessSetupOutputPipeFile(PHANDLE handle, const char* name);
-static int kwsysProcessSetupSharedPipe(DWORD nStdHandle, PHANDLE handle);
-static int kwsysProcessSetupPipeNative(PHANDLE handle, HANDLE p[2],
-                                       int isWrite);
-static void kwsysProcessCleanupHandle(PHANDLE h);
-static void kwsysProcessCleanupHandleSafe(PHANDLE h, DWORD nStdHandle);
-static void kwsysProcessCleanup(kwsysProcess* cp, int error);
-static void kwsysProcessCleanErrorMessage(kwsysProcess* cp);
-static int kwsysProcessComputeCommandLength(kwsysProcess* cp,
-                                            char const* const* command);
-static void kwsysProcessComputeCommandLine(kwsysProcess* cp,
-                                           char const* const* command,
-                                           char* cmd);
-static int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
-                                      kwsysProcessTime* timeoutTime);
-static int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
-                                      double* userTimeout,
-                                      kwsysProcessTime* timeoutLength);
-static kwsysProcessTime kwsysProcessTimeGetCurrent(void);
-static DWORD kwsysProcessTimeToDWORD(kwsysProcessTime t);
-static double kwsysProcessTimeToDouble(kwsysProcessTime t);
-static kwsysProcessTime kwsysProcessTimeFromDouble(double d);
-static int kwsysProcessTimeLess(kwsysProcessTime in1, kwsysProcessTime in2);
-static kwsysProcessTime kwsysProcessTimeAdd(kwsysProcessTime in1, kwsysProcessTime in2);
-static kwsysProcessTime kwsysProcessTimeSubtract(kwsysProcessTime in1, kwsysProcessTime in2);
-static void kwsysProcessSetExitException(kwsysProcess* cp, int code);
-static void kwsysProcessKillTree(int pid);
-static void kwsysProcessDisablePipeThreads(kwsysProcess* cp);
-
-/*--------------------------------------------------------------------------*/
-/* A structure containing synchronization data for each thread.  */
-typedef struct kwsysProcessPipeSync_s kwsysProcessPipeSync;
-struct kwsysProcessPipeSync_s
-{
-  /* Handle to the thread.  */
-  HANDLE Thread;
-
-  /* Semaphore indicating to the thread that a process has started.  */
-  HANDLE Ready;
-
-  /* Semaphore indicating to the thread that it should begin work.  */
-  HANDLE Go;
-
-  /* Semaphore indicating thread has reset for another process.  */
-  HANDLE Reset;
-};
-
-/*--------------------------------------------------------------------------*/
-/* A structure containing data for each pipe's threads.  */
-struct kwsysProcessPipeData_s
-{
-  /* ------------- Data managed per instance of kwsysProcess ------------- */
-
-  /* Synchronization data for reading thread.  */
-  kwsysProcessPipeSync Reader;
-
-  /* Synchronization data for waking thread.  */
-  kwsysProcessPipeSync Waker;
-
-  /* Index of this pipe.  */
-  int Index;
-
-  /* The kwsysProcess instance owning this pipe.  */
-  kwsysProcess* Process;
-
-  /* ------------- Data managed per call to Execute ------------- */
-
-  /* Buffer for data read in this pipe's thread.  */
-  char DataBuffer[KWSYSPE_PIPE_BUFFER_SIZE];
-
-  /* The length of the data stored in the buffer.  */
-  DWORD DataLength;
-
-  /* Whether the pipe has been closed.  */
-  int Closed;
-
-  /* Handle for the read end of this pipe. */
-  HANDLE Read;
-
-  /* Handle for the write end of this pipe. */
-  HANDLE Write;
-};
-
-/*--------------------------------------------------------------------------*/
-/* Structure containing data used to implement the child's execution.  */
-struct kwsysProcess_s
-{
-  /* ------------- Data managed per instance of kwsysProcess ------------- */
-
-  /* The status of the process structure.  */
-  int State;
-
-  /* The command lines to execute.  */
-  char** Commands;
-  int NumberOfCommands;
-
-  /* The exit code of each command.  */
-  DWORD* CommandExitCodes;
-
-  /* The working directory for the child process.  */
-  char* WorkingDirectory;
-
-  /* Whether to create the child as a detached process.  */
-  int OptionDetach;
-
-  /* Whether the child was created as a detached process.  */
-  int Detached;
-
-  /* Whether to hide the child process's window.  */
-  int HideWindow;
-
-  /* Whether to treat command lines as verbatim.  */
-  int Verbatim;
-
-  /* Mutex to protect the shared index used by threads to report data.  */
-  HANDLE SharedIndexMutex;
-
-  /* Semaphore used by threads to signal data ready.  */
-  HANDLE Full;
-
-  /* Whether we are currently deleting this kwsysProcess instance.  */
-  int Deleting;
-
-  /* Data specific to each pipe and its thread.  */
-  kwsysProcessPipeData Pipe[KWSYSPE_PIPE_COUNT];
-
-  /* Name of files to which stdin and stdout pipes are attached.  */
-  char* PipeFileSTDIN;
-  char* PipeFileSTDOUT;
-  char* PipeFileSTDERR;
-
-  /* Whether each pipe is shared with the parent process.  */
-  int PipeSharedSTDIN;
-  int PipeSharedSTDOUT;
-  int PipeSharedSTDERR;
-
-  /* Native pipes provided by the user.  */
-  HANDLE PipeNativeSTDIN[2];
-  HANDLE PipeNativeSTDOUT[2];
-  HANDLE PipeNativeSTDERR[2];
-
-  /* ------------- Data managed per call to Execute ------------- */
-
-  /* The exceptional behavior that terminated the process, if any.  */
-  int ExitException;
-
-  /* The process exit code.  */
-  DWORD ExitCode;
-
-  /* The process return code, if any.  */
-  int ExitValue;
-
-  /* Index of last pipe to report data, if any.  */
-  int CurrentIndex;
-
-  /* Index shared by threads to report data.  */
-  int SharedIndex;
-
-  /* The timeout length.  */
-  double Timeout;
-
-  /* Time at which the child started.  */
-  kwsysProcessTime StartTime;
-
-  /* Time at which the child will timeout.  Negative for no timeout.  */
-  kwsysProcessTime TimeoutTime;
-
-  /* Flag for whether the process was killed.  */
-  int Killed;
-
-  /* Flag for whether the timeout expired.  */
-  int TimeoutExpired;
-
-  /* Flag for whether the process has terminated.  */
-  int Terminated;
-
-  /* The number of pipes still open during execution and while waiting
-     for pipes to close after process termination.  */
-  int PipesLeft;
-
-  /* Buffer for error messages.  */
-  char ErrorMessage[KWSYSPE_PIPE_BUFFER_SIZE+1];
-
-  /* Description for the ExitException.  */
-  char ExitExceptionString[KWSYSPE_PIPE_BUFFER_SIZE+1];
-
-  /* Windows process information data.  */
-  PROCESS_INFORMATION* ProcessInformation;
-
-  /* Data and process termination events for which to wait.  */
-  PHANDLE ProcessEvents;
-  int ProcessEventsLength;
-
-  /* Real working directory of our own process.  */
-  DWORD RealWorkingDirectoryLength;
-  char* RealWorkingDirectory;
-};
-
-/*--------------------------------------------------------------------------*/
-kwsysProcess* kwsysProcess_New(void)
-{
-  int i;
-
-  /* Process control structure.  */
-  kwsysProcess* cp;
-
-  /* Windows version number data.  */
-  OSVERSIONINFO osv;
-
-  /* Allocate a process control structure.  */
-  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
-  if(!cp)
-    {
-    /* Could not allocate memory for the control structure.  */
-    return 0;
-    }
-  ZeroMemory(cp, sizeof(*cp));
-
-  /* Share stdin with the parent process by default.  */
-  cp->PipeSharedSTDIN = 1;
-
-  /* Set initial status.  */
-  cp->State = kwsysProcess_State_Starting;
-
-  /* Choose a method of running the child based on version of
-     windows.  */
-  ZeroMemory(&osv, sizeof(osv));
-  osv.dwOSVersionInfoSize = sizeof(osv);
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
-    {
-    /* Win9x no longer supported.  */
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
-
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
-    {
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
-
-  /* Initially no data are available.  Initialize semaphore to 0.  */
-  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
-    {
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
-
-  /* Create the thread to read each pipe.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    DWORD dummy=0;
-
-    /* Assign the thread its index.  */
-    cp->Pipe[i].Index = i;
-
-    /* Give the thread a pointer back to the kwsysProcess instance.  */
-    cp->Pipe[i].Process = cp;
-
-    /* No process is yet running.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Reader.Ready = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Reader.Reset = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
-    if(!(cp->Pipe[i].Reader.Go = CreateSemaphore(0, 1, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* Create the reading thread.  It will block immediately.  The
-       thread will not make deeply nested calls, so we need only a
-       small stack.  */
-    if(!(cp->Pipe[i].Reader.Thread = CreateThread(0, 1024,
-                                                  kwsysProcessPipeThreadRead,
-                                                  &cp->Pipe[i], 0, &dummy)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* No process is yet running.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Waker.Ready = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Waker.Reset = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* The waker should not wake immediately.  Initialize semaphore to 0.  */
-    if(!(cp->Pipe[i].Waker.Go = CreateSemaphore(0, 0, 1, 0)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-
-    /* Create the waking thread.  It will block immediately.  The
-       thread will not make deeply nested calls, so we need only a
-       small stack.  */
-    if(!(cp->Pipe[i].Waker.Thread = CreateThread(0, 1024,
-                                                 kwsysProcessPipeThreadWake,
-                                                 &cp->Pipe[i], 0, &dummy)))
-      {
-      kwsysProcess_Delete(cp);
-      return 0;
-      }
-    }
-
-  return cp;
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_Delete(kwsysProcess* cp)
-{
-  int i;
-
-  /* Make sure we have an instance.  */
-  if(!cp)
-    {
-    return;
-    }
-
-  /* If the process is executing, wait for it to finish.  */
-  if(cp->State == kwsysProcess_State_Executing)
-    {
-    if(cp->Detached)
-      {
-      kwsysProcess_Disown(cp);
-      }
-    else
-      {
-      kwsysProcess_WaitForExit(cp, 0);
-      }
-    }
-
-  /* We are deleting the kwsysProcess instance.  */
-  cp->Deleting = 1;
-
-  /* Terminate each of the threads.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    /* Terminate this reading thread.  */
-    if(cp->Pipe[i].Reader.Thread)
-      {
-      /* Signal the thread we are ready for it.  It will terminate
-         immediately since Deleting is set.  */
-      ReleaseSemaphore(cp->Pipe[i].Reader.Ready, 1, 0);
-
-      /* Wait for the thread to exit.  */
-      WaitForSingleObject(cp->Pipe[i].Reader.Thread, INFINITE);
-
-      /* Close the handle to the thread. */
-      kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Thread);
-      }
-
-    /* Terminate this waking thread.  */
-    if(cp->Pipe[i].Waker.Thread)
-      {
-      /* Signal the thread we are ready for it.  It will terminate
-         immediately since Deleting is set.  */
-      ReleaseSemaphore(cp->Pipe[i].Waker.Ready, 1, 0);
-
-      /* Wait for the thread to exit.  */
-      WaitForSingleObject(cp->Pipe[i].Waker.Thread, INFINITE);
-
-      /* Close the handle to the thread. */
-      kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Thread);
-      }
-
-    /* Cleanup the pipe's semaphores.  */
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Ready);
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Go);
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Reset);
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Ready);
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Go);
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Reset);
-    }
-
-  /* Close the shared semaphores.  */
-  kwsysProcessCleanupHandle(&cp->SharedIndexMutex);
-  kwsysProcessCleanupHandle(&cp->Full);
-
-  /* Free memory.  */
-  kwsysProcess_SetCommand(cp, 0);
-  kwsysProcess_SetWorkingDirectory(cp, 0);
-  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDIN, 0);
-  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDOUT, 0);
-  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDERR, 0);
-  if(cp->CommandExitCodes)
-    {
-    free(cp->CommandExitCodes);
-    }
-  free(cp);
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_SetCommand(kwsysProcess* cp, char const* const* command)
-{
-  int i;
-  if(!cp)
-    {
-    return 0;
-    }
-  for(i=0; i < cp->NumberOfCommands; ++i)
-    {
-    free(cp->Commands[i]);
-    }
-  cp->NumberOfCommands = 0;
-  if(cp->Commands)
-    {
-    free(cp->Commands);
-    cp->Commands = 0;
-    }
-  if(command)
-    {
-    return kwsysProcess_AddCommand(cp, command);
-    }
-  return 1;
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_AddCommand(kwsysProcess* cp, char const* const* command)
-{
-  int newNumberOfCommands;
-  char** newCommands;
-
-  /* Make sure we have a command to add.  */
-  if(!cp || !command || !*command)
-    {
-    return 0;
-    }
-
-  /* Allocate a new array for command pointers.  */
-  newNumberOfCommands = cp->NumberOfCommands + 1;
-  if(!(newCommands = (char**)malloc(sizeof(char*) * newNumberOfCommands)))
-    {
-    /* Out of memory.  */
-    return 0;
-    }
-
-  /* Copy any existing commands into the new array.  */
-  {
-  int i;
-  for(i=0; i < cp->NumberOfCommands; ++i)
-    {
-    newCommands[i] = cp->Commands[i];
-    }
-  }
-
-  /* We need to construct a single string representing the command
-     and its arguments.  We will surround each argument containing
-     spaces with double-quotes.  Inside a double-quoted argument, we
-     need to escape double-quotes and all backslashes before them.
-     We also need to escape backslashes at the end of an argument
-     because they come before the closing double-quote for the
-     argument.  */
-  {
-  /* First determine the length of the final string.  */
-  int length = kwsysProcessComputeCommandLength(cp, command);
-
-  /* Allocate enough space for the command.  We do not need an extra
-     byte for the terminating null because we allocated a space for
-     the first argument that we will not use.  */
-  newCommands[cp->NumberOfCommands] = (char*)malloc(length);
-  if(!newCommands[cp->NumberOfCommands])
-    {
-    /* Out of memory.  */
-    free(newCommands);
-    return 0;
-    }
-
-  /* Construct the command line in the allocated buffer.  */
-  kwsysProcessComputeCommandLine(cp, command,
-                                 newCommands[cp->NumberOfCommands]);
-  }
-
-  /* Save the new array of commands.  */
-  free(cp->Commands);
-  cp->Commands = newCommands;
-  cp->NumberOfCommands = newNumberOfCommands;
-  return 1;
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_SetTimeout(kwsysProcess* cp, double timeout)
-{
-  if(!cp)
-    {
-    return;
-    }
-  cp->Timeout = timeout;
-  if(cp->Timeout < 0)
-    {
-    cp->Timeout = 0;
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_SetWorkingDirectory(kwsysProcess* cp, const char* dir)
-{
-  if(!cp)
-    {
-    return 0;
-    }
-  if(cp->WorkingDirectory)
-    {
-    free(cp->WorkingDirectory);
-    cp->WorkingDirectory = 0;
-    }
-  if(dir && dir[0])
-    {
-    /* We must convert the working directory to a full path.  */
-    DWORD length = GetFullPathName(dir, 0, 0, 0);
-    if(length > 0)
-      {
-      cp->WorkingDirectory = (char*)malloc(length);
-      if(!cp->WorkingDirectory)
-        {
-        return 0;
-        }
-      if(!GetFullPathName(dir, length, cp->WorkingDirectory, 0))
-        {
-        free(cp->WorkingDirectory);
-        cp->WorkingDirectory = 0;
-        return 0;
-        }
-      }
-    }
-  return 1;
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_SetPipeFile(kwsysProcess* cp, int pipe, const char* file)
-{
-  char** pfile;
-  if(!cp)
-    {
-    return 0;
-    }
-  switch(pipe)
-    {
-    case kwsysProcess_Pipe_STDIN: pfile = &cp->PipeFileSTDIN; break;
-    case kwsysProcess_Pipe_STDOUT: pfile = &cp->PipeFileSTDOUT; break;
-    case kwsysProcess_Pipe_STDERR: pfile = &cp->PipeFileSTDERR; break;
-    default: return 0;
-    }
-  if(*pfile)
-    {
-    free(*pfile);
-    *pfile = 0;
-    }
-  if(file)
-    {
-    *pfile = (char*)malloc(strlen(file)+1);
-    if(!*pfile)
-      {
-      return 0;
-      }
-    strcpy(*pfile, file);
-    }
-
-  /* If we are redirecting the pipe, do not share it or use a native
-     pipe.  */
-  if(*pfile)
-    {
-    kwsysProcess_SetPipeNative(cp, pipe, 0);
-    kwsysProcess_SetPipeShared(cp, pipe, 0);
-    }
-
-  return 1;
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_SetPipeShared(kwsysProcess* cp, int pipe, int shared)
-{
-  if(!cp)
-    {
-    return;
-    }
-
-  switch(pipe)
-    {
-    case kwsysProcess_Pipe_STDIN: cp->PipeSharedSTDIN = shared?1:0; break;
-    case kwsysProcess_Pipe_STDOUT: cp->PipeSharedSTDOUT = shared?1:0; break;
-    case kwsysProcess_Pipe_STDERR: cp->PipeSharedSTDERR = shared?1:0; break;
-    default: return;
-    }
-
-  /* If we are sharing the pipe, do not redirect it to a file or use a
-     native pipe.  */
-  if(shared)
-    {
-    kwsysProcess_SetPipeFile(cp, pipe, 0);
-    kwsysProcess_SetPipeNative(cp, pipe, 0);
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_SetPipeNative(kwsysProcess* cp, int pipe, HANDLE p[2])
-{
-  HANDLE* pPipeNative = 0;
-
-  if(!cp)
-    {
-    return;
-    }
-
-  switch(pipe)
-    {
-    case kwsysProcess_Pipe_STDIN: pPipeNative = cp->PipeNativeSTDIN; break;
-    case kwsysProcess_Pipe_STDOUT: pPipeNative = cp->PipeNativeSTDOUT; break;
-    case kwsysProcess_Pipe_STDERR: pPipeNative = cp->PipeNativeSTDERR; break;
-    default: return;
-    }
-
-  /* Copy the native pipe handles provided.  */
-  if(p)
-    {
-    pPipeNative[0] = p[0];
-    pPipeNative[1] = p[1];
-    }
-  else
-    {
-    pPipeNative[0] = 0;
-    pPipeNative[1] = 0;
-    }
-
-  /* If we are using a native pipe, do not share it or redirect it to
-     a file.  */
-  if(p)
-    {
-    kwsysProcess_SetPipeFile(cp, pipe, 0);
-    kwsysProcess_SetPipeShared(cp, pipe, 0);
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_GetOption(kwsysProcess* cp, int optionId)
-{
-  if(!cp)
-    {
-    return 0;
-    }
-
-  switch(optionId)
-    {
-    case kwsysProcess_Option_Detach: return cp->OptionDetach;
-    case kwsysProcess_Option_HideWindow: return cp->HideWindow;
-    case kwsysProcess_Option_Verbatim: return cp->Verbatim;
-    default: return 0;
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_SetOption(kwsysProcess* cp, int optionId, int value)
-{
-  if(!cp)
-    {
-    return;
-    }
-
-  switch(optionId)
-    {
-    case kwsysProcess_Option_Detach: cp->OptionDetach = value; break;
-    case kwsysProcess_Option_HideWindow: cp->HideWindow = value; break;
-    case kwsysProcess_Option_Verbatim: cp->Verbatim = value; break;
-    default: break;
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_GetState(kwsysProcess* cp)
-{
-  return cp? cp->State : kwsysProcess_State_Error;
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_GetExitException(kwsysProcess* cp)
-{
-  return cp? cp->ExitException : kwsysProcess_Exception_Other;
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_GetExitValue(kwsysProcess* cp)
-{
-  return cp? cp->ExitValue : -1;
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_GetExitCode(kwsysProcess* cp)
-{
-  return cp? cp->ExitCode : 0;
-}
-
-/*--------------------------------------------------------------------------*/
-const char* kwsysProcess_GetErrorString(kwsysProcess* cp)
-{
-  if(!cp)
-    {
-    return "Process management structure could not be allocated";
-    }
-  else if(cp->State == kwsysProcess_State_Error)
-    {
-    return cp->ErrorMessage;
-    }
-  return "Success";
-}
-
-/*--------------------------------------------------------------------------*/
-const char* kwsysProcess_GetExceptionString(kwsysProcess* cp)
-{
-  if(!cp)
-    {
-    return "GetExceptionString called with NULL process management structure";
-    }
-  else if(cp->State == kwsysProcess_State_Exception)
-    {
-    return cp->ExitExceptionString;
-    }
-  return "No exception";
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_Execute(kwsysProcess* cp)
-{
-  int i;
-
-  /* Child startup control data.  */
-  kwsysProcessCreateInformation si;
-
-  /* Do not execute a second time.  */
-  if(!cp || cp->State == kwsysProcess_State_Executing)
-    {
-    return;
-    }
-
-  /* Make sure we have something to run.  */
-  if(cp->NumberOfCommands < 1)
-    {
-    strcpy(cp->ErrorMessage, "No command");
-    cp->State = kwsysProcess_State_Error;
-    return;
-    }
-
-  /* Initialize the control structure for a new process.  */
-  if(!kwsysProcessInitialize(cp))
-    {
-    strcpy(cp->ErrorMessage, "Out of memory");
-    cp->State = kwsysProcess_State_Error;
-    return;
-    }
-
-  /* Save the real working directory of this process and change to
-     the working directory for the child processes.  This is needed
-     to make pipe file paths evaluate correctly.  */
-  if(cp->WorkingDirectory)
-    {
-    if(!GetCurrentDirectory(cp->RealWorkingDirectoryLength,
-                            cp->RealWorkingDirectory))
-      {
-      kwsysProcessCleanup(cp, 1);
-      return;
-      }
-    SetCurrentDirectory(cp->WorkingDirectory);
-    }
-
-  /* Initialize startup info data.  */
-  ZeroMemory(&si, sizeof(si));
-  si.StartupInfo.cb = sizeof(si.StartupInfo);
-
-  /* Decide whether a child window should be shown.  */
-  si.StartupInfo.dwFlags |= STARTF_USESHOWWINDOW;
-  si.StartupInfo.wShowWindow =
-    (unsigned short)(cp->HideWindow?SW_HIDE:SW_SHOWDEFAULT);
-
-  /* Connect the child's output pipes to the threads.  */
-  si.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
-
-  /* Create stderr pipe to be shared by all processes in the pipeline.
-     Neither end is directly inherited.  */
-  if(!CreatePipe(&cp->Pipe[KWSYSPE_PIPE_STDERR].Read,
-                 &cp->Pipe[KWSYSPE_PIPE_STDERR].Write, 0, 0))
-    {
-    kwsysProcessCleanup(cp, 1);
-    return;
-    }
-
-  /* Create an inherited duplicate of the write end, but do not
-     close the non-inherited version.  We need to keep it open
-     to use in waking up the pipe threads.  */
-  if(!DuplicateHandle(GetCurrentProcess(), cp->Pipe[KWSYSPE_PIPE_STDERR].Write,
-                      GetCurrentProcess(), &si.StartupInfo.hStdError,
-                      0, TRUE, DUPLICATE_SAME_ACCESS))
-    {
-    kwsysProcessCleanup(cp, 1);
-    kwsysProcessCleanupHandle(&si.StartupInfo.hStdError);
-    return;
-    }
-
-  /* Replace the stderr pipe with a file if requested.  In this case
-     the pipe thread will still run but never report data.  */
-  if(cp->PipeFileSTDERR)
-    {
-    if(!kwsysProcessSetupOutputPipeFile(&si.StartupInfo.hStdError,
-                                        cp->PipeFileSTDERR))
-      {
-      kwsysProcessCleanup(cp, 1);
-      kwsysProcessCleanupHandle(&si.StartupInfo.hStdError);
-      return;
-      }
-    }
-
-  /* Replace the stderr pipe with the parent process's if requested.
-     In this case the pipe thread will still run but never report
-     data.  */
-  if(cp->PipeSharedSTDERR)
-    {
-    if(!kwsysProcessSetupSharedPipe(STD_ERROR_HANDLE,
-                                    &si.StartupInfo.hStdError))
-      {
-      kwsysProcessCleanup(cp, 1);
-      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError,
-                                    STD_ERROR_HANDLE);
-      return;
-      }
-    }
-
-  /* Replace the stderr pipe with the native pipe provided if any.  In
-     this case the pipe thread will still run but never report
-     data.  */
-  if(cp->PipeNativeSTDERR[1])
-    {
-    if(!kwsysProcessSetupPipeNative(&si.StartupInfo.hStdError,
-                                    cp->PipeNativeSTDERR, 1))
-      {
-      kwsysProcessCleanup(cp, 1);
-      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError,
-                                    STD_ERROR_HANDLE);
-      return;
-      }
-    }
-
-  /* Create the pipeline of processes.  */
-  {
-  HANDLE readEnd = 0;
-  for(i=0; i < cp->NumberOfCommands; ++i)
-    {
-    if(kwsysProcessCreate(cp, i, &si, &readEnd))
-      {
-      cp->ProcessEvents[i+1] = cp->ProcessInformation[i].hProcess;
-      }
-    else
-      {
-      kwsysProcessCleanup(cp, 1);
-
-      /* Release resources that may have been allocated for this
-         process before an error occurred.  */
-      kwsysProcessCleanupHandle(&readEnd);
-      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdInput,
-                                    STD_INPUT_HANDLE);
-      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdOutput,
-                                    STD_OUTPUT_HANDLE);
-      kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError,
-                                    STD_ERROR_HANDLE);
-      return;
-      }
-    }
-
-  /* Save a handle to the output pipe for the last process.  */
-  cp->Pipe[KWSYSPE_PIPE_STDOUT].Read = readEnd;
-  }
-
-  /* Close the inherited handles to the stderr pipe shared by all
-     processes in the pipeline.  The stdout and stdin pipes are not
-     shared among all children and are therefore closed by
-     kwsysProcessCreate after each child is created.  */
-  kwsysProcessCleanupHandleSafe(&si.StartupInfo.hStdError, STD_ERROR_HANDLE);
-
-  /* Restore the working directory.  */
-  if(cp->RealWorkingDirectory)
-    {
-    SetCurrentDirectory(cp->RealWorkingDirectory);
-    free(cp->RealWorkingDirectory);
-    cp->RealWorkingDirectory = 0;
-    }
-
-  /* The timeout period starts now.  */
-  cp->StartTime = kwsysProcessTimeGetCurrent();
-  cp->TimeoutTime = kwsysProcessTimeFromDouble(-1);
-
-  /* All processes in the pipeline have been started in suspended
-     mode.  Resume them all now.  */
-  for(i=0; i < cp->NumberOfCommands; ++i)
-    {
-    ResumeThread(cp->ProcessInformation[i].hThread);
-    }
-
-  /* ---- It is no longer safe to call kwsysProcessCleanup. ----- */
-  /* Tell the pipe threads that a process has started.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    ReleaseSemaphore(cp->Pipe[i].Reader.Ready, 1, 0);
-    ReleaseSemaphore(cp->Pipe[i].Waker.Ready, 1, 0);
-    }
-
-  /* We don't care about the children's main threads.  */
-  for(i=0; i < cp->NumberOfCommands; ++i)
-    {
-    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
-    }
-
-  /* No pipe has reported data.  */
-  cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
-  cp->PipesLeft = KWSYSPE_PIPE_COUNT;
-
-  /* The process has now started.  */
-  cp->State = kwsysProcess_State_Executing;
-  cp->Detached = cp->OptionDetach;
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_Disown(kwsysProcess* cp)
-{
-  int i;
-
-  /* Make sure we are executing a detached process.  */
-  if(!cp || !cp->Detached || cp->State != kwsysProcess_State_Executing ||
-     cp->TimeoutExpired || cp->Killed || cp->Terminated)
-    {
-    return;
-    }
-
-  /* Disable the reading threads.  */
-  kwsysProcessDisablePipeThreads(cp);
-
-  /* Wait for all pipe threads to reset.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    WaitForSingleObject(cp->Pipe[i].Reader.Reset, INFINITE);
-    WaitForSingleObject(cp->Pipe[i].Waker.Reset, INFINITE);
-    }
-
-  /* We will not wait for exit, so cleanup now.  */
-  kwsysProcessCleanup(cp, 0);
-
-  /* The process has been disowned.  */
-  cp->State = kwsysProcess_State_Disowned;
-}
-
-/*--------------------------------------------------------------------------*/
-
-int kwsysProcess_WaitForData(kwsysProcess* cp, char** data, int* length,
-                             double* userTimeout)
-{
-  kwsysProcessTime userStartTime;
-  kwsysProcessTime timeoutLength;
-  kwsysProcessTime timeoutTime;
-  DWORD timeout;
-  int user;
-  int done = 0;
-  int expired = 0;
-  int pipeId = kwsysProcess_Pipe_None;
-  DWORD w;
-
-  /* Make sure we are executing a process.  */
-  if(!cp || cp->State != kwsysProcess_State_Executing || cp->Killed ||
-     cp->TimeoutExpired)
-    {
-    return kwsysProcess_Pipe_None;
-    }
-
-  /* Record the time at which user timeout period starts.  */
-  userStartTime = kwsysProcessTimeGetCurrent();
-
-  /* Calculate the time at which a timeout will expire, and whether it
-     is the user or process timeout.  */
-  user = kwsysProcessGetTimeoutTime(cp, userTimeout, &timeoutTime);
-
-  /* Loop until we have a reason to return.  */
-  while(!done && cp->PipesLeft > 0)
-    {
-    /* If we previously got data from a thread, let it know we are
-       done with the data.  */
-    if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
-      {
-      KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
-      ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
-      cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
-      }
-
-    /* Setup a timeout if required.  */
-    if(kwsysProcessGetTimeoutLeft(&timeoutTime, user?userTimeout:0,
-                                  &timeoutLength))
-      {
-      /* Timeout has already expired.  */
-      expired = 1;
-      break;
-      }
-    if(timeoutTime.QuadPart < 0)
-      {
-      timeout = INFINITE;
-      }
-    else
-      {
-      timeout = kwsysProcessTimeToDWORD(timeoutLength);
-      }
-
-    /* Wait for a pipe's thread to signal or a process to terminate.  */
-    w = WaitForMultipleObjects(cp->ProcessEventsLength, cp->ProcessEvents,
-                               0, timeout);
-    if(w == WAIT_TIMEOUT)
-      {
-      /* Timeout has expired.  */
-      expired = 1;
-      done = 1;
-      }
-    else if(w == WAIT_OBJECT_0)
-      {
-      /* Save the index of the reporting thread and release the mutex.
-         The thread will block until we signal its Empty mutex.  */
-      cp->CurrentIndex = cp->SharedIndex;
-      ReleaseSemaphore(cp->SharedIndexMutex, 1, 0);
-
-      /* Data are available or a pipe closed.  */
-      if(cp->Pipe[cp->CurrentIndex].Closed)
-        {
-        /* The pipe closed at the write end.  Close the read end and
-           inform the wakeup thread it is done with this process.  */
-        kwsysProcessCleanupHandle(&cp->Pipe[cp->CurrentIndex].Read);
-        ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Waker.Go, 1, 0);
-        KWSYSPE_DEBUG((stderr, "wakeup %d\n", cp->CurrentIndex));
-        --cp->PipesLeft;
-        }
-      else if(data && length)
-        {
-        /* Report this data.  */
-        *data = cp->Pipe[cp->CurrentIndex].DataBuffer;
-        *length = cp->Pipe[cp->CurrentIndex].DataLength;
-        switch(cp->CurrentIndex)
-          {
-          case KWSYSPE_PIPE_STDOUT:
-            pipeId = kwsysProcess_Pipe_STDOUT; break;
-          case KWSYSPE_PIPE_STDERR:
-            pipeId = kwsysProcess_Pipe_STDERR; break;
-          }
-        done = 1;
-        }
-      }
-    else
-      {
-      /* A process has terminated.  */
-      kwsysProcessDestroy(cp, w-WAIT_OBJECT_0);
-      }
-    }
-
-  /* Update the user timeout.  */
-  if(userTimeout)
-    {
-    kwsysProcessTime userEndTime = kwsysProcessTimeGetCurrent();
-    kwsysProcessTime difference = kwsysProcessTimeSubtract(userEndTime,
-                                                           userStartTime);
-    double d = kwsysProcessTimeToDouble(difference);
-    *userTimeout -= d;
-    if(*userTimeout < 0)
-      {
-      *userTimeout = 0;
-      }
-    }
-
-  /* Check what happened.  */
-  if(pipeId)
-    {
-    /* Data are ready on a pipe.  */
-    return pipeId;
-    }
-  else if(expired)
-    {
-    /* A timeout has expired.  */
-    if(user)
-      {
-      /* The user timeout has expired.  It has no time left.  */
-      return kwsysProcess_Pipe_Timeout;
-      }
-    else
-      {
-      /* The process timeout has expired.  Kill the child now.  */
-      KWSYSPE_DEBUG((stderr, "killing child because timeout expired\n"));
-      kwsysProcess_Kill(cp);
-      cp->TimeoutExpired = 1;
-      cp->Killed = 0;
-      return kwsysProcess_Pipe_None;
-      }
-    }
-  else
-    {
-    /* The children have terminated and no more data are available.  */
-    return kwsysProcess_Pipe_None;
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-int kwsysProcess_WaitForExit(kwsysProcess* cp, double* userTimeout)
-{
-  int i;
-  int pipe;
-
-  /* Make sure we are executing a process.  */
-  if(!cp || cp->State != kwsysProcess_State_Executing)
-    {
-    return 1;
-    }
-
-  /* Wait for the process to terminate.  Ignore all data.  */
-  while((pipe = kwsysProcess_WaitForData(cp, 0, 0, userTimeout)) > 0)
-    {
-    if(pipe == kwsysProcess_Pipe_Timeout)
-      {
-      /* The user timeout has expired.  */
-      return 0;
-      }
-    }
-
-  KWSYSPE_DEBUG((stderr, "no more data\n"));
-
-  /* When the last pipe closes in WaitForData, the loop terminates
-     without releasing the pipe's thread.  Release it now.  */
-  if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
-    {
-    KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
-    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
-    cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
-    }
-
-  /* Wait for all pipe threads to reset.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    KWSYSPE_DEBUG((stderr, "waiting reader reset %d\n", i));
-    WaitForSingleObject(cp->Pipe[i].Reader.Reset, INFINITE);
-    KWSYSPE_DEBUG((stderr, "waiting waker reset %d\n", i));
-    WaitForSingleObject(cp->Pipe[i].Waker.Reset, INFINITE);
-    }
-
-  /* ---- It is now safe again to call kwsysProcessCleanup. ----- */
-  /* Close all the pipes.  */
-  kwsysProcessCleanup(cp, 0);
-
-  /* Determine the outcome.  */
-  if(cp->Killed)
-    {
-    /* We killed the child.  */
-    cp->State = kwsysProcess_State_Killed;
-    }
-  else if(cp->TimeoutExpired)
-    {
-    /* The timeout expired.  */
-    cp->State = kwsysProcess_State_Expired;
-    }
-  else
-    {
-    /* The children exited.  Report the outcome of the last process.  */
-    cp->ExitCode = cp->CommandExitCodes[cp->NumberOfCommands-1];
-    if((cp->ExitCode & 0xF0000000) == 0xC0000000)
-      {
-      /* Child terminated due to exceptional behavior.  */
-      cp->State = kwsysProcess_State_Exception;
-      cp->ExitValue = 1;
-      kwsysProcessSetExitException(cp, cp->ExitCode);
-      }
-    else
-      {
-      /* Child exited without exception.  */
-      cp->State = kwsysProcess_State_Exited;
-      cp->ExitException = kwsysProcess_Exception_None;
-      cp->ExitValue = cp->ExitCode;
-      }
-    }
-
-  return 1;
-}
-
-/*--------------------------------------------------------------------------*/
-void kwsysProcess_Kill(kwsysProcess* cp)
-{
-  int i;
-  /* Make sure we are executing a process.  */
-  if(!cp || cp->State != kwsysProcess_State_Executing || cp->TimeoutExpired ||
-     cp->Killed)
-    {
-    KWSYSPE_DEBUG((stderr, "kill: child not executing\n"));
-    return;
-    }
-
-  /* Disable the reading threads.  */
-  KWSYSPE_DEBUG((stderr, "kill: disabling pipe threads\n"));
-  kwsysProcessDisablePipeThreads(cp);
-
-  /* Skip actually killing the child if it has already terminated.  */
-  if(cp->Terminated)
-    {
-    KWSYSPE_DEBUG((stderr, "kill: child already terminated\n"));
-    return;
-    }
-
-  /* Kill the children.  */
-  cp->Killed = 1;
-  for(i=0; i < cp->NumberOfCommands; ++i)
-    {
-    kwsysProcessKillTree(cp->ProcessInformation[i].dwProcessId);
-    // close the handle if we kill it
-    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
-    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
-    }
-
-  /* We are killing the children and ignoring all data.  Do not wait
-     for them to exit.  */
-}
-
-/*--------------------------------------------------------------------------*/
+/* Initiate/terminate a tree traversal. */
+static struct tree *tree_open(const wchar_t *, int, int);
+static struct tree *tree_reopen(struct tree *, const wchar_t *, int);
+static void tree_close(struct tree *);
+static void tree_free(struct tree *);
+static void tree_push(struct tree *, const wchar_t *, const wchar_t *,
+		int, int64_t, int64_t, struct restore_time *);
 
 /*
-  Function executed for each pipe's thread.  Argument is a pointer to
-  the kwsysProcessPipeData instance for this thread.
-*/
-DWORD WINAPI kwsysProcessPipeThreadRead(LPVOID ptd)
-{
-  kwsysProcessPipeData* td = (kwsysProcessPipeData*)ptd;
-  kwsysProcess* cp = td->Process;
+ * tree_next() returns Zero if there is no next entry, non-zero if
+ * there is.  Note that directories are visited three times.
+ * Directories are always visited first as part of enumerating their
+ * parent; that is a "regular" visit.  If tree_descend() is invoked at
+ * that time, the directory is added to a work list and will
+ * subsequently be visited two more times: once just after descending
+ * into the directory ("postdescent") and again just after ascending
+ * back to the parent ("postascent").
+ *
+ * TREE_ERROR_DIR is returned if the descent failed (because the
+ * directory couldn't be opened, for instance).  This is returned
+ * instead of TREE_POSTDESCENT/TREE_POSTASCENT.  TREE_ERROR_DIR is not a
+ * fatal error, but it does imply that the relevant subtree won't be
+ * visited.  TREE_ERROR_FATAL is returned for an error that left the
+ * traversal completely hosed.  Right now, this is only returned for
+ * chdir() failures during ascent.
+ */
+#define	TREE_REGULAR		1
+#define	TREE_POSTDESCENT	2
+#define	TREE_POSTASCENT		3
+#define	TREE_ERROR_DIR		-1
+#define	TREE_ERROR_FATAL	-2
 
-  /* Wait for a process to be ready.  */
-  while((WaitForSingleObject(td->Reader.Ready, INFINITE), !cp->Deleting))
-    {
-    /* Read output from the process for this thread's pipe.  */
-    kwsysProcessPipeThreadReadPipe(cp, td);
-
-    /* Signal the main thread we have reset for a new process.  */
-    ReleaseSemaphore(td->Reader.Reset, 1, 0);
-    }
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-
-/*
-  Function called in each pipe's thread to handle data for one
-  execution of a subprocess.
-*/
-void kwsysProcessPipeThreadReadPipe(kwsysProcess* cp, kwsysProcessPipeData* td)
-{
-  /* Wait for space in the thread's buffer. */
-  while((KWSYSPE_DEBUG((stderr, "wait for read %d\n", td->Index)),
-         WaitForSingleObject(td->Reader.Go, INFINITE), !td->Closed))
-    {
-    KWSYSPE_DEBUG((stderr, "reading %d\n", td->Index));
-
-    /* Read data from the pipe.  This may block until data are available.  */
-    if(!ReadFile(td->Read, td->DataBuffer, KWSYSPE_PIPE_BUFFER_SIZE,
-                 &td->DataLength, 0))
-      {
-      if(GetLastError() != ERROR_BROKEN_PIPE)
-        {
-        /* UNEXPECTED failure to read the pipe.  */
-        }
-
-      /* The pipe closed.  There are no more data to read.  */
-      td->Closed = 1;
-      KWSYSPE_DEBUG((stderr, "read closed %d\n", td->Index));
-      }
-
-    KWSYSPE_DEBUG((stderr, "read %d\n", td->Index));
-
-    /* Wait for our turn to be handled by the main thread.  */
-    WaitForSingleObject(cp->SharedIndexMutex, INFINITE);
-
-    KWSYSPE_DEBUG((stderr, "reporting read %d\n", td->Index));
-
-    /* Tell the main thread we have something to report.  */
-    cp->SharedIndex = td->Index;
-    ReleaseSemaphore(cp->Full, 1, 0);
-    }
-
-  /* We were signalled to exit with our buffer empty.  Reset the
-     mutex for a new process.  */
-  KWSYSPE_DEBUG((stderr, "self releasing reader %d\n", td->Index));
-  ReleaseSemaphore(td->Reader.Go, 1, 0);
-}
-
-/*--------------------------------------------------------------------------*/
+static int tree_next(struct tree *);
 
 /*
-  Function executed for each pipe's thread.  Argument is a pointer to
-  the kwsysProcessPipeData instance for this thread.
-*/
-DWORD WINAPI kwsysProcessPipeThreadWake(LPVOID ptd)
-{
-  kwsysProcessPipeData* td = (kwsysProcessPipeData*)ptd;
-  kwsysProcess* cp = td->Process;
-
-  /* Wait for a process to be ready.  */
-  while((WaitForSingleObject(td->Waker.Ready, INFINITE), !cp->Deleting))
-    {
-    /* Wait for a possible wakeup.  */
-    kwsysProcessPipeThreadWakePipe(cp, td);
-
-    /* Signal the main thread we have reset for a new process.  */
-    ReleaseSemaphore(td->Waker.Reset, 1, 0);
-    }
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
+ * Return information about the current entry.
+ */
 
 /*
-  Function called in each pipe's thread to handle reading thread
-  wakeup for one execution of a subprocess.
-*/
-void kwsysProcessPipeThreadWakePipe(kwsysProcess* cp, kwsysProcessPipeData* td)
+ * The current full pathname, length of the full pathname, and a name
+ * that can be used to access the file.  Because tree does use chdir
+ * extensively, the access path is almost never the same as the full
+ * current path.
+ *
+ */
+static const wchar_t *tree_current_path(struct tree *);
+static const wchar_t *tree_current_access_path(struct tree *);
+
+/*
+ * Request the lstat() or stat() data for the current path.  Since the
+ * tree package needs to do some of this anyway, and caches the
+ * results, you should take advantage of it here if you need it rather
+ * than make a redundant stat() or lstat() call of your own.
+ */
+static const BY_HANDLE_FILE_INFORMATION *tree_current_stat(struct tree *);
+static const BY_HANDLE_FILE_INFORMATION *tree_current_lstat(struct tree *);
+
+/* The following functions use tricks to avoid a certain number of
+ * stat()/lstat() calls. */
+/* "is_physical_dir" is equivalent to S_ISDIR(tree_current_lstat()->st_mode) */
+static int tree_current_is_physical_dir(struct tree *);
+/* "is_physical_link" is equivalent to S_ISLNK(tree_current_lstat()->st_mode) */
+static int tree_current_is_physical_link(struct tree *);
+/* Instead of archive_entry_copy_stat for BY_HANDLE_FILE_INFORMATION */
+static void tree_archive_entry_copy_bhfi(struct archive_entry *,
+		    struct tree *, const BY_HANDLE_FILE_INFORMATION *);
+/* "is_dir" is equivalent to S_ISDIR(tree_current_stat()->st_mode) */
+static int tree_current_is_dir(struct tree *);
+static int update_current_filesystem(struct archive_read_disk *a,
+		    int64_t dev);
+static int setup_current_filesystem(struct archive_read_disk *);
+static int tree_target_is_same_as_parent(struct tree *,
+		    const BY_HANDLE_FILE_INFORMATION *);
+
+static int	_archive_read_disk_open_w(struct archive *, const wchar_t *);
+static int	_archive_read_free(struct archive *);
+static int	_archive_read_close(struct archive *);
+static int	_archive_read_data_block(struct archive *,
+		    const void **, size_t *, int64_t *);
+static int	_archive_read_next_header2(struct archive *,
+		    struct archive_entry *);
+static const char *trivial_lookup_gname(void *, int64_t gid);
+static const char *trivial_lookup_uname(void *, int64_t uid);
+static int	setup_sparse(struct archive_read_disk *, struct archive_entry *);
+static int	close_and_restore_time(HANDLE, struct tree *,
+		    struct restore_time *);
+static int	setup_sparse_from_disk(struct archive_read_disk *,
+		    struct archive_entry *, HANDLE);
+
+
+
+static struct archive_vtable *
+archive_read_disk_vtable(void)
 {
-  (void)cp;
+	static struct archive_vtable av;
+	static int inited = 0;
 
-  /* Wait for a possible wake command. */
-  KWSYSPE_DEBUG((stderr, "wait for wake %d\n", td->Index));
-  WaitForSingleObject(td->Waker.Go, INFINITE);
-  KWSYSPE_DEBUG((stderr, "waking %d\n", td->Index));
-
-  /* If the pipe is not closed, we need to wake up the reading thread.  */
-  if(!td->Closed)
-    {
-    DWORD dummy;
-    KWSYSPE_DEBUG((stderr, "waker %d writing byte\n", td->Index));
-    WriteFile(td->Write, "", 1, &dummy, 0);
-    KWSYSPE_DEBUG((stderr, "waker %d wrote byte\n", td->Index));
-    }
+	if (!inited) {
+		av.archive_free = _archive_read_free;
+		av.archive_close = _archive_read_close;
+		av.archive_read_data_block = _archive_read_data_block;
+		av.archive_read_next_header2 = _archive_read_next_header2;
+		inited = 1;
+	}
+	return (&av);
 }
 
-/*--------------------------------------------------------------------------*/
-/* Initialize a process control structure for kwsysProcess_Execute.  */
-int kwsysProcessInitialize(kwsysProcess* cp)
+const char *
+archive_read_disk_gname(struct archive *_a, int64_t gid)
 {
-  /* Reset internal status flags.  */
-  cp->TimeoutExpired = 0;
-  cp->Terminated = 0;
-  cp->Killed = 0;
-  cp->ExitException = kwsysProcess_Exception_None;
-  cp->ExitCode = 1;
-  cp->ExitValue = 1;
-
-  /* Reset error data.  */
-  cp->ErrorMessage[0] = 0;
-  strcpy(cp->ExitExceptionString, "No exception");
-
-  /* Allocate process information for each process.  */
-  cp->ProcessInformation =
-    (PROCESS_INFORMATION*)malloc(sizeof(PROCESS_INFORMATION) *
-                                 cp->NumberOfCommands);
-  if(!cp->ProcessInformation)
-    {
-    return 0;
-    }
-  ZeroMemory(cp->ProcessInformation,
-             sizeof(PROCESS_INFORMATION) * cp->NumberOfCommands);
-  if(cp->CommandExitCodes)
-    {
-    free(cp->CommandExitCodes);
-    }
-  cp->CommandExitCodes = (DWORD*)malloc(sizeof(DWORD)*cp->NumberOfCommands);
-  if(!cp->CommandExitCodes)
-    {
-    return 0;
-    }
-  ZeroMemory(cp->CommandExitCodes, sizeof(DWORD)*cp->NumberOfCommands);
-
-  /* Allocate event wait array.  The first event is cp->Full, the rest
-     are the process termination events.  */
-  cp->ProcessEvents = (PHANDLE)malloc(sizeof(HANDLE)*(cp->NumberOfCommands+1));
-  if(!cp->ProcessEvents)
-    {
-    return 0;
-    }
-  ZeroMemory(cp->ProcessEvents, sizeof(HANDLE) * (cp->NumberOfCommands+1));
-  cp->ProcessEvents[0] = cp->Full;
-  cp->ProcessEventsLength = cp->NumberOfCommands+1;
-
-  /* Allocate space to save the real working directory of this process.  */
-  if(cp->WorkingDirectory)
-    {
-    cp->RealWorkingDirectoryLength = GetCurrentDirectory(0, 0);
-    if(cp->RealWorkingDirectoryLength > 0)
-      {
-      cp->RealWorkingDirectory = (char*)malloc(cp->RealWorkingDirectoryLength);
-      if(!cp->RealWorkingDirectory)
-        {
-        return 0;
-        }
-      }
-    }
-
-  return 1;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	if (ARCHIVE_OK != __archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+		ARCHIVE_STATE_ANY, "archive_read_disk_gname"))
+		return (NULL);
+	if (a->lookup_gname == NULL)
+		return (NULL);
+	return ((*a->lookup_gname)(a->lookup_gname_data, gid));
 }
 
-/*--------------------------------------------------------------------------*/
-int kwsysProcessCreate(kwsysProcess* cp, int index,
-                       kwsysProcessCreateInformation* si,
-                       PHANDLE readEnd)
+const char *
+archive_read_disk_uname(struct archive *_a, int64_t uid)
 {
-  /* Setup the process's stdin.  */
-  if(*readEnd)
-    {
-    /* Create an inherited duplicate of the read end from the output
-       pipe of the previous process.  This also closes the
-       non-inherited version. */
-    if(!DuplicateHandle(GetCurrentProcess(), *readEnd,
-                        GetCurrentProcess(), readEnd,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
-      {
-      return 0;
-      }
-    si->StartupInfo.hStdInput = *readEnd;
-
-    /* This function is done with this handle.  */
-    *readEnd = 0;
-    }
-  else if(cp->PipeFileSTDIN)
-    {
-    /* Create a handle to read a file for stdin.  */
-    HANDLE fin = CreateFile(cp->PipeFileSTDIN, GENERIC_READ|GENERIC_WRITE,
-                            FILE_SHARE_READ|FILE_SHARE_WRITE,
-                            0, OPEN_EXISTING, 0, 0);
-    if(fin == INVALID_HANDLE_VALUE)
-      {
-      return 0;
-      }
-    /* Create an inherited duplicate of the handle.  This also closes
-       the non-inherited version.  */
-    if(!DuplicateHandle(GetCurrentProcess(), fin,
-                        GetCurrentProcess(), &fin,
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
-      {
-      return 0;
-      }
-    si->StartupInfo.hStdInput = fin;
-    }
-  else if(cp->PipeSharedSTDIN)
-    {
-    /* Share this process's stdin with the child.  */
-    if(!kwsysProcessSetupSharedPipe(STD_INPUT_HANDLE,
-                                    &si->StartupInfo.hStdInput))
-      {
-      return 0;
-      }
-    }
-  else if(cp->PipeNativeSTDIN[0])
-    {
-    /* Use the provided native pipe.  */
-    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdInput,
-                                    cp->PipeNativeSTDIN, 0))
-      {
-      return 0;
-      }
-    }
-  else
-    {
-    /* Explicitly give the child no stdin.  */
-    si->StartupInfo.hStdInput = INVALID_HANDLE_VALUE;
-    }
-
-  /* Setup the process's stdout.  */
-  {
-  DWORD maybeClose = DUPLICATE_CLOSE_SOURCE;
-  HANDLE writeEnd;
-
-  /* Create the output pipe for this process.  Neither end is directly
-     inherited.  */
-  if(!CreatePipe(readEnd, &writeEnd, 0, 0))
-    {
-    return 0;
-    }
-
-  /* Create an inherited duplicate of the write end.  Close the
-     non-inherited version unless this is the last process.  Save the
-     non-inherited write end of the last process.  */
-  if(index == cp->NumberOfCommands-1)
-    {
-    cp->Pipe[KWSYSPE_PIPE_STDOUT].Write = writeEnd;
-    maybeClose = 0;
-    }
-  if(!DuplicateHandle(GetCurrentProcess(), writeEnd,
-                      GetCurrentProcess(), &writeEnd,
-                      0, TRUE, (maybeClose | DUPLICATE_SAME_ACCESS)))
-    {
-    return 0;
-    }
-  si->StartupInfo.hStdOutput = writeEnd;
-  }
-
-  /* Replace the stdout pipe with a file if requested.  In this case
-     the pipe thread will still run but never report data.  */
-  if(index == cp->NumberOfCommands-1 && cp->PipeFileSTDOUT)
-    {
-    if(!kwsysProcessSetupOutputPipeFile(&si->StartupInfo.hStdOutput,
-                                        cp->PipeFileSTDOUT))
-      {
-      return 0;
-      }
-    }
-
-  /* Replace the stdout pipe of the last child with the parent
-     process's if requested.  In this case the pipe thread will still
-     run but never report data.  */
-  if(index == cp->NumberOfCommands-1 && cp->PipeSharedSTDOUT)
-    {
-    if(!kwsysProcessSetupSharedPipe(STD_OUTPUT_HANDLE,
-                                    &si->StartupInfo.hStdOutput))
-      {
-      return 0;
-      }
-    }
-
-  /* Replace the stdout pipe with the native pipe provided if any.  In
-     this case the pipe thread will still run but never report
-     data.  */
-  if(index == cp->NumberOfCommands-1 && cp->PipeNativeSTDOUT[1])
-    {
-    if(!kwsysProcessSetupPipeNative(&si->StartupInfo.hStdOutput,
-                                    cp->PipeNativeSTDOUT, 1))
-      {
-      return 0;
-      }
-    }
-
-  /* Create the child in a suspended state so we can wait until all
-     children have been created before running any one.  */
-  if(!CreateProcess(0, cp->Commands[index], 0, 0, TRUE, CREATE_SUSPENDED, 0,
-                    0, &si->StartupInfo, &cp->ProcessInformation[index]))
-    {
-    return 0;
-    }
-
-  /* Successfully created this child process.  Close the current
-     process's copies of the inherited stdout and stdin handles.  The
-     stderr handle is shared among all children and is closed by
-     kwsysProcess_Execute after all children have been created.  */
-  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdInput,
-                                STD_INPUT_HANDLE);
-  kwsysProcessCleanupHandleSafe(&si->StartupInfo.hStdOutput,
-                                STD_OUTPUT_HANDLE);
-
-  return 1;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	if (ARCHIVE_OK != __archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+		ARCHIVE_STATE_ANY, "archive_read_disk_uname"))
+		return (NULL);
+	if (a->lookup_uname == NULL)
+		return (NULL);
+	return ((*a->lookup_uname)(a->lookup_uname_data, uid));
 }
 
-/*--------------------------------------------------------------------------*/
-void kwsysProcessDestroy(kwsysProcess* cp, int event)
+int
+archive_read_disk_set_gname_lookup(struct archive *_a,
+    void *private_data,
+    const char * (*lookup_gname)(void *private, int64_t gid),
+    void (*cleanup_gname)(void *private))
 {
-  int i;
-  int index;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	archive_check_magic(&a->archive, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_read_disk_set_gname_lookup");
 
-  /* Find the process index for the termination event.  */
-  for(index=0; index < cp->NumberOfCommands; ++index)
-    {
-    if(cp->ProcessInformation[index].hProcess == cp->ProcessEvents[event])
-      {
-      break;
-      }
-    }
+	if (a->cleanup_gname != NULL && a->lookup_gname_data != NULL)
+		(a->cleanup_gname)(a->lookup_gname_data);
 
-  /* Check the exit code of the process.  */
-  GetExitCodeProcess(cp->ProcessInformation[index].hProcess,
-                     &cp->CommandExitCodes[index]);
-
-  /* Close the process handle for the terminated process.  */
-  kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
-
-  /* Remove the process from the available events.  */
-  cp->ProcessEventsLength -= 1;
-  for(i=event; i < cp->ProcessEventsLength; ++i)
-    {
-    cp->ProcessEvents[i] = cp->ProcessEvents[i+1];
-    }
-
-  /* Check if all processes have terminated.  */
-  if(cp->ProcessEventsLength == 1)
-    {
-    cp->Terminated = 1;
-
-    /* Close our copies of the pipe write handles so the pipe threads
-       can detect end-of-data.  */
-    for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-      {
-      /* TODO: If the child created its own child (our grandchild)
-         which inherited a copy of the pipe write-end then the pipe
-         may not close and we will still need the waker write pipe.
-         However we still want to be able to detect end-of-data in the
-         normal case.  The reader thread will have to switch to using
-         PeekNamedPipe to read the last bit of data from the pipe
-         without blocking.  This is equivalent to using a non-blocking
-         read on posix.  */
-      KWSYSPE_DEBUG((stderr, "closing wakeup write %d\n", i));
-      kwsysProcessCleanupHandle(&cp->Pipe[i].Write);
-      }
-    }
+	a->lookup_gname = lookup_gname;
+	a->cleanup_gname = cleanup_gname;
+	a->lookup_gname_data = private_data;
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-int kwsysProcessSetupOutputPipeFile(PHANDLE phandle, const char* name)
+int
+archive_read_disk_set_uname_lookup(struct archive *_a,
+    void *private_data,
+    const char * (*lookup_uname)(void *private, int64_t uid),
+    void (*cleanup_uname)(void *private))
 {
-  HANDLE fout;
-  if(!name)
-    {
-    return 1;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	archive_check_magic(&a->archive, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_read_disk_set_uname_lookup");
 
-  /* Close the existing inherited handle.  */
-  kwsysProcessCleanupHandle(phandle);
+	if (a->cleanup_uname != NULL && a->lookup_uname_data != NULL)
+		(a->cleanup_uname)(a->lookup_uname_data);
 
-  /* Create a handle to write a file for the pipe.  */
-  fout = CreateFile(name, GENERIC_WRITE, FILE_SHARE_READ, 0,
-                    CREATE_ALWAYS, 0, 0);
-  if(fout == INVALID_HANDLE_VALUE)
-    {
-    return 0;
-    }
-
-  /* Create an inherited duplicate of the handle.  This also closes
-     the non-inherited version.  */
-  if(!DuplicateHandle(GetCurrentProcess(), fout,
-                      GetCurrentProcess(), &fout,
-                      0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                DUPLICATE_SAME_ACCESS)))
-    {
-    return 0;
-    }
-
-  /* Assign the replacement handle.  */
-  *phandle = fout;
-  return 1;
+	a->lookup_uname = lookup_uname;
+	a->cleanup_uname = cleanup_uname;
+	a->lookup_uname_data = private_data;
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-int kwsysProcessSetupSharedPipe(DWORD nStdHandle, PHANDLE handle)
+/*
+ * Create a new archive_read_disk object and initialize it with global state.
+ */
+struct archive *
+archive_read_disk_new(void)
 {
-  /* Check whether the handle to be shared is already inherited.  */
-  DWORD flags;
-  int inherited = 0;
-  if(GetHandleInformation(GetStdHandle(nStdHandle), &flags) &&
-     (flags & HANDLE_FLAG_INHERIT))
-    {
-    inherited = 1;
-    }
+	struct archive_read_disk *a;
 
-  /* Cleanup the previous handle.  */
-  kwsysProcessCleanupHandle(handle);
-
-  /* If the standard handle is not inherited then duplicate it to
-     create an inherited copy.  Do not close the original handle when
-     duplicating!  */
-  if(inherited)
-    {
-    *handle = GetStdHandle(nStdHandle);
-    return 1;
-    }
-  else if(DuplicateHandle(GetCurrentProcess(), GetStdHandle(nStdHandle),
-                          GetCurrentProcess(), handle,
-                          0, TRUE, DUPLICATE_SAME_ACCESS))
-    {
-    return 1;
-    }
-  else
-    {
-    /* The given standard handle is not valid for this process.  Some
-       child processes may break if they do not have a valid standard
-       pipe, so give the child an empty pipe.  For the stdin pipe we
-       want to close the write end and give the read end to the child.
-       For stdout and stderr we want to close the read end and give
-       the write end to the child.  */
-    int child_end = (nStdHandle == STD_INPUT_HANDLE)? 0:1;
-    int parent_end = (nStdHandle == STD_INPUT_HANDLE)? 1:0;
-    HANDLE emptyPipe[2];
-    if(!CreatePipe(&emptyPipe[0], &emptyPipe[1], 0, 0))
-      {
-      return 0;
-      }
-
-    /* Close the non-inherited end so the pipe will be broken
-       immediately.  */
-    CloseHandle(emptyPipe[parent_end]);
-
-    /* Create an inherited duplicate of the handle.  This also
-       closes the non-inherited version.  */
-    if(!DuplicateHandle(GetCurrentProcess(), emptyPipe[child_end],
-                        GetCurrentProcess(), &emptyPipe[child_end],
-                        0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                  DUPLICATE_SAME_ACCESS)))
-      {
-      return 0;
-      }
-
-    /* Give the inherited handle to the child.  */
-    *handle = emptyPipe[child_end];
-    return 1;
-    }
+	a = (struct archive_read_disk *)malloc(sizeof(*a));
+	if (a == NULL)
+		return (NULL);
+	memset(a, 0, sizeof(*a));
+	a->archive.magic = ARCHIVE_READ_DISK_MAGIC;
+	a->archive.state = ARCHIVE_STATE_NEW;
+	a->archive.vtable = archive_read_disk_vtable();
+	a->lookup_uname = trivial_lookup_uname;
+	a->lookup_gname = trivial_lookup_gname;
+	a->entry_wd_fd = -1;
+	return (&a->archive);
 }
 
-/*--------------------------------------------------------------------------*/
-int kwsysProcessSetupPipeNative(PHANDLE handle, HANDLE p[2], int isWrite)
+static int
+_archive_read_free(struct archive *_a)
 {
-  /* Close the existing inherited handle.  */
-  kwsysProcessCleanupHandle(handle);
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	int r;
 
-  /* Create an inherited duplicate of the handle.  This also closes
-     the non-inherited version.  */
-  if(!DuplicateHandle(GetCurrentProcess(), p[isWrite? 1:0],
-                      GetCurrentProcess(), handle,
-                      0, TRUE, (DUPLICATE_CLOSE_SOURCE |
-                                DUPLICATE_SAME_ACCESS)))
-    {
-    return 0;
-    }
+	if (_a == NULL)
+		return (ARCHIVE_OK);
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY | ARCHIVE_STATE_FATAL, "archive_read_free");
 
-  return 1;
+	if (a->archive.state != ARCHIVE_STATE_CLOSED)
+		r = _archive_read_close(&a->archive);
+	else
+		r = ARCHIVE_OK;
+
+	tree_free(a->tree);
+	if (a->cleanup_gname != NULL && a->lookup_gname_data != NULL)
+		(a->cleanup_gname)(a->lookup_gname_data);
+	if (a->cleanup_uname != NULL && a->lookup_uname_data != NULL)
+		(a->cleanup_uname)(a->lookup_uname_data);
+	archive_string_free(&a->archive.error_string);
+	a->archive.magic = 0;
+	free(a);
+	return (r);
 }
 
-/*--------------------------------------------------------------------------*/
-
-/* Close the given handle if it is open.  Reset its value to 0.  */
-void kwsysProcessCleanupHandle(PHANDLE h)
+static int
+_archive_read_close(struct archive *_a)
 {
-  if(h && *h)
-    {
-    CloseHandle(*h);
-    *h = 0;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY | ARCHIVE_STATE_FATAL, "archive_read_close");
+
+	if (a->archive.state != ARCHIVE_STATE_FATAL)
+		a->archive.state = ARCHIVE_STATE_CLOSED;
+
+	tree_close(a->tree);
+
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-
-/* Close the given handle if it is open and not a standard handle.
-   Reset its value to 0.  */
-void kwsysProcessCleanupHandleSafe(PHANDLE h, DWORD nStdHandle)
+static void
+setup_symlink_mode(struct archive_read_disk *a, char symlink_mode, 
+    int follow_symlinks)
 {
-  if(h && *h && (*h != GetStdHandle(nStdHandle)))
-    {
-    CloseHandle(*h);
-    *h = 0;
-    }
+	a->symlink_mode = symlink_mode;
+	a->follow_symlinks = follow_symlinks;
+	if (a->tree != NULL) {
+		a->tree->initial_symlink_mode = a->symlink_mode;
+		a->tree->symlink_mode = a->symlink_mode;
+	}
 }
 
-/*--------------------------------------------------------------------------*/
-
-/* Close all handles created by kwsysProcess_Execute.  */
-void kwsysProcessCleanup(kwsysProcess* cp, int error)
+int
+archive_read_disk_set_symlink_logical(struct archive *_a)
 {
-  int i;
-  /* If this is an error case, report the error.  */
-  if(error)
-    {
-    /* Construct an error message if one has not been provided already.  */
-    if(cp->ErrorMessage[0] == 0)
-      {
-      /* Format the error message.  */
-      DWORD original = GetLastError();
-      DWORD length = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
-                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                   cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE, 0);
-      if(length < 1)
-        {
-        /* FormatMessage failed.  Use a default message.  */
-        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "FormatMessage failed with error 0x%X",
-                  original, GetLastError());
-        }
-      }
-
-    /* Remove trailing period and newline, if any.  */
-    kwsysProcessCleanErrorMessage(cp);
-
-    /* Set the error state.  */
-    cp->State = kwsysProcess_State_Error;
-
-    /* Cleanup any processes already started in a suspended state.  */
-    if(cp->ProcessInformation)
-      {
-      for(i=0; i < cp->NumberOfCommands; ++i)
-        {
-        if(cp->ProcessInformation[i].hProcess)
-          {
-          TerminateProcess(cp->ProcessInformation[i].hProcess, 255);
-          WaitForSingleObject(cp->ProcessInformation[i].hProcess, INFINITE);
-          }
-        }
-      for(i=0; i < cp->NumberOfCommands; ++i)
-        {
-        kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
-        kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
-        }
-      }
-
-    /* Restore the working directory.  */
-    if(cp->RealWorkingDirectory)
-      {
-      SetCurrentDirectory(cp->RealWorkingDirectory);
-      }
-    }
-
-  /* Free memory.  */
-  if(cp->ProcessInformation)
-    {
-    free(cp->ProcessInformation);
-    cp->ProcessInformation = 0;
-    }
-  if(cp->ProcessEvents)
-    {
-    free(cp->ProcessEvents);
-    cp->ProcessEvents = 0;
-    }
-  if(cp->RealWorkingDirectory)
-    {
-    free(cp->RealWorkingDirectory);
-    cp->RealWorkingDirectory = 0;
-    }
-
-  /* Close each pipe.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Write);
-    kwsysProcessCleanupHandle(&cp->Pipe[i].Read);
-    cp->Pipe[i].Closed = 0;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_read_disk_set_symlink_logical");
+	setup_symlink_mode(a, 'L', 1);
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-void kwsysProcessCleanErrorMessage(kwsysProcess* cp)
+int
+archive_read_disk_set_symlink_physical(struct archive *_a)
 {
-  /* Remove trailing period and newline, if any.  */
-  size_t length = strlen(cp->ErrorMessage);
-  if(cp->ErrorMessage[length-1] == '\n')
-    {
-    cp->ErrorMessage[length-1] = 0;
-    --length;
-    if(length > 0 && cp->ErrorMessage[length-1] == '\r')
-      {
-      cp->ErrorMessage[length-1] = 0;
-      --length;
-      }
-    }
-  if(length > 0 && cp->ErrorMessage[length-1] == '.')
-    {
-    cp->ErrorMessage[length-1] = 0;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_read_disk_set_symlink_physical");
+	setup_symlink_mode(a, 'P', 0);
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-int kwsysProcessComputeCommandLength(kwsysProcess* cp,
-                                     char const* const* command)
+int
+archive_read_disk_set_symlink_hybrid(struct archive *_a)
 {
-  int length = 0;
-  if(cp->Verbatim)
-    {
-    /* Treat the first argument as a verbatim command line.  Use its
-       length directly and add space for the null-terminator.  */
-    length = (int)strlen(*command)+1;
-    }
-  else
-    {
-    /* Compute the length of the command line when it is converted to
-       a single string.  Space for the null-terminator is allocated by
-       the whitespace character allocated for the first argument that
-       will not be used.  */
-    char const* const* arg;
-    for(arg = command; *arg; ++arg)
-      {
-      /* Add the length of this argument.  It already includes room
-         for a separating space or terminating null.  */
-      length += kwsysSystem_Shell_GetArgumentSizeForWindows(*arg, 0);
-      }
-    }
-
-  return length;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_read_disk_set_symlink_hybrid");
+	setup_symlink_mode(a, 'H', 1);/* Follow symlinks initially. */
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-void kwsysProcessComputeCommandLine(kwsysProcess* cp,
-                                    char const* const* command,
-                                    char* cmd)
+int
+archive_read_disk_set_atime_restored(struct archive *_a)
 {
-  if(cp->Verbatim)
-    {
-    /* Copy the verbatim command line into the buffer.  */
-    strcpy(cmd, *command);
-    }
-  else
-    {
-    /* Construct the command line in the allocated buffer.  */
-    char const* const* arg;
-    for(arg = command; *arg; ++arg)
-      {
-      /* Add the separating space if this is not the first argument.  */
-      if(arg != command)
-        {
-        *cmd++ = ' ';
-        }
-
-      /* Add the current argument.  */
-      cmd = kwsysSystem_Shell_GetArgumentForWindows(*arg, cmd, 0);
-      }
-
-    /* Add the terminating null character to the command line.  */
-    *cmd = 0;
-    }
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_ANY, "archive_read_disk_restore_atime");
+	a->restore_time = 1;
+	if (a->tree != NULL)
+		a->tree->flags |= needsRestoreTimes;
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-/* Get the time at which either the process or user timeout will
-   expire.  Returns 1 if the user timeout is first, and 0 otherwise.  */
-int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
-                               kwsysProcessTime* timeoutTime)
+/*
+ * Trivial implementations of gname/uname lookup functions.
+ * These are normally overridden by the client, but these stub
+ * versions ensure that we always have something that works.
+ */
+static const char *
+trivial_lookup_gname(void *private_data, int64_t gid)
 {
-  /* The first time this is called, we need to calculate the time at
-     which the child will timeout.  */
-  if(cp->Timeout && cp->TimeoutTime.QuadPart < 0)
-    {
-    kwsysProcessTime length = kwsysProcessTimeFromDouble(cp->Timeout);
-    cp->TimeoutTime = kwsysProcessTimeAdd(cp->StartTime, length);
-    }
-
-  /* Start with process timeout.  */
-  *timeoutTime = cp->TimeoutTime;
-
-  /* Check if the user timeout is earlier.  */
-  if(userTimeout)
-    {
-    kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
-    kwsysProcessTime userTimeoutLength = kwsysProcessTimeFromDouble(*userTimeout);
-    kwsysProcessTime userTimeoutTime = kwsysProcessTimeAdd(currentTime,
-                                                           userTimeoutLength);
-    if(timeoutTime->QuadPart < 0 ||
-       kwsysProcessTimeLess(userTimeoutTime, *timeoutTime))
-      {
-      *timeoutTime = userTimeoutTime;
-      return 1;
-      }
-    }
-  return 0;
+	(void)private_data; /* UNUSED */
+	(void)gid; /* UNUSED */
+	return (NULL);
 }
 
-/*--------------------------------------------------------------------------*/
-/* Get the length of time before the given timeout time arrives.
-   Returns 1 if the time has already arrived, and 0 otherwise.  */
-int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
-                               double* userTimeout,
-                               kwsysProcessTime* timeoutLength)
+static const char *
+trivial_lookup_uname(void *private_data, int64_t uid)
 {
-  if(timeoutTime->QuadPart < 0)
-    {
-    /* No timeout time has been requested.  */
-    return 0;
-    }
-  else
-    {
-    /* Calculate the remaining time.  */
-    kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
-    *timeoutLength = kwsysProcessTimeSubtract(*timeoutTime, currentTime);
-
-    if(timeoutLength->QuadPart < 0 && userTimeout && *userTimeout <= 0)
-      {
-      /* Caller has explicitly requested a zero timeout.  */
-      timeoutLength->QuadPart = 0;
-      }
-
-    if(timeoutLength->QuadPart < 0)
-      {
-      /* Timeout has already expired.  */
-      return 1;
-      }
-    else
-      {
-      /* There is some time left.  */
-      return 0;
-      }
-    }
+	(void)private_data; /* UNUSED */
+	(void)uid; /* UNUSED */
+	return (NULL);
 }
 
-/*--------------------------------------------------------------------------*/
-kwsysProcessTime kwsysProcessTimeGetCurrent()
+static int
+_archive_read_data_block(struct archive *_a, const void **buff,
+    size_t *size, int64_t *offset)
 {
-  kwsysProcessTime current;
-  FILETIME ft;
-  GetSystemTimeAsFileTime(&ft);
-  current.LowPart = ft.dwLowDateTime;
-  current.HighPart = ft.dwHighDateTime;
-  return current;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
+	int r;
+	int64_t bytes;
+	size_t buffbytes;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_data_block");
+
+	if (t->entry_eof || t->entry_remaining_bytes <= 0) {
+		r = ARCHIVE_EOF;
+		goto abort_read_data;
+	}
+
+	/* Allocate read buffer. */
+	if (t->entry_buff == NULL) {
+		t->entry_buff = malloc(1024 * 64);
+		if (t->entry_buff == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't allocate memory");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		t->entry_buff_size = 1024 * 64;
+	}
+
+	buffbytes = t->entry_buff_size;
+	if (buffbytes > t->current_sparse->length)
+		buffbytes = t->current_sparse->length;
+
+	/*
+	 * Skip hole.
+	 */
+	if (t->current_sparse->offset > t->entry_total) {
+		LARGE_INTEGER distance;
+		distance.QuadPart = t->current_sparse->offset;
+		if (!SetFilePointerEx_perso(t->entry_fh, distance, NULL, FILE_BEGIN)) {
+			DWORD lasterr;
+
+			lasterr = GetLastError();
+			if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Seek error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		bytes = t->current_sparse->offset - t->entry_total;
+		t->entry_remaining_bytes -= bytes;
+		t->entry_total += bytes;
+	}
+	if (buffbytes > 0) {
+		DWORD bytes_read;
+		if (!ReadFile(t->entry_fh, t->entry_buff,
+		    (uint32_t)buffbytes, &bytes_read, NULL)) {
+			DWORD lasterr;
+
+			lasterr = GetLastError();
+			if (lasterr == ERROR_NO_DATA)
+				errno = EAGAIN;
+			else if (lasterr == ERROR_ACCESS_DENIED)
+				errno = EBADF;
+			else
+				la_dosmaperr(lasterr);
+			archive_set_error(&a->archive, errno, "Read error");
+			r = ARCHIVE_FATAL;
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			goto abort_read_data;
+		}
+		bytes = bytes_read;
+	} else
+		bytes = 0;
+	if (bytes == 0) {
+		/* Get EOF */
+		t->entry_eof = 1;
+		r = ARCHIVE_EOF;
+		goto abort_read_data;
+	}
+	*buff = t->entry_buff;
+	*size = bytes;
+	*offset = t->entry_total;
+	t->entry_total += bytes;
+	t->entry_remaining_bytes -= bytes;
+	if (t->entry_remaining_bytes == 0) {
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+		t->entry_eof = 1;
+	}
+	t->current_sparse->offset += bytes;
+	t->current_sparse->length -= bytes;
+	if (t->current_sparse->length == 0 && !t->entry_eof)
+		t->current_sparse++;
+	return (ARCHIVE_OK);
+
+abort_read_data:
+	*buff = NULL;
+	*size = 0;
+	*offset = t->entry_total;
+	if (t->entry_fh != INVALID_HANDLE_VALUE) {
+		/* Close the current file descriptor */
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+	}
+	return (r);
 }
 
-/*--------------------------------------------------------------------------*/
-DWORD kwsysProcessTimeToDWORD(kwsysProcessTime t)
+static int
+_archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
 {
-  return (DWORD)(t.QuadPart * 0.0001);
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t;
+	const BY_HANDLE_FILE_INFORMATION *st;
+	const BY_HANDLE_FILE_INFORMATION *lst;
+	const char*name;
+	int descend, r;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_HEADER | ARCHIVE_STATE_DATA,
+	    "archive_read_next_header2");
+
+	t = a->tree;
+	if (t->entry_fh != INVALID_HANDLE_VALUE) {
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+	}
+	st = NULL;
+	lst = NULL;
+	do {
+		switch (tree_next(t)) {
+		case TREE_ERROR_FATAL:
+			archive_set_error(&a->archive, t->tree_errno,
+			    "%ls: Unable to continue traversing directory tree",
+			    tree_current_path(t));
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		case TREE_ERROR_DIR:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "%ls: Couldn't visit directory",
+			    tree_current_path(t));
+			return (ARCHIVE_FAILED);
+		case 0:
+			return (ARCHIVE_EOF);
+		case TREE_POSTDESCENT:
+		case TREE_POSTASCENT:
+			break;
+		case TREE_REGULAR:
+			lst = tree_current_lstat(t);
+			if (lst == NULL) {
+				archive_set_error(&a->archive, errno,
+				    "%ls: Cannot stat",
+				    tree_current_path(t));
+				return (ARCHIVE_FAILED);
+			}
+			break;
+		}	
+	} while (lst == NULL);
+
+	/*
+	 * Distinguish 'L'/'P'/'H' symlink following.
+	 */
+	switch(t->symlink_mode) {
+	case 'H':
+		/* 'H': After the first item, rest like 'P'. */
+		t->symlink_mode = 'P';
+		/* 'H': First item (from command line) like 'L'. */
+		/* FALLTHROUGH */
+	case 'L':
+		/* 'L': Do descend through a symlink to dir. */
+		descend = tree_current_is_dir(t);
+		/* 'L': Follow symlinks to files. */
+		a->symlink_mode = 'L';
+		a->follow_symlinks = 1;
+		/* 'L': Archive symlinks as targets, if we can. */
+		st = tree_current_stat(t);
+		if (st != NULL && !tree_target_is_same_as_parent(t, st))
+			break;
+		/* If stat fails, we have a broken symlink;
+		 * in that case, don't follow the link. */
+		/* FALLTHROUGH */
+	default:
+		/* 'P': Don't descend through a symlink to dir. */
+		descend = tree_current_is_physical_dir(t);
+		/* 'P': Don't follow symlinks to files. */
+		a->symlink_mode = 'P';
+		a->follow_symlinks = 0;
+		/* 'P': Archive symlinks as symlinks. */
+		st = lst;
+		break;
+	}
+
+	if (update_current_filesystem(a, bhfi_dev(st)) != ARCHIVE_OK) {
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}
+	t->descend = descend;
+
+	archive_entry_copy_pathname_w(entry, tree_current_path(t));
+	archive_entry_copy_sourcepath_w(entry, tree_current_access_path(t));
+	tree_archive_entry_copy_bhfi(entry, t, st);
+
+	/* Save the times to be restored. */
+	t->restore_time.lastWriteTime = st->ftLastWriteTime;
+	t->restore_time.lastAccessTime = st->ftLastAccessTime;
+	t->restore_time.filetype = archive_entry_filetype(entry);
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	r = ARCHIVE_OK;
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) > 0) {
+		t->entry_fh = CreateFileW(tree_current_access_path(t),
+		    GENERIC_READ, 0, NULL, OPEN_EXISTING,
+		    FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+		if (t->entry_fh == INVALID_HANDLE_VALUE) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't open %ls", tree_current_path(a->tree));
+			return (ARCHIVE_FAILED);
+		}
+
+		/* Find sparse data from the disk. */
+		if (archive_entry_hardlink(entry) == NULL &&
+		    (st->dwFileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) != 0)
+			r = setup_sparse_from_disk(a, entry, t->entry_fh);
+	}
+
+	/*
+	 * EOF and FATAL are persistent at this layer.  By
+	 * modifying the state, we guarantee that future calls to
+	 * read a header or read data will fail.
+	 */
+	switch (r) {
+	case ARCHIVE_EOF:
+		a->archive.state = ARCHIVE_STATE_EOF;
+		break;
+	case ARCHIVE_OK:
+	case ARCHIVE_WARN:
+		t->entry_total = 0;
+		if (archive_entry_filetype(entry) == AE_IFREG) {
+			t->entry_remaining_bytes = archive_entry_size(entry);
+			t->entry_eof = (t->entry_remaining_bytes == 0)? 1: 0;
+			if (!t->entry_eof &&
+			    setup_sparse(a, entry) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		} else {
+			t->entry_remaining_bytes = 0;
+			t->entry_eof = 1;
+		}
+		a->archive.state = ARCHIVE_STATE_DATA;
+		break;
+	case ARCHIVE_RETRY:
+		break;
+	case ARCHIVE_FATAL:
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		break;
+	}
+
+	return (r);
 }
 
-/*--------------------------------------------------------------------------*/
-double kwsysProcessTimeToDouble(kwsysProcessTime t)
+static int
+setup_sparse(struct archive_read_disk *a, struct archive_entry *entry)
 {
-  return t.QuadPart * 0.0000001;
+	struct tree *t = a->tree;
+	int64_t length, offset;
+	int i;
+
+	t->sparse_count = archive_entry_sparse_reset(entry);
+	if (t->sparse_count+1 > t->sparse_list_size) {
+		free(t->sparse_list);
+		t->sparse_list_size = t->sparse_count + 1;
+		t->sparse_list = malloc(sizeof(t->sparse_list[0]) *
+		    t->sparse_list_size);
+		if (t->sparse_list == NULL) {
+			t->sparse_list_size = 0;
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate data");
+			a->archive.state = ARCHIVE_STATE_FATAL;
+			return (ARCHIVE_FATAL);
+		}
+	}
+	for (i = 0; i < t->sparse_count; i++) {
+		archive_entry_sparse_next(entry, &offset, &length);
+		t->sparse_list[i].offset = offset;
+		t->sparse_list[i].length = length;
+	}
+	if (i == 0) {
+		t->sparse_list[i].offset = 0;
+		t->sparse_list[i].length = archive_entry_size(entry);
+	} else {
+		t->sparse_list[i].offset = archive_entry_size(entry);
+		t->sparse_list[i].length = 0;
+	}
+	t->current_sparse = t->sparse_list;
+
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-kwsysProcessTime kwsysProcessTimeFromDouble(double d)
+/*
+ * Called by the client to mark the directory just returned from
+ * tree_next() as needing to be visited.
+ */
+int
+archive_read_disk_descend(struct archive *_a)
 {
-  kwsysProcessTime t;
-  t.QuadPart = (LONGLONG)(d*10000000);
-  return t;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct tree *t = a->tree;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_disk_descend");
+
+	if (t->visit_type != TREE_REGULAR || !t->descend) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignored the request descending the current object");
+		return (ARCHIVE_WARN);
+	}
+
+	if (tree_current_is_physical_dir(t)) {
+		tree_push(t, t->basename, t->full_path.s,
+		    t->current_filesystem_id,
+		    bhfi_dev(&(t->lst)), bhfi_ino(&(t->lst)),
+		    &t->restore_time);
+		t->stack->flags |= isDir;
+	} else if (tree_current_is_dir(t)) {
+		tree_push(t, t->basename, t->full_path.s,
+		    t->current_filesystem_id,
+		    bhfi_dev(&(t->st)), bhfi_ino(&(t->st)),
+		    &t->restore_time);
+		t->stack->flags |= isDirLink;
+	}
+	t->descend = 0;
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-int kwsysProcessTimeLess(kwsysProcessTime in1, kwsysProcessTime in2)
+int
+archive_read_disk_open(struct archive *_a, const char *pathname)
 {
-  return in1.QuadPart < in2.QuadPart;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	struct archive_wstring wpath;
+	int ret;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
+	    "archive_read_disk_open");
+	archive_clear_error(&a->archive);
+
+	/* Make a wchar_t string from a char string. */
+	archive_string_init(&wpath);
+	if (archive_wstring_append_from_mbs(&wpath, pathname,
+	    strlen(pathname)) != 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't convert a path to a wchar_t string");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		ret = ARCHIVE_FATAL;
+	} else
+		ret = _archive_read_disk_open_w(_a, wpath.s);
+
+	archive_wstring_free(&wpath);
+	return (ret);
 }
 
-/*--------------------------------------------------------------------------*/
-kwsysProcessTime kwsysProcessTimeAdd(kwsysProcessTime in1, kwsysProcessTime in2)
+int
+archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
 {
-  kwsysProcessTime out;
-  out.QuadPart = in1.QuadPart + in2.QuadPart;
-  return out;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC,
+	    ARCHIVE_STATE_NEW | ARCHIVE_STATE_CLOSED,
+	    "archive_read_disk_open_w");
+	archive_clear_error(&a->archive);
+
+	return (_archive_read_disk_open_w(_a, pathname));
 }
 
-/*--------------------------------------------------------------------------*/
-kwsysProcessTime kwsysProcessTimeSubtract(kwsysProcessTime in1, kwsysProcessTime in2)
+static int
+_archive_read_disk_open_w(struct archive *_a, const wchar_t *pathname)
 {
-  kwsysProcessTime out;
-  out.QuadPart = in1.QuadPart - in2.QuadPart;
-  return out;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	if (a->tree != NULL)
+		a->tree = tree_reopen(a->tree, pathname, a->restore_time);
+	else
+		a->tree = tree_open(pathname, a->symlink_mode, a->restore_time);
+	if (a->tree == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate directory traversal data");
+		a->archive.state = ARCHIVE_STATE_FATAL;
+		return (ARCHIVE_FATAL);
+	}
+	a->archive.state = ARCHIVE_STATE_HEADER;
+
+	return (ARCHIVE_OK);
 }
 
-/*--------------------------------------------------------------------------*/
-#define KWSYSPE_CASE(type, str) \
-  cp->ExitException = kwsysProcess_Exception_##type; \
-  strcpy(cp->ExitExceptionString, str)
-static void kwsysProcessSetExitException(kwsysProcess* cp, int code)
+/*
+ * Return a current filesystem ID which is index of the filesystem entry
+ * you've visited through archive_read_disk.
+ */
+int
+archive_read_disk_current_filesystem(struct archive *_a)
 {
-  switch (code)
-    {
-    case STATUS_CONTROL_C_EXIT:
-      KWSYSPE_CASE(Interrupt, "User interrupt"); break;
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
 
-    case STATUS_FLOAT_DENORMAL_OPERAND:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)"); break;
-    case STATUS_FLOAT_DIVIDE_BY_ZERO:
-      KWSYSPE_CASE(Numerical, "Divide-by-zero"); break;
-    case STATUS_FLOAT_INEXACT_RESULT:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)"); break;
-    case STATUS_FLOAT_INVALID_OPERATION:
-      KWSYSPE_CASE(Numerical, "Invalid floating-point operation"); break;
-    case STATUS_FLOAT_OVERFLOW:
-      KWSYSPE_CASE(Numerical, "Floating-point overflow"); break;
-    case STATUS_FLOAT_STACK_CHECK:
-      KWSYSPE_CASE(Numerical, "Floating-point stack check failed"); break;
-    case STATUS_FLOAT_UNDERFLOW:
-      KWSYSPE_CASE(Numerical, "Floating-point underflow"); break;
-#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
-    case STATUS_FLOAT_MULTIPLE_FAULTS:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)"); break;
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_disk_current_filesystem");
+
+	return (a->tree->current_filesystem_id);
+}
+
+static int
+update_current_filesystem(struct archive_read_disk *a, int64_t dev)
+{
+	struct tree *t = a->tree;
+	int i, fid;
+
+	if (t->current_filesystem != NULL &&
+	    t->current_filesystem->dev == dev)
+		return (ARCHIVE_OK);
+
+	for (i = 0; i < t->max_filesystem_id; i++) {
+		if (t->filesystem_table[i].dev == dev) {
+			/* There is the filesytem ID we've already generated. */
+			t->current_filesystem_id = i;
+			t->current_filesystem = &(t->filesystem_table[i]);
+			return (ARCHIVE_OK);
+		}
+	}
+
+	/*
+	 * There is a new filesytem, we generate a new ID for.
+	 */
+	fid = t->max_filesystem_id++;
+	if (t->max_filesystem_id > t->allocated_filesytem) {
+		size_t s;
+
+		s = t->max_filesystem_id * 2;
+		t->filesystem_table = realloc(t->filesystem_table,
+		    s * sizeof(*t->filesystem_table));
+		if (t->filesystem_table == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate tar data");
+			return (ARCHIVE_FATAL);
+		}
+		t->allocated_filesytem = s;
+	}
+	t->current_filesystem_id = fid;
+	t->current_filesystem = &(t->filesystem_table[fid]);
+	t->current_filesystem->dev = dev;
+
+	return (setup_current_filesystem(a));
+}
+
+/*
+ * Returns 1 if current filesystem is generated filesystem, 0 if it is not
+ * or -1 if it is unknown.
+ */
+int
+archive_read_disk_current_filesystem_is_synthetic(struct archive *_a)
+{
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_disk_current_filesystem");
+
+	return (a->tree->current_filesystem->synthetic);
+}
+
+/*
+ * Returns 1 if current filesystem is remote filesystem, 0 if it is not
+ * or -1 if it is unknown.
+ */
+int
+archive_read_disk_current_filesystem_is_remote(struct archive *_a)
+{
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+
+	archive_check_magic(_a, ARCHIVE_READ_DISK_MAGIC, ARCHIVE_STATE_DATA,
+	    "archive_read_disk_current_filesystem");
+
+	return (a->tree->current_filesystem->remote);
+}
+
+/*
+ * If symlink is broken, statfs or statvfs will fail.
+ * Use its directory path instead.
+ */
+static wchar_t *
+safe_path_for_statfs(struct tree *t)
+{
+	const wchar_t *path;
+	wchar_t *cp, *p = NULL;
+
+	path = tree_current_access_path(t);
+	if (tree_current_stat(t) == NULL) {
+		p = _wcsdup(path);
+		cp = wcsrchr(p, '/');
+		if (cp != NULL && wcslen(cp) >= 2) {
+			cp[1] = '.';
+			cp[2] = '\0';
+			path = p;
+		}
+	} else
+		p = _wcsdup(path);
+	return (p);
+}
+
+/*
+ * Get conditions of synthetic and remote on Windows
+ */
+static int
+setup_current_filesystem(struct archive_read_disk *a)
+{
+	struct tree *t = a->tree;
+	wchar_t vol[256];
+	wchar_t *path;
+
+	t->current_filesystem->synthetic = -1;/* Not supported */
+	path = safe_path_for_statfs(t);
+	if (!GetVolumePathNameW(path, vol, sizeof(vol)/sizeof(vol[0]))) {
+		free(path);
+		t->current_filesystem->remote = -1;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+                        "GetVolumePathName failed: %d", (int)GetLastError());
+		return (ARCHIVE_FAILED);
+	}
+	free(path);
+	switch (GetDriveTypeW(vol)) {
+	case DRIVE_UNKNOWN:
+	case DRIVE_NO_ROOT_DIR:
+		t->current_filesystem->remote = -1;
+		break;
+	case DRIVE_REMOTE:
+		t->current_filesystem->remote = 1;
+		break;
+	default:
+		t->current_filesystem->remote = 0;
+		break;
+	}
+
+	return (ARCHIVE_OK);
+}
+
+static int
+close_and_restore_time(HANDLE h, struct tree *t, struct restore_time *rt)
+{
+	HANDLE handle;
+	int r = 0;
+
+	if (h == INVALID_HANDLE_VALUE && AE_IFLNK == rt->filetype)
+		return (0);
+
+	/* Close a file descritor.
+	 * It will not be used for SetFileTime() because it has been opened
+	 * by a read only mode.
+	 */
+	if (h != INVALID_HANDLE_VALUE)
+		CloseHandle(h);
+	if ((t->flags & needsRestoreTimes) == 0)
+		return (r);
+
+	handle = CreateFileW(rt->full_path, FILE_WRITE_ATTRIBUTES,
+		    0, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+	if (handle == INVALID_HANDLE_VALUE) {
+		errno = EINVAL;
+		return (-1);
+	}
+
+	if (SetFileTime(handle, NULL, &rt->lastAccessTime,
+	    &rt->lastWriteTime) == 0) {
+		errno = EINVAL;
+		r = -1;
+	} else
+		r = 0;
+	CloseHandle(handle);
+	return (r);
+}
+
+/*
+ * Add a directory path to the current stack.
+ */
+static void
+tree_push(struct tree *t, const wchar_t *path, const wchar_t *full_path,
+    int filesystem_id, int64_t dev, int64_t ino, struct restore_time *rt)
+{
+	struct tree_entry *te;
+
+	te = malloc(sizeof(*te));
+	memset(te, 0, sizeof(*te));
+	te->next = t->stack;
+	te->parent = t->current;
+	if (te->parent)
+		te->depth = te->parent->depth + 1;
+	t->stack = te;
+	archive_string_init(&te->name);
+	archive_wstrcpy(&te->name, path);
+	archive_string_init(&te->full_path);
+	archive_wstrcpy(&te->full_path, full_path);
+	te->flags = needsDescent | needsOpen | needsAscent;
+	te->filesystem_id = filesystem_id;
+	te->dev = dev;
+	te->ino = ino;
+	te->dirname_length = t->dirname_length;
+	te->full_path_dir_length = t->full_path_dir_length;
+	te->restore_time.full_path = te->full_path.s;
+	if (rt != NULL) {
+		te->restore_time.lastWriteTime = rt->lastWriteTime;
+		te->restore_time.lastAccessTime = rt->lastAccessTime;
+		te->restore_time.filetype = rt->filetype;
+	}
+}
+
+/*
+ * Append a name to the current dir path.
+ */
+static void
+tree_append(struct tree *t, const wchar_t *name, size_t name_length)
+{
+	size_t size_needed;
+
+	t->path.s[t->dirname_length] = L'\0';
+	t->path.length = t->dirname_length;
+	/* Strip trailing '/' from name, unless entire name is "/". */
+	while (name_length > 1 && name[name_length - 1] == L'/')
+		name_length--;
+
+	/* Resize pathname buffer as needed. */
+	size_needed = name_length + t->dirname_length + 2;
+	archive_wstring_ensure(&t->path, size_needed);
+	/* Add a separating '/' if it's needed. */
+	if (t->dirname_length > 0 &&
+	    t->path.s[archive_strlen(&t->path)-1] != L'/')
+		archive_wstrappend_wchar(&t->path, L'/');
+	t->basename = t->path.s + archive_strlen(&t->path);
+	archive_wstrncat(&t->path, name, name_length);
+	t->restore_time.full_path = t->basename;
+	if (t->full_path_dir_length > 0) {
+		t->full_path.s[t->full_path_dir_length] = L'\0';
+		t->full_path.length = t->full_path_dir_length;
+		size_needed = name_length + t->full_path_dir_length + 2;
+		archive_wstring_ensure(&t->full_path, size_needed);
+		/* Add a separating '\' if it's needed. */
+		if (t->full_path.s[archive_strlen(&t->full_path)-1] != L'\\')
+			archive_wstrappend_wchar(&t->full_path, L'\\');
+		archive_wstrncat(&t->full_path, name, name_length);
+		t->restore_time.full_path = t->full_path.s;
+	}
+}
+
+/*
+ * Open a directory tree for traversal.
+ */
+static struct tree *
+tree_open(const wchar_t *path, int symlink_mode, int restore_time)
+{
+	struct tree *t;
+
+	t = malloc(sizeof(*t));
+	memset(t, 0, sizeof(*t));
+	archive_string_init(&(t->full_path));
+	archive_string_init(&t->path);
+	archive_wstring_ensure(&t->path, 15);
+	t->initial_symlink_mode = symlink_mode;
+	return (tree_reopen(t, path, restore_time));
+}
+
+static struct tree *
+tree_reopen(struct tree *t, const wchar_t *path, int restore_time)
+{
+	struct archive_wstring ws;
+	wchar_t *pathname, *p, *base;
+
+	t->flags = (restore_time)?needsRestoreTimes:0;
+	t->visit_type = 0;
+	t->tree_errno = 0;
+	t->full_path_dir_length = 0;
+	t->dirname_length = 0;
+	t->depth = 0;
+	t->descend = 0;
+	t->current = NULL;
+	t->d = INVALID_DIR_HANDLE;
+	t->symlink_mode = t->initial_symlink_mode;
+	archive_string_empty(&(t->full_path));
+	archive_string_empty(&t->path);
+	t->entry_fh = INVALID_HANDLE_VALUE;
+	t->entry_eof = 0;
+	t->entry_remaining_bytes = 0;
+
+	/* Get wchar_t strings from char strings. */
+	archive_string_init(&ws);
+	archive_wstrcpy(&ws, path);
+	pathname = ws.s;
+	/* Get a full-path-name. */
+	p = __la_win_permissive_name_w(pathname);
+	if (p == NULL)
+		goto failed;
+	archive_wstrcpy(&(t->full_path), p);
+	free(p);
+
+	/* Convert path separators from '\' to '/' */
+	for (p = pathname; *p != L'\0'; ++p) {
+		if (*p == L'\\')
+			*p = L'/';
+	}
+	base = pathname;
+
+	/* First item is set up a lot like a symlink traversal. */
+	/* printf("Looking for wildcard in %s\n", path); */
+	/* TODO: wildcard detection here screws up on \\?\c:\ UNC names */
+	if (wcschr(base, L'*') || wcschr(base, L'?')) {
+		// It has a wildcard in it...
+		// Separate the last element.
+		p = wcsrchr(base, L'/');
+		if (p != NULL) {
+			*p = L'\0';
+			tree_append(t, base, p - base);
+			t->dirname_length = archive_strlen(&t->path);
+			base = p + 1;
+		}
+		p = wcsrchr(t->full_path.s, L'\\');
+		if (p != NULL) {
+			*p = L'\0';
+			t->full_path.length = wcslen(t->full_path.s);
+			t->full_path_dir_length = archive_strlen(&t->full_path);
+		}
+	}
+	tree_push(t, base, t->full_path.s, 0, 0, 0, NULL);
+	archive_wstring_free(&ws);
+	t->stack->flags = needsFirstVisit;
+	return (t);
+failed:
+	archive_wstring_free(&ws);
+	tree_free(t);
+	return (NULL);
+}
+
+static int
+tree_descent(struct tree *t)
+{
+	t->dirname_length = archive_strlen(&t->path);
+	t->full_path_dir_length = archive_strlen(&t->full_path);
+	t->depth++;
+	return (0);
+}
+
+/*
+ * We've finished a directory; ascend back to the parent.
+ */
+static int
+tree_ascend(struct tree *t)
+{
+	struct tree_entry *te;
+
+	te = t->stack;
+	t->depth--;
+	close_and_restore_time(INVALID_DIR_HANDLE, t, &te->restore_time);
+	return (0);
+}
+
+/*
+ * Pop the working stack.
+ */
+static void
+tree_pop(struct tree *t)
+{
+	struct tree_entry *te;
+
+	t->full_path.s[t->full_path_dir_length] = L'\0';
+	t->full_path.length = t->full_path_dir_length;
+	t->path.s[t->dirname_length] = L'\0';
+	t->path.length = t->dirname_length;
+	if (t->stack == t->current && t->current != NULL)
+		t->current = t->current->parent;
+	te = t->stack;
+	t->stack = te->next;
+	t->dirname_length = te->dirname_length;
+	t->basename = t->path.s + t->dirname_length;
+	t->full_path_dir_length = te->full_path_dir_length;
+	while (t->basename[0] == L'/')
+		t->basename++;
+	archive_wstring_free(&te->name);
+	archive_wstring_free(&te->full_path);
+	free(te);
+}
+
+/*
+ * Get the next item in the tree traversal.
+ */
+static int
+tree_next(struct tree *t)
+{
+	int r;
+
+	while (t->stack != NULL) {
+		/* If there's an open dir, get the next entry from there. */
+		if (t->d != INVALID_DIR_HANDLE) {
+			r = tree_dir_next_windows(t, NULL);
+			if (r == 0)
+				continue;
+			return (r);
+		}
+
+		if (t->stack->flags & needsFirstVisit) {
+			wchar_t *d = t->stack->name.s;
+			t->stack->flags &= ~needsFirstVisit;
+			if (wcschr(d, L'*') || wcschr(d, L'?')) {
+				r = tree_dir_next_windows(t, d);
+				if (r == 0)
+					continue;
+				return (r);
+			} else {
+				HANDLE h = FindFirstFileW(d, &t->_findData);
+				if (h == INVALID_DIR_HANDLE) {
+					t->tree_errno = errno;
+					t->visit_type = TREE_ERROR_DIR;
+					return (t->visit_type);
+				}
+				t->findData = &t->_findData;
+				FindClose(h);
+			}
+			/* Top stack item needs a regular visit. */
+			t->current = t->stack;
+			tree_append(t, t->stack->name.s,
+			    archive_strlen(&(t->stack->name)));
+			//t->dirname_length = t->path_length;
+			//tree_pop(t);
+			t->stack->flags &= ~needsFirstVisit;
+			return (t->visit_type = TREE_REGULAR);
+		} else if (t->stack->flags & needsDescent) {
+			/* Top stack item is dir to descend into. */
+			t->current = t->stack;
+			tree_append(t, t->stack->name.s,
+			    archive_strlen(&(t->stack->name)));
+			t->stack->flags &= ~needsDescent;
+			r = tree_descent(t);
+			if (r != 0) {
+				tree_pop(t);
+				t->visit_type = r;
+			} else
+				t->visit_type = TREE_POSTDESCENT;
+			return (t->visit_type);
+		} else if (t->stack->flags & needsOpen) {
+			t->stack->flags &= ~needsOpen;
+			r = tree_dir_next_windows(t, L"*");
+			if (r == 0)
+				continue;
+			return (r);
+		} else if (t->stack->flags & needsAscent) {
+		        /* Top stack item is dir and we're done with it. */
+			r = tree_ascend(t);
+			tree_pop(t);
+			t->visit_type = r != 0 ? r : TREE_POSTASCENT;
+			return (t->visit_type);
+		} else {
+			/* Top item on stack is dead. */
+			tree_pop(t);
+			t->flags &= ~hasLstat;
+			t->flags &= ~hasStat;
+		}
+	}
+	return (t->visit_type = 0);
+}
+
+static int
+tree_dir_next_windows(struct tree *t, const wchar_t *pattern)
+{
+	const wchar_t *name;
+	size_t namelen;
+	int r;
+
+	for (;;) {
+		if (pattern != NULL) {
+			struct archive_wstring pt;
+
+			archive_string_init(&pt);
+			archive_wstring_ensure(&pt,
+			    archive_strlen(&(t->full_path))
+			      + 2 + wcslen(pattern));
+			archive_wstring_copy(&pt, &(t->full_path));
+			archive_wstrappend_wchar(&pt, L'\\');
+			archive_wstrcat(&pt, pattern);
+			t->d = FindFirstFileW(pt.s, &t->_findData);
+			archive_wstring_free(&pt);
+			if (t->d == INVALID_DIR_HANDLE) {
+				r = tree_ascend(t); /* Undo "chdir" */
+				tree_pop(t);
+				t->tree_errno = errno;
+				t->visit_type = r != 0 ? r : TREE_ERROR_DIR;
+				return (t->visit_type);
+			}
+			t->findData = &t->_findData;
+			pattern = NULL;
+		} else if (!FindNextFileW(t->d, &t->_findData)) {
+			FindClose(t->d);
+			t->d = INVALID_DIR_HANDLE;
+			t->findData = NULL;
+			return (0);
+		}
+		name = t->findData->cFileName;
+		namelen = wcslen(name);
+		t->flags &= ~hasLstat;
+		t->flags &= ~hasStat;
+		if (name[0] == L'.' && name[1] == L'\0')
+			continue;
+		if (name[0] == L'.' && name[1] == L'.' && name[2] == L'\0')
+			continue;
+		tree_append(t, name, namelen);
+		return (t->visit_type = TREE_REGULAR);
+	}
+}
+
+#define EPOC_TIME ARCHIVE_LITERAL_ULL(116444736000000000)
+static void
+fileTimeToUtc(const FILETIME *filetime, time_t *time, long *ns)
+{
+	ULARGE_INTEGER utc;
+
+	utc.HighPart = filetime->dwHighDateTime;
+	utc.LowPart  = filetime->dwLowDateTime;
+	if (utc.QuadPart >= EPOC_TIME) {
+		utc.QuadPart -= EPOC_TIME;
+		/* milli seconds base */
+		*time = (time_t)(utc.QuadPart / 10000000);
+		/* nano seconds base */
+		*ns = (long)(utc.QuadPart % 10000000) * 100;
+	} else {
+		*time = 0;
+		*ns = 0;
+	}
+}
+
+static void
+entry_copy_bhfi(struct archive_entry *entry, const wchar_t *path,
+	const WIN32_FIND_DATAW *findData,
+	const BY_HANDLE_FILE_INFORMATION *bhfi)
+{
+	time_t secs;
+	long nsecs;
+	mode_t mode;
+
+	fileTimeToUtc(&bhfi->ftLastAccessTime, &secs, &nsecs);
+	archive_entry_set_atime(entry, secs, nsecs);
+	fileTimeToUtc(&bhfi->ftLastWriteTime, &secs, &nsecs);
+	archive_entry_set_mtime(entry, secs, nsecs);
+	fileTimeToUtc(&bhfi->ftCreationTime, &secs, &nsecs);
+	archive_entry_set_birthtime(entry, secs, nsecs);
+	archive_entry_set_ctime(entry, secs, nsecs);
+	archive_entry_set_dev(entry, bhfi_dev(bhfi));
+	archive_entry_set_ino64(entry, bhfi_ino(bhfi));
+	if (bhfi->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		archive_entry_set_nlink(entry, bhfi->nNumberOfLinks + 1);
+	else
+		archive_entry_set_nlink(entry, bhfi->nNumberOfLinks);
+	archive_entry_set_size(entry,
+	    (((int64_t)bhfi->nFileSizeHigh) << 32)
+	    + bhfi->nFileSizeLow);
+	archive_entry_set_uid(entry, 0);
+	archive_entry_set_gid(entry, 0);
+	archive_entry_set_rdev(entry, 0);
+
+	mode = S_IRUSR | S_IRGRP | S_IROTH;
+	if ((bhfi->dwFileAttributes & FILE_ATTRIBUTE_READONLY) == 0)
+		mode |= S_IWUSR | S_IWGRP | S_IWOTH;
+	if ((bhfi->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
+	    findData != NULL &&
+	    findData->dwReserved0 == IO_REPARSE_TAG_SYMLINK)
+		mode |= S_IFLNK;
+	else if (bhfi->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		mode |= S_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
+	else {
+		const wchar_t *p;
+
+		mode |= S_IFREG;
+		p = wcsrchr(path, L'.');
+		if (p != NULL && wcslen(p) == 4) {
+			switch (p[1]) {
+			case L'B': case L'b':
+				if ((p[2] == L'A' || p[2] == L'a' ) &&
+				    (p[3] == L'T' || p[3] == L't' ))
+					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
+				break;
+			case L'C': case L'c':
+				if (((p[2] == L'M' || p[2] == L'm' ) &&
+				    (p[3] == L'D' || p[3] == L'd' )) ||
+				    ((p[2] == L'M' || p[2] == L'm' ) &&
+				    (p[3] == L'D' || p[3] == L'd' )))
+					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
+				break;
+			case L'E': case L'e':
+				if ((p[2] == L'X' || p[2] == L'x' ) &&
+				    (p[3] == L'E' || p[3] == L'e' ))
+					mode |= S_IXUSR | S_IXGRP | S_IXOTH;
+				break;
+			default:
+				break;
+			}
+		}
+	}
+	archive_entry_set_mode(entry, mode);
+}
+
+static void
+tree_archive_entry_copy_bhfi(struct archive_entry *entry, struct tree *t,
+	const BY_HANDLE_FILE_INFORMATION *bhfi)
+{
+	entry_copy_bhfi(entry, tree_current_path(t), t->findData, bhfi);
+}
+
+static int
+tree_current_file_information(struct tree *t, BY_HANDLE_FILE_INFORMATION *st,
+ int sim_lstat)
+{
+	HANDLE h;
+	int r;
+	DWORD flag = FILE_FLAG_BACKUP_SEMANTICS;
+	
+	if (sim_lstat && tree_current_is_physical_link(t))
+		flag |= FILE_FLAG_OPEN_REPARSE_POINT;
+	h = CreateFileW(tree_current_access_path(t), 0, 0, NULL,
+	    OPEN_EXISTING, flag, NULL);
+	if (h == INVALID_HANDLE_VALUE)
+		return (0);
+	r = GetFileInformationByHandle(h, st);
+	CloseHandle(h);
+	return (r);
+}
+
+/*
+ * Get the stat() data for the entry just returned from tree_next().
+ */
+static const BY_HANDLE_FILE_INFORMATION *
+tree_current_stat(struct tree *t)
+{
+	if (!(t->flags & hasStat)) {
+		if (!tree_current_file_information(t, &t->st, 0))
+			return NULL;
+		t->flags |= hasStat;
+	}
+	return (&t->st);
+}
+
+/*
+ * Get the lstat() data for the entry just returned from tree_next().
+ */
+static const BY_HANDLE_FILE_INFORMATION *
+tree_current_lstat(struct tree *t)
+{
+	if (!(t->flags & hasLstat)) {
+		if (!tree_current_file_information(t, &t->lst, 1))
+			return NULL;
+		t->flags |= hasLstat;
+	}
+	return (&t->lst);
+}
+
+/*
+ * Test whether current entry is a dir or link to a dir.
+ */
+static int
+tree_current_is_dir(struct tree *t)
+{
+	if (t->findData)
+		return (t->findData->dwFileAttributes
+		    & FILE_ATTRIBUTE_DIRECTORY);
+	return (0);
+}
+
+/*
+ * Test whether current entry is a physical directory.  Usually, we
+ * already have at least one of stat() or lstat() in memory, so we
+ * use tricks to try to avoid an extra trip to the disk.
+ */
+static int
+tree_current_is_physical_dir(struct tree *t)
+{
+	if (tree_current_is_physical_link(t))
+		return (0);
+	return (tree_current_is_dir(t));
+}
+
+/*
+ * Test whether current entry is a symbolic link.
+ */
+static int
+tree_current_is_physical_link(struct tree *t)
+{
+	if (t->findData)
+		return ((t->findData->dwFileAttributes
+			        & FILE_ATTRIBUTE_REPARSE_POINT) &&
+			(t->findData->dwReserved0
+			    == IO_REPARSE_TAG_SYMLINK));
+	return (0);
+}
+
+/*
+ * Test whether the same file has been in the tree as its parent.
+ */
+static int
+tree_target_is_same_as_parent(struct tree *t,
+    const BY_HANDLE_FILE_INFORMATION *st)
+{
+	struct tree_entry *te;
+	int64_t dev = bhfi_dev(st);
+	int64_t ino = bhfi_ino(st);
+
+	for (te = t->current->parent; te != NULL; te = te->parent) {
+		if (te->dev == dev && te->ino == ino)
+			return (1);
+	}
+	return (0);
+}
+
+/*
+ * Return the access path for the entry just returned from tree_next().
+ */
+static const wchar_t *
+tree_current_access_path(struct tree *t)
+{
+	return (t->full_path.s);
+}
+
+/*
+ * Return the full path for the entry just returned from tree_next().
+ */
+static const wchar_t *
+tree_current_path(struct tree *t)
+{
+	return (t->path.s);
+}
+
+/*
+ * Terminate the traversal.
+ */
+static void
+tree_close(struct tree *t)
+{
+
+	if (t == NULL)
+		return;
+	if (t->entry_fh != INVALID_HANDLE_VALUE) {
+		close_and_restore_time(t->entry_fh, t, &t->restore_time);
+		t->entry_fh = INVALID_HANDLE_VALUE;
+	}
+	/* Close the handle of FindFirstFileW */
+	if (t->d != INVALID_DIR_HANDLE) {
+		FindClose(t->d);
+		t->d = INVALID_DIR_HANDLE;
+		t->findData = NULL;
+	}
+	/* Release anything remaining in the stack. */
+	while (t->stack != NULL)
+		tree_pop(t);
+}
+
+/*
+ * Release any resources.
+ */
+static void
+tree_free(struct tree *t)
+{
+	if (t == NULL)
+		return;
+	archive_wstring_free(&t->path);
+	archive_wstring_free(&t->full_path);
+	free(t->sparse_list);
+	free(t->filesystem_table);
+	free(t->entry_buff);
+	free(t);
+}
+
+
+/*
+ * Populate the archive_entry with metadata from the disk.
+ */
+int
+archive_read_disk_entry_from_file(struct archive *_a,
+    struct archive_entry *entry, int fd, const struct stat *st)
+{
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	const wchar_t *path;
+	const wchar_t *wname;
+	const char *name;
+	HANDLE h;
+	BY_HANDLE_FILE_INFORMATION bhfi;
+	DWORD fileAttributes = 0;
+	int r;
+
+	archive_clear_error(_a);
+	wname = archive_entry_sourcepath_w(entry);
+	if (wname == NULL)
+		wname = archive_entry_pathname_w(entry);
+	if (wname == NULL) {
+		archive_set_error(&a->archive, EINVAL,
+		    "Can't get a wide character version of the path");
+		return (ARCHIVE_FAILED);
+	}
+	path = __la_win_permissive_name_w(wname);
+
+	if (st == NULL) {
+		/*
+		 * Get metadata through GetFileInformationByHandle().
+		 */
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't GetFileInformationByHandle");
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, NULL, &bhfi);
+		} else {
+			WIN32_FIND_DATAW findData;
+			DWORD flag, desiredAccess;
+	
+			h = FindFirstFileW(path, &findData);
+			if (h == INVALID_DIR_HANDLE) {
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't FindFirstFileW");
+				return (ARCHIVE_FAILED);
+			}
+			FindClose(h);
+
+			flag = FILE_FLAG_BACKUP_SEMANTICS;
+			if (!a->follow_symlinks &&
+			    (findData.dwFileAttributes
+			      & FILE_ATTRIBUTE_REPARSE_POINT) &&
+				  (findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
+				flag |= FILE_FLAG_OPEN_REPARSE_POINT;
+				desiredAccess = 0;
+			} else if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				desiredAccess = 0;
+			} else
+				desiredAccess = GENERIC_READ;
+
+			h = CreateFileW(path, desiredAccess, 0, NULL,
+			    OPEN_EXISTING, flag, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+			r = GetFileInformationByHandle(h, &bhfi);
+			if (r == 0) {
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't GetFileInformationByHandle");
+				CloseHandle(h);
+				return (ARCHIVE_FAILED);
+			}
+			entry_copy_bhfi(entry, path, &findData, &bhfi);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	} else {
+		archive_entry_copy_stat(entry, st);
+		h = INVALID_DIR_HANDLE;
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+	/*
+	 * Can this file be sparse file ?
+	 */
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+		|| archive_entry_hardlink(entry) != NULL) {
+		if (h != INVALID_HANDLE_VALUE && fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
+
+	if (h == INVALID_HANDLE_VALUE) {
+		if (fd >= 0) {
+			h = (HANDLE)_get_osfhandle(fd);
+		} else {
+			h = CreateFileW(path, GENERIC_READ, 0, NULL,
+			    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+			if (h == INVALID_HANDLE_VALUE) {
+				archive_set_error(&a->archive, GetLastError(),
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}
+		}
+		r = GetFileInformationByHandle(h, &bhfi);
+		if (r == 0) {
+			archive_set_error(&a->archive, GetLastError(),
+			    "Can't GetFileInformationByHandle");
+			if (h != INVALID_HANDLE_VALUE && fd < 0)
+				CloseHandle(h);
+			return (ARCHIVE_FAILED);
+		}
+		fileAttributes = bhfi.dwFileAttributes;
+	}
+
+	/* Sparse file must be set a mark, FILE_ATTRIBUTE_SPARSE_FILE */
+	if ((fileAttributes & FILE_ATTRIBUTE_SPARSE_FILE) == 0) {
+		if (fd < 0)
+			CloseHandle(h);
+		return (ARCHIVE_OK);
+	}
+
+	r = setup_sparse_from_disk(a, entry, h);
+	if (fd < 0)
+		CloseHandle(h);
+
+	return (r);
+}
+
+/*
+ * Windows sparse interface.
+ */
+#if defined(__MINGW32__) && !defined(FSCTL_QUERY_ALLOCATED_RANGES)
+#define FSCTL_QUERY_ALLOCATED_RANGES 0x940CF
+typedef struct {
+	LARGE_INTEGER FileOffset;
+	LARGE_INTEGER Length;
+} FILE_ALLOCATED_RANGE_BUFFER;
 #endif
-#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
-    case STATUS_FLOAT_MULTIPLE_TRAPS:
-      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)"); break;
+
+static int
+setup_sparse_from_disk(struct archive_read_disk *a,
+    struct archive_entry *entry, HANDLE handle)
+{
+	FILE_ALLOCATED_RANGE_BUFFER range, *outranges = NULL;
+	size_t outranges_size;
+	int64_t entry_size = archive_entry_size(entry);
+	int exit_sts = ARCHIVE_OK;
+
+	range.FileOffset.QuadPart = 0;
+	range.Length.QuadPart = entry_size;
+	outranges_size = 2048;
+	outranges = (FILE_ALLOCATED_RANGE_BUFFER *)malloc(outranges_size);
+	if (outranges == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			"Couldn't allocate memory");
+		exit_sts = ARCHIVE_FATAL;
+		goto exit_setup_sparse;
+	}
+
+	for (;;) {
+		DWORD retbytes;
+		BOOL ret;
+
+		for (;;) {
+			ret = DeviceIoControl(handle,
+			    FSCTL_QUERY_ALLOCATED_RANGES,
+			    &range, sizeof(range), outranges,
+			    outranges_size, &retbytes, NULL);
+			if (ret == 0 && GetLastError() == ERROR_MORE_DATA) {
+				free(outranges);
+				outranges_size *= 2;
+				outranges = (FILE_ALLOCATED_RANGE_BUFFER *)
+				    malloc(outranges_size);
+				if (outranges == NULL) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Couldn't allocate memory");
+					exit_sts = ARCHIVE_FATAL;
+					goto exit_setup_sparse;
+				}
+				continue;
+			} else
+				break;
+		}
+		if (ret != 0) {
+			if (retbytes > 0) {
+				DWORD i, n;
+
+				n = retbytes / sizeof(outranges[0]);
+				if (n == 1 &&
+				    outranges[0].FileOffset.QuadPart == 0 &&
+				    outranges[0].Length.QuadPart == entry_size)
+					break;/* This is not sparse. */
+				for (i = 0; i < n; i++)
+					archive_entry_sparse_add_entry(entry,
+					    outranges[i].FileOffset.QuadPart,
+						outranges[i].Length.QuadPart);
+				range.FileOffset.QuadPart =
+				    outranges[n-1].FileOffset.QuadPart
+				    + outranges[n-1].Length.QuadPart;
+				range.Length.QuadPart =
+				    entry_size - range.FileOffset.QuadPart;
+				if (range.Length.QuadPart > 0)
+					continue;
+			} else {
+				/* The remaining data is hole. */
+				archive_entry_sparse_add_entry(entry,
+				    range.FileOffset.QuadPart,
+				    range.Length.QuadPart);
+			}
+			break;
+		} else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "DeviceIoControl Failed: %lu", GetLastError());
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+	}
+exit_setup_sparse:
+	free(outranges);
+
+	return (exit_sts);
+}
+
 #endif
-    case STATUS_INTEGER_DIVIDE_BY_ZERO:
-      KWSYSPE_CASE(Numerical, "Integer divide-by-zero"); break;
-    case STATUS_INTEGER_OVERFLOW:
-      KWSYSPE_CASE(Numerical, "Integer overflow"); break;
-
-    case STATUS_DATATYPE_MISALIGNMENT:
-      KWSYSPE_CASE(Fault, "Datatype misalignment"); break;
-    case STATUS_ACCESS_VIOLATION:
-      KWSYSPE_CASE(Fault, "Access violation"); break;
-    case STATUS_IN_PAGE_ERROR:
-      KWSYSPE_CASE(Fault, "In-page error"); break;
-    case STATUS_INVALID_HANDLE:
-      KWSYSPE_CASE(Fault, "Invalid hanlde"); break;
-    case STATUS_NONCONTINUABLE_EXCEPTION:
-      KWSYSPE_CASE(Fault, "Noncontinuable exception"); break;
-    case STATUS_INVALID_DISPOSITION:
-      KWSYSPE_CASE(Fault, "Invalid disposition"); break;
-    case STATUS_ARRAY_BOUNDS_EXCEEDED:
-      KWSYSPE_CASE(Fault, "Array bounds exceeded"); break;
-    case STATUS_STACK_OVERFLOW:
-      KWSYSPE_CASE(Fault, "Stack overflow"); break;
-
-    case STATUS_ILLEGAL_INSTRUCTION:
-      KWSYSPE_CASE(Illegal, "Illegal instruction"); break;
-    case STATUS_PRIVILEGED_INSTRUCTION:
-      KWSYSPE_CASE(Illegal, "Privileged instruction"); break;
-
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      sprintf(cp->ExitExceptionString, "Exit code 0x%x\n", code);
-      break;
-    }
-}
-#undef KWSYSPE_CASE
-
-typedef struct kwsysProcess_List_s kwsysProcess_List;
-static kwsysProcess_List* kwsysProcess_List_New(void);
-static void kwsysProcess_List_Delete(kwsysProcess_List* self);
-static int kwsysProcess_List_Update(kwsysProcess_List* self);
-static int kwsysProcess_List_NextProcess(kwsysProcess_List* self);
-static int kwsysProcess_List_GetCurrentProcessId(kwsysProcess_List* self);
-static int kwsysProcess_List_GetCurrentParentId(kwsysProcess_List* self);
-
-/*--------------------------------------------------------------------------*/
-/* Windows NT 4 API definitions.  */
-#define STATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xC0000004L)
-typedef LONG NTSTATUS;
-typedef LONG KPRIORITY;
-typedef struct _UNICODE_STRING UNICODE_STRING;
-struct _UNICODE_STRING
-{
-  USHORT Length;
-  USHORT MaximumLength;
-  PWSTR Buffer;
-};
-
-/* The process information structure.  Declare only enough to get
-   process identifiers.  The rest may be ignored because we use the
-   NextEntryDelta to move through an array of instances.  */
-typedef struct _SYSTEM_PROCESS_INFORMATION SYSTEM_PROCESS_INFORMATION;
-typedef SYSTEM_PROCESS_INFORMATION* PSYSTEM_PROCESS_INFORMATION;
-struct _SYSTEM_PROCESS_INFORMATION
-{
-  ULONG          NextEntryDelta;
-  ULONG          ThreadCount;
-  ULONG          Reserved1[6];
-  LARGE_INTEGER  CreateTime;
-  LARGE_INTEGER  UserTime;
-  LARGE_INTEGER  KernelTime;
-  UNICODE_STRING ProcessName;
-  KPRIORITY      BasePriority;
-  ULONG          ProcessId;
-  ULONG          InheritedFromProcessId;
-};
-
-/*--------------------------------------------------------------------------*/
-/* Toolhelp32 API definitions.  */
-#define TH32CS_SNAPPROCESS  0x00000002
-#if defined(_WIN64)
-typedef unsigned __int64 ProcessULONG_PTR;
-#else
-typedef unsigned long ProcessULONG_PTR;
-#endif
-typedef struct tagPROCESSENTRY32 PROCESSENTRY32;
-typedef PROCESSENTRY32* LPPROCESSENTRY32;
-struct tagPROCESSENTRY32
-{
-  DWORD dwSize;
-  DWORD cntUsage;
-  DWORD th32ProcessID;
-  ProcessULONG_PTR th32DefaultHeapID;
-  DWORD th32ModuleID;
-  DWORD cntThreads;
-  DWORD th32ParentProcessID;
-  LONG  pcPriClassBase;
-  DWORD dwFlags;
-  char szExeFile[MAX_PATH];
-};
-
-/*--------------------------------------------------------------------------*/
-/* Windows API function types.  */
-typedef HANDLE (WINAPI* CreateToolhelp32SnapshotType)(DWORD, DWORD);
-typedef BOOL (WINAPI* Process32FirstType)(HANDLE, LPPROCESSENTRY32);
-typedef BOOL (WINAPI* Process32NextType)(HANDLE, LPPROCESSENTRY32);
-typedef NTSTATUS (WINAPI* ZwQuerySystemInformationType)(ULONG, PVOID,
-                                                        ULONG, PULONG);
-
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__New_NT4(kwsysProcess_List* self);
-static int kwsysProcess_List__New_Snapshot(kwsysProcess_List* self);
-static void kwsysProcess_List__Delete_NT4(kwsysProcess_List* self);
-static void kwsysProcess_List__Delete_Snapshot(kwsysProcess_List* self);
-static int kwsysProcess_List__Update_NT4(kwsysProcess_List* self);
-static int kwsysProcess_List__Update_Snapshot(kwsysProcess_List* self);
-static int kwsysProcess_List__Next_NT4(kwsysProcess_List* self);
-static int kwsysProcess_List__Next_Snapshot(kwsysProcess_List* self);
-static int kwsysProcess_List__GetProcessId_NT4(kwsysProcess_List* self);
-static int kwsysProcess_List__GetProcessId_Snapshot(kwsysProcess_List* self);
-static int kwsysProcess_List__GetParentId_NT4(kwsysProcess_List* self);
-static int kwsysProcess_List__GetParentId_Snapshot(kwsysProcess_List* self);
-
-struct kwsysProcess_List_s
-{
-  /* Implementation switches at runtime based on version of Windows.  */
-  int NT4;
-
-  /* Implementation functions and data for NT 4.  */
-  ZwQuerySystemInformationType P_ZwQuerySystemInformation;
-  char* Buffer;
-  int BufferSize;
-  PSYSTEM_PROCESS_INFORMATION CurrentInfo;
-
-  /* Implementation functions and data for other Windows versions.  */
-  CreateToolhelp32SnapshotType P_CreateToolhelp32Snapshot;
-  Process32FirstType P_Process32First;
-  Process32NextType P_Process32Next;
-  HANDLE Snapshot;
-  PROCESSENTRY32 CurrentEntry;
-};
-
-/*--------------------------------------------------------------------------*/
-static kwsysProcess_List* kwsysProcess_List_New(void)
-{
-  OSVERSIONINFO osv;
-  kwsysProcess_List* self;
-
-  /* Allocate and initialize the list object.  */
-  if(!(self = (kwsysProcess_List*)malloc(sizeof(kwsysProcess_List))))
-    {
-    return 0;
-    }
-  memset(self, 0, sizeof(*self));
-
-  /* Select an implementation.  */
-  ZeroMemory(&osv, sizeof(osv));
-  osv.dwOSVersionInfoSize = sizeof(osv);
-  GetVersionEx(&osv);
-  self->NT4 = (osv.dwPlatformId == VER_PLATFORM_WIN32_NT &&
-               osv.dwMajorVersion < 5)? 1:0;
-
-  /* Initialize the selected implementation.  */
-  if(!(self->NT4?
-       kwsysProcess_List__New_NT4(self) :
-       kwsysProcess_List__New_Snapshot(self)))
-    {
-    kwsysProcess_List_Delete(self);
-    return 0;
-    }
-
-  /* Update to the current set of processes.  */
-  if(!kwsysProcess_List_Update(self))
-    {
-    kwsysProcess_List_Delete(self);
-    return 0;
-    }
-  return self;
-}
-
-/*--------------------------------------------------------------------------*/
-static void kwsysProcess_List_Delete(kwsysProcess_List* self)
-{
-  if(self)
-    {
-    if(self->NT4)
-      {
-      kwsysProcess_List__Delete_NT4(self);
-      }
-    else
-      {
-      kwsysProcess_List__Delete_Snapshot(self);
-      }
-    free(self);
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List_Update(kwsysProcess_List* self)
-{
-  return self? (self->NT4?
-                kwsysProcess_List__Update_NT4(self) :
-                kwsysProcess_List__Update_Snapshot(self)) : 0;
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List_GetCurrentProcessId(kwsysProcess_List* self)
-{
-  return self? (self->NT4?
-                kwsysProcess_List__GetProcessId_NT4(self) :
-                kwsysProcess_List__GetProcessId_Snapshot(self)) : -1;
-
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List_GetCurrentParentId(kwsysProcess_List* self)
-{
-  return self? (self->NT4?
-                kwsysProcess_List__GetParentId_NT4(self) :
-                kwsysProcess_List__GetParentId_Snapshot(self)) : -1;
-
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List_NextProcess(kwsysProcess_List* self)
-{
-  return (self? (self->NT4?
-                 kwsysProcess_List__Next_NT4(self) :
-                 kwsysProcess_List__Next_Snapshot(self)) : 0);
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__New_NT4(kwsysProcess_List* self)
-{
-  /* Get a handle to the NT runtime module that should already be
-     loaded in this program.  This does not actually increment the
-     reference count to the module so we do not need to close the
-     handle.  */
-  HMODULE hNT = GetModuleHandle("ntdll.dll");
-  if(hNT)
-    {
-    /* Get pointers to the needed API functions.  */
-    self->P_ZwQuerySystemInformation =
-      ((ZwQuerySystemInformationType)
-       GetProcAddress(hNT, "ZwQuerySystemInformation"));
-    }
-  if(!self->P_ZwQuerySystemInformation)
-    {
-    return 0;
-    }
-
-  /* Allocate an initial process information buffer.  */
-  self->BufferSize = 32768;
-  self->Buffer = (char*)malloc(self->BufferSize);
-  return self->Buffer? 1:0;
-}
-
-/*--------------------------------------------------------------------------*/
-static void kwsysProcess_List__Delete_NT4(kwsysProcess_List* self)
-{
-  /* Free the process information buffer.  */
-  if(self->Buffer)
-    {
-    free(self->Buffer);
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__Update_NT4(kwsysProcess_List* self)
-{
-  self->CurrentInfo = 0;
-  for(;;)
-    {
-    /* Query number 5 is for system process list.  */
-    NTSTATUS status =
-      self->P_ZwQuerySystemInformation(5, self->Buffer, self->BufferSize, 0);
-    if(status == STATUS_INFO_LENGTH_MISMATCH)
-      {
-      /* The query requires a bigger buffer.  */
-      int newBufferSize = self->BufferSize * 2;
-      char* newBuffer = (char*)malloc(newBufferSize);
-      if(newBuffer)
-        {
-        free(self->Buffer);
-        self->Buffer = newBuffer;
-        self->BufferSize = newBufferSize;
-        }
-      else
-        {
-        return 0;
-        }
-      }
-    else if(status >= 0)
-      {
-      /* The query succeeded.  Initialize traversal of the process list.  */
-      self->CurrentInfo = (PSYSTEM_PROCESS_INFORMATION)self->Buffer;
-      return 1;
-      }
-    else
-      {
-      /* The query failed.  */
-      return 0;
-      }
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__Next_NT4(kwsysProcess_List* self)
-{
-  if(self->CurrentInfo)
-    {
-    if(self->CurrentInfo->NextEntryDelta > 0)
-      {
-      self->CurrentInfo = ((PSYSTEM_PROCESS_INFORMATION)
-                              ((char*)self->CurrentInfo +
-                               self->CurrentInfo->NextEntryDelta));
-      return 1;
-      }
-    self->CurrentInfo = 0;
-    }
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__GetProcessId_NT4(kwsysProcess_List* self)
-{
-  return self->CurrentInfo? self->CurrentInfo->ProcessId : -1;
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__GetParentId_NT4(kwsysProcess_List* self)
-{
-  return self->CurrentInfo? self->CurrentInfo->InheritedFromProcessId : -1;
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__New_Snapshot(kwsysProcess_List* self)
-{
-  /* Get a handle to the Windows runtime module that should already be
-     loaded in this program.  This does not actually increment the
-     reference count to the module so we do not need to close the
-     handle.  */
-  HMODULE hKernel = GetModuleHandle("kernel32.dll");
-  if(hKernel)
-    {
-    self->P_CreateToolhelp32Snapshot =
-      ((CreateToolhelp32SnapshotType)
-       GetProcAddress(hKernel, "CreateToolhelp32Snapshot"));
-    self->P_Process32First =
-      ((Process32FirstType)
-       GetProcAddress(hKernel, "Process32First"));
-    self->P_Process32Next =
-      ((Process32NextType)
-       GetProcAddress(hKernel, "Process32Next"));
-    }
-  return (self->P_CreateToolhelp32Snapshot &&
-          self->P_Process32First &&
-          self->P_Process32Next)? 1:0;
-}
-
-/*--------------------------------------------------------------------------*/
-static void kwsysProcess_List__Delete_Snapshot(kwsysProcess_List* self)
-{
-  if(self->Snapshot)
-    {
-    CloseHandle(self->Snapshot);
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__Update_Snapshot(kwsysProcess_List* self)
-{
-  if(self->Snapshot)
-    {
-    CloseHandle(self->Snapshot);
-    }
-  if(!(self->Snapshot =
-       self->P_CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)))
-    {
-    return 0;
-    }
-  ZeroMemory(&self->CurrentEntry, sizeof(self->CurrentEntry));
-  self->CurrentEntry.dwSize = sizeof(self->CurrentEntry);
-  if(!self->P_Process32First(self->Snapshot, &self->CurrentEntry))
-    {
-    CloseHandle(self->Snapshot);
-    self->Snapshot = 0;
-    return 0;
-    }
-  return 1;
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__Next_Snapshot(kwsysProcess_List* self)
-{
-  if(self->Snapshot)
-    {
-    if(self->P_Process32Next(self->Snapshot, &self->CurrentEntry))
-      {
-      return 1;
-      }
-    CloseHandle(self->Snapshot);
-    self->Snapshot = 0;
-    }
-  return 0;
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__GetProcessId_Snapshot(kwsysProcess_List* self)
-{
-  return self->Snapshot? self->CurrentEntry.th32ProcessID : -1;
-}
-
-/*--------------------------------------------------------------------------*/
-static int kwsysProcess_List__GetParentId_Snapshot(kwsysProcess_List* self)
-{
-  return self->Snapshot? self->CurrentEntry.th32ParentProcessID : -1;
-}
-
-/*--------------------------------------------------------------------------*/
-static void kwsysProcessKill(DWORD pid)
-{
-  HANDLE h = OpenProcess(PROCESS_TERMINATE, 0, pid);
-  if(h)
-    {
-    TerminateProcess(h, 255);
-    WaitForSingleObject(h, INFINITE);
-    CloseHandle(h);
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-static void kwsysProcessKillTree(int pid)
-{
-  kwsysProcess_List* plist = kwsysProcess_List_New();
-  kwsysProcessKill(pid);
-  if(plist)
-    {
-    do
-      {
-      if(kwsysProcess_List_GetCurrentParentId(plist) == pid)
-        {
-        int ppid = kwsysProcess_List_GetCurrentProcessId(plist);
-        kwsysProcessKillTree(ppid);
-        }
-      } while(kwsysProcess_List_NextProcess(plist));
-    kwsysProcess_List_Delete(plist);
-    }
-}
-
-/*--------------------------------------------------------------------------*/
-static void kwsysProcessDisablePipeThreads(kwsysProcess* cp)
-{
-  int i;
-
-  /* If data were just reported data, release the pipe's thread.  */
-  if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
-    {
-    KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
-    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
-    cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
-    }
-
-  /* Wakeup all reading threads that are not on closed pipes.  */
-  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
-    {
-    /* The wakeup threads will write one byte to the pipe write ends.
-       If there are no data in the pipe then this is enough to wakeup
-       the reading threads.  If there are already data in the pipe
-       this may block.  We cannot use PeekNamedPipe to check whether
-       there are data because an outside process might still be
-       writing data if we are disowning it.  Also, PeekNamedPipe will
-       block if checking a pipe on which the reading thread is
-       currently calling ReadPipe.  Therefore we need a separate
-       thread to call WriteFile.  If it blocks, that is okay because
-       it will unblock when we close the read end and break the pipe
-       below.  */
-    if(cp->Pipe[i].Read)
-      {
-      KWSYSPE_DEBUG((stderr, "releasing waker %d\n", i));
-      ReleaseSemaphore(cp->Pipe[i].Waker.Go, 1, 0);
-      }
-    }
-
-  /* Tell pipe threads to reset until we run another process.  */
-  while(cp->PipesLeft > 0)
-    {
-    /* The waking threads will cause all reading threads to report.
-       Wait for the next one and save its index.  */
-    KWSYSPE_DEBUG((stderr, "waiting for reader\n"));
-    WaitForSingleObject(cp->Full, INFINITE);
-    cp->CurrentIndex = cp->SharedIndex;
-    ReleaseSemaphore(cp->SharedIndexMutex, 1, 0);
-    KWSYSPE_DEBUG((stderr, "got reader %d\n", cp->CurrentIndex));
-
-    /* We are done reading this pipe.  Close its read handle.  */
-    cp->Pipe[cp->CurrentIndex].Closed = 1;
-    kwsysProcessCleanupHandle(&cp->Pipe[cp->CurrentIndex].Read);
-    --cp->PipesLeft;
-
-    /* Tell the reading thread we are done with the data.  It will
-       reset immediately because the pipe is closed.  */
-    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
-    }
-}

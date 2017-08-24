@@ -1,0 +1,3 @@
+{
+              res += " Enterprise Edition";
+            }

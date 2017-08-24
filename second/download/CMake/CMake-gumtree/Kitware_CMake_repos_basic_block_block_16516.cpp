@@ -1,0 +1,1 @@
+strncpy((char *)p+4, iso9660->el_torito.id.s, 23)

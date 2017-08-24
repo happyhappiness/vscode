@@ -1,0 +1,1 @@
+state->xxh32_state = __archive_xxhash.XXH32_init(0)

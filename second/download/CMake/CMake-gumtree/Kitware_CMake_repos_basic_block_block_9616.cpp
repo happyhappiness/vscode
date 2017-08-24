@@ -1,0 +1,1 @@
+list_size = extattr_list_fd(*fd, namespace, list, list_size)

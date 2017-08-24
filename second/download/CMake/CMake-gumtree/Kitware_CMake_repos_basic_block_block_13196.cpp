@@ -1,0 +1,1 @@
+lzma_end(&(xar->lzstream))

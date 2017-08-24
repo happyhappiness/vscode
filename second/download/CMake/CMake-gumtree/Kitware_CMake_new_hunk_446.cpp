@@ -1,8 +1,12 @@
-			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
-			__archive_ensure_cloexec_flag(mtree->fd);
-			if (mtree->fd == -1 &&
-				(errno != ENOENT ||
-				 archive_strlen(&mtree->contents_name) > 0)) {
-				archive_set_error(&a->archive, errno,
-						"Can't open %s", path);
-				r = ARCHIVE_WARN;
+ * header and library are very different, you should expect some
+ * strangeness.  Don't do that.
+ */
+__LA_DECL int		archive_version_number(void);
+
+/*
+ * Textual name/version of the library, useful for version displays.
+ */
+#define	ARCHIVE_VERSION_ONLY_STRING "3.2.0"
+#define	ARCHIVE_VERSION_STRING "libarchive " ARCHIVE_VERSION_ONLY_STRING
+__LA_DECL const char *	archive_version_string(void);
+

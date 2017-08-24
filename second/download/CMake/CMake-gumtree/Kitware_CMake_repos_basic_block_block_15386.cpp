@@ -1,0 +1,1 @@
+s = (size_t)zip->entry_bytes_remaining

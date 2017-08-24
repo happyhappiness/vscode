@@ -1,0 +1,1 @@
+archive_entry_set_perm(entry, st->st_mode)

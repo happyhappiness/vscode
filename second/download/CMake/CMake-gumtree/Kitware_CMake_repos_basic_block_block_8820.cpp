@@ -1,0 +1,1 @@
+entry->sparse_tail->next = sp

@@ -1,0 +1,1 @@
+genid = isoent_gen_iso9660_identifier

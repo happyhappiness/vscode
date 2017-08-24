@@ -1,0 +1,1 @@
+checksum = adler32(adler32(0, NULL, 0), p, len)

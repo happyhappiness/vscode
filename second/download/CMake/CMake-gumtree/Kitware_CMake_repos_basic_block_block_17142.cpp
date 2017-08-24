@@ -1,0 +1,2 @@
+(n > length)
+			n = length

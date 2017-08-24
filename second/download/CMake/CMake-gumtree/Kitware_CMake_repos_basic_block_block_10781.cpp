@@ -1,0 +1,2 @@
+(folders[folderIndex].numUnpackStreams)
+					break;

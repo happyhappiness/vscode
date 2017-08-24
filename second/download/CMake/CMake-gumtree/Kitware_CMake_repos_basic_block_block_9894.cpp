@@ -1,0 +1,1 @@
+t->entry_remaining_bytes -= olp->offset - t->entry_total

@@ -1,0 +1,1 @@
+cost[t] += s->len[t][icv]

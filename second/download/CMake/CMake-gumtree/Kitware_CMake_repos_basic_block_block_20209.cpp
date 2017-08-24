@@ -1,0 +1,1 @@
+statbuf->st_mode |= _S_IREAD | (_S_IREAD >> 3) | (_S_IREAD >> 6)

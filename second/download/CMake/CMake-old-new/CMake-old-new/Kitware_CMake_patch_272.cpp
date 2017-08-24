@@ -1,152 +1,133 @@
-@@ -28,7 +28,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -22,7 +22,8 @@
  
-   const char* sourceDirectory = argv[2].c_str();
-   const char* projectName = 0;
--  const char* targetName = 0;
-+  std::string targetName;
-   std::vector<std::string> cmakeFlags;
-   std::vector<std::string> compileDefs;
-   std::string outputVariable;
-@@ -249,7 +249,8 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-         si != sources.end(); ++si)
-       {
-       std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
--      if(const char* lang = gg->GetLanguageFromExtension(ext.c_str()))
-+      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-+      if(!lang.empty())
-         {
-         testLangs.insert(lang);
-         }
-@@ -283,7 +284,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-       {
-       cmOStringStream e;
-       e << "Failed to open\n"
--        << "  " << outFileName.c_str() << "\n"
-+        << "  " << outFileName << "\n"
-         << cmSystemTools::GetLastSystemError();
-       this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-       return -1;
-@@ -306,13 +307,13 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-       std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-       std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-       if(const char* rulesOverridePath =
--         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-+         this->Makefile->GetDefinition(rulesOverrideLang))
-         {
-         fprintf(fout, "set(%s \"%s\")\n",
-                 rulesOverrideLang.c_str(), rulesOverridePath);
-         }
-       else if(const char* rulesOverridePath2 =
--              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
-+              this->Makefile->GetDefinition(rulesOverrideBase))
-         {
-         fprintf(fout, "set(%s \"%s\")\n",
-                 rulesOverrideBase.c_str(), rulesOverridePath2);
-@@ -324,7 +325,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-         li != testLangs.end(); ++li)
-       {
-       std::string langFlags = "CMAKE_" + *li + "_FLAGS";
--      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
-+      const char* flags = this->Makefile->GetDefinition(langFlags);
-       fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-               lg->EscapeForCMake(flags?flags:"").c_str());
-       fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-@@ -356,7 +357,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-       cmExportTryCompileFileGenerator tcfg;
-       tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-       tcfg.SetExports(targets);
--      tcfg.SetConfig(this->Makefile->GetDefinition(
-+      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
-                                           "CMAKE_TRY_COMPILE_CONFIGURATION"));
+ #include "curl_setup.h"
  
-       if(!tcfg.GenerateImportFile())
-@@ -449,7 +450,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-     fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-             this->BinaryDirectory.c_str());
-     /* Create the actual executable.  */
--    fprintf(fout, "add_executable(%s", targetName);
-+    fprintf(fout, "add_executable(%s", targetName.c_str());
-     for(std::vector<std::string>::iterator si = sources.begin();
-         si != sources.end(); ++si)
-       {
-@@ -465,12 +466,13 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-     if (useOldLinkLibs)
-       {
-       fprintf(fout,
--              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
-+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-+              targetName.c_str());
-       }
-     else
-       {
-       fprintf(fout, "target_link_libraries(%s %s)\n",
--              targetName,
-+              targetName.c_str(),
-               libsToLink.c_str());
-       }
-     fclose(fout);
-@@ -482,7 +484,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-   std::string output;
-   // actually do the try compile now that everything is setup
-   int res = this->Makefile->TryCompile(sourceDirectory,
--                                       this->BinaryDirectory.c_str(),
-+                                       this->BinaryDirectory,
-                                        projectName,
-                                        targetName,
-                                        this->SrcFileSignature,
-@@ -494,14 +496,14 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-     }
+-#if defined(USE_NTLM) && defined(NTLM_WB_ENABLED)
++#if !defined(CURL_DISABLE_HTTP) && defined(USE_NTLM) && \
++    defined(NTLM_WB_ENABLED)
  
-   // set the result var to the return value to indicate success or failure
--  this->Makefile->AddCacheDefinition(argv[0].c_str(),
-+  this->Makefile->AddCacheDefinition(argv[0],
-                                      (res == 0 ? "TRUE" : "FALSE"),
-                                      "Result of TRY_COMPILE",
-                                      cmCacheManager::INTERNAL);
+ /*
+  * NTLM details:
+@@ -50,12 +51,10 @@
+ #include "curl_ntlm_wb.h"
+ #include "url.h"
+ #include "strerror.h"
+-#include "curl_memory.h"
+-
+-#define _MPRINTF_REPLACE /* use our functions only */
+-#include <curl/mprintf.h>
++#include "curl_printf.h"
  
-   if ( outputVariable.size() > 0 )
-     {
--    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
-+    this->Makefile->AddDefinition(outputVariable, output.c_str());
-     }
+-/* The last #include file should be: */
++/* The last #include files should be: */
++#include "curl_memory.h"
+ #include "memdebug.h"
  
-   if (this->SrcFileSignature)
-@@ -517,9 +519,9 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
-         {
-         cmOStringStream emsg;
-         emsg << "Cannot copy output executable\n"
--             << "  '" << this->OutputFile.c_str() << "'\n"
-+             << "  '" << this->OutputFile << "'\n"
-              << "to destination specified by COPY_FILE:\n"
--             << "  '" << copyFile.c_str() << "'\n";
-+             << "  '" << copyFile << "'\n";
-         if(!this->FindErrorMessage.empty())
-           {
-           emsg << this->FindErrorMessage.c_str();
-@@ -538,7 +540,7 @@ int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+ #if DEBUG_ME
+@@ -106,9 +105,9 @@ void Curl_ntlm_wb_cleanup(struct connectdata *conn)
+     conn->ntlm_auth_hlpr_pid = 0;
+   }
  
-     if(!copyFileError.empty())
-       {
--      this->Makefile->AddDefinition(copyFileError.c_str(),
-+      this->Makefile->AddDefinition(copyFileError,
-                                     copyFileErrorMessage.c_str());
-       }
-     }
-@@ -564,7 +566,7 @@ void cmCoreTryCompile::CleanupFiles(const char* binDir)
-   cmsys::Directory dir;
-   dir.Load(binDir);
-   size_t fileNum;
--  std::set<cmStdString> deletedFiles;
-+  std::set<std::string> deletedFiles;
-   for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
-     {
-     if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
-@@ -609,7 +611,7 @@ void cmCoreTryCompile::CleanupFiles(const char* binDir)
-     }
+-  Curl_safefree(conn->challenge_header);
++  free(conn->challenge_header);
+   conn->challenge_header = NULL;
+-  Curl_safefree(conn->response_header);
++  free(conn->response_header);
+   conn->response_header = NULL;
  }
  
--void cmCoreTryCompile::FindOutputFile(const char* targetName)
-+void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
- {
-   this->FindErrorMessage = "";
-   this->OutputFile = "";
+@@ -245,13 +244,13 @@ static CURLcode ntlm_wb_init(struct connectdata *conn, const char *userp)
+   sclose(sockfds[1]);
+   conn->ntlm_auth_hlpr_socket = sockfds[0];
+   conn->ntlm_auth_hlpr_pid = child_pid;
+-  Curl_safefree(domain);
+-  Curl_safefree(ntlm_auth_alloc);
++  free(domain);
++  free(ntlm_auth_alloc);
+   return CURLE_OK;
+ 
+ done:
+-  Curl_safefree(domain);
+-  Curl_safefree(ntlm_auth_alloc);
++  free(domain);
++  free(ntlm_auth_alloc);
+   return CURLE_REMOTE_ACCESS_DENIED;
+ }
+ 
+@@ -293,7 +292,7 @@ static CURLcode ntlm_wb_response(struct connectdata *conn,
+     len_out += size;
+     if(buf[len_out - 1] == '\n') {
+       buf[len_out - 1] = '\0';
+-      goto wrfinish;
++      break;
+     }
+     newbuf = realloc(buf, len_out + NTLM_BUFSIZE);
+     if(!newbuf) {
+@@ -302,13 +301,12 @@ static CURLcode ntlm_wb_response(struct connectdata *conn,
+     }
+     buf = newbuf;
+   }
+-  goto done;
+-wrfinish:
++
+   /* Samba/winbind installed but not configured */
+   if(state == NTLMSTATE_TYPE1 &&
+      len_out == 3 &&
+      buf[0] == 'P' && buf[1] == 'W')
+-    return CURLE_REMOTE_ACCESS_DENIED;
++    goto done;
+   /* invalid response */
+   if(len_out < 4)
+     goto done;
+@@ -391,12 +389,12 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
+     if(res)
+       return res;
+ 
+-    Curl_safefree(*allocuserpwd);
++    free(*allocuserpwd);
+     *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                             proxy ? "Proxy-" : "",
+                             conn->response_header);
+     DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+-    Curl_safefree(conn->response_header);
++    free(conn->response_header);
+     conn->response_header = NULL;
+     break;
+   case NTLMSTATE_TYPE2:
+@@ -409,7 +407,7 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
+     if(res)
+       return res;
+ 
+-    Curl_safefree(*allocuserpwd);
++    free(*allocuserpwd);
+     *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                             proxy ? "Proxy-" : "",
+                             conn->response_header);
+@@ -421,15 +419,13 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
+   case NTLMSTATE_TYPE3:
+     /* connection is already authenticated,
+      * don't send a header in future requests */
+-    if(*allocuserpwd) {
+-      free(*allocuserpwd);
+-      *allocuserpwd=NULL;
+-    }
++    free(*allocuserpwd);
++    *allocuserpwd=NULL;
+     authp->done = TRUE;
+     break;
+   }
+ 
+   return CURLE_OK;
+ }
+ 
+-#endif /* USE_NTLM && NTLM_WB_ENABLED */
++#endif /* !CURL_DISABLE_HTTP && USE_NTLM && NTLM_WB_ENABLED */

@@ -1,0 +1,4 @@
+{
+      err = GetLastError();
+      goto done;
+    }

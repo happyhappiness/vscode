@@ -1,0 +1,49 @@
+--- /dev/null
++++ /dev/null
+@@ -553,30 +630,29 @@
+ 
+   std::string end_time = m_CTest->CurrentTime();
+ 
+-  covSumFile << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
+-    << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
+-    << "\t<LOC>" << total_lines << "</LOC>\n"
+-    << "\t<PercentCoverage>";
+-  covSumFile.setf(std::ios::fixed, std::ios::floatfield);
+-  covSumFile.precision(2);
+-  covSumFile << (percent_coverage)<< "</PercentCoverage>\n"
+-    << "\t<EndDateTime>" << end_time << "</EndDateTime>\n";
+-  covSumFile << "<ElapsedMinutes>" << 
++  log << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
++      << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
++      << "\t<LOC>" << total_lines << "</LOC>\n"
++      << "\t<PercentCoverage>";
++  log.setf(std::ios::fixed, std::ios::floatfield);
++  log.precision(2);
++  log << (percent_coverage)<< "</PercentCoverage>\n"
++      << "\t<EndDateTime>" << end_time << "</EndDateTime>\n";
++  log << "<ElapsedMinutes>" << 
+     static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0
+-    << "</ElapsedMinutes>"
+-    << "</Coverage>" << std::endl;
+-  m_CTest->EndXML(covSumFile);
++      << "</ElapsedMinutes>"
++      << "</Coverage>" << std::endl;
++  m_CTest->EndXML(log);
+ 
+   std::cout << "\tCovered LOC:         " << total_tested << std::endl
+-    << "\tNot covered LOC:     " << total_untested << std::endl
+-    << "\tTotal LOC:           " << total_lines << std::endl
+-    << "\tPercentage Coverage: ";
++            << "\tNot covered LOC:     " << total_untested << std::endl
++            << "\tTotal LOC:           " << total_lines << std::endl
++            << "\tPercentage Coverage: ";
+ 
+   std::cout.setf(std::ios::fixed, std::ios::floatfield);
+   std::cout.precision(2);
+   std::cout << (percent_coverage) << "%" << std::endl;
+ 
+-  cmSystemTools::ChangeDirectory(currentDirectory.c_str());
+ 
+-  return error;
++  return 1;
+ 

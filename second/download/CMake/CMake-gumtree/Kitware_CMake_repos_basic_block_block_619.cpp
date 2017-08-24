@@ -1,0 +1,1 @@
+--yyg->yy_buffer_stack_top

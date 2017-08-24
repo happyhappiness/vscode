@@ -1,5 +1,5 @@
 /*============================================================================
-  CMake - Cross Platform Makefile Generator
+  KWSys - Kitware System Library
   Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
@@ -9,1001 +9,721 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmComputeLinkDepends.h"
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(Process.h)
+#include KWSYS_HEADER(Encoding.h)
 
-#include "cmComputeComponentGraph.h"
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmMakefile.h"
-#include "cmTarget.h"
-#include "cmake.h"
-
-#include <cmsys/stl/algorithm>
+/* Work-around CMake dependency scanning limitation.  This must
+   duplicate the above list of headers.  */
+#if 0
+# include "Process.h.in"
+# include "Encoding.h.in"
+#endif
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-/*
+#if defined(_WIN32)
+# include <windows.h>
+#else
+# include <unistd.h>
+# include <signal.h>
+#endif
 
-This file computes an ordered list of link items to use when linking a
-single target in one configuration.  Each link item is identified by
-the string naming it.  A graph of dependencies is created in which
-each node corresponds to one item and directed edges lead from nodes to
-those which must *follow* them on the link line.  For example, the
-graph
+#if defined(__BORLANDC__)
+# pragma warn -8060 /* possibly incorrect assignment */
+#endif
 
-  A -> B -> C
+/* Platform-specific sleep functions. */
 
-will lead to the link line order
-
-  A B C
-
-The set of items placed in the graph is formed with a breadth-first
-search of the link dependencies starting from the main target.
-
-There are two types of items: those with known direct dependencies and
-those without known dependencies.  We will call the two types "known
-items" and "unknown items", respectively.  Known items are those whose
-names correspond to targets (built or imported) and those for which an
-old-style <item>_LIB_DEPENDS variable is defined.  All other items are
-unknown and we must infer dependencies for them.  For items that look
-like flags (beginning with '-') we trivially infer no dependencies,
-and do not include them in the dependencies of other items.
-
-Known items have dependency lists ordered based on how the user
-specified them.  We can use this order to infer potential dependencies
-of unknown items.  For example, if link items A and B are unknown and
-items X and Y are known, then we might have the following dependency
-lists:
-
-  X: Y A B
-  Y: A B
-
-The explicitly known dependencies form graph edges
-
-  X -> Y  ,  X -> A  ,  X -> B  ,  Y -> A  ,  Y -> B
-
-We can also infer the edge
-
-  A -> B
-
-because *every* time A appears B is seen on its right.  We do not know
-whether A really needs symbols from B to link, but it *might* so we
-must preserve their order.  This is the case also for the following
-explicit lists:
-
-  X: A B Y
-  Y: A B
-
-Here, A is followed by the set {B,Y} in one list, and {B} in the other
-list.  The intersection of these sets is {B}, so we can infer that A
-depends on at most B.  Meanwhile B is followed by the set {Y} in one
-list and {} in the other.  The intersection is {} so we can infer that
-B has no dependencies.
-
-Let's make a more complex example by adding unknown item C and
-considering these dependency lists:
-
-  X: A B Y C
-  Y: A C B
-
-The explicit edges are
-
-  X -> Y  ,  X -> A  ,  X -> B  ,  X -> C  ,  Y -> A  ,  Y -> B  ,  Y -> C
-
-For the unknown items, we infer dependencies by looking at the
-"follow" sets:
-
-  A: intersect( {B,Y,C} , {C,B} ) = {B,C} ; infer edges  A -> B  ,  A -> C
-  B: intersect( {Y,C}   , {}    ) = {}    ; infer no edges
-  C: intersect( {}      , {B}   ) = {}    ; infer no edges
-
-Note that targets are never inferred as dependees because outside
-libraries should not depend on them.
-
-------------------------------------------------------------------------------
-
-The initial exploration of dependencies using a BFS associates an
-integer index with each link item.  When the graph is built outgoing
-edges are sorted by this index.
-
-After the initial exploration of the link interface tree, any
-transitive (dependent) shared libraries that were encountered and not
-included in the interface are processed in their own BFS.  This BFS
-follows only the dependent library lists and not the link interfaces.
-They are added to the link items with a mark indicating that the are
-transitive dependencies.  Then cmComputeLinkInformation deals with
-them on a per-platform basis.
-
-The complete graph formed from all known and inferred dependencies may
-not be acyclic, so an acyclic version must be created.
-The original graph is converted to a directed acyclic graph in which
-each node corresponds to a strongly connected component of the
-original graph.  For example, the dependency graph
-
-  X -> A -> B -> C -> A -> Y
-
-contains strongly connected components {X}, {A,B,C}, and {Y}.  The
-implied directed acyclic graph (DAG) is
-
-  {X} -> {A,B,C} -> {Y}
-
-We then compute a topological order for the DAG nodes to serve as a
-reference for satisfying dependencies efficiently.  We perform the DFS
-in reverse order and assign topological order indices counting down so
-that the result is as close to the original BFS order as possible
-without violating dependencies.
-
-------------------------------------------------------------------------------
-
-The final link entry order is constructed as follows.  We first walk
-through and emit the *original* link line as specified by the user.
-As each item is emitted, a set of pending nodes in the component DAG
-is maintained.  When a pending component has been completely seen, it
-is removed from the pending set and its dependencies (following edges
-of the DAG) are added.  A trivial component (those with one item) is
-complete as soon as its item is seen.  A non-trivial component (one
-with more than one item; assumed to be static libraries) is complete
-when *all* its entries have been seen *twice* (all entries seen once,
-then all entries seen again, not just each entry twice).  A pending
-component tracks which items have been seen and a count of how many
-times the component needs to be seen (once for trivial components,
-twice for non-trivial).  If at any time another component finishes and
-re-adds an already pending component, the pending component is reset
-so that it needs to be seen in its entirety again.  This ensures that
-all dependencies of a component are satisfied no matter where it
-appears.
-
-After the original link line has been completed, we append to it the
-remaining pending components and their dependencies.  This is done by
-repeatedly emitting the first item from the first pending component
-and following the same update rules as when traversing the original
-link line.  Since the pending components are kept in topological order
-they are emitted with minimal repeats (we do not want to emit a
-component just to have it added again when another component is
-completed later).  This process continues until no pending components
-remain.  We know it will terminate because the component graph is
-guaranteed to be acyclic.
-
-The final list of items produced by this procedure consists of the
-original user link line followed by minimal additional items needed to
-satisfy dependencies.
-
-*/
-
-//----------------------------------------------------------------------------
-cmComputeLinkDepends
-::cmComputeLinkDepends(cmTarget const* target, const char* config,
-                       cmTarget const* head)
+#if defined(__BEOS__) && !defined(__ZETA__)
+/* BeOS 5 doesn't have usleep(), but it has snooze(), which is identical. */
+# include <be/kernel/OS.h>
+static inline void testProcess_usleep(unsigned int usec)
 {
-  // Store context information.
-  this->Target = target;
-  this->HeadTarget = head;
-  this->Makefile = this->Target->GetMakefile();
-  this->LocalGenerator = this->Makefile->GetLocalGenerator();
-  this->GlobalGenerator = this->LocalGenerator->GetGlobalGenerator();
-  this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
+  snooze(usec);
+}
+#elif defined(_WIN32)
+/* Windows can only sleep in millisecond intervals. */
+static void testProcess_usleep(unsigned int usec)
+{
+  Sleep(usec / 1000);
+}
+#else
+# define testProcess_usleep usleep
+#endif
 
-  // The configuration being linked.
-  this->Config = (config && *config)? config : 0;
-  this->LinkType = this->Target->ComputeLinkType(this->Config);
+#if defined(_WIN32)
+static void testProcess_sleep(unsigned int sec)
+{
+  Sleep(sec*1000);
+}
+#else
+static void testProcess_sleep(unsigned int sec)
+{
+  sleep(sec);
+}
+#endif
 
-  // Enable debug mode if requested.
-  this->DebugMode = this->Makefile->IsOn("CMAKE_LINK_DEPENDS_DEBUG_MODE");
+int runChild(const char* cmd[], int state, int exception, int value,
+             int share, int output, int delay, double timeout, int poll,
+             int repeat, int disown, int createNewGroup,
+             unsigned int interruptDelay);
 
-  // Assume no compatibility until set.
-  this->OldLinkDirMode = false;
-
-  // No computation has been done.
-  this->CCG = 0;
+static int test1(int argc, const char* argv[])
+{
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout from test returning 0.\n");
+  fprintf(stderr, "Output on stderr from test returning 0.\n");
+  return 0;
 }
 
-//----------------------------------------------------------------------------
-cmComputeLinkDepends::~cmComputeLinkDepends()
+static int test2(int argc, const char* argv[])
 {
-  for(std::vector<DependSetList*>::iterator
-        i = this->InferredDependSets.begin();
-      i != this->InferredDependSets.end(); ++i)
-    {
-    delete *i;
-    }
-  delete this->CCG;
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout from test returning 123.\n");
+  fprintf(stderr, "Output on stderr from test returning 123.\n");
+  return 123;
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::SetOldLinkDirMode(bool b)
+static int test3(int argc, const char* argv[])
 {
-  this->OldLinkDirMode = b;
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
+  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  testProcess_sleep(15);
+  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
+  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
+  return 0;
 }
 
-//----------------------------------------------------------------------------
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+static int test4(int argc, const char* argv[])
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
+  /* Prepare a pointer to an invalid address.  Don't use null, because
+  dereferencing null is undefined behaviour and compilers are free to
+  do whatever they want. ex: Clang will warn at compile time, or even
+  optimize away the write. We hope to 'outsmart' them by using
+  'volatile' and a slightly larger address, based on a runtime value. */
+  volatile int* invalidAddress = 0;
+  invalidAddress += argc?1:2;
 
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
-    {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
-
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
-    }
-
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
-    {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
-    }
-
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
-
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
-
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName().c_str(),
-            this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
+#if defined(_WIN32)
+  /* Avoid error diagnostic popups since we are crashing on purpose.  */
+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+#elif defined(__BEOS__) || defined(__HAIKU__)
+  /* Avoid error diagnostic popups since we are crashing on purpose.  */
+  disable_debugger(1);
+#endif
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output before crash on stdout from crash test.\n");
+  fprintf(stderr, "Output before crash on stderr from crash test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  assert(invalidAddress); /* Quiet Clang scan-build. */
+  /* Provoke deliberate crash by writing to the invalid address. */
+  *invalidAddress = 0;
+  fprintf(stdout, "Output after crash on stdout from crash test.\n");
+  fprintf(stderr, "Output after crash on stderr from crash test.\n");
+  return 0;
 }
 
-//----------------------------------------------------------------------------
-std::map<cmStdString, int>::iterator
-cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
+static int test5(int argc, const char* argv[])
 {
-  std::map<cmStdString, int>::value_type
-    index_entry(item, static_cast<int>(this->EntryList.size()));
-  std::map<cmStdString, int>::iterator
-    lei = this->LinkEntryIndex.insert(index_entry).first;
-  this->EntryList.push_back(LinkEntry());
-  this->InferredDependSets.push_back(0);
-  this->EntryConstraintGraph.push_back(EdgeList());
-  return lei;
+  int r;
+  const char* cmd[4];
+  (void)argc;
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "4";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before recursive test.\n");
+  fprintf(stderr, "Output on stderr before recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exception,
+               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15, 0, 1, 0, 0, 0);
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
 }
 
-//----------------------------------------------------------------------------
-int cmComputeLinkDepends::AddLinkEntry(int depender_index,
-                                       std::string const& item)
+#define TEST6_SIZE (4096*2)
+static void test6(int argc, const char* argv[])
 {
-  // Check if the item entry has already been added.
-  std::map<cmStdString, int>::iterator lei = this->LinkEntryIndex.find(item);
-  if(lei != this->LinkEntryIndex.end())
+  int i;
+  char runaway[TEST6_SIZE+1];
+  (void)argc; (void)argv;
+  for(i=0;i < TEST6_SIZE;++i)
     {
-    // Yes.  We do not need to follow the item's dependencies again.
-    return lei->second;
+    runaway[i] = '.';
+    }
+  runaway[TEST6_SIZE] = '\n';
+
+  /* Generate huge amounts of output to test killing.  */
+  for(;;)
+    {
+    fwrite(runaway, 1, TEST6_SIZE+1, stdout);
+    fflush(stdout);
+    }
+}
+
+/* Define MINPOLL to be one more than the number of times output is
+   written.  Define MAXPOLL to be the largest number of times a loop
+   delaying 1/10th of a second should ever have to poll.  */
+#define MINPOLL 5
+#define MAXPOLL 20
+static int test7(int argc, const char* argv[])
+{
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout before sleep.\n");
+  fprintf(stderr, "Output on stderr before sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  /* Sleep for 1 second.  */
+  testProcess_sleep(1);
+  fprintf(stdout, "Output on stdout after sleep.\n");
+  fprintf(stderr, "Output on stderr after sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return 0;
+}
+
+static int test8(int argc, const char* argv[])
+{
+  /* Create a disowned grandchild to test handling of processes
+     that exit before their children.  */
+  int r;
+  const char* cmd[4];
+  (void)argc;
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "108";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before grandchild test.\n");
+  fprintf(stderr, "Output on stderr before grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Disowned, kwsysProcess_Exception_None,
+               1, 1, 1, 0, 10, 0, 1, 1, 0, 0);
+  fprintf(stdout, "Output on stdout after grandchild test.\n");
+  fprintf(stderr, "Output on stderr after grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
+}
+
+static int test8_grandchild(int argc, const char* argv[])
+{
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  /* TODO: Instead of closing pipes here leave them open to make sure
+     the grandparent can stop listening when the parent exits.  This
+     part of the test cannot be enabled until the feature is
+     implemented.  */
+  fclose(stdout);
+  fclose(stderr);
+  testProcess_sleep(15);
+  return 0;
+}
+
+static int test9(int argc, const char* argv[])
+{
+  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
+     process.  Here, we start a child process that sleeps for a long time
+     while ignoring signals.  The test is successful if this process waits
+     for the child to return before exiting from the Ctrl+C handler.
+
+     WARNING:  This test will falsely pass if the share parameter of runChild
+     was set to 0 when invoking the test9 process.  */
+  int r;
+  const char* cmd[4];
+  (void)argc;
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "109";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before grandchild test.\n");
+  fprintf(stderr, "Output on stderr before grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exited,
+               kwsysProcess_Exception_None,
+               0, 1, 1, 0, 30, 0, 1, 0, 0, 0);
+  /* This sleep will avoid a race condition between this function exiting
+     normally and our Ctrl+C handler exiting abnormally after the process
+     exits.  */
+  testProcess_sleep(1);
+  fprintf(stdout, "Output on stdout after grandchild test.\n");
+  fprintf(stderr, "Output on stderr after grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
+}
+
+#if defined(_WIN32)
+static BOOL WINAPI test9_grandchild_handler(DWORD dwCtrlType)
+{
+  /* Ignore all Ctrl+C/Break signals.  We must use an actual handler function
+     instead of using SetConsoleCtrlHandler(NULL, TRUE) so that we can also
+     ignore Ctrl+Break in addition to Ctrl+C.  */
+  (void)dwCtrlType;
+  return TRUE;
+}
+#endif
+
+static int test9_grandchild(int argc, const char* argv[])
+{
+  /* The grandchild just sleeps for a few seconds while ignoring signals.  */
+  (void)argc; (void)argv;
+#if defined(_WIN32)
+  if(!SetConsoleCtrlHandler(test9_grandchild_handler, TRUE))
+    {
+    return 1;
+    }
+#else
+  struct sigaction sa;
+  memset(&sa, 0, sizeof(sa));
+  sa.sa_handler = SIG_IGN;
+  sigemptyset(&sa.sa_mask);
+  if(sigaction(SIGINT, &sa, 0) < 0)
+    {
+    return 1;
+    }
+#endif
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  /* Sleep for 9 seconds.  */
+  testProcess_sleep(9);
+  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return 0;
+}
+
+static int test10(int argc, const char* argv[])
+{
+  /* Test Ctrl+C behavior: the root test program will send a Ctrl+C to this
+     process.  Here, we start a child process that sleeps for a long time and
+     processes signals normally.  However, this grandchild is created in a new
+     process group - ensuring that Ctrl+C we receive is sent to our process
+     groups.  We make sure it exits anyway.  */
+  int r;
+  const char* cmd[4];
+  (void)argc;
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "110";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before grandchild test.\n");
+  fprintf(stderr, "Output on stderr before grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exception,
+               kwsysProcess_Exception_Interrupt,
+               0, 1, 1, 0, 30, 0, 1, 0, 1, 0);
+  fprintf(stdout, "Output on stdout after grandchild test.\n");
+  fprintf(stderr, "Output on stderr after grandchild test.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return r;
+}
+
+static int test10_grandchild(int argc, const char* argv[])
+{
+  /* The grandchild just sleeps for a few seconds and handles signals.  */
+  (void)argc; (void)argv;
+  fprintf(stdout, "Output on stdout from grandchild before sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild before sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  /* Sleep for 6 seconds.  */
+  testProcess_sleep(6);
+  fprintf(stdout, "Output on stdout from grandchild after sleep.\n");
+  fprintf(stderr, "Output on stderr from grandchild after sleep.\n");
+  fflush(stdout);
+  fflush(stderr);
+  return 0;
+}
+
+static int runChild2(kwsysProcess* kp,
+              const char* cmd[], int state, int exception, int value,
+              int share, int output, int delay, double timeout,
+              int poll, int disown, int createNewGroup,
+              unsigned int interruptDelay)
+{
+  int result = 0;
+  char* data = 0;
+  int length = 0;
+  double userTimeout = 0;
+  double* pUserTimeout = 0;
+  kwsysProcess_SetCommand(kp, cmd);
+  if(timeout >= 0)
+    {
+    kwsysProcess_SetTimeout(kp, timeout);
+    }
+  if(share)
+    {
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDOUT, 1);
+    kwsysProcess_SetPipeShared(kp, kwsysProcess_Pipe_STDERR, 1);
+    }
+  if(disown)
+    {
+    kwsysProcess_SetOption(kp, kwsysProcess_Option_Detach, 1);
+    }
+  if(createNewGroup)
+    {
+    kwsysProcess_SetOption(kp, kwsysProcess_Option_CreateProcessGroup, 1);
+    }
+  kwsysProcess_Execute(kp);
+
+  if(poll)
+    {
+    pUserTimeout = &userTimeout;
     }
 
-  // Allocate a spot for the item entry.
-  lei = this->AllocateLinkEntry(item);
-
-  // Initialize the item entry.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-  entry.Item = item;
-  entry.Target = this->FindTargetToLink(depender_index, entry.Item.c_str());
-  entry.IsFlag = (!entry.Target && item[0] == '-' && item[1] != 'l' &&
-                  item.substr(0, 10) != "-framework");
-
-  // If the item has dependencies queue it to follow them.
-  if(entry.Target)
+  if(interruptDelay)
     {
-    // Target dependencies are always known.  Follow them.
-    BFSEntry qe = {index, 0};
-    this->BFSQueue.push(qe);
+    testProcess_sleep(interruptDelay);
+    kwsysProcess_Interrupt(kp);
     }
-  else
+
+  if(!share && !disown)
     {
-    // Look for an old-style <item>_LIB_DEPENDS variable.
-    std::string var = entry.Item;
-    var += "_LIB_DEPENDS";
-    if(const char* val = this->Makefile->GetDefinition(var.c_str()))
+    int p;
+    while((p = kwsysProcess_WaitForData(kp, &data, &length, pUserTimeout)))
       {
-      // The item dependencies are known.  Follow them.
-      BFSEntry qe = {index, val};
-      this->BFSQueue.push(qe);
-      }
-    else if(!entry.IsFlag)
-      {
-      // The item dependencies are not known.  We need to infer them.
-      this->InferredDependSets[index] = new DependSetList;
-      }
-    }
-
-  return index;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::FollowLinkEntry(BFSEntry const& qe)
-{
-  // Get this entry representation.
-  int depender_index = qe.Index;
-  LinkEntry const& entry = this->EntryList[depender_index];
-
-  // Follow the item's dependencies.
-  if(entry.Target)
-    {
-    // Follow the target dependencies.
-    if(cmTarget::LinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
-      {
-      const bool isIface =
-                      entry.Target->GetType() == cmTarget::INTERFACE_LIBRARY;
-      // This target provides its own link interface information.
-      this->AddLinkEntries(depender_index, iface->Libraries);
-
-      if (isIface)
+      if(output)
         {
-        return;
-        }
-
-      // Handle dependent shared libraries.
-      this->FollowSharedDeps(depender_index, iface);
-
-      // Support for CMP0003.
-      for(std::vector<std::string>::const_iterator
-            oi = iface->WrongConfigLibraries.begin();
-          oi != iface->WrongConfigLibraries.end(); ++oi)
-        {
-        this->CheckWrongConfigItem(depender_index, *oi);
-        }
-      }
-    }
-  else
-    {
-    // Follow the old-style dependency list.
-    this->AddVarLinkEntries(depender_index, qe.LibDepends);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::FollowSharedDeps(int depender_index, cmTarget::LinkInterface const* iface,
-                   bool follow_interface)
-{
-  // Follow dependencies if we have not followed them already.
-  if(this->SharedDepFollowed.insert(depender_index).second)
-    {
-    if(follow_interface)
-      {
-      this->QueueSharedDependencies(depender_index, iface->Libraries);
-      }
-    this->QueueSharedDependencies(depender_index, iface->SharedDeps);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends
-::QueueSharedDependencies(int depender_index,
-                          std::vector<std::string> const& deps)
-{
-  for(std::vector<std::string>::const_iterator li = deps.begin();
-      li != deps.end(); ++li)
-    {
-    SharedDepEntry qe;
-    qe.Item = *li;
-    qe.DependerIndex = depender_index;
-    this->SharedDepQueue.push(qe);
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
-{
-  // Check if the target already has an entry.
-  std::map<cmStdString, int>::iterator lei =
-    this->LinkEntryIndex.find(dep.Item);
-  if(lei == this->LinkEntryIndex.end())
-    {
-    // Allocate a spot for the item entry.
-    lei = this->AllocateLinkEntry(dep.Item);
-
-    // Initialize the item entry.
-    LinkEntry& entry = this->EntryList[lei->second];
-    entry.Item = dep.Item;
-    entry.Target = this->FindTargetToLink(dep.DependerIndex,
-                                          dep.Item.c_str());
-
-    // This item was added specifically because it is a dependent
-    // shared library.  It may get special treatment
-    // in cmComputeLinkInformation.
-    entry.IsSharedDep = true;
-    }
-
-  // Get the link entry for this target.
-  int index = lei->second;
-  LinkEntry& entry = this->EntryList[index];
-
-  // This shared library dependency must follow the item that listed
-  // it.
-  this->EntryConstraintGraph[dep.DependerIndex].push_back(index);
-
-  // Target items may have their own dependencies.
-  if(entry.Target)
-    {
-    if(cmTarget::LinkInterface const* iface =
-       entry.Target->GetLinkInterface(this->Config, this->HeadTarget))
-      {
-      // Follow public and private dependencies transitively.
-      this->FollowSharedDeps(index, iface, true);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
-                                             const char* value)
-{
-  // This is called to add the dependencies named by
-  // <item>_LIB_DEPENDS.  The variable contains a semicolon-separated
-  // list.  The list contains link-type;item pairs and just items.
-  std::vector<std::string> deplist;
-  cmSystemTools::ExpandListArgument(value, deplist);
-
-  // Look for entries meant for this configuration.
-  std::vector<std::string> actual_libs;
-  cmTarget::LinkLibraryType llt = cmTarget::GENERAL;
-  bool haveLLT = false;
-  for(std::vector<std::string>::const_iterator di = deplist.begin();
-      di != deplist.end(); ++di)
-    {
-    if(*di == "debug")
-      {
-      llt = cmTarget::DEBUG;
-      haveLLT = true;
-      }
-    else if(*di == "optimized")
-      {
-      llt = cmTarget::OPTIMIZED;
-      haveLLT = true;
-      }
-    else if(*di == "general")
-      {
-      llt = cmTarget::GENERAL;
-      haveLLT = true;
-      }
-    else if(!di->empty())
-      {
-      // If no explicit link type was given prior to this entry then
-      // check if the entry has its own link type variable.  This is
-      // needed for compatibility with dependency files generated by
-      // the export_library_dependencies command from CMake 2.4 and
-      // lower.
-      if(!haveLLT)
-        {
-        std::string var = *di;
-        var += "_LINK_TYPE";
-        if(const char* val = this->Makefile->GetDefinition(var.c_str()))
+        if(poll && p == kwsysProcess_Pipe_Timeout)
           {
-          if(strcmp(val, "debug") == 0)
+          fprintf(stdout, "WaitForData timeout reached.\n");
+          fflush(stdout);
+
+          /* Count the number of times we polled without getting data.
+             If it is excessive then kill the child and fail.  */
+          if(++poll >= MAXPOLL)
             {
-            llt = cmTarget::DEBUG;
-            }
-          else if(strcmp(val, "optimized") == 0)
-            {
-            llt = cmTarget::OPTIMIZED;
+            fprintf(stdout, "Poll count reached limit %d.\n",
+                    MAXPOLL);
+            kwsysProcess_Kill(kp);
             }
           }
-        }
-
-      // If the library is meant for this link type then use it.
-      if(llt == cmTarget::GENERAL || llt == this->LinkType)
-        {
-        actual_libs.push_back(*di);
-        }
-      else if(this->OldLinkDirMode)
-        {
-        this->CheckWrongConfigItem(depender_index, *di);
-        }
-
-      // Reset the link type until another explicit type is given.
-      llt = cmTarget::GENERAL;
-      haveLLT = false;
-      }
-    }
-
-  // Add the entries from this list.
-  this->AddLinkEntries(depender_index, actual_libs);
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::AddDirectLinkEntries()
-{
-  // Add direct link dependencies in this configuration.
-  cmTarget::LinkImplementation const* impl =
-    this->Target->GetLinkImplementation(this->Config, this->HeadTarget);
-  this->AddLinkEntries(-1, impl->Libraries);
-  for(std::vector<std::string>::const_iterator
-        wi = impl->WrongConfigLibraries.begin();
-      wi != impl->WrongConfigLibraries.end(); ++wi)
-    {
-    this->CheckWrongConfigItem(-1, *wi);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends::AddLinkEntries(int depender_index,
-                                     std::vector<std::string> const& libs)
-{
-  // Track inferred dependency sets implied by this list.
-  std::map<int, DependSet> dependSets;
-
-  // Loop over the libraries linked directly by the depender.
-  for(std::vector<std::string>::const_iterator li = libs.begin();
-      li != libs.end(); ++li)
-    {
-    // Skip entries that will resolve to the target getting linked or
-    // are empty.
-    std::string item = this->Target->CheckCMP0004(*li);
-    if(item == this->Target->GetName() || item.empty())
-      {
-      continue;
-      }
-
-    // Add a link entry for this item.
-    int dependee_index = this->AddLinkEntry(depender_index, item);
-
-    // The dependee must come after the depender.
-    if(depender_index >= 0)
-      {
-      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
-      }
-    else
-      {
-      // This is a direct dependency of the target being linked.
-      this->OriginalEntries.push_back(dependee_index);
-      }
-
-    // Update the inferred dependencies for earlier items.
-    for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-        dsi != dependSets.end(); ++dsi)
-      {
-      // Add this item to the inferred dependencies of other items.
-      // Target items are never inferred dependees because unknown
-      // items are outside libraries that should not be depending on
-      // targets.
-      if(!this->EntryList[dependee_index].Target &&
-         !this->EntryList[dependee_index].IsFlag &&
-         dependee_index != dsi->first)
-        {
-        dsi->second.insert(dependee_index);
-        }
-      }
-
-    // If this item needs to have dependencies inferred, do so.
-    if(this->InferredDependSets[dependee_index])
-      {
-      // Make sure an entry exists to hold the set for the item.
-      dependSets[dependee_index];
-      }
-    }
-
-  // Store the inferred dependency sets discovered for this list.
-  for(std::map<int, DependSet>::iterator dsi = dependSets.begin();
-      dsi != dependSets.end(); ++dsi)
-    {
-    this->InferredDependSets[dsi->first]->push_back(dsi->second);
-    }
-}
-
-//----------------------------------------------------------------------------
-cmTarget const* cmComputeLinkDepends::FindTargetToLink(int depender_index,
-                                                 const std::string& name)
-{
-  // Look for a target in the scope of the depender.
-  cmMakefile* mf = this->Makefile;
-  if(depender_index >= 0)
-    {
-    if(cmTarget const* depender = this->EntryList[depender_index].Target)
-      {
-      mf = depender->GetMakefile();
-      }
-    }
-  cmTarget const* tgt = mf->FindTargetToUse(name);
-
-  // Skip targets that will not really be linked.  This is probably a
-  // name conflict between an external library and an executable
-  // within the project.
-  if(tgt && tgt->GetType() == cmTarget::EXECUTABLE &&
-     !tgt->IsExecutableWithExports())
-    {
-    tgt = 0;
-    }
-
-  if(tgt && tgt->GetType() == cmTarget::OBJECT_LIBRARY)
-    {
-    cmOStringStream e;
-    e << "Target \"" << this->Target->GetName() << "\" links to "
-      "OBJECT library \"" << tgt->GetName() << "\" but this is not "
-      "allowed.  "
-      "One may link only to STATIC or SHARED libraries, or to executables "
-      "with the ENABLE_EXPORTS property set.";
-    this->CMakeInstance->IssueMessage(cmake::FATAL_ERROR, e.str(),
-                                      this->Target->GetBacktrace());
-    tgt = 0;
-    }
-
-  // Return the target found, if any.
-  return tgt;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::InferDependencies()
-{
-  // The inferred dependency sets for each item list the possible
-  // dependencies.  The intersection of the sets for one item form its
-  // inferred dependencies.
-  for(unsigned int depender_index=0;
-      depender_index < this->InferredDependSets.size(); ++depender_index)
-    {
-    // Skip items for which dependencies do not need to be inferred or
-    // for which the inferred dependency sets are empty.
-    DependSetList* sets = this->InferredDependSets[depender_index];
-    if(!sets || sets->empty())
-      {
-      continue;
-      }
-
-    // Intersect the sets for this item.
-    DependSetList::const_iterator i = sets->begin();
-    DependSet common = *i;
-    for(++i; i != sets->end(); ++i)
-      {
-      DependSet intersection;
-      cmsys_stl::set_intersection
-        (common.begin(), common.end(), i->begin(), i->end(),
-         std::inserter(intersection, intersection.begin()));
-      common = intersection;
-      }
-
-    // Add the inferred dependencies to the graph.
-    for(DependSet::const_iterator j = common.begin(); j != common.end(); ++j)
-      {
-      int dependee_index = *j;
-      this->EntryConstraintGraph[depender_index].push_back(dependee_index);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::CleanConstraintGraph()
-{
-  for(Graph::iterator i = this->EntryConstraintGraph.begin();
-      i != this->EntryConstraintGraph.end(); ++i)
-    {
-    // Sort the outgoing edges for each graph node so that the
-    // original order will be preserved as much as possible.
-    cmsys_stl::sort(i->begin(), i->end());
-
-    // Make the edge list unique.
-    EdgeList::iterator last = cmsys_stl::unique(i->begin(), i->end());
-    i->erase(last, i->end());
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayConstraintGraph()
-{
-  // Display the graph nodes and their edges.
-  cmOStringStream e;
-  for(unsigned int i=0; i < this->EntryConstraintGraph.size(); ++i)
-    {
-    EdgeList const& nl = this->EntryConstraintGraph[i];
-    e << "item " << i << " is [" << this->EntryList[i].Item << "]\n";
-    for(EdgeList::const_iterator j = nl.begin(); j != nl.end(); ++j)
-      {
-      e << "  item " << *j << " must follow it\n";
-      }
-    }
-  fprintf(stderr, "%s\n", e.str().c_str());
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::OrderLinkEntires()
-{
-  // Compute the DAG of strongly connected components.  The algorithm
-  // used by cmComputeComponentGraph should identify the components in
-  // the same order in which the items were originally discovered in
-  // the BFS.  This should preserve the original order when no
-  // constraints disallow it.
-  this->CCG = new cmComputeComponentGraph(this->EntryConstraintGraph);
-
-  // The component graph is guaranteed to be acyclic.  Start a DFS
-  // from every entry to compute a topological order for the
-  // components.
-  Graph const& cgraph = this->CCG->GetComponentGraph();
-  int n = static_cast<int>(cgraph.size());
-  this->ComponentVisited.resize(cgraph.size(), 0);
-  this->ComponentOrder.resize(cgraph.size(), n);
-  this->ComponentOrderId = n;
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  for(int c = n-1; c >= 0; --c)
-    {
-    this->VisitComponent(c);
-    }
-
-  // Display the component graph.
-  if(this->DebugMode)
-    {
-    this->DisplayComponents();
-    }
-
-  // Start with the original link line.
-  for(std::vector<int>::const_iterator i = this->OriginalEntries.begin();
-      i != this->OriginalEntries.end(); ++i)
-    {
-    this->VisitEntry(*i);
-    }
-
-  // Now explore anything left pending.  Since the component graph is
-  // guaranteed to be acyclic we know this will terminate.
-  while(!this->PendingComponents.empty())
-    {
-    // Visit one entry from the first pending component.  The visit
-    // logic will update the pending components accordingly.  Since
-    // the pending components are kept in topological order this will
-    // not repeat one.
-    int e = *this->PendingComponents.begin()->second.Entries.begin();
-    this->VisitEntry(e);
-    }
-}
-
-//----------------------------------------------------------------------------
-void
-cmComputeLinkDepends::DisplayComponents()
-{
-  fprintf(stderr, "The strongly connected components are:\n");
-  std::vector<NodeList> const& components = this->CCG->GetComponents();
-  for(unsigned int c=0; c < components.size(); ++c)
-    {
-    fprintf(stderr, "Component (%u):\n", c);
-    NodeList const& nl = components[c];
-    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int i = *ni;
-      fprintf(stderr, "  item %d [%s]\n", i,
-              this->EntryList[i].Item.c_str());
-      }
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(c);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      int i = *oi;
-      fprintf(stderr, "  followed by Component (%d)\n", i);
-      }
-    fprintf(stderr, "  topo order index %d\n",
-            this->ComponentOrder[c]);
-    }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitComponent(unsigned int c)
-{
-  // Check if the node has already been visited.
-  if(this->ComponentVisited[c])
-    {
-    return;
-    }
-
-  // We are now visiting this component so mark it.
-  this->ComponentVisited[c] = 1;
-
-  // Visit the neighbors of the component first.
-  // Run in reverse order so the topological order will preserve the
-  // original order where there are no constraints.
-  EdgeList const& nl = this->CCG->GetComponentGraphEdges(c);
-  for(EdgeList::const_reverse_iterator ni = nl.rbegin();
-      ni != nl.rend(); ++ni)
-    {
-    this->VisitComponent(*ni);
-    }
-
-  // Assign an ordering id to this component.
-  this->ComponentOrder[c] = --this->ComponentOrderId;
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::VisitEntry(int index)
-{
-  // Include this entry on the link line.
-  this->FinalLinkOrder.push_back(index);
-
-  // This entry has now been seen.  Update its component.
-  bool completed = false;
-  int component = this->CCG->GetComponentMap()[index];
-  std::map<int, PendingComponent>::iterator mi =
-    this->PendingComponents.find(this->ComponentOrder[component]);
-  if(mi != this->PendingComponents.end())
-    {
-    // The entry is in an already pending component.
-    PendingComponent& pc = mi->second;
-
-    // Remove the entry from those pending in its component.
-    pc.Entries.erase(index);
-    if(pc.Entries.empty())
-      {
-      // The complete component has been seen since it was last needed.
-      --pc.Count;
-
-      if(pc.Count == 0)
-        {
-        // The component has been completed.
-        this->PendingComponents.erase(mi);
-        completed = true;
-        }
-      else
-        {
-        // The whole component needs to be seen again.
-        NodeList const& nl = this->CCG->GetComponent(component);
-        assert(nl.size() > 1);
-        pc.Entries.insert(nl.begin(), nl.end());
-        }
-      }
-    }
-  else
-    {
-    // The entry is not in an already pending component.
-    NodeList const& nl = this->CCG->GetComponent(component);
-    if(nl.size() > 1)
-      {
-      // This is a non-trivial component.  It is now pending.
-      PendingComponent& pc = this->MakePendingComponent(component);
-
-      // The starting entry has already been seen.
-      pc.Entries.erase(index);
-      }
-    else
-      {
-      // This is a trivial component, so it is already complete.
-      completed = true;
-      }
-    }
-
-  // If the entry completed a component, the component's dependencies
-  // are now pending.
-  if(completed)
-    {
-    EdgeList const& ol = this->CCG->GetComponentGraphEdges(component);
-    for(EdgeList::const_iterator oi = ol.begin(); oi != ol.end(); ++oi)
-      {
-      // This entire component is now pending no matter whether it has
-      // been partially seen already.
-      this->MakePendingComponent(*oi);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-cmComputeLinkDepends::PendingComponent&
-cmComputeLinkDepends::MakePendingComponent(unsigned int component)
-{
-  // Create an entry (in topological order) for the component.
-  PendingComponent& pc =
-    this->PendingComponents[this->ComponentOrder[component]];
-  pc.Id = component;
-  NodeList const& nl = this->CCG->GetComponent(component);
-
-  if(nl.size() == 1)
-    {
-    // Trivial components need be seen only once.
-    pc.Count = 1;
-    }
-  else
-    {
-    // This is a non-trivial strongly connected component of the
-    // original graph.  It consists of two or more libraries
-    // (archives) that mutually require objects from one another.  In
-    // the worst case we may have to repeat the list of libraries as
-    // many times as there are object files in the biggest archive.
-    // For now we just list them twice.
-    //
-    // The list of items in the component has been sorted by the order
-    // of discovery in the original BFS of dependencies.  This has the
-    // advantage that the item directly linked by a target requiring
-    // this component will come first which minimizes the number of
-    // repeats needed.
-    pc.Count = this->ComputeComponentCount(nl);
-    }
-
-  // Store the entries to be seen.
-  pc.Entries.insert(nl.begin(), nl.end());
-
-  return pc;
-}
-
-//----------------------------------------------------------------------------
-int cmComputeLinkDepends::ComputeComponentCount(NodeList const& nl)
-{
-  int count = 2;
-  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-    {
-    if(cmTarget const* target = this->EntryList[*ni].Target)
-      {
-      if(cmTarget::LinkInterface const* iface =
-         target->GetLinkInterface(this->Config, this->HeadTarget))
-        {
-        if(iface->Multiplicity > count)
+        else
           {
-          count = iface->Multiplicity;
+          fwrite(data, 1, (size_t) length, stdout);
+          fflush(stdout);
           }
         }
+      if(poll)
+        {
+        /* Delay to avoid busy loop during polling.  */
+        testProcess_usleep(100000);
+        }
+      if(delay)
+        {
+        /* Purposely sleeping only on Win32 to let pipe fill up.  */
+#if defined(_WIN32)
+        testProcess_usleep(100000);
+#endif
+        }
       }
     }
-  return count;
+
+  if(disown)
+    {
+    kwsysProcess_Disown(kp);
+    }
+  else
+    {
+    kwsysProcess_WaitForExit(kp, 0);
+    }
+
+  switch (kwsysProcess_GetState(kp))
+    {
+    case kwsysProcess_State_Starting:
+      printf("No process has been executed.\n"); break;
+    case kwsysProcess_State_Executing:
+      printf("The process is still executing.\n"); break;
+    case kwsysProcess_State_Expired:
+      printf("Child was killed when timeout expired.\n"); break;
+    case kwsysProcess_State_Exited:
+      printf("Child exited with value = %d\n",
+             kwsysProcess_GetExitValue(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Killed:
+      printf("Child was killed by parent.\n"); break;
+    case kwsysProcess_State_Exception:
+      printf("Child terminated abnormally: %s\n",
+             kwsysProcess_GetExceptionString(kp));
+      result = ((exception != kwsysProcess_GetExitException(kp)) ||
+                (value != kwsysProcess_GetExitValue(kp))); break;
+    case kwsysProcess_State_Disowned:
+      printf("Child was disowned.\n"); break;
+    case kwsysProcess_State_Error:
+      printf("Error in administrating child process: [%s]\n",
+             kwsysProcess_GetErrorString(kp)); break;
+    };
+
+  if(result)
+    {
+    if(exception != kwsysProcess_GetExitException(kp))
+      {
+      fprintf(stderr, "Mismatch in exit exception.  "
+              "Should have been %d, was %d.\n",
+              exception, kwsysProcess_GetExitException(kp));
+      }
+    if(value != kwsysProcess_GetExitValue(kp))
+      {
+      fprintf(stderr, "Mismatch in exit value.  "
+              "Should have been %d, was %d.\n",
+              value, kwsysProcess_GetExitValue(kp));
+      }
+    }
+
+  if(kwsysProcess_GetState(kp) != state)
+    {
+    fprintf(stderr, "Mismatch in state.  "
+            "Should have been %d, was %d.\n",
+            state, kwsysProcess_GetState(kp));
+    result = 1;
+    }
+
+  /* We should have polled more times than there were data if polling
+     was enabled.  */
+  if(poll && poll < MINPOLL)
+    {
+    fprintf(stderr, "Poll count is %d, which is less than %d.\n",
+            poll, MINPOLL);
+    result = 1;
+    }
+
+  return result;
 }
 
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::DisplayFinalEntries()
+/**
+ * Runs a child process and blocks until it returns.  Arguments as follows:
+ *
+ * cmd            = Command line to run.
+ * state          = Expected return value of kwsysProcess_GetState after exit.
+ * exception      = Expected return value of kwsysProcess_GetExitException.
+ * value          = Expected return value of kwsysProcess_GetExitValue.
+ * share          = Whether to share stdout/stderr child pipes with our pipes
+ *                  by way of kwsysProcess_SetPipeShared.  If false, new pipes
+ *                  are created.
+ * output         = If !share && !disown, whether to write the child's stdout
+ *                  and stderr output to our stdout.
+ * delay          = If !share && !disown, adds an additional short delay to
+ *                  the pipe loop to allow the pipes to fill up; Windows only.
+ * timeout        = Non-zero to sets a timeout in seconds via
+ *                  kwsysProcess_SetTimeout.
+ * poll           = If !share && !disown, we count the number of 0.1 second
+ *                  intervals where the child pipes had no new data.  We fail
+ *                  if not in the bounds of MINPOLL/MAXPOLL.
+ * repeat         = Number of times to run the process.
+ * disown         = If set, the process is disowned.
+ * createNewGroup = If set, the process is created in a new process group.
+ * interruptDelay = If non-zero, number of seconds to delay before
+ *                  interrupting the process.  Note that this delay will occur
+ *                  BEFORE any reading/polling of pipes occurs and before any
+ *                  detachment occurs.
+ */
+int runChild(const char* cmd[], int state, int exception, int value,
+             int share, int output, int delay, double timeout,
+             int poll, int repeat, int disown, int createNewGroup,
+             unsigned int interruptDelay)
 {
-  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
-  for(std::vector<LinkEntry>::const_iterator lei =
-        this->FinalLinkEntries.begin();
-      lei != this->FinalLinkEntries.end(); ++lei)
+  int result = 1;
+  kwsysProcess* kp = kwsysProcess_New();
+  if(!kp)
     {
-    if(lei->Target)
+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+    return 1;
+    }
+  while(repeat-- > 0)
+    {
+    result = runChild2(kp, cmd, state, exception, value, share,
+                       output, delay, timeout, poll, disown, createNewGroup,
+                       interruptDelay);
+    }
+  kwsysProcess_Delete(kp);
+  return result;
+}
+
+int main(int argc, const char* argv[])
+{
+  int n = 0;
+
+#ifdef _WIN32
+  int i;
+  char new_args[10][_MAX_PATH];
+  LPWSTR* w_av = CommandLineToArgvW(GetCommandLineW(), &argc);
+  for(i=0; i<argc; i++)
+  {
+    kwsysEncoding_wcstombs(new_args[i], w_av[i], _MAX_PATH);
+    argv[i] = new_args[i];
+  }
+  LocalFree(w_av);
+#endif
+
+#if 0
+    {
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    DuplicateHandle(GetCurrentProcess(), out,
+                    GetCurrentProcess(), &out, 0, FALSE,
+                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
+    SetStdHandle(STD_OUTPUT_HANDLE, out);
+    }
+    {
+    HANDLE out = GetStdHandle(STD_ERROR_HANDLE);
+    DuplicateHandle(GetCurrentProcess(), out,
+                    GetCurrentProcess(), &out, 0, FALSE,
+                    DUPLICATE_SAME_ACCESS | DUPLICATE_CLOSE_SOURCE);
+    SetStdHandle(STD_ERROR_HANDLE, out);
+    }
+#endif
+  if(argc == 2)
+    {
+    n = atoi(argv[1]);
+    }
+  else if(argc == 3 && strcmp(argv[1], "run") == 0)
+    {
+    n = atoi(argv[2]);
+    }
+  /* Check arguments.  */
+  if(((n >= 1 && n <= 10) || n == 108 || n == 109 || n == 110) && argc == 3)
+    {
+    /* This is the child process for a requested test number.  */
+    switch (n)
       {
-      fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+      case 1: return test1(argc, argv);
+      case 2: return test2(argc, argv);
+      case 3: return test3(argc, argv);
+      case 4: return test4(argc, argv);
+      case 5: return test5(argc, argv);
+      case 6: test6(argc, argv); return 0;
+      case 7: return test7(argc, argv);
+      case 8: return test8(argc, argv);
+      case 9: return test9(argc, argv);
+      case 10: return test10(argc, argv);
+      case 108: return test8_grandchild(argc, argv);
+      case 109: return test9_grandchild(argc, argv);
+      case 110: return test10_grandchild(argc, argv);
+      }
+    fprintf(stderr, "Invalid test number %d.\n", n);
+    return 1;
+    }
+  else if(n >= 1 && n <= 10)
+    {
+    /* This is the parent process for a requested test number.  */
+    int states[10] =
+    {
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Expired,
+      kwsysProcess_State_Exception,
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Expired,
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Exited,
+      kwsysProcess_State_Expired, /* Ctrl+C handler test */
+      kwsysProcess_State_Exception /* Process group test */
+    };
+    int exceptions[10] =
+    {
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_Fault,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_None,
+      kwsysProcess_Exception_Interrupt
+    };
+    int values[10] = {0, 123, 1, 1, 0, 0, 0, 0, 1, 1};
+    int shares[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
+    int outputs[10] = {1, 1, 1, 1, 1, 0, 1, 1, 1, 1};
+    int delays[10] = {0, 0, 0, 0, 0, 1, 0, 0, 0, 0};
+    double timeouts[10] = {10, 10, 10, 30, 30, 10, -1, 10, 6, 4};
+    int polls[10] = {0, 0, 0, 0, 0, 0, 1, 0, 0, 0};
+    int repeat[10] = {2, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    int createNewGroups[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
+    unsigned int interruptDelays[10] = {0, 0, 0, 0, 0, 0, 0, 0, 3, 2};
+    int r;
+    const char* cmd[4];
+#ifdef _WIN32
+    char* argv0 = 0;
+    if(n == 0 && (argv0 = strdup(argv[0])))
+      {
+      /* Try converting to forward slashes to see if it works.  */
+      char* c;
+      for(c=argv0; *c; ++c)
+        {
+        if(*c == '\\')
+          {
+          *c = '/';
+          }
+        }
+      cmd[0] = argv0;
       }
     else
       {
-      fprintf(stderr, "  item [%s]\n", lei->Item.c_str());
+      cmd[0] = argv[0];
       }
+#else
+    cmd[0] = argv[0];
+#endif
+    cmd[1] = "run";
+    cmd[2] = argv[1];
+    cmd[3] = 0;
+    fprintf(stdout, "Output on stdout before test %d.\n", n);
+    fprintf(stderr, "Output on stderr before test %d.\n", n);
+    fflush(stdout);
+    fflush(stderr);
+    r = runChild(cmd, states[n-1], exceptions[n-1], values[n-1], shares[n-1],
+                 outputs[n-1], delays[n-1], timeouts[n-1],
+                 polls[n-1], repeat[n-1], 0, createNewGroups[n-1],
+                 interruptDelays[n-1]);
+    fprintf(stdout, "Output on stdout after test %d.\n", n);
+    fprintf(stderr, "Output on stderr after test %d.\n", n);
+    fflush(stdout);
+    fflush(stderr);
+#if defined(_WIN32)
+    if(argv0) { free(argv0); }
+#endif
+    return r;
     }
-  fprintf(stderr, "\n");
-}
-
-//----------------------------------------------------------------------------
-void cmComputeLinkDepends::CheckWrongConfigItem(int depender_index,
-                                                std::string const& item)
-{
-  if(!this->OldLinkDirMode)
+  else if(argc > 2 && strcmp(argv[1], "0") == 0)
     {
-    return;
+    /* This is the special debugging test to run a given command
+       line.  */
+    const char** cmd = argv+2;
+    int state = kwsysProcess_State_Exited;
+    int exception = kwsysProcess_Exception_None;
+    int value = 0;
+    double timeout = 0;
+    int r = runChild(cmd, state, exception, value, 0, 1, 0, timeout,
+      0, 1, 0, 0, 0);
+    return r;
     }
-
-  // For CMake 2.4 bug-compatibility we need to consider the output
-  // directories of targets linked in another configuration as link
-  // directories.
-  if(cmTarget const* tgt
-                      = this->FindTargetToLink(depender_index, item.c_str()))
+  else
     {
-    if(!tgt->IsImported())
-      {
-      this->OldWrongConfigItems.insert(tgt);
-      }
+    /* Improper usage.  */
+    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
+    return 1;
     }
 }

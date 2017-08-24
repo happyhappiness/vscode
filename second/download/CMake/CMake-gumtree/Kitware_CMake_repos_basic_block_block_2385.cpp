@@ -1,0 +1,3 @@
+{
+              res += " Web Edition";
+            }

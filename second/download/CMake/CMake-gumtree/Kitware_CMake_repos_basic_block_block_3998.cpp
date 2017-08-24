@@ -1,0 +1,1 @@
+result = Curl_sendf(sockfd, conn, "\r\n")

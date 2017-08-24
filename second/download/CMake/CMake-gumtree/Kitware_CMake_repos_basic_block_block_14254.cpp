@@ -1,0 +1,1 @@
+strings[lesser_count + 1 + i] = greater[i]

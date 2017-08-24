@@ -1,0 +1,2 @@
+(size < len)
+      return -ENOBUFS;

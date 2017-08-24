@@ -1,0 +1,1 @@
+out_size = *out_pos + block->compressed_size

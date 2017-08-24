@@ -1,3339 +1,1562 @@
-/*-
- * Copyright (c) 2009 Michihiro NAKAJIMA
- * All rights reserved.
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-#include "archive_platform.h"
-__FBSDID("$FreeBSD$");
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
 
-#ifdef HAVE_ERRNO_H
-#include <errno.h>
-#endif
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#if HAVE_LIBXML_XMLREADER_H
-#include <libxml/xmlreader.h>
-#elif HAVE_BSDXML_H
-#include <bsdxml.h>
-#elif HAVE_EXPAT_H
-#include <expat.h>
-#endif
-#ifdef HAVE_BZLIB_H
-#include <cm_bzlib.h>
-#endif
-#if HAVE_LZMA_H
-#include <cm_lzma.h>
-#elif HAVE_LZMADEC_H
-#include <lzmadec.h>
-#endif
-#ifdef HAVE_ZLIB_H
-#include <cm_zlib.h>
+#include "curl_setup.h"
+
+#ifdef USE_NGHTTP2
+#include "curl_printf.h"
+#include <nghttp2/nghttp2.h>
+#include "urldata.h"
+#include "http2.h"
+#include "http.h"
+#include "sendf.h"
+#include "curl_base64.h"
+#include "rawstr.h"
+#include "multiif.h"
+#include "conncache.h"
+#include "url.h"
+
+/* The last #include files should be: */
+#include "curl_memory.h"
+#include "memdebug.h"
+
+#define MIN(x,y) ((x)<(y)?(x):(y))
+
+#if (NGHTTP2_VERSION_NUM < 0x000600)
+#error too old nghttp2 version, upgrade!
 #endif
 
-#include "archive.h"
-#include "archive_digest_private.h"
-#include "archive_endian.h"
-#include "archive_entry.h"
-#include "archive_entry_locale.h"
-#include "archive_private.h"
-#include "archive_read_private.h"
-
-#if (!defined(HAVE_LIBXML_XMLREADER_H) && \
-     !defined(HAVE_BSDXML_H) && !defined(HAVE_EXPAT_H)) ||\
-	!defined(HAVE_ZLIB_H) || \
-	!defined(ARCHIVE_HAS_MD5) || !defined(ARCHIVE_HAS_SHA1)
-/*
- * xar needs several external libraries.
- *   o libxml2 or expat --- XML parser
- *   o openssl or MD5/SHA1 hash function
- *   o zlib
- *   o bzlib2 (option)
- *   o liblzma (option)
- */
-int
-archive_read_support_format_xar(struct archive *_a)
+static int http2_perform_getsock(const struct connectdata *conn,
+                                 curl_socket_t *sock, /* points to
+                                                         numsocks
+                                                         number of
+                                                         sockets */
+                                 int numsocks)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_xar");
+  const struct http_conn *c = &conn->proto.httpc;
+  int bitmap = GETSOCK_BLANK;
+  (void)numsocks;
 
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-	    "Xar not supported on this platform");
-	return (ARCHIVE_WARN);
+  /* TODO We should check underlying socket state if it is SSL socket
+     because of renegotiation. */
+  sock[0] = conn->sock[FIRSTSOCKET];
+
+  if(nghttp2_session_want_read(c->h2))
+    bitmap |= GETSOCK_READSOCK(FIRSTSOCKET);
+
+  if(nghttp2_session_want_write(c->h2))
+    bitmap |= GETSOCK_WRITESOCK(FIRSTSOCKET);
+
+  return bitmap;
 }
 
-#else	/* Support xar format */
-
-/* #define DEBUG 1 */
-/* #define DEBUG_PRINT_TOC 1 */
-#if DEBUG_PRINT_TOC
-#define PRINT_TOC(d, outbytes)	do {				\
-	unsigned char *x = (unsigned char *)(uintptr_t)d;	\
-	unsigned char c = x[outbytes-1];			\
-	x[outbytes - 1] = 0;					\
-	fprintf(stderr, "%s", x);				\
-	fprintf(stderr, "%c", c);				\
-	x[outbytes - 1] = c;					\
-} while (0)
-#else
-#define PRINT_TOC(d, outbytes)
-#endif
-
-#define HEADER_MAGIC	0x78617221
-#define HEADER_SIZE	28
-#define HEADER_VERSION	1
-#define CKSUM_NONE	0
-#define CKSUM_SHA1	1
-#define CKSUM_MD5	2
-
-#define MD5_SIZE	16
-#define SHA1_SIZE	20
-#define MAX_SUM_SIZE	20
-
-enum enctype {
-	NONE,
-	GZIP,
-	BZIP2,
-	LZMA,
-	XZ,
-};
-
-struct chksumval {
-	int			 alg;
-	size_t			 len;
-	unsigned char		 val[MAX_SUM_SIZE];
-};
-
-struct chksumwork {
-	int			 alg;
-#ifdef ARCHIVE_HAS_MD5
-	archive_md5_ctx		 md5ctx;
-#endif
-#ifdef ARCHIVE_HAS_SHA1
-	archive_sha1_ctx	 sha1ctx;
-#endif
-};
-
-struct xattr {
-	struct xattr		*next;
-	struct archive_string	 name;
-	uint64_t		 id;
-	uint64_t		 length;
-	uint64_t		 offset;
-	uint64_t		 size;
-	enum enctype		 encoding;
-	struct chksumval	 a_sum;
-	struct chksumval	 e_sum;
-	struct archive_string	 fstype;
-};
-
-struct xar_file {
-	struct xar_file		*next;
-	struct xar_file		*hdnext;
-	struct xar_file		*parent;
-	int			 subdirs;
-
-	unsigned int		 has;
-#define HAS_DATA		0x00001
-#define HAS_PATHNAME		0x00002
-#define HAS_SYMLINK		0x00004
-#define HAS_TIME		0x00008
-#define HAS_UID			0x00010
-#define HAS_GID			0x00020
-#define HAS_MODE		0x00040
-#define HAS_TYPE		0x00080
-#define HAS_DEV			0x00100
-#define HAS_DEVMAJOR		0x00200
-#define HAS_DEVMINOR		0x00400
-#define HAS_INO			0x00800
-#define HAS_FFLAGS		0x01000
-#define HAS_XATTR		0x02000
-#define HAS_ACL			0x04000
-
-	uint64_t		 id;
-	uint64_t		 length;
-	uint64_t		 offset;
-	uint64_t		 size;
-	enum enctype		 encoding;
-	struct chksumval	 a_sum;
-	struct chksumval	 e_sum;
-	struct archive_string	 pathname;
-	struct archive_string	 symlink;
-	time_t			 ctime;
-	time_t			 mtime;
-	time_t			 atime;
-	struct archive_string	 uname;
-	int64_t			 uid;
-	struct archive_string	 gname;
-	int64_t			 gid;
-	mode_t			 mode;
-	dev_t			 dev;
-	dev_t			 devmajor;
-	dev_t			 devminor;
-	int64_t			 ino64;
-	struct archive_string	 fflags_text;
-	unsigned int		 link;
-	unsigned int		 nlink;
-	struct archive_string	 hardlink;
-	struct xattr		*xattr_list;
-};
-
-struct hdlink {
-	struct hdlink		 *next;
-
-	unsigned int		 id;
-	int			 cnt;
-	struct xar_file		 *files;
-};
-
-struct heap_queue {
-	struct xar_file		**files;
-	int			 allocated;
-	int			 used;
-};
-
-enum xmlstatus {
-	INIT,
-	XAR,
-	TOC,
-	TOC_CREATION_TIME,
-	TOC_CHECKSUM,
-	TOC_CHECKSUM_OFFSET,
-	TOC_CHECKSUM_SIZE,
-	TOC_FILE,
-	FILE_DATA,
-	FILE_DATA_LENGTH,
-	FILE_DATA_OFFSET,
-	FILE_DATA_SIZE,
-	FILE_DATA_ENCODING,
-	FILE_DATA_A_CHECKSUM,
-	FILE_DATA_E_CHECKSUM,
-	FILE_DATA_CONTENT,
-	FILE_EA,
-	FILE_EA_LENGTH,
-	FILE_EA_OFFSET,
-	FILE_EA_SIZE,
-	FILE_EA_ENCODING,
-	FILE_EA_A_CHECKSUM,
-	FILE_EA_E_CHECKSUM,
-	FILE_EA_NAME,
-	FILE_EA_FSTYPE,
-	FILE_CTIME,
-	FILE_MTIME,
-	FILE_ATIME,
-	FILE_GROUP,
-	FILE_GID,
-	FILE_USER,
-	FILE_UID,
-	FILE_MODE,
-	FILE_DEVICE,
-	FILE_DEVICE_MAJOR,
-	FILE_DEVICE_MINOR,
-	FILE_DEVICENO,
-	FILE_INODE,
-	FILE_LINK,
-	FILE_TYPE,
-	FILE_NAME,
-	FILE_ACL,
-	FILE_ACL_DEFAULT,
-	FILE_ACL_ACCESS,
-	FILE_ACL_APPLEEXTENDED,
-	/* BSD file flags. */
-	FILE_FLAGS,
-	FILE_FLAGS_USER_NODUMP,
-	FILE_FLAGS_USER_IMMUTABLE,
-	FILE_FLAGS_USER_APPEND,
-	FILE_FLAGS_USER_OPAQUE,
-	FILE_FLAGS_USER_NOUNLINK,
-	FILE_FLAGS_SYS_ARCHIVED,
-	FILE_FLAGS_SYS_IMMUTABLE,
-	FILE_FLAGS_SYS_APPEND,
-	FILE_FLAGS_SYS_NOUNLINK,
-	FILE_FLAGS_SYS_SNAPSHOT,
-	/* Linux file flags. */
-	FILE_EXT2,
-	FILE_EXT2_SecureDeletion,
-	FILE_EXT2_Undelete,
-	FILE_EXT2_Compress,
-	FILE_EXT2_Synchronous,
-	FILE_EXT2_Immutable,
-	FILE_EXT2_AppendOnly,
-	FILE_EXT2_NoDump,
-	FILE_EXT2_NoAtime,
-	FILE_EXT2_CompDirty,
-	FILE_EXT2_CompBlock,
-	FILE_EXT2_NoCompBlock,
-	FILE_EXT2_CompError,
-	FILE_EXT2_BTree,
-	FILE_EXT2_HashIndexed,
-	FILE_EXT2_iMagic,
-	FILE_EXT2_Journaled,
-	FILE_EXT2_NoTail,
-	FILE_EXT2_DirSync,
-	FILE_EXT2_TopDir,
-	FILE_EXT2_Reserved,
-	UNKNOWN,
-};
-
-struct unknown_tag {
-	struct unknown_tag	*next;
-	struct archive_string	 name;
-};
-
-struct xar {
-	uint64_t		 offset; /* Current position in the file. */
-	int64_t			 total;
-	uint64_t		 h_base;
-	int			 end_of_file;
-#define OUTBUFF_SIZE	(1024 * 64)
-	unsigned char		*outbuff;
-
-	enum xmlstatus		 xmlsts;
-	enum xmlstatus		 xmlsts_unknown;
-	struct unknown_tag	*unknowntags;
-	int			 base64text;
-
-	/*
-	 * TOC
-	 */
-	uint64_t		 toc_remaining;
-	uint64_t		 toc_total;
-	uint64_t		 toc_chksum_offset;
-	uint64_t		 toc_chksum_size;
-
-	/*
-	 * For Decoding data.
-	 */
-	enum enctype 		 rd_encoding;
-	z_stream		 stream;
-	int			 stream_valid;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	bz_stream		 bzstream;
-	int			 bzstream_valid;
-#endif
-#if HAVE_LZMA_H && HAVE_LIBLZMA
-	lzma_stream		 lzstream;
-	int			 lzstream_valid;
-#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
-	lzmadec_stream		 lzstream;
-	int			 lzstream_valid;
-#endif
-	/*
-	 * For Checksum data.
-	 */
-	struct chksumwork	 a_sumwrk;
-	struct chksumwork	 e_sumwrk;
-
-	struct xar_file		*file;	/* current reading file. */
-	struct xattr		*xattr; /* current reading extended attribute. */
-	struct heap_queue	 file_queue;
-	struct xar_file		*hdlink_orgs;
-	struct hdlink		*hdlink_list;
-
-	int	 		 entry_init;
-	uint64_t		 entry_total;
-	uint64_t		 entry_remaining;
-	size_t			 entry_unconsumed;
-	uint64_t		 entry_size;
-	enum enctype 		 entry_encoding;
-	struct chksumval	 entry_a_sum;
-	struct chksumval	 entry_e_sum;
-
-	struct archive_string_conv *sconv;
-};
-
-struct xmlattr {
-	struct xmlattr	*next;
-	char		*name;
-	char		*value;
-};
-
-struct xmlattr_list {
-	struct xmlattr	*first;
-	struct xmlattr	**last;
-};
-
-static int	xar_bid(struct archive_read *, int);
-static int	xar_read_header(struct archive_read *,
-		    struct archive_entry *);
-static int	xar_read_data(struct archive_read *,
-		    const void **, size_t *, int64_t *);
-static int	xar_read_data_skip(struct archive_read *);
-static int	xar_cleanup(struct archive_read *);
-static int	move_reading_point(struct archive_read *, uint64_t);
-static int	rd_contents_init(struct archive_read *,
-		    enum enctype, int, int);
-static int	rd_contents(struct archive_read *, const void **,
-		    size_t *, size_t *, uint64_t);
-static uint64_t	atol10(const char *, size_t);
-static int64_t	atol8(const char *, size_t);
-static size_t	atohex(unsigned char *, size_t, const char *, size_t);
-static time_t	parse_time(const char *p, size_t n);
-static int	heap_add_entry(struct archive_read *a,
-    struct heap_queue *, struct xar_file *);
-static struct xar_file *heap_get_entry(struct heap_queue *);
-static int	add_link(struct archive_read *,
-    struct xar *, struct xar_file *);
-static void	checksum_init(struct archive_read *, int, int);
-static void	checksum_update(struct archive_read *, const void *,
-		    size_t, const void *, size_t);
-static int	checksum_final(struct archive_read *, const void *,
-		    size_t, const void *, size_t);
-static int	decompression_init(struct archive_read *, enum enctype);
-static int	decompress(struct archive_read *, const void **,
-		    size_t *, const void *, size_t *);
-static int	decompression_cleanup(struct archive_read *);
-static void	xmlattr_cleanup(struct xmlattr_list *);
-static int	file_new(struct archive_read *,
-    struct xar *, struct xmlattr_list *);
-static void	file_free(struct xar_file *);
-static int	xattr_new(struct archive_read *,
-    struct xar *, struct xmlattr_list *);
-static void	xattr_free(struct xattr *);
-static int	getencoding(struct xmlattr_list *);
-static int	getsumalgorithm(struct xmlattr_list *);
-static int	unknowntag_start(struct archive_read *,
-    struct xar *, const char *);
-static void	unknowntag_end(struct xar *, const char *);
-static int	xml_start(struct archive_read *,
-    const char *, struct xmlattr_list *);
-static void	xml_end(void *, const char *);
-static void	xml_data(void *, const char *, int);
-static int	xml_parse_file_flags(struct xar *, const char *);
-static int	xml_parse_file_ext2(struct xar *, const char *);
-#if defined(HAVE_LIBXML_XMLREADER_H)
-static int	xml2_xmlattr_setup(struct archive_read *,
-    struct xmlattr_list *, xmlTextReaderPtr);
-static int	xml2_read_cb(void *, char *, int);
-static int	xml2_close_cb(void *);
-static void	xml2_error_hdr(void *, const char *, xmlParserSeverities,
-		    xmlTextReaderLocatorPtr);
-static int	xml2_read_toc(struct archive_read *);
-#elif defined(HAVE_BSDXML_H) || defined(HAVE_EXPAT_H)
-struct expat_userData {
-	int state;
-	struct archive_read *archive;
-};
-static int	expat_xmlattr_setup(struct archive_read *,
-    struct xmlattr_list *, const XML_Char **);
-static void	expat_start_cb(void *, const XML_Char *, const XML_Char **);
-static void	expat_end_cb(void *, const XML_Char *);
-static void	expat_data_cb(void *, const XML_Char *, int);
-static int	expat_read_toc(struct archive_read *);
-#endif
-
-int
-archive_read_support_format_xar(struct archive *_a)
+static int http2_getsock(struct connectdata *conn,
+                         curl_socket_t *sock, /* points to numsocks
+                                                 number of sockets */
+                         int numsocks)
 {
-	struct xar *xar;
-	struct archive_read *a = (struct archive_read *)_a;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_xar");
-
-	xar = (struct xar *)calloc(1, sizeof(*xar));
-	if (xar == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate xar data");
-		return (ARCHIVE_FATAL);
-	}
-
-	r = __archive_read_register_format(a,
-	    xar,
-	    "xar",
-	    xar_bid,
-	    NULL,
-	    xar_read_header,
-	    xar_read_data,
-	    xar_read_data_skip,
-	    NULL,
-	    xar_cleanup,
-	    NULL,
-	    NULL);
-	if (r != ARCHIVE_OK)
-		free(xar);
-	return (r);
+  return http2_perform_getsock(conn, sock, numsocks);
 }
 
-static int
-xar_bid(struct archive_read *a, int best_bid)
+static CURLcode http2_disconnect(struct connectdata *conn,
+                                 bool dead_connection)
 {
-	const unsigned char *b;
-	int bid;
+  struct HTTP *http = conn->data->req.protop;
+  struct http_conn *c = &conn->proto.httpc;
+  (void)dead_connection;
 
-	(void)best_bid; /* UNUSED */
+  DEBUGF(infof(conn->data, "HTTP/2 DISCONNECT starts now\n"));
 
-	b = __archive_read_ahead(a, HEADER_SIZE, NULL);
-	if (b == NULL)
-		return (-1);
+  nghttp2_session_del(c->h2);
+  Curl_safefree(c->inbuf);
 
-	bid = 0;
-	/*
-	 * Verify magic code
-	 */
-	if (archive_be32dec(b) != HEADER_MAGIC)
-		return (0);
-	bid += 32;
-	/*
-	 * Verify header size
-	 */
-	if (archive_be16dec(b+4) != HEADER_SIZE)
-		return (0);
-	bid += 16;
-	/*
-	 * Verify header version
-	 */
-	if (archive_be16dec(b+6) != HEADER_VERSION)
-		return (0);
-	bid += 16;
-	/*
-	 * Verify type of checksum
-	 */
-	switch (archive_be32dec(b+24)) {
-	case CKSUM_NONE:
-	case CKSUM_SHA1:
-	case CKSUM_MD5:
-		bid += 32;
-		break;
-	default:
-		return (0);
-	}
+  if(http) {
+    Curl_add_buffer_free(http->header_recvbuf);
+    http->header_recvbuf = NULL; /* clear the pointer */
+    for(; http->push_headers_used > 0; --http->push_headers_used) {
+      free(http->push_headers[http->push_headers_used - 1]);
+    }
+    free(http->push_headers);
+    http->push_headers = NULL;
+  }
 
-	return (bid);
+  DEBUGF(infof(conn->data, "HTTP/2 DISCONNECT done\n"));
+
+  return CURLE_OK;
 }
 
-static int
-read_toc(struct archive_read *a)
+/* called from Curl_http_setup_conn */
+void Curl_http2_setup_req(struct SessionHandle *data)
 {
-	struct xar *xar;
-	struct xar_file *file;
-	const unsigned char *b;
-	uint64_t toc_compressed_size;
-	uint64_t toc_uncompressed_size;
-	uint32_t toc_chksum_alg;
-	ssize_t bytes;
-	int r;
+  struct HTTP *http = data->req.protop;
 
-	xar = (struct xar *)(a->format->data);
-
-	/*
-	 * Read xar header.
-	 */
-	b = __archive_read_ahead(a, HEADER_SIZE, &bytes);
-	if (bytes < 0)
-		return ((int)bytes);
-	if (bytes < HEADER_SIZE) {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Truncated archive header");
-		return (ARCHIVE_FATAL);
-	}
-
-	if (archive_be32dec(b) != HEADER_MAGIC) {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Invalid header magic");
-		return (ARCHIVE_FATAL);
-	}
-	if (archive_be16dec(b+6) != HEADER_VERSION) {
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unsupported header version(%d)",
-		    archive_be16dec(b+6));
-		return (ARCHIVE_FATAL);
-	}
-	toc_compressed_size = archive_be64dec(b+8);
-	xar->toc_remaining = toc_compressed_size;
-	toc_uncompressed_size = archive_be64dec(b+16);
-	toc_chksum_alg = archive_be32dec(b+24);
-	__archive_read_consume(a, HEADER_SIZE);
-	xar->offset += HEADER_SIZE;
-	xar->toc_total = 0;
-
-	/*
-	 * Read TOC(Table of Contents).
-	 */
-	/* Initialize reading contents. */
-	r = move_reading_point(a, HEADER_SIZE);
-	if (r != ARCHIVE_OK)
-		return (r);
-	r = rd_contents_init(a, GZIP, toc_chksum_alg, CKSUM_NONE);
-	if (r != ARCHIVE_OK)
-		return (r);
-
-#ifdef HAVE_LIBXML_XMLREADER_H
-	r = xml2_read_toc(a);
-#elif defined(HAVE_BSDXML_H) || defined(HAVE_EXPAT_H)
-	r = expat_read_toc(a);
-#endif
-	if (r != ARCHIVE_OK)
-		return (r);
-
-	/* Set 'The HEAP' base. */
-	xar->h_base = xar->offset;
-	if (xar->toc_total != toc_uncompressed_size) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "TOC uncompressed size error");
-		return (ARCHIVE_FATAL);
-	}
-
-	/*
-	 * Checksum TOC
-	 */
-	if (toc_chksum_alg != CKSUM_NONE) {
-		r = move_reading_point(a, xar->toc_chksum_offset);
-		if (r != ARCHIVE_OK)
-			return (r);
-		b = __archive_read_ahead(a,
-			(size_t)xar->toc_chksum_size, &bytes);
-		if (bytes < 0)
-			return ((int)bytes);
-		if ((uint64_t)bytes < xar->toc_chksum_size) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Truncated archive file");
-			return (ARCHIVE_FATAL);
-		}
-		r = checksum_final(a, b,
-			(size_t)xar->toc_chksum_size, NULL, 0);
-		__archive_read_consume(a, xar->toc_chksum_size);
-		xar->offset += xar->toc_chksum_size;
-		if (r != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-	}
-
-	/*
-	 * Connect hardlinked files.
-	 */
-	for (file = xar->hdlink_orgs; file != NULL; file = file->hdnext) {
-		struct hdlink **hdlink;
-
-		for (hdlink = &(xar->hdlink_list); *hdlink != NULL;
-		    hdlink = &((*hdlink)->next)) {
-			if ((*hdlink)->id == file->id) {
-				struct hdlink *hltmp;
-				struct xar_file *f2;
-				int nlink = (*hdlink)->cnt + 1;
-
-				file->nlink = nlink;
-				for (f2 = (*hdlink)->files; f2 != NULL;
-				    f2 = f2->hdnext) {
-					f2->nlink = nlink;
-					archive_string_copy(
-					    &(f2->hardlink), &(file->pathname));
-				}
-				/* Remove resolved files from hdlist_list. */
-				hltmp = *hdlink;
-				*hdlink = hltmp->next;
-				free(hltmp);
-				break;
-			}
-		}
-	}
-	a->archive.archive_format = ARCHIVE_FORMAT_XAR;
-	a->archive.archive_format_name = "xar";
-
-	return (ARCHIVE_OK);
+  http->nread_header_recvbuf = 0;
+  http->bodystarted = FALSE;
+  http->status_code = -1;
+  http->pausedata = NULL;
+  http->pauselen = 0;
+  http->error_code = NGHTTP2_NO_ERROR;
+  http->closed = FALSE;
+  http->mem = data->state.buffer;
+  http->len = BUFSIZE;
+  http->memlen = 0;
 }
 
-static int
-xar_read_header(struct archive_read *a, struct archive_entry *entry)
+/* called from Curl_http_setup_conn */
+void Curl_http2_setup_conn(struct connectdata *conn)
 {
-	struct xar *xar;
-	struct xar_file *file;
-	struct xattr *xattr;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-	r = ARCHIVE_OK;
-
-	if (xar->offset == 0) {
-		/* Create a character conversion object. */
-		if (xar->sconv == NULL) {
-			xar->sconv = archive_string_conversion_from_charset(
-			    &(a->archive), "UTF-8", 1);
-			if (xar->sconv == NULL)
-				return (ARCHIVE_FATAL);
-		}
-
-		/* Read TOC. */
-		r = read_toc(a);
-		if (r != ARCHIVE_OK)
-			return (r);
-	}
-
-	for (;;) {
-		file = xar->file = heap_get_entry(&(xar->file_queue));
-		if (file == NULL) {
-			xar->end_of_file = 1;
-			return (ARCHIVE_EOF);
-		}
-		if ((file->mode & AE_IFMT) != AE_IFDIR)
-			break;
-		if (file->has != (HAS_PATHNAME | HAS_TYPE))
-			break;
-		/*
-		 * If a file type is a directory and it does not have
-		 * any metadata, do not export.
-		 */
-		file_free(file);
-	}
-	archive_entry_set_atime(entry, file->atime, 0);
-	archive_entry_set_ctime(entry, file->ctime, 0);
-	archive_entry_set_mtime(entry, file->mtime, 0);
-	archive_entry_set_gid(entry, file->gid);
-	if (file->gname.length > 0 &&
-	    archive_entry_copy_gname_l(entry, file->gname.s,
-		archive_strlen(&(file->gname)), xar->sconv) != 0) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Gname");
-			return (ARCHIVE_FATAL);
-		}
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Gname cannot be converted from %s to current locale.",
-		    archive_string_conversion_charset_name(xar->sconv));
-		r = ARCHIVE_WARN;
-	}
-	archive_entry_set_uid(entry, file->uid);
-	if (file->uname.length > 0 &&
-	    archive_entry_copy_uname_l(entry, file->uname.s,
-		archive_strlen(&(file->uname)), xar->sconv) != 0) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Uname");
-			return (ARCHIVE_FATAL);
-		}
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Uname cannot be converted from %s to current locale.",
-		    archive_string_conversion_charset_name(xar->sconv));
-		r = ARCHIVE_WARN;
-	}
-	archive_entry_set_mode(entry, file->mode);
-	if (archive_entry_copy_pathname_l(entry, file->pathname.s,
-	    archive_strlen(&(file->pathname)), xar->sconv) != 0) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Pathname");
-			return (ARCHIVE_FATAL);
-		}
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Pathname cannot be converted from %s to current locale.",
-		    archive_string_conversion_charset_name(xar->sconv));
-		r = ARCHIVE_WARN;
-	}
-
-
-	if (file->symlink.length > 0 &&
-	    archive_entry_copy_symlink_l(entry, file->symlink.s,
-		archive_strlen(&(file->symlink)), xar->sconv) != 0) {
-		if (errno == ENOMEM) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory for Linkname");
-			return (ARCHIVE_FATAL);
-		}
-		archive_set_error(&a->archive,
-		    ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Linkname cannot be converted from %s to current locale.",
-		    archive_string_conversion_charset_name(xar->sconv));
-		r = ARCHIVE_WARN;
-	}
-	/* Set proper nlink. */
-	if ((file->mode & AE_IFMT) == AE_IFDIR)
-		archive_entry_set_nlink(entry, file->subdirs + 2);
-	else
-		archive_entry_set_nlink(entry, file->nlink);
-	archive_entry_set_size(entry, file->size);
-	if (archive_strlen(&(file->hardlink)) > 0)
-		archive_entry_set_hardlink(entry, file->hardlink.s);
-	archive_entry_set_ino64(entry, file->ino64);
-	if (file->has & HAS_DEV)
-		archive_entry_set_dev(entry, file->dev);
-	if (file->has & HAS_DEVMAJOR)
-		archive_entry_set_devmajor(entry, file->devmajor);
-	if (file->has & HAS_DEVMINOR)
-		archive_entry_set_devminor(entry, file->devminor);
-	if (archive_strlen(&(file->fflags_text)) > 0)
-		archive_entry_copy_fflags_text(entry, file->fflags_text.s);
-
-	xar->entry_init = 1;
-	xar->entry_total = 0;
-	xar->entry_remaining = file->length;
-	xar->entry_size = file->size;
-	xar->entry_encoding = file->encoding;
-	xar->entry_a_sum = file->a_sum;
-	xar->entry_e_sum = file->e_sum;
-	/*
-	 * Read extended attributes.
-	 */
-	xattr = file->xattr_list;
-	while (xattr != NULL) {
-		const void *d;
-		size_t outbytes, used;
-
-		r = move_reading_point(a, xattr->offset);
-		if (r != ARCHIVE_OK)
-			break;
-		r = rd_contents_init(a, xattr->encoding,
-		    xattr->a_sum.alg, xattr->e_sum.alg);
-		if (r != ARCHIVE_OK)
-			break;
-		d = NULL;
-		r = rd_contents(a, &d, &outbytes, &used, xattr->length);
-		if (r != ARCHIVE_OK)
-			break;
-		if (outbytes != xattr->size) {
-			archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
-			    "Decompressed size error");
-			r = ARCHIVE_FATAL;
-			break;
-		}
-		r = checksum_final(a,
-		    xattr->a_sum.val, xattr->a_sum.len,
-		    xattr->e_sum.val, xattr->e_sum.len);
-		if (r != ARCHIVE_OK)
-			break;
-		archive_entry_xattr_add_entry(entry,
-		    xattr->name.s, d, outbytes);
-		xattr = xattr->next;
-	}
-	if (r != ARCHIVE_OK) {
-		file_free(file);
-		return (r);
-	}
-
-	if (xar->entry_remaining > 0)
-		/* Move reading point to the beginning of current
-		 * file contents. */
-		r = move_reading_point(a, file->offset);
-	else
-		r = ARCHIVE_OK;
-
-	file_free(file);
-	return (r);
-}
-
-static int
-xar_read_data(struct archive_read *a,
-    const void **buff, size_t *size, int64_t *offset)
-{
-	struct xar *xar;
-	size_t used;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-
-	if (xar->entry_unconsumed) {
-		__archive_read_consume(a, xar->entry_unconsumed);
-		xar->entry_unconsumed = 0;
-	}
-
-	if (xar->end_of_file || xar->entry_remaining <= 0) {
-		r = ARCHIVE_EOF;
-		goto abort_read_data;
-	}
-
-	if (xar->entry_init) {
-		r = rd_contents_init(a, xar->entry_encoding,
-		    xar->entry_a_sum.alg, xar->entry_e_sum.alg);
-		if (r != ARCHIVE_OK) {
-			xar->entry_remaining = 0;
-			return (r);
-		}
-		xar->entry_init = 0;
-	}
-
-	*buff = NULL;
-	r = rd_contents(a, buff, size, &used, xar->entry_remaining);
-	if (r != ARCHIVE_OK)
-		goto abort_read_data;
-
-	*offset = xar->entry_total;
-	xar->entry_total += *size;
-	xar->total += *size;
-	xar->offset += used;
-	xar->entry_remaining -= used;
-	xar->entry_unconsumed = used;
-
-	if (xar->entry_remaining == 0) {
-		if (xar->entry_total != xar->entry_size) {
-			archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
-			    "Decompressed size error");
-			r = ARCHIVE_FATAL;
-			goto abort_read_data;
-		}
-		r = checksum_final(a,
-		    xar->entry_a_sum.val, xar->entry_a_sum.len,
-		    xar->entry_e_sum.val, xar->entry_e_sum.len);
-		if (r != ARCHIVE_OK)
-			goto abort_read_data;
-	}
-
-	return (ARCHIVE_OK);
-abort_read_data:
-	*buff = NULL;
-	*size = 0;
-	*offset = xar->total;
-	return (r);
-}
-
-static int
-xar_read_data_skip(struct archive_read *a)
-{
-	struct xar *xar;
-	int64_t bytes_skipped;
-
-	xar = (struct xar *)(a->format->data);
-	if (xar->end_of_file)
-		return (ARCHIVE_EOF);
-	bytes_skipped = __archive_read_consume(a, xar->entry_remaining +
-		xar->entry_unconsumed);
-	if (bytes_skipped < 0)
-		return (ARCHIVE_FATAL);
-	xar->offset += bytes_skipped;
-	xar->entry_unconsumed = 0;
-	return (ARCHIVE_OK);
-}
-
-static int
-xar_cleanup(struct archive_read *a)
-{
-	struct xar *xar;
-	struct hdlink *hdlink;
-	int i;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-	r = decompression_cleanup(a);
-	hdlink = xar->hdlink_list;
-	while (hdlink != NULL) {
-		struct hdlink *next = hdlink->next;
-
-		free(hdlink);
-		hdlink = next;
-	}
-	for (i = 0; i < xar->file_queue.used; i++)
-		file_free(xar->file_queue.files[i]);
-	while (xar->unknowntags != NULL) {
-		struct unknown_tag *tag;
-
-		tag = xar->unknowntags;
-		xar->unknowntags = tag->next;
-		archive_string_free(&(tag->name));
-		free(tag);
-	}
-	free(xar->outbuff);
-	free(xar);
-	a->format->data = NULL;
-	return (r);
-}
-
-static int
-move_reading_point(struct archive_read *a, uint64_t offset)
-{
-	struct xar *xar;
-
-	xar = (struct xar *)(a->format->data);
-	if (xar->offset - xar->h_base != offset) {
-		/* Seek forward to the start of file contents. */
-		int64_t step;
-
-		step = offset - (xar->offset - xar->h_base);
-		if (step > 0) {
-			step = __archive_read_consume(a, step);
-			if (step < 0)
-				return ((int)step);
-			xar->offset += step;
-		} else {
-			int64_t pos = __archive_read_seek(a, offset, SEEK_SET);
-			if (pos == ARCHIVE_FAILED) {
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Cannot seek.");
-				return (ARCHIVE_FAILED);
-			}
-			xar->offset = pos;
-		}
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-rd_contents_init(struct archive_read *a, enum enctype encoding,
-    int a_sum_alg, int e_sum_alg)
-{
-	int r;
-
-	/* Init decompress library. */
-	if ((r = decompression_init(a, encoding)) != ARCHIVE_OK)
-		return (r);
-	/* Init checksum library. */
-	checksum_init(a, a_sum_alg, e_sum_alg);
-	return (ARCHIVE_OK);
-}
-
-static int
-rd_contents(struct archive_read *a, const void **buff, size_t *size,
-    size_t *used, uint64_t remaining)
-{
-	const unsigned char *b;
-	ssize_t bytes;
-
-	/* Get whatever bytes are immediately available. */
-	b = __archive_read_ahead(a, 1, &bytes);
-	if (bytes < 0)
-		return ((int)bytes);
-	if (bytes == 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Truncated archive file");
-		return (ARCHIVE_FATAL);
-	}
-	if ((uint64_t)bytes > remaining)
-		bytes = (ssize_t)remaining;
-
-	/*
-	 * Decompress contents of file.
-	 */
-	*used = bytes;
-	if (decompress(a, buff, size, b, used) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-
-	/*
-	 * Update checksum of a compressed data and a extracted data.
-	 */
-	checksum_update(a, b, *used, *buff, *size);
-
-	return (ARCHIVE_OK);
+  conn->proto.httpc.settings.max_concurrent_streams =
+    DEFAULT_MAX_CONCURRENT_STREAMS;
 }
 
 /*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
+ * HTTP2 handler interface. This isn't added to the general list of protocols
+ * but will be used at run-time when the protocol is dynamically switched from
+ * HTTP to HTTP2.
  */
-
-static uint64_t
-atol10(const char *p, size_t char_cnt)
-{
-	uint64_t l;
-	int digit;
-
-	l = 0;
-	digit = *p - '0';
-	while (digit >= 0 && digit < 10  && char_cnt-- > 0) {
-		l = (l * 10) + digit;
-		digit = *++p - '0';
-	}
-	return (l);
-}
-
-static int64_t
-atol8(const char *p, size_t char_cnt)
-{
-	int64_t l;
-	int digit;
-        
-	l = 0;
-	while (char_cnt-- > 0) {
-		if (*p >= '0' && *p <= '7')
-			digit = *p - '0';
-		else
-			break;
-		p++;
-		l <<= 3;
-		l |= digit;
-	}
-	return (l);
-}
-
-static size_t
-atohex(unsigned char *b, size_t bsize, const char *p, size_t psize)
-{
-	size_t fbsize = bsize;
-
-	while (bsize && psize > 1) {
-		unsigned char x;
-
-		if (p[0] >= 'a' && p[0] <= 'z')
-			x = (p[0] - 'a' + 0x0a) << 4;
-		else if (p[0] >= 'A' && p[0] <= 'Z')
-			x = (p[0] - 'A' + 0x0a) << 4;
-		else if (p[0] >= '0' && p[0] <= '9')
-			x = (p[0] - '0') << 4;
-		else
-			return (-1);
-		if (p[1] >= 'a' && p[1] <= 'z')
-			x |= p[1] - 'a' + 0x0a;
-		else if (p[1] >= 'A' && p[1] <= 'Z')
-			x |= p[1] - 'A' + 0x0a;
-		else if (p[1] >= '0' && p[1] <= '9')
-			x |= p[1] - '0';
-		else
-			return (-1);
-		
-		*b++ = x;
-		bsize--;
-		p += 2;
-		psize -= 2;
-	}
-	return (fbsize - bsize);
-}
-
-static time_t
-time_from_tm(struct tm *t)
-{
-#if HAVE_TIMEGM
-        /* Use platform timegm() if available. */
-        return (timegm(t));
-#elif HAVE__MKGMTIME64
-        return (_mkgmtime64(t));
-#else
-        /* Else use direct calculation using POSIX assumptions. */
-        /* First, fix up tm_yday based on the year/month/day. */
-        mktime(t);
-        /* Then we can compute timegm() from first principles. */
-        return (t->tm_sec
-            + t->tm_min * 60
-            + t->tm_hour * 3600
-            + t->tm_yday * 86400
-            + (t->tm_year - 70) * 31536000
-            + ((t->tm_year - 69) / 4) * 86400
-            - ((t->tm_year - 1) / 100) * 86400
-            + ((t->tm_year + 299) / 400) * 86400);
-#endif
-}
-
-static time_t
-parse_time(const char *p, size_t n)
-{
-	struct tm tm;
-	time_t t = 0;
-	int64_t data;
-
-	memset(&tm, 0, sizeof(tm));
-	if (n != 20)
-		return (t);
-	data = atol10(p, 4);
-	if (data < 1900)
-		return (t);
-	tm.tm_year = (int)data - 1900;
-	p += 4;
-	if (*p++ != '-')
-		return (t);
-	data = atol10(p, 2);
-	if (data < 1 || data > 12)
-		return (t);
-	tm.tm_mon = (int)data -1;
-	p += 2;
-	if (*p++ != '-')
-		return (t);
-	data = atol10(p, 2);
-	if (data < 1 || data > 31)
-		return (t);
-	tm.tm_mday = (int)data;
-	p += 2;
-	if (*p++ != 'T')
-		return (t);
-	data = atol10(p, 2);
-	if (data < 0 || data > 23)
-		return (t);
-	tm.tm_hour = (int)data;
-	p += 2;
-	if (*p++ != ':')
-		return (t);
-	data = atol10(p, 2);
-	if (data < 0 || data > 59)
-		return (t);
-	tm.tm_min = (int)data;
-	p += 2;
-	if (*p++ != ':')
-		return (t);
-	data = atol10(p, 2);
-	if (data < 0 || data > 60)
-		return (t);
-	tm.tm_sec = (int)data;
-#if 0
-	p += 2;
-	if (*p != 'Z')
-		return (t);
-#endif
-
-	t = time_from_tm(&tm);
-
-	return (t);
-}
-
-static int
-heap_add_entry(struct archive_read *a,
-    struct heap_queue *heap, struct xar_file *file)
-{
-	uint64_t file_id, parent_id;
-	int hole, parent;
-
-	/* Expand our pending files list as necessary. */
-	if (heap->used >= heap->allocated) {
-		struct xar_file **new_pending_files;
-		int new_size = heap->allocated * 2;
-
-		if (heap->allocated < 1024)
-			new_size = 1024;
-		/* Overflow might keep us from growing the list. */
-		if (new_size <= heap->allocated) {
-			archive_set_error(&a->archive,
-			    ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
-		new_pending_files = (struct xar_file **)
-		    malloc(new_size * sizeof(new_pending_files[0]));
-		if (new_pending_files == NULL) {
-			archive_set_error(&a->archive,
-			    ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
-		memcpy(new_pending_files, heap->files,
-		    heap->allocated * sizeof(new_pending_files[0]));
-		if (heap->files != NULL)
-			free(heap->files);
-		heap->files = new_pending_files;
-		heap->allocated = new_size;
-	}
-
-	file_id = file->id;
-
-	/*
-	 * Start with hole at end, walk it up tree to find insertion point.
-	 */
-	hole = heap->used++;
-	while (hole > 0) {
-		parent = (hole - 1)/2;
-		parent_id = heap->files[parent]->id;
-		if (file_id >= parent_id) {
-			heap->files[hole] = file;
-			return (ARCHIVE_OK);
-		}
-		/* Move parent into hole <==> move hole up tree. */
-		heap->files[hole] = heap->files[parent];
-		hole = parent;
-	}
-	heap->files[0] = file;
-
-	return (ARCHIVE_OK);
-}
-
-static struct xar_file *
-heap_get_entry(struct heap_queue *heap)
-{
-	uint64_t a_id, b_id, c_id;
-	int a, b, c;
-	struct xar_file *r, *tmp;
-
-	if (heap->used < 1)
-		return (NULL);
-
-	/*
-	 * The first file in the list is the earliest; we'll return this.
-	 */
-	r = heap->files[0];
-
-	/*
-	 * Move the last item in the heap to the root of the tree
-	 */
-	heap->files[0] = heap->files[--(heap->used)];
-
-	/*
-	 * Rebalance the heap.
-	 */
-	a = 0; /* Starting element and its heap key */
-	a_id = heap->files[a]->id;
-	for (;;) {
-		b = a + a + 1; /* First child */
-		if (b >= heap->used)
-			return (r);
-		b_id = heap->files[b]->id;
-		c = b + 1; /* Use second child if it is smaller. */
-		if (c < heap->used) {
-			c_id = heap->files[c]->id;
-			if (c_id < b_id) {
-				b = c;
-				b_id = c_id;
-			}
-		}
-		if (a_id <= b_id)
-			return (r);
-		tmp = heap->files[a];
-		heap->files[a] = heap->files[b];
-		heap->files[b] = tmp;
-		a = b;
-	}
-}
-
-static int
-add_link(struct archive_read *a, struct xar *xar, struct xar_file *file)
-{
-	struct hdlink *hdlink;
-
-	for (hdlink = xar->hdlink_list; hdlink != NULL; hdlink = hdlink->next) {
-		if (hdlink->id == file->link) {
-			file->hdnext = hdlink->files;
-			hdlink->cnt++;
-			hdlink->files = file;
-			return (ARCHIVE_OK);
-		}
-	}
-	hdlink = malloc(sizeof(*hdlink));
-	if (hdlink == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	file->hdnext = NULL;
-	hdlink->id = file->link;
-	hdlink->cnt = 1;
-	hdlink->files = file;
-	hdlink->next = xar->hdlink_list;
-	xar->hdlink_list = hdlink;
-	return (ARCHIVE_OK);
-}
-
-static void
-_checksum_init(struct chksumwork *sumwrk, int sum_alg)
-{
-	sumwrk->alg = sum_alg;
-	switch (sum_alg) {
-	case CKSUM_NONE:
-		break;
-	case CKSUM_SHA1:
-		archive_sha1_init(&(sumwrk->sha1ctx));
-		break;
-	case CKSUM_MD5:
-		archive_md5_init(&(sumwrk->md5ctx));
-		break;
-	}
-}
-
-static void
-_checksum_update(struct chksumwork *sumwrk, const void *buff, size_t size)
-{
-
-	switch (sumwrk->alg) {
-	case CKSUM_NONE:
-		break;
-	case CKSUM_SHA1:
-		archive_sha1_update(&(sumwrk->sha1ctx), buff, size);
-		break;
-	case CKSUM_MD5:
-		archive_md5_update(&(sumwrk->md5ctx), buff, size);
-		break;
-	}
-}
-
-static int
-_checksum_final(struct chksumwork *sumwrk, const void *val, size_t len)
-{
-	unsigned char sum[MAX_SUM_SIZE];
-	int r = ARCHIVE_OK;
-
-	switch (sumwrk->alg) {
-	case CKSUM_NONE:
-		break;
-	case CKSUM_SHA1:
-		archive_sha1_final(&(sumwrk->sha1ctx), sum);
-		if (len != SHA1_SIZE ||
-		    memcmp(val, sum, SHA1_SIZE) != 0)
-			r = ARCHIVE_FAILED;
-		break;
-	case CKSUM_MD5:
-		archive_md5_final(&(sumwrk->md5ctx), sum);
-		if (len != MD5_SIZE ||
-		    memcmp(val, sum, MD5_SIZE) != 0)
-			r = ARCHIVE_FAILED;
-		break;
-	}
-	return (r);
-}
-
-static void
-checksum_init(struct archive_read *a, int a_sum_alg, int e_sum_alg)
-{
-	struct xar *xar;
-
-	xar = (struct xar *)(a->format->data);
-	_checksum_init(&(xar->a_sumwrk), a_sum_alg);
-	_checksum_init(&(xar->e_sumwrk), e_sum_alg);
-}
-
-static void
-checksum_update(struct archive_read *a, const void *abuff, size_t asize,
-    const void *ebuff, size_t esize)
-{
-	struct xar *xar;
-
-	xar = (struct xar *)(a->format->data);
-	_checksum_update(&(xar->a_sumwrk), abuff, asize);
-	_checksum_update(&(xar->e_sumwrk), ebuff, esize);
-}
-
-static int
-checksum_final(struct archive_read *a, const void *a_sum_val,
-    size_t a_sum_len, const void *e_sum_val, size_t e_sum_len)
-{
-	struct xar *xar;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-	r = _checksum_final(&(xar->a_sumwrk), a_sum_val, a_sum_len);
-	if (r == ARCHIVE_OK)
-		r = _checksum_final(&(xar->e_sumwrk), e_sum_val, e_sum_len);
-	if (r != ARCHIVE_OK)
-		archive_set_error(&(a->archive), ARCHIVE_ERRNO_MISC,
-		    "Sumcheck error");
-	return (r);
-}
-
-static int
-decompression_init(struct archive_read *a, enum enctype encoding)
-{
-	struct xar *xar;
-	const char *detail;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-	xar->rd_encoding = encoding;
-	switch (encoding) {
-	case NONE:
-		break;
-	case GZIP:
-		if (xar->stream_valid)
-			r = inflateReset(&(xar->stream));
-		else
-			r = inflateInit(&(xar->stream));
-		if (r != Z_OK) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Couldn't initialize zlib stream.");
-			return (ARCHIVE_FATAL);
-		}
-		xar->stream_valid = 1;
-		xar->stream.total_in = 0;
-		xar->stream.total_out = 0;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		if (xar->bzstream_valid) {
-			BZ2_bzDecompressEnd(&(xar->bzstream));
-			xar->bzstream_valid = 0;
-		}
-		r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 0);
-		if (r == BZ_MEM_ERROR)
-			r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1);
-		if (r != BZ_OK) {
-			int err = ARCHIVE_ERRNO_MISC;
-			detail = NULL;
-			switch (r) {
-			case BZ_PARAM_ERROR:
-				detail = "invalid setup parameter";
-				break;
-			case BZ_MEM_ERROR:
-				err = ENOMEM;
-				detail = "out of memory";
-				break;
-			case BZ_CONFIG_ERROR:
-				detail = "mis-compiled library";
-				break;
-			}
-			archive_set_error(&a->archive, err,
-			    "Internal error initializing decompressor: %s",
-			    detail == NULL ? "??" : detail);
-			xar->bzstream_valid = 0;
-			return (ARCHIVE_FATAL);
-		}
-		xar->bzstream_valid = 1;
-		xar->bzstream.total_in_lo32 = 0;
-		xar->bzstream.total_in_hi32 = 0;
-		xar->bzstream.total_out_lo32 = 0;
-		xar->bzstream.total_out_hi32 = 0;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-#if LZMA_VERSION_MAJOR >= 5
-/* Effectively disable the limiter. */
-#define LZMA_MEMLIMIT   UINT64_MAX
-#else
-/* NOTE: This needs to check memory size which running system has. */
-#define LZMA_MEMLIMIT   (1U << 30)
-#endif
-	case XZ:
-	case LZMA:
-		if (xar->lzstream_valid) {
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-		}
-		if (xar->entry_encoding == XZ)
-			r = lzma_stream_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT,/* memlimit */
-			    LZMA_CONCATENATED);
-		else
-			r = lzma_alone_decoder(&(xar->lzstream),
-			    LZMA_MEMLIMIT);/* memlimit */
-		if (r != LZMA_OK) {
-			switch (r) {
-			case LZMA_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Cannot allocate memory");
-				break;
-			case LZMA_OPTIONS_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "Invalid or unsupported options");
-				break;
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "lzma library");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		if (xar->lzstream_valid)
-			lzmadec_end(&(xar->lzstream));
-		r = lzmadec_init(&(xar->lzstream));
-		if (r != LZMADEC_OK) {
-			switch (r) {
-			case LZMADEC_HEADER_ERROR:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Internal error initializing "
-				    "compression library: "
-				    "invalid header");
-				break;
-			case LZMADEC_MEM_ERROR:
-				archive_set_error(&a->archive,
-				    ENOMEM,
-				    "Internal error initializing "
-				    "compression library: "
-				    "out of memory");
-				break;
-			}
-			return (ARCHIVE_FATAL);
-		}
-		xar->lzstream_valid = 1;
-		xar->lzstream.total_in = 0;
-		xar->lzstream.total_out = 0;
-		break;
-#endif
-	/*
-	 * Unsupported compression.
-	 */
-	default:
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-		switch (xar->entry_encoding) {
-		case BZIP2: detail = "bzip2"; break;
-		case LZMA: detail = "lzma"; break;
-		case XZ: detail = "xz"; break;
-		default: detail = "??"; break;
-		}
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "%s compression not supported on this platform",
-		    detail);
-		return (ARCHIVE_FAILED);
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-decompress(struct archive_read *a, const void **buff, size_t *outbytes,
-    const void *b, size_t *used)
-{
-	struct xar *xar;
-	void *outbuff;
-	size_t avail_in, avail_out;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-	avail_in = *used;
-	outbuff = (void *)(uintptr_t)*buff;
-	if (outbuff == NULL) {
-		if (xar->outbuff == NULL) {
-			xar->outbuff = malloc(OUTBUFF_SIZE);
-			if (xar->outbuff == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Couldn't allocate memory for out buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		outbuff = xar->outbuff;
-		*buff = outbuff;
-		avail_out = OUTBUFF_SIZE;
-	} else
-		avail_out = *outbytes;
-	switch (xar->rd_encoding) {
-	case GZIP:
-		xar->stream.next_in = (Bytef *)(uintptr_t)b;
-		xar->stream.avail_in = avail_in;
-		xar->stream.next_out = (unsigned char *)outbuff;
-		xar->stream.avail_out = avail_out;
-		r = inflate(&(xar->stream), 0);
-		switch (r) {
-		case Z_OK: /* Decompressor made some progress.*/
-		case Z_STREAM_END: /* Found end of stream. */
-			break;
-		default:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "File decompression failed (%d)", r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->stream.avail_in;
-		*outbytes = avail_out - xar->stream.avail_out;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		xar->bzstream.next_in = (char *)(uintptr_t)b;
-		xar->bzstream.avail_in = avail_in;
-		xar->bzstream.next_out = (char *)outbuff;
-		xar->bzstream.avail_out = avail_out;
-		r = BZ2_bzDecompress(&(xar->bzstream));
-		switch (r) {
-		case BZ_STREAM_END: /* Found end of stream. */
-			switch (BZ2_bzDecompressEnd(&(xar->bzstream))) {
-			case BZ_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->bzstream_valid = 0;
-			/* FALLTHROUGH */
-		case BZ_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "bzip decompression failed");
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->bzstream.avail_in;
-		*outbytes = avail_out - xar->bzstream.avail_out;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-	case LZMA:
-	case XZ:
-		xar->lzstream.next_in = b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzma_code(&(xar->lzstream), LZMA_RUN);
-		switch (r) {
-		case LZMA_STREAM_END: /* Found end of stream. */
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMA_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "%s decompression failed(%d)",
-			    (xar->entry_encoding == XZ)?"xz":"lzma",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		xar->lzstream.next_in = (unsigned char *)(uintptr_t)b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzmadec_decode(&(xar->lzstream), 0);
-		switch (r) {
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			switch (lzmadec_end(&(xar->lzstream))) {
-			case LZMADEC_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up lzmadec decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "lzmadec decompression failed(%d)",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#endif
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-	case NONE:
-	default:
-		if (outbuff == xar->outbuff) {
-			*buff = b;
-			*used = avail_in;
-			*outbytes = avail_in;
-		} else {
-			if (avail_out > avail_in)
-				avail_out = avail_in;
-			memcpy(outbuff, b, avail_out);
-			*used = avail_out;
-			*outbytes = avail_out;
-		}
-		break;
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-decompression_cleanup(struct archive_read *a)
-{
-	struct xar *xar;
-	int r;
-
-	xar = (struct xar *)(a->format->data);
-	r = ARCHIVE_OK;
-	if (xar->stream_valid) {
-		if (inflateEnd(&(xar->stream)) != Z_OK) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to clean up zlib decompressor");
-			r = ARCHIVE_FATAL;
-		}
-	}
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	if (xar->bzstream_valid) {
-		if (BZ2_bzDecompressEnd(&(xar->bzstream)) != BZ_OK) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to clean up bzip2 decompressor");
-			r = ARCHIVE_FATAL;
-		}
-	}
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-	if (xar->lzstream_valid)
-		lzma_end(&(xar->lzstream));
-#elif defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-	if (xar->lzstream_valid) {
-		if (lzmadec_end(&(xar->lzstream)) != LZMADEC_OK) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_MISC,
-			    "Failed to clean up lzmadec decompressor");
-			r = ARCHIVE_FATAL;
-		}
-	}
-#endif
-	return (r);
-}
-
-static void
-xmlattr_cleanup(struct xmlattr_list *list)
-{
-	struct xmlattr *attr, *next;
-
-	attr = list->first;
-	while (attr != NULL) {
-		next = attr->next;
-		free(attr->name);
-		free(attr->value);
-		free(attr);
-		attr = next;
-	}
-	list->first = NULL;
-	list->last = &(list->first);
-}
-
-static int
-file_new(struct archive_read *a, struct xar *xar, struct xmlattr_list *list)
-{
-	struct xar_file *file;
-	struct xmlattr *attr;
-
-	file = calloc(1, sizeof(*file));
-	if (file == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	file->parent = xar->file;
-	file->mode = 0777 | AE_IFREG;
-	file->atime = time(NULL);
-	file->mtime = time(NULL);
-	xar->file = file;
-	xar->xattr = NULL;
-	for (attr = list->first; attr != NULL; attr = attr->next) {
-		if (strcmp(attr->name, "id") == 0)
-			file->id = atol10(attr->value, strlen(attr->value));
-	}
-	file->nlink = 1;
-	if (heap_add_entry(a, &(xar->file_queue), file) != ARCHIVE_OK)
-		return (ARCHIVE_FATAL);
-	return (ARCHIVE_OK);
-}
-
-static void
-file_free(struct xar_file *file)
-{
-	struct xattr *xattr;
-
-	archive_string_free(&(file->pathname));
-	archive_string_free(&(file->symlink));
-	archive_string_free(&(file->uname));
-	archive_string_free(&(file->gname));
-	archive_string_free(&(file->hardlink));
-	xattr = file->xattr_list;
-	while (xattr != NULL) {
-		struct xattr *next;
-
-		next = xattr->next;
-		xattr_free(xattr);
-		xattr = next;
-	}
-
-	free(file);
-}
-
-static int
-xattr_new(struct archive_read *a, struct xar *xar, struct xmlattr_list *list)
-{
-	struct xattr *xattr, **nx;
-	struct xmlattr *attr;
-
-	xattr = calloc(1, sizeof(*xattr));
-	if (xattr == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	xar->xattr = xattr;
-	for (attr = list->first; attr != NULL; attr = attr->next) {
-		if (strcmp(attr->name, "id") == 0)
-			xattr->id = atol10(attr->value, strlen(attr->value));
-	}
-	/* Chain to xattr list. */
-	for (nx = &(xar->file->xattr_list);
-	    *nx != NULL; nx = &((*nx)->next)) {
-		if (xattr->id < (*nx)->id)
-			break;
-	}
-	xattr->next = *nx;
-	*nx = xattr;
-
-	return (ARCHIVE_OK);
-}
-
-static void
-xattr_free(struct xattr *xattr)
-{
-	archive_string_free(&(xattr->name));
-	free(xattr);
-}
-
-static int
-getencoding(struct xmlattr_list *list)
-{
-	struct xmlattr *attr;
-	enum enctype encoding = NONE;
-
-	for (attr = list->first; attr != NULL; attr = attr->next) {
-		if (strcmp(attr->name, "style") == 0) {
-			if (strcmp(attr->value, "application/octet-stream") == 0)
-				encoding = NONE;
-			else if (strcmp(attr->value, "application/x-gzip") == 0)
-				encoding = GZIP;
-			else if (strcmp(attr->value, "application/x-bzip2") == 0)
-				encoding = BZIP2;
-			else if (strcmp(attr->value, "application/x-lzma") == 0)
-				encoding = LZMA;
-			else if (strcmp(attr->value, "application/x-xz") == 0)
-				encoding = XZ;
-		}
-	}
-	return (encoding);
-}
-
-static int
-getsumalgorithm(struct xmlattr_list *list)
-{
-	struct xmlattr *attr;
-	int alg = CKSUM_NONE;
-
-	for (attr = list->first; attr != NULL; attr = attr->next) {
-		if (strcmp(attr->name, "style") == 0) {
-			const char *v = attr->value;
-			if ((v[0] == 'S' || v[0] == 's') &&
-			    (v[1] == 'H' || v[1] == 'h') &&
-			    (v[2] == 'A' || v[2] == 'a') &&
-			    v[3] == '1' && v[4] == '\0')
-				alg = CKSUM_SHA1;
-			if ((v[0] == 'M' || v[0] == 'm') &&
-			    (v[1] == 'D' || v[1] == 'd') &&
-			    v[2] == '5' && v[3] == '\0')
-				alg = CKSUM_MD5;
-		}
-	}
-	return (alg);
-}
-
-static int
-unknowntag_start(struct archive_read *a, struct xar *xar, const char *name)
-{
-	struct unknown_tag *tag;
-
-#if DEBUG
-	fprintf(stderr, "unknowntag_start:%s\n", name);
-#endif
-	tag = malloc(sizeof(*tag));
-	if (tag == NULL) {
-		archive_set_error(&a->archive, ENOMEM, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-	tag->next = xar->unknowntags;
-	archive_string_init(&(tag->name));
-	archive_strcpy(&(tag->name), name);
-	if (xar->unknowntags == NULL) {
-		xar->xmlsts_unknown = xar->xmlsts;
-		xar->xmlsts = UNKNOWN;
-	}
-	xar->unknowntags = tag;
-	return (ARCHIVE_OK);
-}
-
-static void
-unknowntag_end(struct xar *xar, const char *name)
-{
-	struct unknown_tag *tag;
-
-#if DEBUG
-	fprintf(stderr, "unknowntag_end:%s\n", name);
-#endif
-	tag = xar->unknowntags;
-	if (tag == NULL || name == NULL)
-		return;
-	if (strcmp(tag->name.s, name) == 0) {
-		xar->unknowntags = tag->next;
-		archive_string_free(&(tag->name));
-		free(tag);
-		if (xar->unknowntags == NULL)
-			xar->xmlsts = xar->xmlsts_unknown;
-	}
-}
-
-static int
-xml_start(struct archive_read *a, const char *name, struct xmlattr_list *list)
-{
-	struct xar *xar;
-	struct xmlattr *attr;
-
-	xar = (struct xar *)(a->format->data);
-
-#if DEBUG
-	fprintf(stderr, "xml_sta:[%s]\n", name);
-	for (attr = list->first; attr != NULL; attr = attr->next)
-		fprintf(stderr, "    attr:\"%s\"=\"%s\"\n",
-		    attr->name, attr->value);
-#endif
-	xar->base64text = 0;
-	switch (xar->xmlsts) {
-	case INIT:
-		if (strcmp(name, "xar") == 0)
-			xar->xmlsts = XAR;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case XAR:
-		if (strcmp(name, "toc") == 0)
-			xar->xmlsts = TOC;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case TOC:
-		if (strcmp(name, "creation-time") == 0)
-			xar->xmlsts = TOC_CREATION_TIME;
-		else if (strcmp(name, "checksum") == 0)
-			xar->xmlsts = TOC_CHECKSUM;
-		else if (strcmp(name, "file") == 0) {
-			if (file_new(a, xar, list) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-			xar->xmlsts = TOC_FILE;
-		}
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case TOC_CHECKSUM:
-		if (strcmp(name, "offset") == 0)
-			xar->xmlsts = TOC_CHECKSUM_OFFSET;
-		else if (strcmp(name, "size") == 0)
-			xar->xmlsts = TOC_CHECKSUM_SIZE;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case TOC_FILE:
-		if (strcmp(name, "file") == 0) {
-			if (file_new(a, xar, list) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		}
-		else if (strcmp(name, "data") == 0)
-			xar->xmlsts = FILE_DATA;
-		else if (strcmp(name, "ea") == 0) {
-			if (xattr_new(a, xar, list) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-			xar->xmlsts = FILE_EA;
-		}
-		else if (strcmp(name, "ctime") == 0)
-			xar->xmlsts = FILE_CTIME;
-		else if (strcmp(name, "mtime") == 0)
-			xar->xmlsts = FILE_MTIME;
-		else if (strcmp(name, "atime") == 0)
-			xar->xmlsts = FILE_ATIME;
-		else if (strcmp(name, "group") == 0)
-			xar->xmlsts = FILE_GROUP;
-		else if (strcmp(name, "gid") == 0)
-			xar->xmlsts = FILE_GID;
-		else if (strcmp(name, "user") == 0)
-			xar->xmlsts = FILE_USER;
-		else if (strcmp(name, "uid") == 0)
-			xar->xmlsts = FILE_UID;
-		else if (strcmp(name, "mode") == 0)
-			xar->xmlsts = FILE_MODE;
-		else if (strcmp(name, "device") == 0)
-			xar->xmlsts = FILE_DEVICE;
-		else if (strcmp(name, "deviceno") == 0)
-			xar->xmlsts = FILE_DEVICENO;
-		else if (strcmp(name, "inode") == 0)
-			xar->xmlsts = FILE_INODE;
-		else if (strcmp(name, "link") == 0)
-			xar->xmlsts = FILE_LINK;
-		else if (strcmp(name, "type") == 0) {
-			xar->xmlsts = FILE_TYPE;
-			for (attr = list->first; attr != NULL;
-			    attr = attr->next) {
-				if (strcmp(attr->name, "link") != 0)
-					continue;
-				if (strcmp(attr->value, "original") == 0) {
-					xar->file->hdnext = xar->hdlink_orgs;
-					xar->hdlink_orgs = xar->file;
-				} else {
-					xar->file->link = (unsigned)atol10(attr->value,
-					    strlen(attr->value));
-					if (xar->file->link > 0)
-						if (add_link(a, xar, xar->file) != ARCHIVE_OK) {
-							return (ARCHIVE_FATAL);
-						};
-				}
-			}
-		}
-		else if (strcmp(name, "name") == 0) {
-			xar->xmlsts = FILE_NAME;
-			for (attr = list->first; attr != NULL;
-			    attr = attr->next) {
-				if (strcmp(attr->name, "enctype") == 0 &&
-				    strcmp(attr->value, "base64") == 0)
-					xar->base64text = 1;
-			}
-		}
-		else if (strcmp(name, "acl") == 0)
-			xar->xmlsts = FILE_ACL;
-		else if (strcmp(name, "flags") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		else if (strcmp(name, "ext2") == 0)
-			xar->xmlsts = FILE_EXT2;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case FILE_DATA:
-		if (strcmp(name, "length") == 0)
-			xar->xmlsts = FILE_DATA_LENGTH;
-		else if (strcmp(name, "offset") == 0)
-			xar->xmlsts = FILE_DATA_OFFSET;
-		else if (strcmp(name, "size") == 0)
-			xar->xmlsts = FILE_DATA_SIZE;
-		else if (strcmp(name, "encoding") == 0) {
-			xar->xmlsts = FILE_DATA_ENCODING;
-			xar->file->encoding = getencoding(list);
-		}
-		else if (strcmp(name, "archived-checksum") == 0) {
-			xar->xmlsts = FILE_DATA_A_CHECKSUM;
-			xar->file->a_sum.alg = getsumalgorithm(list);
-		}
-		else if (strcmp(name, "extracted-checksum") == 0) {
-			xar->xmlsts = FILE_DATA_E_CHECKSUM;
-			xar->file->e_sum.alg = getsumalgorithm(list);
-		}
-		else if (strcmp(name, "content") == 0)
-			xar->xmlsts = FILE_DATA_CONTENT;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case FILE_DEVICE:
-		if (strcmp(name, "major") == 0)
-			xar->xmlsts = FILE_DEVICE_MAJOR;
-		else if (strcmp(name, "minor") == 0)
-			xar->xmlsts = FILE_DEVICE_MINOR;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case FILE_DATA_CONTENT:
-		if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-		break;
-	case FILE_EA:
-		if (strcmp(name, "length") == 0)
-			xar->xmlsts = FILE_EA_LENGTH;
-		else if (strcmp(name, "offset") == 0)
-			xar->xmlsts = FILE_EA_OFFSET;
-		else if (strcmp(name, "size") == 0)
-			xar->xmlsts = FILE_EA_SIZE;
-		else if (strcmp(name, "encoding") == 0) {
-			xar->xmlsts = FILE_EA_ENCODING;
-			xar->xattr->encoding = getencoding(list);
-		} else if (strcmp(name, "archived-checksum") == 0)
-			xar->xmlsts = FILE_EA_A_CHECKSUM;
-		else if (strcmp(name, "extracted-checksum") == 0)
-			xar->xmlsts = FILE_EA_E_CHECKSUM;
-		else if (strcmp(name, "name") == 0)
-			xar->xmlsts = FILE_EA_NAME;
-		else if (strcmp(name, "fstype") == 0)
-			xar->xmlsts = FILE_EA_FSTYPE;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case FILE_ACL:
-		if (strcmp(name, "appleextended") == 0)
-			xar->xmlsts = FILE_ACL_APPLEEXTENDED;
-		if (strcmp(name, "default") == 0)
-			xar->xmlsts = FILE_ACL_DEFAULT;
-		else if (strcmp(name, "access") == 0)
-			xar->xmlsts = FILE_ACL_ACCESS;
-		else
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case FILE_FLAGS:
-		if (!xml_parse_file_flags(xar, name))
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case FILE_EXT2:
-		if (!xml_parse_file_ext2(xar, name))
-			if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-				return (ARCHIVE_FATAL);
-		break;
-	case TOC_CREATION_TIME:
-	case TOC_CHECKSUM_OFFSET:
-	case TOC_CHECKSUM_SIZE:
-	case FILE_DATA_LENGTH:
-	case FILE_DATA_OFFSET:
-	case FILE_DATA_SIZE:
-	case FILE_DATA_ENCODING:
-	case FILE_DATA_A_CHECKSUM:
-	case FILE_DATA_E_CHECKSUM:
-	case FILE_EA_LENGTH:
-	case FILE_EA_OFFSET:
-	case FILE_EA_SIZE:
-	case FILE_EA_ENCODING:
-	case FILE_EA_A_CHECKSUM:
-	case FILE_EA_E_CHECKSUM:
-	case FILE_EA_NAME:
-	case FILE_EA_FSTYPE:
-	case FILE_CTIME:
-	case FILE_MTIME:
-	case FILE_ATIME:
-	case FILE_GROUP:
-	case FILE_GID:
-	case FILE_USER:
-	case FILE_UID:
-	case FILE_INODE:
-	case FILE_DEVICE_MAJOR:
-	case FILE_DEVICE_MINOR:
-	case FILE_DEVICENO:
-	case FILE_MODE:
-	case FILE_TYPE:
-	case FILE_LINK:
-	case FILE_NAME:
-	case FILE_ACL_DEFAULT:
-	case FILE_ACL_ACCESS:
-	case FILE_ACL_APPLEEXTENDED:
-	case FILE_FLAGS_USER_NODUMP:
-	case FILE_FLAGS_USER_IMMUTABLE:
-	case FILE_FLAGS_USER_APPEND:
-	case FILE_FLAGS_USER_OPAQUE:
-	case FILE_FLAGS_USER_NOUNLINK:
-	case FILE_FLAGS_SYS_ARCHIVED:
-	case FILE_FLAGS_SYS_IMMUTABLE:
-	case FILE_FLAGS_SYS_APPEND:
-	case FILE_FLAGS_SYS_NOUNLINK:
-	case FILE_FLAGS_SYS_SNAPSHOT:
-	case FILE_EXT2_SecureDeletion:
-	case FILE_EXT2_Undelete:
-	case FILE_EXT2_Compress:
-	case FILE_EXT2_Synchronous:
-	case FILE_EXT2_Immutable:
-	case FILE_EXT2_AppendOnly:
-	case FILE_EXT2_NoDump:
-	case FILE_EXT2_NoAtime:
-	case FILE_EXT2_CompDirty:
-	case FILE_EXT2_CompBlock:
-	case FILE_EXT2_NoCompBlock:
-	case FILE_EXT2_CompError:
-	case FILE_EXT2_BTree:
-	case FILE_EXT2_HashIndexed:
-	case FILE_EXT2_iMagic:
-	case FILE_EXT2_Journaled:
-	case FILE_EXT2_NoTail:
-	case FILE_EXT2_DirSync:
-	case FILE_EXT2_TopDir:
-	case FILE_EXT2_Reserved:
-	case UNKNOWN:
-		if (unknowntag_start(a, xar, name) != ARCHIVE_OK)
-			return (ARCHIVE_FATAL);
-		break;
-	}
-	return (ARCHIVE_OK);
-}
-
-static void
-xml_end(void *userData, const char *name)
-{
-	struct archive_read *a;
-	struct xar *xar;
-
-	a = (struct archive_read *)userData;
-	xar = (struct xar *)(a->format->data);
-
-#if DEBUG
-	fprintf(stderr, "xml_end:[%s]\n", name);
-#endif
-	switch (xar->xmlsts) {
-	case INIT:
-		break;
-	case XAR:
-		if (strcmp(name, "xar") == 0)
-			xar->xmlsts = INIT;
-		break;
-	case TOC:
-		if (strcmp(name, "toc") == 0)
-			xar->xmlsts = XAR;
-		break;
-	case TOC_CREATION_TIME:
-		if (strcmp(name, "creation-time") == 0)
-			xar->xmlsts = TOC;
-		break;
-	case TOC_CHECKSUM:
-		if (strcmp(name, "checksum") == 0)
-			xar->xmlsts = TOC;
-		break;
-	case TOC_CHECKSUM_OFFSET:
-		if (strcmp(name, "offset") == 0)
-			xar->xmlsts = TOC_CHECKSUM;
-		break;
-	case TOC_CHECKSUM_SIZE:
-		if (strcmp(name, "size") == 0)
-			xar->xmlsts = TOC_CHECKSUM;
-		break;
-	case TOC_FILE:
-		if (strcmp(name, "file") == 0) {
-			if (xar->file->parent != NULL &&
-			    ((xar->file->mode & AE_IFMT) == AE_IFDIR))
-				xar->file->parent->subdirs++;
-			xar->file = xar->file->parent;
-			if (xar->file == NULL)
-				xar->xmlsts = TOC;
-		}
-		break;
-	case FILE_DATA:
-		if (strcmp(name, "data") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_DATA_LENGTH:
-		if (strcmp(name, "length") == 0)
-			xar->xmlsts = FILE_DATA;
-		break;
-	case FILE_DATA_OFFSET:
-		if (strcmp(name, "offset") == 0)
-			xar->xmlsts = FILE_DATA;
-		break;
-	case FILE_DATA_SIZE:
-		if (strcmp(name, "size") == 0)
-			xar->xmlsts = FILE_DATA;
-		break;
-	case FILE_DATA_ENCODING:
-		if (strcmp(name, "encoding") == 0)
-			xar->xmlsts = FILE_DATA;
-		break;
-	case FILE_DATA_A_CHECKSUM:
-		if (strcmp(name, "archived-checksum") == 0)
-			xar->xmlsts = FILE_DATA;
-		break;
-	case FILE_DATA_E_CHECKSUM:
-		if (strcmp(name, "extracted-checksum") == 0)
-			xar->xmlsts = FILE_DATA;
-		break;
-	case FILE_DATA_CONTENT:
-		if (strcmp(name, "content") == 0)
-			xar->xmlsts = FILE_DATA;
-		break;
-	case FILE_EA:
-		if (strcmp(name, "ea") == 0) {
-			xar->xmlsts = TOC_FILE;
-			xar->xattr = NULL;
-		}
-		break;
-	case FILE_EA_LENGTH:
-		if (strcmp(name, "length") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_EA_OFFSET:
-		if (strcmp(name, "offset") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_EA_SIZE:
-		if (strcmp(name, "size") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_EA_ENCODING:
-		if (strcmp(name, "encoding") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_EA_A_CHECKSUM:
-		if (strcmp(name, "archived-checksum") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_EA_E_CHECKSUM:
-		if (strcmp(name, "extracted-checksum") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_EA_NAME:
-		if (strcmp(name, "name") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_EA_FSTYPE:
-		if (strcmp(name, "fstype") == 0)
-			xar->xmlsts = FILE_EA;
-		break;
-	case FILE_CTIME:
-		if (strcmp(name, "ctime") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_MTIME:
-		if (strcmp(name, "mtime") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_ATIME:
-		if (strcmp(name, "atime") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_GROUP:
-		if (strcmp(name, "group") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_GID:
-		if (strcmp(name, "gid") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_USER:
-		if (strcmp(name, "user") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_UID:
-		if (strcmp(name, "uid") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_MODE:
-		if (strcmp(name, "mode") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_DEVICE:
-		if (strcmp(name, "device") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_DEVICE_MAJOR:
-		if (strcmp(name, "major") == 0)
-			xar->xmlsts = FILE_DEVICE;
-		break;
-	case FILE_DEVICE_MINOR:
-		if (strcmp(name, "minor") == 0)
-			xar->xmlsts = FILE_DEVICE;
-		break;
-	case FILE_DEVICENO:
-		if (strcmp(name, "deviceno") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_INODE:
-		if (strcmp(name, "inode") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_LINK:
-		if (strcmp(name, "link") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_TYPE:
-		if (strcmp(name, "type") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_NAME:
-		if (strcmp(name, "name") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_ACL:
-		if (strcmp(name, "acl") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_ACL_DEFAULT:
-		if (strcmp(name, "default") == 0)
-			xar->xmlsts = FILE_ACL;
-		break;
-	case FILE_ACL_ACCESS:
-		if (strcmp(name, "access") == 0)
-			xar->xmlsts = FILE_ACL;
-		break;
-	case FILE_ACL_APPLEEXTENDED:
-		if (strcmp(name, "appleextended") == 0)
-			xar->xmlsts = FILE_ACL;
-		break;
-	case FILE_FLAGS:
-		if (strcmp(name, "flags") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_FLAGS_USER_NODUMP:
-		if (strcmp(name, "UserNoDump") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_USER_IMMUTABLE:
-		if (strcmp(name, "UserImmutable") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_USER_APPEND:
-		if (strcmp(name, "UserAppend") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_USER_OPAQUE:
-		if (strcmp(name, "UserOpaque") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_USER_NOUNLINK:
-		if (strcmp(name, "UserNoUnlink") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_SYS_ARCHIVED:
-		if (strcmp(name, "SystemArchived") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_SYS_IMMUTABLE:
-		if (strcmp(name, "SystemImmutable") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_SYS_APPEND:
-		if (strcmp(name, "SystemAppend") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_SYS_NOUNLINK:
-		if (strcmp(name, "SystemNoUnlink") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_FLAGS_SYS_SNAPSHOT:
-		if (strcmp(name, "SystemSnapshot") == 0)
-			xar->xmlsts = FILE_FLAGS;
-		break;
-	case FILE_EXT2:
-		if (strcmp(name, "ext2") == 0)
-			xar->xmlsts = TOC_FILE;
-		break;
-	case FILE_EXT2_SecureDeletion:
-		if (strcmp(name, "SecureDeletion") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_Undelete:
-		if (strcmp(name, "Undelete") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_Compress:
-		if (strcmp(name, "Compress") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_Synchronous:
-		if (strcmp(name, "Synchronous") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_Immutable:
-		if (strcmp(name, "Immutable") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_AppendOnly:
-		if (strcmp(name, "AppendOnly") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_NoDump:
-		if (strcmp(name, "NoDump") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_NoAtime:
-		if (strcmp(name, "NoAtime") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_CompDirty:
-		if (strcmp(name, "CompDirty") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_CompBlock:
-		if (strcmp(name, "CompBlock") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_NoCompBlock:
-		if (strcmp(name, "NoCompBlock") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_CompError:
-		if (strcmp(name, "CompError") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_BTree:
-		if (strcmp(name, "BTree") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_HashIndexed:
-		if (strcmp(name, "HashIndexed") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_iMagic:
-		if (strcmp(name, "iMagic") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_Journaled:
-		if (strcmp(name, "Journaled") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_NoTail:
-		if (strcmp(name, "NoTail") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_DirSync:
-		if (strcmp(name, "DirSync") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_TopDir:
-		if (strcmp(name, "TopDir") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case FILE_EXT2_Reserved:
-		if (strcmp(name, "Reserved") == 0)
-			xar->xmlsts = FILE_EXT2;
-		break;
-	case UNKNOWN:
-		unknowntag_end(xar, name);
-		break;
-	}
-}
-
-static const int base64[256] = {
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* 00 - 0F */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* 10 - 1F */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, 62, -1, -1, -1, 63, /* 20 - 2F */
-	52, 53, 54, 55, 56, 57, 58, 59,
-	60, 61, -1, -1, -1, -1, -1, -1, /* 30 - 3F */
-	-1,  0,  1,  2,  3,  4,  5,  6,
-	 7,  8,  9, 10, 11, 12, 13, 14, /* 40 - 4F */
-	15, 16, 17, 18, 19, 20, 21, 22,
-	23, 24, 25, -1, -1, -1, -1, -1, /* 50 - 5F */
-	-1, 26, 27, 28, 29, 30, 31, 32,
-	33, 34, 35, 36, 37, 38, 39, 40, /* 60 - 6F */
-	41, 42, 43, 44, 45, 46, 47, 48,
-	49, 50, 51, -1, -1, -1, -1, -1, /* 70 - 7F */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* 80 - 8F */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* 90 - 9F */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* A0 - AF */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* B0 - BF */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* C0 - CF */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* D0 - DF */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* E0 - EF */
-	-1, -1, -1, -1, -1, -1, -1, -1,
-	-1, -1, -1, -1, -1, -1, -1, -1, /* F0 - FF */
+const struct Curl_handler Curl_handler_http2 = {
+  "HTTP2",                              /* scheme */
+  ZERO_NULL,                            /* setup_connection */
+  Curl_http,                            /* do_it */
+  Curl_http_done,                       /* done */
+  ZERO_NULL,                            /* do_more */
+  ZERO_NULL,                            /* connect_it */
+  ZERO_NULL,                            /* connecting */
+  ZERO_NULL,                            /* doing */
+  http2_getsock,                        /* proto_getsock */
+  http2_getsock,                        /* doing_getsock */
+  ZERO_NULL,                            /* domore_getsock */
+  http2_perform_getsock,                /* perform_getsock */
+  http2_disconnect,                     /* disconnect */
+  ZERO_NULL,                            /* readwrite */
+  PORT_HTTP,                            /* defport */
+  CURLPROTO_HTTP,                       /* protocol */
+  PROTOPT_NONE                          /* flags */
 };
 
-static void
-strappend_base64(struct xar *xar,
-    struct archive_string *as, const char *s, size_t l)
+const struct Curl_handler Curl_handler_http2_ssl = {
+  "HTTP2",                              /* scheme */
+  ZERO_NULL,                            /* setup_connection */
+  Curl_http,                            /* do_it */
+  Curl_http_done,                       /* done */
+  ZERO_NULL,                            /* do_more */
+  ZERO_NULL,                            /* connect_it */
+  ZERO_NULL,                            /* connecting */
+  ZERO_NULL,                            /* doing */
+  http2_getsock,                        /* proto_getsock */
+  http2_getsock,                        /* doing_getsock */
+  ZERO_NULL,                            /* domore_getsock */
+  http2_perform_getsock,                /* perform_getsock */
+  http2_disconnect,                     /* disconnect */
+  ZERO_NULL,                            /* readwrite */
+  PORT_HTTP,                            /* defport */
+  CURLPROTO_HTTPS,                      /* protocol */
+  PROTOPT_SSL                           /* flags */
+};
+
+/*
+ * Store nghttp2 version info in this buffer, Prefix with a space.  Return
+ * total length written.
+ */
+int Curl_http2_ver(char *p, size_t len)
 {
-	unsigned char buff[256];
-	unsigned char *out;
-	const unsigned char *b;
-	size_t len;
-
-	(void)xar; /* UNUSED */
-	len = 0;
-	out = buff;
-	b = (const unsigned char *)s;
-	while (l > 0) {
-		int n = 0;
-
-		if (l > 0) {
-			if (base64[b[0]] < 0 || base64[b[1]] < 0)
-				break;
-			n = base64[*b++] << 18;
-			n |= base64[*b++] << 12;
-			*out++ = n >> 16;
-			len++;
-			l -= 2;
-		}
-		if (l > 0) {
-			if (base64[*b] < 0)
-				break;
-			n |= base64[*b++] << 6;
-			*out++ = (n >> 8) & 0xFF;
-			len++;
-			--l;
-		}
-		if (l > 0) {
-			if (base64[*b] < 0)
-				break;
-			n |= base64[*b++];
-			*out++ = n & 0xFF;
-			len++;
-			--l;
-		}
-		if (len+3 >= sizeof(buff)) {
-			archive_strncat(as, (const char *)buff, len);
-			len = 0;
-			out = buff;
-		}
-	}
-	if (len > 0)
-		archive_strncat(as, (const char *)buff, len);
-}
-
-static void
-xml_data(void *userData, const char *s, int len)
-{
-	struct archive_read *a;
-	struct xar *xar;
-
-	a = (struct archive_read *)userData;
-	xar = (struct xar *)(a->format->data);
-
-#if DEBUG
-	{
-		char buff[1024];
-		if (len > sizeof(buff)-1)
-			len = sizeof(buff)-1;
-		memcpy(buff, s, len);
-		buff[len] = 0;
-		fprintf(stderr, "\tlen=%d:\"%s\"\n", len, buff);
-	}
-#endif
-	switch (xar->xmlsts) {
-	case TOC_CHECKSUM_OFFSET:
-		xar->toc_chksum_offset = atol10(s, len);
-		break;
-	case TOC_CHECKSUM_SIZE:
-		xar->toc_chksum_size = atol10(s, len);
-		break;
-	default:
-		break;
-	}
-	if (xar->file == NULL)
-		return;
-
-	switch (xar->xmlsts) {
-	case FILE_NAME:
-		if (xar->file->parent != NULL) {
-			archive_string_concat(&(xar->file->pathname),
-			    &(xar->file->parent->pathname));
-			archive_strappend_char(&(xar->file->pathname), '/');
-		}
-		xar->file->has |= HAS_PATHNAME;
-		if (xar->base64text) {
-			strappend_base64(xar,
-			    &(xar->file->pathname), s, len);
-		} else
-			archive_strncat(&(xar->file->pathname), s, len);
-		break;
-	case FILE_LINK:
-		xar->file->has |= HAS_SYMLINK;
-		archive_strncpy(&(xar->file->symlink), s, len);
-		break;
-	case FILE_TYPE:
-		if (strncmp("file", s, len) == 0 ||
-		    strncmp("hardlink", s, len) == 0)
-			xar->file->mode =
-			    (xar->file->mode & ~AE_IFMT) | AE_IFREG;
-		if (strncmp("directory", s, len) == 0)
-			xar->file->mode =
-			    (xar->file->mode & ~AE_IFMT) | AE_IFDIR;
-		if (strncmp("symlink", s, len) == 0)
-			xar->file->mode =
-			    (xar->file->mode & ~AE_IFMT) | AE_IFLNK;
-		if (strncmp("character special", s, len) == 0)
-			xar->file->mode =
-			    (xar->file->mode & ~AE_IFMT) | AE_IFCHR;
-		if (strncmp("block special", s, len) == 0)
-			xar->file->mode =
-			    (xar->file->mode & ~AE_IFMT) | AE_IFBLK;
-		if (strncmp("socket", s, len) == 0)
-			xar->file->mode =
-			    (xar->file->mode & ~AE_IFMT) | AE_IFSOCK;
-		if (strncmp("fifo", s, len) == 0)
-			xar->file->mode =
-			    (xar->file->mode & ~AE_IFMT) | AE_IFIFO;
-		xar->file->has |= HAS_TYPE;
-		break;
-	case FILE_INODE:
-		xar->file->has |= HAS_INO;
-		xar->file->ino64 = atol10(s, len);
-		break;
-	case FILE_DEVICE_MAJOR:
-		xar->file->has |= HAS_DEVMAJOR;
-		xar->file->devmajor = (dev_t)atol10(s, len);
-		break;
-	case FILE_DEVICE_MINOR:
-		xar->file->has |= HAS_DEVMINOR;
-		xar->file->devminor = (dev_t)atol10(s, len);
-		break;
-	case FILE_DEVICENO:
-		xar->file->has |= HAS_DEV;
-		xar->file->dev = (dev_t)atol10(s, len);
-		break;
-	case FILE_MODE:
-		xar->file->has |= HAS_MODE;
-		xar->file->mode =
-		    (xar->file->mode & AE_IFMT) |
-		    ((mode_t)(atol8(s, len)) & ~AE_IFMT);
-		break;
-	case FILE_GROUP:
-		xar->file->has |= HAS_GID;
-		archive_strncpy(&(xar->file->gname), s, len);
-		break;
-	case FILE_GID:
-		xar->file->has |= HAS_GID;
-		xar->file->gid = atol10(s, len);
-		break;
-	case FILE_USER:
-		xar->file->has |= HAS_UID;
-		archive_strncpy(&(xar->file->uname), s, len);
-		break;
-	case FILE_UID:
-		xar->file->has |= HAS_UID;
-		xar->file->uid = atol10(s, len);
-		break;
-	case FILE_CTIME:
-		xar->file->has |= HAS_TIME;
-		xar->file->ctime = parse_time(s, len);
-		break;
-	case FILE_MTIME:
-		xar->file->has |= HAS_TIME;
-		xar->file->mtime = parse_time(s, len);
-		break;
-	case FILE_ATIME:
-		xar->file->has |= HAS_TIME;
-		xar->file->atime = parse_time(s, len);
-		break;
-	case FILE_DATA_LENGTH:
-		xar->file->has |= HAS_DATA;
-		xar->file->length = atol10(s, len);
-		break;
-	case FILE_DATA_OFFSET:
-		xar->file->has |= HAS_DATA;
-		xar->file->offset = atol10(s, len);
-		break;
-	case FILE_DATA_SIZE:
-		xar->file->has |= HAS_DATA;
-		xar->file->size = atol10(s, len);
-		break;
-	case FILE_DATA_A_CHECKSUM:
-		xar->file->a_sum.len = atohex(xar->file->a_sum.val,
-		    sizeof(xar->file->a_sum.val), s, len);
-		break;
-	case FILE_DATA_E_CHECKSUM:
-		xar->file->e_sum.len = atohex(xar->file->e_sum.val,
-		    sizeof(xar->file->e_sum.val), s, len);
-		break;
-	case FILE_EA_LENGTH:
-		xar->file->has |= HAS_XATTR;
-		xar->xattr->length = atol10(s, len);
-		break;
-	case FILE_EA_OFFSET:
-		xar->file->has |= HAS_XATTR;
-		xar->xattr->offset = atol10(s, len);
-		break;
-	case FILE_EA_SIZE:
-		xar->file->has |= HAS_XATTR;
-		xar->xattr->size = atol10(s, len);
-		break;
-	case FILE_EA_A_CHECKSUM:
-		xar->file->has |= HAS_XATTR;
-		xar->xattr->a_sum.len = atohex(xar->xattr->a_sum.val,
-		    sizeof(xar->xattr->a_sum.val), s, len);
-		break;
-	case FILE_EA_E_CHECKSUM:
-		xar->file->has |= HAS_XATTR;
-		xar->xattr->e_sum.len = atohex(xar->xattr->e_sum.val,
-		    sizeof(xar->xattr->e_sum.val), s, len);
-		break;
-	case FILE_EA_NAME:
-		xar->file->has |= HAS_XATTR;
-		archive_strncpy(&(xar->xattr->name), s, len);
-		break;
-	case FILE_EA_FSTYPE:
-		xar->file->has |= HAS_XATTR;
-		archive_strncpy(&(xar->xattr->fstype), s, len);
-		break;
-		break;
-	case FILE_ACL_DEFAULT:
-	case FILE_ACL_ACCESS:
-	case FILE_ACL_APPLEEXTENDED:
-		xar->file->has |= HAS_ACL;
-		/* TODO */
-		break;
-	case INIT:
-	case XAR:
-	case TOC:
-	case TOC_CREATION_TIME:
-	case TOC_CHECKSUM:
-	case TOC_CHECKSUM_OFFSET:
-	case TOC_CHECKSUM_SIZE:
-	case TOC_FILE:
-	case FILE_DATA:
-	case FILE_DATA_ENCODING:
-	case FILE_DATA_CONTENT:
-	case FILE_DEVICE:
-	case FILE_EA:
-	case FILE_EA_ENCODING:
-	case FILE_ACL:
-	case FILE_FLAGS:
-	case FILE_FLAGS_USER_NODUMP:
-	case FILE_FLAGS_USER_IMMUTABLE:
-	case FILE_FLAGS_USER_APPEND:
-	case FILE_FLAGS_USER_OPAQUE:
-	case FILE_FLAGS_USER_NOUNLINK:
-	case FILE_FLAGS_SYS_ARCHIVED:
-	case FILE_FLAGS_SYS_IMMUTABLE:
-	case FILE_FLAGS_SYS_APPEND:
-	case FILE_FLAGS_SYS_NOUNLINK:
-	case FILE_FLAGS_SYS_SNAPSHOT:
-	case FILE_EXT2:
-	case FILE_EXT2_SecureDeletion:
-	case FILE_EXT2_Undelete:
-	case FILE_EXT2_Compress:
-	case FILE_EXT2_Synchronous:
-	case FILE_EXT2_Immutable:
-	case FILE_EXT2_AppendOnly:
-	case FILE_EXT2_NoDump:
-	case FILE_EXT2_NoAtime:
-	case FILE_EXT2_CompDirty:
-	case FILE_EXT2_CompBlock:
-	case FILE_EXT2_NoCompBlock:
-	case FILE_EXT2_CompError:
-	case FILE_EXT2_BTree:
-	case FILE_EXT2_HashIndexed:
-	case FILE_EXT2_iMagic:
-	case FILE_EXT2_Journaled:
-	case FILE_EXT2_NoTail:
-	case FILE_EXT2_DirSync:
-	case FILE_EXT2_TopDir:
-	case FILE_EXT2_Reserved:
-	case UNKNOWN:
-		break;
-	}
+  nghttp2_info *h2 = nghttp2_version(0);
+  return snprintf(p, len, " nghttp2/%s", h2->version_str);
 }
 
 /*
- * BSD file flags.
+ * The implementation of nghttp2_send_callback type. Here we write |data| with
+ * size |length| to the network and return the number of bytes actually
+ * written. See the documentation of nghttp2_send_callback for the details.
  */
-static int
-xml_parse_file_flags(struct xar *xar, const char *name)
+static ssize_t send_callback(nghttp2_session *h2,
+                             const uint8_t *data, size_t length, int flags,
+                             void *userp)
 {
-	const char *flag = NULL;
+  struct connectdata *conn = (struct connectdata *)userp;
+  struct http_conn *c = &conn->proto.httpc;
+  ssize_t written;
+  CURLcode result = CURLE_OK;
 
-	if (strcmp(name, "UserNoDump") == 0) {
-		xar->xmlsts = FILE_FLAGS_USER_NODUMP;
-		flag = "nodump";
-	}
-	else if (strcmp(name, "UserImmutable") == 0) {
-		xar->xmlsts = FILE_FLAGS_USER_IMMUTABLE;
-		flag = "uimmutable";
-	}
-	else if (strcmp(name, "UserAppend") == 0) {
-		xar->xmlsts = FILE_FLAGS_USER_APPEND;
-		flag = "uappend";
-	}
-	else if (strcmp(name, "UserOpaque") == 0) {
-		xar->xmlsts = FILE_FLAGS_USER_OPAQUE;
-		flag = "opaque";
-	}
-	else if (strcmp(name, "UserNoUnlink") == 0) {
-		xar->xmlsts = FILE_FLAGS_USER_NOUNLINK;
-		flag = "nouunlink";
-	}
-	else if (strcmp(name, "SystemArchived") == 0) {
-		xar->xmlsts = FILE_FLAGS_SYS_ARCHIVED;
-		flag = "archived";
-	}
-	else if (strcmp(name, "SystemImmutable") == 0) {
-		xar->xmlsts = FILE_FLAGS_SYS_IMMUTABLE;
-		flag = "simmutable";
-	}
-	else if (strcmp(name, "SystemAppend") == 0) {
-		xar->xmlsts = FILE_FLAGS_SYS_APPEND;
-		flag = "sappend";
-	}
-	else if (strcmp(name, "SystemNoUnlink") == 0) {
-		xar->xmlsts = FILE_FLAGS_SYS_NOUNLINK;
-		flag = "nosunlink";
-	}
-	else if (strcmp(name, "SystemSnapshot") == 0) {
-		xar->xmlsts = FILE_FLAGS_SYS_SNAPSHOT;
-		flag = "snapshot";
-	}
+  (void)h2;
+  (void)flags;
 
-	if (flag == NULL)
-		return (0);
-	xar->file->has |= HAS_FFLAGS;
-	if (archive_strlen(&(xar->file->fflags_text)) > 0)
-		archive_strappend_char(&(xar->file->fflags_text), ',');
-	archive_strcat(&(xar->file->fflags_text), flag);
-	return (1);
+  written = ((Curl_send*)c->send_underlying)(conn, FIRSTSOCKET,
+                                             data, length, &result);
+
+  if(result == CURLE_AGAIN) {
+    return NGHTTP2_ERR_WOULDBLOCK;
+  }
+
+  if(written == -1) {
+    failf(conn->data, "Failed sending HTTP2 data");
+    return NGHTTP2_ERR_CALLBACK_FAILURE;
+  }
+
+  if(!written)
+    return NGHTTP2_ERR_WOULDBLOCK;
+
+  return written;
+}
+
+
+/* We pass a pointer to this struct in the push callback, but the contents of
+   the struct are hidden from the user. */
+struct curl_pushheaders {
+  struct SessionHandle *data;
+  const nghttp2_push_promise *frame;
+};
+
+/*
+ * push header access function. Only to be used from within the push callback
+ */
+char *curl_pushheader_bynum(struct curl_pushheaders *h, size_t num)
+{
+  /* Verify that we got a good easy handle in the push header struct, mostly to
+     detect rubbish input fast(er). */
+  if(!h || !GOOD_EASY_HANDLE(h->data))
+    return NULL;
+  else {
+    struct HTTP *stream = h->data->req.protop;
+    if(num < stream->push_headers_used)
+      return stream->push_headers[num];
+  }
+  return NULL;
 }
 
 /*
- * Linux file flags.
+ * push header access function. Only to be used from within the push callback
  */
-static int
-xml_parse_file_ext2(struct xar *xar, const char *name)
+char *curl_pushheader_byname(struct curl_pushheaders *h, const char *header)
 {
-	const char *flag = NULL;
-
-	if (strcmp(name, "SecureDeletion") == 0) {
-		xar->xmlsts = FILE_EXT2_SecureDeletion;
-		flag = "securedeletion";
-	}
-	else if (strcmp(name, "Undelete") == 0) {
-		xar->xmlsts = FILE_EXT2_Undelete;
-		flag = "nouunlink";
-	}
-	else if (strcmp(name, "Compress") == 0) {
-		xar->xmlsts = FILE_EXT2_Compress;
-		flag = "compress";
-	}
-	else if (strcmp(name, "Synchronous") == 0) {
-		xar->xmlsts = FILE_EXT2_Synchronous;
-		flag = "sync";
-	}
-	else if (strcmp(name, "Immutable") == 0) {
-		xar->xmlsts = FILE_EXT2_Immutable;
-		flag = "simmutable";
-	}
-	else if (strcmp(name, "AppendOnly") == 0) {
-		xar->xmlsts = FILE_EXT2_AppendOnly;
-		flag = "sappend";
-	}
-	else if (strcmp(name, "NoDump") == 0) {
-		xar->xmlsts = FILE_EXT2_NoDump;
-		flag = "nodump";
-	}
-	else if (strcmp(name, "NoAtime") == 0) {
-		xar->xmlsts = FILE_EXT2_NoAtime;
-		flag = "noatime";
-	}
-	else if (strcmp(name, "CompDirty") == 0) {
-		xar->xmlsts = FILE_EXT2_CompDirty;
-		flag = "compdirty";
-	}
-	else if (strcmp(name, "CompBlock") == 0) {
-		xar->xmlsts = FILE_EXT2_CompBlock;
-		flag = "comprblk";
-	}
-	else if (strcmp(name, "NoCompBlock") == 0) {
-		xar->xmlsts = FILE_EXT2_NoCompBlock;
-		flag = "nocomprblk";
-	}
-	else if (strcmp(name, "CompError") == 0) {
-		xar->xmlsts = FILE_EXT2_CompError;
-		flag = "comperr";
-	}
-	else if (strcmp(name, "BTree") == 0) {
-		xar->xmlsts = FILE_EXT2_BTree;
-		flag = "btree";
-	}
-	else if (strcmp(name, "HashIndexed") == 0) {
-		xar->xmlsts = FILE_EXT2_HashIndexed;
-		flag = "hashidx";
-	}
-	else if (strcmp(name, "iMagic") == 0) {
-		xar->xmlsts = FILE_EXT2_iMagic;
-		flag = "imagic";
-	}
-	else if (strcmp(name, "Journaled") == 0) {
-		xar->xmlsts = FILE_EXT2_Journaled;
-		flag = "journal";
-	}
-	else if (strcmp(name, "NoTail") == 0) {
-		xar->xmlsts = FILE_EXT2_NoTail;
-		flag = "notail";
-	}
-	else if (strcmp(name, "DirSync") == 0) {
-		xar->xmlsts = FILE_EXT2_DirSync;
-		flag = "dirsync";
-	}
-	else if (strcmp(name, "TopDir") == 0) {
-		xar->xmlsts = FILE_EXT2_TopDir;
-		flag = "topdir";
-	}
-	else if (strcmp(name, "Reserved") == 0) {
-		xar->xmlsts = FILE_EXT2_Reserved;
-		flag = "reserved";
-	}
-
-	if (flag == NULL)
-		return (0);
-	if (archive_strlen(&(xar->file->fflags_text)) > 0)
-		archive_strappend_char(&(xar->file->fflags_text), ',');
-	archive_strcat(&(xar->file->fflags_text), flag);
-	return (1);
+  /* Verify that we got a good easy handle in the push header struct,
+     mostly to detect rubbish input fast(er). Also empty header name
+     is just a rubbish too. We have to allow ":" at the beginning of
+     the header, but header == ":" must be rejected. If we have ':' in
+     the middle of header, it could be matched in middle of the value,
+     this is because we do prefix match.*/
+  if(!h || !GOOD_EASY_HANDLE(h->data) || !header || !header[0] ||
+     Curl_raw_equal(header, ":") || strchr(header + 1, ':'))
+    return NULL;
+  else {
+    struct HTTP *stream = h->data->req.protop;
+    size_t len = strlen(header);
+    size_t i;
+    for(i=0; i<stream->push_headers_used; i++) {
+      if(!strncmp(header, stream->push_headers[i], len)) {
+        /* sub-match, make sure that it us followed by a colon */
+        if(stream->push_headers[i][len] != ':')
+          continue;
+        return &stream->push_headers[i][len+1];
+      }
+    }
+  }
+  return NULL;
 }
 
-#ifdef HAVE_LIBXML_XMLREADER_H
-
-static int
-xml2_xmlattr_setup(struct archive_read *a,
-    struct xmlattr_list *list, xmlTextReaderPtr reader)
+static CURL *duphandle(struct SessionHandle *data)
 {
-	struct xmlattr *attr;
-	int r;
-
-	list->first = NULL;
-	list->last = &(list->first);
-	r = xmlTextReaderMoveToFirstAttribute(reader);
-	while (r == 1) {
-		attr = malloc(sizeof*(attr));
-		if (attr == NULL) {
-			archive_set_error(&a->archive, ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
-		attr->name = strdup(
-		    (const char *)xmlTextReaderConstLocalName(reader));
-		if (attr->name == NULL) {
-			free(attr);
-			archive_set_error(&a->archive, ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
-		attr->value = strdup(
-		    (const char *)xmlTextReaderConstValue(reader));
-		if (attr->value == NULL) {
-			free(attr->name);
-			free(attr);
-			archive_set_error(&a->archive, ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
-		attr->next = NULL;
-		*list->last = attr;
-		list->last = &(attr->next);
-		r = xmlTextReaderMoveToNextAttribute(reader);
-	}
-	return (r);
+  struct SessionHandle *second = curl_easy_duphandle(data);
+  if(second) {
+    /* setup the request struct */
+    struct HTTP *http = calloc(1, sizeof(struct HTTP));
+    if(!http) {
+      (void)Curl_close(second);
+      second = NULL;
+    }
+    else {
+      second->req.protop = http;
+      http->header_recvbuf = Curl_add_buffer_init();
+      if(!http->header_recvbuf) {
+        free(http);
+        (void)Curl_close(second);
+        second = NULL;
+      }
+      else
+        Curl_http2_setup_req(second);
+    }
+  }
+  return second;
 }
 
-static int
-xml2_read_cb(void *context, char *buffer, int len)
+
+static int push_promise(struct SessionHandle *data,
+                        struct connectdata *conn,
+                        const nghttp2_push_promise *frame)
 {
-	struct archive_read *a;
-	struct xar *xar;
-	const void *d;
-	size_t outbytes;
-	size_t used;
-	int r;
+  int rv;
+  DEBUGF(infof(data, "PUSH_PROMISE received, stream %u!\n",
+               frame->promised_stream_id));
+  if(data->multi->push_cb) {
+    struct HTTP *stream;
+    struct curl_pushheaders heads;
+    CURLMcode rc;
+    struct http_conn *httpc;
+    size_t i;
+    /* clone the parent */
+    CURL *newhandle = duphandle(data);
+    if(!newhandle) {
+      infof(data, "failed to duplicate handle\n");
+      rv = 1; /* FAIL HARD */
+      goto fail;
+    }
 
-	a = (struct archive_read *)context;
-	xar = (struct xar *)(a->format->data);
+    heads.data = data;
+    heads.frame = frame;
+    /* ask the application */
+    DEBUGF(infof(data, "Got PUSH_PROMISE, ask application!\n"));
 
-	if (xar->toc_remaining <= 0)
-		return (0);
-	d = buffer;
-	outbytes = len;
-	r = rd_contents(a, &d, &outbytes, &used, xar->toc_remaining);
-	if (r != ARCHIVE_OK)
-		return (r);
-	__archive_read_consume(a, used);
-	xar->toc_remaining -= used;
-	xar->offset += used;
-	xar->toc_total += outbytes;
-	PRINT_TOC(buffer, len);
+    stream = data->req.protop;
+    if(!stream) {
+      failf(data, "Internal NULL stream!\n");
+      rv = 1;
+      goto fail;
+    }
 
-	return ((int)outbytes);
+    rv = data->multi->push_cb(data, newhandle,
+                              stream->push_headers_used, &heads,
+                              data->multi->push_userp);
+
+    /* free the headers again */
+    for(i=0; i<stream->push_headers_used; i++)
+      free(stream->push_headers[i]);
+    free(stream->push_headers);
+    stream->push_headers = NULL;
+
+    if(rv) {
+      /* denied, kill off the new handle again */
+      (void)Curl_close(newhandle);
+      goto fail;
+    }
+
+    /* approved, add to the multi handle and immediately switch to PERFORM
+       state with the given connection !*/
+    rc = Curl_multi_add_perform(data->multi, newhandle, conn);
+    if(rc) {
+      infof(data, "failed to add handle to multi\n");
+      Curl_close(newhandle);
+      rv = 1;
+      goto fail;
+    }
+
+    httpc = &conn->proto.httpc;
+    nghttp2_session_set_stream_user_data(httpc->h2,
+                                         frame->promised_stream_id, newhandle);
+  }
+  else {
+    DEBUGF(infof(data, "Got PUSH_PROMISE, ignore it!\n"));
+    rv = 1;
+  }
+  fail:
+  return rv;
 }
 
-static int
-xml2_close_cb(void *context)
+static int on_frame_recv(nghttp2_session *session, const nghttp2_frame *frame,
+                         void *userp)
 {
+  struct connectdata *conn = NULL;
+  struct http_conn *httpc = NULL;
+  struct SessionHandle *data_s = NULL;
+  struct HTTP *stream = NULL;
+  static int lastStream = -1;
+  int rv;
+  size_t left, ncopy;
+  int32_t stream_id = frame->hd.stream_id;
 
-	(void)context; /* UNUSED */
-	return (0);
+  (void)userp;
+
+  if(!stream_id) {
+    /* stream ID zero is for connection-oriented stuff */
+    return 0;
+  }
+  data_s = nghttp2_session_get_stream_user_data(session,
+                                                frame->hd.stream_id);
+  if(lastStream != frame->hd.stream_id) {
+    lastStream = frame->hd.stream_id;
+  }
+  if(!data_s) {
+    DEBUGF(infof(conn->data,
+                 "No SessionHandle associated with stream: %x\n",
+                 stream_id));
+    return 0;
+  }
+
+  stream = data_s->req.protop;
+  if(!stream)
+    return NGHTTP2_ERR_CALLBACK_FAILURE;
+
+  DEBUGF(infof(data_s, "on_frame_recv() header %x stream %x\n",
+               frame->hd.type, stream_id));
+
+  conn = data_s->easy_conn;
+  assert(conn);
+  assert(conn->data == data_s);
+  httpc = &conn->proto.httpc;
+  switch(frame->hd.type) {
+  case NGHTTP2_DATA:
+    /* If body started on this stream, then receiving DATA is illegal. */
+    if(!stream->bodystarted) {
+      rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE,
+                                     stream_id, NGHTTP2_PROTOCOL_ERROR);
+
+      if(nghttp2_is_fatal(rv)) {
+        return NGHTTP2_ERR_CALLBACK_FAILURE;
+      }
+    }
+    break;
+  case NGHTTP2_HEADERS:
+    if(frame->headers.cat == NGHTTP2_HCAT_REQUEST)
+      break;
+
+    if(stream->bodystarted) {
+      /* Only valid HEADERS after body started is trailer HEADERS.  We
+         ignores trailer HEADERS for now.  nghttp2 guarantees that it
+         has END_STREAM flag set. */
+      break;
+    }
+
+    /* nghttp2 guarantees that :status is received, and we store it to
+       stream->status_code */
+    DEBUGASSERT(stream->status_code != -1);
+
+    /* Only final status code signals the end of header */
+    if(stream->status_code / 100 != 1) {
+      stream->bodystarted = TRUE;
+      stream->status_code = -1;
+    }
+
+    Curl_add_buffer(stream->header_recvbuf, "\r\n", 2);
+
+    left = stream->header_recvbuf->size_used - stream->nread_header_recvbuf;
+    ncopy = MIN(stream->len, left);
+
+    memcpy(&stream->mem[stream->memlen],
+           stream->header_recvbuf->buffer + stream->nread_header_recvbuf,
+           ncopy);
+    stream->nread_header_recvbuf += ncopy;
+
+    DEBUGF(infof(data_s, "Store %zu bytes headers from stream %u at %p\n",
+                 ncopy, stream_id, stream->mem));
+
+    stream->len -= ncopy;
+    stream->memlen += ncopy;
+
+    data_s->state.drain++;
+    Curl_expire(data_s, 1);
+    break;
+  case NGHTTP2_PUSH_PROMISE:
+    rv = push_promise(data_s, conn, &frame->push_promise);
+    if(rv) { /* deny! */
+      rv = nghttp2_submit_rst_stream(session, NGHTTP2_FLAG_NONE,
+                                     frame->push_promise.promised_stream_id,
+                                     NGHTTP2_CANCEL);
+      if(nghttp2_is_fatal(rv)) {
+        return rv;
+      }
+    }
+    break;
+  case NGHTTP2_SETTINGS:
+  {
+    uint32_t max_conn = httpc->settings.max_concurrent_streams;
+    DEBUGF(infof(conn->data, "Got SETTINGS for stream %u!\n", stream_id));
+    httpc->settings.max_concurrent_streams =
+      nghttp2_session_get_remote_settings(
+        session, NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS);
+    httpc->settings.enable_push =
+      nghttp2_session_get_remote_settings(
+        session, NGHTTP2_SETTINGS_ENABLE_PUSH);
+    DEBUGF(infof(conn->data, "MAX_CONCURRENT_STREAMS == %d\n",
+                 httpc->settings.max_concurrent_streams));
+    DEBUGF(infof(conn->data, "ENABLE_PUSH == %s\n",
+                 httpc->settings.enable_push?"TRUE":"false"));
+    if(max_conn != httpc->settings.max_concurrent_streams) {
+      /* only signal change if the value actually changed */
+      infof(conn->data,
+            "Connection state changed (MAX_CONCURRENT_STREAMS updated)!\n");
+      Curl_multi_connchanged(conn->data->multi);
+    }
+  }
+  break;
+  default:
+    DEBUGF(infof(conn->data, "Got frame type %x for stream %u!\n",
+                 frame->hd.type, stream_id));
+    break;
+  }
+  return 0;
 }
 
-static void
-xml2_error_hdr(void *arg, const char *msg, xmlParserSeverities severity,
-    xmlTextReaderLocatorPtr locator)
+static int on_invalid_frame_recv(nghttp2_session *session,
+                                 const nghttp2_frame *frame,
+                                 int lib_error_code, void *userp)
 {
-	struct archive_read *a;
+  struct SessionHandle *data_s = NULL;
+  (void)userp;
 
-	(void)locator; /* UNUSED */
-	a = (struct archive_read *)arg;
-	switch (severity) {
-	case XML_PARSER_SEVERITY_VALIDITY_WARNING:
-	case XML_PARSER_SEVERITY_WARNING:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "XML Parsing error: %s", msg);
-		break;
-	case XML_PARSER_SEVERITY_VALIDITY_ERROR:
-	case XML_PARSER_SEVERITY_ERROR:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "XML Parsing error: %s", msg);
-		break;
-	}
+  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+  if(data_s) {
+    DEBUGF(infof(data_s,
+                 "on_invalid_frame_recv() was called, error=%d:%s\n",
+                 lib_error_code, nghttp2_strerror(lib_error_code)));
+  }
+  return 0;
 }
 
-static int
-xml2_read_toc(struct archive_read *a)
+static int on_data_chunk_recv(nghttp2_session *session, uint8_t flags,
+                              int32_t stream_id,
+                              const uint8_t *data, size_t len, void *userp)
 {
-	xmlTextReaderPtr reader;
-	struct xmlattr_list list;
-	int r;
+  struct HTTP *stream;
+  struct SessionHandle *data_s;
+  size_t nread;
+  (void)session;
+  (void)flags;
+  (void)data;
+  (void)userp;
 
-	reader = xmlReaderForIO(xml2_read_cb, xml2_close_cb, a, NULL, NULL, 0);
-	if (reader == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Couldn't allocate memory for xml parser");
-		return (ARCHIVE_FATAL);
-	}
-	xmlTextReaderSetErrorHandler(reader, xml2_error_hdr, a);
+  DEBUGASSERT(stream_id); /* should never be a zero stream ID here */
 
-	while ((r = xmlTextReaderRead(reader)) == 1) {
-		const char *name, *value;
-		int type, empty;
+  /* get the stream from the hash based on Stream ID */
+  data_s = nghttp2_session_get_stream_user_data(session, stream_id);
+  if(!data_s)
+    /* Receiving a Stream ID not in the hash should not happen, this is an
+       internal error more than anything else! */
+    return NGHTTP2_ERR_CALLBACK_FAILURE;
 
-		type = xmlTextReaderNodeType(reader);
-		name = (const char *)xmlTextReaderConstLocalName(reader);
-		switch (type) {
-		case XML_READER_TYPE_ELEMENT:
-			empty = xmlTextReaderIsEmptyElement(reader);
-			r = xml2_xmlattr_setup(a, &list, reader);
-			if (r == ARCHIVE_OK)
-				r = xml_start(a, name, &list);
-			xmlattr_cleanup(&list);
-			if (r != ARCHIVE_OK)
-				return (r);
-			if (empty)
-				xml_end(a, name);
-			break;
-		case XML_READER_TYPE_END_ELEMENT:
-			xml_end(a, name);
-			break;
-		case XML_READER_TYPE_TEXT:
-			value = (const char *)xmlTextReaderConstValue(reader);
-			xml_data(a, value, strlen(value));
-			break;
-		case XML_READER_TYPE_SIGNIFICANT_WHITESPACE:
-		default:
-			break;
-		}
-		if (r < 0)
-			break;
-	}
-	xmlFreeTextReader(reader);
-	xmlCleanupParser();
+  stream = data_s->req.protop;
+  if(!stream)
+    return NGHTTP2_ERR_CALLBACK_FAILURE;
 
-	return ((r == 0)?ARCHIVE_OK:ARCHIVE_FATAL);
+  nread = MIN(stream->len, len);
+  memcpy(&stream->mem[stream->memlen], data, nread);
+
+  stream->len -= nread;
+  stream->memlen += nread;
+
+  data_s->state.drain++;
+  Curl_expire(data_s, 1); /* TODO: fix so that this can be set to 0 for
+                             immediately? */
+
+  DEBUGF(infof(data_s, "%zu data received for stream %u "
+               "(%zu left in buffer %p, total %zu)\n",
+               nread, stream_id,
+               stream->len, stream->mem,
+               stream->memlen));
+
+  if(nread < len) {
+    stream->pausedata = data + nread;
+    stream->pauselen = len - nread;
+    DEBUGF(infof(data_s, "NGHTTP2_ERR_PAUSE - %zu bytes out of buffer"
+                 ", stream %u\n",
+                 len - nread, stream_id));
+    data_s->easy_conn->proto.httpc.pause_stream_id = stream_id;
+    return NGHTTP2_ERR_PAUSE;
+  }
+  return 0;
 }
 
-#elif defined(HAVE_BSDXML_H) || defined(HAVE_EXPAT_H)
-
-static int
-expat_xmlattr_setup(struct archive_read *a,
-    struct xmlattr_list *list, const XML_Char **atts)
+static int before_frame_send(nghttp2_session *session,
+                             const nghttp2_frame *frame,
+                             void *userp)
 {
-	struct xmlattr *attr;
-	char *name, *value;
+  struct SessionHandle *data_s;
+  (void)userp;
 
-	list->first = NULL;
-	list->last = &(list->first);
-	if (atts == NULL)
-		return (ARCHIVE_OK);
-	while (atts[0] != NULL && atts[1] != NULL) {
-		attr = malloc(sizeof*(attr));
-		name = strdup(atts[0]);
-		value = strdup(atts[1]);
-		if (attr == NULL || name == NULL || value == NULL) {
-			archive_set_error(&a->archive, ENOMEM, "Out of memory");
-			return (ARCHIVE_FATAL);
-		}
-		attr->name = name;
-		attr->value = value;
-		attr->next = NULL;
-		*list->last = attr;
-		list->last = &(attr->next);
-		atts += 2;
-	}
-	return (ARCHIVE_OK);
+  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+  if(data_s) {
+    DEBUGF(infof(data_s, "before_frame_send() was called\n"));
+  }
+
+  return 0;
+}
+static int on_frame_send(nghttp2_session *session,
+                         const nghttp2_frame *frame,
+                         void *userp)
+{
+  struct SessionHandle *data_s;
+  (void)userp;
+
+  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+  if(data_s) {
+    DEBUGF(infof(data_s, "on_frame_send() was called, length = %zd\n",
+                 frame->hd.length));
+  }
+  return 0;
+}
+static int on_frame_not_send(nghttp2_session *session,
+                             const nghttp2_frame *frame,
+                             int lib_error_code, void *userp)
+{
+  struct SessionHandle *data_s;
+  (void)userp;
+
+  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+  if(data_s) {
+    DEBUGF(infof(data_s,
+                 "on_frame_not_send() was called, lib_error_code = %d\n",
+                 lib_error_code));
+  }
+  return 0;
+}
+static int on_stream_close(nghttp2_session *session, int32_t stream_id,
+                           uint32_t error_code, void *userp)
+{
+  struct SessionHandle *data_s;
+  struct HTTP *stream;
+  (void)session;
+  (void)stream_id;
+  (void)userp;
+
+  if(stream_id) {
+    /* get the stream from the hash based on Stream ID, stream ID zero is for
+       connection-oriented stuff */
+    data_s = nghttp2_session_get_stream_user_data(session, stream_id);
+    if(!data_s) {
+      /* We could get stream ID not in the hash.  For example, if we
+         decided to reject stream (e.g., PUSH_PROMISE). */
+      return 0;
+    }
+    DEBUGF(infof(data_s, "on_stream_close(), error_code = %d, stream %u\n",
+                 error_code, stream_id));
+    stream = data_s->req.protop;
+    if(!stream)
+      return NGHTTP2_ERR_CALLBACK_FAILURE;
+
+    stream->error_code = error_code;
+    stream->closed = TRUE;
+
+    /* remove the entry from the hash as the stream is now gone */
+    nghttp2_session_set_stream_user_data(session, stream_id, 0);
+    DEBUGF(infof(data_s, "Removed stream %u hash!\n", stream_id));
+  }
+  return 0;
 }
 
-static void
-expat_start_cb(void *userData, const XML_Char *name, const XML_Char **atts)
+static int on_begin_headers(nghttp2_session *session,
+                            const nghttp2_frame *frame, void *userp)
 {
-	struct expat_userData *ud = (struct expat_userData *)userData;
-	struct archive_read *a = ud->archive;
-	struct xmlattr_list list;
-	int r;
+  struct SessionHandle *data_s = NULL;
+  (void)userp;
 
-	r = expat_xmlattr_setup(a, &list, atts);
-	if (r == ARCHIVE_OK)
-		r = xml_start(a, (const char *)name, &list);
-	xmlattr_cleanup(&list);
-	ud->state = r;
+  data_s = nghttp2_session_get_stream_user_data(session, frame->hd.stream_id);
+  if(data_s) {
+    DEBUGF(infof(data_s, "on_begin_headers() was called\n"));
+  }
+  return 0;
 }
 
-static void
-expat_end_cb(void *userData, const XML_Char *name)
+/* Decode HTTP status code.  Returns -1 if no valid status code was
+   decoded. */
+static int decode_status_code(const uint8_t *value, size_t len)
 {
-	struct expat_userData *ud = (struct expat_userData *)userData;
+  int i;
+  int res;
 
-	xml_end(ud->archive, (const char *)name);
+  if(len != 3) {
+    return -1;
+  }
+
+  res = 0;
+
+  for(i = 0; i < 3; ++i) {
+    char c = value[i];
+
+    if(c < '0' || c > '9') {
+      return -1;
+    }
+
+    res *= 10;
+    res += c - '0';
+  }
+
+  return res;
 }
 
-static void
-expat_data_cb(void *userData, const XML_Char *s, int len)
+/* frame->hd.type is either NGHTTP2_HEADERS or NGHTTP2_PUSH_PROMISE */
+static int on_header(nghttp2_session *session, const nghttp2_frame *frame,
+                     const uint8_t *name, size_t namelen,
+                     const uint8_t *value, size_t valuelen,
+                     uint8_t flags,
+                     void *userp)
 {
-	struct expat_userData *ud = (struct expat_userData *)userData;
+  struct HTTP *stream;
+  struct SessionHandle *data_s;
+  int32_t stream_id = frame->hd.stream_id;
 
-	xml_data(ud->archive, s, len);
+  (void)flags;
+  (void)userp;
+
+  DEBUGASSERT(stream_id); /* should never be a zero stream ID here */
+
+  /* get the stream from the hash based on Stream ID */
+  data_s = nghttp2_session_get_stream_user_data(session, stream_id);
+  if(!data_s)
+    /* Receiving a Stream ID not in the hash should not happen, this is an
+       internal error more than anything else! */
+    return NGHTTP2_ERR_CALLBACK_FAILURE;
+
+  stream = data_s->req.protop;
+  if(!stream) {
+    failf(data_s, "Internal NULL stream! 5\n");
+    return NGHTTP2_ERR_CALLBACK_FAILURE;
+  }
+
+  if(stream->bodystarted)
+    /* Ignore trailer or HEADERS not mapped to HTTP semantics.  The
+       consequence is handled in on_frame_recv(). */
+    return 0;
+
+  /* Store received PUSH_PROMISE headers to be used when the subsequent
+     PUSH_PROMISE callback comes */
+  if(frame->hd.type == NGHTTP2_PUSH_PROMISE) {
+    char *h;
+
+    if(!stream->push_headers) {
+      stream->push_headers_alloc = 10;
+      stream->push_headers = malloc(stream->push_headers_alloc *
+                                    sizeof(char *));
+      stream->push_headers_used = 0;
+    }
+    else if(stream->push_headers_used ==
+            stream->push_headers_alloc) {
+      char **headp;
+      stream->push_headers_alloc *= 2;
+      headp = realloc(stream->push_headers,
+                      stream->push_headers_alloc * sizeof(char *));
+      if(!headp) {
+        free(stream->push_headers);
+        stream->push_headers = NULL;
+        return NGHTTP2_ERR_TEMPORAL_CALLBACK_FAILURE;
+      }
+      stream->push_headers = headp;
+    }
+    h = aprintf("%s:%s", name, value);
+    if(h)
+      stream->push_headers[stream->push_headers_used++] = h;
+    return 0;
+  }
+
+  if(namelen == sizeof(":status") - 1 &&
+     memcmp(":status", name, namelen) == 0) {
+    /* nghttp2 guarantees :status is received first and only once, and
+       value is 3 digits status code, and decode_status_code always
+       succeeds. */
+    stream->status_code = decode_status_code(value, valuelen);
+    DEBUGASSERT(stream->status_code != -1);
+
+    Curl_add_buffer(stream->header_recvbuf, "HTTP/2.0 ", 9);
+    Curl_add_buffer(stream->header_recvbuf, value, valuelen);
+    Curl_add_buffer(stream->header_recvbuf, "\r\n", 2);
+    data_s->state.drain++;
+    Curl_expire(data_s, 1);
+
+    DEBUGF(infof(data_s, "h2 status: HTTP/2 %03d\n",
+                 stream->status_code));
+    return 0;
+  }
+
+  /* nghttp2 guarantees that namelen > 0, and :status was already
+     received, and this is not pseudo-header field . */
+  /* convert to a HTTP1-style header */
+  Curl_add_buffer(stream->header_recvbuf, name, namelen);
+  Curl_add_buffer(stream->header_recvbuf, ":", 1);
+  Curl_add_buffer(stream->header_recvbuf, value, valuelen);
+  Curl_add_buffer(stream->header_recvbuf, "\r\n", 2);
+  data_s->state.drain++;
+  Curl_expire(data_s, 1);
+
+  DEBUGF(infof(data_s, "h2 header: %.*s: %.*s\n", namelen, name, valuelen,
+               value));
+
+  return 0; /* 0 is successful */
 }
 
-static int
-expat_read_toc(struct archive_read *a)
+static ssize_t data_source_read_callback(nghttp2_session *session,
+                                         int32_t stream_id,
+                                         uint8_t *buf, size_t length,
+                                         uint32_t *data_flags,
+                                         nghttp2_data_source *source,
+                                         void *userp)
 {
-	struct xar *xar;
-	XML_Parser parser;
-	struct expat_userData ud;
+  struct SessionHandle *data_s;
+  struct HTTP *stream = NULL;
+  size_t nread;
+  (void)source;
+  (void)userp;
 
-	ud.state = ARCHIVE_OK;
-	ud.archive = a;
+  if(stream_id) {
+    /* get the stream from the hash based on Stream ID, stream ID zero is for
+       connection-oriented stuff */
+    data_s = nghttp2_session_get_stream_user_data(session, stream_id);
+    if(!data_s)
+      /* Receiving a Stream ID not in the hash should not happen, this is an
+         internal error more than anything else! */
+      return NGHTTP2_ERR_CALLBACK_FAILURE;
 
-	xar = (struct xar *)(a->format->data);
+    stream = data_s->req.protop;
+    if(!stream)
+      return NGHTTP2_ERR_CALLBACK_FAILURE;
+  }
+  else
+    return NGHTTP2_ERR_INVALID_ARGUMENT;
 
-	/* Initialize XML Parser library. */
-	parser = XML_ParserCreate(NULL);
-	if (parser == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Couldn't allocate memory for xml parser");
-		return (ARCHIVE_FATAL);
-	}
-	XML_SetUserData(parser, &ud);
-	XML_SetElementHandler(parser, expat_start_cb, expat_end_cb);
-	XML_SetCharacterDataHandler(parser, expat_data_cb);
-	xar->xmlsts = INIT;
+  nread = MIN(stream->upload_len, length);
+  if(nread > 0) {
+    memcpy(buf, stream->upload_mem, nread);
+    stream->upload_mem += nread;
+    stream->upload_len -= nread;
+    stream->upload_left -= nread;
+  }
 
-	while (xar->toc_remaining && ud.state == ARCHIVE_OK) {
-		enum XML_Status xr;
-		const void *d;
-		size_t outbytes;
-		size_t used;
-		int r;
+  if(stream->upload_left == 0)
+    *data_flags = 1;
+  else if(nread == 0)
+    return NGHTTP2_ERR_DEFERRED;
 
-		d = NULL;
-		r = rd_contents(a, &d, &outbytes, &used, xar->toc_remaining);
-		if (r != ARCHIVE_OK)
-			return (r);
-		xar->toc_remaining -= used;
-		xar->offset += used;
-		xar->toc_total += outbytes;
-		PRINT_TOC(d, outbytes);
+  DEBUGF(infof(data_s, "data_source_read_callback: "
+               "returns %zu bytes stream %u\n",
+               nread, stream_id));
 
-		xr = XML_Parse(parser, d, outbytes, xar->toc_remaining == 0);
-		__archive_read_consume(a, used);
-		if (xr == XML_STATUS_ERROR) {
-			XML_ParserFree(parser);
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "XML Parsing failed");
-			return (ARCHIVE_FATAL);
-		}
-	}
-	XML_ParserFree(parser);
-	return (ud.state);
+  return nread;
 }
-#endif /* defined(HAVE_BSDXML_H) || defined(HAVE_EXPAT_H) */
 
-#endif /* Support xar format */
+/*
+ * The HTTP2 settings we send in the Upgrade request
+ */
+static nghttp2_settings_entry settings[] = {
+  { NGHTTP2_SETTINGS_MAX_CONCURRENT_STREAMS, 100 },
+  { NGHTTP2_SETTINGS_INITIAL_WINDOW_SIZE, NGHTTP2_INITIAL_WINDOW_SIZE },
+};
+
+#define H2_BUFSIZE 32768
+
+/*
+ * Initialize nghttp2 for a Curl connection
+ */
+CURLcode Curl_http2_init(struct connectdata *conn)
+{
+  if(!conn->proto.httpc.h2) {
+    int rc;
+    nghttp2_session_callbacks *callbacks;
+
+    conn->proto.httpc.inbuf = malloc(H2_BUFSIZE);
+    if(conn->proto.httpc.inbuf == NULL)
+      return CURLE_OUT_OF_MEMORY;
+
+    rc = nghttp2_session_callbacks_new(&callbacks);
+
+    if(rc) {
+      failf(conn->data, "Couldn't initialize nghttp2 callbacks!");
+      return CURLE_OUT_OF_MEMORY; /* most likely at least */
+    }
+
+    /* nghttp2_send_callback */
+    nghttp2_session_callbacks_set_send_callback(callbacks, send_callback);
+    /* nghttp2_on_frame_recv_callback */
+    nghttp2_session_callbacks_set_on_frame_recv_callback
+      (callbacks, on_frame_recv);
+    /* nghttp2_on_invalid_frame_recv_callback */
+    nghttp2_session_callbacks_set_on_invalid_frame_recv_callback
+      (callbacks, on_invalid_frame_recv);
+    /* nghttp2_on_data_chunk_recv_callback */
+    nghttp2_session_callbacks_set_on_data_chunk_recv_callback
+      (callbacks, on_data_chunk_recv);
+    /* nghttp2_before_frame_send_callback */
+    nghttp2_session_callbacks_set_before_frame_send_callback
+      (callbacks, before_frame_send);
+    /* nghttp2_on_frame_send_callback */
+    nghttp2_session_callbacks_set_on_frame_send_callback
+      (callbacks, on_frame_send);
+    /* nghttp2_on_frame_not_send_callback */
+    nghttp2_session_callbacks_set_on_frame_not_send_callback
+      (callbacks, on_frame_not_send);
+    /* nghttp2_on_stream_close_callback */
+    nghttp2_session_callbacks_set_on_stream_close_callback
+      (callbacks, on_stream_close);
+    /* nghttp2_on_begin_headers_callback */
+    nghttp2_session_callbacks_set_on_begin_headers_callback
+      (callbacks, on_begin_headers);
+    /* nghttp2_on_header_callback */
+    nghttp2_session_callbacks_set_on_header_callback(callbacks, on_header);
+
+    /* The nghttp2 session is not yet setup, do it */
+    rc = nghttp2_session_client_new(&conn->proto.httpc.h2, callbacks, conn);
+
+    nghttp2_session_callbacks_del(callbacks);
+
+    if(rc) {
+      failf(conn->data, "Couldn't initialize nghttp2!");
+      return CURLE_OUT_OF_MEMORY; /* most likely at least */
+    }
+
+    if(rc) {
+      failf(conn->data, "Couldn't init stream hash!");
+      return CURLE_OUT_OF_MEMORY; /* most likely at least */
+    }
+  }
+  return CURLE_OK;
+}
+
+/*
+ * Send a request using http2
+ */
+CURLcode Curl_http2_send_request(struct connectdata *conn)
+{
+  (void)conn;
+  return CURLE_OK;
+}
+
+/*
+ * Append headers to ask for a HTTP1.1 to HTTP2 upgrade.
+ */
+CURLcode Curl_http2_request_upgrade(Curl_send_buffer *req,
+                                    struct connectdata *conn)
+{
+  CURLcode result;
+  ssize_t binlen;
+  char *base64;
+  size_t blen;
+  struct SingleRequest *k = &conn->data->req;
+  uint8_t *binsettings = conn->proto.httpc.binsettings;
+
+  /* As long as we have a fixed set of settings, we don't have to dynamically
+   * figure out the base64 strings since it'll always be the same. However,
+   * the settings will likely not be fixed every time in the future.
+   */
+
+  /* this returns number of bytes it wrote */
+  binlen = nghttp2_pack_settings_payload(binsettings, H2_BINSETTINGS_LEN,
+                                         settings,
+                                         sizeof(settings)/sizeof(settings[0]));
+  if(!binlen) {
+    failf(conn->data, "nghttp2 unexpectedly failed on pack_settings_payload");
+    return CURLE_FAILED_INIT;
+  }
+  conn->proto.httpc.binlen = binlen;
+
+  result = Curl_base64url_encode(conn->data, (const char *)binsettings, binlen,
+                                 &base64, &blen);
+  if(result)
+    return result;
+
+  result = Curl_add_bufferf(req,
+                            "Connection: Upgrade, HTTP2-Settings\r\n"
+                            "Upgrade: %s\r\n"
+                            "HTTP2-Settings: %s\r\n",
+                            NGHTTP2_CLEARTEXT_PROTO_VERSION_ID, base64);
+  free(base64);
+
+  k->upgr101 = UPGR101_REQUESTED;
+
+  return result;
+}
+
+static ssize_t http2_handle_stream_close(struct http_conn *httpc,
+                                         struct SessionHandle *data,
+                                         struct HTTP *stream, CURLcode *err) {
+  if(httpc->pause_stream_id == stream->stream_id) {
+    httpc->pause_stream_id = 0;
+  }
+  /* Reset to FALSE to prevent infinite loop in readwrite_data
+   function. */
+  stream->closed = FALSE;
+  if(stream->error_code != NGHTTP2_NO_ERROR) {
+    failf(data, "HTTP/2 stream %u was not closed cleanly: error_code = %d",
+          stream->stream_id, stream->error_code);
+    *err = CURLE_HTTP2;
+    return -1;
+  }
+  DEBUGF(infof(data, "http2_recv returns 0, http2_handle_stream_close\n"));
+  return 0;
+}
+
+/*
+ * If the read would block (EWOULDBLOCK) we return -1. Otherwise we return
+ * a regular CURLcode value.
+ */
+static ssize_t http2_recv(struct connectdata *conn, int sockindex,
+                          char *mem, size_t len, CURLcode *err)
+{
+  CURLcode result = CURLE_OK;
+  ssize_t rv;
+  ssize_t nread;
+  struct http_conn *httpc = &conn->proto.httpc;
+  struct SessionHandle *data = conn->data;
+  struct HTTP *stream = data->req.protop;
+
+  (void)sockindex; /* we always do HTTP2 on sockindex 0 */
+
+  /* If stream is closed, return 0 to signal the http routine to close
+     the connection.  We need to handle stream closure here,
+     otherwise, we may be going to read from underlying connection,
+     and gets EAGAIN, and we will get stuck there. */
+  if(stream->memlen == 0 && stream->closed) {
+    return http2_handle_stream_close(httpc, data, stream, err);
+  }
+
+  /* Nullify here because we call nghttp2_session_send() and they
+     might refer to the old buffer. */
+  stream->upload_mem = NULL;
+  stream->upload_len = 0;
+
+  /*
+   * At this point 'stream' is just in the SessionHandle the connection
+   * identifies as its owner at this time.
+   */
+
+  if(stream->bodystarted &&
+     stream->nread_header_recvbuf < stream->header_recvbuf->size_used) {
+    /* If there is body data pending for this stream to return, do that */
+    size_t left =
+      stream->header_recvbuf->size_used - stream->nread_header_recvbuf;
+    size_t ncopy = MIN(len, left);
+    memcpy(mem, stream->header_recvbuf->buffer + stream->nread_header_recvbuf,
+           ncopy);
+    stream->nread_header_recvbuf += ncopy;
+
+    infof(data, "http2_recv: Got %d bytes from header_recvbuf\n",
+          (int)ncopy);
+    return ncopy;
+  }
+
+  infof(data, "http2_recv: %d bytes buffer at %p (stream %u)\n",
+        len, mem, stream->stream_id);
+
+  if((data->state.drain) && stream->memlen) {
+    DEBUGF(infof(data, "http2_recv: DRAIN %zu bytes stream %u!! (%p => %p)\n",
+                 stream->memlen, stream->stream_id,
+                 stream->mem, mem));
+    if(mem != stream->mem) {
+      /* if we didn't get the same buffer this time, we must move the data to
+         the beginning */
+      memmove(mem, stream->mem, stream->memlen);
+      stream->len = len - stream->memlen;
+      stream->mem = mem;
+    }
+  }
+  else if(stream->pausedata) {
+    nread = MIN(len, stream->pauselen);
+    memcpy(mem, stream->pausedata, nread);
+
+    stream->pausedata += nread;
+    stream->pauselen -= nread;
+
+    infof(data, "%zu data bytes written\n", nread);
+    if(stream->pauselen == 0) {
+      DEBUGF(infof(data, "Unpaused by stream %u\n", stream->stream_id));
+      assert(httpc->pause_stream_id == stream->stream_id);
+      httpc->pause_stream_id = 0;
+
+      stream->pausedata = NULL;
+      stream->pauselen = 0;
+    }
+    infof(data, "http2_recv: returns unpaused %zd bytes on stream %u\n",
+          nread, stream->stream_id);
+    return nread;
+  }
+  else if(httpc->pause_stream_id) {
+    /* If a stream paused nghttp2_session_mem_recv previously, and has
+       not processed all data, it still refers to the buffer in
+       nghttp2_session.  If we call nghttp2_session_mem_recv(), we may
+       overwrite that buffer.  To avoid that situation, just return
+       here with CURLE_AGAIN.  This could be busy loop since data in
+       socket is not read.  But it seems that usually streams are
+       notified with its drain property, and socket is read again
+       quickly. */
+    *err = CURLE_AGAIN;
+    return -1;
+  }
+  else {
+    char *inbuf;
+    /* remember where to store incoming data for this stream and how big the
+       buffer is */
+    stream->mem = mem;
+    stream->len = len;
+    stream->memlen = 0;
+
+    if(httpc->inbuflen == 0) {
+      nread = ((Curl_recv *)httpc->recv_underlying)(
+          conn, FIRSTSOCKET, httpc->inbuf, H2_BUFSIZE, &result);
+
+      if(result == CURLE_AGAIN) {
+        *err = result;
+        return -1;
+      }
+
+      if(nread == -1) {
+        failf(data, "Failed receiving HTTP2 data");
+        *err = result;
+        return 0;
+      }
+
+      if(nread == 0) {
+        failf(data, "Unexpected EOF");
+        *err = CURLE_RECV_ERROR;
+        return -1;
+      }
+
+      DEBUGF(infof(data, "nread=%zd\n", nread));
+
+      httpc->inbuflen = nread;
+      inbuf = httpc->inbuf;
+    }
+    else {
+      nread = httpc->inbuflen - httpc->nread_inbuf;
+      inbuf = httpc->inbuf + httpc->nread_inbuf;
+
+      DEBUGF(infof(data, "Use data left in connection buffer, nread=%zd\n",
+                   nread));
+    }
+    rv = nghttp2_session_mem_recv(httpc->h2, (const uint8_t *)inbuf, nread);
+
+    if(nghttp2_is_fatal((int)rv)) {
+      failf(data, "nghttp2_session_mem_recv() returned %d:%s\n",
+            rv, nghttp2_strerror((int)rv));
+      *err = CURLE_RECV_ERROR;
+      return 0;
+    }
+    DEBUGF(infof(data, "nghttp2_session_mem_recv() returns %zd\n", rv));
+    if(nread == rv) {
+      DEBUGF(infof(data, "All data in connection buffer processed\n"));
+      httpc->inbuflen = 0;
+      httpc->nread_inbuf = 0;
+    }
+    else {
+      httpc->nread_inbuf += rv;
+      DEBUGF(infof(data, "%zu bytes left in connection buffer\n",
+                   httpc->inbuflen - httpc->nread_inbuf));
+    }
+    /* Always send pending frames in nghttp2 session, because
+       nghttp2_session_mem_recv() may queue new frame */
+    rv = nghttp2_session_send(httpc->h2);
+    if(rv != 0) {
+      *err = CURLE_SEND_ERROR;
+      return 0;
+    }
+  }
+  if(stream->memlen) {
+    ssize_t retlen = stream->memlen;
+    infof(data, "http2_recv: returns %zd for stream %u\n",
+          retlen, stream->stream_id);
+    stream->memlen = 0;
+
+    if(httpc->pause_stream_id == stream->stream_id) {
+      /* data for this stream is returned now, but this stream caused a pause
+         already so we need it called again asap */
+      DEBUGF(infof(data, "Data returned for PAUSED stream %u\n",
+                   stream->stream_id));
+    }
+    else
+      data->state.drain = 0; /* this stream is hereby drained */
+
+    return retlen;
+  }
+  /* If stream is closed, return 0 to signal the http routine to close
+     the connection */
+  if(stream->closed) {
+    return http2_handle_stream_close(httpc, data, stream, err);
+  }
+  *err = CURLE_AGAIN;
+  DEBUGF(infof(data, "http2_recv returns AGAIN for stream %u\n",
+               stream->stream_id));
+  return -1;
+}
+
+/* Index where :authority header field will appear in request header
+   field list. */
+#define AUTHORITY_DST_IDX 3
+
+/* return number of received (decrypted) bytes */
+static ssize_t http2_send(struct connectdata *conn, int sockindex,
+                          const void *mem, size_t len, CURLcode *err)
+{
+  /*
+   * BIG TODO: Currently, we send request in this function, but this
+   * function is also used to send request body. It would be nice to
+   * add dedicated function for request.
+   */
+  int rv;
+  struct http_conn *httpc = &conn->proto.httpc;
+  struct HTTP *stream = conn->data->req.protop;
+  nghttp2_nv *nva;
+  size_t nheader;
+  size_t i;
+  size_t authority_idx;
+  char *hdbuf = (char*)mem;
+  char *end;
+  nghttp2_data_provider data_prd;
+  int32_t stream_id;
+  nghttp2_session *h2 = httpc->h2;
+
+  (void)sockindex;
+
+  DEBUGF(infof(conn->data, "http2_send len=%zu\n", len));
+
+  if(stream->stream_id != -1) {
+    /* If stream_id != -1, we have dispatched request HEADERS, and now
+       are going to send or sending request body in DATA frame */
+    stream->upload_mem = mem;
+    stream->upload_len = len;
+    nghttp2_session_resume_data(h2, stream->stream_id);
+    rv = nghttp2_session_send(h2);
+    if(nghttp2_is_fatal(rv)) {
+      *err = CURLE_SEND_ERROR;
+      return -1;
+    }
+    len -= stream->upload_len;
+
+    /* Nullify here because we call nghttp2_session_send() and they
+       might refer to the old buffer. */
+    stream->upload_mem = NULL;
+    stream->upload_len = 0;
+
+    if(stream->upload_left) {
+      /* we are sure that we have more data to send here.  Calling the
+         following API will make nghttp2_session_want_write() return
+         nonzero if remote window allows it, which then libcurl checks
+         socket is writable or not.  See http2_perform_getsock(). */
+      nghttp2_session_resume_data(h2, stream->stream_id);
+    }
+
+    DEBUGF(infof(conn->data, "http2_send returns %zu for stream %u\n", len,
+                 stream->stream_id));
+    return len;
+  }
+
+  /* Calculate number of headers contained in [mem, mem + len) */
+  /* Here, we assume the curl http code generate *correct* HTTP header
+     field block */
+  nheader = 0;
+  for(i = 0; i < len; ++i) {
+    if(hdbuf[i] == 0x0a) {
+      ++nheader;
+    }
+  }
+  /* We counted additional 2 \n in the first and last line. We need 3
+     new headers: :method, :path and :scheme. Therefore we need one
+     more space. */
+  nheader += 1;
+  nva = malloc(sizeof(nghttp2_nv) * nheader);
+  if(nva == NULL) {
+    *err = CURLE_OUT_OF_MEMORY;
+    return -1;
+  }
+  /* Extract :method, :path from request line */
+  end = strchr(hdbuf, ' ');
+  if(!end)
+    goto fail;
+  nva[0].name = (unsigned char *)":method";
+  nva[0].namelen = (uint16_t)strlen((char *)nva[0].name);
+  nva[0].value = (unsigned char *)hdbuf;
+  nva[0].valuelen = (uint16_t)(end - hdbuf);
+  nva[0].flags = NGHTTP2_NV_FLAG_NONE;
+
+  hdbuf = end + 1;
+
+  end = strchr(hdbuf, ' ');
+  if(!end)
+    goto fail;
+  nva[1].name = (unsigned char *)":path";
+  nva[1].namelen = (uint16_t)strlen((char *)nva[1].name);
+  nva[1].value = (unsigned char *)hdbuf;
+  nva[1].valuelen = (uint16_t)(end - hdbuf);
+  nva[1].flags = NGHTTP2_NV_FLAG_NONE;
+
+  nva[2].name = (unsigned char *)":scheme";
+  nva[2].namelen = (uint16_t)strlen((char *)nva[2].name);
+  if(conn->handler->flags & PROTOPT_SSL)
+    nva[2].value = (unsigned char *)"https";
+  else
+    nva[2].value = (unsigned char *)"http";
+  nva[2].valuelen = (uint16_t)strlen((char *)nva[2].value);
+  nva[2].flags = NGHTTP2_NV_FLAG_NONE;
+
+  hdbuf = strchr(hdbuf, 0x0a);
+  if(!hdbuf)
+    goto fail;
+  ++hdbuf;
+
+  authority_idx = 0;
+
+  for(i = 3; i < nheader; ++i) {
+    end = strchr(hdbuf, ':');
+    if(!end)
+      goto fail;
+    if(end - hdbuf == 4 && Curl_raw_nequal("host", hdbuf, 4)) {
+      authority_idx = i;
+      nva[i].name = (unsigned char *)":authority";
+      nva[i].namelen = (uint16_t)strlen((char *)nva[i].name);
+    }
+    else {
+      nva[i].name = (unsigned char *)hdbuf;
+      nva[i].namelen = (uint16_t)(end - hdbuf);
+    }
+    hdbuf = end + 1;
+    for(; *hdbuf == ' '; ++hdbuf);
+    end = strchr(hdbuf, 0x0d);
+    if(!end)
+      goto fail;
+    nva[i].value = (unsigned char *)hdbuf;
+    nva[i].valuelen = (uint16_t)(end - hdbuf);
+    nva[i].flags = NGHTTP2_NV_FLAG_NONE;
+
+    hdbuf = end + 2;
+    /* Inspect Content-Length header field and retrieve the request
+       entity length so that we can set END_STREAM to the last DATA
+       frame. */
+    if(nva[i].namelen == 14 &&
+       Curl_raw_nequal("content-length", (char*)nva[i].name, 14)) {
+      size_t j;
+      stream->upload_left = 0;
+      for(j = 0; j < nva[i].valuelen; ++j) {
+        stream->upload_left *= 10;
+        stream->upload_left += nva[i].value[j] - '0';
+      }
+      DEBUGF(infof(conn->data,
+                   "request content-length=%"
+                   CURL_FORMAT_CURL_OFF_T
+                   "\n", stream->upload_left));
+    }
+  }
+
+  /* :authority must come before non-pseudo header fields */
+  if(authority_idx != 0 && authority_idx != AUTHORITY_DST_IDX) {
+    nghttp2_nv authority = nva[authority_idx];
+    for(i = authority_idx; i > AUTHORITY_DST_IDX; --i) {
+      nva[i] = nva[i - 1];
+    }
+    nva[i] = authority;
+  }
+
+  switch(conn->data->set.httpreq) {
+  case HTTPREQ_POST:
+  case HTTPREQ_POST_FORM:
+  case HTTPREQ_PUT:
+    data_prd.read_callback = data_source_read_callback;
+    data_prd.source.ptr = NULL;
+    stream_id = nghttp2_submit_request(h2, NULL, nva, nheader,
+                                       &data_prd, conn->data);
+    break;
+  default:
+    stream_id = nghttp2_submit_request(h2, NULL, nva, nheader,
+                                       NULL, conn->data);
+  }
+
+  Curl_safefree(nva);
+
+  if(stream_id < 0) {
+    DEBUGF(infof(conn->data, "http2_send() send error\n"));
+    *err = CURLE_SEND_ERROR;
+    return -1;
+  }
+
+  infof(conn->data, "Using Stream ID: %x (easy handle %p)\n",
+        stream_id, conn->data);
+  stream->stream_id = stream_id;
+
+  rv = nghttp2_session_send(h2);
+
+  if(rv != 0) {
+    *err = CURLE_SEND_ERROR;
+    return -1;
+  }
+
+  if(stream->stream_id != -1) {
+    /* If whole HEADERS frame was sent off to the underlying socket,
+       the nghttp2 library calls data_source_read_callback. But only
+       it found that no data available, so it deferred the DATA
+       transmission. Which means that nghttp2_session_want_write()
+       returns 0 on http2_perform_getsock(), which results that no
+       writable socket check is performed. To workaround this, we
+       issue nghttp2_session_resume_data() here to bring back DATA
+       transmission from deferred state. */
+    nghttp2_session_resume_data(h2, stream->stream_id);
+  }
+
+  return len;
+
+  fail:
+  free(nva);
+  *err = CURLE_SEND_ERROR;
+  return -1;
+}
+
+CURLcode Curl_http2_setup(struct connectdata *conn)
+{
+  CURLcode result;
+  struct http_conn *httpc = &conn->proto.httpc;
+  struct HTTP *stream = conn->data->req.protop;
+
+  stream->stream_id = -1;
+
+  if(!stream->header_recvbuf)
+    stream->header_recvbuf = Curl_add_buffer_init();
+
+  if((conn->handler == &Curl_handler_http2_ssl) ||
+     (conn->handler == &Curl_handler_http2))
+    return CURLE_OK; /* already done */
+
+  if(conn->handler->flags & PROTOPT_SSL)
+    conn->handler = &Curl_handler_http2_ssl;
+  else
+    conn->handler = &Curl_handler_http2;
+
+  result = Curl_http2_init(conn);
+  if(result)
+    return result;
+
+  infof(conn->data, "Using HTTP2, server supports multi-use\n");
+  stream->upload_left = 0;
+  stream->upload_mem = NULL;
+  stream->upload_len = 0;
+
+  httpc->inbuflen = 0;
+  httpc->nread_inbuf = 0;
+
+  httpc->pause_stream_id = 0;
+
+  conn->bits.multiplex = TRUE; /* at least potentially multiplexed */
+  conn->httpversion = 20;
+  conn->bundle->multiuse = BUNDLE_MULTIPLEX;
+
+  infof(conn->data, "Connection state changed (HTTP/2 confirmed)\n");
+  Curl_multi_connchanged(conn->data->multi);
+
+  return CURLE_OK;
+}
+
+CURLcode Curl_http2_switched(struct connectdata *conn,
+                             const char *mem, size_t nread)
+{
+  CURLcode result;
+  struct http_conn *httpc = &conn->proto.httpc;
+  int rv;
+  ssize_t nproc;
+  struct SessionHandle *data = conn->data;
+  struct HTTP *stream = conn->data->req.protop;
+
+  result = Curl_http2_setup(conn);
+  if(result)
+    return result;
+
+  httpc->recv_underlying = (recving)conn->recv[FIRSTSOCKET];
+  httpc->send_underlying = (sending)conn->send[FIRSTSOCKET];
+  conn->recv[FIRSTSOCKET] = http2_recv;
+  conn->send[FIRSTSOCKET] = http2_send;
+
+  if(conn->data->req.upgr101 == UPGR101_RECEIVED) {
+    /* stream 1 is opened implicitly on upgrade */
+    stream->stream_id = 1;
+    /* queue SETTINGS frame (again) */
+    rv = nghttp2_session_upgrade(httpc->h2, httpc->binsettings,
+                                 httpc->binlen, NULL);
+    if(rv != 0) {
+      failf(data, "nghttp2_session_upgrade() failed: %s(%d)",
+            nghttp2_strerror(rv), rv);
+      return CURLE_HTTP2;
+    }
+
+    nghttp2_session_set_stream_user_data(httpc->h2,
+                                         stream->stream_id,
+                                         conn->data);
+  }
+  else {
+    /* stream ID is unknown at this point */
+    stream->stream_id = -1;
+    rv = nghttp2_submit_settings(httpc->h2, NGHTTP2_FLAG_NONE, NULL, 0);
+    if(rv != 0) {
+      failf(data, "nghttp2_submit_settings() failed: %s(%d)",
+            nghttp2_strerror(rv), rv);
+      return CURLE_HTTP2;
+    }
+  }
+
+  /* we are going to copy mem to httpc->inbuf.  This is required since
+     mem is part of buffer pointed by stream->mem, and callbacks
+     called by nghttp2_session_mem_recv() will write stream specific
+     data into stream->mem, overwriting data already there. */
+  if(H2_BUFSIZE < nread) {
+    failf(data, "connection buffer size is too small to store data following "
+                "HTTP Upgrade response header: buflen=%zu, datalen=%zu",
+          H2_BUFSIZE, nread);
+    return CURLE_HTTP2;
+  }
+
+  infof(conn->data, "Copying HTTP/2 data in stream buffer to connection buffer"
+                    " after upgrade: len=%zu\n",
+        nread);
+
+  memcpy(httpc->inbuf, mem, nread);
+  httpc->inbuflen = nread;
+
+  nproc = nghttp2_session_mem_recv(httpc->h2, (const uint8_t *)httpc->inbuf,
+                                   httpc->inbuflen);
+
+  if(nghttp2_is_fatal((int)nproc)) {
+    failf(data, "nghttp2_session_mem_recv() failed: %s(%d)",
+          nghttp2_strerror((int)nproc), (int)nproc);
+    return CURLE_HTTP2;
+  }
+
+  DEBUGF(infof(data, "nghttp2_session_mem_recv() returns %zd\n", nproc));
+
+  if((ssize_t)nread == nproc) {
+    httpc->inbuflen = 0;
+    httpc->nread_inbuf = 0;
+  }
+  else {
+    httpc->nread_inbuf += nproc;
+  }
+
+  /* Try to send some frames since we may read SETTINGS already. */
+  rv = nghttp2_session_send(httpc->h2);
+
+  if(rv != 0) {
+    failf(data, "nghttp2_session_send() failed: %s(%d)",
+          nghttp2_strerror(rv), rv);
+    return CURLE_HTTP2;
+  }
+
+  return CURLE_OK;
+}
+
+#else /* !USE_NGHTTP2 */
+
+/* Satisfy external references even if http2 is not compiled in. */
+
+#define CURL_DISABLE_TYPECHECK
+#include <curl/curl.h>
+
+char *curl_pushheader_bynum(struct curl_pushheaders *h, size_t num)
+{
+  (void) h;
+  (void) num;
+  return NULL;
+}
+
+char *curl_pushheader_byname(struct curl_pushheaders *h, const char *header)
+{
+  (void) h;
+  (void) header;
+  return NULL;
+}
+
+#endif /* USE_NGHTTP2 */

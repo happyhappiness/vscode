@@ -1,0 +1,1 @@
+result = Curl_resolver_is_resolved(data->easy_conn, &dns)

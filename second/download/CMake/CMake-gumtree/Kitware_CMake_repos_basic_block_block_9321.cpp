@@ -1,0 +1,1 @@
+(a->formats[i].cleanup)(a)

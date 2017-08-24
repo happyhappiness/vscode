@@ -1,6 +1,12 @@
-  /* Initial packet length */
-  size = 32 + hostlen + domlen;
+		if (entry_size == 0) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Invalid string table");
+			return (ARCHIVE_FATAL);
+		}
+		if (ar->strtab != NULL) {
+			archive_set_error(&a->archive, EINVAL,
+			    "More than one string tables exist");
+			return (ARCHIVE_FATAL);
+		}
 
-  DEBUG_OUT({
-    fprintf(stderr, "* TYPE1 header flags=0x%02.2x%02.2x%02.2x%02.2x "
-            "0x%08.8x ",
+		/* Read the filename table into memory. */

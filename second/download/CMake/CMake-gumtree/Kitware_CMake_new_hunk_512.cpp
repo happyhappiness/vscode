@@ -1,16 +1,10 @@
-
-  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
-
-  result = Curl_base64_encode(data,
-                              data->state.buffer, strlen(data->state.buffer),
-                              &authorization, &size);
-  if(result)
-    return result;
-
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
-
-  free(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy?"Proxy-":"",
-                   authorization);
+			return (0);
+		if (bytes_read < 0)
+			return (ARCHIVE_FATAL);
+		nl = memchr(t, '\n', bytes_read);
+		/* If we found '\n', trim the read to end exactly there. */
+		if (nl != NULL) {
+			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
+		}
+		if (total_size + bytes_read + 1 > limit) {
+			archive_set_error(&a->archive,

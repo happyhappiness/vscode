@@ -1,0 +1,1 @@
+(*tmp == PATH_SEP) progName = tmp + 1

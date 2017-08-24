@@ -1,0 +1,1 @@
+free(preg->pRegExp)

@@ -1,0 +1,1 @@
+data->block_size = bkmap[data->block_maximum_size - 4]

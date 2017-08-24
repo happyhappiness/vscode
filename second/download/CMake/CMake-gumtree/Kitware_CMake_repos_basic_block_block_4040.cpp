@@ -1,0 +1,1 @@
+Curl_disconnect(conn, FALSE)

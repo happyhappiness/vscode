@@ -1,0 +1,1 @@
+iso9660->wbuff_written = iso9660->wbuff_offset

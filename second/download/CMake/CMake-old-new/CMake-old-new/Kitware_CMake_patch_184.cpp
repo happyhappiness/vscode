@@ -1,133 +1,276 @@
-@@ -387,7 +387,7 @@ static int	archive_read_format_iso9660_read_data(struct archive_read *,
- static int	archive_read_format_iso9660_read_data_skip(struct archive_read *);
- static int	archive_read_format_iso9660_read_header(struct archive_read *,
- 		    struct archive_entry *);
--static const char *build_pathname(struct archive_string *, struct file_info *);
-+static const char *build_pathname(struct archive_string *, struct file_info *, int);
- static int	build_pathname_utf16be(unsigned char *, size_t, size_t *,
- 		    struct file_info *);
- #if DEBUG
-@@ -1225,6 +1225,7 @@ archive_read_format_iso9660_read_header(struct archive_read *a,
- 			archive_set_error(&a->archive,
- 			    ARCHIVE_ERRNO_FILE_FORMAT,
- 			    "Pathname is too long");
-+			return (ARCHIVE_FATAL);
- 		}
+@@ -5,11 +5,11 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+- * are also available at http://curl.haxx.se/docs/copyright.html.
++ * are also available at https://curl.haxx.se/docs/copyright.html.
+  *
+  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+  * copies of the Software, and permit persons to whom the Software is
+@@ -31,10 +31,11 @@
+ #include "ssh.h"
+ #include "multiif.h"
+ #include "non-ascii.h"
+-#include "curl_printf.h"
+ #include "strerror.h"
++#include "select.h"
  
- 		r = archive_entry_copy_pathname_l(entry,
-@@ -1247,9 +1248,16 @@ archive_read_format_iso9660_read_header(struct archive_read *a,
- 			rd_r = ARCHIVE_WARN;
- 		}
- 	} else {
--		archive_string_empty(&iso9660->pathname);
--		archive_entry_set_pathname(entry,
--		    build_pathname(&iso9660->pathname, file));
-+		const char *path = build_pathname(&iso9660->pathname, file, 0);
-+		if (path == NULL) {
-+			archive_set_error(&a->archive,
-+			    ARCHIVE_ERRNO_FILE_FORMAT,
-+			    "Pathname is too long");
-+			return (ARCHIVE_FATAL);
-+		} else {
-+			archive_string_empty(&iso9660->pathname);
-+			archive_entry_set_pathname(entry, path);
-+		}
- 	}
+-/* The last #include files should be: */
++/* The last 3 #include files should be in this order */
++#include "curl_printf.h"
+ #include "curl_memory.h"
+ #include "memdebug.h"
  
- 	iso9660->entry_bytes_remaining = file->size;
-@@ -1744,12 +1752,12 @@ parse_file_info(struct archive_read *a, struct file_info *parent,
-     const unsigned char *isodirrec)
+@@ -45,7 +46,7 @@
+  * blocks of data.  Remaining, bare CRs are changed to LFs.  The possibly new
+  * size of the data is returned.
+  */
+-static size_t convert_lineends(struct SessionHandle *data,
++static size_t convert_lineends(struct Curl_easy *data,
+                                char *startPtr, size_t size)
  {
- 	struct iso9660 *iso9660;
--	struct file_info *file;
-+	struct file_info *file, *filep;
- 	size_t name_len;
- 	const unsigned char *rr_start, *rr_end;
- 	const unsigned char *p;
- 	size_t dr_len;
--	uint64_t fsize;
-+	uint64_t fsize, offset;
- 	int32_t location;
- 	int flags;
+   char *inPtr, *outPtr;
+@@ -120,9 +121,93 @@ static size_t convert_lineends(struct SessionHandle *data,
+ }
+ #endif /* CURL_DO_LINEEND_CONV */
  
-@@ -1793,6 +1801,16 @@ parse_file_info(struct archive_read *a, struct file_info *parent,
- 		return (NULL);
- 	}
- 
-+	/* Sanity check that this entry does not create a cycle. */
-+	offset = iso9660->logical_block_size * (uint64_t)location;
-+	for (filep = parent; filep != NULL; filep = filep->parent) {
-+		if (filep->offset == offset) {
-+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-+			    "Directory structure contains loop");
-+			return (NULL);
-+		}
-+	}
++#ifdef USE_RECV_BEFORE_SEND_WORKAROUND
++static void pre_receive_plain(struct connectdata *conn, int num)
++{
++  const curl_socket_t sockfd = conn->sock[num];
++  struct postponed_data * const psnd = &(conn->postponed[num]);
++  size_t bytestorecv = psnd->allocated_size - psnd->recv_size;
++  /* WinSock will destroy unread received data if send() is
++     failed.
++     To avoid lossage of received data, recv() must be
++     performed before every send() if any incoming data is
++     available. However, skip this, if buffer is already full. */
++  if((conn->handler->protocol&PROTO_FAMILY_HTTP) != 0 &&
++     conn->recv[num] == Curl_recv_plain &&
++     (!psnd->buffer || bytestorecv)) {
++    const int readymask = Curl_socket_check(sockfd, CURL_SOCKET_BAD,
++                                            CURL_SOCKET_BAD, 0);
++    if(readymask != -1 && (readymask & CURL_CSELECT_IN) != 0) {
++      /* Have some incoming data */
++      if(!psnd->buffer) {
++        /* Use buffer double default size for intermediate buffer */
++        psnd->allocated_size = 2 * BUFSIZE;
++        psnd->buffer = malloc(psnd->allocated_size);
++        psnd->recv_size = 0;
++        psnd->recv_processed = 0;
++#ifdef DEBUGBUILD
++        psnd->bindsock = sockfd; /* Used only for DEBUGASSERT */
++#endif /* DEBUGBUILD */
++        bytestorecv = psnd->allocated_size;
++      }
++      if(psnd->buffer) {
++        ssize_t recvedbytes;
++        DEBUGASSERT(psnd->bindsock == sockfd);
++        recvedbytes = sread(sockfd, psnd->buffer + psnd->recv_size,
++                            bytestorecv);
++        if(recvedbytes > 0)
++          psnd->recv_size += recvedbytes;
++      }
++      else
++        psnd->allocated_size = 0;
++    }
++  }
++}
 +
- 	/* Create a new file entry and copy data from the ISO dir record. */
- 	file = (struct file_info *)calloc(1, sizeof(*file));
- 	if (file == NULL) {
-@@ -1801,7 +1819,7 @@ parse_file_info(struct archive_read *a, struct file_info *parent,
- 		return (NULL);
- 	}
- 	file->parent = parent;
--	file->offset = iso9660->logical_block_size * (uint64_t)location;
-+	file->offset = offset;
- 	file->size = fsize;
- 	file->mtime = isodate7(isodirrec + DR_date_offset);
- 	file->ctime = file->atime = file->mtime;
-@@ -3147,29 +3165,39 @@ static time_t
- time_from_tm(struct tm *t)
++static ssize_t get_pre_recved(struct connectdata *conn, int num, char *buf,
++                              size_t len)
++{
++  struct postponed_data * const psnd = &(conn->postponed[num]);
++  size_t copysize;
++  if(!psnd->buffer)
++    return 0;
++
++  DEBUGASSERT(psnd->allocated_size > 0);
++  DEBUGASSERT(psnd->recv_size <= psnd->allocated_size);
++  DEBUGASSERT(psnd->recv_processed <= psnd->recv_size);
++  /* Check and process data that already received and storied in internal
++     intermediate buffer */
++  if(psnd->recv_size > psnd->recv_processed) {
++    DEBUGASSERT(psnd->bindsock == conn->sock[num]);
++    copysize = CURLMIN(len, psnd->recv_size - psnd->recv_processed);
++    memcpy(buf, psnd->buffer + psnd->recv_processed, copysize);
++    psnd->recv_processed += copysize;
++  }
++  else
++    copysize = 0; /* buffer was allocated, but nothing was received */
++
++  /* Free intermediate buffer if it has no unprocessed data */
++  if(psnd->recv_processed == psnd->recv_size) {
++    free(psnd->buffer);
++    psnd->buffer = NULL;
++    psnd->allocated_size = 0;
++    psnd->recv_size = 0;
++    psnd->recv_processed = 0;
++#ifdef DEBUGBUILD
++    psnd->bindsock = CURL_SOCKET_BAD;
++#endif /* DEBUGBUILD */
++  }
++  return (ssize_t)copysize;
++}
++#else  /* ! USE_RECV_BEFORE_SEND_WORKAROUND */
++/* Use "do-nothing" macros instead of functions when workaround not used */
++#define pre_receive_plain(c,n) do {} WHILE_FALSE
++#define get_pre_recved(c,n,b,l) 0
++#endif /* ! USE_RECV_BEFORE_SEND_WORKAROUND */
++
+ /* Curl_infof() is for info message along the way */
+ 
+-void Curl_infof(struct SessionHandle *data, const char *fmt, ...)
++void Curl_infof(struct Curl_easy *data, const char *fmt, ...)
  {
- #if HAVE_TIMEGM
--	/* Use platform timegm() if available. */
--	return (timegm(t));
-+        /* Use platform timegm() if available. */
-+        return (timegm(t));
- #elif HAVE__MKGMTIME64
--	return (_mkgmtime64(t));
-+        return (_mkgmtime64(t));
- #else
--	/* Else use direct calculation using POSIX assumptions. */
--	/* First, fix up tm_yday based on the year/month/day. */
--	if (mktime(t) == (time_t)-1)
--		return ((time_t)-1);
--	/* Then we can compute timegm() from first principles. */
--	return (t->tm_sec + t->tm_min * 60 + t->tm_hour * 3600
--	    + t->tm_yday * 86400 + (t->tm_year - 70) * 31536000
--	    + ((t->tm_year - 69) / 4) * 86400 -
--	    ((t->tm_year - 1) / 100) * 86400
--	    + ((t->tm_year + 299) / 400) * 86400);
-+        /* Else use direct calculation using POSIX assumptions. */
-+        /* First, fix up tm_yday based on the year/month/day. */
-+        if (mktime(t) == (time_t)-1)
-+                return ((time_t)-1);
-+        /* Then we can compute timegm() from first principles. */
-+        return (t->tm_sec
-+            + t->tm_min * 60
-+            + t->tm_hour * 3600
-+            + t->tm_yday * 86400
-+            + (t->tm_year - 70) * 31536000
-+            + ((t->tm_year - 69) / 4) * 86400
-+            - ((t->tm_year - 1) / 100) * 86400
-+            + ((t->tm_year + 299) / 400) * 86400);
+   if(data && data->set.verbose) {
+     va_list ap;
+@@ -140,7 +225,7 @@ void Curl_infof(struct SessionHandle *data, const char *fmt, ...)
+  * The message SHALL NOT include any LF or CR.
+  */
+ 
+-void Curl_failf(struct SessionHandle *data, const char *fmt, ...)
++void Curl_failf(struct Curl_easy *data, const char *fmt, ...)
+ {
+   va_list ap;
+   size_t len;
+@@ -168,7 +253,7 @@ void Curl_failf(struct SessionHandle *data, const char *fmt, ...)
+ CURLcode Curl_sendf(curl_socket_t sockfd, struct connectdata *conn,
+                     const char *fmt, ...)
+ {
+-  struct SessionHandle *data = conn->data;
++  struct Curl_easy *data = conn->data;
+   ssize_t bytes_written;
+   size_t write_len;
+   CURLcode result = CURLE_OK;
+@@ -254,7 +339,23 @@ ssize_t Curl_send_plain(struct connectdata *conn, int num,
+                         const void *mem, size_t len, CURLcode *code)
+ {
+   curl_socket_t sockfd = conn->sock[num];
+-  ssize_t bytes_written = swrite(sockfd, mem, len);
++  ssize_t bytes_written;
++  /* WinSock will destroy unread received data if send() is
++     failed.
++     To avoid lossage of received data, recv() must be
++     performed before every send() if any incoming data is
++     available. */
++  pre_receive_plain(conn, num);
++
++#ifdef MSG_FASTOPEN /* Linux */
++  if(conn->bits.tcp_fastopen) {
++    bytes_written = sendto(sockfd, mem, len, MSG_FASTOPEN,
++                           conn->ip_addr->ai_addr, conn->ip_addr->ai_addrlen);
++    conn->bits.tcp_fastopen = FALSE;
++  }
++  else
++#endif
++    bytes_written = swrite(sockfd, mem, len);
+ 
+   *code = CURLE_OK;
+   if(-1 == bytes_written) {
+@@ -268,7 +369,8 @@ ssize_t Curl_send_plain(struct connectdata *conn, int num,
+       /* errno may be EWOULDBLOCK or on some systems EAGAIN when it returned
+          due to its inability to send off data without blocking. We therefor
+          treat both error codes the same here */
+-      (EWOULDBLOCK == err) || (EAGAIN == err) || (EINTR == err)
++      (EWOULDBLOCK == err) || (EAGAIN == err) || (EINTR == err) ||
++      (EINPROGRESS == err)
  #endif
+       ) {
+       /* this is just a case of EWOULDBLOCK */
+@@ -311,7 +413,16 @@ ssize_t Curl_recv_plain(struct connectdata *conn, int num, char *buf,
+                         size_t len, CURLcode *code)
+ {
+   curl_socket_t sockfd = conn->sock[num];
+-  ssize_t nread = sread(sockfd, buf, len);
++  ssize_t nread;
++  /* Check and return data that already received and storied in internal
++     intermediate buffer */
++  nread = get_pre_recved(conn, num, buf, len);
++  if(nread > 0) {
++    *code = CURLE_OK;
++    return nread;
++  }
++
++  nread = sread(sockfd, buf, len);
+ 
+   *code = CURLE_OK;
+   if(-1 == nread) {
+@@ -341,7 +452,7 @@ ssize_t Curl_recv_plain(struct connectdata *conn, int num, char *buf,
+   return nread;
  }
  
- static const char *
--build_pathname(struct archive_string *as, struct file_info *file)
-+build_pathname(struct archive_string *as, struct file_info *file, int depth)
+-static CURLcode pausewrite(struct SessionHandle *data,
++static CURLcode pausewrite(struct Curl_easy *data,
+                            int type, /* what type of data */
+                            const char *ptr,
+                            size_t len)
+@@ -380,7 +491,7 @@ CURLcode Curl_client_chop_write(struct connectdata *conn,
+                                 char * ptr,
+                                 size_t len)
  {
-+	// Plain ISO9660 only allows 8 dir levels; if we get
-+	// to 1000, then something is very, very wrong.
-+	if (depth > 1000) {
-+		return NULL;
-+	}
- 	if (file->parent != NULL && archive_strlen(&file->parent->name) > 0) {
--		build_pathname(as, file->parent);
-+		if (build_pathname(as, file->parent, depth + 1) == NULL) {
-+			return NULL;
-+		}
- 		archive_strcat(as, "/");
- 	}
- 	if (archive_strlen(&file->name) == 0)
+-  struct SessionHandle *data = conn->data;
++  struct Curl_easy *data = conn->data;
+   curl_write_callback writeheader = NULL;
+   curl_write_callback writebody = NULL;
+ 
+@@ -487,7 +598,7 @@ CURLcode Curl_client_write(struct connectdata *conn,
+                            char *ptr,
+                            size_t len)
+ {
+-  struct SessionHandle *data = conn->data;
++  struct Curl_easy *data = conn->data;
+ 
+   if(0 == len)
+     len = strlen(ptr);
+@@ -520,11 +631,13 @@ CURLcode Curl_read_plain(curl_socket_t sockfd,
+ 
+   if(-1 == nread) {
+     int err = SOCKERRNO;
++    int return_error;
+ #ifdef USE_WINSOCK
+-    if(WSAEWOULDBLOCK == err)
++    return_error = WSAEWOULDBLOCK == err;
+ #else
+-    if((EWOULDBLOCK == err) || (EAGAIN == err) || (EINTR == err))
++    return_error = EWOULDBLOCK == err || EAGAIN == err || EINTR == err;
+ #endif
++    if(return_error)
+       return CURLE_AGAIN;
+     else
+       return CURLE_RECV_ERROR;
+@@ -551,7 +664,10 @@ CURLcode Curl_read(struct connectdata *conn, /* connection data */
+   ssize_t nread = 0;
+   size_t bytesfromsocket = 0;
+   char *buffertofill = NULL;
+-  bool pipelining = Curl_pipeline_wanted(conn->data->multi, CURLPIPE_HTTP1);
++
++  /* if HTTP/1 pipelining is both wanted and possible */
++  bool pipelining = Curl_pipeline_wanted(conn->data->multi, CURLPIPE_HTTP1) &&
++    (conn->bundle->multiuse == BUNDLE_PIPELINING);
+ 
+   /* Set 'num' to 0 or 1, depending on which socket that has been sent here.
+      If it is the second socket, we set num to 1. Otherwise to 0. This lets
+@@ -602,7 +718,7 @@ CURLcode Curl_read(struct connectdata *conn, /* connection data */
+ }
+ 
+ /* return 0 on success */
+-static int showit(struct SessionHandle *data, curl_infotype type,
++static int showit(struct Curl_easy *data, curl_infotype type,
+                   char *ptr, size_t size)
+ {
+   static const char s_infotype[CURLINFO_END][3] = {
+@@ -671,7 +787,7 @@ static int showit(struct SessionHandle *data, curl_infotype type,
+   return 0;
+ }
+ 
+-int Curl_debug(struct SessionHandle *data, curl_infotype type,
++int Curl_debug(struct Curl_easy *data, curl_infotype type,
+                char *ptr, size_t size,
+                struct connectdata *conn)
+ {

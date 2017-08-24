@@ -1,0 +1,1 @@
+remaining += pax->sparse_list->remaining

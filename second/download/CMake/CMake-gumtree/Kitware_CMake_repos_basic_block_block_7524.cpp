@@ -1,0 +1,1 @@
+entityDeclHandler = handler

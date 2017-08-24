@@ -1,0 +1,3 @@
+{
+        return decodeDouble(token, decoded);
+      }

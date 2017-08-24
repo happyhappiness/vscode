@@ -1,0 +1,1 @@
+entries[i].mode = AE_IFDIR | 0777

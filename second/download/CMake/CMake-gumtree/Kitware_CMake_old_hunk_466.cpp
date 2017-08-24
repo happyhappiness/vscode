@@ -1,7 +1,11 @@
-			archive_le64enc(z, zip->entry_offset);
-			z += 8;
-		}
-		archive_le16enc(zip64 + 2, z - (zip64 + 4));
-		zd = cd_alloc(zip, z - zip64);
-		if (zd == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!this->ImportFlag) {
+               this->ImportFlag = true;
+               fprintf(this->FileOut,"IMPORTS \n");
+            }
+            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+         }
+      }
+

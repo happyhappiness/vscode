@@ -1,0 +1,1 @@
+mine->filename_type = FNT_MBS

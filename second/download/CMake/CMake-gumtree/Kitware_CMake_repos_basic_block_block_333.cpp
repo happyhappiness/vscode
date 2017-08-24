@@ -1,0 +1,3 @@
+{
+      field_on_page = Sorted_Previous_Field(field_on_page);
+    }

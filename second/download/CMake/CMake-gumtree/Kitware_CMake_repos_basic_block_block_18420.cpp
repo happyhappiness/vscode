@@ -1,0 +1,3 @@
+{
+    node->parent->right = child;
+  }

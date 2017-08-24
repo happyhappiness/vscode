@@ -1,0 +1,1 @@
+bytes_to_write = (DWORD)(block_end - a->offset)

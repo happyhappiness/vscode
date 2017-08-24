@@ -1,0 +1,4 @@
+{
+          writeCommentAfterValueOnSameLine(childValue);
+          break;
+        }

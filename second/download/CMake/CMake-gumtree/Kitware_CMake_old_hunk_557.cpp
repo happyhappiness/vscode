@@ -1,8 +1,7 @@
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
-  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Open file: "
-    << covLogFilename << std::endl);
-  if(!this->StartResultingXML(cmCTest::PartCoverage,
-                              covLogFilename, covLogFile))
-    {
+
+      host_port = aprintf("%s:%hu", hostname, remote_port);
+      if(!host_port) {
+        free(req_buffer);
+        return CURLE_OUT_OF_MEMORY;
+      }
+

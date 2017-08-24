@@ -1,0 +1,1 @@
+((uintptr_t) w1 < (uintptr_t) w2) return -1;

@@ -1,0 +1,6 @@
+{
+		q = p;
+		p = p->next;
+		archive_mstring_clean(&(q->pathname));
+		free(q);
+	}

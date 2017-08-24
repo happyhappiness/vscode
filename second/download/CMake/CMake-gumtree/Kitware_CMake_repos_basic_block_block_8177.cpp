@@ -1,0 +1,2 @@
+(!newE)
+      return 0;

@@ -1,0 +1,1 @@
+typ->freearg((void *)argp)

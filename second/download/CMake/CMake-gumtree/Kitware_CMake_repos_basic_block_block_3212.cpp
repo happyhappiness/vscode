@@ -1,0 +1,1 @@
+panic ( "compress: bad modes\n" )

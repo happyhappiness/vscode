@@ -1,0 +1,4 @@
+{
+			folderIndex++;
+			indexInFolder = 0;
+		}

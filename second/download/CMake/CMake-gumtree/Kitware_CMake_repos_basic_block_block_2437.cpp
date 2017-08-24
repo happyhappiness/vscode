@@ -1,0 +1,3 @@
+{
+    attributes |= FOREGROUND_INTENSITY;
+  }

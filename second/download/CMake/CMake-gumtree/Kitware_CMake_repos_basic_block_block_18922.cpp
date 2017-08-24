@@ -1,0 +1,1 @@
+nread = pread(in_fd, buf, buflen, offset)

@@ -1,0 +1,1 @@
+hostaddr->inuse++

@@ -1,0 +1,1 @@
+(mnextsize(0) < mnextsize(1)) mnextswap(0,1)

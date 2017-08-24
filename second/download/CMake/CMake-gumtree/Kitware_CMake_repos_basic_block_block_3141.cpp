@@ -1,0 +1,1 @@
+(bzf == NULL || bzerr != BZ_OK) goto errhandler;

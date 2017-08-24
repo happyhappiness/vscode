@@ -1,0 +1,1 @@
+archive_rmd160_final(&mtree->rmd160ctx, reg->buf_rmd160)

@@ -1,0 +1,1 @@
+(void) exit_zlib(z, &k->zlib_init, CURLE_OK)

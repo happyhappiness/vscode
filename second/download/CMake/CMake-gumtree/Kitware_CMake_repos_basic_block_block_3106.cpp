@@ -1,0 +1,1 @@
+(nIbuf > 0) BZ2_bzWrite ( &bzerr, bzf, (void*)ibuf, nIbuf )

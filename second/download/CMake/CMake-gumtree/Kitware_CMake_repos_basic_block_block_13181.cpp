@@ -1,0 +1,1 @@
+r = BZ2_bzDecompressInit(&(xar->bzstream), 0, 1)

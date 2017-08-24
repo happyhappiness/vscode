@@ -1,0 +1,1 @@
+n = write(out_fd, buf + nwritten, nread - nwritten)

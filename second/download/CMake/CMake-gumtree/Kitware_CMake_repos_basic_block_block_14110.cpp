@@ -1,0 +1,1 @@
+ucptr = NULL

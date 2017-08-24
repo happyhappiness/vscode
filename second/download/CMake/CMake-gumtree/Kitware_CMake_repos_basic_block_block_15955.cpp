@@ -1,0 +1,1 @@
+extra_tell_used_size(ctl, ce_size)

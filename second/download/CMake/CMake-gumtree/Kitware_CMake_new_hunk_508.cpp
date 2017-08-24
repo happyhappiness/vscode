@@ -1,22 +1,8 @@
- */
-CURL *curl_easy_init(void)
-{
-  CURLcode result;
-  struct SessionHandle *data;
-
-  /* Make sure we inited the global SSL stuff */
-  if(!initialized) {
-    result = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if(result) {
-      /* something in the global init failed, return nothing */
-      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      return NULL;
-    }
-  }
-
-  /* We use curl_open() with undefined URL so far */
-  result = Curl_open(&data);
-  if(result) {
-    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
-    return NULL;
-  }
+			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
+			__archive_ensure_cloexec_flag(mtree->fd);
+			if (mtree->fd == -1 &&
+				(errno != ENOENT ||
+				 archive_strlen(&mtree->contents_name) > 0)) {
+				archive_set_error(&a->archive, errno,
+						"Can't open %s", path);
+				r = ARCHIVE_WARN;

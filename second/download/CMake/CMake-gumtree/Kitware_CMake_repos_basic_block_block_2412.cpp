@@ -1,0 +1,3 @@
+{
+    SystemTools::ClassInitialize();
+  }

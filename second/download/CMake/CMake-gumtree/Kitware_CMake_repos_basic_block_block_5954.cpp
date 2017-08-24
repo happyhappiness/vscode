@@ -1,0 +1,1 @@
+conn->scope_id = data->set.scope_id

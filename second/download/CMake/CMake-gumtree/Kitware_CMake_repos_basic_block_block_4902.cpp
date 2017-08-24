@@ -1,0 +1,3 @@
+f(!entry)
+        /* fatal */
+        return;

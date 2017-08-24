@@ -1,0 +1,1 @@
+archive_entry_set_size(entry, st->st_size)

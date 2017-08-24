@@ -1,0 +1,1 @@
+rsize = (size_t)size

@@ -1,0 +1,1 @@
+tar->entry_offset = tar->sparse_list->offset

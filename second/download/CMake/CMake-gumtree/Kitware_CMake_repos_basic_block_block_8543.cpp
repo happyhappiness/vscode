@@ -1,0 +1,1 @@
+want_type |= ARCHIVE_ENTRY_ACL_TYPE_DEFAULT

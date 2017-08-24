@@ -1,0 +1,1 @@
+(nextSym == EOB) break;

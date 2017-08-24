@@ -1,0 +1,1 @@
+cols_to_go = field->dcols - field->cols - form->begincol

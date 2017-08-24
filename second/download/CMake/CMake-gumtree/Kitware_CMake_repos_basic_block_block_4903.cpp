@@ -1,0 +1,1 @@
+action |= CURL_POLL_OUT

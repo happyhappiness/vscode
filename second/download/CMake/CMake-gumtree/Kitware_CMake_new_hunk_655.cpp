@@ -1,13 +1,10 @@
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
-      }
-    else
-      {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName.c_str(),
-              libsToLink.c_str());
-      }
-    fclose(fout);
+	    ARCHIVE_STATE_NEW, "archive_read_support_format_tar");
+
+	tar = (struct tar *)calloc(1, sizeof(*tar));
+#ifdef HAVE_COPYFILE_H
+	/* Set this by default on Mac OS. */
+	tar->process_mac_extensions = 1;
+#endif
+	if (tar == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate tar data");

@@ -1,957 +1,1242 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
+/*-
+ * Copyright (c) 2003-2009 Tim Kientzle
+ * Copyright (c) 2010-2012 Michihiro NAKAJIMA
+ * All rights reserved.
  *
- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
-
-#include "curl_setup.h"
-
-#ifdef USE_NTLM
-
-/*
- * NTLM details:
- *
- * http://davenport.sourceforge.net/ntlm.html
- * http://www.innovation.ch/java/ntlm.html
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#define DEBUG_ME 0
+#include "archive_platform.h"
+__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_disk_entry_from_file.c 201084 2009-12-28 02:14:09Z kientzle $");
 
-#include "urldata.h"
-#include "non-ascii.h"
-#include "sendf.h"
-#include "curl_base64.h"
-#include "curl_ntlm_core.h"
-#include "curl_gethostname.h"
-#include "curl_multibyte.h"
-#include "warnless.h"
-#include "curl_memory.h"
+/* This is the tree-walking code for POSIX systems. */
+#if !defined(_WIN32) || defined(__CYGWIN__)
 
-#ifdef USE_WINDOWS_SSPI
-#  include "curl_sspi.h"
+#ifdef HAVE_SYS_TYPES_H
+/* Mac OSX requires sys/types.h before sys/acl.h. */
+#include <sys/types.h>
 #endif
-
-#include "vtls/vtls.h"
-
-#define BUILDING_CURL_NTLM_MSGS_C
-#include "curl_ntlm_msgs.h"
-
-#define _MPRINTF_REPLACE /* use our functions only */
-#include <curl/mprintf.h>
-
-/* The last #include file should be: */
-#include "memdebug.h"
-
-/* "NTLMSSP" signature is always in ASCII regardless of the platform */
-#define NTLMSSP_SIGNATURE "\x4e\x54\x4c\x4d\x53\x53\x50"
-
-#define SHORTPAIR(x) ((x) & 0xff), (((x) >> 8) & 0xff)
-#define LONGQUARTET(x) ((x) & 0xff), (((x) >> 8) & 0xff), \
-  (((x) >> 16) & 0xff), (((x) >> 24) & 0xff)
-
-#if DEBUG_ME
-# define DEBUG_OUT(x) x
-static void ntlm_print_flags(FILE *handle, unsigned long flags)
-{
-  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
-  if(flags & NTLMFLAG_NEGOTIATE_OEM)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
-  if(flags & NTLMFLAG_REQUEST_TARGET)
-    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
-  if(flags & (1<<3))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
-  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
-  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
-  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
-  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
-  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
-  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
-  if(flags & (1<<10))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
-  if(flags & NTLMFLAG_NEGOTIATE_ANONYMOUS)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_ANONYMOUS ");
-  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
-  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
-  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
-  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
-  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
-  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
-  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
-    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
-  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
-  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
-    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
-  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
-    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
-  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
-    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
-  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
-  if(flags & (1<<24))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
-  if(flags & (1<<25))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
-  if(flags & (1<<26))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
-  if(flags & (1<<27))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
-  if(flags & (1<<28))
-    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
-  if(flags & NTLMFLAG_NEGOTIATE_128)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
-  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
-  if(flags & NTLMFLAG_NEGOTIATE_56)
-    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
-}
-
-static void ntlm_print_hex(FILE *handle, const char *buf, size_t len)
-{
-  const char *p = buf;
-  (void)handle;
-  fprintf(stderr, "0x");
-  while(len-- > 0)
-    fprintf(stderr, "%02.2x", (unsigned int)*p++);
-}
-#else
-# define DEBUG_OUT(x) Curl_nop_stmt
+#ifdef HAVE_SYS_ACL_H
+#include <sys/acl.h>
 #endif
-
-#ifndef USE_WINDOWS_SSPI
+#ifdef HAVE_SYS_EXTATTR_H
+#include <sys/extattr.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+#if defined(HAVE_SYS_XATTR_H)
+#include <sys/xattr.h>
+#elif defined(HAVE_ATTR_XATTR_H)
+#include <attr/xattr.h>
+#endif
+#ifdef HAVE_SYS_EA_H
+#include <sys/ea.h>
+#endif
+#ifdef HAVE_ACL_LIBACL_H
+#include <acl/libacl.h>
+#endif
+#ifdef HAVE_COPYFILE_H
+#include <copyfile.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#ifdef HAVE_LINUX_TYPES_H
+#include <linux/types.h>
+#endif
+#ifdef HAVE_LINUX_FIEMAP_H
+#include <linux/fiemap.h>
+#endif
+#ifdef HAVE_LINUX_FS_H
+#include <linux/fs.h>
+#endif
 /*
- * This function converts from the little endian format used in the
- * incoming package to whatever endian format we're using natively.
- * Argument is a pointer to a 4 byte buffer.
+ * Some Linux distributions have both linux/ext2_fs.h and ext2fs/ext2_fs.h.
+ * As the include guards don't agree, the order of include is important.
  */
-static unsigned int readint_le(unsigned char *buf)
-{
-  return ((unsigned int)buf[0]) | ((unsigned int)buf[1] << 8) |
-    ((unsigned int)buf[2] << 16) | ((unsigned int)buf[3] << 24);
-}
+#ifdef HAVE_LINUX_EXT2_FS_H
+#include <linux/ext2_fs.h>      /* for Linux file flags */
+#endif
+#if defined(HAVE_EXT2FS_EXT2_FS_H) && !defined(__CYGWIN__)
+#include <ext2fs/ext2_fs.h>     /* Linux file flags, broken on Cygwin */
+#endif
+#ifdef HAVE_PATHS_H
+#include <paths.h>
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#include "archive.h"
+#include "archive_entry.h"
+#include "archive_private.h"
+#include "archive_read_disk_private.h"
+
+#ifndef O_CLOEXEC
+#define O_CLOEXEC	0
+#endif
 
 /*
- * This function converts from the little endian format used in the incoming
- * package to whatever endian format we're using natively. Argument is a
- * pointer to a 2 byte buffer.
+ * Linux and FreeBSD plug this obvious hole in POSIX.1e in
+ * different ways.
  */
-static unsigned int readshort_le(unsigned char *buf)
+#if HAVE_ACL_GET_PERM
+#define	ACL_GET_PERM acl_get_perm
+#elif HAVE_ACL_GET_PERM_NP
+#define	ACL_GET_PERM acl_get_perm_np
+#endif
+
+static int setup_acls(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_mac_metadata(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_xattrs(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+static int setup_sparse(struct archive_read_disk *,
+    struct archive_entry *, int *fd);
+
+int
+archive_read_disk_entry_from_file(struct archive *_a,
+    struct archive_entry *entry,
+    int fd,
+    const struct stat *st)
 {
-  return ((unsigned int)buf[0]) | ((unsigned int)buf[1] << 8);
+	struct archive_read_disk *a = (struct archive_read_disk *)_a;
+	const char *path, *name;
+	struct stat s;
+	int initial_fd = fd;
+	int r, r1;
+
+	archive_clear_error(_a);
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (a->tree == NULL) {
+		if (st == NULL) {
+#if HAVE_FSTAT
+			if (fd >= 0) {
+				if (fstat(fd, &s) != 0) {
+					archive_set_error(&a->archive, errno,
+					    "Can't fstat");
+					return (ARCHIVE_FAILED);
+				}
+			} else
+#endif
+#if HAVE_LSTAT
+			if (!a->follow_symlinks) {
+				if (lstat(path, &s) != 0) {
+					archive_set_error(&a->archive, errno,
+					    "Can't lstat %s", path);
+					return (ARCHIVE_FAILED);
+				}
+			} else
+#endif
+			if (stat(path, &s) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't stat %s", path);
+				return (ARCHIVE_FAILED);
+			}
+			st = &s;
+		}
+		archive_entry_copy_stat(entry, st);
+	}
+
+	/* Lookup uname/gname */
+	name = archive_read_disk_uname(_a, archive_entry_uid(entry));
+	if (name != NULL)
+		archive_entry_copy_uname(entry, name);
+	name = archive_read_disk_gname(_a, archive_entry_gid(entry));
+	if (name != NULL)
+		archive_entry_copy_gname(entry, name);
+
+#ifdef HAVE_STRUCT_STAT_ST_FLAGS
+	/* On FreeBSD, we get flags for free with the stat. */
+	/* TODO: Does this belong in copy_stat()? */
+	if (st->st_flags != 0)
+		archive_entry_set_fflags(entry, st->st_flags, 0);
+#endif
+
+#if defined(EXT2_IOC_GETFLAGS) && defined(HAVE_WORKING_EXT2_IOC_GETFLAGS)
+	/* Linux requires an extra ioctl to pull the flags.  Although
+	 * this is an extra step, it has a nice side-effect: We get an
+	 * open file descriptor which we can use in the subsequent lookups. */
+	if ((S_ISREG(st->st_mode) || S_ISDIR(st->st_mode))) {
+		if (fd < 0) {
+			if (a->tree != NULL)
+				fd = a->open_on_current_dir(a->tree, path,
+					O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+			else
+				fd = open(path, O_RDONLY | O_NONBLOCK |
+						O_CLOEXEC);
+			__archive_ensure_cloexec_flag(fd);
+		}
+		if (fd >= 0) {
+			int stflags;
+			r = ioctl(fd, EXT2_IOC_GETFLAGS, &stflags);
+			if (r == 0 && stflags != 0)
+				archive_entry_set_fflags(entry, stflags, 0);
+		}
+	}
+#endif
+
+#if defined(HAVE_READLINK) || defined(HAVE_READLINKAT)
+	if (S_ISLNK(st->st_mode)) {
+		size_t linkbuffer_len = st->st_size + 1;
+		char *linkbuffer;
+		int lnklen;
+
+		linkbuffer = malloc(linkbuffer_len);
+		if (linkbuffer == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Couldn't read link data");
+			return (ARCHIVE_FAILED);
+		}
+		if (a->tree != NULL) {
+#ifdef HAVE_READLINKAT
+			lnklen = readlinkat(a->tree_current_dir_fd(a->tree),
+			    path, linkbuffer, linkbuffer_len);
+#else
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't read link data");
+				free(linkbuffer);
+				return (ARCHIVE_FAILED);
+			}
+			lnklen = readlink(path, linkbuffer, linkbuffer_len);
+#endif /* HAVE_READLINKAT */
+		} else
+			lnklen = readlink(path, linkbuffer, linkbuffer_len);
+		if (lnklen < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't read link data");
+			free(linkbuffer);
+			return (ARCHIVE_FAILED);
+		}
+		linkbuffer[lnklen] = 0;
+		archive_entry_set_symlink(entry, linkbuffer);
+		free(linkbuffer);
+	}
+#endif /* HAVE_READLINK || HAVE_READLINKAT */
+
+	r = setup_acls(a, entry, &fd);
+	if (!a->suppress_xattr) {
+		r1 = setup_xattrs(a, entry, &fd);
+		if (r1 < r)
+			r = r1;
+	}
+	if (a->enable_copyfile) {
+		r1 = setup_mac_metadata(a, entry, &fd);
+		if (r1 < r)
+			r = r1;
+	}
+	r1 = setup_sparse(a, entry, &fd);
+	if (r1 < r)
+		r = r1;
+
+	/* If we opened the file earlier in this function, close it. */
+	if (initial_fd != fd)
+		close(fd);
+	return (r);
 }
 
+#if defined(__APPLE__) && defined(HAVE_COPYFILE_H)
 /*
- * Curl_ntlm_decode_type2_target()
+ * The Mac OS "copyfile()" API copies the extended metadata for a
+ * file into a separate file in AppleDouble format (see RFC 1740).
  *
- * This is used to decode the "target info" in the ntlm type-2 message
- * received.
+ * Mac OS tar and cpio implementations store this extended
+ * metadata as a separate entry just before the regular entry
+ * with a "._" prefix added to the filename.
  *
- * Parameters:
+ * Note that this is currently done unconditionally; the tar program has
+ * an option to discard this information before the archive is written.
  *
- * data      [in]    - Pointer to the session handle
- * buffer    [in]    - The decoded base64 ntlm header of Type 2
- * size      [in]    - The input buffer size, atleast 32 bytes
- * ntlm      [in]    - Pointer to ntlm data struct being used and modified.
- *
- * Returns CURLE_OK on success.
+ * TODO: If there's a failure, report it and return ARCHIVE_WARN.
  */
-CURLcode Curl_ntlm_decode_type2_target(struct SessionHandle *data,
-                                       unsigned char *buffer,
-                                       size_t size,
-                                       struct ntlmdata *ntlm)
+static int
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  unsigned int target_info_len = 0;
-  unsigned int target_info_offset = 0;
+	int tempfd = -1;
+	int copyfile_flags = COPYFILE_NOFOLLOW | COPYFILE_ACL | COPYFILE_XATTR;
+	struct stat copyfile_stat;
+	int ret = ARCHIVE_OK;
+	void *buff = NULL;
+	int have_attrs;
+	const char *name, *tempdir;
+	struct archive_string tempfile;
 
-  Curl_safefree(ntlm->target_info);
-  ntlm->target_info_len = 0;
+	(void)fd; /* UNUSED */
+	name = archive_entry_sourcepath(entry);
+	if (name == NULL)
+		name = archive_entry_pathname(entry);
+	if (name == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't open file to read extended attributes: No name");
+		return (ARCHIVE_WARN);
+	}
 
-  if(size >= 48) {
-    target_info_len = readshort_le(&buffer[40]);
-    target_info_offset = readint_le(&buffer[44]);
-    if(target_info_len > 0) {
-      if(((target_info_offset + target_info_len) > size) ||
-         (target_info_offset < 48)) {
-        infof(data, "NTLM handshake failure (bad type-2 message). "
-                    "Target Info Offset Len is set incorrect by the peer\n");
-        return CURLE_REMOTE_ACCESS_DENIED;
-      }
+	if (a->tree != NULL) {
+		if (a->tree_enter_working_dir(a->tree) != 0) {
+			archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");
+				return (ARCHIVE_FAILED);
+		}
+	}
 
-      ntlm->target_info = malloc(target_info_len);
-      if(!ntlm->target_info)
-        return CURLE_OUT_OF_MEMORY;
+	/* Short-circuit if there's nothing to do. */
+	have_attrs = copyfile(name, NULL, 0, copyfile_flags | COPYFILE_CHECK);
+	if (have_attrs == -1) {
+		archive_set_error(&a->archive, errno,
+			"Could not check extended attributes");
+		return (ARCHIVE_WARN);
+	}
+	if (have_attrs == 0)
+		return (ARCHIVE_OK);
 
-      memcpy(ntlm->target_info, &buffer[target_info_offset], target_info_len);
-      ntlm->target_info_len = target_info_len;
+	tempdir = NULL;
+	if (issetugid() == 0)
+		tempdir = getenv("TMPDIR");
+	if (tempdir == NULL)
+		tempdir = _PATH_TMP;
+	archive_string_init(&tempfile);
+	archive_strcpy(&tempfile, tempdir);
+	archive_strcat(&tempfile, "tar.md.XXXXXX");
+	tempfd = mkstemp(tempfile.s);
+	if (tempfd < 0) {
+		archive_set_error(&a->archive, errno,
+		    "Could not open extended attribute file");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	__archive_ensure_cloexec_flag(tempfd);
 
-    }
+	/* XXX I wish copyfile() could pack directly to a memory
+	 * buffer; that would avoid the temp file here.  For that
+	 * matter, it would be nice if fcopyfile() actually worked,
+	 * that would reduce the many open/close races here. */
+	if (copyfile(name, tempfile.s, 0, copyfile_flags | COPYFILE_PACK)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not pack extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (fstat(tempfd, &copyfile_stat)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not check size of extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	buff = malloc(copyfile_stat.st_size);
+	if (buff == NULL) {
+		archive_set_error(&a->archive, errno,
+		    "Could not allocate memory for extended attributes");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	if (copyfile_stat.st_size != read(tempfd, buff, copyfile_stat.st_size)) {
+		archive_set_error(&a->archive, errno,
+		    "Could not read extended attributes into memory");
+		ret = ARCHIVE_WARN;
+		goto cleanup;
+	}
+	archive_entry_copy_mac_metadata(entry, buff, copyfile_stat.st_size);
 
-  }
-
-  return CURLE_OK;
+cleanup:
+	if (tempfd >= 0) {
+		close(tempfd);
+		unlink(tempfile.s);
+	}
+	archive_string_free(&tempfile);
+	free(buff);
+	return (ret);
 }
 
-#endif
+#else
 
 /*
-  NTLM message structure notes:
-
-  A 'short' is a 'network short', a little-endian 16-bit unsigned value.
-
-  A 'long' is a 'network long', a little-endian, 32-bit unsigned value.
-
-  A 'security buffer' represents a triplet used to point to a buffer,
-  consisting of two shorts and one long:
-
-    1. A 'short' containing the length of the buffer content in bytes.
-    2. A 'short' containing the allocated space for the buffer in bytes.
-    3. A 'long' containing the offset to the start of the buffer in bytes,
-       from the beginning of the NTLM message.
-*/
-
-/*
- * Curl_ntlm_decode_type2_message()
- *
- * This is used to decode a ntlm type-2 message received from a HTTP or SASL
- * based (such as SMTP, POP3 or IMAP) server. The message is first decoded
- * from a base64 string into a raw ntlm message and checked for validity
- * before the appropriate data for creating a type-3 message is written to
- * the given ntlm data structure.
- *
- * Parameters:
- *
- * data    [in]     - Pointer to session handle.
- * header  [in]     - Pointer to the input buffer.
- * ntlm    [in]     - Pointer to ntlm data struct being used and modified.
- *
- * Returns CURLE_OK on success.
+ * Stub implementation for non-Mac systems.
  */
-CURLcode Curl_ntlm_decode_type2_message(struct SessionHandle *data,
-                                        const char *header,
-                                        struct ntlmdata *ntlm)
+static int
+setup_mac_metadata(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-#ifndef USE_WINDOWS_SSPI
-  static const char type2_marker[] = { 0x02, 0x00, 0x00, 0x00 };
-#endif
-
-  /* NTLM type-2 message structure:
-
-          Index  Description            Content
-            0    NTLMSSP Signature      Null-terminated ASCII "NTLMSSP"
-                                        (0x4e544c4d53535000)
-            8    NTLM Message Type      long (0x02000000)
-           12    Target Name            security buffer
-           20    Flags                  long
-           24    Challenge              8 bytes
-          (32)   Context                8 bytes (two consecutive longs) (*)
-          (40)   Target Information     security buffer (*)
-          (48)   OS Version Structure   8 bytes (*)
-  32 (48) (56)   Start of data block    (*)
-                                        (*) -> Optional
-  */
-
-  size_t size = 0;
-  unsigned char *buffer = NULL;
-  CURLcode error;
-
-#if defined(CURL_DISABLE_VERBOSE_STRINGS) || defined(USE_WINDOWS_SSPI)
-  (void)data;
-#endif
-
-  error = Curl_base64_decode(header, &buffer, &size);
-  if(error)
-    return error;
-
-  if(!buffer) {
-    infof(data, "NTLM handshake failure (unhandled condition)\n");
-    return CURLE_REMOTE_ACCESS_DENIED;
-  }
-
-#ifdef USE_WINDOWS_SSPI
-  ntlm->type_2 = malloc(size + 1);
-  if(ntlm->type_2 == NULL) {
-    free(buffer);
-    return CURLE_OUT_OF_MEMORY;
-  }
-  ntlm->n_type_2 = curlx_uztoul(size);
-  memcpy(ntlm->type_2, buffer, size);
-#else
-  ntlm->flags = 0;
-
-  if((size < 32) ||
-     (memcmp(buffer, NTLMSSP_SIGNATURE, 8) != 0) ||
-     (memcmp(buffer + 8, type2_marker, sizeof(type2_marker)) != 0)) {
-    /* This was not a good enough type-2 message */
-    free(buffer);
-    infof(data, "NTLM handshake failure (bad type-2 message)\n");
-    return CURLE_REMOTE_ACCESS_DENIED;
-  }
-
-  ntlm->flags = readint_le(&buffer[20]);
-  memcpy(ntlm->nonce, &buffer[24], 8);
-
-  if(ntlm->flags & NTLMFLAG_NEGOTIATE_TARGET_INFO) {
-    error = Curl_ntlm_decode_type2_target(data, buffer, size, ntlm);
-    if(error) {
-      free(buffer);
-      infof(data, "NTLM handshake failure (bad type-2 message)\n");
-      return error;
-    }
-  }
-
-  DEBUG_OUT({
-    fprintf(stderr, "**** TYPE2 header flags=0x%08.8lx ", ntlm->flags);
-    ntlm_print_flags(stderr, ntlm->flags);
-    fprintf(stderr, "\n                  nonce=");
-    ntlm_print_hex(stderr, (char *)ntlm->nonce, 8);
-    fprintf(stderr, "\n****\n");
-    fprintf(stderr, "**** Header %s\n ", header);
-  });
-#endif
-  free(buffer);
-
-  return CURLE_OK;
-}
-
-#ifdef USE_WINDOWS_SSPI
-void Curl_ntlm_sspi_cleanup(struct ntlmdata *ntlm)
-{
-  Curl_safefree(ntlm->type_2);
-
-  if(ntlm->has_handles) {
-    s_pSecFn->DeleteSecurityContext(&ntlm->c_handle);
-    s_pSecFn->FreeCredentialsHandle(&ntlm->handle);
-    ntlm->has_handles = 0;
-  }
-
-  ntlm->max_token_length = 0;
-  Curl_safefree(ntlm->output_token);
-
-  Curl_sspi_free_identity(ntlm->p_identity);
-  ntlm->p_identity = NULL;
+	(void)a; /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd; /* UNUSED */
+	return (ARCHIVE_OK);
 }
 #endif
 
-#ifndef USE_WINDOWS_SSPI
-/* copy the source to the destination and fill in zeroes in every
-   other destination byte! */
-static void unicodecpy(unsigned char *dest, const char *src, size_t length)
+
+#ifdef HAVE_POSIX_ACL
+static int translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int archive_entry_acl_type);
+
+static int
+setup_acls(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  size_t i;
-  for(i = 0; i < length; i++) {
-    dest[2 * i] = (unsigned char)src[i];
-    dest[2 * i + 1] = '\0';
-  }
-}
+	const char	*accpath;
+	acl_t		 acl;
+#if HAVE_ACL_IS_TRIVIAL_NP
+	int		r;
 #endif
 
-/*
- * Curl_ntlm_create_type1_message()
- *
- * This is used to generate an already encoded NTLM type-1 message ready for
- * sending to the recipient, be it a HTTP or SASL based (such as SMTP, POP3
- * or IMAP) server, using the appropriate compile time crypo API.
- *
- * Parameters:
- *
- * userp   [in]     - The user name in the format User or Domain\User.
- * passdwp [in]     - The user's password.
- * ntlm    [in/out] - The ntlm data struct being used and modified.
- * outptr  [in/out] - The address where a pointer to newly allocated memory
- *                    holding the result will be stored upon completion.
- * outlen  [out]    - The length of the output message.
- *
- * Returns CURLE_OK on success.
- */
-CURLcode Curl_ntlm_create_type1_message(const char *userp,
-                                        const char *passwdp,
-                                        struct ntlmdata *ntlm,
-                                        char **outptr,
-                                        size_t *outlen)
-{
-  /* NTLM type-1 message structure:
+	accpath = archive_entry_sourcepath(entry);
+	if (accpath == NULL)
+		accpath = archive_entry_pathname(entry);
 
-       Index  Description            Content
-         0    NTLMSSP Signature      Null-terminated ASCII "NTLMSSP"
-                                     (0x4e544c4d53535000)
-         8    NTLM Message Type      long (0x01000000)
-        12    Flags                  long
-       (16)   Supplied Domain        security buffer (*)
-       (24)   Supplied Workstation   security buffer (*)
-       (32)   OS Version Structure   8 bytes (*)
-  (32) (40)   Start of data block    (*)
-                                     (*) -> Optional
-  */
+	archive_entry_acl_clear(entry);
 
-  size_t size;
-
-#ifdef USE_WINDOWS_SSPI
-
-  PSecPkgInfo SecurityPackage;
-  SecBuffer type_1_buf;
-  SecBufferDesc type_1_desc;
-  SECURITY_STATUS status;
-  unsigned long attrs;
-  TimeStamp tsDummy; /* For Windows 9x compatibility of SSPI calls */
-
-  Curl_ntlm_sspi_cleanup(ntlm);
-
-  /* Query the security package for NTLM */
-  status = s_pSecFn->QuerySecurityPackageInfo((TCHAR *) TEXT("NTLM"),
-                                              &SecurityPackage);
-  if(status != SEC_E_OK)
-    return CURLE_NOT_BUILT_IN;
-
-  ntlm->max_token_length = SecurityPackage->cbMaxToken;
-
-  /* Release the package buffer as it is not required anymore */
-  s_pSecFn->FreeContextBuffer(SecurityPackage);
-
-  /* Allocate our output buffer */
-  ntlm->output_token = malloc(ntlm->max_token_length);
-  if(!ntlm->output_token)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(userp && *userp) {
-    CURLcode result;
-
-    /* Populate our identity structure */
-    result = Curl_create_sspi_identity(userp, passwdp, &ntlm->identity);
-    if(result)
-      return result;
-
-    /* Allow proper cleanup of the identity structure */
-    ntlm->p_identity = &ntlm->identity;
-  }
-  else
-    /* Use the current Windows user */
-    ntlm->p_identity = NULL;
-
-  /* Acquire our credientials handle */
-  status = s_pSecFn->AcquireCredentialsHandle(NULL,
-                                              (TCHAR *) TEXT("NTLM"),
-                                              SECPKG_CRED_OUTBOUND, NULL,
-                                              ntlm->p_identity, NULL, NULL,
-                                              &ntlm->handle, &tsDummy);
-  if(status != SEC_E_OK)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Setup the type-1 "output" security buffer */
-  type_1_desc.ulVersion = SECBUFFER_VERSION;
-  type_1_desc.cBuffers  = 1;
-  type_1_desc.pBuffers  = &type_1_buf;
-  type_1_buf.BufferType = SECBUFFER_TOKEN;
-  type_1_buf.pvBuffer   = ntlm->output_token;
-  type_1_buf.cbBuffer   = curlx_uztoul(ntlm->max_token_length);
-
-  /* Generate our type-1 message */
-  status = s_pSecFn->InitializeSecurityContext(&ntlm->handle, NULL,
-                                               (TCHAR *) TEXT(""),
-                                               ISC_REQ_CONFIDENTIALITY |
-                                               ISC_REQ_REPLAY_DETECT |
-                                               ISC_REQ_CONNECTION,
-                                               0, SECURITY_NETWORK_DREP,
-                                               NULL, 0,
-                                               &ntlm->c_handle, &type_1_desc,
-                                               &attrs, &tsDummy);
-
-  if(status == SEC_I_COMPLETE_AND_CONTINUE ||
-     status == SEC_I_CONTINUE_NEEDED)
-    s_pSecFn->CompleteAuthToken(&ntlm->c_handle, &type_1_desc);
-  else if(status != SEC_E_OK) {
-    s_pSecFn->FreeCredentialsHandle(&ntlm->handle);
-    return CURLE_RECV_ERROR;
-  }
-
-  ntlm->has_handles = 1;
-  size = type_1_buf.cbBuffer;
-
+#ifdef ACL_TYPE_NFS4
+	/* Try NFS4 ACL first. */
+	if (*fd >= 0)
+		acl = acl_get_fd(*fd);
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ACL_TYPE_NFS4);
 #else
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
+#endif
+	else
+		acl = acl_get_file(accpath, ACL_TYPE_NFS4);
+#if HAVE_ACL_IS_TRIVIAL_NP
+	/* Ignore "trivial" ACLs that just mirror the file mode. */
+	acl_is_trivial_np(acl, &r);
+	if (r) {
+		acl_free(acl);
+		acl = NULL;
+	}
+#endif
+	if (acl != NULL) {
+		translate_acl(a, entry, acl, ARCHIVE_ENTRY_ACL_TYPE_NFS4);
+		acl_free(acl);
+		return (ARCHIVE_OK);
+	}
+#endif
 
-  unsigned char ntlmbuf[NTLM_BUFSIZE];
-  const char *host = "";              /* empty */
-  const char *domain = "";            /* empty */
-  size_t hostlen = 0;
-  size_t domlen = 0;
-  size_t hostoff = 0;
-  size_t domoff = hostoff + hostlen;  /* This is 0: remember that host and
-                                         domain are empty */
-  (void)userp;
-  (void)passwdp;
-  (void)ntlm;
-
-#if USE_NTLM2SESSION
-#define NTLM2FLAG NTLMFLAG_NEGOTIATE_NTLM2_KEY
+	/* Retrieve access ACL from file. */
+	if (*fd >= 0)
+		acl = acl_get_fd(*fd);
+#if HAVE_ACL_GET_LINK_NP
+	else if (!a->follow_symlinks)
+		acl = acl_get_link_np(accpath, ACL_TYPE_ACCESS);
 #else
-#define NTLM2FLAG 0
+	else if ((!a->follow_symlinks)
+	    && (archive_entry_filetype(entry) == AE_IFLNK))
+		/* We can't get the ACL of a symlink, so we assume it can't
+		   have one. */
+		acl = NULL;
 #endif
-  snprintf((char *)ntlmbuf, NTLM_BUFSIZE,
-           NTLMSSP_SIGNATURE "%c"
-           "\x01%c%c%c" /* 32-bit type = 1 */
-           "%c%c%c%c"   /* 32-bit NTLM flag field */
-           "%c%c"       /* domain length */
-           "%c%c"       /* domain allocated space */
-           "%c%c"       /* domain name offset */
-           "%c%c"       /* 2 zeroes */
-           "%c%c"       /* host length */
-           "%c%c"       /* host allocated space */
-           "%c%c"       /* host name offset */
-           "%c%c"       /* 2 zeroes */
-           "%s"         /* host name */
-           "%s",        /* domain string */
-           0,           /* trailing zero */
-           0, 0, 0,     /* part of type-1 long */
+	else
+		acl = acl_get_file(accpath, ACL_TYPE_ACCESS);
+	if (acl != NULL) {
+		translate_acl(a, entry, acl,
+		    ARCHIVE_ENTRY_ACL_TYPE_ACCESS);
+		acl_free(acl);
+	}
 
-           LONGQUARTET(NTLMFLAG_NEGOTIATE_OEM |
-                       NTLMFLAG_REQUEST_TARGET |
-                       NTLMFLAG_NEGOTIATE_NTLM_KEY |
-                       NTLM2FLAG |
-                       NTLMFLAG_NEGOTIATE_ALWAYS_SIGN),
-           SHORTPAIR(domlen),
-           SHORTPAIR(domlen),
-           SHORTPAIR(domoff),
-           0, 0,
-           SHORTPAIR(hostlen),
-           SHORTPAIR(hostlen),
-           SHORTPAIR(hostoff),
-           0, 0,
-           host,  /* this is empty */
-           domain /* this is empty */);
-
-  /* Initial packet length */
-  size = 32 + hostlen + domlen;
-
-#endif
-
-  DEBUG_OUT({
-    fprintf(stderr, "* TYPE1 header flags=0x%02.2x%02.2x%02.2x%02.2x "
-            "0x%08.8x ",
-            LONGQUARTET(NTLMFLAG_NEGOTIATE_OEM |
-                        NTLMFLAG_REQUEST_TARGET |
-                        NTLMFLAG_NEGOTIATE_NTLM_KEY |
-                        NTLM2FLAG |
-                        NTLMFLAG_NEGOTIATE_ALWAYS_SIGN),
-            NTLMFLAG_NEGOTIATE_OEM |
-            NTLMFLAG_REQUEST_TARGET |
-            NTLMFLAG_NEGOTIATE_NTLM_KEY |
-            NTLM2FLAG |
-            NTLMFLAG_NEGOTIATE_ALWAYS_SIGN);
-    ntlm_print_flags(stderr,
-                     NTLMFLAG_NEGOTIATE_OEM |
-                     NTLMFLAG_REQUEST_TARGET |
-                     NTLMFLAG_NEGOTIATE_NTLM_KEY |
-                     NTLM2FLAG |
-                     NTLMFLAG_NEGOTIATE_ALWAYS_SIGN);
-    fprintf(stderr, "\n****\n");
-  });
-
-  /* Return with binary blob encoded into base64 */
-#ifdef USE_WINDOWS_SSPI
-  return Curl_base64_encode(NULL, (char *)ntlm->output_token, size,
-                            outptr, outlen);
-#else
-  return Curl_base64_encode(NULL, (char *)ntlmbuf, size, outptr, outlen);
-#endif
+	/* Only directories can have default ACLs. */
+	if (S_ISDIR(archive_entry_mode(entry))) {
+		acl = acl_get_file(accpath, ACL_TYPE_DEFAULT);
+		if (acl != NULL) {
+			translate_acl(a, entry, acl,
+			    ARCHIVE_ENTRY_ACL_TYPE_DEFAULT);
+			acl_free(acl);
+		}
+	}
+	return (ARCHIVE_OK);
 }
 
 /*
- * Curl_ntlm_create_type3_message()
- *
- * This is used to generate an already encoded NTLM type-3 message ready for
- * sending to the recipient, be it a HTTP or SASL based (such as SMTP, POP3
- * or IMAP) server, using the appropriate compile time crypo API.
- *
- * Parameters:
- *
- * data    [in]     - The session handle.
- * userp   [in]     - The user name in the format User or Domain\User.
- * passdwp [in]     - The user's password.
- * ntlm    [in/out] - The ntlm data struct being used and modified.
- * outptr  [in/out] - The address where a pointer to newly allocated memory
- *                    holding the result will be stored upon completion.
- * outlen  [out]    - The length of the output message.
- *
- * Returns CURLE_OK on success.
+ * Translate system ACL into libarchive internal structure.
  */
-CURLcode Curl_ntlm_create_type3_message(struct SessionHandle *data,
-                                        const char *userp,
-                                        const char *passwdp,
-                                        struct ntlmdata *ntlm,
-                                        char **outptr,
-                                        size_t *outlen)
+
+static struct {
+        int archive_perm;
+        int platform_perm;
+} acl_perm_map[] = {
+        {ARCHIVE_ENTRY_ACL_EXECUTE, ACL_EXECUTE},
+        {ARCHIVE_ENTRY_ACL_WRITE, ACL_WRITE},
+        {ARCHIVE_ENTRY_ACL_READ, ACL_READ},
+#ifdef ACL_TYPE_NFS4
+        {ARCHIVE_ENTRY_ACL_READ_DATA, ACL_READ_DATA},
+        {ARCHIVE_ENTRY_ACL_LIST_DIRECTORY, ACL_LIST_DIRECTORY},
+        {ARCHIVE_ENTRY_ACL_WRITE_DATA, ACL_WRITE_DATA},
+        {ARCHIVE_ENTRY_ACL_ADD_FILE, ACL_ADD_FILE},
+        {ARCHIVE_ENTRY_ACL_APPEND_DATA, ACL_APPEND_DATA},
+        {ARCHIVE_ENTRY_ACL_ADD_SUBDIRECTORY, ACL_ADD_SUBDIRECTORY},
+        {ARCHIVE_ENTRY_ACL_READ_NAMED_ATTRS, ACL_READ_NAMED_ATTRS},
+        {ARCHIVE_ENTRY_ACL_WRITE_NAMED_ATTRS, ACL_WRITE_NAMED_ATTRS},
+        {ARCHIVE_ENTRY_ACL_DELETE_CHILD, ACL_DELETE_CHILD},
+        {ARCHIVE_ENTRY_ACL_READ_ATTRIBUTES, ACL_READ_ATTRIBUTES},
+        {ARCHIVE_ENTRY_ACL_WRITE_ATTRIBUTES, ACL_WRITE_ATTRIBUTES},
+        {ARCHIVE_ENTRY_ACL_DELETE, ACL_DELETE},
+        {ARCHIVE_ENTRY_ACL_READ_ACL, ACL_READ_ACL},
+        {ARCHIVE_ENTRY_ACL_WRITE_ACL, ACL_WRITE_ACL},
+        {ARCHIVE_ENTRY_ACL_WRITE_OWNER, ACL_WRITE_OWNER},
+        {ARCHIVE_ENTRY_ACL_SYNCHRONIZE, ACL_SYNCHRONIZE}
+#endif
+};
+
+#ifdef ACL_TYPE_NFS4
+static struct {
+        int archive_inherit;
+        int platform_inherit;
+} acl_inherit_map[] = {
+        {ARCHIVE_ENTRY_ACL_ENTRY_FILE_INHERIT, ACL_ENTRY_FILE_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_DIRECTORY_INHERIT, ACL_ENTRY_DIRECTORY_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_NO_PROPAGATE_INHERIT, ACL_ENTRY_NO_PROPAGATE_INHERIT},
+	{ARCHIVE_ENTRY_ACL_ENTRY_INHERIT_ONLY, ACL_ENTRY_INHERIT_ONLY}
+};
+#endif
+static int
+translate_acl(struct archive_read_disk *a,
+    struct archive_entry *entry, acl_t acl, int default_entry_acl_type)
 {
-  /* NTLM type-3 message structure:
+	acl_tag_t	 acl_tag;
+#ifdef ACL_TYPE_NFS4
+	acl_entry_type_t acl_type;
+	acl_flagset_t	 acl_flagset;
+	int brand, r;
+#endif
+	acl_entry_t	 acl_entry;
+	acl_permset_t	 acl_permset;
+	int		 i, entry_acl_type;
+	int		 s, ae_id, ae_tag, ae_perm;
+	const char	*ae_name;
 
-          Index  Description            Content
-            0    NTLMSSP Signature      Null-terminated ASCII "NTLMSSP"
-                                        (0x4e544c4d53535000)
-            8    NTLM Message Type      long (0x03000000)
-           12    LM/LMv2 Response       security buffer
-           20    NTLM/NTLMv2 Response   security buffer
-           28    Target Name            security buffer
-           36    User Name              security buffer
-           44    Workstation Name       security buffer
-          (52)   Session Key            security buffer (*)
-          (60)   Flags                  long (*)
-          (64)   OS Version Structure   8 bytes (*)
-  52 (64) (72)   Start of data block
-                                          (*) -> Optional
-  */
 
-  size_t size;
+#ifdef ACL_TYPE_NFS4
+	// FreeBSD "brands" ACLs as POSIX.1e or NFSv4
+	// Make sure the "brand" on this ACL is consistent
+	// with the default_entry_acl_type bits provided.
+	acl_get_brand_np(acl, &brand);
+	switch (brand) {
+	case ACL_BRAND_POSIX:
+		switch (default_entry_acl_type) {
+		case ARCHIVE_ENTRY_ACL_TYPE_ACCESS:
+		case ARCHIVE_ENTRY_ACL_TYPE_DEFAULT:
+			break;
+		default:
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
+		}
+		break;
+	case ACL_BRAND_NFS4:
+		if (default_entry_acl_type & ~ARCHIVE_ENTRY_ACL_TYPE_NFS4) {
+			// XXX set warning message?
+			return ARCHIVE_FAILED;
+		}
+		break;
+	default:
+		// XXX set warning message?
+		return ARCHIVE_FAILED;
+		break;
+	}
+#endif
 
-#ifdef USE_WINDOWS_SSPI
-  CURLcode result = CURLE_OK;
-  SecBuffer type_2_buf;
-  SecBuffer type_3_buf;
-  SecBufferDesc type_2_desc;
-  SecBufferDesc type_3_desc;
-  SECURITY_STATUS status;
-  unsigned long attrs;
-  TimeStamp tsDummy; /* For Windows 9x compatibility of SSPI calls */
 
-  (void)passwdp;
-  (void)userp;
-  (void)data;
+	s = acl_get_entry(acl, ACL_FIRST_ENTRY, &acl_entry);
+	while (s == 1) {
+		ae_id = -1;
+		ae_name = NULL;
+		ae_perm = 0;
 
-  /* Setup the type-2 "input" security buffer */
-  type_2_desc.ulVersion = SECBUFFER_VERSION;
-  type_2_desc.cBuffers  = 1;
-  type_2_desc.pBuffers  = &type_2_buf;
-  type_2_buf.BufferType = SECBUFFER_TOKEN;
-  type_2_buf.pvBuffer   = ntlm->type_2;
-  type_2_buf.cbBuffer   = ntlm->n_type_2;
+		acl_get_tag_type(acl_entry, &acl_tag);
+		switch (acl_tag) {
+		case ACL_USER:
+			ae_id = (int)*(uid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_uname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_USER;
+			break;
+		case ACL_GROUP:
+			ae_id = (int)*(gid_t *)acl_get_qualifier(acl_entry);
+			ae_name = archive_read_disk_gname(&a->archive, ae_id);
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP;
+			break;
+		case ACL_MASK:
+			ae_tag = ARCHIVE_ENTRY_ACL_MASK;
+			break;
+		case ACL_USER_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_USER_OBJ;
+			break;
+		case ACL_GROUP_OBJ:
+			ae_tag = ARCHIVE_ENTRY_ACL_GROUP_OBJ;
+			break;
+		case ACL_OTHER:
+			ae_tag = ARCHIVE_ENTRY_ACL_OTHER;
+			break;
+#ifdef ACL_TYPE_NFS4
+		case ACL_EVERYONE:
+			ae_tag = ARCHIVE_ENTRY_ACL_EVERYONE;
+			break;
+#endif
+		default:
+			/* Skip types that libarchive can't support. */
+			s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+			continue;
+		}
 
-  /* Setup the type-3 "output" security buffer */
-  type_3_desc.ulVersion = SECBUFFER_VERSION;
-  type_3_desc.cBuffers  = 1;
-  type_3_desc.pBuffers  = &type_3_buf;
-  type_3_buf.BufferType = SECBUFFER_TOKEN;
-  type_3_buf.pvBuffer   = ntlm->output_token;
-  type_3_buf.cbBuffer   = curlx_uztoul(ntlm->max_token_length);
+		// XXX acl type maps to allow/deny/audit/YYYY bits
+		// XXX acl_get_entry_type_np on FreeBSD returns EINVAL for
+		// non-NFSv4 ACLs
+		entry_acl_type = default_entry_acl_type;
+#ifdef ACL_TYPE_NFS4
+		r = acl_get_entry_type_np(acl_entry, &acl_type);
+		if (r == 0) {
+			switch (acl_type) {
+			case ACL_ENTRY_TYPE_ALLOW:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALLOW;
+				break;
+			case ACL_ENTRY_TYPE_DENY:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_DENY;
+				break;
+			case ACL_ENTRY_TYPE_AUDIT:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_AUDIT;
+				break;
+			case ACL_ENTRY_TYPE_ALARM:
+				entry_acl_type = ARCHIVE_ENTRY_ACL_TYPE_ALARM;
+				break;
+			}
+		}
 
-  /* Generate our type-3 message */
-  status = s_pSecFn->InitializeSecurityContext(&ntlm->handle,
-                                               &ntlm->c_handle,
-                                               (TCHAR *) TEXT(""),
-                                               ISC_REQ_CONFIDENTIALITY |
-                                               ISC_REQ_REPLAY_DETECT |
-                                               ISC_REQ_CONNECTION,
-                                               0, SECURITY_NETWORK_DREP,
-                                               &type_2_desc,
-                                               0, &ntlm->c_handle,
-                                               &type_3_desc,
-                                               &attrs, &tsDummy);
-  if(status != SEC_E_OK)
-    return CURLE_RECV_ERROR;
+		/*
+		 * Libarchive stores "flag" (NFSv4 inheritance bits)
+		 * in the ae_perm bitmap.
+		 */
+		acl_get_flagset_np(acl_entry, &acl_flagset);
+                for (i = 0; i < (int)(sizeof(acl_inherit_map) / sizeof(acl_inherit_map[0])); ++i) {
+			if (acl_get_flag_np(acl_flagset,
+					    acl_inherit_map[i].platform_inherit))
+				ae_perm |= acl_inherit_map[i].archive_inherit;
 
-  size = type_3_buf.cbBuffer;
+                }
+#endif
 
-  /* Return with binary blob encoded into base64 */
-  result = Curl_base64_encode(NULL, (char *)ntlm->output_token, size,
-                              outptr, outlen);
+		acl_get_permset(acl_entry, &acl_permset);
+		for (i = 0; i < (int)(sizeof(acl_perm_map) / sizeof(acl_perm_map[0])); ++i) {
+			/*
+			 * acl_get_perm() is spelled differently on different
+			 * platforms; see above.
+			 */
+			if (ACL_GET_PERM(acl_permset, acl_perm_map[i].platform_perm))
+				ae_perm |= acl_perm_map[i].archive_perm;
+		}
 
-  Curl_ntlm_sspi_cleanup(ntlm);
+		archive_entry_acl_add_entry(entry, entry_acl_type,
+					    ae_perm, ae_tag,
+					    ae_id, ae_name);
 
-  return result;
+		s = acl_get_entry(acl, ACL_NEXT_ENTRY, &acl_entry);
+	}
+	return (ARCHIVE_OK);
+}
+#else
+static int
+setup_acls(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;      /* UNUSED */
+	(void)entry;  /* UNUSED */
+	(void)fd;     /* UNUSED */
+	return (ARCHIVE_OK);
+}
+#endif
+
+#if (HAVE_FGETXATTR && HAVE_FLISTXATTR && HAVE_LISTXATTR && \
+    HAVE_LLISTXATTR && HAVE_GETXATTR && HAVE_LGETXATTR) || \
+    (HAVE_FGETEA && HAVE_FLISTEA && HAVE_LISTEA)
+
+/*
+ * Linux and AIX extended attribute support.
+ *
+ * TODO:  By using a stack-allocated buffer for the first
+ * call to getxattr(), we might be able to avoid the second
+ * call entirely.  We only need the second call if the
+ * stack-allocated buffer is too small.  But a modest buffer
+ * of 1024 bytes or so will often be big enough.  Same applies
+ * to listxattr().
+ */
+
+
+static int
+setup_xattr(struct archive_read_disk *a,
+    struct archive_entry *entry, const char *name, int fd)
+{
+	ssize_t size;
+	void *value = NULL;
+	const char *accpath;
+
+	accpath = archive_entry_sourcepath(entry);
+	if (accpath == NULL)
+		accpath = archive_entry_pathname(entry);
+
+#if HAVE_FGETXATTR
+	if (fd >= 0)
+		size = fgetxattr(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetxattr(accpath, name, NULL, 0);
+	else
+		size = getxattr(accpath, name, NULL, 0);
+#elif HAVE_FGETEA
+	if (fd >= 0)
+		size = fgetea(fd, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = lgetea(accpath, name, NULL, 0);
+	else
+		size = getea(accpath, name, NULL, 0);
+#endif
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't query extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	if (size > 0 && (value = malloc(size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FGETXATTR
+	if (fd >= 0)
+		size = fgetxattr(fd, name, value, size);
+	else if (!a->follow_symlinks)
+		size = lgetxattr(accpath, name, value, size);
+	else
+		size = getxattr(accpath, name, value, size);
+#elif HAVE_FGETEA
+	if (fd >= 0)
+		size = fgetea(fd, name, value, size);
+	else if (!a->follow_symlinks)
+		size = lgetea(accpath, name, value, size);
+	else
+		size = getea(accpath, name, value, size);
+#endif
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't read extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	archive_entry_xattr_add_entry(entry, name, value, size);
+
+	free(value);
+	return (ARCHIVE_OK);
+}
+
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char *list, *p;
+	const char *path;
+	ssize_t list_size;
+
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
+			}
+		}
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, NULL, 0);
+	else
+		list_size = listxattr(path, NULL, 0);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, NULL, 0);
+	else
+		list_size = listea(path, NULL, 0);
+#endif
+
+	if (list_size == -1) {
+		if (errno == ENOTSUP || errno == ENOSYS)
+			return (ARCHIVE_OK);
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+#if HAVE_FLISTXATTR
+	if (*fd >= 0)
+		list_size = flistxattr(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistxattr(path, list, list_size);
+	else
+		list_size = listxattr(path, list, list_size);
+#elif HAVE_FLISTEA
+	if (*fd >= 0)
+		list_size = flistea(*fd, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = llistea(path, list, list_size);
+	else
+		list_size = listea(path, list, list_size);
+#endif
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	for (p = list; (p - list) < list_size; p += strlen(p) + 1) {
+		if (strncmp(p, "system.", 7) == 0 ||
+				strncmp(p, "xfsroot.", 8) == 0)
+			continue;
+		setup_xattr(a, entry, p, *fd);
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
+}
+
+#elif HAVE_EXTATTR_GET_FILE && HAVE_EXTATTR_LIST_FILE && \
+    HAVE_DECL_EXTATTR_NAMESPACE_USER
+
+/*
+ * FreeBSD extattr interface.
+ */
+
+/* TODO: Implement this.  Follow the Linux model above, but
+ * with FreeBSD-specific system calls, of course.  Be careful
+ * to not include the system extattrs that hold ACLs; we handle
+ * those separately.
+ */
+static int
+setup_xattr(struct archive_read_disk *a, struct archive_entry *entry,
+    int namespace, const char *name, const char *fullname, int fd);
+
+static int
+setup_xattr(struct archive_read_disk *a, struct archive_entry *entry,
+    int namespace, const char *name, const char *fullname, int fd)
+{
+	ssize_t size;
+	void *value = NULL;
+	const char *accpath;
+
+	accpath = archive_entry_sourcepath(entry);
+	if (accpath == NULL)
+		accpath = archive_entry_pathname(entry);
+
+	if (fd >= 0)
+		size = extattr_get_fd(fd, namespace, name, NULL, 0);
+	else if (!a->follow_symlinks)
+		size = extattr_get_link(accpath, namespace, name, NULL, 0);
+	else
+		size = extattr_get_file(accpath, namespace, name, NULL, 0);
+
+	if (size == -1) {
+		archive_set_error(&a->archive, errno,
+		    "Couldn't query extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	if (size > 0 && (value = malloc(size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (fd >= 0)
+		size = extattr_get_fd(fd, namespace, name, value, size);
+	else if (!a->follow_symlinks)
+		size = extattr_get_link(accpath, namespace, name, value, size);
+	else
+		size = extattr_get_file(accpath, namespace, name, value, size);
+
+	if (size == -1) {
+		free(value);
+		archive_set_error(&a->archive, errno,
+		    "Couldn't read extended attribute");
+		return (ARCHIVE_WARN);
+	}
+
+	archive_entry_xattr_add_entry(entry, fullname, value, size);
+
+	free(value);
+	return (ARCHIVE_OK);
+}
+
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char buff[512];
+	char *list, *p;
+	ssize_t list_size;
+	const char *path;
+	int namespace = EXTATTR_NAMESPACE_USER;
+
+	path = archive_entry_sourcepath(entry);
+	if (path == NULL)
+		path = archive_entry_pathname(entry);
+
+	if (*fd < 0 && a->tree != NULL) {
+		if (a->follow_symlinks ||
+		    archive_entry_filetype(entry) != AE_IFLNK)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			if (a->tree_enter_working_dir(a->tree) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);
+				return (ARCHIVE_FAILED);
+			}
+		}
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, NULL, 0);
+	else
+		list_size = extattr_list_file(path, namespace, NULL, 0);
+
+	if (list_size == -1 && errno == EOPNOTSUPP)
+		return (ARCHIVE_OK);
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't list extended attributes");
+		return (ARCHIVE_WARN);
+	}
+
+	if (list_size == 0)
+		return (ARCHIVE_OK);
+
+	if ((list = malloc(list_size)) == NULL) {
+		archive_set_error(&a->archive, errno, "Out of memory");
+		return (ARCHIVE_FATAL);
+	}
+
+	if (*fd >= 0)
+		list_size = extattr_list_fd(*fd, namespace, list, list_size);
+	else if (!a->follow_symlinks)
+		list_size = extattr_list_link(path, namespace, list, list_size);
+	else
+		list_size = extattr_list_file(path, namespace, list, list_size);
+
+	if (list_size == -1) {
+		archive_set_error(&a->archive, errno,
+			"Couldn't retrieve extended attributes");
+		free(list);
+		return (ARCHIVE_WARN);
+	}
+
+	p = list;
+	while ((p - list) < list_size) {
+		size_t len = 255 & (int)*p;
+		char *name;
+
+		strcpy(buff, "user.");
+		name = buff + strlen(buff);
+		memcpy(name, p + 1, len);
+		name[len] = '\0';
+		setup_xattr(a, entry, namespace, name, buff, *fd);
+		p += 1 + len;
+	}
+
+	free(list);
+	return (ARCHIVE_OK);
+}
 
 #else
 
-  unsigned char ntlmbuf[NTLM_BUFSIZE];
-  int lmrespoff;
-  unsigned char lmresp[24]; /* fixed-size */
-#if USE_NTRESPONSES
-  int ntrespoff;
-  unsigned int ntresplen = 24;
-  unsigned char ntresp[24]; /* fixed-size */
-  unsigned char *ptr_ntresp = &ntresp[0];
-  unsigned char *ntlmv2resp = NULL;
-#endif
-  bool unicode = (ntlm->flags & NTLMFLAG_NEGOTIATE_UNICODE) ? TRUE : FALSE;
-  char host[HOSTNAME_MAX + 1] = "";
-  const char *user;
-  const char *domain = "";
-  size_t hostoff = 0;
-  size_t useroff = 0;
-  size_t domoff = 0;
-  size_t hostlen = 0;
-  size_t userlen = 0;
-  size_t domlen = 0;
-  CURLcode res = CURLE_OK;
+/*
+ * Generic (stub) extended attribute support.
+ */
+static int
+setup_xattrs(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;     /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd;    /* UNUSED */
+	return (ARCHIVE_OK);
+}
 
-  user = strchr(userp, '\\');
-  if(!user)
-    user = strchr(userp, '/');
-
-  if(user) {
-    domain = userp;
-    domlen = (user - domain);
-    user++;
-  }
-  else
-    user = userp;
-
-  if(user)
-    userlen = strlen(user);
-
-  /* Get the machine's un-qualified host name as NTLM doesn't like the fully
-     qualified domain name */
-  if(Curl_gethostname(host, sizeof(host))) {
-    infof(data, "gethostname() failed, continuing without!\n");
-    hostlen = 0;
-  }
-  else {
-    hostlen = strlen(host);
-  }
-
-#if USE_NTRESPONSES
-  if(ntlm->target_info_len) {
-    unsigned char ntbuffer[0x18];
-    unsigned int entropy[2];
-    unsigned char ntlmv2hash[0x18];
-
-    entropy[0] = Curl_rand(data);
-    entropy[1] = Curl_rand(data);
-
-    res = Curl_ntlm_core_mk_nt_hash(data, passwdp, ntbuffer);
-    if(res)
-      return res;
-
-    res = Curl_ntlm_core_mk_ntlmv2_hash(user, userlen, domain, domlen,
-                                        ntbuffer, ntlmv2hash);
-    if(res)
-      return res;
-
-    /* LMv2 response */
-    res = Curl_ntlm_core_mk_lmv2_resp(ntlmv2hash,
-                                      (unsigned char *)&entropy[0],
-                                      &ntlm->nonce[0], lmresp);
-    if(res)
-      return res;
-
-    /* NTLMv2 response */
-    res = Curl_ntlm_core_mk_ntlmv2_resp(ntlmv2hash,
-                                        (unsigned char *)&entropy[0],
-                                        ntlm, &ntlmv2resp, &ntresplen);
-    if(res)
-      return res;
-
-    ptr_ntresp = ntlmv2resp;
-  }
-  else
 #endif
 
-#if USE_NTLM2SESSION
-  /* We don't support NTLM2 if we don't have USE_NTRESPONSES */
-  if(ntlm->flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY) {
-    unsigned char ntbuffer[0x18];
-    unsigned char tmp[0x18];
-    unsigned char md5sum[MD5_DIGEST_LENGTH];
-    unsigned int entropy[2];
+#if defined(HAVE_LINUX_FIEMAP_H)
 
-    /* Need to create 8 bytes random data */
-    entropy[0] = Curl_rand(data);
-    entropy[1] = Curl_rand(data);
+/*
+ * Linux sparse interface.
+ *
+ * The FIEMAP ioctl returns an "extent" for each physical allocation
+ * on disk.  We need to process those to generate a more compact list
+ * of logical file blocks.  We also need to be very careful to use
+ * FIEMAP_FLAG_SYNC here, since there are reports that Linux sometimes
+ * does not report allocations for newly-written data that hasn't
+ * been synced to disk.
+ *
+ * It's important to return a minimal sparse file list because we want
+ * to not trigger sparse file extensions if we don't have to, since
+ * not all readers support them.
+ */
 
-    /* 8 bytes random data as challenge in lmresp */
-    memcpy(lmresp, entropy, 8);
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	char buff[4096];
+	struct fiemap *fm;
+	struct fiemap_extent *fe;
+	int64_t size;
+	int count, do_fiemap;
+	int exit_sts = ARCHIVE_OK;
 
-    /* Pad with zeros */
-    memset(lmresp + 8, 0, 0x10);
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
 
-    /* Fill tmp with challenge(nonce?) + entropy */
-    memcpy(tmp, &ntlm->nonce[0], 8);
-    memcpy(tmp + 8, entropy, 8);
+	if (*fd < 0) {
+		const char *path;
 
-    Curl_ssl_md5sum(tmp, 16, md5sum, MD5_DIGEST_LENGTH);
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		if (a->tree != NULL)
+			*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		else
+			*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		__archive_ensure_cloexec_flag(*fd);
+	}
 
-    /* We shall only use the first 8 bytes of md5sum, but the des
-       code in Curl_ntlm_core_lm_resp only encrypt the first 8 bytes */
-    if(CURLE_OUT_OF_MEMORY ==
-       Curl_ntlm_core_mk_nt_hash(data, passwdp, ntbuffer))
-      return CURLE_OUT_OF_MEMORY;
+	/* Initialize buffer to avoid the error valgrind complains about. */
+	memset(buff, 0, sizeof(buff));
+	count = (sizeof(buff) - sizeof(*fm))/sizeof(*fe);
+	fm = (struct fiemap *)buff;
+	fm->fm_start = 0;
+	fm->fm_length = ~0ULL;;
+	fm->fm_flags = FIEMAP_FLAG_SYNC;
+	fm->fm_extent_count = count;
+	do_fiemap = 1;
+	size = archive_entry_size(entry);
+	for (;;) {
+		int i, r;
 
-    Curl_ntlm_core_lm_resp(ntbuffer, md5sum, ntresp);
+		r = ioctl(*fd, FS_IOC_FIEMAP, fm); 
+		if (r < 0) {
+			/* When something error happens, it is better we
+			 * should return ARCHIVE_OK because an earlier
+			 * version(<2.6.28) cannot perfom FS_IOC_FIEMAP. */
+			goto exit_setup_sparse;
+		}
+		if (fm->fm_mapped_extents == 0)
+			break;
+		fe = fm->fm_extents;
+		for (i = 0; i < (int)fm->fm_mapped_extents; i++, fe++) {
+			if (!(fe->fe_flags & FIEMAP_EXTENT_UNWRITTEN)) {
+				/* The fe_length of the last block does not
+				 * adjust itself to its size files. */
+				int64_t length = fe->fe_length;
+				if (fe->fe_logical + length > (uint64_t)size)
+					length -= fe->fe_logical + length - size;
+				if (fe->fe_logical == 0 && length == size) {
+					/* This is not sparse. */
+					do_fiemap = 0;
+					break;
+				}
+				if (length > 0)
+					archive_entry_sparse_add_entry(entry,
+					    fe->fe_logical, length);
+			}
+			if (fe->fe_flags & FIEMAP_EXTENT_LAST)
+				do_fiemap = 0;
+		}
+		if (do_fiemap) {
+			fe = fm->fm_extents + fm->fm_mapped_extents -1;
+			fm->fm_start = fe->fe_logical + fe->fe_length;
+		} else
+			break;
+	}
+exit_setup_sparse:
+	return (exit_sts);
+}
 
-    /* End of NTLM2 Session code */
+#elif defined(SEEK_HOLE) && defined(SEEK_DATA) && defined(_PC_MIN_HOLE_SIZE)
 
-  }
-  else
-#endif
-  {
+/*
+ * FreeBSD and Solaris sparse interface.
+ */
 
-#if USE_NTRESPONSES
-    unsigned char ntbuffer[0x18];
-#endif
-    unsigned char lmbuffer[0x18];
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	int64_t size;
+	off_t initial_off; /* FreeBSD/Solaris only, so off_t okay here */
+	off_t off_s, off_e; /* FreeBSD/Solaris only, so off_t okay here */
+	int exit_sts = ARCHIVE_OK;
 
-#if USE_NTRESPONSES
-    if(CURLE_OUT_OF_MEMORY ==
-       Curl_ntlm_core_mk_nt_hash(data, passwdp, ntbuffer))
-      return CURLE_OUT_OF_MEMORY;
-    Curl_ntlm_core_lm_resp(ntbuffer, &ntlm->nonce[0], ntresp);
-#endif
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
 
-    Curl_ntlm_core_mk_lm_hash(data, passwdp, lmbuffer);
-    Curl_ntlm_core_lm_resp(lmbuffer, &ntlm->nonce[0], lmresp);
-    /* A safer but less compatible alternative is:
-     *   Curl_ntlm_core_lm_resp(ntbuffer, &ntlm->nonce[0], lmresp);
-     * See http://davenport.sourceforge.net/ntlm.html#ntlmVersion2 */
-  }
+	/* Does filesystem support the reporting of hole ? */
+	if (*fd < 0 && a->tree != NULL) {
+		const char *path;
 
-  if(unicode) {
-    domlen = domlen * 2;
-    userlen = userlen * 2;
-    hostlen = hostlen * 2;
-  }
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+	}
 
-  lmrespoff = 64; /* size of the message header */
-#if USE_NTRESPONSES
-  ntrespoff = lmrespoff + 0x18;
-  domoff = ntrespoff + ntresplen;
+	if (*fd >= 0) {
+		if (fpathconf(*fd, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+		initial_off = lseek(*fd, 0, SEEK_CUR);
+		if (initial_off != 0)
+			lseek(*fd, 0, SEEK_SET);
+	} else {
+		const char *path;
+
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+			
+		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+		*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		__archive_ensure_cloexec_flag(*fd);
+		initial_off = 0;
+	}
+
+	off_s = 0;
+	size = archive_entry_size(entry);
+	while (off_s < size) {
+		off_s = lseek(*fd, off_s, SEEK_DATA);
+		if (off_s == (off_t)-1) {
+			if (errno == ENXIO)
+				break;/* no more hole */
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		off_e = lseek(*fd, off_s, SEEK_HOLE);
+		if (off_e == (off_t)-1) {
+			if (errno == ENXIO) {
+				off_e = lseek(*fd, 0, SEEK_END);
+				if (off_e != (off_t)-1)
+					break;/* no more data */
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_DATA) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		if (off_s == 0 && off_e == size)
+			break;/* This is not spase. */
+		archive_entry_sparse_add_entry(entry, off_s,
+			off_e - off_s);
+		off_s = off_e;
+	}
+exit_setup_sparse:
+	lseek(*fd, initial_off, SEEK_SET);
+	return (exit_sts);
+}
+
 #else
-  domoff = lmrespoff + 0x18;
+
+/*
+ * Generic (stub) sparse support.
+ */
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
+{
+	(void)a;     /* UNUSED */
+	(void)entry; /* UNUSED */
+	(void)fd;    /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
 #endif
-  useroff = domoff + domlen;
-  hostoff = useroff + userlen;
 
-  /* Create the big type-3 message binary blob */
-  size = snprintf((char *)ntlmbuf, NTLM_BUFSIZE,
-                  NTLMSSP_SIGNATURE "%c"
-                  "\x03%c%c%c"  /* 32-bit type = 3 */
+#endif /* !defined(_WIN32) || defined(__CYGWIN__) */
 
-                  "%c%c"  /* LanManager length */
-                  "%c%c"  /* LanManager allocated space */
-                  "%c%c"  /* LanManager offset */
-                  "%c%c"  /* 2 zeroes */
-
-                  "%c%c"  /* NT-response length */
-                  "%c%c"  /* NT-response allocated space */
-                  "%c%c"  /* NT-response offset */
-                  "%c%c"  /* 2 zeroes */
-
-                  "%c%c"  /* domain length */
-                  "%c%c"  /* domain allocated space */
-                  "%c%c"  /* domain name offset */
-                  "%c%c"  /* 2 zeroes */
-
-                  "%c%c"  /* user length */
-                  "%c%c"  /* user allocated space */
-                  "%c%c"  /* user offset */
-                  "%c%c"  /* 2 zeroes */
-
-                  "%c%c"  /* host length */
-                  "%c%c"  /* host allocated space */
-                  "%c%c"  /* host offset */
-                  "%c%c"  /* 2 zeroes */
-
-                  "%c%c"  /* session key length (unknown purpose) */
-                  "%c%c"  /* session key allocated space (unknown purpose) */
-                  "%c%c"  /* session key offset (unknown purpose) */
-                  "%c%c"  /* 2 zeroes */
-
-                  "%c%c%c%c",  /* flags */
-
-                  /* domain string */
-                  /* user string */
-                  /* host string */
-                  /* LanManager response */
-                  /* NT response */
-
-                  0,                /* zero termination */
-                  0, 0, 0,          /* type-3 long, the 24 upper bits */
-
-                  SHORTPAIR(0x18),  /* LanManager response length, twice */
-                  SHORTPAIR(0x18),
-                  SHORTPAIR(lmrespoff),
-                  0x0, 0x0,
-
-#if USE_NTRESPONSES
-                  SHORTPAIR(ntresplen),  /* NT-response length, twice */
-                  SHORTPAIR(ntresplen),
-                  SHORTPAIR(ntrespoff),
-                  0x0, 0x0,
-#else
-                  0x0, 0x0,
-                  0x0, 0x0,
-                  0x0, 0x0,
-                  0x0, 0x0,
-#endif
-                  SHORTPAIR(domlen),
-                  SHORTPAIR(domlen),
-                  SHORTPAIR(domoff),
-                  0x0, 0x0,
-
-                  SHORTPAIR(userlen),
-                  SHORTPAIR(userlen),
-                  SHORTPAIR(useroff),
-                  0x0, 0x0,
-
-                  SHORTPAIR(hostlen),
-                  SHORTPAIR(hostlen),
-                  SHORTPAIR(hostoff),
-                  0x0, 0x0,
-
-                  0x0, 0x0,
-                  0x0, 0x0,
-                  0x0, 0x0,
-                  0x0, 0x0,
-
-                  LONGQUARTET(ntlm->flags));
-
-  DEBUGASSERT(size == 64);
-  DEBUGASSERT(size == (size_t)lmrespoff);
-
-  /* We append the binary hashes */
-  if(size < (NTLM_BUFSIZE - 0x18)) {
-    memcpy(&ntlmbuf[size], lmresp, 0x18);
-    size += 0x18;
-  }
-
-  DEBUG_OUT({
-    fprintf(stderr, "**** TYPE3 header lmresp=");
-    ntlm_print_hex(stderr, (char *)&ntlmbuf[lmrespoff], 0x18);
-  });
-
-#if USE_NTRESPONSES
-  if(size < (NTLM_BUFSIZE - ntresplen)) {
-    DEBUGASSERT(size == (size_t)ntrespoff);
-    memcpy(&ntlmbuf[size], ptr_ntresp, ntresplen);
-    size += ntresplen;
-  }
-
-  DEBUG_OUT({
-    fprintf(stderr, "\n   ntresp=");
-    ntlm_print_hex(stderr, (char *)&ntlmbuf[ntrespoff], ntresplen);
-  });
-
-  Curl_safefree(ntlmv2resp);/* Free the dynamic buffer allocated for NTLMv2 */

@@ -1,0 +1,3 @@
+{
+          kwsysProcessCleanupDescriptor(&si.StdIn);
+        }

@@ -1,0 +1,1 @@
+len = sizeof(identifier)-2

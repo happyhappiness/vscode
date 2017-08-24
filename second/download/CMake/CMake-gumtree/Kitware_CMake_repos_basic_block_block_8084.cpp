@@ -1,0 +1,2 @@
+(!prefix)
+        return 0;

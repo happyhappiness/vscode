@@ -1,60 +1,24 @@
-	struct private_data *data = (struct private_data *)f->data;
-	int outsize;
+    if(result)
+      return result;
 
-#define DICT_SIZE	(64 * 1024)
-#ifdef HAVE_LZ4HC_H
-	if (data->compression_level >= 3) {
-		if (data->lz4_stream == NULL) {
-#if LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 7
-			data->lz4_stream = LZ4_createStreamHC();
-			LZ4_resetStreamHC(data->lz4_stream, data->compression_level);
-#else
-			data->lz4_stream =
-			    LZ4_createHC(data->in_buffer_allocated);
-#endif
-			if (data->lz4_stream == NULL) {
-				archive_set_error(f->archive, ENOMEM,
-				    "Can't allocate data for compression"
-				    " buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		else
-			LZ4_loadDictHC(data->lz4_stream, data->in_buffer_allocated, DICT_SIZE);
+    filetime = (time_t)statbuf.st_mtime;
+    result = Curl_gmtime(filetime, &buffer);
+    if(result)
+      return result;
 
-#if LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 7
-		outsize = LZ4_compress_HC_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size);
-#else
-		outsize = LZ4_compressHC2_limitedOutput_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size, data->compression_level);
-#endif
-	} else
-#endif
-	{
-		if (data->lz4_stream == NULL) {
-			data->lz4_stream = LZ4_createStream();
-			if (data->lz4_stream == NULL) {
-				archive_set_error(f->archive, ENOMEM,
-				    "Can't allocate data for compression"
-				    " buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		else
-			LZ4_loadDict(data->lz4_stream, data->in_buffer_allocated, DICT_SIZE);
-
-#if LZ4_VERSION_MAJOR >= 1 && LZ4_VERSION_MINOR >= 7
-		outsize = LZ4_compress_fast_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size, 1);
-#else
-		outsize = LZ4_compress_limitedOutput_continue(
-		    data->lz4_stream, p, data->out + 4, (int)length,
-		    (int)data->block_size);
-#endif
-	}
-
-	if (outsize) {
+    /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+    snprintf(buf, BUFSIZE-1,
+             "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+             Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+             tm->tm_mday,
+             Curl_month[tm->tm_mon],
+             tm->tm_year + 1900,
+             tm->tm_hour,
+             tm->tm_min,
+             tm->tm_sec);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    if(!result)
+      /* set the file size to make it available post transfer */
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }

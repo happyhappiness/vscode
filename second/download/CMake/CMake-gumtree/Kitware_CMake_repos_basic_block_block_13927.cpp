@@ -1,0 +1,1 @@
+current_codepage = get_current_codepage()

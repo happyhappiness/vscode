@@ -1,181 +1,137 @@
-@@ -5,7 +5,7 @@
-  *                            | (__| |_| |  _ <| |___
-  *                             \___|\___/|_| \_\_____|
-  *
-- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
-+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
-  *
-  * This software is licensed as described in the file COPYING, which
-  * you should have received as part of this distribution. The terms
-@@ -59,14 +59,12 @@
- #include "getinfo.h"
- #include "transfer.h"
- #include "url.h"
--#include "curl_memory.h"
- #include "parsedate.h" /* for the week day and month names */
- #include "warnless.h"
-+#include "curl_printf.h"
+@@ -66,6 +66,9 @@ __FBSDID("$FreeBSD: head/lib/libarchive/archive_write_set_format_zip.c 201168 20
+ #define ZIP_ENTRY_FLAG_LENGTH_AT_END	(1<<3)
+ #define ZIP_ENTRY_FLAG_UTF8_NAME	(1 << 11)
  
--#define _MPRINTF_REPLACE /* use our functions only */
--#include <curl/mprintf.h>
--
--/* The last #include file should be: */
-+/* The last #include files should be: */
-+#include "curl_memory.h"
- #include "memdebug.h"
- 
- #if defined(WIN32) || defined(MSDOS) || defined(__EMX__) || \
-@@ -196,8 +194,9 @@ static CURLcode file_connect(struct connectdata *conn, bool *done)
-   int i;
-   char *actual_path;
- #endif
-+  int real_path_len;
- 
--  real_path = curl_easy_unescape(data, data->state.path, 0, NULL);
-+  real_path = curl_easy_unescape(data, data->state.path, 0, &real_path_len);
-   if(!real_path)
-     return CURLE_OUT_OF_MEMORY;
- 
-@@ -222,16 +221,23 @@ static CURLcode file_connect(struct connectdata *conn, bool *done)
-      (actual_path[2] == ':' || actual_path[2] == '|')) {
-     actual_path[2] = ':';
-     actual_path++;
-+    real_path_len--;
-   }
- 
-   /* change path separators from '/' to '\\' for DOS, Windows and OS/2 */
--  for(i=0; actual_path[i] != '\0'; ++i)
-+  for(i=0; i < real_path_len; ++i)
-     if(actual_path[i] == '/')
-       actual_path[i] = '\\';
-+    else if(!actual_path[i]) /* binary zero */
-+      return CURLE_URL_MALFORMAT;
- 
-   fd = open_readonly(actual_path, O_RDONLY|O_BINARY);
-   file->path = actual_path;
- #else
-+  if(memchr(real_path, 0, real_path_len))
-+    /* binary zeroes indicate foul play */
-+    return CURLE_URL_MALFORMAT;
++#define ZIP_4GB_MAX ARCHIVE_LITERAL_LL(0xffffffff)
++#define ZIP_4GB_MAX_UNCOMPRESSED ARCHIVE_LITERAL_LL(0xff000000)
 +
-   fd = open_readonly(real_path, O_RDONLY);
-   file->path = real_path;
- #endif
-@@ -295,7 +301,7 @@ static CURLcode file_upload(struct connectdata *conn)
-   const char *dir = strchr(file->path, DIRSEP);
-   int fd;
-   int mode;
--  CURLcode res=CURLE_OK;
-+  CURLcode result = CURLE_OK;
-   struct SessionHandle *data = conn->data;
-   char *buf = data->state.buffer;
-   size_t nread;
-@@ -309,8 +315,6 @@ static CURLcode file_upload(struct connectdata *conn)
-    * Since FILE: doesn't do the full init, we need to provide some extra
-    * assignments here.
-    */
--  conn->fread_func = data->set.fread_func;
--  conn->fread_in = data->set.in;
-   conn->data->req.upload_fromhere = buf;
+ enum compression {
+ 	COMPRESSION_UNSPECIFIED = -1,
+ 	COMPRESSION_STORE = 0,
+@@ -532,13 +535,13 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+ 	if (zip->flags & ZIP_FLAG_AVOID_ZIP64) {
+ 		/* Reject entries over 4GB. */
+ 		if (archive_entry_size_is_set(entry)
+-		    && (archive_entry_size(entry) > 0xffffffff)) {
++		    && (archive_entry_size(entry) > ZIP_4GB_MAX)) {
+ 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+ 			    "Files > 4GB require Zip64 extensions");
+ 			return ARCHIVE_FAILED;
+ 		}
+ 		/* Reject entries if archive is > 4GB. */
+-		if (zip->written_bytes > 0xffffffff) {
++		if (zip->written_bytes > ZIP_4GB_MAX) {
+ 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+ 			    "Archives > 4GB require Zip64 extensions");
+ 			return ARCHIVE_FAILED;
+@@ -726,8 +729,8 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+ 		 *    (compression might make file larger)
+ 		 */
+ 		if ((zip->flags & ZIP_FLAG_FORCE_ZIP64)
+-		    || (zip->entry_uncompressed_size + additional_size > 0xffffffffLL)
+-		    || (zip->entry_uncompressed_size > 0xff000000LL
++		    || (zip->entry_uncompressed_size + additional_size > ZIP_4GB_MAX)
++		    || (zip->entry_uncompressed_size > ZIP_4GB_MAX_UNCOMPRESSED
+ 			&& zip->entry_compression != COMPRESSION_STORE)) {
+ 			zip->entry_uses_zip64 = 1;
+ 			version_needed = 45;
+@@ -785,8 +788,8 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+ 		 * are included only if these are 0xffffffff;
+ 		 * THEREFORE these must be set this way, even if we
+ 		 * know one of them is smaller. */
+-		archive_le32enc(local_header + 18, 0xffffffffLL);
+-		archive_le32enc(local_header + 22, 0xffffffffLL);
++		archive_le32enc(local_header + 18, ZIP_4GB_MAX);
++		archive_le32enc(local_header + 22, ZIP_4GB_MAX);
+ 	} else {
+ 		archive_le32enc(local_header + 18, (uint32_t)zip->entry_compressed_size);
+ 		archive_le32enc(local_header + 22, (uint32_t)zip->entry_uncompressed_size);
+@@ -820,7 +823,7 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+ 	archive_le16enc(zip->file_header + 28, (uint16_t)filename_length);
+ 	/* Following Info-Zip, store mode in the "external attributes" field. */
+ 	archive_le32enc(zip->file_header + 38,
+-	    archive_entry_mode(zip->entry) << 16);
++	    ((uint32_t)archive_entry_mode(zip->entry)) << 16);
+ 	e = cd_alloc(zip, filename_length);
+ 	/* If (e == NULL) XXXX */
+ 	copy_path(zip->entry, e);
+@@ -939,7 +942,7 @@ archive_write_zip_header(struct archive_write *a, struct archive_entry *entry)
+ 		}
+ 		if (included & 4) {
+ 			archive_le32enc(e,  /* external file attributes */
+-			    archive_entry_mode(zip->entry) << 16);
++			    ((uint32_t)archive_entry_mode(zip->entry)) << 16);
+ 			e += 4;
+ 		}
+ 		if (included & 8) {
+@@ -1214,22 +1217,22 @@ archive_write_zip_finish_entry(struct archive_write *a)
+ 	}
  
-   if(!dir)
-@@ -351,10 +355,10 @@ static CURLcode file_upload(struct connectdata *conn)
-       data->state.resume_from = (curl_off_t)file_stat.st_size;
-   }
+ 	/* Append Zip64 extra data to central directory information. */
+-	if (zip->entry_compressed_written > 0xffffffffLL
+-	    || zip->entry_uncompressed_written > 0xffffffffLL
+-	    || zip->entry_offset > 0xffffffffLL) {
++	if (zip->entry_compressed_written > ZIP_4GB_MAX
++	    || zip->entry_uncompressed_written > ZIP_4GB_MAX
++	    || zip->entry_offset > ZIP_4GB_MAX) {
+ 		unsigned char zip64[32];
+ 		unsigned char *z = zip64, *zd;
+ 		memcpy(z, "\001\000\000\000", 4);
+ 		z += 4;
+-		if (zip->entry_uncompressed_written >= 0xffffffffLL) {
++		if (zip->entry_uncompressed_written >= ZIP_4GB_MAX) {
+ 			archive_le64enc(z, zip->entry_uncompressed_written);
+ 			z += 8;
+ 		}
+-		if (zip->entry_compressed_written >= 0xffffffffLL) {
++		if (zip->entry_compressed_written >= ZIP_4GB_MAX) {
+ 			archive_le64enc(z, zip->entry_compressed_written);
+ 			z += 8;
+ 		}
+-		if (zip->entry_offset >= 0xffffffffLL) {
++		if (zip->entry_offset >= ZIP_4GB_MAX) {
+ 			archive_le64enc(z, zip->entry_offset);
+ 			z += 8;
+ 		}
+@@ -1253,15 +1256,15 @@ archive_write_zip_finish_entry(struct archive_write *a)
+ 		archive_le32enc(zip->file_header + 16, zip->entry_crc32);
+ 	archive_le32enc(zip->file_header + 20,
+ 		(uint32_t)zipmin(zip->entry_compressed_written,
+-				 ARCHIVE_LITERAL_LL(0xffffffff)));
++				 ZIP_4GB_MAX));
+ 	archive_le32enc(zip->file_header + 24,
+ 		(uint32_t)zipmin(zip->entry_uncompressed_written,
+-				 ARCHIVE_LITERAL_LL(0xffffffff)));
++				 ZIP_4GB_MAX));
+ 	archive_le16enc(zip->file_header + 30,
+ 	    (uint16_t)(zip->central_directory_bytes - zip->file_header_extra_offset));
+ 	archive_le32enc(zip->file_header + 42,
+ 		(uint32_t)zipmin(zip->entry_offset,
+-				 ARCHIVE_LITERAL_LL(0xffffffff)));
++				 ZIP_4GB_MAX));
  
--  while(res == CURLE_OK) {
-+  while(!result) {
-     int readcount;
--    res = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
--    if(res)
-+    result = Curl_fillreadbuffer(conn, BUFSIZE, &readcount);
-+    if(result)
-       break;
- 
-     if(readcount <= 0)  /* fix questionable compare error. curlvms */
-@@ -381,7 +385,7 @@ static CURLcode file_upload(struct connectdata *conn)
-     /* write the data to the target */
-     nwrite = write(fd, buf2, nread);
-     if(nwrite != nread) {
--      res = CURLE_SEND_ERROR;
-+      result = CURLE_SEND_ERROR;
-       break;
-     }
- 
-@@ -390,16 +394,16 @@ static CURLcode file_upload(struct connectdata *conn)
-     Curl_pgrsSetUploadCounter(data, bytecount);
- 
-     if(Curl_pgrsUpdate(conn))
--      res = CURLE_ABORTED_BY_CALLBACK;
-+      result = CURLE_ABORTED_BY_CALLBACK;
-     else
--      res = Curl_speedcheck(data, now);
-+      result = Curl_speedcheck(data, now);
-   }
--  if(!res && Curl_pgrsUpdate(conn))
--    res = CURLE_ABORTED_BY_CALLBACK;
-+  if(!result && Curl_pgrsUpdate(conn))
-+    result = CURLE_ABORTED_BY_CALLBACK;
- 
-   close(fd);
- 
--  return res;
-+  return result;
+ 	return (ARCHIVE_OK);
  }
+@@ -1288,8 +1291,8 @@ archive_write_zip_close(struct archive_write *a)
+ 	offset_end = zip->written_bytes;
  
- /*
-@@ -417,7 +421,7 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
-      are supported. This means that files on remotely mounted directories
-      (via NFS, Samba, NT sharing) can be accessed through a file:// URL
-   */
--  CURLcode res = CURLE_OK;
-+  CURLcode result = CURLE_OK;
-   struct_stat statbuf; /* struct_stat instead of struct stat just to allow the
-                           Windows version to have a different struct without
-                           having to redefine the simple word 'stat' */
-@@ -464,7 +468,6 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
-      information. Which for FILE can't be much more than the file size and
-      date. */
-   if(data->set.opt_no_body && data->set.include_header && fstated) {
--    CURLcode result;
-     snprintf(buf, sizeof(data->state.buffer),
-              "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
-     result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-@@ -546,7 +549,7 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
- 
-   Curl_pgrsTime(data, TIMER_STARTTRANSFER);
- 
--  while(res == CURLE_OK) {
-+  while(!result) {
-     /* Don't fill a whole buffer if we want less than all data */
-     size_t bytestoread =
-       (expected_size < CURL_OFF_T_C(BUFSIZE) - CURL_OFF_T_C(1)) ?
-@@ -563,21 +566,21 @@ static CURLcode file_do(struct connectdata *conn, bool *done)
-     bytecount += nread;
-     expected_size -= nread;
- 
--    res = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
--    if(res)
--      return res;
-+    result = Curl_client_write(conn, CLIENTWRITE_BODY, buf, nread);
-+    if(result)
-+      return result;
- 
-     Curl_pgrsSetDownloadCounter(data, bytecount);
- 
-     if(Curl_pgrsUpdate(conn))
--      res = CURLE_ABORTED_BY_CALLBACK;
-+      result = CURLE_ABORTED_BY_CALLBACK;
-     else
--      res = Curl_speedcheck(data, now);
-+      result = Curl_speedcheck(data, now);
-   }
-   if(Curl_pgrsUpdate(conn))
--    res = CURLE_ABORTED_BY_CALLBACK;
-+    result = CURLE_ABORTED_BY_CALLBACK;
- 
--  return res;
-+  return result;
- }
- 
- #endif
+ 	/* If central dir info is too large, write Zip64 end-of-cd */
+-	if (offset_end - offset_start > ARCHIVE_LITERAL_LL(0xffffffff)
+-	    || offset_start > ARCHIVE_LITERAL_LL(0xffffffff)
++	if (offset_end - offset_start > ZIP_4GB_MAX
++	    || offset_start > ZIP_4GB_MAX
+ 	    || zip->central_directory_entries > 0xffffUL
+ 	    || (zip->flags & ZIP_FLAG_FORCE_ZIP64)) {
+ 	  /* Zip64 end-of-cd record */
+@@ -1329,9 +1332,9 @@ archive_write_zip_close(struct archive_write *a)
+ 	archive_le16enc(buff + 10, (uint16_t)zipmin(0xffffU,
+ 		zip->central_directory_entries));
+ 	archive_le32enc(buff + 12,
+-		(uint32_t)zipmin(0xffffffffLL, (offset_end - offset_start)));
++		(uint32_t)zipmin(ZIP_4GB_MAX, (offset_end - offset_start)));
+ 	archive_le32enc(buff + 16,
+-		(uint32_t)zipmin(0xffffffffLL, offset_start));
++		(uint32_t)zipmin(ZIP_4GB_MAX, offset_start));
+ 	ret = __archive_write_output(a, buff, 22);
+ 	if (ret != ARCHIVE_OK)
+ 		return (ARCHIVE_FATAL);

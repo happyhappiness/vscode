@@ -1,0 +1,1 @@
+ber_free(ber, 0)

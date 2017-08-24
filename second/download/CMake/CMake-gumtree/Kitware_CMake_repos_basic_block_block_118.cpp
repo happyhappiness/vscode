@@ -1,0 +1,1 @@
+(*fields)->form = (FORM *)0

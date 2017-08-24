@@ -1,0 +1,1 @@
+timeout = CURL_TIMEOUT_RESOLVE * 1000

@@ -1,0 +1,1 @@
+conn->handler = &Curl_handler_http2_ssl

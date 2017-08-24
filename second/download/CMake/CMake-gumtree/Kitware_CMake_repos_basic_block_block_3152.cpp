@@ -1,0 +1,1 @@
+(ferror(zStream)) goto errhandler_io;

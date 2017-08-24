@@ -1,0 +1,1 @@
+ret = (a->format_finish_entry)(a)

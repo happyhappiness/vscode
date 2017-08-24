@@ -1,0 +1,1 @@
+memcpy(p, pc, cnt * sizeof(uint16_t))

@@ -1,0 +1,1 @@
+suffix = strchr(suffix + 1, '/')

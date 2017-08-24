@@ -1,0 +1,1 @@
+return (memcmp(f1->utf16name, f2->utf16name, f1->name_len));

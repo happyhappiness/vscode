@@ -1,0 +1,1 @@
+(strcmp(s + ns - nx, suffix) == 0) return True;

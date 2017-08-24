@@ -1,0 +1,1 @@
+entries[i].flg |= HAS_STREAM

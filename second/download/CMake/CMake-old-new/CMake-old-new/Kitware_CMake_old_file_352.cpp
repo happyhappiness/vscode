@@ -1,6 +1,6 @@
 /*============================================================================
   CMake - Cross Platform Makefile Generator
-  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
   see accompanying file Copyright.txt for details.
@@ -9,655 +9,600 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmCoreTryCompile.h"
-#include "cmake.h"
-#include "cmCacheManager.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmExportTryCompileFileGenerator.h"
-#include <cmsys/Directory.hxx>
+#include "cmListCommand.h"
+#include <cmsys/RegularExpression.hxx>
+#include <cmsys/SystemTools.hxx>
 
+#include <stdlib.h> // required for atoi
+#include <ctype.h>
 #include <assert.h>
-
-int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv)
+//----------------------------------------------------------------------------
+bool cmListCommand
+::InitialPass(std::vector<std::string> const& args, cmExecutionStatus &)
 {
-  this->BinaryDirectory = argv[1].c_str();
-  this->OutputFile = "";
-  // which signature were we called with ?
-  this->SrcFileSignature = true;
-
-  const char* sourceDirectory = argv[2].c_str();
-  const char* projectName = 0;
-  std::string targetName;
-  std::vector<std::string> cmakeFlags;
-  std::vector<std::string> compileDefs;
-  std::string outputVariable;
-  std::string copyFile;
-  std::string copyFileError;
-  std::vector<cmTarget const*> targets;
-  std::string libsToLink = " ";
-  bool useOldLinkLibs = true;
-  char targetNameBuf[64];
-  bool didOutputVariable = false;
-  bool didCopyFile = false;
-  bool didCopyFileError = false;
-  bool useSources = argv[2] == "SOURCES";
-  std::vector<std::string> sources;
-
-  enum Doing { DoingNone, DoingCMakeFlags, DoingCompileDefinitions,
-               DoingLinkLibraries, DoingOutputVariable, DoingCopyFile,
-               DoingCopyFileError, DoingSources };
-  Doing doing = useSources? DoingSources : DoingNone;
-  for(size_t i=3; i < argv.size(); ++i)
+  if(args.size() < 2)
     {
-    if(argv[i] == "CMAKE_FLAGS")
+    this->SetError("must be called with at least two arguments.");
+    return false;
+    }
+
+  const std::string &subCommand = args[0];
+  if(subCommand == "LENGTH")
+    {
+    return this->HandleLengthCommand(args);
+    }
+  if(subCommand == "GET")
+    {
+    return this->HandleGetCommand(args);
+    }
+  if(subCommand == "APPEND")
+    {
+    return this->HandleAppendCommand(args);
+    }
+  if(subCommand == "FIND")
+    {
+    return this->HandleFindCommand(args);
+    }
+  if(subCommand == "INSERT")
+    {
+    return this->HandleInsertCommand(args);
+    }
+  if(subCommand == "REMOVE_AT")
+    {
+    return this->HandleRemoveAtCommand(args);
+    }
+  if(subCommand == "REMOVE_ITEM")
+    {
+    return this->HandleRemoveItemCommand(args);
+    }
+  if(subCommand == "REMOVE_DUPLICATES")
+    {
+    return this->HandleRemoveDuplicatesCommand(args);
+    }
+  if(subCommand == "SORT")
+    {
+    return this->HandleSortCommand(args);
+    }
+  if(subCommand == "REVERSE")
+    {
+    return this->HandleReverseCommand(args);
+    }
+
+  std::string e = "does not recognize sub-command "+subCommand;
+  this->SetError(e.c_str());
+  return false;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::GetListString(std::string& listString,
+                                  const std::string& var)
+{
+  // get the old value
+  const char* cacheValue
+    = this->Makefile->GetDefinition(var);
+  if(!cacheValue)
+    {
+    return false;
+    }
+  listString = cacheValue;
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::GetList(std::vector<std::string>& list,
+                            const std::string& var)
+{
+  std::string listString;
+  if ( !this->GetListString(listString, var) )
+    {
+    return false;
+    }
+  // if the size of the list
+  if(listString.size() == 0)
+    {
+    return true;
+    }
+  // expand the variable into a list
+  cmSystemTools::ExpandListArgument(listString, list, true);
+  // check the list for empty values
+  bool hasEmpty = false;
+  for(std::vector<std::string>::iterator i = list.begin();
+      i != list.end(); ++i)
+    {
+    if(i->size() == 0)
       {
-      doing = DoingCMakeFlags;
-      // CMAKE_FLAGS is the first argument because we need an argv[0] that
-      // is not used, so it matches regular command line parsing which has
-      // the program name as arg 0
-      cmakeFlags.push_back(argv[i]);
+      hasEmpty = true;
+      break;
       }
-    else if(argv[i] == "COMPILE_DEFINITIONS")
+    }
+  // if no empty elements then just return
+  if(!hasEmpty)
+    {
+    return true;
+    }
+  // if we have empty elements we need to check policy CMP0007
+  switch(this->Makefile->GetPolicyStatus(cmPolicies::CMP0007))
+    {
+    case cmPolicies::WARN:
       {
-      doing = DoingCompileDefinitions;
+      // Default is to warn and use old behavior
+      // OLD behavior is to allow compatibility, so recall
+      // ExpandListArgument without the true which will remove
+      // empty values
+      list.clear();
+      cmSystemTools::ExpandListArgument(listString, list);
+      std::string warn = this->Makefile->GetPolicies()->
+        GetPolicyWarning(cmPolicies::CMP0007);
+      warn += " List has value = [";
+      warn += listString;
+      warn += "].";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING,
+                                   warn);
+      return true;
       }
-    else if(argv[i] == "LINK_LIBRARIES")
+    case cmPolicies::OLD:
+      // OLD behavior is to allow compatibility, so recall
+      // ExpandListArgument without the true which will remove
+      // empty values
+      list.clear();
+      cmSystemTools::ExpandListArgument(listString, list);
+      return true;
+    case cmPolicies::NEW:
+      return true;
+    case cmPolicies::REQUIRED_IF_USED:
+    case cmPolicies::REQUIRED_ALWAYS:
+      this->Makefile->IssueMessage(
+        cmake::FATAL_ERROR,
+        this->Makefile->GetPolicies()
+        ->GetRequiredPolicyError(cmPolicies::CMP0007)
+        );
+      return false;
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::HandleLengthCommand(std::vector<std::string> const& args)
+{
+  if(args.size() != 3)
+    {
+    this->SetError("sub-command LENGTH requires two arguments.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+  const std::string& variableName = args[args.size() - 1];
+  std::vector<std::string> varArgsExpanded;
+  // do not check the return value here
+  // if the list var is not found varArgsExpanded will have size 0
+  // and we will return 0
+  this->GetList(varArgsExpanded, listName.c_str());
+  size_t length = varArgsExpanded.size();
+  char buffer[1024];
+  sprintf(buffer, "%d", static_cast<int>(length));
+
+  this->Makefile->AddDefinition(variableName.c_str(), buffer);
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::HandleGetCommand(std::vector<std::string> const& args)
+{
+  if(args.size() < 4)
+    {
+    this->SetError("sub-command GET requires at least three arguments.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+  const std::string& variableName = args[args.size() - 1];
+  // expand the variable
+  std::vector<std::string> varArgsExpanded;
+  if ( !this->GetList(varArgsExpanded, listName.c_str()) )
+    {
+    this->Makefile->AddDefinition(variableName.c_str(), "NOTFOUND");
+    return true;
+    }
+  // FIXME: Add policy to make non-existing lists an error like empty lists.
+  if(varArgsExpanded.empty())
+    {
+    this->SetError("GET given empty list");
+    return false;
+    }
+
+  std::string value;
+  size_t cc;
+  const char* sep = "";
+  for ( cc = 2; cc < args.size()-1; cc ++ )
+    {
+    int item = atoi(args[cc].c_str());
+    value += sep;
+    sep = ";";
+    size_t nitem = varArgsExpanded.size();
+    if ( item < 0 )
       {
-      doing = DoingLinkLibraries;
-      useOldLinkLibs = false;
+      item = (int)nitem + item;
       }
-    else if(argv[i] == "OUTPUT_VARIABLE")
+    if ( item < 0 || nitem <= (size_t)item )
       {
-      doing = DoingOutputVariable;
-      didOutputVariable = true;
+      cmOStringStream str;
+      str << "index: " << item << " out of range (-"
+          << varArgsExpanded.size() << ", "
+          << varArgsExpanded.size()-1 << ")";
+      this->SetError(str.str().c_str());
+      return false;
       }
-    else if(argv[i] == "COPY_FILE")
+    value += varArgsExpanded[item];
+    }
+
+  this->Makefile->AddDefinition(variableName.c_str(), value.c_str());
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::HandleAppendCommand(std::vector<std::string> const& args)
+{
+  assert(args.size() >= 2);
+
+  // Skip if nothing to append.
+  if(args.size() < 3)
+    {
+    return true;
+    }
+
+  const std::string& listName = args[1];
+  // expand the variable
+  std::string listString;
+  this->GetListString(listString, listName.c_str());
+  size_t cc;
+  for ( cc = 2; cc < args.size(); ++ cc )
+    {
+    if(listString.size())
       {
-      doing = DoingCopyFile;
-      didCopyFile = true;
+      listString += ";";
       }
-    else if(argv[i] == "COPY_FILE_ERROR")
+    listString += args[cc];
+    }
+
+  this->Makefile->AddDefinition(listName.c_str(), listString.c_str());
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::HandleFindCommand(std::vector<std::string> const& args)
+{
+  if(args.size() != 4)
+    {
+    this->SetError("sub-command FIND requires three arguments.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+  const std::string& variableName = args[args.size() - 1];
+  // expand the variable
+  std::vector<std::string> varArgsExpanded;
+  if ( !this->GetList(varArgsExpanded, listName.c_str()) )
+    {
+    this->Makefile->AddDefinition(variableName.c_str(), "-1");
+    return true;
+    }
+
+  std::vector<std::string>::iterator it;
+  unsigned int index = 0;
+  for ( it = varArgsExpanded.begin(); it != varArgsExpanded.end(); ++ it )
+    {
+    if ( *it == args[2] )
       {
-      doing = DoingCopyFileError;
-      didCopyFileError = true;
+      char indexString[32];
+      sprintf(indexString, "%d", index);
+      this->Makefile->AddDefinition(variableName.c_str(), indexString);
+      return true;
       }
-    else if(doing == DoingCMakeFlags)
+    index++;
+    }
+
+  this->Makefile->AddDefinition(variableName.c_str(), "-1");
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::HandleInsertCommand(std::vector<std::string> const& args)
+{
+  if(args.size() < 4)
+    {
+    this->SetError("sub-command INSERT requires at least three arguments.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+
+  // expand the variable
+  int item = atoi(args[2].c_str());
+  std::vector<std::string> varArgsExpanded;
+  if((!this->GetList(varArgsExpanded, listName.c_str())
+      || varArgsExpanded.empty()) && item != 0)
+    {
+    cmOStringStream str;
+    str << "index: " << item << " out of range (0, 0)";
+    this->SetError(str.str().c_str());
+    return false;
+    }
+
+  if ( varArgsExpanded.size() != 0 )
+    {
+    size_t nitem = varArgsExpanded.size();
+    if ( item < 0 )
       {
-      cmakeFlags.push_back(argv[i]);
+      item = (int)nitem + item;
       }
-    else if(doing == DoingCompileDefinitions)
+    if ( item < 0 || nitem <= (size_t)item )
       {
-      compileDefs.push_back(argv[i]);
+      cmOStringStream str;
+      str << "index: " << item << " out of range (-"
+        << varArgsExpanded.size() << ", "
+        << (varArgsExpanded.size() == 0?0:(varArgsExpanded.size()-1)) << ")";
+      this->SetError(str.str().c_str());
+      return false;
       }
-    else if(doing == DoingLinkLibraries)
+    }
+  size_t cc;
+  size_t cnt = 0;
+  for ( cc = 3; cc < args.size(); ++ cc )
+    {
+    varArgsExpanded.insert(varArgsExpanded.begin()+item+cnt, args[cc]);
+    cnt ++;
+    }
+
+  std::string value;
+  const char* sep = "";
+  for ( cc = 0; cc < varArgsExpanded.size(); cc ++ )
+    {
+    value += sep;
+    value += varArgsExpanded[cc];
+    sep = ";";
+    }
+
+  this->Makefile->AddDefinition(listName.c_str(), value.c_str());
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand
+::HandleRemoveItemCommand(std::vector<std::string> const& args)
+{
+  if(args.size() < 3)
+    {
+    this->SetError("sub-command REMOVE_ITEM requires two or more arguments.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+  // expand the variable
+  std::vector<std::string> varArgsExpanded;
+  if ( !this->GetList(varArgsExpanded, listName.c_str()) )
+    {
+    this->SetError("sub-command REMOVE_ITEM requires list to be present.");
+    return false;
+    }
+
+  size_t cc;
+  for ( cc = 2; cc < args.size(); ++ cc )
+    {
+    size_t kk = 0;
+    while ( kk < varArgsExpanded.size() )
       {
-      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
-      if(cmTarget *tgt = this->Makefile->FindTargetToUse(argv[i]))
+      if ( varArgsExpanded[kk] == args[cc] )
         {
-        switch(tgt->GetType())
-          {
-          case cmTarget::SHARED_LIBRARY:
-          case cmTarget::STATIC_LIBRARY:
-          case cmTarget::INTERFACE_LIBRARY:
-          case cmTarget::UNKNOWN_LIBRARY:
-            break;
-          case cmTarget::EXECUTABLE:
-            if (tgt->IsExecutableWithExports())
-              {
-              break;
-              }
-          default:
-            this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-              "Only libraries may be used as try_compile IMPORTED "
-              "LINK_LIBRARIES.  Got " + std::string(tgt->GetName()) + " of "
-              "type " + tgt->GetTargetTypeName(tgt->GetType()) + ".");
-            return -1;
-          }
-        if (tgt->IsImported())
-          {
-          targets.push_back(tgt);
-          }
-        }
-      }
-    else if(doing == DoingOutputVariable)
-      {
-      outputVariable = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFile)
-      {
-      copyFile = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingCopyFileError)
-      {
-      copyFileError = argv[i].c_str();
-      doing = DoingNone;
-      }
-    else if(doing == DoingSources)
-      {
-      sources.push_back(argv[i]);
-      }
-    else if(i == 3)
-      {
-      this->SrcFileSignature = false;
-      projectName = argv[i].c_str();
-      }
-    else if(i == 4 && !this->SrcFileSignature)
-      {
-      targetName = argv[i].c_str();
-      }
-    else
-      {
-      cmOStringStream m;
-      m << "try_compile given unknown argument \"" << argv[i] << "\".";
-      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
-      }
-    }
-
-  if(didCopyFile && copyFile.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE must be followed by a file path");
-    return -1;
-    }
-
-  if(didCopyFileError && copyFileError.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR must be followed by a variable name");
-    return -1;
-    }
-
-  if(didCopyFileError && !didCopyFile)
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "COPY_FILE_ERROR may be used only with COPY_FILE");
-    return -1;
-    }
-
-  if(didOutputVariable && outputVariable.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "OUTPUT_VARIABLE must be followed by a variable name");
-    return -1;
-    }
-
-  if(useSources && sources.empty())
-    {
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-      "SOURCES must be followed by at least one source file");
-    return -1;
-    }
-
-  // compute the binary dir when TRY_COMPILE is called with a src file
-  // signature
-  if (this->SrcFileSignature)
-    {
-    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
-    this->BinaryDirectory += "/CMakeTmp";
-    }
-  else
-    {
-    // only valid for srcfile signatures
-    if (compileDefs.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    if (copyFile.size())
-      {
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-        "COPY_FILE specified on a srcdir type TRY_COMPILE");
-      return -1;
-      }
-    }
-  // make sure the binary directory exists
-  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
-
-  // do not allow recursive try Compiles
-  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory())
-    {
-    cmOStringStream e;
-    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
-      << "  " << this->BinaryDirectory << "\n";
-    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-    return -1;
-    }
-
-  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
-  // which signature are we using? If we are using var srcfile bindir
-  if (this->SrcFileSignature)
-    {
-    // remove any CMakeCache.txt files so we will have a clean test
-    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
-    cmSystemTools::RemoveFile(ccFile.c_str());
-
-    // Choose sources.
-    if(!useSources)
-      {
-      sources.push_back(argv[2]);
-      }
-
-    // Detect languages to enable.
-    cmLocalGenerator* lg = this->Makefile->GetLocalGenerator();
-    cmGlobalGenerator* gg = lg->GetGlobalGenerator();
-    std::set<std::string> testLangs;
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
-      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
-      if(!lang.empty())
-        {
-        testLangs.insert(lang);
+        varArgsExpanded.erase(varArgsExpanded.begin()+kk);
         }
       else
         {
-        cmOStringStream err;
-        err << "Unknown extension \"" << ext << "\" for file\n"
-            << "  " << *si << "\n"
-            << "try_compile() works only for enabled languages.  "
-            << "Currently these are:\n ";
-        std::vector<std::string> langs;
-        gg->GetEnabledLanguages(langs);
-        for(std::vector<std::string>::iterator l = langs.begin();
-            l != langs.end(); ++l)
-          {
-          err << " " << *l;
-          }
-        err << "\nSee project() command to enable other languages.";
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
-        return -1;
+        kk ++;
         }
       }
-
-    // we need to create a directory and CMakeLists file etc...
-    // first create the directories
-    sourceDirectory = this->BinaryDirectory.c_str();
-
-    // now create a CMakeLists.txt file in that directory
-    FILE *fout = cmsys::SystemTools::Fopen(outFileName.c_str(),"w");
-    if (!fout)
-      {
-      cmOStringStream e;
-      e << "Failed to open\n"
-        << "  " << outFileName.c_str() << "\n"
-        << cmSystemTools::GetLastSystemError();
-      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
-      return -1;
-      }
-
-    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
-    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
-            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
-            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
-    if(def)
-      {
-      fprintf(fout, "set(CMAKE_MODULE_PATH %s)\n", def);
-      }
-
-    std::string projectLangs;
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      projectLangs += " " + *li;
-      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
-      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
-      if(const char* rulesOverridePath =
-         this->Makefile->GetDefinition(rulesOverrideLang.c_str()))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideLang.c_str(), rulesOverridePath);
-        }
-      else if(const char* rulesOverridePath2 =
-              this->Makefile->GetDefinition(rulesOverrideBase.c_str()))
-        {
-        fprintf(fout, "set(%s \"%s\")\n",
-                rulesOverrideBase.c_str(), rulesOverridePath2);
-        }
-      }
-    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
-    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
-    for(std::set<std::string>::iterator li = testLangs.begin();
-        li != testLangs.end(); ++li)
-      {
-      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
-      const char* flags = this->Makefile->GetDefinition(langFlags.c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
-              lg->EscapeForCMake(flags?flags:"").c_str());
-      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
-              " ${COMPILE_DEFINITIONS}\")\n", li->c_str(), li->c_str());
-      }
-    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
-    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
-    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
-    // handle any compile flags we need to pass on
-    if (compileDefs.size())
-      {
-      fprintf(fout, "add_definitions( ");
-      for (size_t i = 0; i < compileDefs.size(); ++i)
-        {
-        fprintf(fout,"%s ",compileDefs[i].c_str());
-        }
-      fprintf(fout, ")\n");
-      }
-
-    /* Use a random file name to avoid rapid creation and deletion
-       of the same executable name (some filesystems fail on that).  */
-    sprintf(targetNameBuf, "cmTryCompileExec%u",
-            cmSystemTools::RandomSeed());
-    targetName = targetNameBuf;
-
-    if (!targets.empty())
-      {
-      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
-      cmExportTryCompileFileGenerator tcfg;
-      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
-      tcfg.SetExports(targets);
-      tcfg.SetConfig(this->Makefile->GetSafeDefinition(
-                                          "CMAKE_TRY_COMPILE_CONFIGURATION"));
-
-      if(!tcfg.GenerateImportFile())
-        {
-        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
-                                     "could not write export file.");
-        fclose(fout);
-        return -1;
-        }
-      fprintf(fout,
-              "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
-              fname.c_str());
-      }
-
-    /* for the TRY_COMPILEs we want to be able to specify the architecture.
-      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
-      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
-      have the tests run for each specific architecture. Since
-      cmLocalGenerator doesn't allow building for "the other"
-      architecture only via CMAKE_OSX_ARCHITECTURES.
-      */
-    if(this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition(
-                                        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_ARCHITECTURES=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_SYSROOT=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
-      cmakeFlags.push_back(flag);
-      }
-    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
-    if(this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET")!=0)
-      {
-      std::string flag="-DCMAKE_OSX_DEPLOYMENT_TARGET=";
-      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cxxDef
-              = this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_TARGET=";
-      flag += cxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *cDef
-                = this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_TARGET=";
-      flag += cDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcxxDef = this->Makefile->GetDefinition(
-                                  "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcxxDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *tcDef = this->Makefile->GetDefinition(
-                                    "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN"))
-      {
-      std::string flag="-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
-      flag += tcDef;
-      cmakeFlags.push_back(flag);
-      }
-    if (const char *rootDef
-              = this->Makefile->GetDefinition("CMAKE_SYSROOT"))
-      {
-      std::string flag="-DCMAKE_SYSROOT=";
-      flag += rootDef;
-      cmakeFlags.push_back(flag);
-      }
-    if(this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE")!=0)
-      {
-      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
-      }
-
-    /* Put the executable at a known location (for COPY_FILE).  */
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
-      {
-      fprintf(fout, " \"%s\"", si->c_str());
-
-      // Add dependencies on any non-temporary sources.
-      if(si->find("CMakeTmp") == si->npos)
-        {
-        this->Makefile->AddCMakeDependFile(*si);
-        }
-      }
-    fprintf(fout, ")\n");
-    if (useOldLinkLibs)
-      {
-      fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
-              targetName.c_str());
-      }
-    else
-      {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName.c_str(),
-              libsToLink.c_str());
-      }
-    fclose(fout);
-    projectName = "CMAKE_TRY_COMPILE";
     }
 
-  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
-  cmSystemTools::ResetErrorOccuredFlag();
-  std::string output;
-  // actually do the try compile now that everything is setup
-  int res = this->Makefile->TryCompile(sourceDirectory,
-                                       this->BinaryDirectory.c_str(),
-                                       projectName,
-                                       targetName,
-                                       this->SrcFileSignature,
-                                       &cmakeFlags,
-                                       &output);
-  if ( erroroc )
+  std::string value;
+  const char* sep = "";
+  for ( cc = 0; cc < varArgsExpanded.size(); cc ++ )
     {
-    cmSystemTools::SetErrorOccured();
+    value += sep;
+    value += varArgsExpanded[cc];
+    sep = ";";
     }
 
-  // set the result var to the return value to indicate success or failure
-  this->Makefile->AddCacheDefinition(argv[0].c_str(),
-                                     (res == 0 ? "TRUE" : "FALSE"),
-                                     "Result of TRY_COMPILE",
-                                     cmCacheManager::INTERNAL);
-
-  if ( outputVariable.size() > 0 )
-    {
-    this->Makefile->AddDefinition(outputVariable.c_str(), output.c_str());
-    }
-
-  if (this->SrcFileSignature)
-    {
-    std::string copyFileErrorMessage;
-    this->FindOutputFile(targetName);
-
-    if ((res==0) && (copyFile.size()))
-      {
-      if(this->OutputFile.empty() ||
-         !cmSystemTools::CopyFileAlways(this->OutputFile.c_str(),
-                                        copyFile.c_str()))
-        {
-        cmOStringStream emsg;
-        emsg << "Cannot copy output executable\n"
-             << "  '" << this->OutputFile.c_str() << "'\n"
-             << "to destination specified by COPY_FILE:\n"
-             << "  '" << copyFile.c_str() << "'\n";
-        if(!this->FindErrorMessage.empty())
-          {
-          emsg << this->FindErrorMessage.c_str();
-          }
-        if(copyFileError.empty())
-          {
-          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
-          return -1;
-          }
-        else
-          {
-          copyFileErrorMessage = emsg.str();
-          }
-        }
-      }
-
-    if(!copyFileError.empty())
-      {
-      this->Makefile->AddDefinition(copyFileError.c_str(),
-                                    copyFileErrorMessage.c_str());
-      }
-    }
-  return res;
+  this->Makefile->AddDefinition(listName.c_str(), value.c_str());
+  return true;
 }
 
-void cmCoreTryCompile::CleanupFiles(const char* binDir)
+//----------------------------------------------------------------------------
+bool cmListCommand
+::HandleReverseCommand(std::vector<std::string> const& args)
 {
-  if ( !binDir )
+  assert(args.size() >= 2);
+  if(args.size() > 2)
     {
-    return;
+    this->SetError(
+      "sub-command REVERSE only takes one argument.");
+    return false;
     }
 
-  std::string bdir = binDir;
-  if(bdir.find("CMakeTmp") == std::string::npos)
+  const std::string& listName = args[1];
+  // expand the variable
+  std::vector<std::string> varArgsExpanded;
+  if ( !this->GetList(varArgsExpanded, listName.c_str()) )
     {
-    cmSystemTools::Error(
-      "TRY_COMPILE attempt to remove -rf directory that does not contain "
-      "CMakeTmp:", binDir);
-    return;
+    this->SetError("sub-command REVERSE requires list to be present.");
+    return false;
     }
 
-  cmsys::Directory dir;
-  dir.Load(binDir);
-  size_t fileNum;
-  std::set<std::string> deletedFiles;
-  for (fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
+  std::string value;
+  std::vector<std::string>::reverse_iterator it;
+  const char* sep = "";
+  for ( it = varArgsExpanded.rbegin(); it != varArgsExpanded.rend(); ++ it )
     {
-    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".") &&
-        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)),".."))
+    value += sep;
+    value += it->c_str();
+    sep = ";";
+    }
+
+  this->Makefile->AddDefinition(listName.c_str(), value.c_str());
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand
+::HandleRemoveDuplicatesCommand(std::vector<std::string> const& args)
+{
+  assert(args.size() >= 2);
+  if(args.size() > 2)
+    {
+    this->SetError(
+      "sub-command REMOVE_DUPLICATES only takes one argument.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+  // expand the variable
+  std::vector<std::string> varArgsExpanded;
+  if ( !this->GetList(varArgsExpanded, listName.c_str()) )
+    {
+    this->SetError(
+      "sub-command REMOVE_DUPLICATES requires list to be present.");
+    return false;
+    }
+
+  std::string value;
+
+
+  std::set<std::string> unique;
+  std::vector<std::string>::iterator it;
+  const char* sep = "";
+  for ( it = varArgsExpanded.begin(); it != varArgsExpanded.end(); ++ it )
+    {
+    if (unique.find(*it) != unique.end())
       {
+      continue;
+      }
+    unique.insert(*it);
+    value += sep;
+    value += it->c_str();
+    sep = ";";
+    }
 
-      if(deletedFiles.find( dir.GetFile(static_cast<unsigned long>(fileNum)))
-         == deletedFiles.end())
+
+  this->Makefile->AddDefinition(listName.c_str(), value.c_str());
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand
+::HandleSortCommand(std::vector<std::string> const& args)
+{
+  assert(args.size() >= 2);
+  if(args.size() > 2)
+    {
+    this->SetError(
+      "sub-command SORT only takes one argument.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+  // expand the variable
+  std::vector<std::string> varArgsExpanded;
+  if ( !this->GetList(varArgsExpanded, listName.c_str()) )
+    {
+    this->SetError("sub-command SORT requires list to be present.");
+    return false;
+    }
+
+  std::sort(varArgsExpanded.begin(), varArgsExpanded.end());
+
+  std::string value;
+  std::vector<std::string>::iterator it;
+  const char* sep = "";
+  for ( it = varArgsExpanded.begin(); it != varArgsExpanded.end(); ++ it )
+    {
+    value += sep;
+    value += it->c_str();
+    sep = ";";
+    }
+
+  this->Makefile->AddDefinition(listName.c_str(), value.c_str());
+  return true;
+}
+
+//----------------------------------------------------------------------------
+bool cmListCommand::HandleRemoveAtCommand(
+  std::vector<std::string> const& args)
+{
+  if(args.size() < 3)
+    {
+    this->SetError("sub-command REMOVE_AT requires at least "
+                   "two arguments.");
+    return false;
+    }
+
+  const std::string& listName = args[1];
+  // expand the variable
+  std::vector<std::string> varArgsExpanded;
+  if ( !this->GetList(varArgsExpanded, listName.c_str()) )
+    {
+    this->SetError("sub-command REMOVE_AT requires list to be present.");
+    return false;
+    }
+  // FIXME: Add policy to make non-existing lists an error like empty lists.
+  if(varArgsExpanded.empty())
+    {
+    this->SetError("REMOVE_AT given empty list");
+    return false;
+    }
+
+  size_t cc;
+  std::vector<size_t> removed;
+  for ( cc = 2; cc < args.size(); ++ cc )
+    {
+    int item = atoi(args[cc].c_str());
+    size_t nitem = varArgsExpanded.size();
+    if ( item < 0 )
+      {
+      item = (int)nitem + item;
+      }
+    if ( item < 0 || nitem <= (size_t)item )
+      {
+      cmOStringStream str;
+      str << "index: " << item << " out of range (-"
+          << varArgsExpanded.size() << ", "
+          << varArgsExpanded.size()-1 << ")";
+      this->SetError(str.str().c_str());
+      return false;
+      }
+    removed.push_back(static_cast<size_t>(item));
+    }
+
+  std::string value;
+  const char* sep = "";
+  for ( cc = 0; cc < varArgsExpanded.size(); ++ cc )
+    {
+    size_t kk;
+    bool found = false;
+    for ( kk = 0; kk < removed.size(); ++ kk )
+      {
+      if ( cc == removed[kk] )
         {
-        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
-        std::string fullPath = binDir;
-        fullPath += "/";
-        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
-        if(cmSystemTools::FileIsDirectory(fullPath.c_str()))
-          {
-          this->CleanupFiles(fullPath.c_str());
-          cmSystemTools::RemoveADirectory(fullPath.c_str());
-          }
-        else
-          {
-#ifdef _WIN32
-          // Sometimes anti-virus software hangs on to new files so we
-          // cannot delete them immediately.  Try a few times.
-          cmSystemTools::WindowsFileRetry retry =
-            cmSystemTools::GetWindowsFileRetry();
-          while(!cmSystemTools::RemoveFile(fullPath.c_str()) &&
-                --retry.Count && cmSystemTools::FileExists(fullPath.c_str()))
-            {
-            cmSystemTools::Delay(retry.Delay);
-            }
-          if(retry.Count == 0)
-#else
-          if(!cmSystemTools::RemoveFile(fullPath.c_str()))
-#endif
-            {
-            std::string m = "Remove failed on file: " + fullPath;
-            cmSystemTools::ReportLastSystemError(m.c_str());
-            }
-          }
+        found = true;
         }
       }
-    }
-}
 
-void cmCoreTryCompile::FindOutputFile(const std::string& targetName)
-{
-  this->FindErrorMessage = "";
-  this->OutputFile = "";
-  std::string tmpOutputFile = "/";
-  tmpOutputFile += targetName;
-  tmpOutputFile +=this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
-
-  // a list of directories where to search for the compilation result
-  // at first directly in the binary dir
-  std::vector<std::string> searchDirs;
-  searchDirs.push_back("");
-
-  const char* config = this->Makefile->GetDefinition(
-                                            "CMAKE_TRY_COMPILE_CONFIGURATION");
-  // if a config was specified try that first
-  if (config && config[0])
-    {
-    std::string tmp = "/";
-    tmp += config;
-    searchDirs.push_back(tmp);
-    }
-  searchDirs.push_back("/Debug");
-  searchDirs.push_back("/Development");
-
-  for(std::vector<std::string>::const_iterator it = searchDirs.begin();
-      it != searchDirs.end();
-      ++it)
-    {
-    std::string command = this->BinaryDirectory;
-    command += *it;
-    command += tmpOutputFile;
-    if(cmSystemTools::FileExists(command.c_str()))
+    if ( !found )
       {
-      tmpOutputFile = cmSystemTools::CollapseFullPath(command.c_str());
-      this->OutputFile = tmpOutputFile;
-      return;
+      value += sep;
+      value += varArgsExpanded[cc];
+      sep = ";";
       }
     }
 
-  cmOStringStream emsg;
-  emsg << "Unable to find the executable at any of:\n";
-  for (unsigned int i = 0; i < searchDirs.size(); ++i)
-    {
-    emsg << "  " << this->BinaryDirectory << searchDirs[i]
-         << tmpOutputFile << "\n";
-    }
-  this->FindErrorMessage = emsg.str();
-  return;
+  this->Makefile->AddDefinition(listName.c_str(), value.c_str());
+  return true;
 }
+

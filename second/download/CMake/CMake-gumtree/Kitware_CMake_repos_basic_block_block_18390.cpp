@@ -1,0 +1,1 @@
+(index == 15) ctx->message[index] = 0

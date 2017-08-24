@@ -1,0 +1,2 @@
+(type == kEnd)
+			break;

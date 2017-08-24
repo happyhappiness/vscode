@@ -1,0 +1,1 @@
+ratio = (int)(state->in_count / ratio)

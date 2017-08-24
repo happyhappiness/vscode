@@ -1,0 +1,2 @@
+f(!realpubkey)
+      break;

@@ -1,0 +1,1 @@
+(w1->loop < w2->loop) return -1;

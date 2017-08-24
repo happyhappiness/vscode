@@ -1,0 +1,1 @@
+bytes_avail = (ssize_t)zip->pack_stream_inbytes_remaining

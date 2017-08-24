@@ -1,0 +1,1 @@
+copy_length = GNUTAR_linkname_size

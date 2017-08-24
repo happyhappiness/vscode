@@ -1,98 +1,276 @@
-@@ -186,6 +186,7 @@ struct huffman_code
- {
-   struct huffman_tree_node *tree;
-   int numentries;
-+  int numallocatedentries;
-   int minlength;
-   int maxlength;
-   int tablesize;
-@@ -225,6 +226,7 @@ struct rar
-   mode_t mode;
-   char *filename;
-   char *filename_save;
-+  size_t filename_save_size;
-   size_t filename_allocated;
+@@ -5,11 +5,11 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1999 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1999 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+- * are also available at http://curl.haxx.se/docs/copyright.html.
++ * are also available at https://curl.haxx.se/docs/copyright.html.
+  *
+  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+  * copies of the Software, and permit persons to whom the Software is
+@@ -32,15 +32,10 @@
+  *
+  * If you ever want truly portable and good *printf() clones, the project that
+  * took on from here is named 'Trio' and you find more details on the trio web
+- * page at http://daniel.haxx.se/trio/
++ * page at https://daniel.haxx.se/projects/trio/
+  */
  
-   /* File header optional entries */
-@@ -1000,8 +1002,8 @@ archive_read_format_rar_read_data(struct archive_read *a, const void **buff,
-       rar->bytes_unconsumed = 0;
+ #include "curl_setup.h"
+-
+-#if defined(DJGPP) && (DJGPP_MINOR < 4)
+-#undef _MPRINTF_REPLACE /* don't use x_was_used() here */
+-#endif
+-
+ #include <curl/mprintf.h>
+ 
+ #include "curl_memory.h"
+@@ -465,34 +460,40 @@ static long dprintf_Pass1(const char *format, va_stack_t *vto, char **endpos,
+       if(flags & FLAGS_WIDTHPARAM) {
+         /* we have the width specified from a parameter, so we make that
+            parameter's info setup properly */
+-        vto[i].width = width - 1;
+-        i = width - 1;
+-        vto[i].type = FORMAT_WIDTH;
+-        vto[i].flags = FLAGS_NEW;
+-        vto[i].precision = vto[i].width = 0; /* can't use width or precision
+-                                                of width! */
++        long k = width - 1;
++        vto[i].width = k;
++        vto[k].type = FORMAT_WIDTH;
++        vto[k].flags = FLAGS_NEW;
++        /* can't use width or precision of width! */
++        vto[k].width = 0;
++        vto[k].precision = 0;
+       }
+       if(flags & FLAGS_PRECPARAM) {
+         /* we have the precision specified from a parameter, so we make that
+            parameter's info setup properly */
+-        vto[i].precision = precision - 1;
+-        i = precision - 1;
+-        vto[i].type = FORMAT_WIDTH;
+-        vto[i].flags = FLAGS_NEW;
+-        vto[i].precision = vto[i].width = 0; /* can't use width or precision
+-                                                of width! */
++        long k = precision - 1;
++        vto[i].precision = k;
++        vto[k].type = FORMAT_WIDTH;
++        vto[k].flags = FLAGS_NEW;
++        /* can't use width or precision of width! */
++        vto[k].width = 0;
++        vto[k].precision = 0;
+       }
+       *endpos++ = fmt + 1; /* end of this sequence */
+     }
    }
  
-+  *buff = NULL;
-   if (rar->entry_eof || rar->offset_seek >= rar->unp_size) {
--    *buff = NULL;
-     *size = 0;
-     *offset = rar->offset;
-     if (*offset < rar->unp_size)
-@@ -1201,10 +1203,8 @@ archive_read_format_rar_seek_data(struct archive_read *a, int64_t offset,
-     ret -= rar->dbo[0].start_offset;
- 
-     /* Always restart reading the file after a seek */
--    a->read_data_block = NULL;
--    a->read_data_offset = 0;
--    a->read_data_output_offset = 0;
--    a->read_data_remaining = 0;
-+    __archive_reset_read_data(&a->archive);
-+
-     rar->bytes_unconsumed = 0;
-     rar->offset = 0;
- 
-@@ -1530,6 +1530,7 @@ read_header(struct archive_read *a, struct archive_entry *entry,
- 
-   /* Split file in multivolume RAR. No more need to process header. */
-   if (rar->filename_save &&
-+    filename_size == rar->filename_save_size &&
-     !memcmp(rar->filename, rar->filename_save, filename_size + 1))
-   {
-     __archive_read_consume(a, header_size - 7);
-@@ -1559,6 +1560,7 @@ read_header(struct archive_read *a, struct archive_entry *entry,
-   rar->filename_save = (char*)realloc(rar->filename_save,
-                                       filename_size + 1);
-   memcpy(rar->filename_save, rar->filename, filename_size + 1);
-+  rar->filename_save_size = filename_size;
- 
-   /* Set info for seeking */
-   free(rar->dbo);
-@@ -2406,6 +2408,8 @@ create_code(struct archive_read *a, struct huffman_code *code,
- {
-   int i, j, codebits = 0, symbolsleft = numsymbols;
- 
-+  code->numentries = 0;
-+  code->numallocatedentries = 0;
-   if (new_node(code) < 0) {
-     archive_set_error(&a->archive, ENOMEM,
-                       "Unable to allocate memory for node data.");
-@@ -2534,11 +2538,17 @@ static int
- new_node(struct huffman_code *code)
- {
-   void *new_tree;
--
--  new_tree = realloc(code->tree, (code->numentries + 1) * sizeof(*code->tree));
--  if (new_tree == NULL)
--    return (-1);
--  code->tree = (struct huffman_tree_node *)new_tree;
-+  if (code->numallocatedentries == code->numentries) {
-+    int new_num_entries = 256;
-+    if (code->numentries > 0) {
-+        new_num_entries = code->numentries * 2;
+   /* Read the arg list parameters into our data list */
+   for(i=0; i<max_param; i++) {
+-    if((i + 1 < max_param) && (vto[i + 1].type == FORMAT_WIDTH)) {
+-      /* Width/precision arguments must be read before the main argument
+-       * they are attached to
+-       */
+-      vto[i + 1].data.num.as_signed = (mp_intmax_t)va_arg(arglist, int);
++    /* Width/precision arguments must be read before the main argument
++       they are attached to */
++    if(vto[i].flags & FLAGS_WIDTHPARAM) {
++      vto[vto[i].width].data.num.as_signed =
++        (mp_intmax_t)va_arg(arglist, int);
 +    }
-+    new_tree = realloc(code->tree, new_num_entries * sizeof(*code->tree));
-+    if (new_tree == NULL)
-+        return (-1);
-+    code->tree = (struct huffman_tree_node *)new_tree;
-+    code->numallocatedentries = new_num_entries;
-+  }
-   code->tree[code->numentries].branches[0] = -1;
-   code->tree[code->numentries].branches[1] = -2;
-   return 1;
-@@ -2895,8 +2905,8 @@ rar_read_ahead(struct archive_read *a, size_t min, ssize_t *avail)
-   int ret;
-   if (avail)
-   {
--    if (a->read_data_is_posix_read && *avail > (ssize_t)a->read_data_requested)
--      *avail = a->read_data_requested;
-+    if (a->archive.read_data_is_posix_read && *avail > (ssize_t)a->archive.read_data_requested)
-+      *avail = a->archive.read_data_requested;
-     if (*avail > rar->bytes_remaining)
-       *avail = (ssize_t)rar->bytes_remaining;
-     if (*avail < 0)
++    if(vto[i].flags & FLAGS_PRECPARAM) {
++      vto[vto[i].precision].data.num.as_signed =
++        (mp_intmax_t)va_arg(arglist, int);
+     }
+ 
+     switch (vto[i].type) {
+@@ -580,6 +581,11 @@ static int dprintf_formatf(
+ 
+   va_stack_t *p;
+ 
++  /* 'workend' points to the final buffer byte position, but with an extra
++     byte as margin to avoid the (false?) warning Coverity gives us
++     otherwise */
++  char *workend = &work[sizeof(work) - 2];
++
+   /* Do the actual %-code parsing */
+   dprintf_Pass1(format, vto, endpos, ap_save);
+ 
+@@ -609,6 +615,8 @@ static int dprintf_formatf(
+     /* Used to convert negative in positive.  */
+     mp_intmax_t signed_num;
+ 
++    char *w;
++
+     if(*f != '%') {
+       /* This isn't a format spec, so write everything out until the next one
+          OR end of string is reached.  */
+@@ -645,16 +653,30 @@ static int dprintf_formatf(
+     p = &vto[param];
+ 
+     /* pick up the specified width */
+-    if(p->flags & FLAGS_WIDTHPARAM)
++    if(p->flags & FLAGS_WIDTHPARAM) {
+       width = (long)vto[p->width].data.num.as_signed;
++      param_num++; /* since the width is extracted from a parameter, we
++                      must skip that to get to the next one properly */
++      if(width < 0) {
++        /* "A negative field width is taken as a '-' flag followed by a
++           positive field width." */
++        width = -width;
++        p->flags |= FLAGS_LEFT;
++        p->flags &= ~FLAGS_PAD_NIL;
++      }
++    }
+     else
+       width = p->width;
+ 
+     /* pick up the specified precision */
+     if(p->flags & FLAGS_PRECPARAM) {
+       prec = (long)vto[p->precision].data.num.as_signed;
+-      param_num++; /* since the precision is extraced from a parameter, we
++      param_num++; /* since the precision is extracted from a parameter, we
+                       must skip that to get to the next one properly */
++      if(prec < 0)
++        /* "A negative precision is taken as if the precision were
++           omitted." */
++        prec = -1;
+     }
+     else if(p->flags & FLAGS_PREC)
+       prec = p->precision;
+@@ -715,72 +737,68 @@ static int dprintf_formatf(
+ 
+       number:
+       /* Number of base BASE.  */
+-      {
+-        char *workend = &work[sizeof(work) - 1];
+-        char *w;
+-
+-        /* Supply a default precision if none was given.  */
+-        if(prec == -1)
+-          prec = 1;
+-
+-        /* Put the number in WORK.  */
+-        w = workend;
+-        while(num > 0) {
+-          *w-- = digits[num % base];
+-          num /= base;
+-        }
+-        width -= (long)(workend - w);
+-        prec -= (long)(workend - w);
+ 
+-        if(is_alt && base == 8 && prec <= 0) {
+-          *w-- = '0';
+-          --width;
+-        }
++      /* Supply a default precision if none was given.  */
++      if(prec == -1)
++        prec = 1;
+ 
+-        if(prec > 0) {
+-          width -= prec;
+-          while(prec-- > 0)
+-            *w-- = '0';
+-        }
++      /* Put the number in WORK.  */
++      w = workend;
++      while(num > 0) {
++        *w-- = digits[num % base];
++        num /= base;
++      }
++      width -= (long)(workend - w);
++      prec -= (long)(workend - w);
+ 
+-        if(is_alt && base == 16)
+-          width -= 2;
++      if(is_alt && base == 8 && prec <= 0) {
++        *w-- = '0';
++        --width;
++      }
+ 
+-        if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
+-          --width;
++      if(prec > 0) {
++        width -= prec;
++        while(prec-- > 0)
++          *w-- = '0';
++      }
+ 
+-        if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
+-          while(width-- > 0)
+-            OUTCHAR(' ');
++      if(is_alt && base == 16)
++        width -= 2;
+ 
+-        if(is_neg)
+-          OUTCHAR('-');
+-        else if(p->flags & FLAGS_SHOWSIGN)
+-          OUTCHAR('+');
+-        else if(p->flags & FLAGS_SPACE)
+-          OUTCHAR(' ');
++      if(is_neg || (p->flags & FLAGS_SHOWSIGN) || (p->flags & FLAGS_SPACE))
++        --width;
+ 
+-        if(is_alt && base == 16) {
+-          OUTCHAR('0');
+-          if(p->flags & FLAGS_UPPER)
+-            OUTCHAR('X');
+-          else
+-            OUTCHAR('x');
+-        }
++      if(!(p->flags & FLAGS_LEFT) && !(p->flags & FLAGS_PAD_NIL))
++        while(width-- > 0)
++          OUTCHAR(' ');
+ 
+-        if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
+-          while(width-- > 0)
+-            OUTCHAR('0');
++      if(is_neg)
++        OUTCHAR('-');
++      else if(p->flags & FLAGS_SHOWSIGN)
++        OUTCHAR('+');
++      else if(p->flags & FLAGS_SPACE)
++        OUTCHAR(' ');
++
++      if(is_alt && base == 16) {
++        OUTCHAR('0');
++        if(p->flags & FLAGS_UPPER)
++          OUTCHAR('X');
++        else
++          OUTCHAR('x');
++      }
+ 
+-        /* Write the number.  */
+-        while(++w <= workend) {
+-          OUTCHAR(*w);
+-        }
++      if(!(p->flags & FLAGS_LEFT) && (p->flags & FLAGS_PAD_NIL))
++        while(width-- > 0)
++          OUTCHAR('0');
+ 
+-        if(p->flags & FLAGS_LEFT)
+-          while(width-- > 0)
+-            OUTCHAR(' ');
++      /* Write the number.  */
++      while(++w <= workend) {
++        OUTCHAR(*w);
+       }
++
++      if(p->flags & FLAGS_LEFT)
++        while(width-- > 0)
++          OUTCHAR(' ');
+       break;
+ 
+     case FORMAT_STRING:
+@@ -809,7 +827,7 @@ static int dprintf_formatf(
+         else
+           len = strlen(str);
+ 
+-        width -= (long)len;
++        width -= (len > LONG_MAX) ? LONG_MAX : (long)len;
+ 
+         if(p->flags & FLAGS_ALT)
+           OUTCHAR('"');

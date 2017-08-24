@@ -1,0 +1,1 @@
+mine->can_skip = 0

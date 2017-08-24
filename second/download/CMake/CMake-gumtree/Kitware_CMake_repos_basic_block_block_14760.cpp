@@ -1,0 +1,1 @@
+a->deferred |= TODO_MAC_METADATA

@@ -1,0 +1,1 @@
+data->set.proxy_ssl.certverifyresult = 0

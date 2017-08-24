@@ -1,0 +1,2 @@
+f(rc == CURLRESOLV_TIMEDOUT)
+        result = CURLE_OPERATION_TIMEDOUT

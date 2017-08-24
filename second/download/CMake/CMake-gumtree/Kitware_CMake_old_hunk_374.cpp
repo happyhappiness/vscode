@@ -1,18 +1,6 @@
-{
-	struct unknown_tag *tag;
+    return CURLE_FAILED_INIT;
+  }
 
-#if DEBUG
-	fprintf(stderr, "unknowntag_end:%s\n", name);
-#endif
-	tag = xar->unknowntags;
-	if (tag == NULL || name == NULL)
-		return;
-	if (strcmp(tag->name.s, name) == 0) {
-		xar->unknowntags = tag->next;
-		archive_string_free(&(tag->name));
-		free(tag);
-		if (xar->unknowntags == NULL)
-			xar->xmlsts = xar->xmlsts_unknown;
-	}
-}
-
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
+  if(libssh2_init(0)) {
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));

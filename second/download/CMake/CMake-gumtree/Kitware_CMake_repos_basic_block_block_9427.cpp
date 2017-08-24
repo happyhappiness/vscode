@@ -1,0 +1,1 @@
+to_write = (size_t)(target_offset - actual_offset)

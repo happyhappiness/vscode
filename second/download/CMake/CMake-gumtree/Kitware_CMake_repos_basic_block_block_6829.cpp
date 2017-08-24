@@ -1,0 +1,1 @@
+SECMOD_DestroyModule(module)

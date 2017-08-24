@@ -1,0 +1,3 @@
+{
+        SetLastError(WSAENOTSOCK);
+      }

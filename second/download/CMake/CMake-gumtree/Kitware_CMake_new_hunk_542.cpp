@@ -1,9 +1,12 @@
-               }
-            }
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (this->ImportFlag) {
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
-            }
-            /*
-            Check whether it is "Scalar deleting destructor" and
+    fprintf(stderr, "\n****\n");
+    fprintf(stderr, "**** Header %s\n ", header);
+  });
+
+  free(type2);
+
+  return result;
+}
+
+/* copy the source to the destination and fill in zeroes in every
+   other destination byte! */
+static void unicodecpy(unsigned char *dest, const char *src, size_t length)

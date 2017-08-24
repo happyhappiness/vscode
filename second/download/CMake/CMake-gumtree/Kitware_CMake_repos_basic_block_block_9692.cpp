@@ -1,0 +1,1 @@
+buffbytes = t->current_sparse->length

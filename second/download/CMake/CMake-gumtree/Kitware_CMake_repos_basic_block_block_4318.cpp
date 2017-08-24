@@ -1,0 +1,1 @@
+path = (unsigned char *) strdup((char *) uripath)

@@ -1,0 +1,1 @@
+(allOK && verbosity >= 1) fprintf ( stderr, "ok\n" )

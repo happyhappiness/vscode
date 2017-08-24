@@ -1,0 +1,1 @@
+list_size = listxattr(path, list, list_size)

@@ -1,0 +1,2 @@
+(! yyres)
+    return yystrlen (yystr);

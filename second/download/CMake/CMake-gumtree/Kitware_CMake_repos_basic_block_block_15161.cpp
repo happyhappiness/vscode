@@ -1,0 +1,1 @@
+start_size = size = (size_t)(a->filesize - a->offset)

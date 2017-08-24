@@ -1,0 +1,1 @@
+((CPpmd7_Node *)p->LoUnit)->Stamp = 1

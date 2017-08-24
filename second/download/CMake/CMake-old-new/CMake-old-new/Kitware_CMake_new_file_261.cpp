@@ -1,1340 +1,3151 @@
-/***************************************************************************
- *                                  _   _ ____  _
- *  Project                     ___| | | |  _ \| |
- *                             / __| | | | |_) | |
- *                            | (__| |_| |  _ <| |___
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- *
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- ***************************************************************************/
+/*============================================================================
+  CMake - Cross Platform Makefile Generator
+  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
-#include "curl_setup.h"
+  Distributed under the OSI-approved BSD License (the "License");
+  see accompanying file Copyright.txt for details.
 
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h> /* <netinet/tcp.h> may need it */
+  This software is distributed WITHOUT ANY WARRANTY; without even the
+  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+  See the License for more information.
+============================================================================*/
+#if defined(_WIN32) && !defined(__CYGWIN__)
+#include "windows.h" // this must be first to define GetCurrentDirectory
+#if defined(_MSC_VER) && _MSC_VER >= 1800
+# define KWSYS_WINDOWS_DEPRECATED_GetVersionEx
 #endif
-#ifdef HAVE_SYS_UN_H
-#include <sys/un.h> /* for sockaddr_un */
-#endif
-#ifdef HAVE_NETINET_TCP_H
-#include <netinet/tcp.h> /* for TCP_NODELAY */
-#endif
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
+typedef struct {
+  ULONG  dwOSVersionInfoSize;
+  ULONG  dwMajorVersion;
+  ULONG  dwMinorVersion;
+  ULONG  dwBuildNumber;
+  ULONG  dwPlatformId;
+  WCHAR  szCSDVersion[128];
+  USHORT wServicePackMajor;
+  USHORT wServicePackMinor;
+  USHORT wSuiteMask;
+  UCHAR  wProductType;
+  UCHAR  wReserved;
+} CMRTL_OSVERSIONINFOEXW;
+
 #endif
 
-#if (defined(HAVE_IOCTL_FIONBIO) && defined(NETWARE))
-#include <sys/filio.h>
-#endif
-#ifdef NETWARE
-#undef in_addr_t
-#define in_addr_t unsigned long
-#endif
-#ifdef __VMS
-#include <in.h>
-#include <inet.h>
-#endif
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
+#include "cmExternalMakefileProjectGenerator.h"
+#include "cmake.h"
+#include "cmState.h"
+#include "cmMakefile.h"
+#include "cmQtAutoGenerators.h"
+#include "cmSourceFile.h"
+#include "cmVersion.h"
+#include "cmTargetExport.h"
+#include "cmComputeTargetDepends.h"
+#include "cmGeneratedFileStream.h"
+#include "cmGeneratorTarget.h"
+#include "cmGeneratorExpression.h"
+#include "cmExportBuildFileGenerator.h"
+#include "cmCPackPropertiesGenerator.h"
+#include "cmAlgorithms.h"
+#include "cmInstallGenerator.h"
 
-#define _MPRINTF_REPLACE /* use our functions only */
-#include <curl/mprintf.h>
+#include <cmsys/Directory.hxx>
+#include <cmsys/FStream.hxx>
 
-#include "urldata.h"
-#include "sendf.h"
-#include "if2ip.h"
-#include "strerror.h"
-#include "connect.h"
-#include "curl_memory.h"
-#include "select.h"
-#include "url.h" /* for Curl_safefree() */
-#include "multiif.h"
-#include "sockaddr.h" /* required for Curl_sockaddr_storage */
-#include "inet_ntop.h"
-#include "inet_pton.h"
-#include "vtls/vtls.h" /* for Curl_ssl_check_cxn() */
-#include "progress.h"
-#include "warnless.h"
-#include "conncache.h"
-#include "multihandle.h"
-
-/* The last #include file should be: */
-#include "memdebug.h"
-
-#ifdef __SYMBIAN32__
-/* This isn't actually supported under Symbian OS */
-#undef SO_NOSIGPIPE
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+# include <cmsys/MD5.h>
+# include "cm_jsoncpp_value.h"
+# include "cm_jsoncpp_writer.h"
 #endif
 
-static bool verifyconnect(curl_socket_t sockfd, int *error);
+#include <stdlib.h> // required for atof
 
-#if defined(__DragonFly__) || defined(HAVE_WINSOCK_H)
-/* DragonFlyBSD and Windows use millisecond units */
-#define KEEPALIVE_FACTOR(x) (x *= 1000)
-#else
-#define KEEPALIVE_FACTOR(x)
-#endif
+#include <assert.h>
 
-#if defined(HAVE_WINSOCK2_H) && !defined(SIO_KEEPALIVE_VALS)
-#define SIO_KEEPALIVE_VALS    _WSAIOW(IOC_VENDOR,4)
-
-struct tcp_keepalive {
-  u_long onoff;
-  u_long keepalivetime;
-  u_long keepaliveinterval;
-};
-#endif
-
-static void
-tcpkeepalive(struct SessionHandle *data,
-             curl_socket_t sockfd)
+cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
+  : CMakeInstance(cm)
 {
-  int optval = data->set.tcp_keepalive?1:0;
+  // By default the .SYMBOLIC dependency is not needed on symbolic rules.
+  this->NeedSymbolicMark = false;
 
-  /* only set IDLE and INTVL if setting KEEPALIVE is successful */
-  if(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE,
-        (void *)&optval, sizeof(optval)) < 0) {
-    infof(data, "Failed to set SO_KEEPALIVE on fd %d\n", sockfd);
-  }
-  else {
-#if defined(SIO_KEEPALIVE_VALS)
-    struct tcp_keepalive vals;
-    DWORD dummy;
-    vals.onoff = 1;
-    optval = curlx_sltosi(data->set.tcp_keepidle);
-    KEEPALIVE_FACTOR(optval);
-    vals.keepalivetime = optval;
-    optval = curlx_sltosi(data->set.tcp_keepintvl);
-    KEEPALIVE_FACTOR(optval);
-    vals.keepaliveinterval = optval;
-    if(WSAIoctl(sockfd, SIO_KEEPALIVE_VALS, (LPVOID) &vals, sizeof(vals),
-                NULL, 0, &dummy, NULL, NULL) != 0) {
-      infof(data, "Failed to set SIO_KEEPALIVE_VALS on fd %d: %d\n",
-            (int)sockfd, WSAGetLastError());
-    }
-#else
-#ifdef TCP_KEEPIDLE
-    optval = curlx_sltosi(data->set.tcp_keepidle);
-    KEEPALIVE_FACTOR(optval);
-    if(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPIDLE,
-          (void *)&optval, sizeof(optval)) < 0) {
-      infof(data, "Failed to set TCP_KEEPIDLE on fd %d\n", sockfd);
-    }
-#endif
-#ifdef TCP_KEEPINTVL
-    optval = curlx_sltosi(data->set.tcp_keepintvl);
-    KEEPALIVE_FACTOR(optval);
-    if(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL,
-          (void *)&optval, sizeof(optval)) < 0) {
-      infof(data, "Failed to set TCP_KEEPINTVL on fd %d\n", sockfd);
-    }
-#endif
-#ifdef TCP_KEEPALIVE
-    /* Mac OS X style */
-    optval = curlx_sltosi(data->set.tcp_keepidle);
-    KEEPALIVE_FACTOR(optval);
-    if(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPALIVE,
-          (void *)&optval, sizeof(optval)) < 0) {
-      infof(data, "Failed to set TCP_KEEPALIVE on fd %d\n", sockfd);
-    }
-#endif
-#endif
-  }
+  // by default use the native paths
+  this->ForceUnixPaths = false;
+
+  // By default do not try to support color.
+  this->ToolSupportsColor = false;
+
+  // By default do not use link scripts.
+  this->UseLinkScript = false;
+
+  // Whether an install target is needed.
+  this->InstallTargetEnabled = false;
+
+  // how long to let try compiles run
+  this->TryCompileTimeout = 0;
+
+  this->ExtraGenerator = 0;
+  this->CurrentMakefile = 0;
+  this->TryCompileOuterMakefile = 0;
 }
 
-static CURLcode
-singleipconnect(struct connectdata *conn,
-                const Curl_addrinfo *ai, /* start connecting to this */
-                curl_socket_t *sock);
-
-/*
- * Curl_timeleft() returns the amount of milliseconds left allowed for the
- * transfer/connection. If the value is negative, the timeout time has already
- * elapsed.
- *
- * The start time is stored in progress.t_startsingle - as set with
- * Curl_pgrsTime(..., TIMER_STARTSINGLE);
- *
- * If 'nowp' is non-NULL, it points to the current time.
- * 'duringconnect' is FALSE if not during a connect, as then of course the
- * connect timeout is not taken into account!
- *
- * @unittest: 1303
- */
-long Curl_timeleft(struct SessionHandle *data,
-                   struct timeval *nowp,
-                   bool duringconnect)
+cmGlobalGenerator::~cmGlobalGenerator()
 {
-  int timeout_set = 0;
-  long timeout_ms = duringconnect?DEFAULT_CONNECT_TIMEOUT:0;
-  struct timeval now;
+  this->ClearGeneratorMembers();
+  delete this->ExtraGenerator;
+}
 
-  /* if a timeout is set, use the most restrictive one */
+bool cmGlobalGenerator::SetGeneratorPlatform(std::string const& p,
+                                             cmMakefile* mf)
+{
+  if(p.empty())
+    {
+    return true;
+    }
 
-  if(data->set.timeout > 0)
-    timeout_set |= 1;
-  if(duringconnect && (data->set.connecttimeout > 0))
-    timeout_set |= 2;
+  std::ostringstream e;
+  e <<
+    "Generator\n"
+    "  " << this->GetName() << "\n"
+    "does not support platform specification, but platform\n"
+    "  " << p << "\n"
+    "was specified.";
+  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+  return false;
+}
 
-  switch (timeout_set) {
-  case 1:
-    timeout_ms = data->set.timeout;
-    break;
-  case 2:
-    timeout_ms = data->set.connecttimeout;
-    break;
-  case 3:
-    if(data->set.timeout < data->set.connecttimeout)
-      timeout_ms = data->set.timeout;
+bool cmGlobalGenerator::SetGeneratorToolset(std::string const& ts,
+                                            cmMakefile* mf)
+{
+  if(ts.empty())
+    {
+    return true;
+    }
+  std::ostringstream e;
+  e <<
+    "Generator\n"
+    "  " << this->GetName() << "\n"
+    "does not support toolset specification, but toolset\n"
+    "  " << ts << "\n"
+    "was specified.";
+  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
+  return false;
+}
+
+std::string cmGlobalGenerator::SelectMakeProgram(
+                                          const std::string& inMakeProgram,
+                                          const std::string& makeDefault) const
+{
+  std::string makeProgram = inMakeProgram;
+  if(cmSystemTools::IsOff(makeProgram.c_str()))
+    {
+    const char* makeProgramCSTR =
+      this->CMakeInstance->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
+    if(cmSystemTools::IsOff(makeProgramCSTR))
+      {
+      makeProgram = makeDefault;
+      }
     else
-      timeout_ms = data->set.connecttimeout;
-    break;
-  default:
-    /* use the default */
-    if(!duringconnect)
-      /* if we're not during connect, there's no default timeout so if we're
-         at zero we better just return zero and not make it a negative number
-         by the math below */
-      return 0;
-    break;
-  }
-
-  if(!nowp) {
-    now = Curl_tvnow();
-    nowp = &now;
-  }
-
-  /* subtract elapsed time */
-  if(duringconnect)
-    /* since this most recent connect started */
-    timeout_ms -= Curl_tvdiff(*nowp, data->progress.t_startsingle);
-  else
-    /* since the entire operation started */
-    timeout_ms -= Curl_tvdiff(*nowp, data->progress.t_startop);
-  if(!timeout_ms)
-    /* avoid returning 0 as that means no timeout! */
-    return -1;
-
-  return timeout_ms;
+      {
+      makeProgram = makeProgramCSTR;
+      }
+    if(cmSystemTools::IsOff(makeProgram.c_str()) &&
+       !makeProgram.empty())
+      {
+      makeProgram = "CMAKE_MAKE_PROGRAM-NOTFOUND";
+      }
+    }
+  return makeProgram;
 }
 
-static CURLcode bindlocal(struct connectdata *conn,
-                          curl_socket_t sockfd, int af)
+void cmGlobalGenerator::ResolveLanguageCompiler(const std::string &lang,
+                                                cmMakefile *mf,
+                                                bool optional) const
 {
-  struct SessionHandle *data = conn->data;
+  std::string langComp = "CMAKE_";
+  langComp += lang;
+  langComp += "_COMPILER";
 
-  struct Curl_sockaddr_storage sa;
-  struct sockaddr *sock = (struct sockaddr *)&sa;  /* bind to this address */
-  curl_socklen_t sizeof_sa = 0; /* size of the data sock points to */
-  struct sockaddr_in *si4 = (struct sockaddr_in *)&sa;
-#ifdef ENABLE_IPV6
-  struct sockaddr_in6 *si6 = (struct sockaddr_in6 *)&sa;
-#endif
-
-  struct Curl_dns_entry *h=NULL;
-  unsigned short port = data->set.localport; /* use this port number, 0 for
-                                                "random" */
-  /* how many port numbers to try to bind to, increasing one at a time */
-  int portnum = data->set.localportrange;
-  const char *dev = data->set.str[STRING_DEVICE];
-  int error;
-  char myhost[256] = "";
-  int done = 0; /* -1 for error, 1 for address found */
-  bool is_interface = FALSE;
-  bool is_host = FALSE;
-  static const char *if_prefix = "if!";
-  static const char *host_prefix = "host!";
-
-  /*************************************************************
-   * Select device to bind socket to
-   *************************************************************/
-  if(!dev && !port)
-    /* no local kind of binding was requested */
-    return CURLE_OK;
-
-  memset(&sa, 0, sizeof(struct Curl_sockaddr_storage));
-
-  if(dev && (strlen(dev)<255) ) {
-    if(strncmp(if_prefix, dev, strlen(if_prefix)) == 0) {
-      dev += strlen(if_prefix);
-      is_interface = TRUE;
-    }
-    else if(strncmp(host_prefix, dev, strlen(host_prefix)) == 0) {
-      dev += strlen(host_prefix);
-      is_host = TRUE;
-    }
-
-    /* interface */
-    if(!is_host) {
-      switch(Curl_if2ip(af, conn->scope, dev, myhost, sizeof(myhost))) {
-        case IF2IP_NOT_FOUND:
-          if(is_interface) {
-            /* Do not fall back to treating it as a host name */
-            failf(data, "Couldn't bind to interface '%s'", dev);
-            return CURLE_INTERFACE_FAILED;
-          }
-          break;
-        case IF2IP_AF_NOT_SUPPORTED:
-          /* Signal the caller to try another address family if available */
-          return CURLE_UNSUPPORTED_PROTOCOL;
-        case IF2IP_FOUND:
-          is_interface = TRUE;
-          /*
-           * We now have the numerical IP address in the 'myhost' buffer
-           */
-          infof(data, "Local Interface %s is ip %s using address family %i\n",
-                dev, myhost, af);
-          done = 1;
-
-#ifdef SO_BINDTODEVICE
-          /* I am not sure any other OSs than Linux that provide this feature,
-           * and at the least I cannot test. --Ben
-           *
-           * This feature allows one to tightly bind the local socket to a
-           * particular interface.  This will force even requests to other
-           * local interfaces to go out the external interface.
-           *
-           *
-           * Only bind to the interface when specified as interface, not just
-           * as a hostname or ip address.
-           */
-          if(setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE,
-                        dev, (curl_socklen_t)strlen(dev)+1) != 0) {
-            error = SOCKERRNO;
-            infof(data, "SO_BINDTODEVICE %s failed with errno %d: %s;"
-                  " will do regular bind\n",
-                  dev, error, Curl_strerror(conn, error));
-            /* This is typically "errno 1, error: Operation not permitted" if
-               you're not running as root or another suitable privileged
-               user */
-          }
-#endif
-          break;
+  if(!mf->GetDefinition(langComp))
+    {
+    if(!optional)
+      {
+      cmSystemTools::Error(langComp.c_str(),
+                           " not set, after EnableLanguage");
       }
-    }
-    if(!is_interface) {
-      /*
-       * This was not an interface, resolve the name as a host name
-       * or IP number
-       *
-       * Temporarily force name resolution to use only the address type
-       * of the connection. The resolve functions should really be changed
-       * to take a type parameter instead.
-       */
-      long ipver = conn->ip_version;
-      int rc;
-
-      if(af == AF_INET)
-        conn->ip_version = CURL_IPRESOLVE_V4;
-#ifdef ENABLE_IPV6
-      else if(af == AF_INET6)
-        conn->ip_version = CURL_IPRESOLVE_V6;
-#endif
-
-      rc = Curl_resolv(conn, dev, 0, &h);
-      if(rc == CURLRESOLV_PENDING)
-        (void)Curl_resolver_wait_resolv(conn, &h);
-      conn->ip_version = ipver;
-
-      if(h) {
-        /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
-        Curl_printable_address(h->addr, myhost, sizeof(myhost));
-        infof(data, "Name '%s' family %i resolved to '%s' family %i\n",
-              dev, af, myhost, h->addr->ai_family);
-        Curl_resolv_unlock(data, h);
-        done = 1;
-      }
-      else {
-        /*
-         * provided dev was no interface (or interfaces are not supported
-         * e.g. solaris) no ip address and no domain we fail here
-         */
-        done = -1;
-      }
-    }
-
-    if(done > 0) {
-#ifdef ENABLE_IPV6
-      /* ipv6 address */
-      if(af == AF_INET6) {
-#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
-        char *scope_ptr = strchr(myhost, '%');
-        if(scope_ptr)
-          *(scope_ptr++) = 0;
-#endif
-        if(Curl_inet_pton(AF_INET6, myhost, &si6->sin6_addr) > 0) {
-          si6->sin6_family = AF_INET6;
-          si6->sin6_port = htons(port);
-#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
-          if(scope_ptr)
-            /* The "myhost" string either comes from Curl_if2ip or from
-               Curl_printable_address. The latter returns only numeric scope
-               IDs and the former returns none at all.  So the scope ID, if
-               present, is known to be numeric */
-            si6->sin6_scope_id = atoi(scope_ptr);
-#endif
-        }
-        sizeof_sa = sizeof(struct sockaddr_in6);
-      }
-      else
-#endif
-      /* ipv4 address */
-      if((af == AF_INET) &&
-         (Curl_inet_pton(AF_INET, myhost, &si4->sin_addr) > 0)) {
-        si4->sin_family = AF_INET;
-        si4->sin_port = htons(port);
-        sizeof_sa = sizeof(struct sockaddr_in);
-      }
-    }
-
-    if(done < 1) {
-      failf(data, "Couldn't bind to '%s'", dev);
-      return CURLE_INTERFACE_FAILED;
-    }
-  }
-  else {
-    /* no device was given, prepare sa to match af's needs */
-#ifdef ENABLE_IPV6
-    if(af == AF_INET6) {
-      si6->sin6_family = AF_INET6;
-      si6->sin6_port = htons(port);
-      sizeof_sa = sizeof(struct sockaddr_in6);
-    }
-    else
-#endif
-    if(af == AF_INET) {
-      si4->sin_family = AF_INET;
-      si4->sin_port = htons(port);
-      sizeof_sa = sizeof(struct sockaddr_in);
-    }
-  }
-
-  for(;;) {
-    if(bind(sockfd, sock, sizeof_sa) >= 0) {
-      /* we succeeded to bind */
-      struct Curl_sockaddr_storage add;
-      curl_socklen_t size = sizeof(add);
-      memset(&add, 0, sizeof(struct Curl_sockaddr_storage));
-      if(getsockname(sockfd, (struct sockaddr *) &add, &size) < 0) {
-        data->state.os_errno = error = SOCKERRNO;
-        failf(data, "getsockname() failed with errno %d: %s",
-              error, Curl_strerror(conn, error));
-        return CURLE_INTERFACE_FAILED;
-      }
-      infof(data, "Local port: %hu\n", port);
-      conn->bits.bound = TRUE;
-      return CURLE_OK;
-    }
-
-    if(--portnum > 0) {
-      infof(data, "Bind to local port %hu failed, trying next\n", port);
-      port++; /* try next port */
-      /* We re-use/clobber the port variable here below */
-      if(sock->sa_family == AF_INET)
-        si4->sin_port = ntohs(port);
-#ifdef ENABLE_IPV6
-      else
-        si6->sin6_port = ntohs(port);
-#endif
-    }
-    else
-      break;
-  }
-
-  data->state.os_errno = error = SOCKERRNO;
-  failf(data, "bind failed with errno %d: %s",
-        error, Curl_strerror(conn, error));
-
-  return CURLE_INTERFACE_FAILED;
-}
-
-/*
- * verifyconnect() returns TRUE if the connect really has happened.
- */
-static bool verifyconnect(curl_socket_t sockfd, int *error)
-{
-  bool rc = TRUE;
-#ifdef SO_ERROR
-  int err = 0;
-  curl_socklen_t errSize = sizeof(err);
-
-#ifdef WIN32
-  /*
-   * In October 2003 we effectively nullified this function on Windows due to
-   * problems with it using all CPU in multi-threaded cases.
-   *
-   * In May 2004, we bring it back to offer more info back on connect failures.
-   * Gisle Vanem could reproduce the former problems with this function, but
-   * could avoid them by adding this SleepEx() call below:
-   *
-   *    "I don't have Rational Quantify, but the hint from his post was
-   *    ntdll::NtRemoveIoCompletion(). So I'd assume the SleepEx (or maybe
-   *    just Sleep(0) would be enough?) would release whatever
-   *    mutex/critical-section the ntdll call is waiting on.
-   *
-   *    Someone got to verify this on Win-NT 4.0, 2000."
-   */
-
-#ifdef _WIN32_WCE
-  Sleep(0);
-#else
-  SleepEx(0, FALSE);
-#endif
-
-#endif
-
-  if(0 != getsockopt(sockfd, SOL_SOCKET, SO_ERROR, (void *)&err, &errSize))
-    err = SOCKERRNO;
-#ifdef _WIN32_WCE
-  /* Old WinCE versions don't support SO_ERROR */
-  if(WSAENOPROTOOPT == err) {
-    SET_SOCKERRNO(0);
-    err = 0;
-  }
-#endif
-#ifdef __minix
-  /* Minix 3.1.x doesn't support getsockopt on UDP sockets */
-  if(EBADIOCTL == err) {
-    SET_SOCKERRNO(0);
-    err = 0;
-  }
-#endif
-  if((0 == err) || (EISCONN == err))
-    /* we are connected, awesome! */
-    rc = TRUE;
-  else
-    /* This wasn't a successful connect */
-    rc = FALSE;
-  if(error)
-    *error = err;
-#else
-  (void)sockfd;
-  if(error)
-    *error = SOCKERRNO;
-#endif
-  return rc;
-}
-
-/* Used within the multi interface. Try next IP address, return TRUE if no
-   more address exists or error */
-static CURLcode trynextip(struct connectdata *conn,
-                          int sockindex,
-                          int tempindex)
-{
-  CURLcode rc = CURLE_COULDNT_CONNECT;
-
-  /* First clean up after the failed socket.
-     Don't close it yet to ensure that the next IP's socket gets a different
-     file descriptor, which can prevent bugs when the curl_multi_socket_action
-     interface is used with certain select() replacements such as kqueue. */
-  curl_socket_t fd_to_close = conn->tempsock[tempindex];
-  conn->tempsock[tempindex] = CURL_SOCKET_BAD;
-
-  if(sockindex == FIRSTSOCKET) {
-    Curl_addrinfo *ai = NULL;
-    int family = AF_UNSPEC;
-
-    if(conn->tempaddr[tempindex]) {
-      /* find next address in the same protocol family */
-      family = conn->tempaddr[tempindex]->ai_family;
-      ai = conn->tempaddr[tempindex]->ai_next;
-    }
-    else if(conn->tempaddr[0]) {
-      /* happy eyeballs - try the other protocol family */
-      int firstfamily = conn->tempaddr[0]->ai_family;
-#ifdef ENABLE_IPV6
-      family = (firstfamily == AF_INET) ? AF_INET6 : AF_INET;
-#else
-      family = firstfamily;
-#endif
-      ai = conn->tempaddr[0]->ai_next;
-    }
-
-    while(ai) {
-      while(ai && ai->ai_family != family)
-        ai = ai->ai_next;
-
-      if(ai) {
-        rc = singleipconnect(conn, ai, &conn->tempsock[tempindex]);
-        if(rc == CURLE_COULDNT_CONNECT) {
-          ai = ai->ai_next;
-          continue;
-        }
-        conn->tempaddr[tempindex] = ai;
-      }
-      break;
-    }
-  }
-
-  if(fd_to_close != CURL_SOCKET_BAD)
-    Curl_closesocket(conn, fd_to_close);
-
-  return rc;
-}
-
-/* Copies connection info into the session handle to make it available
-   when the session handle is no longer associated with a connection. */
-void Curl_persistconninfo(struct connectdata *conn)
-{
-  memcpy(conn->data->info.conn_primary_ip, conn->primary_ip, MAX_IPADR_LEN);
-  memcpy(conn->data->info.conn_local_ip, conn->local_ip, MAX_IPADR_LEN);
-  conn->data->info.conn_primary_port = conn->primary_port;
-  conn->data->info.conn_local_port = conn->local_port;
-}
-
-/* retrieves ip address and port from a sockaddr structure */
-static bool getaddressinfo(struct sockaddr* sa, char* addr,
-                           long* port)
-{
-  unsigned short us_port;
-  struct sockaddr_in* si = NULL;
-#ifdef ENABLE_IPV6
-  struct sockaddr_in6* si6 = NULL;
-#endif
-#if defined(HAVE_SYS_UN_H) && defined(AF_UNIX)
-  struct sockaddr_un* su = NULL;
-#endif
-
-  switch (sa->sa_family) {
-    case AF_INET:
-      si = (struct sockaddr_in*) sa;
-      if(Curl_inet_ntop(sa->sa_family, &si->sin_addr,
-                        addr, MAX_IPADR_LEN)) {
-        us_port = ntohs(si->sin_port);
-        *port = us_port;
-        return TRUE;
-      }
-      break;
-#ifdef ENABLE_IPV6
-    case AF_INET6:
-      si6 = (struct sockaddr_in6*)sa;
-      if(Curl_inet_ntop(sa->sa_family, &si6->sin6_addr,
-                        addr, MAX_IPADR_LEN)) {
-        us_port = ntohs(si6->sin6_port);
-        *port = us_port;
-        return TRUE;
-      }
-      break;
-#endif
-#if defined(HAVE_SYS_UN_H) && defined(AF_UNIX)
-    case AF_UNIX:
-      su = (struct sockaddr_un*)sa;
-      snprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);
-      *port = 0;
-      return TRUE;
-#endif
-    default:
-      break;
-  }
-
-  addr[0] = '\0';
-  *port = 0;
-
-  return FALSE;
-}
-
-/* retrieves the start/end point information of a socket of an established
-   connection */
-void Curl_updateconninfo(struct connectdata *conn, curl_socket_t sockfd)
-{
-  int error;
-  curl_socklen_t len;
-  struct Curl_sockaddr_storage ssrem;
-  struct Curl_sockaddr_storage ssloc;
-  struct SessionHandle *data = conn->data;
-
-  if(conn->socktype == SOCK_DGRAM)
-    /* there's no connection! */
     return;
-
-  if(!conn->bits.reuse) {
-
-    len = sizeof(struct Curl_sockaddr_storage);
-    if(getpeername(sockfd, (struct sockaddr*) &ssrem, &len)) {
-      error = SOCKERRNO;
-      failf(data, "getpeername() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
     }
-
-    len = sizeof(struct Curl_sockaddr_storage);
-    if(getsockname(sockfd, (struct sockaddr*) &ssloc, &len)) {
-      error = SOCKERRNO;
-      failf(data, "getsockname() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
+  const char* name = mf->GetRequiredDefinition(langComp);
+  std::string path;
+  if(!cmSystemTools::FileIsFullPath(name))
+    {
+    path = cmSystemTools::FindProgram(name);
     }
-
-    if(!getaddressinfo((struct sockaddr*)&ssrem,
-                        conn->primary_ip, &conn->primary_port)) {
-      error = ERRNO;
-      failf(data, "ssrem inet_ntop() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
+  else
+    {
+    path = name;
     }
-    memcpy(conn->ip_addr_str, conn->primary_ip, MAX_IPADR_LEN);
-
-    if(!getaddressinfo((struct sockaddr*)&ssloc,
-                       conn->local_ip, &conn->local_port)) {
-      error = ERRNO;
-      failf(data, "ssloc inet_ntop() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
+  if((path.empty() || !cmSystemTools::FileExists(path.c_str()))
+      && (optional==false))
+    {
+    return;
     }
-
-  }
-
-  /* persist connection info in session handle */
-  Curl_persistconninfo(conn);
+  const char* cname = this->GetCMakeInstance()->
+    GetState()->GetInitializedCacheValue(langComp);
+  std::string changeVars;
+  if(cname && !optional)
+    {
+    std::string cnameString;
+    if(!cmSystemTools::FileIsFullPath(cname))
+      {
+      cnameString = cmSystemTools::FindProgram(cname);
+      }
+    else
+      {
+      cnameString = cname;
+      }
+    std::string pathString = path;
+    // get rid of potentially multiple slashes:
+    cmSystemTools::ConvertToUnixSlashes(cnameString);
+    cmSystemTools::ConvertToUnixSlashes(pathString);
+    if (cnameString != pathString)
+      {
+      const char* cvars =
+        this->GetCMakeInstance()->GetState()->GetGlobalProperty(
+          "__CMAKE_DELETE_CACHE_CHANGE_VARS_");
+      if(cvars)
+        {
+        changeVars += cvars;
+        changeVars += ";";
+        }
+      changeVars += langComp;
+      changeVars += ";";
+      changeVars += cname;
+      this->GetCMakeInstance()->GetState()->SetGlobalProperty(
+        "__CMAKE_DELETE_CACHE_CHANGE_VARS_",
+        changeVars.c_str());
+      }
+    }
 }
 
-/*
- * Curl_is_connected() checks if the socket has connected.
- */
-
-CURLcode Curl_is_connected(struct connectdata *conn,
-                           int sockindex,
-                           bool *connected)
+void cmGlobalGenerator::AddBuildExportSet(cmExportBuildFileGenerator* gen)
 {
-  struct SessionHandle *data = conn->data;
-  CURLcode code = CURLE_OK;
-  long allow;
-  int error = 0;
-  struct timeval now;
-  int result;
-  int i;
+  this->BuildExportSets[gen->GetMainExportFileName()] = gen;
+}
 
-  DEBUGASSERT(sockindex >= FIRSTSOCKET && sockindex <= SECONDARYSOCKET);
+void
+cmGlobalGenerator::AddBuildExportExportSet(cmExportBuildFileGenerator* gen)
+{
+  this->BuildExportSets[gen->GetMainExportFileName()] = gen;
+  this->BuildExportExportSets[gen->GetMainExportFileName()] = gen;
+}
 
-  *connected = FALSE; /* a very negative world view is best */
+bool cmGlobalGenerator::GenerateImportFile(const std::string &file)
+{
+  std::map<std::string, cmExportBuildFileGenerator*>::iterator it
+                                          = this->BuildExportSets.find(file);
+  if (it != this->BuildExportSets.end())
+    {
+    bool result = it->second->GenerateImportFile();
+    delete it->second;
+    it->second = 0;
+    this->BuildExportSets.erase(it);
+    return result;
+    }
+  return false;
+}
 
-  if(conn->bits.tcpconnect[sockindex]) {
-    /* we are connected already! */
-    *connected = TRUE;
-    return CURLE_OK;
-  }
+void cmGlobalGenerator::ForceLinkerLanguages()
+{
 
-  now = Curl_tvnow();
+}
 
-  /* figure out how long time we have left to connect */
-  allow = Curl_timeleft(data, &now, TRUE);
+bool
+cmGlobalGenerator::IsExportedTargetsFile(const std::string &filename) const
+{
+  const std::map<std::string, cmExportBuildFileGenerator*>::const_iterator it
+                                      = this->BuildExportSets.find(filename);
+  if (it == this->BuildExportSets.end())
+    {
+    return false;
+    }
+  return this->BuildExportExportSets.find(filename)
+                                        == this->BuildExportExportSets.end();
+}
 
-  if(allow < 0) {
-    /* time-out, bail out, go home */
-    failf(data, "Connection time-out");
-    return CURLE_OPERATION_TIMEDOUT;
-  }
+// Find the make program for the generator, required for try compiles
+void cmGlobalGenerator::FindMakeProgram(cmMakefile* mf)
+{
+  if(this->FindMakeProgramFile.empty())
+    {
+    cmSystemTools::Error(
+      "Generator implementation error, "
+      "all generators must specify this->FindMakeProgramFile");
+    }
+  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
+     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
+    {
+    std::string setMakeProgram =
+      mf->GetModulesFile(this->FindMakeProgramFile.c_str());
+    if(!setMakeProgram.empty())
+      {
+      mf->ReadListFile(setMakeProgram.c_str());
+      }
+    }
+  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
+     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
+    {
+    std::ostringstream err;
+    err << "CMake was unable to find a build program corresponding to \""
+        << this->GetName() << "\".  CMAKE_MAKE_PROGRAM is not set.  You "
+        << "probably need to select a different build tool.";
+    cmSystemTools::Error(err.str().c_str());
+    cmSystemTools::SetFatalErrorOccured();
+    return;
+    }
+  std::string makeProgram = mf->GetRequiredDefinition("CMAKE_MAKE_PROGRAM");
+  // if there are spaces in the make program use short path
+  // but do not short path the actual program name, as
+  // this can cause trouble with VSExpress
+  if(makeProgram.find(' ') != makeProgram.npos)
+    {
+    std::string dir;
+    std::string file;
+    cmSystemTools::SplitProgramPath(makeProgram,
+                                    dir, file);
+    std::string saveFile = file;
+    cmSystemTools::GetShortPath(makeProgram, makeProgram);
+    cmSystemTools::SplitProgramPath(makeProgram,
+                                    dir, file);
+    makeProgram = dir;
+    makeProgram += "/";
+    makeProgram += saveFile;
+    mf->AddCacheDefinition("CMAKE_MAKE_PROGRAM", makeProgram.c_str(),
+                           "make program",
+                           cmState::FILEPATH);
+    }
+}
 
-  for(i=0; i<2; i++) {
-    if(conn->tempsock[i] == CURL_SOCKET_BAD)
+// enable the given language
+//
+// The following files are loaded in this order:
+//
+// First figure out what OS we are running on:
+//
+// CMakeSystem.cmake - configured file created by CMakeDetermineSystem.cmake
+//   CMakeDetermineSystem.cmake - figure out os info and create
+//                                CMakeSystem.cmake IF CMAKE_SYSTEM
+//                                not set
+//   CMakeSystem.cmake - configured file created by
+//                       CMakeDetermineSystem.cmake IF CMAKE_SYSTEM_LOADED
+
+// CMakeSystemSpecificInitialize.cmake
+//   - includes Platform/${CMAKE_SYSTEM_NAME}-Initialize.cmake
+
+// Next try and enable all languages found in the languages vector
+//
+// FOREACH LANG in languages
+//   CMake(LANG)Compiler.cmake - configured file create by
+//                               CMakeDetermine(LANG)Compiler.cmake
+//     CMakeDetermine(LANG)Compiler.cmake - Finds compiler for LANG and
+//                                          creates CMake(LANG)Compiler.cmake
+//     CMake(LANG)Compiler.cmake - configured file created by
+//                                 CMakeDetermine(LANG)Compiler.cmake
+//
+// CMakeSystemSpecificInformation.cmake
+//   - includes Platform/${CMAKE_SYSTEM_NAME}.cmake
+//     may use compiler stuff
+
+// FOREACH LANG in languages
+//   CMake(LANG)Information.cmake
+//     - loads Platform/${CMAKE_SYSTEM_NAME}-${COMPILER}.cmake
+//   CMakeTest(LANG)Compiler.cmake
+//     - Make sure the compiler works with a try compile if
+//       CMakeDetermine(LANG) was loaded
+//
+// Now load a few files that can override values set in any of the above
+// (PROJECTNAME)Compatibility.cmake
+//   - load any backwards compatibility stuff for current project
+// ${CMAKE_USER_MAKE_RULES_OVERRIDE}
+//   - allow users a chance to override system variables
+//
+//
+
+void
+cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
+                                  cmMakefile *mf, bool optional)
+{
+  if(languages.empty())
+    {
+    cmSystemTools::Error("EnableLanguage must have a lang specified!");
+    cmSystemTools::SetFatalErrorOccured();
+    return;
+    }
+
+  if(this->TryCompileOuterMakefile)
+    {
+    // In a try-compile we can only enable languages provided by caller.
+    for(std::vector<std::string>::const_iterator li = languages.begin();
+        li != languages.end(); ++li)
+      {
+      if(*li == "NONE")
+        {
+        this->SetLanguageEnabled("NONE", mf);
+        }
+      else
+        {
+        const char* lang = li->c_str();
+        if(this->LanguagesReady.find(lang) == this->LanguagesReady.end())
+          {
+          std::ostringstream e;
+          e << "The test project needs language "
+            << lang << " which is not enabled.";
+          this->TryCompileOuterMakefile
+            ->IssueMessage(cmake::FATAL_ERROR, e.str());
+          cmSystemTools::SetFatalErrorOccured();
+          return;
+          }
+        }
+      }
+    }
+
+  bool fatalError = false;
+
+  mf->AddDefinition("RUN_CONFIGURE", true);
+  std::string rootBin = mf->GetHomeOutputDirectory();
+  rootBin += cmake::GetCMakeFilesDirectory();
+
+  // If the configuration files path has been set,
+  // then we are in a try compile and need to copy the enable language
+  // files from the parent cmake bin dir, into the try compile bin dir
+  if(!this->ConfiguredFilesPath.empty())
+    {
+    rootBin = this->ConfiguredFilesPath;
+    }
+  rootBin += "/";
+  rootBin += cmVersion::GetCMakeVersion();
+
+  // set the dir for parent files so they can be used by modules
+  mf->AddDefinition("CMAKE_PLATFORM_INFO_DIR",rootBin.c_str());
+
+  // find and make sure CMAKE_MAKE_PROGRAM is defined
+  this->FindMakeProgram(mf);
+
+  // try and load the CMakeSystem.cmake if it is there
+  std::string fpath = rootBin;
+  bool const readCMakeSystem = !mf->GetDefinition("CMAKE_SYSTEM_LOADED");
+  if(readCMakeSystem)
+    {
+    fpath += "/CMakeSystem.cmake";
+    if(cmSystemTools::FileExists(fpath.c_str()))
+      {
+      mf->ReadListFile(fpath.c_str());
+      }
+    }
+  //  Load the CMakeDetermineSystem.cmake file and find out
+  // what platform we are running on
+  if (!mf->GetDefinition("CMAKE_SYSTEM"))
+    {
+#if defined(_WIN32) && !defined(__CYGWIN__)
+    CMRTL_OSVERSIONINFOEXW osviex;
+    ZeroMemory(&osviex, sizeof(osviex));
+    osviex.dwOSVersionInfoSize = sizeof(osviex);
+
+    typedef LONG (FAR WINAPI *cmRtlGetVersion)(CMRTL_OSVERSIONINFOEXW*);
+    cmRtlGetVersion rtlGetVersion = reinterpret_cast<cmRtlGetVersion>(
+      GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetVersion"));
+    if (rtlGetVersion && rtlGetVersion(&osviex) == 0)
+      {
+      std::ostringstream windowsVersionString;
+      windowsVersionString << osviex.dwMajorVersion << "."
+                           << osviex.dwMinorVersion << "."
+                           << osviex.dwBuildNumber;
+      windowsVersionString.str();
+      mf->AddDefinition("CMAKE_HOST_SYSTEM_VERSION",
+                        windowsVersionString.str().c_str());
+      }
+    else
+      {
+      // RtlGetVersion failed, so use the deprecated GetVersionEx function.
+      /* Windows version number data.  */
+      OSVERSIONINFO osvi;
+      ZeroMemory(&osvi, sizeof(osvi));
+      osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
+#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+# pragma warning (push)
+# pragma warning (disable:4996)
+#endif
+      GetVersionEx (&osvi);
+#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+# pragma warning (pop)
+#endif
+      std::ostringstream windowsVersionString;
+      windowsVersionString << osvi.dwMajorVersion << "."
+                           << osvi.dwMinorVersion;
+      windowsVersionString.str();
+      mf->AddDefinition("CMAKE_HOST_SYSTEM_VERSION",
+                        windowsVersionString.str().c_str());
+      }
+#endif
+    // Read the DetermineSystem file
+    std::string systemFile = mf->GetModulesFile("CMakeDetermineSystem.cmake");
+    mf->ReadListFile(systemFile.c_str());
+    // load the CMakeSystem.cmake from the binary directory
+    // this file is configured by the CMakeDetermineSystem.cmake file
+    fpath = rootBin;
+    fpath += "/CMakeSystem.cmake";
+    mf->ReadListFile(fpath.c_str());
+    }
+
+  if(readCMakeSystem)
+    {
+    // Tell the generator about the target system.
+    std::string system = mf->GetSafeDefinition("CMAKE_SYSTEM_NAME");
+    if(!this->SetSystemName(system, mf))
+      {
+      cmSystemTools::SetFatalErrorOccured();
+      return;
+      }
+
+    // Tell the generator about the platform, if any.
+    std::string platform = mf->GetSafeDefinition("CMAKE_GENERATOR_PLATFORM");
+    if(!this->SetGeneratorPlatform(platform, mf))
+      {
+      cmSystemTools::SetFatalErrorOccured();
+      return;
+      }
+
+    // Tell the generator about the toolset, if any.
+    std::string toolset = mf->GetSafeDefinition("CMAKE_GENERATOR_TOOLSET");
+    if(!this->SetGeneratorToolset(toolset, mf))
+      {
+      cmSystemTools::SetFatalErrorOccured();
+      return;
+      }
+    }
+
+  // **** Load the system specific initialization if not yet loaded
+  if (!mf->GetDefinition("CMAKE_SYSTEM_SPECIFIC_INITIALIZE_LOADED"))
+    {
+    fpath = mf->GetModulesFile("CMakeSystemSpecificInitialize.cmake");
+    if(!mf->ReadListFile(fpath.c_str()))
+      {
+      cmSystemTools::Error("Could not find cmake module file: "
+                           "CMakeSystemSpecificInitialize.cmake");
+      }
+    }
+
+  std::map<std::string, bool> needTestLanguage;
+  std::map<std::string, bool> needSetLanguageEnabledMaps;
+  // foreach language
+  // load the CMakeDetermine(LANG)Compiler.cmake file to find
+  // the compiler
+
+  for(std::vector<std::string>::const_iterator l = languages.begin();
+      l != languages.end(); ++l)
+    {
+    const char* lang = l->c_str();
+    needSetLanguageEnabledMaps[lang] = false;
+    if(*l == "NONE")
+      {
+      this->SetLanguageEnabled("NONE", mf);
       continue;
+      }
+    std::string loadedLang = "CMAKE_";
+    loadedLang +=  lang;
+    loadedLang += "_COMPILER_LOADED";
+    if(!mf->GetDefinition(loadedLang))
+      {
+      fpath = rootBin;
+      fpath += "/CMake";
+      fpath += lang;
+      fpath += "Compiler.cmake";
 
-#ifdef mpeix
-    /* Call this function once now, and ignore the results. We do this to
-       "clear" the error state on the socket so that we can later read it
-       reliably. This is reported necessary on the MPE/iX operating system. */
-    (void)verifyconnect(conn->tempsock[i], NULL);
-#endif
-
-    /* check socket for connect */
-    result = Curl_socket_ready(CURL_SOCKET_BAD, conn->tempsock[i], 0);
-
-    if(result == 0) { /* no connection yet */
-      if(curlx_tvdiff(now, conn->connecttime) >= conn->timeoutms_per_addr) {
-        infof(data, "After %ldms connect time, move on!\n",
-              conn->timeoutms_per_addr);
-        error = ETIMEDOUT;
+      // If the existing build tree was already configured with this
+      // version of CMake then try to load the configured file first
+      // to avoid duplicate compiler tests.
+      if(cmSystemTools::FileExists(fpath.c_str()))
+        {
+        if(!mf->ReadListFile(fpath.c_str()))
+          {
+          cmSystemTools::Error("Could not find cmake module file: ",
+                               fpath.c_str());
+          }
+        // if this file was found then the language was already determined
+        // to be working
+        needTestLanguage[lang] = false;
+        this->SetLanguageEnabledFlag(lang, mf);
+        needSetLanguageEnabledMaps[lang] = true;
+        // this can only be called after loading CMake(LANG)Compiler.cmake
+        }
       }
 
-      /* should we try another protocol family? */
-      if(i == 0 && conn->tempaddr[1] == NULL &&
-         curlx_tvdiff(now, conn->connecttime) >= HAPPY_EYEBALLS_TIMEOUT) {
-        trynextip(conn, sockindex, 1);
-      }
-    }
-    else if(result == CURL_CSELECT_OUT) {
-      if(verifyconnect(conn->tempsock[i], &error)) {
-        /* we are connected with TCP, awesome! */
-        int other = i ^ 1;
-
-        /* use this socket from now on */
-        conn->sock[sockindex] = conn->tempsock[i];
-        conn->ip_addr = conn->tempaddr[i];
-        conn->tempsock[i] = CURL_SOCKET_BAD;
-
-        /* close the other socket, if open */
-        if(conn->tempsock[other] != CURL_SOCKET_BAD) {
-          Curl_closesocket(conn, conn->tempsock[other]);
-          conn->tempsock[other] = CURL_SOCKET_BAD;
+    if(!this->GetLanguageEnabled(lang) )
+      {
+      if (this->CMakeInstance->GetIsInTryCompile())
+        {
+        cmSystemTools::Error("This should not have happened. "
+                             "If you see this message, you are probably "
+                             "using a broken CMakeLists.txt file or a "
+                             "problematic release of CMake");
+        }
+      // if the CMake(LANG)Compiler.cmake file was not found then
+      // load CMakeDetermine(LANG)Compiler.cmake
+      std::string determineCompiler = "CMakeDetermine";
+      determineCompiler += lang;
+      determineCompiler += "Compiler.cmake";
+      std::string determineFile =
+        mf->GetModulesFile(determineCompiler.c_str());
+      if(!mf->ReadListFile(determineFile.c_str()))
+        {
+        cmSystemTools::Error("Could not find cmake module file: ",
+                             determineCompiler.c_str());
+        }
+      if (cmSystemTools::GetFatalErrorOccured())
+        {
+        return;
+        }
+      needTestLanguage[lang] = true;
+      // Some generators like visual studio should not use the env variables
+      // So the global generator can specify that in this variable
+      if(!mf->GetDefinition("CMAKE_GENERATOR_NO_COMPILER_ENV"))
+        {
+        // put ${CMake_(LANG)_COMPILER_ENV_VAR}=${CMAKE_(LANG)_COMPILER
+        // into the environment, in case user scripts want to run
+        // configure, or sub cmakes
+        std::string compilerName = "CMAKE_";
+        compilerName += lang;
+        compilerName += "_COMPILER";
+        std::string compilerEnv = "CMAKE_";
+        compilerEnv += lang;
+        compilerEnv += "_COMPILER_ENV_VAR";
+        std::string envVar = mf->GetRequiredDefinition(compilerEnv);
+        std::string envVarValue =
+          mf->GetRequiredDefinition(compilerName);
+        std::string env = envVar;
+        env += "=";
+        env += envVarValue;
+        cmSystemTools::PutEnv(env);
         }
 
-        /* see if we need to do any proxy magic first once we connected */
-        code = Curl_connected_proxy(conn, sockindex);
-        if(code)
-          return code;
+      // if determineLanguage was called then load the file it
+      // configures CMake(LANG)Compiler.cmake
+      fpath = rootBin;
+      fpath += "/CMake";
+      fpath += lang;
+      fpath += "Compiler.cmake";
+      if(!mf->ReadListFile(fpath.c_str()))
+        {
+        cmSystemTools::Error("Could not find cmake module file: ",
+                             fpath.c_str());
+        }
+      this->SetLanguageEnabledFlag(lang, mf);
+      needSetLanguageEnabledMaps[lang] = true;
+      // this can only be called after loading CMake(LANG)Compiler.cmake
+      // the language must be enabled for try compile to work, but we do
+      // not know if it is a working compiler yet so set the test language
+      // flag
+      needTestLanguage[lang] = true;
+      } // end if(!this->GetLanguageEnabled(lang) )
+    }  // end loop over languages
 
-        conn->bits.tcpconnect[sockindex] = TRUE;
-
-        *connected = TRUE;
-        if(sockindex == FIRSTSOCKET)
-          Curl_pgrsTime(data, TIMER_CONNECT); /* connect done */
-        Curl_updateconninfo(conn, conn->sock[sockindex]);
-        Curl_verboseconnect(conn);
-
-        return CURLE_OK;
-      }
-      else
-        infof(data, "Connection failed\n");
-    }
-    else if(result & CURL_CSELECT_ERR)
-      (void)verifyconnect(conn->tempsock[i], &error);
-
-    /*
-     * The connection failed here, we should attempt to connect to the "next
-     * address" for the given host. But first remember the latest error.
-     */
-    if(error) {
-      char ipaddress[MAX_IPADR_LEN];
-      data->state.os_errno = error;
-      SET_SOCKERRNO(error);
-      if(conn->tempaddr[i]) {
-        Curl_printable_address(conn->tempaddr[i], ipaddress, MAX_IPADR_LEN);
-        infof(data, "connect to %s port %ld failed: %s\n",
-              ipaddress, conn->port, Curl_strerror(conn, error));
-
-        conn->timeoutms_per_addr = conn->tempaddr[i]->ai_next == NULL ?
-                                   allow : allow / 2;
-
-        code = trynextip(conn, sockindex, i);
+  // **** Load the system specific information if not yet loaded
+  if (!mf->GetDefinition("CMAKE_SYSTEM_SPECIFIC_INFORMATION_LOADED"))
+    {
+    fpath = mf->GetModulesFile("CMakeSystemSpecificInformation.cmake");
+    if(!mf->ReadListFile(fpath.c_str()))
+      {
+      cmSystemTools::Error("Could not find cmake module file: "
+                           "CMakeSystemSpecificInformation.cmake");
       }
     }
-  }
+  // loop over languages again loading CMake(LANG)Information.cmake
+  //
+  for(std::vector<std::string>::const_iterator l = languages.begin();
+      l != languages.end(); ++l)
+    {
+    const char* lang = l->c_str();
+    if(*l == "NONE")
+      {
+      this->SetLanguageEnabled("NONE", mf);
+      continue;
+      }
 
-  if(code) {
-    /* no more addresses to try */
+    // Check that the compiler was found.
+    std::string compilerName = "CMAKE_";
+    compilerName += lang;
+    compilerName += "_COMPILER";
+    std::string compilerEnv = "CMAKE_";
+    compilerEnv += lang;
+    compilerEnv += "_COMPILER_ENV_VAR";
+    std::ostringstream noCompiler;
+    const char* compilerFile = mf->GetDefinition(compilerName);
+    if(!compilerFile || !*compilerFile ||
+       cmSystemTools::IsNOTFOUND(compilerFile))
+      {
+      noCompiler <<
+        "No " << compilerName << " could be found.\n"
+        ;
+      }
+    else if(strcmp(lang, "RC") != 0 &&
+            strcmp(lang, "ASM_MASM") != 0)
+      {
+      if(!cmSystemTools::FileIsFullPath(compilerFile))
+        {
+        noCompiler <<
+          "The " << compilerName << ":\n"
+          "  " << compilerFile << "\n"
+          "is not a full path and was not found in the PATH.\n"
+          ;
+        }
+      else if(!cmSystemTools::FileExists(compilerFile))
+        {
+        noCompiler <<
+          "The " << compilerName << ":\n"
+          "  " << compilerFile << "\n"
+          "is not a full path to an existing compiler tool.\n"
+          ;
+        }
+      }
+    if(!noCompiler.str().empty())
+      {
+      // Skip testing this language since the compiler is not found.
+      needTestLanguage[lang] = false;
+      if(!optional)
+        {
+        // The compiler was not found and it is not optional.  Remove
+        // CMake(LANG)Compiler.cmake so we try again next time CMake runs.
+        std::string compilerLangFile = rootBin;
+        compilerLangFile += "/CMake";
+        compilerLangFile += lang;
+        compilerLangFile += "Compiler.cmake";
+        cmSystemTools::RemoveFile(compilerLangFile);
+        if(!this->CMakeInstance->GetIsInTryCompile())
+          {
+          this->PrintCompilerAdvice(noCompiler, lang,
+                                    mf->GetDefinition(compilerEnv));
+          mf->IssueMessage(cmake::FATAL_ERROR, noCompiler.str());
+          fatalError = true;
+          }
+        }
+      }
 
-    /* if the first address family runs out of addresses to try before
-       the happy eyeball timeout, go ahead and try the next family now */
-    if(conn->tempaddr[1] == NULL) {
-      int rc;
-      rc = trynextip(conn, sockindex, 1);
-      if(rc == CURLE_OK)
-        return CURLE_OK;
+    std::string langLoadedVar = "CMAKE_";
+    langLoadedVar += lang;
+    langLoadedVar += "_INFORMATION_LOADED";
+    if (!mf->GetDefinition(langLoadedVar))
+      {
+      fpath = "CMake";
+      fpath +=  lang;
+      fpath += "Information.cmake";
+      std::string informationFile = mf->GetModulesFile(fpath.c_str());
+      if (informationFile.empty())
+        {
+        cmSystemTools::Error("Could not find cmake module file: ",
+                             fpath.c_str());
+        }
+      else if(!mf->ReadListFile(informationFile.c_str()))
+        {
+        cmSystemTools::Error("Could not process cmake module file: ",
+                             informationFile.c_str());
+        }
+      }
+    if (needSetLanguageEnabledMaps[lang])
+      {
+      this->SetLanguageEnabledMaps(lang, mf);
+      }
+    this->LanguagesReady.insert(lang);
+
+    // Test the compiler for the language just setup
+    // (but only if a compiler has been actually found)
+    // At this point we should have enough info for a try compile
+    // which is used in the backward stuff
+    // If the language is untested then test it now with a try compile.
+    if(needTestLanguage[lang])
+      {
+      if (!this->CMakeInstance->GetIsInTryCompile())
+        {
+        std::string testLang = "CMakeTest";
+        testLang += lang;
+        testLang += "Compiler.cmake";
+        std::string ifpath = mf->GetModulesFile(testLang.c_str());
+        if(!mf->ReadListFile(ifpath.c_str()))
+          {
+          cmSystemTools::Error("Could not find cmake module file: ",
+                               testLang.c_str());
+          }
+        std::string compilerWorks = "CMAKE_";
+        compilerWorks += lang;
+        compilerWorks += "_COMPILER_WORKS";
+        // if the compiler did not work, then remove the
+        // CMake(LANG)Compiler.cmake file so that it will get tested the
+        // next time cmake is run
+        if(!mf->IsOn(compilerWorks))
+          {
+          std::string compilerLangFile = rootBin;
+          compilerLangFile += "/CMake";
+          compilerLangFile += lang;
+          compilerLangFile += "Compiler.cmake";
+          cmSystemTools::RemoveFile(compilerLangFile);
+          }
+        } // end if in try compile
+      } // end need test language
+    // Store the shared library flags so that we can satisfy CMP0018
+    std::string sharedLibFlagsVar = "CMAKE_SHARED_LIBRARY_";
+    sharedLibFlagsVar += lang;
+    sharedLibFlagsVar += "_FLAGS";
+    const char* sharedLibFlags =
+      mf->GetSafeDefinition(sharedLibFlagsVar);
+    if (sharedLibFlags)
+      {
+      this->LanguageToOriginalSharedLibFlags[lang] = sharedLibFlags;
+      }
+
+    // Translate compiler ids for compatibility.
+    this->CheckCompilerIdCompatibility(mf, lang);
+    } // end for each language
+
+  // Now load files that can override any settings on the platform or for
+  // the project First load the project compatibility file if it is in
+  // cmake
+  std::string projectCompatibility = mf->GetDefinition("CMAKE_ROOT");
+  projectCompatibility += "/Modules/";
+  projectCompatibility += mf->GetSafeDefinition("PROJECT_NAME");
+  projectCompatibility += "Compatibility.cmake";
+  if(cmSystemTools::FileExists(projectCompatibility.c_str()))
+    {
+    mf->ReadListFile(projectCompatibility.c_str());
+    }
+  // Inform any extra generator of the new language.
+  if (this->ExtraGenerator)
+    {
+    this->ExtraGenerator->EnableLanguage(languages, mf, false);
     }
 
-    failf(data, "Failed to connect to %s port %ld: %s",
-          conn->bits.proxy?conn->proxy.name:conn->host.name,
-          conn->port, Curl_strerror(conn, error));
-  }
-
-  return code;
-}
-
-static void tcpnodelay(struct connectdata *conn,
-                       curl_socket_t sockfd)
-{
-#ifdef TCP_NODELAY
-  struct SessionHandle *data= conn->data;
-  curl_socklen_t onoff = (curl_socklen_t) data->set.tcp_nodelay;
-  int level = IPPROTO_TCP;
-
-#if 0
-  /* The use of getprotobyname() is disabled since it isn't thread-safe on
-     numerous systems. On these getprotobyname_r() should be used instead, but
-     that exists in at least one 4 arg version and one 5 arg version, and
-     since the proto number rarely changes anyway we now just use the hard
-     coded number. The "proper" fix would need a configure check for the
-     correct function much in the same style the gethostbyname_r versions are
-     detected. */
-  struct protoent *pe = getprotobyname("tcp");
-  if(pe)
-    level = pe->p_proto;
-#endif
-
-  if(setsockopt(sockfd, level, TCP_NODELAY, (void *)&onoff,
-                sizeof(onoff)) < 0)
-    infof(data, "Could not set TCP_NODELAY: %s\n",
-          Curl_strerror(conn, SOCKERRNO));
-  else
-    infof(data,"TCP_NODELAY set\n");
-#else
-  (void)conn;
-  (void)sockfd;
-#endif
-}
-
-#ifdef SO_NOSIGPIPE
-/* The preferred method on Mac OS X (10.2 and later) to prevent SIGPIPEs when
-   sending data to a dead peer (instead of relying on the 4th argument to send
-   being MSG_NOSIGNAL). Possibly also existing and in use on other BSD
-   systems? */
-static void nosigpipe(struct connectdata *conn,
-                      curl_socket_t sockfd)
-{
-  struct SessionHandle *data= conn->data;
-  int onoff = 1;
-  if(setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&onoff,
-                sizeof(onoff)) < 0)
-    infof(data, "Could not set SO_NOSIGPIPE: %s\n",
-          Curl_strerror(conn, SOCKERRNO));
-}
-#else
-#define nosigpipe(x,y) Curl_nop_stmt
-#endif
-
-#ifdef USE_WINSOCK
-/* When you run a program that uses the Windows Sockets API, you may
-   experience slow performance when you copy data to a TCP server.
-
-   http://support.microsoft.com/kb/823764
-
-   Work-around: Make the Socket Send Buffer Size Larger Than the Program Send
-   Buffer Size
-
-   The problem described in this knowledge-base is applied only to pre-Vista
-   Windows.  Following function trying to detect OS version and skips
-   SO_SNDBUF adjustment for Windows Vista and above.
-*/
-#define DETECT_OS_NONE 0
-#define DETECT_OS_PREVISTA 1
-#define DETECT_OS_VISTA_OR_LATER 2
-
-void Curl_sndbufset(curl_socket_t sockfd)
-{
-  int val = CURL_MAX_WRITE_SIZE + 32;
-  int curval = 0;
-  int curlen = sizeof(curval);
-  DWORD majorVersion = 6;
-
-  static int detectOsState = DETECT_OS_NONE;
-
-  if(detectOsState == DETECT_OS_NONE) {
-#if !defined(_WIN32_WINNT) || !defined(_WIN32_WINNT_WIN2K) || \
-    (_WIN32_WINNT < _WIN32_WINNT_WIN2K)
-    OSVERSIONINFO osver;
-
-    memset(&osver, 0, sizeof(osver));
-    osver.dwOSVersionInfoSize = sizeof(osver);
-
-    detectOsState = DETECT_OS_PREVISTA;
-    if(GetVersionEx(&osver)) {
-      if(osver.dwMajorVersion >= majorVersion)
-        detectOsState = DETECT_OS_VISTA_OR_LATER;
+  if(fatalError)
+    {
+    cmSystemTools::SetFatalErrorOccured();
     }
-#else
-    ULONGLONG majorVersionMask;
-    OSVERSIONINFOEX osver;
+}
 
-    memset(&osver, 0, sizeof(osver));
-    osver.dwOSVersionInfoSize = sizeof(osver);
-    osver.dwMajorVersion = majorVersion;
-    majorVersionMask = VerSetConditionMask(0, VER_MAJORVERSION,
-                                           VER_GREATER_EQUAL);
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::PrintCompilerAdvice(std::ostream& os,
+                                            std::string const& lang,
+                                            const char* envVar) const
+{
+  // Subclasses override this method if they do not support this advice.
+  os <<
+    "Tell CMake where to find the compiler by setting "
+    ;
+  if(envVar)
+    {
+    os <<
+      "either the environment variable \"" << envVar << "\" or "
+      ;
+    }
+  os <<
+    "the CMake cache entry CMAKE_" << lang << "_COMPILER "
+    "to the full path to the compiler, or to the compiler name "
+    "if it is in the PATH."
+    ;
+}
 
-    if(VerifyVersionInfo(&osver, VER_MAJORVERSION, majorVersionMask))
-      detectOsState = DETECT_OS_VISTA_OR_LATER;
-    else
-      detectOsState = DETECT_OS_PREVISTA;
-#endif
-  }
-
-  if(detectOsState == DETECT_OS_VISTA_OR_LATER)
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::CheckCompilerIdCompatibility(cmMakefile* mf,
+                                                std::string const& lang) const
+{
+  std::string compilerIdVar = "CMAKE_" + lang + "_COMPILER_ID";
+  const char* compilerId = mf->GetDefinition(compilerIdVar);
+  if(!compilerId)
+    {
     return;
-
-  if(getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (char *)&curval, &curlen) == 0)
-    if(curval > val)
-      return;
-
-  setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (const char *)&val, sizeof(val));
-}
-#endif
-
-/*
- * singleipconnect()
- *
- * Note that even on connect fail it returns CURLE_OK, but with 'sock' set to
- * CURL_SOCKET_BAD. Other errors will however return proper errors.
- *
- * singleipconnect() connects to the given IP only, and it may return without
- * having connected.
- */
-static CURLcode
-singleipconnect(struct connectdata *conn,
-                const Curl_addrinfo *ai,
-                curl_socket_t *sockp)
-{
-  struct Curl_sockaddr_ex addr;
-  int rc;
-  int error = 0;
-  bool isconnected = FALSE;
-  struct SessionHandle *data = conn->data;
-  curl_socket_t sockfd;
-  CURLcode res = CURLE_OK;
-  char ipaddress[MAX_IPADR_LEN];
-  long port;
-
-  *sockp = CURL_SOCKET_BAD;
-
-  res = Curl_socket(conn, ai, &addr, &sockfd);
-  if(res)
-    /* Failed to create the socket, but still return OK since we signal the
-       lack of socket as well. This allows the parent function to keep looping
-       over alternative addresses/socket families etc. */
-    return CURLE_OK;
-
-  /* store remote address and port used in this connection attempt */
-  if(!getaddressinfo((struct sockaddr*)&addr.sa_addr,
-                     ipaddress, &port)) {
-    /* malformed address or bug in inet_ntop, try next address */
-    error = ERRNO;
-    failf(data, "sa_addr inet_ntop() failed with errno %d: %s",
-          error, Curl_strerror(conn, error));
-    Curl_closesocket(conn, sockfd);
-    return CURLE_OK;
-  }
-  infof(data, "  Trying %s...\n", ipaddress);
-
-  if(data->set.tcp_nodelay)
-    tcpnodelay(conn, sockfd);
-
-  nosigpipe(conn, sockfd);
-
-  Curl_sndbufset(sockfd);
-
-  if(data->set.tcp_keepalive)
-    tcpkeepalive(data, sockfd);
-
-  if(data->set.fsockopt) {
-    /* activate callback for setting socket options */
-    error = data->set.fsockopt(data->set.sockopt_client,
-                               sockfd,
-                               CURLSOCKTYPE_IPCXN);
-
-    if(error == CURL_SOCKOPT_ALREADY_CONNECTED)
-      isconnected = TRUE;
-    else if(error) {
-      Curl_closesocket(conn, sockfd); /* close the socket and bail out */
-      return CURLE_ABORTED_BY_CALLBACK;
     }
-  }
 
-  /* possibly bind the local end to an IP, interface or port */
-  res = bindlocal(conn, sockfd, addr.family);
-  if(res) {
-    Curl_closesocket(conn, sockfd); /* close socket and bail out */
-    if(res == CURLE_UNSUPPORTED_PROTOCOL) {
-      /* The address family is not supported on this interface.
-         We can continue trying addresses */
-      return CURLE_OK;
-    }
-    return res;
-  }
-
-  /* set socket non-blocking */
-  curlx_nonblock(sockfd, TRUE);
-
-  conn->connecttime = Curl_tvnow();
-  if(conn->num_addr > 1)
-    Curl_expire_latest(data, conn->timeoutms_per_addr);
-
-  /* Connect TCP sockets, bind UDP */
-  if(!isconnected && (conn->socktype == SOCK_STREAM)) {
-    rc = connect(sockfd, &addr.sa_addr, addr.addrlen);
-    if(-1 == rc)
-      error = SOCKERRNO;
-  }
-  else {
-    *sockp = sockfd;
-    return CURLE_OK;
-  }
-
-#ifdef ENABLE_IPV6
-  conn->bits.ipv6 = (addr.family == AF_INET6)?TRUE:FALSE;
-#endif
-
-  if(-1 == rc) {
-    switch(error) {
-    case EINPROGRESS:
-    case EWOULDBLOCK:
-#if defined(EAGAIN)
-#if (EAGAIN) != (EWOULDBLOCK)
-      /* On some platforms EAGAIN and EWOULDBLOCK are the
-       * same value, and on others they are different, hence
-       * the odd #if
-       */
-    case EAGAIN:
-#endif
-#endif
-      res = CURLE_OK;
-      break;
-
-    default:
-      /* unknown error, fallthrough and try another address! */
-      infof(data, "Immediate connect fail for %s: %s\n",
-            ipaddress, Curl_strerror(conn,error));
-      data->state.os_errno = error;
-
-      /* connect failed */
-      Curl_closesocket(conn, sockfd);
-      res = CURLE_COULDNT_CONNECT;
-    }
-  }
-
-  if(!res)
-    *sockp = sockfd;
-
-  return res;
-}
-
-/*
- * TCP connect to the given host with timeout, proxy or remote doesn't matter.
- * There might be more than one IP address to try out. Fill in the passed
- * pointer with the connected socket.
- */
-
-CURLcode Curl_connecthost(struct connectdata *conn,  /* context */
-                          const struct Curl_dns_entry *remotehost)
-{
-  struct SessionHandle *data = conn->data;
-  struct timeval before = Curl_tvnow();
-  CURLcode res = CURLE_COULDNT_CONNECT;
-
-  long timeout_ms = Curl_timeleft(data, &before, TRUE);
-
-  if(timeout_ms < 0) {
-    /* a precaution, no need to continue if time already is up */
-    failf(data, "Connection time-out");
-    return CURLE_OPERATION_TIMEDOUT;
-  }
-
-  conn->num_addr = Curl_num_addresses(remotehost->addr);
-  conn->tempaddr[0] = remotehost->addr;
-  conn->tempaddr[1] = NULL;
-  conn->tempsock[0] = CURL_SOCKET_BAD;
-  conn->tempsock[1] = CURL_SOCKET_BAD;
-  Curl_expire(conn->data, HAPPY_EYEBALLS_TIMEOUT);
-
-  /* Max time for the next connection attempt */
-  conn->timeoutms_per_addr =
-    conn->tempaddr[0]->ai_next == NULL ? timeout_ms : timeout_ms / 2;
-
-  /* start connecting to first IP */
-  while(conn->tempaddr[0]) {
-    res = singleipconnect(conn, conn->tempaddr[0], &(conn->tempsock[0]));
-    if(res == CURLE_OK)
+  if(strcmp(compilerId, "AppleClang") == 0)
+    {
+    switch(mf->GetPolicyStatus(cmPolicies::CMP0025))
+      {
+      case cmPolicies::WARN:
+        if(!this->CMakeInstance->GetIsInTryCompile() &&
+           mf->PolicyOptionalWarningEnabled("CMAKE_POLICY_WARNING_CMP0025"))
+          {
+          std::ostringstream w;
+          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0025) << "\n"
+            "Converting " << lang <<
+            " compiler id \"AppleClang\" to \"Clang\" for compatibility."
+            ;
+          mf->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+          }
+      case cmPolicies::OLD:
+        // OLD behavior is to convert AppleClang to Clang.
+        mf->AddDefinition(compilerIdVar, "Clang");
         break;
-    conn->tempaddr[0] = conn->tempaddr[0]->ai_next;
-  }
-
-  if(conn->tempsock[0] == CURL_SOCKET_BAD)
-    return res;
-
-  data->info.numconnects++; /* to track the number of connections made */
-
-  return CURLE_OK;
-}
-
-struct connfind {
-  struct connectdata *tofind;
-  bool found;
-};
-
-static int conn_is_conn(struct connectdata *conn, void *param)
-{
-  struct connfind *f = (struct connfind *)param;
-  if(conn == f->tofind) {
-    f->found = TRUE;
-    return 1;
-  }
-  return 0;
-}
-
-/*
- * Used to extract socket and connectdata struct for the most recent
- * transfer on the given SessionHandle.
- *
- * The returned socket will be CURL_SOCKET_BAD in case of failure!
- */
-curl_socket_t Curl_getconnectinfo(struct SessionHandle *data,
-                                  struct connectdata **connp)
-{
-  curl_socket_t sockfd;
-
-  DEBUGASSERT(data);
-
-  /* this only works for an easy handle that has been used for
-     curl_easy_perform()! */
-  if(data->state.lastconnect && data->multi_easy) {
-    struct connectdata *c = data->state.lastconnect;
-    struct connfind find;
-    find.tofind = data->state.lastconnect;
-    find.found = FALSE;
-
-    Curl_conncache_foreach(data->multi_easy->conn_cache, &find, conn_is_conn);
-
-    if(!find.found) {
-      data->state.lastconnect = NULL;
-      return CURL_SOCKET_BAD;
-    }
-
-    if(connp)
-      /* only store this if the caller cares for it */
-      *connp = c;
-    sockfd = c->sock[FIRSTSOCKET];
-    /* we have a socket connected, let's determine if the server shut down */
-    /* determine if ssl */
-    if(c->ssl[FIRSTSOCKET].use) {
-      /* use the SSL context */
-      if(!Curl_ssl_check_cxn(c))
-        return CURL_SOCKET_BAD;   /* FIN received */
-    }
-/* Minix 3.1 doesn't support any flags on recv; just assume socket is OK */
-#ifdef MSG_PEEK
-    else {
-      /* use the socket */
-      char buf;
-      if(recv((RECV_TYPE_ARG1)c->sock[FIRSTSOCKET], (RECV_TYPE_ARG2)&buf,
-              (RECV_TYPE_ARG3)1, (RECV_TYPE_ARG4)MSG_PEEK) == 0) {
-        return CURL_SOCKET_BAD;   /* FIN received */
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        mf->IssueMessage(
+          cmake::FATAL_ERROR,
+          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0025)
+          );
+      case cmPolicies::NEW:
+        // NEW behavior is to keep AppleClang.
+        break;
       }
     }
-#endif
-  }
-  else
-    return CURL_SOCKET_BAD;
 
-  return sockfd;
+  if(strcmp(compilerId, "QCC") == 0)
+    {
+    switch(mf->GetPolicyStatus(cmPolicies::CMP0047))
+      {
+      case cmPolicies::WARN:
+        if(!this->CMakeInstance->GetIsInTryCompile() &&
+           mf->PolicyOptionalWarningEnabled("CMAKE_POLICY_WARNING_CMP0047"))
+          {
+          std::ostringstream w;
+          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0047) << "\n"
+            "Converting " << lang <<
+            " compiler id \"QCC\" to \"GNU\" for compatibility."
+            ;
+          mf->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+          }
+      case cmPolicies::OLD:
+        // OLD behavior is to convert QCC to GNU.
+        mf->AddDefinition(compilerIdVar, "GNU");
+        if(lang == "C")
+          {
+          mf->AddDefinition("CMAKE_COMPILER_IS_GNUCC", "1");
+          }
+        else if(lang == "CXX")
+          {
+          mf->AddDefinition("CMAKE_COMPILER_IS_GNUCXX", "1");
+          }
+        break;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        mf->IssueMessage(
+          cmake::FATAL_ERROR,
+          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0047)
+          );
+      case cmPolicies::NEW:
+        // NEW behavior is to keep QCC.
+        break;
+      }
+    }
 }
 
-/*
- * Close a socket.
- *
- * 'conn' can be NULL, beware!
- */
-int Curl_closesocket(struct connectdata *conn,
-                      curl_socket_t sock)
+//----------------------------------------------------------------------------
+std::string
+cmGlobalGenerator::GetLanguageOutputExtension(cmSourceFile const& source) const
 {
-  if(conn && conn->fclosesocket) {
-    if((sock == conn->sock[SECONDARYSOCKET]) &&
-       conn->sock_accepted[SECONDARYSOCKET])
-      /* if this socket matches the second socket, and that was created with
-         accept, then we MUST NOT call the callback but clear the accepted
-         status */
-      conn->sock_accepted[SECONDARYSOCKET] = FALSE;
+  const std::string& lang = source.GetLanguage();
+  if(!lang.empty())
+    {
+    std::map<std::string, std::string>::const_iterator it =
+                                  this->LanguageToOutputExtension.find(lang);
+
+    if(it != this->LanguageToOutputExtension.end())
+      {
+      return it->second;
+      }
+    }
+  else
+    {
+    // if no language is found then check to see if it is already an
+    // ouput extension for some language.  In that case it should be ignored
+    // and in this map, so it will not be compiled but will just be used.
+    std::string const& ext = source.GetExtension();
+    if(!ext.empty())
+      {
+      if(this->OutputExtensions.count(ext))
+        {
+        return ext;
+        }
+      }
+    }
+  return "";
+}
+
+
+std::string cmGlobalGenerator::GetLanguageFromExtension(const char* ext) const
+{
+  // if there is an extension and it starts with . then move past the
+  // . because the extensions are not stored with a .  in the map
+  if(ext && *ext == '.')
+    {
+    ++ext;
+    }
+  std::map<std::string, std::string>::const_iterator it
+                                        = this->ExtensionToLanguage.find(ext);
+  if(it != this->ExtensionToLanguage.end())
+    {
+    return it->second;
+    }
+  return "";
+}
+
+/* SetLanguageEnabled() is now split in two parts:
+at first the enabled-flag is set. This can then be used in EnabledLanguage()
+for checking whether the language is already enabled. After setting this
+flag still the values from the cmake variables have to be copied into the
+internal maps, this is done in SetLanguageEnabledMaps() which is called
+after the system- and compiler specific files have been loaded.
+
+This split was done originally so that compiler-specific configuration
+files could change the object file extension
+(CMAKE_<LANG>_OUTPUT_EXTENSION) before the CMake variables were copied
+to the C++ maps.
+*/
+void cmGlobalGenerator::SetLanguageEnabled(const std::string& l,
+                                           cmMakefile* mf)
+{
+  this->SetLanguageEnabledFlag(l, mf);
+  this->SetLanguageEnabledMaps(l, mf);
+}
+
+void cmGlobalGenerator::SetLanguageEnabledFlag(const std::string& l,
+                                               cmMakefile* mf)
+{
+  this->CMakeInstance->GetState()->SetLanguageEnabled(l);
+
+  // Fill the language-to-extension map with the current variable
+  // settings to make sure it is available for the try_compile()
+  // command source file signature.  In SetLanguageEnabledMaps this
+  // will be done again to account for any compiler- or
+  // platform-specific entries.
+  this->FillExtensionToLanguageMap(l, mf);
+}
+
+void cmGlobalGenerator::SetLanguageEnabledMaps(const std::string& l,
+                                               cmMakefile* mf)
+{
+  // use LanguageToLinkerPreference to detect whether this functions has
+  // run before
+  if (this->LanguageToLinkerPreference.find(l) !=
+                                        this->LanguageToLinkerPreference.end())
+    {
+    return;
+    }
+
+  std::string linkerPrefVar = std::string("CMAKE_") +
+    std::string(l) + std::string("_LINKER_PREFERENCE");
+  const char* linkerPref = mf->GetDefinition(linkerPrefVar);
+  int preference = 0;
+  if(linkerPref)
+    {
+    if (sscanf(linkerPref, "%d", &preference)!=1)
+      {
+      // backward compatibility: before 2.6 LINKER_PREFERENCE
+      // was either "None" or "Preferred", and only the first character was
+      // tested. So if there is a custom language out there and it is
+      // "Preferred", set its preference high
+      if (linkerPref[0]=='P')
+        {
+        preference = 100;
+        }
+      else
+        {
+        preference = 0;
+        }
+      }
+    }
+
+  if (preference < 0)
+    {
+    std::string msg = linkerPrefVar;
+    msg += " is negative, adjusting it to 0";
+    cmSystemTools::Message(msg.c_str(), "Warning");
+    preference = 0;
+    }
+
+  this->LanguageToLinkerPreference[l] = preference;
+
+  std::string outputExtensionVar = std::string("CMAKE_") +
+    std::string(l) + std::string("_OUTPUT_EXTENSION");
+  const char* outputExtension = mf->GetDefinition(outputExtensionVar);
+  if(outputExtension)
+    {
+    this->LanguageToOutputExtension[l] = outputExtension;
+    this->OutputExtensions[outputExtension] = outputExtension;
+    if(outputExtension[0] == '.')
+      {
+      this->OutputExtensions[outputExtension+1] = outputExtension+1;
+      }
+    }
+
+  // The map was originally filled by SetLanguageEnabledFlag, but
+  // since then the compiler- and platform-specific files have been
+  // loaded which might have added more entries.
+  this->FillExtensionToLanguageMap(l, mf);
+
+  std::string ignoreExtensionsVar = std::string("CMAKE_") +
+    std::string(l) + std::string("_IGNORE_EXTENSIONS");
+  std::string ignoreExts = mf->GetSafeDefinition(ignoreExtensionsVar);
+  std::vector<std::string> extensionList;
+  cmSystemTools::ExpandListArgument(ignoreExts, extensionList);
+  for(std::vector<std::string>::iterator i = extensionList.begin();
+      i != extensionList.end(); ++i)
+    {
+    this->IgnoreExtensions[*i] = true;
+    }
+
+}
+
+void cmGlobalGenerator::FillExtensionToLanguageMap(const std::string& l,
+                                                   cmMakefile* mf)
+{
+  std::string extensionsVar = std::string("CMAKE_") +
+    std::string(l) + std::string("_SOURCE_FILE_EXTENSIONS");
+  std::string exts = mf->GetSafeDefinition(extensionsVar);
+  std::vector<std::string> extensionList;
+  cmSystemTools::ExpandListArgument(exts, extensionList);
+  for(std::vector<std::string>::iterator i = extensionList.begin();
+      i != extensionList.end(); ++i)
+    {
+    this->ExtensionToLanguage[*i] = l;
+    }
+}
+
+bool cmGlobalGenerator::IgnoreFile(const char* ext) const
+{
+  if(!this->GetLanguageFromExtension(ext).empty())
+    {
+    return false;
+    }
+  return (this->IgnoreExtensions.count(ext) > 0);
+}
+
+bool cmGlobalGenerator::GetLanguageEnabled(const std::string& l) const
+{
+  return this->CMakeInstance->GetState()->GetLanguageEnabled(l);
+}
+
+void cmGlobalGenerator::ClearEnabledLanguages()
+{
+  return this->CMakeInstance->GetState()->ClearEnabledLanguages();
+}
+
+void cmGlobalGenerator::Configure()
+{
+  this->FirstTimeProgress = 0.0f;
+  this->ClearGeneratorMembers();
+
+  // start with this directory
+  cmLocalGenerator *lg = this->MakeLocalGenerator();
+  this->Makefiles.push_back(lg->GetMakefile());
+  this->LocalGenerators.push_back(lg);
+
+  // set the Start directories
+  lg->GetMakefile()->SetCurrentSourceDirectory
+    (this->CMakeInstance->GetHomeDirectory());
+  lg->GetMakefile()->SetCurrentBinaryDirectory
+    (this->CMakeInstance->GetHomeOutputDirectory());
+
+  this->BinaryDirectories.insert(
+      this->CMakeInstance->GetHomeOutputDirectory());
+
+  // now do it
+  lg->GetMakefile()->Configure();
+  lg->GetMakefile()->EnforceDirectoryLevelRules();
+
+  // update the cache entry for the number of local generators, this is used
+  // for progress
+  char num[100];
+  sprintf(num,"%d",static_cast<int>(this->Makefiles.size()));
+  this->GetCMakeInstance()->AddCacheEntry
+    ("CMAKE_NUMBER_OF_MAKEFILES", num,
+     "number of local generators", cmState::INTERNAL);
+
+  // check for link libraries and include directories containing "NOTFOUND"
+  // and for infinite loops
+  this->CheckLocalGenerators();
+
+  // at this point this->LocalGenerators has been filled,
+  // so create the map from project name to vector of local generators
+  this->FillProjectMap();
+
+  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
+    {
+    std::ostringstream msg;
+    if(cmSystemTools::GetErrorOccuredFlag())
+      {
+      msg << "Configuring incomplete, errors occurred!";
+      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
+      for(const char** log = logs; *log; ++log)
+        {
+        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
+        f += this->CMakeInstance->GetCMakeFilesDirectory();
+        f += "/";
+        f += *log;
+        if(cmSystemTools::FileExists(f.c_str()))
+          {
+          msg << "\nSee also \"" << f << "\".";
+          }
+        }
+      }
     else
-      return conn->fclosesocket(conn->closesocket_client, sock);
-  }
-  sclose(sock);
+      {
+      msg << "Configuring done";
+      }
+    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
+    }
 
-  if(conn)
-    /* tell the multi-socket code about this */
-    Curl_multi_closed(conn, sock);
+  unsigned int i;
 
+  // Put a copy of each global target in every directory.
+  cmTargets globalTargets;
+  this->CreateDefaultGlobalTargets(&globalTargets);
+
+  for (i = 0; i < this->Makefiles.size(); ++i)
+    {
+    cmMakefile* mf = this->Makefiles[i];
+    cmTargets* targets = &(mf->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
+      {
+      (*targets)[tit->first] = tit->second;
+      (*targets)[tit->first].SetMakefile(mf);
+      }
+    }
+
+}
+
+void cmGlobalGenerator::CreateGenerationObjects(TargetTypes targetTypes)
+{
+  cmDeleteAll(this->GeneratorTargets);
+  this->GeneratorTargets.clear();
+  this->CreateGeneratorTargets(targetTypes);
+}
+
+cmExportBuildFileGenerator*
+cmGlobalGenerator::GetExportedTargetsFile(const std::string &filename) const
+{
+  std::map<std::string, cmExportBuildFileGenerator*>::const_iterator it
+    = this->BuildExportSets.find(filename);
+  return it == this->BuildExportSets.end() ? 0 : it->second;
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::AddCMP0042WarnTarget(const std::string& target)
+{
+  this->CMP0042WarnTargets.insert(target);
+}
+
+bool cmGlobalGenerator::CheckALLOW_DUPLICATE_CUSTOM_TARGETS() const
+{
+  // If the property is not enabled then okay.
+  if(!this->CMakeInstance->GetState()
+     ->GetGlobalPropertyAsBool("ALLOW_DUPLICATE_CUSTOM_TARGETS"))
+    {
+    return true;
+    }
+
+  // This generator does not support duplicate custom targets.
+  std::ostringstream e;
+  e << "This project has enabled the ALLOW_DUPLICATE_CUSTOM_TARGETS "
+    << "global property.  "
+    << "The \"" << this->GetName() << "\" generator does not support "
+    << "duplicate custom targets.  "
+    << "Consider using a Makefiles generator or fix the project to not "
+    << "use duplicate target names.";
+  cmSystemTools::Error(e.str().c_str());
+  return false;
+}
+
+bool cmGlobalGenerator::Compute()
+{
+  // Some generators track files replaced during the Generate.
+  // Start with an empty vector:
+  this->FilesReplacedDuringGenerate.clear();
+
+  // clear targets to issue warning CMP0042 for
+  this->CMP0042WarnTargets.clear();
+
+  // Check whether this generator is allowed to run.
+  if(!this->CheckALLOW_DUPLICATE_CUSTOM_TARGETS())
+    {
+    return false;
+    }
+  this->FinalizeTargetCompileInfo();
+
+  this->CreateGenerationObjects();
+
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  // Iterate through all targets and set up automoc for those which have
+  // the AUTOMOC, AUTOUIC or AUTORCC property set
+  AutogensType autogens;
+  this->CreateQtAutoGeneratorsTargets(autogens);
+#endif
+
+  unsigned int i;
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->LocalGenerators[i]->ComputeObjectMaxPath();
+    }
+
+  // Add generator specific helper commands
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->LocalGenerators[i]->AddHelperCommands();
+    }
+
+  this->InitGeneratorTargets();
+
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  for (AutogensType::iterator it = autogens.begin(); it != autogens.end();
+       ++it)
+    {
+    it->first.SetupAutoGenerateTarget(it->second);
+    }
+#endif
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
+    std::vector<cmInstallGenerator*>& gens = mf->GetInstallGenerators();
+    for (std::vector<cmInstallGenerator*>::const_iterator git = gens.begin();
+         git != gens.end(); ++git)
+      {
+      (*git)->Compute(this->LocalGenerators[i]);
+      }
+    }
+
+  return true;
+}
+
+void cmGlobalGenerator::Generate()
+{
+  unsigned int i;
+
+  // Trace the dependencies, after that no custom commands should be added
+  // because their dependencies might not be handled correctly
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->LocalGenerators[i]->TraceDependencies();
+    }
+
+  this->ForceLinkerLanguages();
+
+  // Compute the manifest of main targets generated.
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->LocalGenerators[i]->GenerateTargetManifest();
+    }
+
+  this->ProcessEvaluationFiles();
+
+  // Compute the inter-target dependencies.
+  if(!this->ComputeTargetDepends())
+    {
+    return;
+    }
+
+  // Create a map from local generator to the complete set of targets
+  // it builds by default.
+  this->FillLocalGeneratorToTargetMap();
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->LocalGenerators[i]->ComputeHomeRelativeOutputPath();
+    }
+
+  // Generate project files
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->SetCurrentMakefile(this->LocalGenerators[i]->GetMakefile());
+    this->LocalGenerators[i]->Generate();
+    if(!this->LocalGenerators[i]->GetMakefile()->IsOn(
+      "CMAKE_SKIP_INSTALL_RULES"))
+      {
+      this->LocalGenerators[i]->GenerateInstallRules();
+      }
+    this->LocalGenerators[i]->GenerateTestFiles();
+    this->CMakeInstance->UpdateProgress("Generating",
+      (static_cast<float>(i)+1.0f)/
+       static_cast<float>(this->LocalGenerators.size()));
+    }
+  this->SetCurrentMakefile(0);
+
+  if(!this->GenerateCPackPropertiesFile())
+    {
+    this->GetCMakeInstance()->IssueMessage(
+      cmake::FATAL_ERROR, "Could not write CPack properties file.");
+    }
+
+  for (std::map<std::string, cmExportBuildFileGenerator*>::iterator
+      it = this->BuildExportSets.begin(); it != this->BuildExportSets.end();
+      ++it)
+    {
+    if (!it->second->GenerateImportFile()
+        && !cmSystemTools::GetErrorOccuredFlag())
+      {
+      this->GetCMakeInstance()
+          ->IssueMessage(cmake::FATAL_ERROR, "Could not write export file.");
+      return;
+      }
+    }
+  // Update rule hashes.
+  this->CheckRuleHashes();
+
+  this->WriteSummary();
+
+  if (this->ExtraGenerator != 0)
+    {
+    this->ExtraGenerator->Generate();
+    }
+
+  if(!this->CMP0042WarnTargets.empty())
+    {
+    std::ostringstream w;
+    w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0042) << "\n";
+    w << "MACOSX_RPATH is not specified for"
+         " the following targets:\n";
+    for(std::set<std::string>::iterator
+      iter = this->CMP0042WarnTargets.begin();
+      iter != this->CMP0042WarnTargets.end();
+      ++iter)
+      {
+      w << " " << *iter << "\n";
+      }
+    this->GetCMakeInstance()->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+    }
+
+  this->CMakeInstance->UpdateProgress("Generating done", -1);
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalGenerator::ComputeTargetDepends()
+{
+  cmComputeTargetDepends ctd(this);
+  if(!ctd.Compute())
+    {
+    return false;
+    }
+  std::vector<cmGeneratorTarget const*> const& targets = ctd.GetTargets();
+  for(std::vector<cmGeneratorTarget const*>::const_iterator ti
+      = targets.begin(); ti != targets.end(); ++ti)
+    {
+    ctd.GetTargetDirectDepends(*ti, this->TargetDependencies[*ti]);
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::CreateQtAutoGeneratorsTargets(AutogensType &autogens)
+{
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
+    {
+    cmTargets& targets =
+      this->LocalGenerators[i]->GetMakefile()->GetTargets();
+    std::vector<std::string> targetNames;
+    targetNames.reserve(targets.size());
+    for(cmTargets::iterator ti = targets.begin();
+        ti != targets.end(); ++ti)
+      {
+      if (ti->second.GetType() == cmTarget::GLOBAL_TARGET)
+        {
+        continue;
+        }
+      targetNames.push_back(ti->second.GetName());
+      }
+    for(std::vector<std::string>::iterator ti = targetNames.begin();
+        ti != targetNames.end(); ++ti)
+      {
+      cmTarget& target = *this->LocalGenerators[i]
+                              ->GetMakefile()->FindTarget(*ti, true);
+      if(target.GetType() == cmTarget::EXECUTABLE ||
+         target.GetType() == cmTarget::STATIC_LIBRARY ||
+         target.GetType() == cmTarget::SHARED_LIBRARY ||
+         target.GetType() == cmTarget::MODULE_LIBRARY ||
+         target.GetType() == cmTarget::OBJECT_LIBRARY)
+        {
+        if((target.GetPropertyAsBool("AUTOMOC")
+              || target.GetPropertyAsBool("AUTOUIC")
+              || target.GetPropertyAsBool("AUTORCC"))
+            && !target.IsImported())
+          {
+          cmQtAutoGenerators autogen;
+          if(autogen.InitializeAutogenTarget(this->LocalGenerators[i],
+                                             &target))
+            {
+            autogens.push_back(std::make_pair(autogen, &target));
+            }
+          }
+        }
+      }
+    }
+#else
+  (void)autogens;
+#endif
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::FinalizeTargetCompileInfo()
+{
+  // Construct per-target generator information.
+  for(unsigned int i=0; i < this->Makefiles.size(); ++i)
+    {
+    cmMakefile *mf = this->Makefiles[i];
+
+    const cmStringRange noconfig_compile_definitions =
+                                mf->GetCompileDefinitionsEntries();
+    const cmBacktraceRange noconfig_compile_definitions_bts =
+                                mf->GetCompileDefinitionsBacktraces();
+
+    cmTargets& targets = mf->GetTargets();
+    for(cmTargets::iterator ti = targets.begin();
+        ti != targets.end(); ++ti)
+      {
+      cmTarget* t = &ti->second;
+      if (t->GetType() == cmTarget::GLOBAL_TARGET)
+        {
+        continue;
+        }
+
+      t->AppendBuildInterfaceIncludes();
+
+      if (t->GetType() == cmTarget::INTERFACE_LIBRARY)
+        {
+        continue;
+        }
+
+      cmBacktraceRange::const_iterator btIt
+          = noconfig_compile_definitions_bts.begin();
+      for (cmStringRange::const_iterator it
+                                      = noconfig_compile_definitions.begin();
+          it != noconfig_compile_definitions.end(); ++it, ++btIt)
+        {
+        t->InsertCompileDefinition(*it, *btIt);
+        }
+
+      cmPolicies::PolicyStatus polSt
+                                  = mf->GetPolicyStatus(cmPolicies::CMP0043);
+      if (polSt == cmPolicies::WARN || polSt == cmPolicies::OLD)
+        {
+        std::vector<std::string> configs;
+        mf->GetConfigurations(configs);
+
+        for(std::vector<std::string>::const_iterator ci = configs.begin();
+            ci != configs.end(); ++ci)
+          {
+          std::string defPropName = "COMPILE_DEFINITIONS_";
+          defPropName += cmSystemTools::UpperCase(*ci);
+          t->AppendProperty(defPropName,
+                            mf->GetProperty(defPropName));
+          }
+        }
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::CreateGeneratorTargets(TargetTypes targetTypes,
+                                               cmLocalGenerator *lg)
+{
+  cmGeneratorTargetsType generatorTargets;
+  cmMakefile* mf = lg->GetMakefile();
+  if (targetTypes == AllTargets)
+    {
+    cmTargets& targets = mf->GetTargets();
+    for(cmTargets::iterator ti = targets.begin();
+        ti != targets.end(); ++ti)
+      {
+      cmTarget* t = &ti->second;
+      t->Compute();
+      cmGeneratorTarget* gt = new cmGeneratorTarget(t, lg);
+      this->GeneratorTargets[t] = gt;
+      generatorTargets[t] = gt;
+      }
+    }
+
+  for(std::vector<cmTarget*>::const_iterator
+        j = mf->GetOwnedImportedTargets().begin();
+      j != mf->GetOwnedImportedTargets().end(); ++j)
+    {
+    cmGeneratorTarget* gt = new cmGeneratorTarget(*j, lg);
+    this->GeneratorTargets[*j] = gt;
+    generatorTargets[*j] = gt;
+    }
+  mf->SetGeneratorTargets(generatorTargets);
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::InitGeneratorTargets()
+{
+  for(cmGeneratorTargetsType::iterator ti =
+      this->GeneratorTargets.begin(); ti != this->GeneratorTargets.end(); ++ti)
+    {
+    if (!ti->second->Target->IsImported())
+      {
+      this->ComputeTargetObjectDirectory(ti->second);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::CreateGeneratorTargets(TargetTypes targetTypes)
+{
+  // Construct per-target generator information.
+  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->CreateGeneratorTargets(targetTypes, this->LocalGenerators[i]);
+    }
+}
+
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::ClearGeneratorMembers()
+{
+  cmDeleteAll(this->GeneratorTargets);
+  this->GeneratorTargets.clear();
+
+  cmDeleteAll(this->BuildExportSets);
+  this->BuildExportSets.clear();
+
+  this->Makefiles.clear();
+
+  cmDeleteAll(this->LocalGenerators);
+  this->LocalGenerators.clear();
+
+  this->ExportSets.clear();
+  this->TargetDependencies.clear();
+  this->TotalTargets.clear();
+  this->ImportedTargets.clear();
+  this->LocalGeneratorToTargetMap.clear();
+  this->ProjectMap.clear();
+  this->RuleHashes.clear();
+  this->DirectoryContentMap.clear();
+  this->BinaryDirectories.clear();
+}
+
+//----------------------------------------------------------------------------
+cmGeneratorTarget*
+cmGlobalGenerator::GetGeneratorTarget(cmTarget const* t) const
+{
+  cmGeneratorTargetsType::const_iterator ti = this->GeneratorTargets.find(t);
+  if(ti == this->GeneratorTargets.end())
+    {
+    this->CMakeInstance->IssueMessage(
+      cmake::INTERNAL_ERROR, "Missing cmGeneratorTarget instance!");
+    return 0;
+    }
+  return ti->second;
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::ComputeTargetObjectDirectory(cmGeneratorTarget*) const
+{
+}
+
+void cmGlobalGenerator::CheckLocalGenerators()
+{
+  std::map<std::string, std::string> notFoundMap;
+//  std::set<std::string> notFoundMap;
+  // after it is all done do a ConfigureFinalPass
+  cmState* state = this->GetCMakeInstance()->GetState();
+  for (unsigned int i = 0; i < this->Makefiles.size(); ++i)
+    {
+    this->Makefiles[i]->ConfigureFinalPass();
+    cmTargets &targets =
+      this->Makefiles[i]->GetTargets();
+    for (cmTargets::iterator l = targets.begin();
+         l != targets.end(); l++)
+      {
+      if (l->second.GetType() == cmTarget::INTERFACE_LIBRARY)
+        {
+        continue;
+        }
+      const cmTarget::LinkLibraryVectorType& libs =
+        l->second.GetOriginalLinkLibraries();
+      for(cmTarget::LinkLibraryVectorType::const_iterator lib = libs.begin();
+          lib != libs.end(); ++lib)
+        {
+        if(lib->first.size() > 9 &&
+           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
+          {
+          std::string varName = lib->first.substr(0, lib->first.size()-9);
+          if(state->GetCacheEntryPropertyAsBool(varName, "ADVANCED"))
+            {
+            varName += " (ADVANCED)";
+            }
+          std::string text = notFoundMap[varName];
+          text += "\n    linked by target \"";
+          text += l->second.GetName();
+          text += "\" in directory ";
+          text+=this->LocalGenerators[i]->GetMakefile()
+                    ->GetCurrentSourceDirectory();
+          notFoundMap[varName] = text;
+          }
+        }
+      std::vector<std::string> incs;
+      const char *incDirProp = l->second.GetProperty("INCLUDE_DIRECTORIES");
+      if (!incDirProp)
+        {
+        continue;
+        }
+
+      std::string incDirs = cmGeneratorExpression::Preprocess(incDirProp,
+                        cmGeneratorExpression::StripAllGeneratorExpressions);
+
+      cmSystemTools::ExpandListArgument(incDirs, incs);
+
+      for( std::vector<std::string>::const_iterator incDir = incs.begin();
+            incDir != incs.end(); ++incDir)
+        {
+        if(incDir->size() > 9 &&
+            cmSystemTools::IsNOTFOUND(incDir->c_str()))
+          {
+          std::string varName = incDir->substr(0, incDir->size()-9);
+          if(state->GetCacheEntryPropertyAsBool(varName, "ADVANCED"))
+            {
+            varName += " (ADVANCED)";
+            }
+          std::string text = notFoundMap[varName];
+          text += "\n   used as include directory in directory ";
+          text += this->Makefiles[i]->GetCurrentSourceDirectory();
+          notFoundMap[varName] = text;
+          }
+        }
+      }
+    this->CMakeInstance->UpdateProgress
+      ("Configuring", 0.9f+0.1f*(static_cast<float>(i)+1.0f)/
+        static_cast<float>(this->Makefiles.size()));
+    }
+
+  if(!notFoundMap.empty())
+    {
+    std::string notFoundVars;
+    for(std::map<std::string, std::string>::const_iterator
+        ii = notFoundMap.begin();
+        ii != notFoundMap.end();
+        ++ii)
+      {
+      notFoundVars += ii->first;
+      notFoundVars += ii->second;
+      notFoundVars += "\n";
+      }
+    cmSystemTools::Error("The following variables are used in this project, "
+                         "but they are set to NOTFOUND.\n"
+                         "Please set them or make sure they are set and "
+                         "tested correctly in the CMake files:\n",
+                         notFoundVars.c_str());
+    }
+}
+
+int cmGlobalGenerator::TryCompile(const std::string& srcdir,
+                                  const std::string& bindir,
+                                  const std::string& projectName,
+                                  const std::string& target, bool fast,
+                                  std::string& output, cmMakefile *mf)
+{
+  // if this is not set, then this is a first time configure
+  // and there is a good chance that the try compile stuff will
+  // take the bulk of the time, so try and guess some progress
+  // by getting closer and closer to 100 without actually getting there.
+  if (!this->CMakeInstance->GetState()->GetInitializedCacheValue
+      ("CMAKE_NUMBER_OF_MAKEFILES"))
+    {
+    // If CMAKE_NUMBER_OF_MAKEFILES is not set
+    // we are in the first time progress and we have no
+    // idea how long it will be.  So, just move 1/10th of the way
+    // there each time, and don't go over 95%
+    this->FirstTimeProgress += ((1.0f - this->FirstTimeProgress) /30.0f);
+    if(this->FirstTimeProgress > 0.95f)
+      {
+      this->FirstTimeProgress = 0.95f;
+      }
+    this->CMakeInstance->UpdateProgress("Configuring",
+                                        this->FirstTimeProgress);
+    }
+
+  std::string newTarget;
+  if (!target.empty())
+    {
+    newTarget += target;
+#if 0
+#if defined(_WIN32) || defined(__CYGWIN__)
+    std::string tmp = target;
+    // if the target does not already end in . something
+    // then assume .exe
+    if(tmp.size() < 4 || tmp[tmp.size()-4] != '.')
+      {
+      newTarget += ".exe";
+      }
+#endif // WIN32
+#endif
+    }
+  std::string config =
+    mf->GetSafeDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
+  return this->Build(srcdir,bindir,projectName,
+                     newTarget,
+                     output,"",config,false,fast,false,
+                     this->TryCompileTimeout);
+}
+
+void cmGlobalGenerator::GenerateBuildCommand(
+  std::vector<std::string>& makeCommand, const std::string&,
+  const std::string&, const std::string&, const std::string&,
+  const std::string&, bool, bool,
+  std::vector<std::string> const&)
+{
+  makeCommand.push_back(
+    "cmGlobalGenerator::GenerateBuildCommand not implemented");
+}
+
+int cmGlobalGenerator::Build(
+  const std::string&, const std::string& bindir,
+  const std::string& projectName, const std::string& target,
+  std::string& output,
+  const std::string& makeCommandCSTR,
+  const std::string& config,
+  bool clean, bool fast, bool verbose,
+  double timeout,
+  cmSystemTools::OutputOption outputflag,
+  std::vector<std::string> const& nativeOptions)
+{
+  /**
+   * Run an executable command and put the stdout in output.
+   */
+  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
+  cmSystemTools::ChangeDirectory(bindir);
+  output += "Change Dir: ";
+  output += bindir;
+  output += "\n";
+
+  int retVal;
+  bool hideconsole = cmSystemTools::GetRunCommandHideConsole();
+  cmSystemTools::SetRunCommandHideConsole(true);
+  std::string outputBuffer;
+  std::string* outputPtr = &outputBuffer;
+
+  std::vector<std::string> makeCommand;
+  this->GenerateBuildCommand(makeCommand, makeCommandCSTR, projectName,
+                             bindir, target, config, fast, verbose,
+                             nativeOptions);
+
+  // Workaround to convince VCExpress.exe to produce output.
+  if (outputflag == cmSystemTools::OUTPUT_PASSTHROUGH &&
+      !makeCommand.empty() && cmSystemTools::LowerCase(
+        cmSystemTools::GetFilenameName(makeCommand[0])) == "vcexpress.exe")
+    {
+    outputflag = cmSystemTools::OUTPUT_NORMAL;
+    }
+
+  // should we do a clean first?
+  if (clean)
+    {
+    std::vector<std::string> cleanCommand;
+    this->GenerateBuildCommand(cleanCommand, makeCommandCSTR, projectName,
+                               bindir, "clean", config, fast, verbose);
+    output += "\nRun Clean Command:";
+    output += cmSystemTools::PrintSingleCommand(cleanCommand);
+    output += "\n";
+
+    if (!cmSystemTools::RunSingleCommand(cleanCommand, outputPtr, outputPtr,
+                                         &retVal, 0, outputflag, timeout))
+      {
+      cmSystemTools::SetRunCommandHideConsole(hideconsole);
+      cmSystemTools::Error("Generator: execution of make clean failed.");
+      output += *outputPtr;
+      output += "\nGenerator: execution of make clean failed.\n";
+
+      // return to the original directory
+      cmSystemTools::ChangeDirectory(cwd);
+      return 1;
+      }
+    output += *outputPtr;
+    }
+
+  // now build
+  std::string makeCommandStr = cmSystemTools::PrintSingleCommand(makeCommand);
+  output += "\nRun Build Command:";
+  output += makeCommandStr;
+  output += "\n";
+
+  if (!cmSystemTools::RunSingleCommand(makeCommand, outputPtr, outputPtr,
+                                       &retVal, 0, outputflag, timeout))
+    {
+    cmSystemTools::SetRunCommandHideConsole(hideconsole);
+    cmSystemTools::Error
+      ("Generator: execution of make failed. Make command was: ",
+       makeCommandStr.c_str());
+    output += *outputPtr;
+    output += "\nGenerator: execution of make failed. Make command was: "
+        + makeCommandStr + "\n";
+
+    // return to the original directory
+    cmSystemTools::ChangeDirectory(cwd);
+    return 1;
+    }
+  output += *outputPtr;
+  cmSystemTools::SetRunCommandHideConsole(hideconsole);
+
+  // The SGI MipsPro 7.3 compiler does not return an error code when
+  // the source has a #error in it!  This is a work-around for such
+  // compilers.
+  if((retVal == 0) && (output.find("#error") != std::string::npos))
+    {
+    retVal = 1;
+    }
+
+  cmSystemTools::ChangeDirectory(cwd);
+  return retVal;
+}
+
+//----------------------------------------------------------------------------
+std::string cmGlobalGenerator::GenerateCMakeBuildCommand(
+  const std::string& target, const std::string& config,
+  const std::string& native,
+  bool ignoreErrors)
+{
+  std::string makeCommand = cmSystemTools::GetCMakeCommand();
+  makeCommand = cmSystemTools::ConvertToOutputPath(makeCommand.c_str());
+  makeCommand += " --build .";
+  if(!config.empty())
+    {
+    makeCommand += " --config \"";
+    makeCommand += config;
+    makeCommand += "\"";
+    }
+  if(!target.empty())
+    {
+    makeCommand += " --target \"";
+    makeCommand += target;
+    makeCommand += "\"";
+    }
+  const char* sep = " -- ";
+  if(ignoreErrors)
+    {
+    const char* iflag = this->GetBuildIgnoreErrorsFlag();
+    if(iflag && *iflag)
+      {
+      makeCommand += sep;
+      makeCommand += iflag;
+      sep = " ";
+      }
+    }
+  if(!native.empty())
+    {
+    makeCommand += sep;
+    makeCommand += native;
+    }
+  return makeCommand;
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::AddMakefile(cmMakefile *mf)
+{
+  this->Makefiles.push_back(mf);
+
+  // update progress
+  // estimate how many lg there will be
+  const char *numGenC =
+    this->CMakeInstance->GetState()->GetInitializedCacheValue
+    ("CMAKE_NUMBER_OF_MAKEFILES");
+
+  if (!numGenC)
+    {
+    // If CMAKE_NUMBER_OF_MAKEFILES is not set
+    // we are in the first time progress and we have no
+    // idea how long it will be.  So, just move half way
+    // there each time, and don't go over 95%
+    this->FirstTimeProgress += ((1.0f - this->FirstTimeProgress) /30.0f);
+    if(this->FirstTimeProgress > 0.95f)
+      {
+      this->FirstTimeProgress = 0.95f;
+      }
+    this->CMakeInstance->UpdateProgress("Configuring",
+                                        this->FirstTimeProgress);
+    return;
+    }
+
+  int numGen = atoi(numGenC);
+  float prog = 0.9f*static_cast<float>(this->Makefiles.size())/
+    static_cast<float>(numGen);
+  if (prog > 0.9f)
+    {
+    prog = 0.9f;
+    }
+  this->CMakeInstance->UpdateProgress("Configuring", prog);
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::AddLocalGenerator(cmLocalGenerator *lg)
+{
+  this->LocalGenerators.push_back(lg);
+}
+
+void cmGlobalGenerator::AddInstallComponent(const char* component)
+{
+  if(component && *component)
+    {
+    this->InstallComponents.insert(component);
+    }
+}
+
+void cmGlobalGenerator::EnableInstallTarget()
+{
+  this->InstallTargetEnabled = true;
+}
+
+cmLocalGenerator *
+cmGlobalGenerator::MakeLocalGenerator(cmState::Snapshot snapshot,
+                                      cmLocalGenerator *parent)
+{
+  if (!snapshot.IsValid())
+    {
+    snapshot = this->CMakeInstance->GetCurrentSnapshot();
+    }
+
+  return this->CreateLocalGenerator(parent, snapshot);
+}
+
+cmLocalGenerator*
+cmGlobalGenerator::CreateLocalGenerator(cmLocalGenerator* parent,
+                                        cmState::Snapshot snapshot)
+{
+  return new cmLocalGenerator(this, parent, snapshot);
+}
+
+void cmGlobalGenerator::EnableLanguagesFromGenerator(cmGlobalGenerator *gen,
+                                                     cmMakefile* mf)
+{
+  this->SetConfiguredFilesPath(gen);
+  this->TryCompileOuterMakefile = mf;
+  const char* make =
+    gen->GetCMakeInstance()->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
+  this->GetCMakeInstance()->AddCacheEntry("CMAKE_MAKE_PROGRAM", make,
+                                          "make program",
+                                          cmState::FILEPATH);
+  // copy the enabled languages
+  this->GetCMakeInstance()->GetState()->SetEnabledLanguages(
+    gen->GetCMakeInstance()->GetState()->GetEnabledLanguages()
+    );
+  this->LanguagesReady = gen->LanguagesReady;
+  this->ExtensionToLanguage = gen->ExtensionToLanguage;
+  this->IgnoreExtensions = gen->IgnoreExtensions;
+  this->LanguageToOutputExtension = gen->LanguageToOutputExtension;
+  this->LanguageToLinkerPreference = gen->LanguageToLinkerPreference;
+  this->OutputExtensions = gen->OutputExtensions;
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::SetConfiguredFilesPath(cmGlobalGenerator* gen)
+{
+  if(!gen->ConfiguredFilesPath.empty())
+    {
+    this->ConfiguredFilesPath = gen->ConfiguredFilesPath;
+    }
+  else
+    {
+    this->ConfiguredFilesPath = gen->CMakeInstance->GetHomeOutputDirectory();
+    this->ConfiguredFilesPath += cmake::GetCMakeFilesDirectory();
+    }
+}
+
+bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
+                                   cmLocalGenerator* gen) const
+{
+  if(!gen || gen == root)
+    {
+    // No directory excludes itself.
+    return false;
+    }
+
+  if(gen->GetMakefile()->GetPropertyAsBool("EXCLUDE_FROM_ALL"))
+    {
+    // This directory is excluded from its parent.
+    return true;
+    }
+
+  // This directory is included in its parent.  Check whether the
+  // parent is excluded.
+  return this->IsExcluded(root, gen->GetParent());
+}
+
+bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
+                                   cmGeneratorTarget* target) const
+{
+  if(target->GetType() == cmTarget::INTERFACE_LIBRARY
+      || target->Target->GetPropertyAsBool("EXCLUDE_FROM_ALL"))
+    {
+    // This target is excluded from its directory.
+    return true;
+    }
+  else
+    {
+    // This target is included in its directory.  Check whether the
+    // directory is excluded.
+    return this->IsExcluded(root, target->GetLocalGenerator());
+    }
+}
+
+void
+cmGlobalGenerator::GetEnabledLanguages(std::vector<std::string>& lang) const
+{
+  lang = this->CMakeInstance->GetState()->GetEnabledLanguages();
+}
+
+int cmGlobalGenerator::GetLinkerPreference(const std::string& lang) const
+{
+  std::map<std::string, int>::const_iterator it =
+                                   this->LanguageToLinkerPreference.find(lang);
+  if (it != this->LanguageToLinkerPreference.end())
+    {
+    return it->second;
+    }
   return 0;
 }
 
-/*
- * Create a socket based on info from 'conn' and 'ai'.
- *
- * 'addr' should be a pointer to the correct struct to get data back, or NULL.
- * 'sockfd' must be a pointer to a socket descriptor.
- *
- * If the open socket callback is set, used that!
- *
- */
-CURLcode Curl_socket(struct connectdata *conn,
-                     const Curl_addrinfo *ai,
-                     struct Curl_sockaddr_ex *addr,
-                     curl_socket_t *sockfd)
+void cmGlobalGenerator::FillProjectMap()
 {
-  struct SessionHandle *data = conn->data;
-  struct Curl_sockaddr_ex dummy;
+  this->ProjectMap.clear(); // make sure we start with a clean map
+  unsigned int i;
+  for(i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    // for each local generator add all projects
+    cmLocalGenerator *lg = this->LocalGenerators[i];
+    std::string name;
+    do
+      {
+      if (name != lg->GetMakefile()->GetProjectName())
+        {
+        name = lg->GetMakefile()->GetProjectName();
+        this->ProjectMap[name].push_back(this->LocalGenerators[i]);
+        }
+      lg = lg->GetParent();
+      }
+    while (lg);
+    }
+}
 
-  if(!addr)
-    /* if the caller doesn't want info back, use a local temp copy */
-    addr = &dummy;
 
-  /*
-   * The Curl_sockaddr_ex structure is basically libcurl's external API
-   * curl_sockaddr structure with enough space available to directly hold
-   * any protocol-specific address structures. The variable declared here
-   * will be used to pass / receive data to/from the fopensocket callback
-   * if this has been set, before that, it is initialized from parameters.
-   */
+// Build a map that contains a the set of targets used by each local
+// generator directory level.
+void cmGlobalGenerator::FillLocalGeneratorToTargetMap()
+{
+  this->LocalGeneratorToTargetMap.clear();
+  // Loop over all targets in all local generators.
+  for(std::vector<cmLocalGenerator*>::const_iterator
+        lgi = this->LocalGenerators.begin();
+      lgi != this->LocalGenerators.end(); ++lgi)
+    {
+    cmLocalGenerator* lg = *lgi;
+    cmMakefile* mf = lg->GetMakefile();
+    cmTargets const& targets = mf->GetTargets();
+    for(cmTargets::const_iterator t = targets.begin(); t != targets.end(); ++t)
+      {
+      cmTarget const& target = t->second;
 
-  addr->family = ai->ai_family;
-  addr->socktype = conn->socktype;
-  addr->protocol = conn->socktype==SOCK_DGRAM?IPPROTO_UDP:ai->ai_protocol;
-  addr->addrlen = ai->ai_addrlen;
+      cmGeneratorTarget* gt = this->GetGeneratorTarget(&target);
 
-  if(addr->addrlen > sizeof(struct Curl_sockaddr_storage))
-     addr->addrlen = sizeof(struct Curl_sockaddr_storage);
-  memcpy(&addr->sa_addr, ai->ai_addr, addr->addrlen);
+      // Consider the directory containing the target and all its
+      // parents until something excludes the target.
+      for(cmLocalGenerator* clg = lg; clg && !this->IsExcluded(clg, gt);
+          clg = clg->GetParent())
+        {
+        // This local generator includes the target.
+        std::set<cmGeneratorTarget const*>& targetSet =
+          this->LocalGeneratorToTargetMap[clg];
+        targetSet.insert(gt);
 
-  if(data->set.fopensocket)
-   /*
-    * If the opensocket callback is set, all the destination address
-    * information is passed to the callback. Depending on this information the
-    * callback may opt to abort the connection, this is indicated returning
-    * CURL_SOCKET_BAD; otherwise it will return a not-connected socket. When
-    * the callback returns a valid socket the destination address information
-    * might have been changed and this 'new' address will actually be used
-    * here to connect.
-    */
-    *sockfd = data->set.fopensocket(data->set.opensocket_client,
-                                    CURLSOCKTYPE_IPCXN,
-                                    (struct curl_sockaddr *)addr);
+        // Add dependencies of the included target.  An excluded
+        // target may still be included if it is a dependency of a
+        // non-excluded target.
+        TargetDependSet const& tgtdeps = this->GetTargetDirectDepends(gt);
+        for(TargetDependSet::const_iterator ti = tgtdeps.begin();
+            ti != tgtdeps.end(); ++ti)
+          {
+          targetSet.insert(*ti);
+          }
+        }
+      }
+    }
+}
+
+cmMakefile*
+cmGlobalGenerator::FindMakefile(const std::string& start_dir) const
+{
+  for(std::vector<cmMakefile*>::const_iterator it =
+      this->Makefiles.begin(); it != this->Makefiles.end(); ++it)
+    {
+    std::string sd = (*it)->GetCurrentSourceDirectory();
+    if (sd == start_dir)
+      {
+      return *it;
+      }
+    }
+  return 0;
+}
+
+///! Find a local generator by its startdirectory
+cmLocalGenerator*
+cmGlobalGenerator::FindLocalGenerator(const std::string& start_dir) const
+{
+  for(std::vector<cmLocalGenerator*>::const_iterator it =
+      this->LocalGenerators.begin(); it != this->LocalGenerators.end(); ++it)
+    {
+    std::string sd = (*it)->GetMakefile()->GetCurrentSourceDirectory();
+    if (sd == start_dir)
+      {
+      return *it;
+      }
+    }
+  return 0;
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::AddAlias(const std::string& name, cmTarget *tgt)
+{
+  this->AliasTargets[name] = tgt;
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalGenerator::IsAlias(const std::string& name) const
+{
+  return this->AliasTargets.find(name) != this->AliasTargets.end();
+}
+
+//----------------------------------------------------------------------------
+cmTarget*
+cmGlobalGenerator::FindTarget(const std::string& name,
+                              bool excludeAliases) const
+{
+  if (!excludeAliases)
+    {
+    TargetMap::const_iterator ai = this->AliasTargets.find(name);
+    if (ai != this->AliasTargets.end())
+      {
+      return ai->second;
+      }
+    }
+  TargetMap::const_iterator i = this->TotalTargets.find ( name );
+  if ( i != this->TotalTargets.end() )
+    {
+    return i->second;
+    }
+  i = this->ImportedTargets.find(name);
+  if ( i != this->ImportedTargets.end() )
+    {
+    return i->second;
+    }
+  return 0;
+}
+
+//----------------------------------------------------------------------------
+bool
+cmGlobalGenerator::NameResolvesToFramework(const std::string& libname) const
+{
+  if(cmSystemTools::IsPathToFramework(libname.c_str()))
+    {
+    return true;
+    }
+
+  if(cmTarget* tgt = this->FindTarget(libname))
+    {
+    if(tgt->IsFrameworkOnApple())
+       {
+       return true;
+       }
+    }
+
+  return false;
+}
+
+//----------------------------------------------------------------------------
+inline std::string removeQuotes(const std::string& s)
+{
+  if(s[0] == '\"' && s[s.size()-1] == '\"')
+    {
+    return s.substr(1, s.size()-2);
+    }
+  return s;
+}
+
+void cmGlobalGenerator::CreateDefaultGlobalTargets(cmTargets* targets)
+{
+  cmMakefile* mf = this->Makefiles[0];
+  const char* cmakeCfgIntDir = this->GetCMakeCFGIntDir();
+
+  // CPack
+  std::string workingDir =  mf->GetCurrentBinaryDirectory();
+  cmCustomCommandLines cpackCommandLines;
+  std::vector<std::string> depends;
+  cmCustomCommandLine singleLine;
+  singleLine.push_back(cmSystemTools::GetCPackCommand());
+  if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
+    {
+    singleLine.push_back("-C");
+    singleLine.push_back(cmakeCfgIntDir);
+    }
+  singleLine.push_back("--config");
+  std::string configFile = mf->GetCurrentBinaryDirectory();;
+  configFile += "/CPackConfig.cmake";
+  std::string relConfigFile = "./CPackConfig.cmake";
+  singleLine.push_back(relConfigFile);
+  cpackCommandLines.push_back(singleLine);
+  if ( this->GetPreinstallTargetName() )
+    {
+    depends.push_back(this->GetPreinstallTargetName());
+    }
   else
-    /* opensocket callback not set, so simply create the socket now */
-    *sockfd = socket(addr->family, addr->socktype, addr->protocol);
+    {
+    const char* noPackageAll =
+      mf->GetDefinition("CMAKE_SKIP_PACKAGE_ALL_DEPENDENCY");
+    if(!noPackageAll || cmSystemTools::IsOff(noPackageAll))
+      {
+      depends.push_back(this->GetAllTargetName());
+      }
+    }
+  if(cmSystemTools::FileExists(configFile.c_str()))
+    {
+    (*targets)[this->GetPackageTargetName()]
+      = this->CreateGlobalTarget(this->GetPackageTargetName(),
+                                 "Run CPack packaging tool...",
+                                 &cpackCommandLines, depends,
+                                 workingDir.c_str(), /*uses_terminal*/true);
+    }
+  // CPack source
+  const char* packageSourceTargetName = this->GetPackageSourceTargetName();
+  if ( packageSourceTargetName )
+    {
+    cpackCommandLines.erase(cpackCommandLines.begin(),
+                            cpackCommandLines.end());
+    singleLine.erase(singleLine.begin(), singleLine.end());
+    depends.erase(depends.begin(), depends.end());
+    singleLine.push_back(cmSystemTools::GetCPackCommand());
+    singleLine.push_back("--config");
+    configFile = mf->GetCurrentBinaryDirectory();;
+    configFile += "/CPackSourceConfig.cmake";
+    relConfigFile = "./CPackSourceConfig.cmake";
+    singleLine.push_back(relConfigFile);
+    if(cmSystemTools::FileExists(configFile.c_str()))
+      {
+      singleLine.push_back(configFile);
+      cpackCommandLines.push_back(singleLine);
+      (*targets)[packageSourceTargetName]
+        = this->CreateGlobalTarget(packageSourceTargetName,
+                                   "Run CPack packaging tool for source...",
+                                   &cpackCommandLines, depends,
+                                   workingDir.c_str(), /*uses_terminal*/true);
+      }
+    }
 
-  if(*sockfd == CURL_SOCKET_BAD)
-    /* no socket, no connection */
-    return CURLE_COULDNT_CONNECT;
+  // Test
+  if(mf->IsOn("CMAKE_TESTING_ENABLED"))
+    {
+    cpackCommandLines.erase(cpackCommandLines.begin(),
+                            cpackCommandLines.end());
+    singleLine.erase(singleLine.begin(), singleLine.end());
+    depends.erase(depends.begin(), depends.end());
+    singleLine.push_back(cmSystemTools::GetCTestCommand());
+    singleLine.push_back("--force-new-ctest-process");
+    if(cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.')
+      {
+      singleLine.push_back("-C");
+      singleLine.push_back(cmakeCfgIntDir);
+      }
+    else // TODO: This is a hack. Should be something to do with the generator
+      {
+      singleLine.push_back("$(ARGS)");
+      }
+    cpackCommandLines.push_back(singleLine);
+    (*targets)[this->GetTestTargetName()]
+      = this->CreateGlobalTarget(this->GetTestTargetName(),
+        "Running tests...", &cpackCommandLines, depends, 0,
+        /*uses_terminal*/true);
+    }
 
-#if defined(ENABLE_IPV6) && defined(HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID)
-  if(conn->scope && (addr->family == AF_INET6)) {
-    struct sockaddr_in6 * const sa6 = (void *)&addr->sa_addr;
-    sa6->sin6_scope_id = conn->scope;
-  }
-#endif
+  //Edit Cache
+  const char* editCacheTargetName = this->GetEditCacheTargetName();
+  if ( editCacheTargetName )
+    {
+    cpackCommandLines.erase(cpackCommandLines.begin(),
+                            cpackCommandLines.end());
+    singleLine.erase(singleLine.begin(), singleLine.end());
+    depends.erase(depends.begin(), depends.end());
 
-  return CURLE_OK;
+    // Use generator preference for the edit_cache rule if it is defined.
+    std::string edit_cmd = this->GetEditCacheCommand();
+    if (!edit_cmd.empty())
+      {
+      singleLine.push_back(edit_cmd);
+      singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
+      singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
+      cpackCommandLines.push_back(singleLine);
+      (*targets)[editCacheTargetName] =
+        this->CreateGlobalTarget(
+          editCacheTargetName, "Running CMake cache editor...",
+          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
+      }
+    else
+      {
+      singleLine.push_back(cmSystemTools::GetCMakeCommand());
+      singleLine.push_back("-E");
+      singleLine.push_back("echo");
+      singleLine.push_back("No interactive CMake dialog available.");
+      cpackCommandLines.push_back(singleLine);
+      (*targets)[editCacheTargetName] =
+        this->CreateGlobalTarget(
+          editCacheTargetName,
+          "No interactive CMake dialog available...",
+          &cpackCommandLines, depends, 0, /*uses_terminal*/false);
+      }
+    }
 
+  //Rebuild Cache
+  const char* rebuildCacheTargetName = this->GetRebuildCacheTargetName();
+  if ( rebuildCacheTargetName )
+    {
+    cpackCommandLines.erase(cpackCommandLines.begin(),
+                            cpackCommandLines.end());
+    singleLine.erase(singleLine.begin(), singleLine.end());
+    depends.erase(depends.begin(), depends.end());
+    singleLine.push_back(cmSystemTools::GetCMakeCommand());
+    singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
+    singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
+    cpackCommandLines.push_back(singleLine);
+    (*targets)[rebuildCacheTargetName] =
+      this->CreateGlobalTarget(
+        rebuildCacheTargetName, "Running CMake to regenerate build system...",
+        &cpackCommandLines, depends, 0, /*uses_terminal*/true);
+    }
+
+  //Install
+  bool skipInstallRules = mf->IsOn("CMAKE_SKIP_INSTALL_RULES");
+  if(this->InstallTargetEnabled && skipInstallRules)
+    {
+    mf->IssueMessage(cmake::WARNING,
+      "CMAKE_SKIP_INSTALL_RULES was enabled even though "
+      "installation rules have been specified");
+    }
+  else if(this->InstallTargetEnabled && !skipInstallRules)
+    {
+    if(!cmakeCfgIntDir || !*cmakeCfgIntDir || cmakeCfgIntDir[0] == '.')
+      {
+      std::set<std::string>* componentsSet = &this->InstallComponents;
+      cpackCommandLines.erase(cpackCommandLines.begin(),
+        cpackCommandLines.end());
+      depends.erase(depends.begin(), depends.end());
+      std::ostringstream ostr;
+      if (!componentsSet->empty())
+        {
+        ostr << "Available install components are: ";
+        ostr << cmWrap('"', *componentsSet, '"', " ");
+        }
+      else
+        {
+        ostr << "Only default component available";
+        }
+      singleLine.push_back(ostr.str());
+      (*targets)["list_install_components"]
+        = this->CreateGlobalTarget("list_install_components",
+          ostr.str().c_str(),
+          &cpackCommandLines, depends, 0, /*uses_terminal*/false);
+      }
+    std::string cmd = cmSystemTools::GetCMakeCommand();
+    cpackCommandLines.erase(cpackCommandLines.begin(),
+      cpackCommandLines.end());
+    singleLine.erase(singleLine.begin(), singleLine.end());
+    depends.erase(depends.begin(), depends.end());
+    if ( this->GetPreinstallTargetName() )
+      {
+      depends.push_back(this->GetPreinstallTargetName());
+      }
+    else
+      {
+      const char* noall =
+        mf->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
+      if(!noall || cmSystemTools::IsOff(noall))
+        {
+        depends.push_back(this->GetAllTargetName());
+        }
+      }
+    if(mf->GetDefinition("CMake_BINARY_DIR") &&
+       !mf->IsOn("CMAKE_CROSSCOMPILING"))
+      {
+      // We are building CMake itself.  We cannot use the original
+      // executable to install over itself.  The generator will
+      // automatically convert this name to the build-time location.
+      cmd = "cmake";
+      }
+    singleLine.push_back(cmd);
+    if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
+      {
+      std::string cfgArg = "-DBUILD_TYPE=";
+      cfgArg += mf->GetDefinition("CMAKE_CFG_INTDIR");
+      singleLine.push_back(cfgArg);
+      }
+    singleLine.push_back("-P");
+    singleLine.push_back("cmake_install.cmake");
+    cpackCommandLines.push_back(singleLine);
+    (*targets)[this->GetInstallTargetName()] =
+      this->CreateGlobalTarget(
+        this->GetInstallTargetName(), "Install the project...",
+        &cpackCommandLines, depends, 0, /*uses_terminal*/true);
+
+    // install_local
+    if(const char* install_local = this->GetInstallLocalTargetName())
+      {
+      cmCustomCommandLine localCmdLine = singleLine;
+
+      localCmdLine.insert(localCmdLine.begin()+1,
+                                               "-DCMAKE_INSTALL_LOCAL_ONLY=1");
+      cpackCommandLines.erase(cpackCommandLines.begin(),
+                                                      cpackCommandLines.end());
+      cpackCommandLines.push_back(localCmdLine);
+
+      (*targets)[install_local] =
+        this->CreateGlobalTarget(
+          install_local, "Installing only the local directory...",
+          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
+      }
+
+    // install_strip
+    const char* install_strip = this->GetInstallStripTargetName();
+    if((install_strip !=0) && (mf->IsSet("CMAKE_STRIP")))
+      {
+      cmCustomCommandLine stripCmdLine = singleLine;
+
+      stripCmdLine.insert(stripCmdLine.begin()+1,"-DCMAKE_INSTALL_DO_STRIP=1");
+      cpackCommandLines.erase(cpackCommandLines.begin(),
+        cpackCommandLines.end());
+      cpackCommandLines.push_back(stripCmdLine);
+
+      (*targets)[install_strip] =
+        this->CreateGlobalTarget(
+          install_strip, "Installing the project stripped...",
+          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
+      }
+    }
 }
 
-#ifdef CURLDEBUG
-/*
- * Curl_conncontrol() is used to set the conn->bits.close bit on or off. It
- * MUST be called with the connclose() or connclose() macros with a stated
- * reason. The reason is only shown in debug builds but helps to figure out
- * decision paths when connections are or aren't re-used as expected.
- */
-void Curl_conncontrol(struct connectdata *conn, bool closeit,
-                      const char *reason)
+//----------------------------------------------------------------------------
+const char* cmGlobalGenerator::GetPredefinedTargetsFolder()
 {
-  infof(conn->data, "Marked for [%s]: %s\n", closeit?"closure":"keep alive",
-        reason);
-  conn->bits.close = closeit; /* the only place in the source code that should
-                                 assign this bit */
+  const char* prop = this->GetCMakeInstance()->GetState()
+                         ->GetGlobalProperty("PREDEFINED_TARGETS_FOLDER");
+
+  if (prop)
+    {
+    return prop;
+    }
+
+  return "CMakePredefinedTargets";
 }
+
+//----------------------------------------------------------------------------
+bool cmGlobalGenerator::UseFolderProperty()
+{
+  const char* prop = this->GetCMakeInstance()->GetState()
+                         ->GetGlobalProperty("USE_FOLDERS");
+
+  // If this property is defined, let the setter turn this on or off...
+  //
+  if (prop)
+    {
+    return cmSystemTools::IsOn(prop);
+    }
+
+  // By default, this feature is OFF, since it is not supported in the
+  // Visual Studio Express editions until VS11:
+  //
+  return false;
+}
+
+//----------------------------------------------------------------------------
+cmTarget cmGlobalGenerator::CreateGlobalTarget(
+  const std::string& name, const char* message,
+  const cmCustomCommandLines* commandLines,
+  std::vector<std::string> depends,
+  const char* workingDirectory,
+  bool uses_terminal)
+{
+  // Package
+  cmTarget target;
+  target.SetType(cmTarget::GLOBAL_TARGET, name);
+  target.SetProperty("EXCLUDE_FROM_ALL","TRUE");
+
+  std::vector<std::string> no_outputs;
+  std::vector<std::string> no_byproducts;
+  std::vector<std::string> no_depends;
+  // Store the custom command in the target.
+  cmCustomCommand cc(0, no_outputs, no_byproducts, no_depends,
+                     *commandLines, 0, workingDirectory);
+  cc.SetUsesTerminal(uses_terminal);
+  target.AddPostBuildCommand(cc);
+  target.SetProperty("EchoString", message);
+  std::vector<std::string>::iterator dit;
+  for ( dit = depends.begin(); dit != depends.end(); ++ dit )
+    {
+    target.AddUtility(*dit);
+    }
+
+  // Organize in the "predefined targets" folder:
+  //
+  if (this->UseFolderProperty())
+    {
+    target.SetProperty("FOLDER", this->GetPredefinedTargetsFolder());
+    }
+
+  return target;
+}
+
+//----------------------------------------------------------------------------
+std::string
+cmGlobalGenerator::GenerateRuleFile(std::string const& output) const
+{
+  std::string ruleFile = output;
+  ruleFile += ".rule";
+  const char* dir = this->GetCMakeCFGIntDir();
+  if(dir && dir[0] == '$')
+    {
+    cmSystemTools::ReplaceString(ruleFile, dir,
+                                 cmake::GetCMakeFilesDirectory());
+    }
+  return ruleFile;
+}
+
+//----------------------------------------------------------------------------
+std::string cmGlobalGenerator::GetSharedLibFlagsForLanguage(
+                                                  std::string const& l) const
+{
+  std::map<std::string, std::string>::const_iterator it =
+                              this->LanguageToOriginalSharedLibFlags.find(l);
+  if(it != this->LanguageToOriginalSharedLibFlags.end())
+    {
+    return it->second;
+    }
+  return "";
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::AppendDirectoryForConfig(const std::string&,
+                                                 const std::string&,
+                                                 const std::string&,
+                                                 std::string&)
+{
+  // Subclasses that support multiple configurations should implement
+  // this method to append the subdirectory for the given build
+  // configuration.
+}
+
+//----------------------------------------------------------------------------
+cmGlobalGenerator::TargetDependSet const&
+cmGlobalGenerator::GetTargetDirectDepends(cmGeneratorTarget const* target)
+{
+  return this->TargetDependencies[target];
+}
+
+void cmGlobalGenerator::AddTarget(cmTarget* t)
+{
+  if(t->IsImported())
+    {
+    this->ImportedTargets[t->GetName()] = t;
+    }
+  else
+    {
+    this->TotalTargets[t->GetName()] = t;
+    }
+}
+
+bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
+{
+  // The following is a list of targets reserved
+  // by one or more of the cmake generators.
+
+  // Adding additional targets to this list will require a policy!
+  const char* reservedTargets[] =
+  {
+    "all", "ALL_BUILD",
+    "help",
+    "install", "INSTALL",
+    "preinstall",
+    "clean",
+    "edit_cache",
+    "rebuild_cache",
+    "test", "RUN_TESTS",
+    "package", "PACKAGE",
+    "package_source",
+    "ZERO_CHECK"
+  };
+
+  return std::find(cmArrayBegin(reservedTargets),
+                   cmArrayEnd(reservedTargets), name)
+      != cmArrayEnd(reservedTargets);
+}
+
+void cmGlobalGenerator::SetExternalMakefileProjectGenerator(
+                            cmExternalMakefileProjectGenerator *extraGenerator)
+{
+  this->ExtraGenerator = extraGenerator;
+  if (this->ExtraGenerator!=0)
+    {
+    this->ExtraGenerator->SetGlobalGenerator(this);
+    }
+}
+
+std::string cmGlobalGenerator::GetExtraGeneratorName() const
+{
+  return this->ExtraGenerator? this->ExtraGenerator->GetName() : std::string();
+}
+
+void cmGlobalGenerator::FileReplacedDuringGenerate(const std::string& filename)
+{
+  this->FilesReplacedDuringGenerate.push_back(filename);
+}
+
+void
+cmGlobalGenerator
+::GetFilesReplacedDuringGenerate(std::vector<std::string>& filenames)
+{
+  filenames.clear();
+  std::copy(
+    this->FilesReplacedDuringGenerate.begin(),
+    this->FilesReplacedDuringGenerate.end(),
+    std::back_inserter(filenames));
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::GetTargetSets(TargetDependSet& projectTargets,
+                                      TargetDependSet& originalTargets,
+                                      cmLocalGenerator* root,
+                                      GeneratorVector const& generators)
+{
+  // loop over all local generators
+  for(std::vector<cmLocalGenerator*>::const_iterator i = generators.begin();
+      i != generators.end(); ++i)
+    {
+    // check to make sure generator is not excluded
+    if(this->IsExcluded(root, *i))
+      {
+      continue;
+      }
+    cmMakefile* mf = (*i)->GetMakefile();
+    // Get the targets in the makefile
+    cmTargets &tgts = mf->GetTargets();
+    // loop over all the targets
+    for (cmTargets::iterator l = tgts.begin(); l != tgts.end(); ++l)
+      {
+      cmTarget* target = &l->second;
+      if(this->IsRootOnlyTarget(target) &&
+         target->GetMakefile() != root->GetMakefile())
+        {
+        continue;
+        }
+      // put the target in the set of original targets
+      cmGeneratorTarget* gt = this->GetGeneratorTarget(target);
+      originalTargets.insert(gt);
+      // Get the set of targets that depend on target
+      this->AddTargetDepends(gt, projectTargets);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalGenerator::IsRootOnlyTarget(cmTarget* target) const
+{
+  return (target->GetType() == cmTarget::GLOBAL_TARGET ||
+          target->GetName() == this->GetAllTargetName());
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::AddTargetDepends(cmGeneratorTarget const* target,
+                                         TargetDependSet& projectTargets)
+{
+  // add the target itself
+  if(projectTargets.insert(target).second)
+    {
+    // This is the first time we have encountered the target.
+    // Recursively follow its dependencies.
+    TargetDependSet const& ts = this->GetTargetDirectDepends(target);
+    for(TargetDependSet::const_iterator i = ts.begin(); i != ts.end(); ++i)
+      {
+      this->AddTargetDepends(*i, projectTargets);
+      }
+    }
+}
+
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::AddToManifest(std::string const& f)
+{
+  // Add to the content listing for the file's directory.
+  std::string dir = cmSystemTools::GetFilenamePath(f);
+  std::string file = cmSystemTools::GetFilenameName(f);
+  DirectoryContent& dc = this->DirectoryContentMap[dir];
+  dc.Generated.insert(file);
+  dc.All.insert(file);
+}
+
+//----------------------------------------------------------------------------
+std::set<std::string> const&
+cmGlobalGenerator::GetDirectoryContent(std::string const& dir, bool needDisk)
+{
+  DirectoryContent& dc = this->DirectoryContentMap[dir];
+  if(needDisk)
+    {
+    long mt = cmSystemTools::ModifiedTime(dir);
+    if (mt != dc.LastDiskTime)
+      {
+      // Reset to non-loaded directory content.
+      dc.All = dc.Generated;
+
+      // Load the directory content from disk.
+      cmsys::Directory d;
+      if(d.Load(dir))
+        {
+        unsigned long n = d.GetNumberOfFiles();
+        for(unsigned long i = 0; i < n; ++i)
+          {
+          const char* f = d.GetFile(i);
+          if(strcmp(f, ".") != 0 && strcmp(f, "..") != 0)
+            {
+            dc.All.insert(f);
+            }
+          }
+        }
+      dc.LastDiskTime = mt;
+      }
+    }
+  return dc.All;
+}
+
+//----------------------------------------------------------------------------
+void
+cmGlobalGenerator::AddRuleHash(const std::vector<std::string>& outputs,
+                               std::string const& content)
+{
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+  // Ignore if there are no outputs.
+  if(outputs.empty())
+    {
+    return;
+    }
+
+  // Compute a hash of the rule.
+  RuleHash hash;
+  {
+  unsigned char const* data =
+    reinterpret_cast<unsigned char const*>(content.c_str());
+  int length = static_cast<int>(content.length());
+  cmsysMD5* sum = cmsysMD5_New();
+  cmsysMD5_Initialize(sum);
+  cmsysMD5_Append(sum, data, length);
+  cmsysMD5_FinalizeHex(sum, hash.Data);
+  cmsysMD5_Delete(sum);
+  }
+
+  // Shorten the output name (in expected use case).
+  cmOutputConverter converter(this->GetMakefiles()[0]->GetStateSnapshot());
+  std::string fname = converter.Convert(
+        outputs[0], cmLocalGenerator::HOME_OUTPUT);
+
+  // Associate the hash with this output.
+  this->RuleHashes[fname] = hash;
+#else
+  (void)outputs;
+  (void)content;
 #endif
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::CheckRuleHashes()
+{
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+  std::string home = this->GetCMakeInstance()->GetHomeOutputDirectory();
+  std::string pfile = home;
+  pfile += this->GetCMakeInstance()->GetCMakeFilesDirectory();
+  pfile += "/CMakeRuleHashes.txt";
+  this->CheckRuleHashes(pfile, home);
+  this->WriteRuleHashes(pfile);
+#endif
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::CheckRuleHashes(std::string const& pfile,
+                                        std::string const& home)
+{
+#if defined(_WIN32) || defined(__CYGWIN__)
+  cmsys::ifstream fin(pfile.c_str(), std::ios::in | std::ios::binary);
+#else
+  cmsys::ifstream fin(pfile.c_str(), std::ios::in);
+#endif
+  if(!fin)
+    {
+    return;
+    }
+  std::string line;
+  std::string fname;
+  while(cmSystemTools::GetLineFromStream(fin, line))
+    {
+    // Line format is a 32-byte hex string followed by a space
+    // followed by a file name (with no escaping).
+
+    // Skip blank and comment lines.
+    if(line.size() < 34 || line[0] == '#')
+      {
+      continue;
+      }
+
+    // Get the filename.
+    fname = line.substr(33, line.npos);
+
+    // Look for a hash for this file's rule.
+    std::map<std::string, RuleHash>::const_iterator rhi =
+      this->RuleHashes.find(fname);
+    if(rhi != this->RuleHashes.end())
+      {
+      // Compare the rule hash in the file to that we were given.
+      if(strncmp(line.c_str(), rhi->second.Data, 32) != 0)
+        {
+        // The rule has changed.  Delete the output so it will be
+        // built again.
+        fname = cmSystemTools::CollapseFullPath(fname, home.c_str());
+        cmSystemTools::RemoveFile(fname);
+        }
+      }
+    else
+      {
+      // We have no hash for a rule previously listed.  This may be a
+      // case where a user has turned off a build option and might
+      // want to turn it back on later, so do not delete the file.
+      // Instead, we keep the rule hash as long as the file exists so
+      // that if the feature is turned back on and the rule has
+      // changed the file is still rebuilt.
+      std::string fpath =
+        cmSystemTools::CollapseFullPath(fname, home.c_str());
+      if(cmSystemTools::FileExists(fpath.c_str()))
+        {
+        RuleHash hash;
+        strncpy(hash.Data, line.c_str(), 32);
+        this->RuleHashes[fname] = hash;
+        }
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::WriteRuleHashes(std::string const& pfile)
+{
+  // Now generate a new persistence file with the current hashes.
+  if(this->RuleHashes.empty())
+    {
+    cmSystemTools::RemoveFile(pfile);
+    }
+  else
+    {
+    cmGeneratedFileStream fout(pfile.c_str());
+    fout << "# Hashes of file build rules.\n";
+    for(std::map<std::string, RuleHash>::const_iterator
+          rhi = this->RuleHashes.begin(); rhi != this->RuleHashes.end(); ++rhi)
+      {
+      fout.write(rhi->second.Data, 32);
+      fout << " " << rhi->first << "\n";
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::WriteSummary()
+{
+  cmMakefile* mf = this->LocalGenerators[0]->GetMakefile();
+
+  // Record all target directories in a central location.
+  std::string fname = mf->GetHomeOutputDirectory();
+  fname += cmake::GetCMakeFilesDirectory();
+  fname += "/TargetDirectories.txt";
+  cmGeneratedFileStream fout(fname.c_str());
+
+  // Generate summary information files for each target.
+  for(TargetMap::const_iterator ti =
+        this->TotalTargets.begin(); ti != this->TotalTargets.end(); ++ti)
+    {
+    if ((ti->second)->GetType() == cmTarget::INTERFACE_LIBRARY)
+      {
+      continue;
+      }
+    this->WriteSummary(ti->second);
+    fout << ti->second->GetSupportDirectory() << "\n";
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::WriteSummary(cmTarget* target)
+{
+  // Place the labels file in a per-target support directory.
+  std::string dir = target->GetSupportDirectory();
+  std::string file = dir;
+  file += "/Labels.txt";
+  std::string json_file = dir + "/Labels.json";
+
+#ifdef CMAKE_BUILD_WITH_CMAKE
+  // Check whether labels are enabled for this target.
+  if(const char* value = target->GetProperty("LABELS"))
+    {
+    Json::Value lj_root(Json::objectValue);
+    Json::Value& lj_target =
+      lj_root["target"] = Json::objectValue;
+    lj_target["name"] = target->GetName();
+    Json::Value& lj_target_labels =
+      lj_target["labels"] = Json::arrayValue;
+    Json::Value& lj_sources =
+      lj_root["sources"] = Json::arrayValue;
+
+    cmSystemTools::MakeDirectory(dir.c_str());
+    cmGeneratedFileStream fout(file.c_str());
+
+    // List the target-wide labels.  All sources in the target get
+    // these labels.
+    std::vector<std::string> labels;
+    cmSystemTools::ExpandListArgument(value, labels);
+    if(!labels.empty())
+      {
+      fout << "# Target labels\n";
+      for(std::vector<std::string>::const_iterator li = labels.begin();
+          li != labels.end(); ++li)
+        {
+        fout << " " << *li << "\n";
+        lj_target_labels.append(*li);
+        }
+      }
+
+    // List the source files with any per-source labels.
+    fout << "# Source files and their labels\n";
+    std::vector<cmSourceFile*> sources;
+    std::vector<std::string> configs;
+    target->GetMakefile()->GetConfigurations(configs);
+    if (configs.empty())
+      {
+      configs.push_back("");
+      }
+    for(std::vector<std::string>::const_iterator ci = configs.begin();
+        ci != configs.end(); ++ci)
+      {
+      target->GetSourceFiles(sources, *ci);
+      }
+    std::vector<cmSourceFile*>::const_iterator sourcesEnd
+        = cmRemoveDuplicates(sources);
+    for(std::vector<cmSourceFile*>::const_iterator si = sources.begin();
+        si != sourcesEnd; ++si)
+      {
+      Json::Value& lj_source = lj_sources.append(Json::objectValue);
+      cmSourceFile* sf = *si;
+      std::string const& sfp = sf->GetFullPath();
+      fout << sfp << "\n";
+      lj_source["file"] = sfp;
+      if(const char* svalue = sf->GetProperty("LABELS"))
+        {
+        labels.clear();
+        Json::Value& lj_source_labels =
+          lj_source["labels"] = Json::arrayValue;
+        cmSystemTools::ExpandListArgument(svalue, labels);
+        for(std::vector<std::string>::const_iterator li = labels.begin();
+            li != labels.end(); ++li)
+          {
+          fout << " " << *li << "\n";
+          lj_source_labels.append(*li);
+          }
+        }
+      }
+    cmGeneratedFileStream json_fout(json_file.c_str());
+    json_fout << lj_root;
+    }
+  else
+#endif
+    {
+    cmSystemTools::RemoveFile(file);
+    cmSystemTools::RemoveFile(json_file);
+    }
+}
+
+//----------------------------------------------------------------------------
+// static
+std::string cmGlobalGenerator::EscapeJSON(const std::string& s) {
+  std::string result;
+  for (std::string::size_type i = 0; i < s.size(); ++i) {
+    if (s[i] == '"' || s[i] == '\\') {
+      result += '\\';
+    }
+    result += s[i];
+  }
+  return result;
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::SetFilenameTargetDepends(cmSourceFile* sf,
+                                              std::set<cmTarget const*> tgts)
+{
+  this->FilenameTargetDepends[sf] = tgts;
+}
+
+//----------------------------------------------------------------------------
+std::set<cmTarget const*> const&
+cmGlobalGenerator::GetFilenameTargetDepends(cmSourceFile* sf) const {
+  return this->FilenameTargetDepends[sf];
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::CreateEvaluationSourceFiles(
+                                              std::string const& config) const
+{
+  unsigned int i;
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->LocalGenerators[i]->CreateEvaluationFileOutputs(config);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmGlobalGenerator::ProcessEvaluationFiles()
+{
+  std::vector<std::string> generatedFiles;
+  unsigned int i;
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    this->LocalGenerators[i]->ProcessEvaluationFiles(generatedFiles);
+    }
+}
+
+//----------------------------------------------------------------------------
+std::string cmGlobalGenerator::ExpandCFGIntDir(const std::string& str,
+                            const std::string& /*config*/) const
+{
+  return str;
+}
+
+//----------------------------------------------------------------------------
+bool cmGlobalGenerator::GenerateCPackPropertiesFile()
+{
+  cmake::InstalledFilesMap const& installedFiles =
+    this->CMakeInstance->GetInstalledFiles();
+
+  cmLocalGenerator* lg = this->LocalGenerators[0];
+  cmMakefile* mf = lg->GetMakefile();
+
+  std::vector<std::string> configs;
+  std::string config = mf->GetConfigurations(configs, false);
+
+  std::string path = this->CMakeInstance->GetHomeOutputDirectory();
+  path += "/CPackProperties.cmake";
+
+  if(!cmSystemTools::FileExists(path.c_str()) && installedFiles.empty())
+    {
+      return true;
+    }
+
+  cmGeneratedFileStream file(path.c_str());
+  file << "# CPack properties\n";
+
+  for(cmake::InstalledFilesMap::const_iterator i = installedFiles.begin();
+    i != installedFiles.end(); ++i)
+    {
+    cmInstalledFile const& installedFile = i->second;
+
+    cmCPackPropertiesGenerator cpackPropertiesGenerator(
+      lg, installedFile, configs);
+
+    cpackPropertiesGenerator.Generate(file, config, configs);
+    }
+
+  return true;
+}

@@ -1,0 +1,2 @@
+f(result)
+        return result;

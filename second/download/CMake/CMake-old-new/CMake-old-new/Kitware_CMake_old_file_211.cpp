@@ -1,6 +1,6 @@
 /*============================================================================
-  KWSys - Kitware System Library
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+  CMake - Cross Platform Makefile Generator
+  Copyright 2000-2011 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
   see accompanying file Copyright.txt for details.
@@ -9,851 +9,663 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(CommandLineArguments.hxx)
+#include "cmCoreTryCompile.h"
 
-#include KWSYS_HEADER(Configure.hxx)
-#include KWSYS_HEADER(String.hxx)
+#include "cmAlgorithms.h"
+#include "cmExportTryCompileFileGenerator.h"
+#include "cmGlobalGenerator.h"
+#include "cmOutputConverter.h"
+#include "cmake.h"
+#include <cmsys/Directory.hxx>
 
-#include KWSYS_HEADER(stl/vector)
-#include KWSYS_HEADER(stl/map)
-#include KWSYS_HEADER(stl/set)
-#include KWSYS_HEADER(ios/sstream)
-#include KWSYS_HEADER(ios/iostream)
+#include <assert.h>
 
-// Work-around CMake dependency scanning limitation.  This must
-// duplicate the above list of headers.
-#if 0
-# include "CommandLineArguments.hxx.in"
-# include "Configure.hxx.in"
-# include "kwsys_stl.hxx.in"
-# include "kwsys_ios_sstream.h.in"
-# include "kwsys_ios_iostream.h.in"
-#endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-#ifdef _MSC_VER
-# pragma warning (disable: 4786)
-#endif
-
-#if defined(__sgi) && !defined(__GNUC__)
-# pragma set woff 1375 /* base class destructor not virtual */
-#endif
-
-#if 0
-#  define CommandLineArguments_DEBUG(x) \
-  kwsys_ios::cout << __LINE__ << " CLA: " << x << kwsys_ios::endl
-#else
-#  define CommandLineArguments_DEBUG(x)
-#endif
-
-namespace KWSYS_NAMESPACE
+int cmCoreTryCompile::TryCompileCode(std::vector<std::string> const& argv,
+                                     bool isTryRun)
 {
+  this->BinaryDirectory = argv[1].c_str();
+  this->OutputFile = "";
+  // which signature were we called with ?
+  this->SrcFileSignature = true;
 
-//----------------------------------------------------------------------------
-//============================================================================
-struct CommandLineArgumentsCallbackStructure
-{
-  const char* Argument;
-  int ArgumentType;
-  CommandLineArguments::CallbackType Callback;
-  void* CallData;
-  void* Variable;
-  int VariableType;
-  const char* Help;
-};
- 
-class CommandLineArgumentsVectorOfStrings : 
-  public kwsys_stl::vector<kwsys::String> {};
-class CommandLineArgumentsSetOfStrings :
-  public kwsys_stl::set<kwsys::String> {};
-class CommandLineArgumentsMapOfStrucs : 
-  public kwsys_stl::map<kwsys::String,
-    CommandLineArgumentsCallbackStructure> {};
-
-class CommandLineArgumentsInternal
-{
-public:
-  CommandLineArgumentsInternal()
-    {
-    this->UnknownArgumentCallback = 0;
-    this->ClientData = 0;
-    this->LastArgument = 0;
+  cmState::TargetType targetType = cmState::EXECUTABLE;
+  const char* tt =
+    this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_TARGET_TYPE");
+  if (!isTryRun && tt && *tt) {
+    if (strcmp(tt, cmState::GetTargetTypeName(cmState::EXECUTABLE)) == 0) {
+      targetType = cmState::EXECUTABLE;
+    } else if (strcmp(tt, cmState::GetTargetTypeName(
+                            cmState::STATIC_LIBRARY)) == 0) {
+      targetType = cmState::STATIC_LIBRARY;
+    } else {
+      this->Makefile->IssueMessage(
+        cmake::FATAL_ERROR, std::string("Invalid value '") + tt +
+          "' for "
+          "CMAKE_TRY_COMPILE_TARGET_TYPE.  Only "
+          "'" +
+          cmState::GetTargetTypeName(cmState::EXECUTABLE) + "' and "
+                                                            "'" +
+          cmState::GetTargetTypeName(cmState::STATIC_LIBRARY) +
+          "' "
+          "are allowed.");
+      return -1;
     }
+  }
 
-  typedef CommandLineArgumentsVectorOfStrings VectorOfStrings;
-  typedef CommandLineArgumentsMapOfStrucs CallbacksMap;
-  typedef kwsys::String String;
-  typedef CommandLineArgumentsSetOfStrings SetOfStrings;
+  const char* sourceDirectory = argv[2].c_str();
+  const char* projectName = 0;
+  std::string targetName;
+  std::vector<std::string> cmakeFlags(1, "CMAKE_FLAGS"); // fake argv[0]
+  std::vector<std::string> compileDefs;
+  std::string outputVariable;
+  std::string copyFile;
+  std::string copyFileError;
+  std::vector<std::string> targets;
+  std::string libsToLink = " ";
+  bool useOldLinkLibs = true;
+  char targetNameBuf[64];
+  bool didOutputVariable = false;
+  bool didCopyFile = false;
+  bool didCopyFileError = false;
+  bool useSources = argv[2] == "SOURCES";
+  std::vector<std::string> sources;
 
-  VectorOfStrings Argv;
-  String Argv0;
-  CallbacksMap Callbacks;
-
-  CommandLineArguments::ErrorCallbackType UnknownArgumentCallback;
-  void*             ClientData;
-
-  VectorOfStrings::size_type LastArgument;
-
-  VectorOfStrings UnusedArguments;
-};
-//============================================================================
-//----------------------------------------------------------------------------
-
-//----------------------------------------------------------------------------
-CommandLineArguments::CommandLineArguments()
-{
-  this->Internals = new CommandLineArguments::Internal;
-  this->Help = "";
-  this->LineLength = 80;
-  this->StoreUnusedArgumentsFlag = false;
-}
-
-//----------------------------------------------------------------------------
-CommandLineArguments::~CommandLineArguments()
-{
-  delete this->Internals;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize(int argc, const char* const argv[])
-{
-  int cc;
-
-  this->Initialize();
-  this->Internals->Argv0 = argv[0];
-  for ( cc = 1; cc < argc; cc ++ )
-    {
-    this->ProcessArgument(argv[cc]);
-    }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize(int argc, char* argv[])
-{
-  this->Initialize(argc, static_cast<const char* const*>(argv));
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::Initialize()
-{
-  this->Internals->Argv.clear();
-  this->Internals->LastArgument = 0;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::ProcessArgument(const char* arg)
-{
-  this->Internals->Argv.push_back(arg);
-}
-
-//----------------------------------------------------------------------------
-bool CommandLineArguments::GetMatchedArguments(
-  kwsys_stl::vector<kwsys_stl::string>* matches,
-  const kwsys_stl::string& arg)
-{
-  matches->clear();
-  CommandLineArguments::Internal::CallbacksMap::iterator it;
-
-  // Does the argument match to any we know about?
-  for ( it = this->Internals->Callbacks.begin();
-    it != this->Internals->Callbacks.end();
-    it ++ )
-    {
-    const CommandLineArguments::Internal::String& parg = it->first;
-    CommandLineArgumentsCallbackStructure *cs = &it->second;
-    if (cs->ArgumentType == CommandLineArguments::NO_ARGUMENT ||
-      cs->ArgumentType == CommandLineArguments::SPACE_ARGUMENT) 
-      {
-      if ( arg == parg )
-        {
-        matches->push_back(parg);
-        }
-      }
-    else if ( arg.find( parg ) == 0 )
-      {
-      matches->push_back(parg);
-      }
-    }
-  return !matches->empty();
-}
-
-//----------------------------------------------------------------------------
-int CommandLineArguments::Parse()
-{
-  kwsys_stl::vector<kwsys_stl::string>::size_type cc;
-  kwsys_stl::vector<kwsys_stl::string> matches;
-  if ( this->StoreUnusedArgumentsFlag )
-    {
-    this->Internals->UnusedArguments.clear();
-    }
-  for ( cc = 0; cc < this->Internals->Argv.size(); cc ++ )
-    {
-    const kwsys_stl::string& arg = this->Internals->Argv[cc]; 
-    CommandLineArguments_DEBUG("Process argument: " << arg);
-    this->Internals->LastArgument = cc;
-    if ( this->GetMatchedArguments(&matches, arg) )
-      {
-      // Ok, we found one or more arguments that match what user specified.
-      // Let's find the longest one.
-      CommandLineArguments::Internal::VectorOfStrings::size_type kk;
-      CommandLineArguments::Internal::VectorOfStrings::size_type maxidx = 0;
-      CommandLineArguments::Internal::String::size_type maxlen = 0;
-      for ( kk = 0; kk < matches.size(); kk ++ )
-        {
-        if ( matches[kk].size() > maxlen )
-          {
-          maxlen = matches[kk].size();
-          maxidx = kk;
-          }
-        }
-      // So, the longest one is probably the right one. Now see if it has any
-      // additional value
-      CommandLineArgumentsCallbackStructure *cs 
-        = &this->Internals->Callbacks[matches[maxidx]];
-      const kwsys_stl::string& sarg = matches[maxidx];
-      if ( cs->Argument != sarg )
-        {
-        abort();
-        }
-      switch ( cs->ArgumentType )
-        {
-      case NO_ARGUMENT:
-        // No value
-        if ( !this->PopulateVariable(cs, 0) )
-          {
-          return 0;
-          }
-        break;
-      case SPACE_ARGUMENT:
-        if ( cc == this->Internals->Argv.size()-1 )
-          {
-          this->Internals->LastArgument --;
-          return 0;
-          }
-        CommandLineArguments_DEBUG("This is a space argument: " << arg
-          << " value: " << this->Internals->Argv[cc+1]);
-        // Value is the next argument
-        if ( !this->PopulateVariable(cs, this->Internals->Argv[cc+1].c_str()) )
-          {
-          return 0;
-          }
-        cc ++;
-        break;
-      case EQUAL_ARGUMENT:
-        if ( arg.size() == sarg.size() || arg.at(sarg.size()) != '=' )
-          {
-          this->Internals->LastArgument --;
-          return 0;
-          }
-        // Value is everythng followed the '=' sign
-        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size() + 1) )
-          {
-          return 0;
-          }
-        break;
-      case CONCAT_ARGUMENT:
-        // Value is whatever follows the argument
-        if ( !this->PopulateVariable(cs, arg.c_str() + sarg.size()) )
-          {
-          return 0;
-          }
-        break;
-      case MULTI_ARGUMENT:
-        // Suck in all the rest of the arguments
-        CommandLineArguments_DEBUG("This is a multi argument: " << arg);
-        for (cc++; cc < this->Internals->Argv.size(); ++ cc )
-          {
-          const kwsys_stl::string& marg = this->Internals->Argv[cc];
-          CommandLineArguments_DEBUG(" check multi argument value: " << marg);
-          if ( this->GetMatchedArguments(&matches, marg) )
-            {
-            CommandLineArguments_DEBUG("End of multi argument " << arg << " with value: " << marg);
+  enum Doing
+  {
+    DoingNone,
+    DoingCMakeFlags,
+    DoingCompileDefinitions,
+    DoingLinkLibraries,
+    DoingOutputVariable,
+    DoingCopyFile,
+    DoingCopyFileError,
+    DoingSources
+  };
+  Doing doing = useSources ? DoingSources : DoingNone;
+  for (size_t i = 3; i < argv.size(); ++i) {
+    if (argv[i] == "CMAKE_FLAGS") {
+      doing = DoingCMakeFlags;
+    } else if (argv[i] == "COMPILE_DEFINITIONS") {
+      doing = DoingCompileDefinitions;
+    } else if (argv[i] == "LINK_LIBRARIES") {
+      doing = DoingLinkLibraries;
+      useOldLinkLibs = false;
+    } else if (argv[i] == "OUTPUT_VARIABLE") {
+      doing = DoingOutputVariable;
+      didOutputVariable = true;
+    } else if (argv[i] == "COPY_FILE") {
+      doing = DoingCopyFile;
+      didCopyFile = true;
+    } else if (argv[i] == "COPY_FILE_ERROR") {
+      doing = DoingCopyFileError;
+      didCopyFileError = true;
+    } else if (doing == DoingCMakeFlags) {
+      cmakeFlags.push_back(argv[i]);
+    } else if (doing == DoingCompileDefinitions) {
+      compileDefs.push_back(argv[i]);
+    } else if (doing == DoingLinkLibraries) {
+      libsToLink += "\"" + cmSystemTools::TrimWhitespace(argv[i]) + "\" ";
+      if (cmTarget* tgt = this->Makefile->FindTargetToUse(argv[i])) {
+        switch (tgt->GetType()) {
+          case cmState::SHARED_LIBRARY:
+          case cmState::STATIC_LIBRARY:
+          case cmState::INTERFACE_LIBRARY:
+          case cmState::UNKNOWN_LIBRARY:
             break;
+          case cmState::EXECUTABLE:
+            if (tgt->IsExecutableWithExports()) {
+              break;
             }
-          CommandLineArguments_DEBUG(" populate multi argument value: " << marg);
-          if ( !this->PopulateVariable(cs, marg.c_str()) )
-            {
-            return 0;
-            }
-          }
-        if ( cc != this->Internals->Argv.size() )
-          {
-          CommandLineArguments_DEBUG("Again End of multi argument " << arg);
-          cc--;
-          continue;
-          }
+          default:
+            this->Makefile->IssueMessage(
+              cmake::FATAL_ERROR,
+              "Only libraries may be used as try_compile or try_run IMPORTED "
+              "LINK_LIBRARIES.  Got " +
+                std::string(tgt->GetName()) + " of "
+                                              "type " +
+                cmState::GetTargetTypeName(tgt->GetType()) + ".");
+            return -1;
+        }
+        if (tgt->IsImported()) {
+          targets.push_back(argv[i]);
+        }
+      }
+    } else if (doing == DoingOutputVariable) {
+      outputVariable = argv[i].c_str();
+      doing = DoingNone;
+    } else if (doing == DoingCopyFile) {
+      copyFile = argv[i].c_str();
+      doing = DoingNone;
+    } else if (doing == DoingCopyFileError) {
+      copyFileError = argv[i].c_str();
+      doing = DoingNone;
+    } else if (doing == DoingSources) {
+      sources.push_back(argv[i]);
+    } else if (i == 3) {
+      this->SrcFileSignature = false;
+      projectName = argv[i].c_str();
+    } else if (i == 4 && !this->SrcFileSignature) {
+      targetName = argv[i].c_str();
+    } else {
+      std::ostringstream m;
+      m << "try_compile given unknown argument \"" << argv[i] << "\".";
+      this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, m.str());
+    }
+  }
+
+  if (didCopyFile && copyFile.empty()) {
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                 "COPY_FILE must be followed by a file path");
+    return -1;
+  }
+
+  if (didCopyFileError && copyFileError.empty()) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR,
+      "COPY_FILE_ERROR must be followed by a variable name");
+    return -1;
+  }
+
+  if (didCopyFileError && !didCopyFile) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR, "COPY_FILE_ERROR may be used only with COPY_FILE");
+    return -1;
+  }
+
+  if (didOutputVariable && outputVariable.empty()) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR,
+      "OUTPUT_VARIABLE must be followed by a variable name");
+    return -1;
+  }
+
+  if (useSources && sources.empty()) {
+    this->Makefile->IssueMessage(
+      cmake::FATAL_ERROR,
+      "SOURCES must be followed by at least one source file");
+    return -1;
+  }
+
+  // compute the binary dir when TRY_COMPILE is called with a src file
+  // signature
+  if (this->SrcFileSignature) {
+    this->BinaryDirectory += cmake::GetCMakeFilesDirectory();
+    this->BinaryDirectory += "/CMakeTmp";
+  } else {
+    // only valid for srcfile signatures
+    if (!compileDefs.empty()) {
+      this->Makefile->IssueMessage(
+        cmake::FATAL_ERROR,
+        "COMPILE_DEFINITIONS specified on a srcdir type TRY_COMPILE");
+      return -1;
+    }
+    if (!copyFile.empty()) {
+      this->Makefile->IssueMessage(
+        cmake::FATAL_ERROR,
+        "COPY_FILE specified on a srcdir type TRY_COMPILE");
+      return -1;
+    }
+  }
+  // make sure the binary directory exists
+  cmSystemTools::MakeDirectory(this->BinaryDirectory.c_str());
+
+  // do not allow recursive try Compiles
+  if (this->BinaryDirectory == this->Makefile->GetHomeOutputDirectory()) {
+    std::ostringstream e;
+    e << "Attempt at a recursive or nested TRY_COMPILE in directory\n"
+      << "  " << this->BinaryDirectory << "\n";
+    this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+    return -1;
+  }
+
+  std::string outFileName = this->BinaryDirectory + "/CMakeLists.txt";
+  // which signature are we using? If we are using var srcfile bindir
+  if (this->SrcFileSignature) {
+    // remove any CMakeCache.txt files so we will have a clean test
+    std::string ccFile = this->BinaryDirectory + "/CMakeCache.txt";
+    cmSystemTools::RemoveFile(ccFile);
+
+    // Choose sources.
+    if (!useSources) {
+      sources.push_back(argv[2]);
+    }
+
+    // Detect languages to enable.
+    cmGlobalGenerator* gg = this->Makefile->GetGlobalGenerator();
+    std::set<std::string> testLangs;
+    for (std::vector<std::string>::iterator si = sources.begin();
+         si != sources.end(); ++si) {
+      std::string ext = cmSystemTools::GetFilenameLastExtension(*si);
+      std::string lang = gg->GetLanguageFromExtension(ext.c_str());
+      if (!lang.empty()) {
+        testLangs.insert(lang);
+      } else {
+        std::ostringstream err;
+        err << "Unknown extension \"" << ext << "\" for file\n"
+            << "  " << *si << "\n"
+            << "try_compile() works only for enabled languages.  "
+            << "Currently these are:\n  ";
+        std::vector<std::string> langs;
+        gg->GetEnabledLanguages(langs);
+        err << cmJoin(langs, " ");
+        err << "\nSee project() command to enable other languages.";
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR, err.str());
+        return -1;
+      }
+    }
+
+    std::string const tcConfig =
+      this->Makefile->GetSafeDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
+
+    // we need to create a directory and CMakeLists file etc...
+    // first create the directories
+    sourceDirectory = this->BinaryDirectory.c_str();
+
+    // now create a CMakeLists.txt file in that directory
+    FILE* fout = cmsys::SystemTools::Fopen(outFileName, "w");
+    if (!fout) {
+      std::ostringstream e;
+      /* clang-format off */
+      e << "Failed to open\n"
+        << "  " << outFileName << "\n"
+        << cmSystemTools::GetLastSystemError();
+      /* clang-format on */
+      this->Makefile->IssueMessage(cmake::FATAL_ERROR, e.str());
+      return -1;
+    }
+
+    const char* def = this->Makefile->GetDefinition("CMAKE_MODULE_PATH");
+    fprintf(fout, "cmake_minimum_required(VERSION %u.%u.%u.%u)\n",
+            cmVersion::GetMajorVersion(), cmVersion::GetMinorVersion(),
+            cmVersion::GetPatchVersion(), cmVersion::GetTweakVersion());
+    if (def) {
+      fprintf(fout, "set(CMAKE_MODULE_PATH \"%s\")\n", def);
+    }
+
+    std::string projectLangs;
+    for (std::set<std::string>::iterator li = testLangs.begin();
+         li != testLangs.end(); ++li) {
+      projectLangs += " " + *li;
+      std::string rulesOverrideBase = "CMAKE_USER_MAKE_RULES_OVERRIDE";
+      std::string rulesOverrideLang = rulesOverrideBase + "_" + *li;
+      if (const char* rulesOverridePath =
+            this->Makefile->GetDefinition(rulesOverrideLang)) {
+        fprintf(fout, "set(%s \"%s\")\n", rulesOverrideLang.c_str(),
+                rulesOverridePath);
+      } else if (const char* rulesOverridePath2 =
+                   this->Makefile->GetDefinition(rulesOverrideBase)) {
+        fprintf(fout, "set(%s \"%s\")\n", rulesOverrideBase.c_str(),
+                rulesOverridePath2);
+      }
+    }
+    fprintf(fout, "project(CMAKE_TRY_COMPILE%s)\n", projectLangs.c_str());
+    fprintf(fout, "set(CMAKE_VERBOSE_MAKEFILE 1)\n");
+    for (std::set<std::string>::iterator li = testLangs.begin();
+         li != testLangs.end(); ++li) {
+      std::string langFlags = "CMAKE_" + *li + "_FLAGS";
+      const char* flags = this->Makefile->GetDefinition(langFlags);
+      fprintf(fout, "set(CMAKE_%s_FLAGS %s)\n", li->c_str(),
+              cmOutputConverter::EscapeForCMake(flags ? flags : "").c_str());
+      fprintf(fout, "set(CMAKE_%s_FLAGS \"${CMAKE_%s_FLAGS}"
+                    " ${COMPILE_DEFINITIONS}\")\n",
+              li->c_str(), li->c_str());
+      static std::string const cfgDefault = "DEBUG";
+      std::string const cfg =
+        !tcConfig.empty() ? cmSystemTools::UpperCase(tcConfig) : cfgDefault;
+      std::string const langFlagsCfg = "CMAKE_" + *li + "_FLAGS_" + cfg;
+      const char* flagsCfg = this->Makefile->GetDefinition(langFlagsCfg);
+      fprintf(
+        fout, "set(%s %s)\n", langFlagsCfg.c_str(),
+        cmOutputConverter::EscapeForCMake(flagsCfg ? flagsCfg : "").c_str());
+    }
+    switch (this->Makefile->GetPolicyStatus(cmPolicies::CMP0056)) {
+      case cmPolicies::WARN:
+        if (this->Makefile->PolicyOptionalWarningEnabled(
+              "CMAKE_POLICY_WARNING_CMP0056")) {
+          std::ostringstream w;
+          /* clang-format off */
+          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0056) << "\n"
+            "For compatibility with older versions of CMake, try_compile "
+            "is not honoring caller link flags (e.g. CMAKE_EXE_LINKER_FLAGS) "
+            "in the test project."
+            ;
+          /* clang-format on */
+          this->Makefile->IssueMessage(cmake::AUTHOR_WARNING, w.str());
+        }
+      case cmPolicies::OLD:
+        // OLD behavior is to do nothing.
         break;
-      default:
-        kwsys_ios::cerr << "Got unknown argument type: \"" << cs->ArgumentType << "\"" << kwsys_ios::endl;
-        this->Internals->LastArgument --;
-        return 0;
+      case cmPolicies::REQUIRED_IF_USED:
+      case cmPolicies::REQUIRED_ALWAYS:
+        this->Makefile->IssueMessage(
+          cmake::FATAL_ERROR,
+          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0056));
+      case cmPolicies::NEW:
+        // NEW behavior is to pass linker flags.
+        {
+          const char* exeLinkFlags =
+            this->Makefile->GetDefinition("CMAKE_EXE_LINKER_FLAGS");
+          fprintf(
+            fout, "set(CMAKE_EXE_LINKER_FLAGS %s)\n",
+            cmOutputConverter::EscapeForCMake(exeLinkFlags ? exeLinkFlags : "")
+              .c_str());
         }
+        break;
+    }
+    fprintf(fout, "set(CMAKE_EXE_LINKER_FLAGS \"${CMAKE_EXE_LINKER_FLAGS}"
+                  " ${EXE_LINKER_FLAGS}\")\n");
+    fprintf(fout, "include_directories(${INCLUDE_DIRECTORIES})\n");
+    fprintf(fout, "set(CMAKE_SUPPRESS_REGENERATION 1)\n");
+    fprintf(fout, "link_directories(${LINK_DIRECTORIES})\n");
+    // handle any compile flags we need to pass on
+    if (!compileDefs.empty()) {
+      fprintf(fout, "add_definitions(%s)\n", cmJoin(compileDefs, " ").c_str());
+    }
+
+    /* Use a random file name to avoid rapid creation and deletion
+       of the same executable name (some filesystems fail on that).  */
+    sprintf(targetNameBuf, "cmTC_%05x", cmSystemTools::RandomSeed() & 0xFFFFF);
+    targetName = targetNameBuf;
+
+    if (!targets.empty()) {
+      std::string fname = "/" + std::string(targetName) + "Targets.cmake";
+      cmExportTryCompileFileGenerator tcfg(gg, targets, this->Makefile);
+      tcfg.SetExportFile((this->BinaryDirectory + fname).c_str());
+      tcfg.SetConfig(tcConfig);
+
+      if (!tcfg.GenerateImportFile()) {
+        this->Makefile->IssueMessage(cmake::FATAL_ERROR,
+                                     "could not write export file.");
+        fclose(fout);
+        return -1;
       }
-    else
-      {
-      // Handle unknown arguments
-      if ( this->Internals->UnknownArgumentCallback )
-        {
-        if ( !this->Internals->UnknownArgumentCallback(arg.c_str(), 
-            this->Internals->ClientData) )
-          {
-          this->Internals->LastArgument --;
-          return 0;
-          }
-        return 1;
-        }
-      else if ( this->StoreUnusedArgumentsFlag )
-        {
-        CommandLineArguments_DEBUG("Store unused argument " << arg);
-        this->Internals->UnusedArguments.push_back(arg);
-        }
-      else
-        {
-        kwsys_ios::cerr << "Got unknown argument: \"" << arg << "\"" << kwsys_ios::endl;
-        this->Internals->LastArgument --;
-        return 0;
-        }
+      fprintf(fout, "\ninclude(\"${CMAKE_CURRENT_LIST_DIR}/%s\")\n\n",
+              fname.c_str());
+    }
+
+    /* for the TRY_COMPILEs we want to be able to specify the architecture.
+      So the user can set CMAKE_OSX_ARCHITECTURES to i386;ppc and then set
+      CMAKE_TRY_COMPILE_OSX_ARCHITECTURES first to i386 and then to ppc to
+      have the tests run for each specific architecture. Since
+      cmLocalGenerator doesn't allow building for "the other"
+      architecture only via CMAKE_OSX_ARCHITECTURES.
+      */
+    if (this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_OSX_ARCHITECTURES") !=
+        0) {
+      std::string flag = "-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition(
+        "CMAKE_TRY_COMPILE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+    } else if (this->Makefile->GetDefinition("CMAKE_OSX_ARCHITECTURES") != 0) {
+      std::string flag = "-DCMAKE_OSX_ARCHITECTURES=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_ARCHITECTURES");
+      cmakeFlags.push_back(flag);
+    }
+    /* on APPLE also pass CMAKE_OSX_SYSROOT to the try_compile */
+    if (this->Makefile->GetDefinition("CMAKE_OSX_SYSROOT") != 0) {
+      std::string flag = "-DCMAKE_OSX_SYSROOT=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_SYSROOT");
+      cmakeFlags.push_back(flag);
+    }
+    /* on APPLE also pass CMAKE_OSX_DEPLOYMENT_TARGET to the try_compile */
+    if (this->Makefile->GetDefinition("CMAKE_OSX_DEPLOYMENT_TARGET") != 0) {
+      std::string flag = "-DCMAKE_OSX_DEPLOYMENT_TARGET=";
+      flag += this->Makefile->GetSafeDefinition("CMAKE_OSX_DEPLOYMENT_TARGET");
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* cxxDef =
+          this->Makefile->GetDefinition("CMAKE_CXX_COMPILER_TARGET")) {
+      std::string flag = "-DCMAKE_CXX_COMPILER_TARGET=";
+      flag += cxxDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* cDef =
+          this->Makefile->GetDefinition("CMAKE_C_COMPILER_TARGET")) {
+      std::string flag = "-DCMAKE_C_COMPILER_TARGET=";
+      flag += cDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* tcxxDef = this->Makefile->GetDefinition(
+          "CMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN")) {
+      std::string flag = "-DCMAKE_CXX_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcxxDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* tcDef = this->Makefile->GetDefinition(
+          "CMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN")) {
+      std::string flag = "-DCMAKE_C_COMPILER_EXTERNAL_TOOLCHAIN=";
+      flag += tcDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (const char* rootDef = this->Makefile->GetDefinition("CMAKE_SYSROOT")) {
+      std::string flag = "-DCMAKE_SYSROOT=";
+      flag += rootDef;
+      cmakeFlags.push_back(flag);
+    }
+    if (this->Makefile->GetDefinition("CMAKE_POSITION_INDEPENDENT_CODE") !=
+        0) {
+      fprintf(fout, "set(CMAKE_POSITION_INDEPENDENT_CODE \"ON\")\n");
+    }
+    if (const char* lssDef =
+          this->Makefile->GetDefinition("CMAKE_LINK_SEARCH_START_STATIC")) {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_START_STATIC \"%s\")\n", lssDef);
+    }
+    if (const char* lssDef =
+          this->Makefile->GetDefinition("CMAKE_LINK_SEARCH_END_STATIC")) {
+      fprintf(fout, "set(CMAKE_LINK_SEARCH_END_STATIC \"%s\")\n", lssDef);
+    }
+
+    /* Set the appropriate policy information for ENABLE_EXPORTS */
+    fprintf(fout, "cmake_policy(SET CMP0065 %s)\n",
+            this->Makefile->GetPolicyStatus(cmPolicies::CMP0065) ==
+                cmPolicies::NEW
+              ? "NEW"
+              : "OLD");
+    if (const char* ee =
+          this->Makefile->GetDefinition("CMAKE_ENABLE_EXPORTS")) {
+      fprintf(fout, "set(CMAKE_ENABLE_EXPORTS %s)\n", ee);
+    }
+
+    if (targetType == cmState::EXECUTABLE) {
+      /* Put the executable at a known location (for COPY_FILE).  */
+      fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
+              this->BinaryDirectory.c_str());
+      /* Create the actual executable.  */
+      fprintf(fout, "add_executable(%s", targetName.c_str());
+    } else // if (targetType == cmState::STATIC_LIBRARY)
+    {
+      /* Put the static library at a known location (for COPY_FILE).  */
+      fprintf(fout, "set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY \"%s\")\n",
+              this->BinaryDirectory.c_str());
+      /* Create the actual static library.  */
+      fprintf(fout, "add_library(%s STATIC", targetName.c_str());
+    }
+    for (std::vector<std::string>::iterator si = sources.begin();
+         si != sources.end(); ++si) {
+      fprintf(fout, " \"%s\"", si->c_str());
+
+      // Add dependencies on any non-temporary sources.
+      if (si->find("CMakeTmp") == si->npos) {
+        this->Makefile->AddCMakeDependFile(*si);
       }
     }
-  return 1;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::GetRemainingArguments(int* argc, char*** argv)
-{
-  CommandLineArguments::Internal::VectorOfStrings::size_type size 
-    = this->Internals->Argv.size() - this->Internals->LastArgument + 1;
-  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
-
-  // Copy Argv0 as the first argument
-  char** args = new char*[ size ];
-  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
-  strcpy(args[0], this->Internals->Argv0.c_str());
-  int cnt = 1;
-
-  // Copy everything after the LastArgument, since that was not parsed.
-  for ( cc = this->Internals->LastArgument+1; 
-    cc < this->Internals->Argv.size(); cc ++ )
-    {
-    args[cnt] = new char[ this->Internals->Argv[cc].size() + 1];
-    strcpy(args[cnt], this->Internals->Argv[cc].c_str());
-    cnt ++;
+    fprintf(fout, ")\n");
+    if (useOldLinkLibs) {
+      fprintf(fout, "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());
+    } else {
+      fprintf(fout, "target_link_libraries(%s %s)\n", targetName.c_str(),
+              libsToLink.c_str());
     }
-  *argc = cnt;
-  *argv = args;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::GetUnusedArguments(int* argc, char*** argv)
-{
-  CommandLineArguments::Internal::VectorOfStrings::size_type size 
-    = this->Internals->UnusedArguments.size() + 1;
-  CommandLineArguments::Internal::VectorOfStrings::size_type cc;
-
-  // Copy Argv0 as the first argument
-  char** args = new char*[ size ];
-  args[0] = new char[ this->Internals->Argv0.size() + 1 ];
-  strcpy(args[0], this->Internals->Argv0.c_str());
-  int cnt = 1;
-
-  // Copy everything after the LastArgument, since that was not parsed.
-  for ( cc = 0;
-    cc < this->Internals->UnusedArguments.size(); cc ++ )
-    {
-    kwsys::String &str = this->Internals->UnusedArguments[cc];
-    args[cnt] = new char[ str.size() + 1];
-    strcpy(args[cnt], str.c_str());
-    cnt ++;
-    }
-  *argc = cnt;
-  *argv = args;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::DeleteRemainingArguments(int argc, char*** argv)
-{
-  int cc;
-  for ( cc = 0; cc < argc; ++ cc )
-    {
-    delete [] (*argv)[cc];
-    }
-  delete [] *argv;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::AddCallback(const char* argument, ArgumentTypeEnum type, 
-  CallbackType callback, void* call_data, const char* help)
-{
-  CommandLineArgumentsCallbackStructure s;
-  s.Argument     = argument;
-  s.ArgumentType = type;
-  s.Callback     = callback;
-  s.CallData     = call_data;
-  s.VariableType = CommandLineArguments::NO_VARIABLE_TYPE;
-  s.Variable     = 0;
-  s.Help         = help;
-
-  this->Internals->Callbacks[argument] = s;
-  this->GenerateHelp();
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type,
-  VariableTypeEnum vtype, void* variable, const char* help)
-{
-  CommandLineArgumentsCallbackStructure s;
-  s.Argument     = argument;
-  s.ArgumentType = type;
-  s.Callback     = 0;
-  s.CallData     = 0;
-  s.VariableType = vtype;
-  s.Variable     = variable;
-  s.Help         = help;
-
-  this->Internals->Callbacks[argument] = s;
-  this->GenerateHelp();
-}
-
-//----------------------------------------------------------------------------
-#define CommandLineArgumentsAddArgumentMacro(type, ctype) \
-  void CommandLineArguments::AddArgument(const char* argument, ArgumentTypeEnum type, \
-    ctype* variable, const char* help) \
-  { \
-    this->AddArgument(argument, type, CommandLineArguments::type##_TYPE, variable, help); \
+    fclose(fout);
+    projectName = "CMAKE_TRY_COMPILE";
   }
 
-CommandLineArgumentsAddArgumentMacro(BOOL,       bool)
-CommandLineArgumentsAddArgumentMacro(INT,        int)
-CommandLineArgumentsAddArgumentMacro(DOUBLE,     double)
-CommandLineArgumentsAddArgumentMacro(STRING,     char*)
-CommandLineArgumentsAddArgumentMacro(STL_STRING, kwsys_stl::string)
-
-CommandLineArgumentsAddArgumentMacro(VECTOR_BOOL,       kwsys_stl::vector<bool>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_INT,        kwsys_stl::vector<int>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_DOUBLE,     kwsys_stl::vector<double>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_STRING,     kwsys_stl::vector<char*>)
-CommandLineArgumentsAddArgumentMacro(VECTOR_STL_STRING, kwsys_stl::vector<kwsys_stl::string>)
-
-//----------------------------------------------------------------------------
-#define CommandLineArgumentsAddBooleanArgumentMacro(type, ctype) \
-  void CommandLineArguments::AddBooleanArgument(const char* argument, \
-    ctype* variable, const char* help) \
-  { \
-    this->AddArgument(argument, CommandLineArguments::NO_ARGUMENT, \
-      CommandLineArguments::type##_TYPE, variable, help); \
+  bool erroroc = cmSystemTools::GetErrorOccuredFlag();
+  cmSystemTools::ResetErrorOccuredFlag();
+  std::string output;
+  // actually do the try compile now that everything is setup
+  int res = this->Makefile->TryCompile(
+    sourceDirectory, this->BinaryDirectory, projectName, targetName,
+    this->SrcFileSignature, &cmakeFlags, output);
+  if (erroroc) {
+    cmSystemTools::SetErrorOccured();
   }
 
-CommandLineArgumentsAddBooleanArgumentMacro(BOOL,       bool)
-CommandLineArgumentsAddBooleanArgumentMacro(INT,        int)
-CommandLineArgumentsAddBooleanArgumentMacro(DOUBLE,     double)
-CommandLineArgumentsAddBooleanArgumentMacro(STRING,     char*)
-CommandLineArgumentsAddBooleanArgumentMacro(STL_STRING, kwsys_stl::string)
+  // set the result var to the return value to indicate success or failure
+  this->Makefile->AddCacheDefinition(argv[0], (res == 0 ? "TRUE" : "FALSE"),
+                                     "Result of TRY_COMPILE",
+                                     cmState::INTERNAL);
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetClientData(void* client_data)
-{
-  this->Internals->ClientData = client_data;
-}
+  if (!outputVariable.empty()) {
+    this->Makefile->AddDefinition(outputVariable, output.c_str());
+  }
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetUnknownArgumentCallback(
-  CommandLineArguments::ErrorCallbackType callback)
-{
-  this->Internals->UnknownArgumentCallback = callback;
-}
+  if (this->SrcFileSignature) {
+    std::string copyFileErrorMessage;
+    this->FindOutputFile(targetName, targetType);
 
-//----------------------------------------------------------------------------
-const char* CommandLineArguments::GetHelp(const char* arg)
-{
-  CommandLineArguments::Internal::CallbacksMap::iterator it 
-    = this->Internals->Callbacks.find(arg);
-  if ( it == this->Internals->Callbacks.end() )
-    {
-    return 0;
-    }
-
-  // Since several arguments may point to the same argument, find the one this
-  // one point to if this one is pointing to another argument.
-  CommandLineArgumentsCallbackStructure *cs = &(it->second);
-  for(;;)
-    {
-    CommandLineArguments::Internal::CallbacksMap::iterator hit 
-      = this->Internals->Callbacks.find(cs->Help);
-    if ( hit == this->Internals->Callbacks.end() )
-      {
-      break;
+    if ((res == 0) && !copyFile.empty()) {
+      if (this->OutputFile.empty() ||
+          !cmSystemTools::CopyFileAlways(this->OutputFile, copyFile)) {
+        std::ostringstream emsg;
+        /* clang-format off */
+        emsg << "Cannot copy output executable\n"
+             << "  '" << this->OutputFile << "'\n"
+             << "to destination specified by COPY_FILE:\n"
+             << "  '" << copyFile << "'\n";
+        /* clang-format on */
+        if (!this->FindErrorMessage.empty()) {
+          emsg << this->FindErrorMessage.c_str();
+        }
+        if (copyFileError.empty()) {
+          this->Makefile->IssueMessage(cmake::FATAL_ERROR, emsg.str());
+          return -1;
+        } else {
+          copyFileErrorMessage = emsg.str();
+        }
       }
-    cs = &(hit->second);
     }
-  return cs->Help;
+
+    if (!copyFileError.empty()) {
+      this->Makefile->AddDefinition(copyFileError,
+                                    copyFileErrorMessage.c_str());
+    }
+  }
+  return res;
 }
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::SetLineLength(unsigned int ll)
+void cmCoreTryCompile::CleanupFiles(const char* binDir)
 {
-  if ( ll < 9 || ll > 1000 )
-    {
+  if (!binDir) {
     return;
-    }
-  this->LineLength = ll;
-  this->GenerateHelp();
-}
+  }
 
-//----------------------------------------------------------------------------
-const char* CommandLineArguments::GetArgv0()
-{
-  return this->Internals->Argv0.c_str();
-}
+  std::string bdir = binDir;
+  if (bdir.find("CMakeTmp") == std::string::npos) {
+    cmSystemTools::Error(
+      "TRY_COMPILE attempt to remove -rf directory that does not contain "
+      "CMakeTmp:",
+      binDir);
+    return;
+  }
 
-//----------------------------------------------------------------------------
-unsigned int CommandLineArguments::GetLastArgument()
-{
-  return static_cast<unsigned int>(this->Internals->LastArgument + 1);
-}
+  cmsys::Directory dir;
+  dir.Load(binDir);
+  size_t fileNum;
+  std::set<std::string> deletedFiles;
+  for (fileNum = 0; fileNum < dir.GetNumberOfFiles(); ++fileNum) {
+    if (strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)), ".") &&
+        strcmp(dir.GetFile(static_cast<unsigned long>(fileNum)), "..")) {
 
-//----------------------------------------------------------------------------
-void CommandLineArguments::GenerateHelp()
-{
-  kwsys_ios::ostringstream str;
-  
-  // Collapse all arguments into the map of vectors of all arguments that do
-  // the same thing.
-  CommandLineArguments::Internal::CallbacksMap::iterator it;
-  typedef kwsys_stl::map<CommandLineArguments::Internal::String, 
-     CommandLineArguments::Internal::SetOfStrings > MapArgs;
-  MapArgs mp;
-  MapArgs::iterator mpit, smpit;
-  for ( it = this->Internals->Callbacks.begin();
-    it != this->Internals->Callbacks.end();
-    it ++ )
-    {
-    CommandLineArgumentsCallbackStructure *cs = &(it->second);
-    mpit = mp.find(cs->Help);
-    if ( mpit != mp.end() )
-      {
-      mpit->second.insert(it->first);
-      mp[it->first].insert(it->first);
-      }
-    else
-      {
-      mp[it->first].insert(it->first);
-      }
-    }
-  for ( it = this->Internals->Callbacks.begin();
-    it != this->Internals->Callbacks.end();
-    it ++ )
-    {
-    CommandLineArgumentsCallbackStructure *cs = &(it->second);
-    mpit = mp.find(cs->Help);
-    if ( mpit != mp.end() )
-      {
-      mpit->second.insert(it->first);
-      smpit = mp.find(it->first);
-      CommandLineArguments::Internal::SetOfStrings::iterator sit;
-      for ( sit = smpit->second.begin(); sit != smpit->second.end(); sit++ )
-        {
-        mpit->second.insert(*sit);
-        }
-      mp.erase(smpit);
-      }
-    else
-      {
-      mp[it->first].insert(it->first);
-      }
-    }
- 
-  // Find the length of the longest string
-  CommandLineArguments::Internal::String::size_type maxlen = 0;
-  for ( mpit = mp.begin();
-    mpit != mp.end();
-    mpit ++ )
-    {
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      CommandLineArguments::Internal::String::size_type clen = sit->size();
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
-        {
-        case CommandLineArguments::NO_ARGUMENT:     clen += 0; break;
-        case CommandLineArguments::CONCAT_ARGUMENT: clen += 3; break;
-        case CommandLineArguments::SPACE_ARGUMENT:  clen += 4; break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  clen += 4; break;
-        }
-      if ( clen > maxlen )
-        {
-        maxlen = clen;
-        }
-      }
-    }
-
-  // Create format for that string
-  char format[80];
-  sprintf(format, "  %%-%us  ", static_cast<unsigned int>(maxlen));
-
-  maxlen += 4; // For the space before and after the option
-
-  // Print help for each option
-  for ( mpit = mp.begin();
-    mpit != mp.end();
-    mpit ++ )
-    {
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      str << kwsys_ios::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
-        {
-        case CommandLineArguments::NO_ARGUMENT: break;
-        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
-        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
-        case CommandLineArguments::MULTI_ARGUMENT:  strcat(argument, " opt opt ..."); break;
-        }
-      char buffer[80];
-      sprintf(buffer, format, argument);
-      str << buffer;
-      }
-    const char* ptr = this->Internals->Callbacks[mpit->first].Help;
-    size_t len = strlen(ptr);
-    int cnt = 0;
-    while ( len > 0)
-      {
-      // If argument with help is longer than line length, split it on previous
-      // space (or tab) and continue on the next line
-      CommandLineArguments::Internal::String::size_type cc;
-      for ( cc = 0; ptr[cc]; cc ++ )
-        {
-        if ( *ptr == ' ' || *ptr == '\t' )
+      if (deletedFiles.find(dir.GetFile(
+            static_cast<unsigned long>(fileNum))) == deletedFiles.end()) {
+        deletedFiles.insert(dir.GetFile(static_cast<unsigned long>(fileNum)));
+        std::string fullPath = binDir;
+        fullPath += "/";
+        fullPath += dir.GetFile(static_cast<unsigned long>(fileNum));
+        if (cmSystemTools::FileIsDirectory(fullPath)) {
+          this->CleanupFiles(fullPath.c_str());
+          cmSystemTools::RemoveADirectory(fullPath);
+        } else {
+#ifdef _WIN32
+          // Sometimes anti-virus software hangs on to new files so we
+          // cannot delete them immediately.  Try a few times.
+          cmSystemTools::WindowsFileRetry retry =
+            cmSystemTools::GetWindowsFileRetry();
+          while (!cmSystemTools::RemoveFile(fullPath.c_str()) &&
+                 --retry.Count &&
+                 cmSystemTools::FileExists(fullPath.c_str())) {
+            cmSystemTools::Delay(retry.Delay);
+          }
+          if (retry.Count == 0)
+#else
+          if (!cmSystemTools::RemoveFile(fullPath))
+#endif
           {
-          ptr ++;
-          len --;
+            std::string m = "Remove failed on file: " + fullPath;
+            cmSystemTools::ReportLastSystemError(m.c_str());
           }
         }
-      if ( cnt > 0 )
-        {
-        for ( cc = 0; cc < maxlen; cc ++ )
-          {
-          str << " ";
-          }
-        }
-      CommandLineArguments::Internal::String::size_type skip = len;
-      if ( skip > this->LineLength - maxlen )
-        {
-        skip = this->LineLength - maxlen;
-        for ( cc = skip-1; cc > 0; cc -- )
-          {
-          if ( ptr[cc] == ' ' || ptr[cc] == '\t' )
-            {
-            break;
-            }
-          }
-        if ( cc != 0 )
-          {
-          skip = cc;
-          }
-        }
-      str.write(ptr, static_cast<kwsys_ios::streamsize>(skip));
-      str << kwsys_ios::endl;
-      ptr += skip;
-      len -= skip;
-      cnt ++;
       }
     }
-  /*
-  // This can help debugging help string
-  str << endl;
-  unsigned int cc;
-  for ( cc = 0; cc < this->LineLength; cc ++ )
-    {
-    str << cc % 10;
+  }
+}
+
+void cmCoreTryCompile::FindOutputFile(const std::string& targetName,
+                                      cmState::TargetType targetType)
+{
+  this->FindErrorMessage = "";
+  this->OutputFile = "";
+  std::string tmpOutputFile = "/";
+  if (targetType == cmState::EXECUTABLE) {
+    tmpOutputFile += targetName;
+    tmpOutputFile +=
+      this->Makefile->GetSafeDefinition("CMAKE_EXECUTABLE_SUFFIX");
+  } else // if (targetType == cmState::STATIC_LIBRARY)
+  {
+    tmpOutputFile +=
+      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LIBRARY_PREFIX");
+    tmpOutputFile += targetName;
+    tmpOutputFile +=
+      this->Makefile->GetSafeDefinition("CMAKE_STATIC_LIBRARY_SUFFIX");
+  }
+
+  // a list of directories where to search for the compilation result
+  // at first directly in the binary dir
+  std::vector<std::string> searchDirs;
+  searchDirs.push_back("");
+
+  const char* config =
+    this->Makefile->GetDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
+  // if a config was specified try that first
+  if (config && config[0]) {
+    std::string tmp = "/";
+    tmp += config;
+    searchDirs.push_back(tmp);
+  }
+  searchDirs.push_back("/Debug");
+#if defined(__APPLE__)
+  std::string app = "/Debug/" + targetName + ".app";
+  searchDirs.push_back(app);
+#endif
+  searchDirs.push_back("/Development");
+
+  for (std::vector<std::string>::const_iterator it = searchDirs.begin();
+       it != searchDirs.end(); ++it) {
+    std::string command = this->BinaryDirectory;
+    command += *it;
+    command += tmpOutputFile;
+    if (cmSystemTools::FileExists(command.c_str())) {
+      this->OutputFile = cmSystemTools::CollapseFullPath(command);
+      return;
     }
-  str << endl;
-  */
-  this->Help = str.str();
+  }
+
+  std::ostringstream emsg;
+  emsg << "Unable to find the executable at any of:\n";
+  emsg << cmWrap("  " + this->BinaryDirectory, searchDirs, tmpOutputFile, "\n")
+       << "\n";
+  this->FindErrorMessage = emsg.str();
+  return;
 }
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  bool* variable, const kwsys_stl::string& value)
-{
-  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
-    value == "TRUE" || value == "true" || value == "True" ||
-    value == "yes" || value == "Yes" || value == "YES" )
-    {
-    *variable = true;
-    }
-  else
-    {
-    *variable = false;
-    }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  int* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  *variable = static_cast<int>(strtol(value.c_str(), &res, 10));
-  //if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  double* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  *variable = strtod(value.c_str(), &res);
-  //if ( res && *res )
-  //  {
-  //  Can handle non-double
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  char** variable, const kwsys_stl::string& value)
-{
-  if ( *variable )
-    {
-    delete [] *variable;
-    *variable = 0;
-    }
-  *variable = new char[ value.size() + 1 ];
-  strcpy(*variable, value.c_str());
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::string* variable, const kwsys_stl::string& value)
-{
-  *variable = value;
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<bool>* variable, const kwsys_stl::string& value)
-{
-  bool val = false;
-  if ( value == "1" || value == "ON" || value == "on" || value == "On" ||
-    value == "TRUE" || value == "true" || value == "True" ||
-    value == "yes" || value == "Yes" || value == "YES" )
-    {
-    val = true;
-    }
-  variable->push_back(val);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<int>* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  variable->push_back(static_cast<int>(strtol(value.c_str(), &res, 10)));
-  //if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<double>* variable, const kwsys_stl::string& value)
-{
-  char* res = 0;
-  variable->push_back(strtod(value.c_str(), &res));
-  //if ( res && *res )
-  //  {
-  //  Can handle non-int
-  //  }
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<char*>* variable, const kwsys_stl::string& value)
-{
-  char* var = new char[ value.size() + 1 ];
-  strcpy(var, value.c_str());
-  variable->push_back(var);
-}
-
-//----------------------------------------------------------------------------
-void CommandLineArguments::PopulateVariable(
-  kwsys_stl::vector<kwsys_stl::string>* variable,
-  const kwsys_stl::string& value)
-{
-  variable->push_back(value);
-}
-
-//----------------------------------------------------------------------------
-bool CommandLineArguments::PopulateVariable(CommandLineArgumentsCallbackStructure* cs,
-  const char* value)
-{
-  // Call the callback
-  if ( cs->Callback )
-    {
-    if ( !cs->Callback(cs->Argument, value, cs->CallData) )
-      {
-      this->Internals->LastArgument --;
-      return 0;
-      }
-    }
-  CommandLineArguments_DEBUG("Set argument: " << cs->Argument << " to " << value);
-  if ( cs->Variable )
-    {
-    kwsys_stl::string var = "1";
-    if ( value )
-      {
-      var = value;
-      }
-    switch ( cs->VariableType )
-      {
-    case CommandLineArguments::INT_TYPE:
-      this->PopulateVariable(static_cast<int*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::DOUBLE_TYPE:
-      this->PopulateVariable(static_cast<double*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::STRING_TYPE:
-      this->PopulateVariable(static_cast<char**>(cs->Variable), var);
-      break;
-    case CommandLineArguments::STL_STRING_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::string*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::BOOL_TYPE:
-      this->PopulateVariable(static_cast<bool*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_BOOL_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<bool>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_INT_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<int>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_DOUBLE_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<double>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_STRING_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<char*>*>(cs->Variable), var);
-      break;
-    case CommandLineArguments::VECTOR_STL_STRING_TYPE:
-      this->PopulateVariable(static_cast<kwsys_stl::vector<kwsys_stl::string>*>(cs->Variable), var);
-      break;
-    default:
-      kwsys_ios::cerr << "Got unknown variable type: \"" << cs->VariableType << "\"" << kwsys_ios::endl;
-      this->Internals->LastArgument --;
-      return 0;
-      }
-    }
-  return 1;
-}
-
-
-} // namespace KWSYS_NAMESPACE

@@ -1,0 +1,3 @@
+{
+      parser->PPDefinitions.erase(match);
+    }

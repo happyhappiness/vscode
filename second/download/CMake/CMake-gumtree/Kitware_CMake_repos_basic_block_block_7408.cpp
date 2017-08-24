@@ -1,0 +1,1 @@
+Curl_ssl_push_certinfo(data, certnum, "Subject", ccp)

@@ -1,0 +1,1 @@
+r = stat(a->name, &a->st)

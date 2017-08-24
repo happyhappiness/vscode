@@ -1,0 +1,3 @@
+{
+    kwsysProcessCleanupHandle(&si->StartupInfo.hStdInput);
+  }

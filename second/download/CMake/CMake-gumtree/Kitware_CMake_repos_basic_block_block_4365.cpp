@@ -1,0 +1,1 @@
+writetype |= CLIENTWRITE_BODY

@@ -1,0 +1,1 @@
+memcpy(&bp[9], np->identifier, len)

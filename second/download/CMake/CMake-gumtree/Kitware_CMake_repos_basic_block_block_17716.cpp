@@ -1,0 +1,1 @@
+archive_le32enc(zip->file_header + 16, zip->entry_crc32)

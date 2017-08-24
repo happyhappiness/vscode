@@ -1,0 +1,1 @@
+{ MASK(ps[--i]->Symbol) = 0; }

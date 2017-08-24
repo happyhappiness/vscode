@@ -1,0 +1,1 @@
+memset(state->out_block, 0, 64 * 1024)

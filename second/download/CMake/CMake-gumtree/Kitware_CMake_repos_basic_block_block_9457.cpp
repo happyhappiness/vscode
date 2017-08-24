@@ -1,0 +1,1 @@
+archive_entry_set_fflags(entry, st->st_flags, 0)

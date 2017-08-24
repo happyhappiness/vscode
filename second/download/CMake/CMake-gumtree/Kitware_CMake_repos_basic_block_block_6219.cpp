@@ -1,0 +1,3 @@
+{
+    _fsetmode(stdout, "b");
+  }

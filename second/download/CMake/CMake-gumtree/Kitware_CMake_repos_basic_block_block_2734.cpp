@@ -1,0 +1,3 @@
+{
+    vkDestroyInstance(instance, NULL);
+  }

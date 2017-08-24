@@ -1,7 +1,6 @@
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
+	if ((keys & F_UID) != 0)
+		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
 
+	switch (me->filetype) {
+	case AE_IFLNK:
+		if ((keys & F_TYPE) != 0)

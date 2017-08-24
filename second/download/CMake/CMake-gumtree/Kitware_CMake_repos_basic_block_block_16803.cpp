@@ -1,0 +1,1 @@
+mtree->compute_sum |= F_SHA1

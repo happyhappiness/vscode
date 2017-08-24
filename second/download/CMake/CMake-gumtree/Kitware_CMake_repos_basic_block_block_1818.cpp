@@ -1,0 +1,1 @@
+this->ChipID.ProcessorName = "Athlon - XP (Thoroughbred core)"

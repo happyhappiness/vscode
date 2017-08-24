@@ -1,0 +1,1 @@
+*length = aes->aes_mbs_in_locale.length

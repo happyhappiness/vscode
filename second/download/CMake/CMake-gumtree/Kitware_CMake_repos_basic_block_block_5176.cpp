@@ -1,0 +1,1 @@
+return (curr->ptr == data) ? TRUE : FALSE;

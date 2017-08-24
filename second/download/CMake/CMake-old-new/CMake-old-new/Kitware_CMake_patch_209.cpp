@@ -1,61 +1,43 @@
-@@ -173,7 +173,7 @@ class DumpSymbols
-    */
+@@ -2127,6 +2127,12 @@ parse_codes(struct archive_read *a)
+       rar->range_dec.Stream = &rar->bytein;
+       __archive_ppmd7_functions.Ppmd7_Construct(&rar->ppmd7_context);
  
-    DumpSymbols(ObjectHeaderType* ih,
--               FILE* fout) {
-+               FILE* fout, bool is64) {
-       this->ObjectImageHeader = ih;
-       this->SymbolTable = (SymbolTableType*)
-       ((DWORD_PTR)this->ObjectImageHeader
-@@ -183,6 +183,7 @@ class DumpSymbols
-         GetSectionHeaderOffset(this->ObjectImageHeader);
-       this->ImportFlag = true;
-       this->SymbolCount = this->ObjectImageHeader->NumberOfSymbols;
-+      this->Is64Bit = is64;
-    }
++      if (rar->dictionary_size == 0) {
++	      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
++                          "Invalid zero dictionary size");
++	      return (ARCHIVE_FATAL);
++      }
++
+       if (!__archive_ppmd7_functions.Ppmd7_Alloc(&rar->ppmd7_context,
+         rar->dictionary_size, &g_szalloc))
+       {
+@@ -2884,11 +2890,10 @@ copy_from_lzss_window(struct archive_read *a, const void **buffer,
+   }
  
-   /*
-@@ -287,7 +288,14 @@ class DumpSymbols
-                   symbol.erase(posAt);
-                }
-             }
--            if (symbol[0] == '_') symbol.erase(0,1);
-+            // For 64 bit builds we don't need to remove _
-+            if(!this->Is64Bit)
-+              {
-+              if (symbol[0] == '_')
-+                {
-+                symbol.erase(0,1);
-+                }
-+              }
-             if (this->ImportFlag) {
-                this->ImportFlag = false;
-                fprintf(this->FileOut,"EXPORTS \n");
-@@ -355,6 +363,7 @@ class DumpSymbols
-   PIMAGE_SECTION_HEADER SectionHeaders;
-   ObjectHeaderType* ObjectImageHeader;
-   SymbolTableType*  SymbolTable;
-+  bool Is64Bit;
- };
- 
- bool
-@@ -406,15 +415,17 @@ DumpFile(const char* filename, FILE *fout)
-       * and IMAGE_FILE_HEADER.SizeOfOptionalHeader == 0;
-       */
-       DumpSymbols<IMAGE_FILE_HEADER, IMAGE_SYMBOL>
--        symbolDumper((PIMAGE_FILE_HEADER) lpFileBase, fout);
-+        symbolDumper((PIMAGE_FILE_HEADER) lpFileBase, fout,
-+                     (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64));
-       symbolDumper.DumpObjFile();
-    } else {
-       // check for /bigobj format
-       cmANON_OBJECT_HEADER_BIGOBJ* h =
-         (cmANON_OBJECT_HEADER_BIGOBJ*) lpFileBase;
-       if(h->Sig1 == 0x0 && h->Sig2 == 0xffff) {
-          DumpSymbols<cmANON_OBJECT_HEADER_BIGOBJ, cmIMAGE_SYMBOL_EX>
--           symbolDumper((cmANON_OBJECT_HEADER_BIGOBJ*) lpFileBase, fout);
-+           symbolDumper((cmANON_OBJECT_HEADER_BIGOBJ*) lpFileBase, fout,
-+                        (dosHeader->e_magic == IMAGE_FILE_MACHINE_AMD64));
-          symbolDumper.DumpObjFile();
-       } else {
-          printf("unrecognized file format in '%s'\n", filename);
+   windowoffs = lzss_offset_for_position(&rar->lzss, startpos);
+-  if(windowoffs + length <= lzss_size(&rar->lzss))
++  if(windowoffs + length <= lzss_size(&rar->lzss)) {
+     memcpy(&rar->unp_buffer[rar->unp_offset], &rar->lzss.window[windowoffs],
+            length);
+-  else
+-  {
++  } else if (length <= lzss_size(&rar->lzss)) {
+     firstpart = lzss_size(&rar->lzss) - windowoffs;
+     if (firstpart < 0) {
+       archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+@@ -2900,9 +2905,14 @@ copy_from_lzss_window(struct archive_read *a, const void **buffer,
+              &rar->lzss.window[windowoffs], firstpart);
+       memcpy(&rar->unp_buffer[rar->unp_offset + firstpart],
+              &rar->lzss.window[0], length - firstpart);
+-    } else
++    } else {
+       memcpy(&rar->unp_buffer[rar->unp_offset],
+              &rar->lzss.window[windowoffs], length);
++    }
++  } else {
++      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
++                        "Bad RAR file data");
++      return (ARCHIVE_FATAL);
+   }
+   rar->unp_offset += length;
+   if (rar->unp_offset >= rar->unp_buffer_size)

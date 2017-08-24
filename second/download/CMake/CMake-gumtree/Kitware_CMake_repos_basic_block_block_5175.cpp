@@ -1,0 +1,1 @@
+Curl_llist_destroy(list, NULL)

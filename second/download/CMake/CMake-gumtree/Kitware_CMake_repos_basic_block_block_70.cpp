@@ -1,0 +1,1 @@
+(maxgrow) *maxgrow = field->maxgrow

@@ -1,0 +1,1 @@
+CryptDestroyHash(ctx->hHash)

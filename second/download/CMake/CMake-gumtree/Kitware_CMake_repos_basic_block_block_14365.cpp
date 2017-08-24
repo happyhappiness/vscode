@@ -1,0 +1,1 @@
+ret = (a->format_init)(a)

@@ -1,0 +1,1 @@
+bsPutBit ( bs, (c >> i) & 0x1 )

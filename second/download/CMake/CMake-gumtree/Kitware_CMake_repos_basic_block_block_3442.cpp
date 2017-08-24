@@ -1,0 +1,1 @@
+(s->nMTF < 600)  nGroups = 3

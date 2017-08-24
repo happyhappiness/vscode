@@ -1,0 +1,4 @@
+{
+				np = np->drnext;
+				break;
+			}

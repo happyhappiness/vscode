@@ -1,0 +1,1 @@
+((char*)to)[index ^ 7] = *(src++)

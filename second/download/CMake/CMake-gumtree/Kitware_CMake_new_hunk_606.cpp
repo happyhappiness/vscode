@@ -1,14 +1,11 @@
-                            sizeof(rar->reserved2));
+            symbol = stringTable + pSymbolTable->N.Name.Long;
+            while (isspace(symbol[0]))  symbol.erase(0,1);
+            if (symbol[0] == '_') symbol.erase(0,1);
+            if (!this->ImportFlag) {
+               this->ImportFlag = true;
+               fprintf(this->FileOut,"IMPORTS \n");
+            }
+            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
+         }
       }
 
-      /* Main header is password encrytped, so we cannot read any
-         file names or any other info about files from the header. */
-      if (rar->main_flags & MHD_PASSWORD)
-      {
-        archive_entry_set_is_metadata_encrypted(entry, 1);
-        archive_entry_set_is_data_encrypted(entry, 1);
-        rar->has_encrypted_entries = 1;
-         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-                          "RAR encryption support unavailable.");
-        return (ARCHIVE_FATAL);
-      }

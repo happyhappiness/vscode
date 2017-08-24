@@ -1,0 +1,2 @@
+(enc == encoding)
+            eventPtr = entityTextPtr

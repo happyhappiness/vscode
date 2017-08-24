@@ -1,0 +1,1 @@
+timeout = (timeoutms > LONG_MAX) ? LONG_MAX : (long)timeoutms

@@ -1,0 +1,1 @@
+QUEUE_ADD(&handle->cf_events, events)

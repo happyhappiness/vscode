@@ -1,0 +1,1 @@
+dest[1] = curlx_ultouc(x & 0xFFUL)

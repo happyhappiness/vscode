@@ -1,27 +1,29 @@
+    if(result)
+      return result;
 
-static void yy_fatal_error (yyconst char* msg , yyscan_t yyscanner)
-{
-        (void)yyscanner;
-        (void) fprintf( stderr, "%s\n", msg );
-        exit( YY_EXIT_FAILURE );
-}
+    if(fstated) {
+      time_t filetime = (time_t)statbuf.st_mtime;
+      struct tm buffer;
+      const struct tm *tm = &buffer;
+      result = Curl_gmtime(filetime, &buffer);
+      if(result)
+        return result;
 
-/* Redefine yyless() so it works in section 3 code. */
-
-#undef yyless
-#define yyless(n) \
-        do \
-                { \
-                /* Undo effects of setting up yytext. */ \
-        int yyless_macro_arg = (n); \
-        YY_LESS_LINENO(yyless_macro_arg);\
-                yytext[yyleng] = yyg->yy_hold_char; \
-                yyg->yy_c_buf_p = yytext + yyless_macro_arg; \
-                yyg->yy_hold_char = *yyg->yy_c_buf_p; \
-                *yyg->yy_c_buf_p = '\0'; \
-                yyleng = yyless_macro_arg; \
-                } \
-        while ( 0 )
-
-/* Accessor  methods (get/set functions) to struct members. */
-
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+      snprintf(buf, BUFSIZE-1,
+               "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+               tm->tm_mday,
+               Curl_month[tm->tm_mon],
+               tm->tm_year + 1900,
+               tm->tm_hour,
+               tm->tm_min,
+               tm->tm_sec);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+    }
+    /* if we fstat()ed the file, set the file size to make it available post-
+       transfer */
+    if(fstated)
+      Curl_pgrsSetDownloadSize(data, expected_size);
+    return result;
+  }

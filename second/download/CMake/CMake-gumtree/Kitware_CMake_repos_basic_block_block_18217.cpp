@@ -1,0 +1,1 @@
+length_update_prices(lc, pos_state)

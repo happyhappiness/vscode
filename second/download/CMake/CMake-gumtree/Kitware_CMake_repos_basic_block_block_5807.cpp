@@ -1,0 +1,1 @@
+curl_multi_cleanup(data->multi_easy)

@@ -1,0 +1,4 @@
+{
+        nwritten += n;
+        continue;
+      }

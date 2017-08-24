@@ -1,0 +1,1 @@
+(nGroups < 2 || nGroups > 6) RETURN(BZ_DATA_ERROR)

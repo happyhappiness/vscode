@@ -1,0 +1,1 @@
+rsa_copy(&connssl->rsa, pk_rsa(pk))

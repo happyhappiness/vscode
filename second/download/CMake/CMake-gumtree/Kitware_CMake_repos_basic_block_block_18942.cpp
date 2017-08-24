@@ -1,0 +1,3 @@
+{
+    req->ptr = &req->statbuf;
+  }

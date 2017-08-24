@@ -1,0 +1,1 @@
+r =  lha_read_data_none(a, buff, size, offset)

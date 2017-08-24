@@ -1,0 +1,1 @@
+(uc != BZ_HDR_h) RETURN(BZ_DATA_ERROR_MAGIC)

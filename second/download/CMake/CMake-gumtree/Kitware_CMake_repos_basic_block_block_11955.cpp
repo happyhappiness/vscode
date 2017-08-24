@@ -1,0 +1,1 @@
+lha->mtime = archive_le32dec(extdheader)

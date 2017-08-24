@@ -1,0 +1,1 @@
+f(res == IF2IP_NOT_FOUND) res = IF2IP_AF_NOT_SUPPORTED

@@ -1,3126 +1,8158 @@
-/*============================================================================
-  CMake - Cross Platform Makefile Generator
-  Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
+/*-
+ * Copyright (c) 2009-2012 Michihiro NAKAJIMA
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
+ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
-  Distributed under the OSI-approved BSD License (the "License");
-  see accompanying file Copyright.txt for details.
+#include "archive_platform.h"
 
-  This software is distributed WITHOUT ANY WARRANTY; without even the
-  implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-  See the License for more information.
-============================================================================*/
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_UTSNAME_H
+#include <sys/utsname.h>
+#endif
+#ifdef HAVE_ERRNO_H
+#include <errno.h>
+#endif
+#ifdef HAVE_LIMITS_H
+#include <limits.h>
+#endif
+#include <stdio.h>
+#include <stdarg.h>
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>
+#endif
+#include <time.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_ZLIB_H
+#include <cm_zlib.h>
+#endif
+
+#include "archive.h"
+#include "archive_endian.h"
+#include "archive_entry.h"
+#include "archive_entry_locale.h"
+#include "archive_private.h"
+#include "archive_rb.h"
+#include "archive_write_private.h"
+
 #if defined(_WIN32) && !defined(__CYGWIN__)
-#include "windows.h" // this must be first to define GetCurrentDirectory
-#if defined(_MSC_VER) && _MSC_VER >= 1800
-# define KWSYS_WINDOWS_DEPRECATED_GetVersionEx
-#endif
+#define getuid()			0
+#define getgid()			0
 #endif
 
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmExternalMakefileProjectGenerator.h"
-#include "cmake.h"
-#include "cmState.h"
-#include "cmMakefile.h"
-#include "cmQtAutoGenerators.h"
-#include "cmSourceFile.h"
-#include "cmVersion.h"
-#include "cmTargetExport.h"
-#include "cmComputeTargetDepends.h"
-#include "cmGeneratedFileStream.h"
-#include "cmGeneratorTarget.h"
-#include "cmGeneratorExpression.h"
-#include "cmGeneratorExpressionEvaluationFile.h"
-#include "cmExportBuildFileGenerator.h"
-#include "cmCPackPropertiesGenerator.h"
-#include "cmAlgorithms.h"
-
-#include <cmsys/Directory.hxx>
-#include <cmsys/FStream.hxx>
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-# include <cmsys/MD5.h>
-# include "cm_jsoncpp_value.h"
-# include "cm_jsoncpp_writer.h"
+/*#define DEBUG 1*/
+#ifdef DEBUG
+/* To compare to the ISO image file made by mkisofs. */
+#define COMPAT_MKISOFS		1
 #endif
 
-#include <stdlib.h> // required for atof
+#define LOGICAL_BLOCK_BITS			11
+#define LOGICAL_BLOCK_SIZE			2048
+#define PATH_TABLE_BLOCK_SIZE			4096
 
-#include <assert.h>
+#define SYSTEM_AREA_BLOCK			16
+#define PRIMARY_VOLUME_DESCRIPTOR_BLOCK 	1
+#define SUPPLEMENTARY_VOLUME_DESCRIPTOR_BLOCK 	1
+#define BOOT_RECORD_DESCRIPTOR_BLOCK	 	1
+#define VOLUME_DESCRIPTOR_SET_TERMINATOR_BLOCK	1
+#define NON_ISO_FILE_SYSTEM_INFORMATION_BLOCK	1
+#define RRIP_ER_BLOCK				1
+#define PADDING_BLOCK				150
 
-cmGlobalGenerator::cmGlobalGenerator(cmake* cm)
-  : CMakeInstance(cm)
+#define FD_1_2M_SIZE		(1024 * 1200)
+#define FD_1_44M_SIZE		(1024 * 1440)
+#define FD_2_88M_SIZE		(1024 * 2880)
+#define MULTI_EXTENT_SIZE	(ARCHIVE_LITERAL_LL(1) << 32)	/* 4Gi bytes. */
+#define MAX_DEPTH		8
+#define RR_CE_SIZE		28		/* SUSP "CE" extension size */
+
+#define FILE_FLAG_EXISTENCE	0x01
+#define FILE_FLAG_DIRECTORY	0x02
+#define FILE_FLAG_ASSOCIATED	0x04
+#define FILE_FLAG_RECORD	0x08
+#define FILE_FLAG_PROTECTION	0x10
+#define FILE_FLAG_MULTI_EXTENT	0x80
+
+static const char rrip_identifier[] =
+	"RRIP_1991A";
+static const char rrip_descriptor[] =
+	"THE ROCK RIDGE INTERCHANGE PROTOCOL PROVIDES SUPPORT FOR "
+	"POSIX FILE SYSTEM SEMANTICS";
+static const char rrip_source[] =
+	"PLEASE CONTACT DISC PUBLISHER FOR SPECIFICATION SOURCE.  "
+	"SEE PUBLISHER IDENTIFIER IN PRIMARY VOLUME DESCRIPTOR FOR "
+	"CONTACT INFORMATION.";
+#define RRIP_ER_ID_SIZE		(sizeof(rrip_identifier)-1)
+#define RRIP_ER_DSC_SIZE	(sizeof(rrip_descriptor)-1)
+#define RRIP_ER_SRC_SIZE	(sizeof(rrip_source)-1)
+#define RRIP_ER_SIZE		(8 + RRIP_ER_ID_SIZE + \
+				RRIP_ER_DSC_SIZE + RRIP_ER_SRC_SIZE)
+
+static const unsigned char zisofs_magic[8] = {
+	0x37, 0xE4, 0x53, 0x96, 0xC9, 0xDB, 0xD6, 0x07
+};
+
+#define ZF_HEADER_SIZE	16	/* zisofs header size. */
+#define ZF_LOG2_BS	15	/* log2 block size; 32K bytes. */
+#define ZF_BLOCK_SIZE	(1UL << ZF_LOG2_BS)
+
+/*
+ * Manage extra records.
+ */
+struct extr_rec {
+	int		 location;
+	int		 offset;
+	unsigned char	 buf[LOGICAL_BLOCK_SIZE];
+	struct extr_rec	*next;
+};
+
+struct ctl_extr_rec {
+	int		 use_extr;
+	unsigned char	*bp;
+	struct isoent	*isoent;
+	unsigned char	*ce_ptr;
+	int		 cur_len;
+	int		 dr_len;
+	int		 limit;
+	int		 extr_off;
+	int		 extr_loc;
+};
+#define DR_SAFETY	RR_CE_SIZE
+#define DR_LIMIT	(254 - DR_SAFETY)
+
+/*
+ * The relation of struct isofile and isoent and archive_entry.
+ *
+ * Primary volume tree  --> struct isoent
+ *                                |
+ *                                v
+ *                          struct isofile --> archive_entry
+ *                                ^
+ *                                |
+ * Joliet volume tree   --> struct isoent
+ *
+ * struct isoent has specific information for volume.
+ */
+
+struct isofile {
+	/* Used for managing struct isofile list. */
+	struct isofile		*allnext;
+	struct isofile		*datanext;
+	/* Used for managing a hardlined struct isofile list. */
+	struct isofile		*hlnext;
+	struct isofile		*hardlink_target;
+
+	struct archive_entry	*entry;
+
+	/*
+	 * Used for making a directory tree.
+	 */
+	struct archive_string	 parentdir;
+	struct archive_string	 basename;
+	struct archive_string	 basename_utf16;
+	struct archive_string	 symlink;
+	int			 dircnt;	/* The number of elements of
+						 * its parent directory */
+
+	/*
+	 * Used for a Directory Record.
+	 */
+	struct content {
+		int64_t		 offset_of_temp;
+		int64_t		 size;
+		int		 blocks;
+		uint32_t 	 location;
+		/*
+		 * One extent equals one content.
+		 * If this entry has multi extent, `next' variable points
+		 * next content data.
+		 */
+		struct content	*next;		/* next content	*/
+	} content, *cur_content;
+	int			 write_content;
+
+	enum {
+		NO = 0,
+		BOOT_CATALOG,
+		BOOT_IMAGE
+	} boot;
+
+	/*
+	 * Used for a zisofs.
+	 */
+	struct {
+		unsigned char	 header_size;
+		unsigned char	 log2_bs;
+		uint32_t	 uncompressed_size;
+	} zisofs;
+};
+
+struct isoent {
+	/* Keep `rbnode' at the first member of struct isoent. */
+	struct archive_rb_node	 rbnode;
+
+	struct isofile		*file;
+
+	struct isoent		*parent;
+	/* A list of children.(use chnext) */
+	struct {
+		struct isoent	*first;
+		struct isoent	**last;
+		int		 cnt;
+	}			 children;
+	struct archive_rb_tree	 rbtree;
+
+	/* A list of sub directories.(use drnext) */
+	struct {
+		struct isoent	*first;
+		struct isoent	**last;
+		int		 cnt;
+	}			 subdirs;
+	/* A sorted list of sub directories. */
+	struct isoent		**children_sorted;
+	/* Used for managing struct isoent list. */
+	struct isoent		*chnext;
+	struct isoent		*drnext;
+	struct isoent		*ptnext;
+
+	/*
+	 * Used for making a Directory Record.
+	 */
+	int			 dir_number;
+	struct {
+		int		 vd;
+		int		 self;
+		int		 parent;
+		int		 normal;
+	}			 dr_len;
+	uint32_t 		 dir_location;
+	int			 dir_block;
+
+	/*
+	 * Identifier:
+	 *   on primary, ISO9660 file/directory name.
+	 *   on joliet, UCS2 file/directory name.
+	 * ext_off   : offset of identifier extension.
+	 * ext_len   : length of identifier extension.
+	 * id_len    : byte size of identifier.
+	 *   on primary, this is ext_off + ext_len + version length.
+	 *   on joliet, this is ext_off + ext_len.
+	 * mb_len    : length of multibyte-character of identifier.
+	 *   on primary, mb_len and id_len are always the same.
+	 *   on joliet, mb_len and id_len are different.
+	 */
+	char			*identifier;
+	int			 ext_off;
+	int			 ext_len;
+	int			 id_len;
+	int			 mb_len;
+
+	/*
+	 * Used for making a Rockridge extension.
+	 * This is a part of Directory Records.
+	 */
+	struct isoent		*rr_parent;
+	struct isoent		*rr_child;
+
+	/* Extra Record.(which we call in this source file)
+	 * A maximum size of the Directory Record is 254.
+	 * so, if generated RRIP data of a file cannot into a Directory
+	 * Record because of its size, that surplus data relocate this
+	 * Extra Record.
+	 */
+	struct {
+		struct extr_rec	*first;
+		struct extr_rec	**last;
+		struct extr_rec	*current;
+	}			 extr_rec_list;
+
+	int			 virtual:1;
+	/* If set to one, this file type is a directory.
+	 * A convenience flag to be used as
+	 * "archive_entry_filetype(isoent->file->entry) == AE_IFDIR".
+	 */
+	int			 dir:1;
+};
+
+struct hardlink {
+	struct archive_rb_node	 rbnode;
+	int			 nlink;
+	struct {
+		struct isofile	*first;
+		struct isofile	**last;
+	}			 file_list;
+};
+
+/*
+ * ISO writer options
+ */
+struct iso_option {
+	/*
+	 * Usage  : abstract-file=<value>
+	 * Type   : string, max 37 bytes
+	 * Default: Not specified
+	 * COMPAT : mkisofs -abstract <value>
+	 *
+	 * Specifies Abstract Filename.
+	 * This file shall be described in the Root Directory
+	 * and containing a abstract statement.
+	 */
+	unsigned int	 abstract_file:1;
+#define OPT_ABSTRACT_FILE_DEFAULT	0	/* Not specified */
+#define ABSTRACT_FILE_SIZE		37
+
+	/*
+	 * Usage  : application-id=<value>
+	 * Type   : string, max 128 bytes
+	 * Default: Not specified
+	 * COMPAT : mkisofs -A/-appid <value>.
+	 *
+	 * Specifies Application Identifier.
+	 * If the first byte is set to '_'(5F), the remaining
+	 * bytes of this option shall specify an identifier
+	 * for a file containing the identification of the
+	 * application.
+	 * This file shall be described in the Root Directory.
+	 */
+	unsigned int	 application_id:1;
+#define OPT_APPLICATION_ID_DEFAULT	0	/* Use default identifier */
+#define APPLICATION_IDENTIFIER_SIZE	128
+
+	/*
+	 * Usage : !allow-vernum
+	 * Type  : boolean
+	 * Default: Enabled
+	 *	  : Violates the ISO9660 standard if disable.
+	 * COMPAT: mkisofs -N
+	 *
+	 * Allow filenames to use version numbers.
+	 */
+	unsigned int	 allow_vernum:1;
+#define OPT_ALLOW_VERNUM_DEFAULT	1	/* Enabled */
+
+	/*
+	 * Usage  : biblio-file=<value>
+	 * Type   : string, max 37 bytes
+	 * Default: Not specified
+	 * COMPAT : mkisofs -biblio <value>
+	 *
+	 * Specifies Bibliographic Filename.
+	 * This file shall be described in the Root Directory
+	 * and containing bibliographic records.
+	 */
+	unsigned int	 biblio_file:1;
+#define OPT_BIBLIO_FILE_DEFAULT		0	/* Not specified */
+#define BIBLIO_FILE_SIZE		37
+
+	/*
+	 * Usage  : boot=<value>
+	 * Type   : string
+	 * Default: Not specified
+	 * COMPAT : mkisofs -b/-eltorito-boot <value>
+	 *
+	 * Specifies "El Torito" boot image file to make
+	 * a bootable CD.
+	 */
+	unsigned int	 boot:1;
+#define OPT_BOOT_DEFAULT		0	/* Not specified */
+
+	/*
+	 * Usage  : boot-catalog=<value>
+	 * Type   : string
+	 * Default: "boot.catalog"
+	 * COMPAT : mkisofs -c/-eltorito-catalog <value>
+	 *
+	 * Specifies a fullpath of El Torito boot catalog.
+	 */
+	unsigned int	 boot_catalog:1;
+#define OPT_BOOT_CATALOG_DEFAULT	0	/* Not specified */
+
+	/*
+	 * Usage  : boot-info-table
+	 * Type   : boolean
+	 * Default: Disabled
+	 * COMPAT : mkisofs -boot-info-table
+	 *
+	 * Modify the boot image file specified by `boot'
+	 * option; ISO writer stores boot file information
+	 * into the boot file in ISO image at offset 8
+	 * through offset 64.
+	 */
+	unsigned int	 boot_info_table:1;
+#define OPT_BOOT_INFO_TABLE_DEFAULT	0	/* Disabled */
+
+	/*
+	 * Usage  : boot-load-seg=<value>
+	 * Type   : hexadecimal
+	 * Default: Not specified
+	 * COMPAT : mkisofs -boot-load-seg <value>
+	 *
+	 * Specifies a load segment for boot image.
+	 * This is used with no-emulation mode.
+	 */
+	unsigned int	 boot_load_seg:1;
+#define OPT_BOOT_LOAD_SEG_DEFAULT	0	/* Not specified */
+
+	/*
+	 * Usage  : boot-load-size=<value>
+	 * Type   : decimal
+	 * Default: Not specified
+	 * COMPAT : mkisofs -boot-load-size <value>
+	 *
+	 * Specifies a sector count for boot image.
+	 * This is used with no-emulation mode.
+	 */
+	unsigned int	 boot_load_size:1;
+#define OPT_BOOT_LOAD_SIZE_DEFAULT	0	/* Not specified */
+
+	/*
+	 * Usage  : boot-type=<boot-media-type>
+	 *        : 'no-emulation' : 'no emulation' image
+	 *        :           'fd' : floppy disk image
+	 *        :    'hard-disk' : hard disk image
+	 * Type   : string
+	 * Default: Auto detect
+	 *        : We check a size of boot image;
+	 *        : If ths size is just 1.22M/1.44M/2.88M,
+	 *        : we assume boot_type is 'fd';
+	 *        : otherwise boot_type is 'no-emulation'.
+	 * COMPAT :
+	 *    boot=no-emulation
+	 *	mkisofs -no-emul-boot
+	 *    boot=fd
+	 *	This is a default on the mkisofs.
+	 *    boot=hard-disk
+	 *	mkisofs -hard-disk-boot
+	 *
+	 * Specifies a type of "El Torito" boot image.
+	 */
+	unsigned int	 boot_type:2;
+#define OPT_BOOT_TYPE_AUTO		0	/* auto detect		  */
+#define OPT_BOOT_TYPE_NO_EMU		1	/* ``no emulation'' image */
+#define OPT_BOOT_TYPE_FD		2	/* floppy disk image	  */
+#define OPT_BOOT_TYPE_HARD_DISK		3	/* hard disk image	  */
+#define OPT_BOOT_TYPE_DEFAULT		OPT_BOOT_TYPE_AUTO
+
+	/*
+	 * Usage  : compression-level=<value>
+	 * Type   : decimal
+	 * Default: Not specified
+	 * COMPAT : NONE
+	 *
+	 * Specifies compression level for option zisofs=direct.
+	 */
+	unsigned int	 compression_level:1;
+#define OPT_COMPRESSION_LEVEL_DEFAULT	0	/* Not specified */
+
+	/*
+	 * Usage  : copyright-file=<value>
+	 * Type   : string, max 37 bytes
+	 * Default: Not specified
+	 * COMPAT : mkisofs -copyright <value>
+	 *
+	 * Specifies Copyright Filename.
+	 * This file shall be described in the Root Directory
+	 * and containing a copyright statement.
+	 */
+	unsigned int	 copyright_file:1;
+#define OPT_COPYRIGHT_FILE_DEFAULT	0	/* Not specified */
+#define COPYRIGHT_FILE_SIZE		37
+
+	/*
+	 * Usage  : gid=<value>
+	 * Type   : decimal
+	 * Default: Not specified
+	 * COMPAT : mkisofs -gid <value>
+	 *
+	 * Specifies a group id to rewrite the group id of all files.
+	 */
+	unsigned int	 gid:1;
+#define OPT_GID_DEFAULT			0	/* Not specified */
+
+	/*
+	 * Usage  : iso-level=[1234]
+	 * Type   : decimal
+	 * Default: 1
+	 * COMPAT : mkisofs -iso-level <value>
+	 *
+	 * Specifies ISO9600 Level.
+	 * Level 1: [DEFAULT]
+	 *   - limits each file size less than 4Gi bytes;
+	 *   - a File Name shall not contain more than eight
+	 *     d-characters or eight d1-characters;
+	 *   - a File Name Extension shall not contain more than
+	 *     three d-characters or three d1-characters;
+	 *   - a Directory Identifier shall not contain more
+	 *     than eight d-characters or eight d1-characters.
+	 * Level 2:
+	 *   - limits each file size less than 4Giga bytes;
+	 *   - a File Name shall not contain more than thirty
+	 *     d-characters or thirty d1-characters;
+	 *   - a File Name Extension shall not contain more than
+	 *     thirty d-characters or thirty d1-characters;
+	 *   - a Directory Identifier shall not contain more
+	 *     than thirty-one d-characters or thirty-one
+	 *     d1-characters.
+	 * Level 3:
+	 *   - no limit of file size; use multi extent.
+	 * Level 4:
+	 *   - this level 4 simulates mkisofs option
+	 *     '-iso-level 4';
+	 *   - crate a enhanced volume as mkisofs doing;
+	 *   - allow a File Name to have leading dot;
+	 *   - allow a File Name to have all ASCII letters;
+	 *   - allow a File Name to have multiple dots;
+	 *   - allow more then 8 depths of directory trees;
+	 *   - disable a version number to a File Name;
+	 *   - disable a forced period to the tail of a File Name;
+	 *   - the maxinum length of files and directories is raised to 193.
+	 *     if rockridge option is disabled, raised to 207.
+	 */
+	unsigned int	 iso_level:3;
+#define OPT_ISO_LEVEL_DEFAULT		1	/* ISO Level 1 */
+
+	/*
+	 * Usage  : joliet[=long]
+	 *        : !joliet
+	 *        :   Do not generate Joliet Volume and Records.
+	 *        : joliet [DEFAULT]
+	 *        :   Generates Joliet Volume and Directory Records.
+	 *        :   [COMPAT: mkisofs -J/-joliet]
+	 *        : joliet=long
+	 *        :   The joliet filenames are up to 103 Unicode
+	 *        :   characters.
+	 *        :   This option breaks the Joliet specification.
+	 *        :   [COMPAT: mkisofs -J -joliet-long]
+	 * Type   : boolean/string
+	 * Default: Enabled
+	 * COMPAT : mkisofs -J / -joliet-long
+	 *
+	 * Generates Joliet Volume and Directory Records.
+	 */
+	unsigned int	 joliet:2;
+#define OPT_JOLIET_DISABLE		0	/* Not generate Joliet Records. */
+#define OPT_JOLIET_ENABLE		1	/* Generate Joliet Records.  */
+#define OPT_JOLIET_LONGNAME		2	/* Use long joliet filenames.*/
+#define OPT_JOLIET_DEFAULT		OPT_JOLIET_ENABLE
+
+	/*
+	 * Usage  : !limit-depth
+	 * Type   : boolean
+	 * Default: Enabled
+	 *	  : Violates the ISO9660 standard if disable.
+	 * COMPAT : mkisofs -D/-disable-deep-relocation
+	 *
+	 * The number of levels in hierarchy cannot exceed eight.
+	 */
+	unsigned int	 limit_depth:1;
+#define OPT_LIMIT_DEPTH_DEFAULT		1	/* Enabled */
+
+	/*
+	 * Usage  : !limit-dirs
+	 * Type   : boolean
+	 * Default: Enabled
+	 *	  : Violates the ISO9660 standard if disable.
+	 * COMPAT : mkisofs -no-limit-pathtables
+	 *
+	 * Limits the number of directories less than 65536 due
+	 * to the size of the Parent Directory Number of Path
+	 * Table.
+	 */
+	unsigned int	 limit_dirs:1;
+#define OPT_LIMIT_DIRS_DEFAULT		1	/* Enabled */
+
+	/*
+	 * Usage  : !pad
+	 * Type   : boolean
+	 * Default: Enabled
+	 * COMPAT : -pad/-no-pad
+	 *
+	 * Pads the end of the ISO image by null of 300Ki bytes.
+	 */
+	unsigned int	 pad:1;
+#define OPT_PAD_DEFAULT			1	/* Enabled */
+
+	/*
+	 * Usage  : publisher=<value>
+	 * Type   : string, max 128 bytes
+	 * Default: Not specified
+	 * COMPAT : mkisofs -publisher <value>
+	 *
+	 * Specifies Publisher Identifier.
+	 * If the first byte is set to '_'(5F), the remaining
+	 * bytes of this option shall specify an identifier
+	 * for a file containing the identification of the user.
+	 * This file shall be described in the Root Directory.
+	 */
+	unsigned int	 publisher:1;
+#define OPT_PUBLISHER_DEFAULT		0	/* Not specified */
+#define PUBLISHER_IDENTIFIER_SIZE	128
+
+	/*
+	 * Usage  : rockridge
+	 *        : !rockridge
+	 *        :    disable to generate SUSP and RR records.
+	 *        : rockridge
+	 *        :    the same as 'rockridge=useful'.
+	 *        : rockridge=strict
+	 *        :    generate SUSP and RR records.
+	 *        :    [COMPAT: mkisofs -R]
+	 *        : rockridge=useful [DEFAULT]
+	 *        :    generate SUSP and RR records.
+	 *        :    [COMPAT: mkisofs -r]
+	 *        :    NOTE  Our rockridge=useful option does not set a zero
+	 *        :          to uid and gid, you should use application
+	 *        :          option such as --gid,--gname,--uid and --uname
+	 *        :          badtar options instead.
+	 * Type   : boolean/string
+	 * Default: Enabled as rockridge=useful
+	 * COMPAT : mkisofs -r / -R
+	 *
+	 * Generates SUSP and RR records.
+	 */
+	unsigned int	 rr:2;
+#define OPT_RR_DISABLED			0
+#define OPT_RR_STRICT			1
+#define OPT_RR_USEFUL			2
+#define OPT_RR_DEFAULT			OPT_RR_USEFUL
+
+	/*
+	 * Usage  : volume-id=<value>
+	 * Type   : string, max 32 bytes
+	 * Default: Not specified
+	 * COMPAT : mkisofs -V <value>
+	 *
+	 * Specifies Volume Identifier.
+	 */
+	unsigned int	 volume_id:1;
+#define OPT_VOLUME_ID_DEFAULT		0	/* Use default identifier */
+#define VOLUME_IDENTIFIER_SIZE		32
+
+	/*
+	 * Usage  : !zisofs [DEFAULT] 
+	 *        :    Disable to generate RRIP 'ZF' extension.
+	 *        : zisofs
+	 *        :    Make files zisofs file and generate RRIP 'ZF'
+ 	 *        :    extension. So you do not need mkzftree utility
+	 *        :    for making zisofs.
+	 *        :    When the file size is less than one Logical Block
+	 *        :    size, that file will not zisofs'ed since it does
+	 *        :    reduece an ISO-image size.
+	 *        :
+	 *        :    When you specify option 'boot=<boot-image>', that
+	 *        :    'boot-image' file won't be converted to zisofs file.
+	 * Type   : boolean
+	 * Default: Disabled
+	 *
+	 * Generates RRIP 'ZF' System Use Entry.
+	 */
+	unsigned int	 zisofs:1;
+#define OPT_ZISOFS_DISABLED		0
+#define OPT_ZISOFS_DIRECT		1
+#define OPT_ZISOFS_DEFAULT		OPT_ZISOFS_DISABLED
+
+};
+
+struct iso9660 {
+	/* The creation time of ISO image. */
+	time_t			 birth_time;
+	/* A file stream of a temporary file, which file contents
+	 * save to until ISO iamge can be created. */
+	int			 temp_fd;
+
+	struct isofile		*cur_file;
+	struct isoent		*cur_dirent;
+	struct archive_string	 cur_dirstr;
+	uint64_t		 bytes_remaining;
+	int			 need_multi_extent;
+
+	/* Temporary string buffer for Joliet extension. */ 
+	struct archive_string	 utf16be;
+	struct archive_string	 mbs;
+
+	struct archive_string_conv *sconv_to_utf16be;
+	struct archive_string_conv *sconv_from_utf16be;
+
+	/* A list of all of struct isofile entries. */
+	struct {
+		struct isofile	*first;
+		struct isofile	**last;
+	}			 all_file_list;
+
+	/* A list of struct isofile entries which have its
+	 * contents and are not a directory, a hardlined file
+	 * and a symlink file. */
+	struct {
+		struct isofile	*first;
+		struct isofile	**last;
+	}			 data_file_list;
+
+	/* Used for managing to find hardlinking files. */
+	struct archive_rb_tree	 hardlink_rbtree;
+
+	/* Used for making the Path Table Record. */
+	struct vdd {
+		/* the root of entry tree. */
+		struct isoent	*rootent;
+		enum vdd_type {
+			VDD_PRIMARY,
+			VDD_JOLIET,
+			VDD_ENHANCED
+		} vdd_type;
+
+		struct path_table {
+			struct isoent		*first;
+			struct isoent		**last;
+			struct isoent		**sorted;
+			int			 cnt;
+		} *pathtbl;
+		int				 max_depth;
+
+		int		 path_table_block;
+		int		 path_table_size;
+		int		 location_type_L_path_table;
+		int		 location_type_M_path_table;
+		int		 total_dir_block;
+	} primary, joliet;
+
+	/* Used for making a Volume Descriptor. */
+	int			 volume_space_size;
+	int			 volume_sequence_number;
+	int			 total_file_block;
+	struct archive_string	 volume_identifier;
+	struct archive_string	 publisher_identifier;
+	struct archive_string	 data_preparer_identifier;
+	struct archive_string	 application_identifier;
+	struct archive_string	 copyright_file_identifier;
+	struct archive_string	 abstract_file_identifier;
+	struct archive_string	 bibliographic_file_identifier;
+
+	/* Used for making rockridge extensions. */
+	int			 location_rrip_er;
+
+	/* Used for making zisofs. */
+	struct {
+		int		 detect_magic:1;
+		int		 making:1;
+		int		 allzero:1;
+		unsigned char	 magic_buffer[64];
+		int		 magic_cnt;
+
+#ifdef HAVE_ZLIB_H
+		/*
+		 * Copy a compressed file to iso9660.zisofs.temp_fd
+		 * and also copy a uncompressed file(original file) to
+		 * iso9660.temp_fd . If the number of logical block
+		 * of the compressed file is less than the number of
+		 * logical block of the uncompressed file, use it and
+		 * remove the copy of the uncompressed file.
+		 * but if not, we use uncompressed file and remove
+		 * the copy of the compressed file.
+		 */
+		uint32_t	*block_pointers;
+		size_t		 block_pointers_allocated;
+		int		 block_pointers_cnt;
+		int		 block_pointers_idx;
+		int64_t		 total_size;
+		int64_t		 block_offset;
+
+		z_stream	 stream;
+		int		 stream_valid;
+		int64_t		 remaining;
+		int		 compression_level;
+#endif
+	} zisofs;
+
+	struct isoent		*directories_too_deep;
+	int			 dircnt_max;
+
+	/* Write buffer. */
+#define wb_buffmax()	(LOGICAL_BLOCK_SIZE * 32)
+#define wb_remaining(a)	(((struct iso9660 *)(a)->format_data)->wbuff_remaining)
+#define wb_offset(a)	(((struct iso9660 *)(a)->format_data)->wbuff_offset \
+		+ wb_buffmax() - wb_remaining(a))
+	unsigned char		 wbuff[LOGICAL_BLOCK_SIZE * 32];
+	size_t			 wbuff_remaining;
+	enum {
+		WB_TO_STREAM,
+		WB_TO_TEMP
+	} 			 wbuff_type;
+	int64_t			 wbuff_offset;
+	int64_t			 wbuff_written;
+	int64_t			 wbuff_tail;
+
+	/* 'El Torito' boot data. */
+	struct {
+		/* boot catalog file */
+		struct archive_string	 catalog_filename;
+		struct isoent		*catalog;
+		/* boot image file */
+		struct archive_string	 boot_filename;
+		struct isoent		*boot;
+
+		unsigned char		 platform_id;
+#define BOOT_PLATFORM_X86	0
+#define BOOT_PLATFORM_PPC	1
+#define BOOT_PLATFORM_MAC	2
+		struct archive_string	 id;
+		unsigned char		 media_type;
+#define BOOT_MEDIA_NO_EMULATION		0
+#define BOOT_MEDIA_1_2M_DISKETTE	1
+#define BOOT_MEDIA_1_44M_DISKETTE	2
+#define BOOT_MEDIA_2_88M_DISKETTE	3
+#define BOOT_MEDIA_HARD_DISK		4
+		unsigned char		 system_type;
+		uint16_t		 boot_load_seg;
+		uint16_t		 boot_load_size;
+#define BOOT_LOAD_SIZE		4
+	} el_torito;
+
+	struct iso_option	 opt;
+};
+
+/*
+ * Types of Volume Descriptor
+ */
+enum VD_type {
+	VDT_BOOT_RECORD=0,	/* Boot Record Volume Descriptor 	*/
+	VDT_PRIMARY=1,		/* Primary Volume Descriptor		*/
+	VDT_SUPPLEMENTARY=2,	/* Supplementary Volume Descriptor	*/
+	VDT_TERMINATOR=255	/* Volume Descriptor Set Terminator	*/
+};
+
+/*
+ * Types of Directory Record
+ */
+enum dir_rec_type {
+	DIR_REC_VD,		/* Stored in Volume Descriptor.	*/
+	DIR_REC_SELF,		/* Stored as Current Directory.	*/
+	DIR_REC_PARENT,		/* Stored as Parent Directory.	*/
+	DIR_REC_NORMAL 		/* Stored as Child.		*/
+};
+
+/*
+ * Kinds of Volume Descriptor Character
+ */
+enum vdc {
+	VDC_STD,
+	VDC_LOWERCASE,
+	VDC_UCS2,
+	VDC_UCS2_DIRECT
+};
+
+/*
+ * IDentifier Resolver.
+ * Used for resolving duplicated filenames.
+ */
+struct idr {
+	struct idrent {
+		struct archive_rb_node	rbnode;
+		/* Used in wait_list. */
+		struct idrent		*wnext;
+		struct idrent		*avail;
+
+		struct isoent		*isoent;
+		int			 weight;
+		int			 noff;
+		int			 rename_num;
+	} *idrent_pool;
+
+	struct archive_rb_tree		 rbtree;
+
+	struct {
+		struct idrent		*first;
+		struct idrent		**last;
+	} wait_list;
+
+	int				 pool_size;
+	int				 pool_idx;
+	int				 num_size;
+	int				 null_size;
+
+	char				 char_map[0x80];
+};
+
+enum char_type {
+	A_CHAR,
+	D_CHAR
+};
+
+
+static int	iso9660_options(struct archive_write *,
+		    const char *, const char *);
+static int	iso9660_write_header(struct archive_write *,
+		    struct archive_entry *);
+static ssize_t	iso9660_write_data(struct archive_write *,
+		    const void *, size_t);
+static int	iso9660_finish_entry(struct archive_write *);
+static int	iso9660_close(struct archive_write *);
+static int	iso9660_free(struct archive_write *);
+
+static void	get_system_identitier(char *, size_t);
+static void	set_str(unsigned char *, const char *, size_t, char,
+		    const char *);
+static inline int joliet_allowed_char(unsigned char, unsigned char);
+static int	set_str_utf16be(struct archive_write *, unsigned char *,
+			const char *, size_t, uint16_t, enum vdc);
+static int	set_str_a_characters_bp(struct archive_write *,
+			unsigned char *, int, int, const char *, enum vdc);
+static int	set_str_d_characters_bp(struct archive_write *,
+			unsigned char *, int, int, const char *, enum  vdc);
+static void	set_VD_bp(unsigned char *, enum VD_type, unsigned char);
+static inline void set_unused_field_bp(unsigned char *, int, int);
+
+static unsigned char *extra_open_record(unsigned char *, int,
+		    struct isoent *, struct ctl_extr_rec *);
+static void	extra_close_record(struct ctl_extr_rec *, int);
+static unsigned char * extra_next_record(struct ctl_extr_rec *, int);
+static unsigned char *extra_get_record(struct isoent *, int *, int *, int *);
+static void	extra_tell_used_size(struct ctl_extr_rec *, int);
+static int	extra_setup_location(struct isoent *, int);
+static int	set_directory_record_rr(unsigned char *, int,
+		    struct isoent *, struct iso9660 *, enum dir_rec_type);
+static int	set_directory_record(unsigned char *, size_t,
+		    struct isoent *, struct iso9660 *, enum dir_rec_type,
+		    enum vdd_type);
+static inline int get_dir_rec_size(struct iso9660 *, struct isoent *,
+		    enum dir_rec_type, enum vdd_type);
+static inline unsigned char *wb_buffptr(struct archive_write *);
+static int	wb_write_out(struct archive_write *);
+static int	wb_consume(struct archive_write *, size_t);
+#ifdef HAVE_ZLIB_H
+static int	wb_set_offset(struct archive_write *, int64_t);
+#endif
+static int	write_null(struct archive_write *, size_t);
+static int	write_VD_terminator(struct archive_write *);
+static int	set_file_identifier(unsigned char *, int, int, enum vdc,
+		    struct archive_write *, struct vdd *,
+		    struct archive_string *, const char *, int,
+		    enum char_type);
+static int	write_VD(struct archive_write *, struct vdd *);
+static int	write_VD_boot_record(struct archive_write *);
+static int	write_information_block(struct archive_write *);
+static int	write_path_table(struct archive_write *, int,
+		    struct vdd *);
+static int	write_directory_descriptors(struct archive_write *,
+		    struct vdd *);
+static int	write_file_descriptors(struct archive_write *);
+static int	write_rr_ER(struct archive_write *);
+static void	calculate_path_table_size(struct vdd *);
+
+static void	isofile_init_entry_list(struct iso9660 *);
+static void	isofile_add_entry(struct iso9660 *, struct isofile *);
+static void	isofile_free_all_entries(struct iso9660 *);
+static void	isofile_init_entry_data_file_list(struct iso9660 *);
+static void	isofile_add_data_file(struct iso9660 *, struct isofile *);
+static struct isofile * isofile_new(struct archive_write *,
+		    struct archive_entry *);
+static void	isofile_free(struct isofile *);
+static int	isofile_gen_utility_names(struct archive_write *,
+		    struct isofile *);
+static int	isofile_register_hardlink(struct archive_write *,
+		    struct isofile *);
+static void	isofile_connect_hardlink_files(struct iso9660 *);
+static void	isofile_init_hardlinks(struct iso9660 *);
+static void	isofile_free_hardlinks(struct iso9660 *);
+
+static struct isoent *isoent_new(struct isofile *);
+static int	isoent_clone_tree(struct archive_write *,
+		    struct isoent **, struct isoent *);
+static void	_isoent_free(struct isoent *isoent);
+static void	isoent_free_all(struct isoent *);
+static struct isoent * isoent_create_virtual_dir(struct archive_write *,
+		    struct iso9660 *, const char *);
+static int	isoent_cmp_node(const struct archive_rb_node *,
+		    const struct archive_rb_node *);
+static int	isoent_cmp_key(const struct archive_rb_node *,
+		    const void *);
+static int	isoent_add_child_head(struct isoent *, struct isoent *);
+static int	isoent_add_child_tail(struct isoent *, struct isoent *);
+static void	isoent_remove_child(struct isoent *, struct isoent *);
+static void	isoent_setup_directory_location(struct iso9660 *,
+		    int, struct vdd *);
+static void	isoent_setup_file_location(struct iso9660 *, int);
+static int	get_path_component(char *, size_t, const char *);
+static int	isoent_tree(struct archive_write *, struct isoent **);
+static struct isoent *isoent_find_child(struct isoent *, const char *);
+static struct isoent *isoent_find_entry(struct isoent *, const char *);
+static void	idr_relaxed_filenames(char *);
+static void	idr_init(struct iso9660 *, struct vdd *, struct idr *);
+static void	idr_cleanup(struct idr *);
+static int	idr_ensure_poolsize(struct archive_write *, struct idr *,
+		    int);
+static int	idr_start(struct archive_write *, struct idr *,
+		    int, int, int, int, const struct archive_rb_tree_ops *);
+static void	idr_register(struct idr *, struct isoent *, int,
+		    int);
+static void	idr_extend_identifier(struct idrent *, int, int);
+static void	idr_resolve(struct idr *, void (*)(unsigned char *, int));
+static void	idr_set_num(unsigned char *, int);
+static void	idr_set_num_beutf16(unsigned char *, int);
+static int	isoent_gen_iso9660_identifier(struct archive_write *,
+		    struct isoent *, struct idr *);
+static int	isoent_gen_joliet_identifier(struct archive_write *,
+		    struct isoent *, struct idr *);
+static int	isoent_cmp_iso9660_identifier(const struct isoent *,
+		    const struct isoent *);
+static int	isoent_cmp_node_iso9660(const struct archive_rb_node *,
+		    const struct archive_rb_node *);
+static int	isoent_cmp_key_iso9660(const struct archive_rb_node *,
+		    const void *);
+static int	isoent_cmp_joliet_identifier(const struct isoent *,
+		    const struct isoent *);
+static int	isoent_cmp_node_joliet(const struct archive_rb_node *,
+		    const struct archive_rb_node *);
+static int	isoent_cmp_key_joliet(const struct archive_rb_node *,
+		    const void *);
+static inline void path_table_add_entry(struct path_table *, struct isoent *);
+static inline struct isoent * path_table_last_entry(struct path_table *);
+static int	isoent_make_path_table(struct archive_write *);
+static int	isoent_find_out_boot_file(struct archive_write *,
+		    struct isoent *);
+static int	isoent_create_boot_catalog(struct archive_write *,
+		    struct isoent *);
+static size_t	fd_boot_image_size(int);
+static int	make_boot_catalog(struct archive_write *);
+static int	setup_boot_information(struct archive_write *);
+
+static int	zisofs_init(struct archive_write *, struct isofile *);
+static void	zisofs_detect_magic(struct archive_write *,
+		    const void *, size_t);
+static int	zisofs_write_to_temp(struct archive_write *,
+		    const void *, size_t);
+static int	zisofs_finish_entry(struct archive_write *);
+static int	zisofs_rewind_boot_file(struct archive_write *);
+static int	zisofs_free(struct archive_write *);
+
+int
+archive_write_set_format_iso9660(struct archive *_a)
 {
-  // By default the .SYMBOLIC dependency is not needed on symbolic rules.
-  this->NeedSymbolicMark = false;
+	struct archive_write *a = (struct archive_write *)_a;
+	struct iso9660 *iso9660;
 
-  // by default use the native paths
-  this->ForceUnixPaths = false;
+	archive_check_magic(_a, ARCHIVE_WRITE_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_write_set_format_iso9660");
 
-  // By default do not try to support color.
-  this->ToolSupportsColor = false;
+	/* If another format was already registered, unregister it. */
+	if (a->format_free != NULL)
+		(a->format_free)(a);
 
-  // By default do not use link scripts.
-  this->UseLinkScript = false;
+	iso9660 = calloc(1, sizeof(*iso9660));
+	if (iso9660 == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate iso9660 data");
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->birth_time = 0;
+	iso9660->temp_fd = -1;
+	iso9660->cur_file = NULL;
+	iso9660->primary.max_depth = 0;
+	iso9660->primary.vdd_type = VDD_PRIMARY;
+	iso9660->primary.pathtbl = NULL;
+	iso9660->joliet.rootent = NULL;
+	iso9660->joliet.max_depth = 0;
+	iso9660->joliet.vdd_type = VDD_JOLIET;
+	iso9660->joliet.pathtbl = NULL;
+	isofile_init_entry_list(iso9660);
+	isofile_init_entry_data_file_list(iso9660);
+	isofile_init_hardlinks(iso9660);
+	iso9660->directories_too_deep = NULL;
+	iso9660->dircnt_max = 1;
+	iso9660->wbuff_remaining = wb_buffmax();
+	iso9660->wbuff_type = WB_TO_TEMP;
+	iso9660->wbuff_offset = 0;
+	iso9660->wbuff_written = 0;
+	iso9660->wbuff_tail = 0;
+	archive_string_init(&(iso9660->utf16be));
+	archive_string_init(&(iso9660->mbs));
 
-  // Whether an install target is needed.
-  this->InstallTargetEnabled = false;
+	/*
+	 * Init Identifiers used for PVD and SVD.
+	 */
+	archive_string_init(&(iso9660->volume_identifier));
+	archive_strcpy(&(iso9660->volume_identifier), "CDROM");
+	archive_string_init(&(iso9660->publisher_identifier));
+	archive_string_init(&(iso9660->data_preparer_identifier));
+	archive_string_init(&(iso9660->application_identifier));
+	archive_strcpy(&(iso9660->application_identifier),
+	    archive_version_string());
+	archive_string_init(&(iso9660->copyright_file_identifier));
+	archive_string_init(&(iso9660->abstract_file_identifier));
+	archive_string_init(&(iso9660->bibliographic_file_identifier));
 
-  // how long to let try compiles run
-  this->TryCompileTimeout = 0;
+	/*
+	 * Init El Torito bootable CD variables.
+	 */
+	archive_string_init(&(iso9660->el_torito.catalog_filename));
+	iso9660->el_torito.catalog = NULL;
+	/* Set default file name of boot catalog  */
+	archive_strcpy(&(iso9660->el_torito.catalog_filename),
+	    "boot.catalog");
+	archive_string_init(&(iso9660->el_torito.boot_filename));
+	iso9660->el_torito.boot = NULL;
+	iso9660->el_torito.platform_id = BOOT_PLATFORM_X86;
+	archive_string_init(&(iso9660->el_torito.id));
+	iso9660->el_torito.boot_load_seg = 0;
+	iso9660->el_torito.boot_load_size = BOOT_LOAD_SIZE;
 
-  this->ExtraGenerator = 0;
-  this->CurrentMakefile = 0;
-  this->TryCompileOuterMakefile = 0;
+	/*
+	 * Init zisofs variables.
+	 */
+#ifdef HAVE_ZLIB_H
+	iso9660->zisofs.block_pointers = NULL;
+	iso9660->zisofs.block_pointers_allocated = 0;
+	iso9660->zisofs.stream_valid = 0;
+	iso9660->zisofs.compression_level = 9;
+	memset(&(iso9660->zisofs.stream), 0,
+	    sizeof(iso9660->zisofs.stream));
+#endif
+
+	/*
+	 * Set default value of iso9660 options.
+	 */
+	iso9660->opt.abstract_file = OPT_ABSTRACT_FILE_DEFAULT;
+	iso9660->opt.application_id = OPT_APPLICATION_ID_DEFAULT;
+	iso9660->opt.allow_vernum = OPT_ALLOW_VERNUM_DEFAULT;
+	iso9660->opt.biblio_file = OPT_BIBLIO_FILE_DEFAULT;
+	iso9660->opt.boot = OPT_BOOT_DEFAULT;
+	iso9660->opt.boot_catalog = OPT_BOOT_CATALOG_DEFAULT;
+	iso9660->opt.boot_info_table = OPT_BOOT_INFO_TABLE_DEFAULT;
+	iso9660->opt.boot_load_seg = OPT_BOOT_LOAD_SEG_DEFAULT;
+	iso9660->opt.boot_load_size = OPT_BOOT_LOAD_SIZE_DEFAULT;
+	iso9660->opt.boot_type = OPT_BOOT_TYPE_DEFAULT;
+	iso9660->opt.compression_level = OPT_COMPRESSION_LEVEL_DEFAULT;
+	iso9660->opt.copyright_file = OPT_COPYRIGHT_FILE_DEFAULT;
+	iso9660->opt.iso_level = OPT_ISO_LEVEL_DEFAULT;
+	iso9660->opt.joliet = OPT_JOLIET_DEFAULT;
+	iso9660->opt.limit_depth = OPT_LIMIT_DEPTH_DEFAULT;
+	iso9660->opt.limit_dirs = OPT_LIMIT_DIRS_DEFAULT;
+	iso9660->opt.pad = OPT_PAD_DEFAULT;
+	iso9660->opt.publisher = OPT_PUBLISHER_DEFAULT;
+	iso9660->opt.rr = OPT_RR_DEFAULT;
+	iso9660->opt.volume_id = OPT_VOLUME_ID_DEFAULT;
+	iso9660->opt.zisofs = OPT_ZISOFS_DEFAULT;
+
+	/* Create the root directory. */
+	iso9660->primary.rootent =
+	    isoent_create_virtual_dir(a, iso9660, "");
+	if (iso9660->primary.rootent == NULL) {
+		free(iso9660);
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->primary.rootent->parent = iso9660->primary.rootent;
+	iso9660->cur_dirent = iso9660->primary.rootent;
+	archive_string_init(&(iso9660->cur_dirstr));
+	archive_string_ensure(&(iso9660->cur_dirstr), 1);
+	iso9660->cur_dirstr.s[0] = 0;
+	iso9660->sconv_to_utf16be = NULL;
+	iso9660->sconv_from_utf16be = NULL;
+
+	a->format_data = iso9660;
+	a->format_name = "iso9660";
+	a->format_options = iso9660_options;
+	a->format_write_header = iso9660_write_header;
+	a->format_write_data = iso9660_write_data;
+	a->format_finish_entry = iso9660_finish_entry;
+	a->format_close = iso9660_close;
+	a->format_free = iso9660_free;
+	a->archive.archive_format = ARCHIVE_FORMAT_ISO9660;
+	a->archive.archive_format_name = "ISO9660";
+
+	return (ARCHIVE_OK);
 }
 
-cmGlobalGenerator::~cmGlobalGenerator()
+static int
+get_str_opt(struct archive_write *a, struct archive_string *s,
+    size_t maxsize, const char *key, const char *value)
 {
-  this->ClearGeneratorMembers();
-  delete this->ExtraGenerator;
+
+	if (strlen(value) > maxsize) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Value is longer than %zu characters "
+		    "for option ``%s''", maxsize, key);
+		return (ARCHIVE_FATAL);
+	}
+	archive_strcpy(s, value);
+	return (ARCHIVE_OK);
 }
 
-bool cmGlobalGenerator::SetGeneratorPlatform(std::string const& p,
-                                             cmMakefile* mf)
+static int
+get_num_opt(struct archive_write *a, int *num, int high, int low,
+    const char *key, const char *value)
 {
-  if(p.empty())
-    {
-    return true;
-    }
+	const char *p = value;
+	int data = 0;
+	int neg = 0;
 
-  std::ostringstream e;
-  e <<
-    "Generator\n"
-    "  " << this->GetName() << "\n"
-    "does not support platform specification, but platform\n"
-    "  " << p << "\n"
-    "was specified.";
-  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
-  return false;
+	if (p == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Invalid value(empty) for option ``%s''", key);
+		return (ARCHIVE_FATAL);
+	}
+	if (*p == '-') {
+		neg = 1;
+		p++;
+	}
+	while (*p) {
+		if (*p >= '0' && *p <= '9')
+			data = data * 10 + *p - '0';
+		else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid value for option ``%s''", key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data > high) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid value(over %d) for "
+			    "option ``%s''", high, key);
+			return (ARCHIVE_FATAL);
+		}
+		if (data < low) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Invalid value(under %d) for "
+			    "option ``%s''", low, key);
+			return (ARCHIVE_FATAL);
+		}
+		p++;
+	}
+	if (neg)
+		data *= -1;
+	*num = data;
+
+	return (ARCHIVE_OK);
 }
 
-bool cmGlobalGenerator::SetGeneratorToolset(std::string const& ts,
-                                            cmMakefile* mf)
+static int
+iso9660_options(struct archive_write *a, const char *key, const char *value)
 {
-  if(ts.empty())
-    {
-    return true;
-    }
-  std::ostringstream e;
-  e <<
-    "Generator\n"
-    "  " << this->GetName() << "\n"
-    "does not support toolset specification, but toolset\n"
-    "  " << ts << "\n"
-    "was specified.";
-  mf->IssueMessage(cmake::FATAL_ERROR, e.str());
-  return false;
+	struct iso9660 *iso9660 = a->format_data;
+	const char *p;
+	int r;
+
+	switch (key[0]) {
+	case 'a':
+		if (strcmp(key, "abstract-file") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->abstract_file_identifier),
+			    ABSTRACT_FILE_SIZE, key, value);
+			iso9660->opt.abstract_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, "application-id") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->application_identifier),
+			    APPLICATION_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.application_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, "allow-vernum") == 0) {
+			iso9660->opt.allow_vernum = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'b':
+		if (strcmp(key, "biblio-file") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->bibliographic_file_identifier),
+			    BIBLIO_FILE_SIZE, key, value);
+			iso9660->opt.biblio_file = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, "boot") == 0) {
+			if (value == NULL)
+				iso9660->opt.boot = 0;
+			else {
+				iso9660->opt.boot = 1;
+				archive_strcpy(
+				    &(iso9660->el_torito.boot_filename),
+				    value);
+			}
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, "boot-catalog") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->el_torito.catalog_filename),
+			    1024, key, value);
+			iso9660->opt.boot_catalog = r == ARCHIVE_OK;
+			return (r);
+		}
+		if (strcmp(key, "boot-info-table") == 0) {
+			iso9660->opt.boot_info_table = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, "boot-load-seg") == 0) {
+			uint32_t seg;
+
+			iso9660->opt.boot_load_seg = 0;
+			if (value == NULL)
+				goto invalid_value;
+			seg = 0;
+			p = value;
+			if (p[0] == '0' && (p[1] == 'x' || p[1] == 'X'))
+				p += 2;
+			while (*p) {
+				if (seg)
+					seg <<= 4;
+				if (*p >= 'A' && *p <= 'F')
+					seg += *p - 'A' + 0x0a;
+				else if (*p >= 'a' && *p <= 'f')
+					seg += *p - 'a' + 0x0a;
+				else if (*p >= '0' && *p <= '9')
+					seg += *p - '0';
+				else
+					goto invalid_value;
+				if (seg > 0xffff) {
+					archive_set_error(&a->archive,
+					    ARCHIVE_ERRNO_MISC,
+					    "Invalid value(over 0xffff) for "
+					    "option ``%s''", key);
+					return (ARCHIVE_FATAL);
+				}
+				p++;
+			}
+			iso9660->el_torito.boot_load_seg = (uint16_t)seg;
+			iso9660->opt.boot_load_seg = 1;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, "boot-load-size") == 0) {
+			int num = 0;
+			r = get_num_opt(a, &num, 0xffff, 1, key, value);
+			iso9660->opt.boot_load_size = r == ARCHIVE_OK;
+			if (r != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->el_torito.boot_load_size = (uint16_t)num;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, "boot-type") == 0) {
+			if (value == NULL)
+				goto invalid_value;
+			if (strcmp(value, "no-emulation") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_NO_EMU;
+			else if (strcmp(value, "fd") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_FD;
+			else if (strcmp(value, "hard-disk") == 0)
+				iso9660->opt.boot_type = OPT_BOOT_TYPE_HARD_DISK;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'c':
+		if (strcmp(key, "compression-level") == 0) {
+#ifdef HAVE_ZLIB_H
+			if (value == NULL ||
+			    !(value[0] >= '0' && value[0] <= '9') ||
+			    value[1] != '\0')
+				goto invalid_value;
+                	iso9660->zisofs.compression_level = value[0] - '0';
+			iso9660->opt.compression_level = 1;
+                	return (ARCHIVE_OK);
+#else
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Option ``%s'' "
+			    "is not supported on this platform.", key);
+			return (ARCHIVE_FATAL);
+#endif
+		}
+		if (strcmp(key, "copyright-file") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->copyright_file_identifier),
+			    COPYRIGHT_FILE_SIZE, key, value);
+			iso9660->opt.copyright_file = r == ARCHIVE_OK;
+			return (r);
+		}
+#ifdef DEBUG
+		/* Specifies Volume creation date and time;
+		 * year(4),month(2),day(2),hour(2),minute(2),second(2).
+		 * e.g. "20090929033757"
+		 */
+		if (strcmp(key, "creation") == 0) {
+			struct tm tm;
+			char buf[5];
+
+			p = value;
+			if (p == NULL || strlen(p) < 14)
+				goto invalid_value;
+			memset(&tm, 0, sizeof(tm));
+			memcpy(buf, p, 4); buf[4] = '\0'; p += 4;
+			tm.tm_year = strtol(buf, NULL, 10) - 1900;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mon = strtol(buf, NULL, 10) - 1;
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_mday = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_hour = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0'; p += 2;
+			tm.tm_min = strtol(buf, NULL, 10);
+			memcpy(buf, p, 2); buf[2] = '\0';
+			tm.tm_sec = strtol(buf, NULL, 10);
+			iso9660->birth_time = mktime(&tm);
+			return (ARCHIVE_OK);
+		}
+#endif
+		break;
+	case 'i':
+		if (strcmp(key, "iso-level") == 0) {
+			if (value != NULL && value[1] == '\0' &&
+			    (value[0] >= '1' && value[0] <= '4')) {
+				iso9660->opt.iso_level = value[0]-'0';
+				return (ARCHIVE_OK);
+			}
+			goto invalid_value;
+		}
+		break;
+	case 'j':
+		if (strcmp(key, "joliet") == 0) {
+			if (value == NULL)
+				iso9660->opt.joliet = OPT_JOLIET_DISABLE;
+			else if (strcmp(value, "1") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_ENABLE;
+			else if (strcmp(value, "long") == 0)
+				iso9660->opt.joliet = OPT_JOLIET_LONGNAME;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'l':
+		if (strcmp(key, "limit-depth") == 0) {
+			iso9660->opt.limit_depth = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, "limit-dirs") == 0) {
+			iso9660->opt.limit_dirs = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'p':
+		if (strcmp(key, "pad") == 0) {
+			iso9660->opt.pad = value != NULL;
+			return (ARCHIVE_OK);
+		}
+		if (strcmp(key, "publisher") == 0) {
+			r = get_str_opt(a,
+			    &(iso9660->publisher_identifier),
+			    PUBLISHER_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.publisher = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'r':
+		if (strcmp(key, "rockridge") == 0 ||
+		    strcmp(key, "Rockridge") == 0) {
+			if (value == NULL)
+				iso9660->opt.rr = OPT_RR_DISABLED;
+			else if (strcmp(value, "1") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else if (strcmp(value, "strict") == 0)
+				iso9660->opt.rr = OPT_RR_STRICT;
+			else if (strcmp(value, "useful") == 0)
+				iso9660->opt.rr = OPT_RR_USEFUL;
+			else
+				goto invalid_value;
+			return (ARCHIVE_OK);
+		}
+		break;
+	case 'v':
+		if (strcmp(key, "volume-id") == 0) {
+			r = get_str_opt(a, &(iso9660->volume_identifier),
+			    VOLUME_IDENTIFIER_SIZE, key, value);
+			iso9660->opt.volume_id = r == ARCHIVE_OK;
+			return (r);
+		}
+		break;
+	case 'z':
+		if (strcmp(key, "zisofs") == 0) {
+			if (value == NULL)
+				iso9660->opt.zisofs = OPT_ZISOFS_DISABLED;
+			else {
+#ifdef HAVE_ZLIB_H
+				iso9660->opt.zisofs = OPT_ZISOFS_DIRECT;
+#else
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "``zisofs'' "
+				    "is not supported on this platform.");
+				return (ARCHIVE_FATAL);
+#endif
+			}
+			return (ARCHIVE_OK);
+		}
+		break;
+	}
+
+	/* Note: The "warn" return is just to inform the options
+	 * supervisor that we didn't handle it.  It will generate
+	 * a suitable error if no one used this option. */
+	return (ARCHIVE_WARN);
+
+invalid_value:
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+	    "Invalid value for option ``%s''", key);
+	return (ARCHIVE_FAILED);
 }
 
-std::string cmGlobalGenerator::SelectMakeProgram(
-                                          const std::string& inMakeProgram,
-                                          const std::string& makeDefault) const
+static int
+iso9660_write_header(struct archive_write *a, struct archive_entry *entry)
 {
-  std::string makeProgram = inMakeProgram;
-  if(cmSystemTools::IsOff(makeProgram.c_str()))
-    {
-    const char* makeProgramCSTR =
-      this->CMakeInstance->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
-    if(cmSystemTools::IsOff(makeProgramCSTR))
-      {
-      makeProgram = makeDefault;
-      }
-    else
-      {
-      makeProgram = makeProgramCSTR;
-      }
-    if(cmSystemTools::IsOff(makeProgram.c_str()) &&
-       !makeProgram.empty())
-      {
-      makeProgram = "CMAKE_MAKE_PROGRAM-NOTFOUND";
-      }
-    }
-  return makeProgram;
+	struct iso9660 *iso9660;
+	struct isofile *file;
+	struct isoent *isoent;
+	int r, ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	iso9660->cur_file = NULL;
+	iso9660->bytes_remaining = 0;
+	iso9660->need_multi_extent = 0;
+	if (archive_entry_filetype(entry) == AE_IFLNK
+	    && iso9660->opt.rr == OPT_RR_DISABLED) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Ignore symlink file.");
+		iso9660->cur_file = NULL;
+		return (ARCHIVE_WARN);
+	}
+	if (archive_entry_filetype(entry) == AE_IFREG &&
+	    archive_entry_size(entry) >= MULTI_EXTENT_SIZE) {
+		if (iso9660->opt.iso_level < 3) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Ignore over %lld bytes file. "
+			    "This file too large.",
+			    MULTI_EXTENT_SIZE);
+				iso9660->cur_file = NULL;
+			return (ARCHIVE_WARN);
+		}
+		iso9660->need_multi_extent = 1;
+	}
+
+	file = isofile_new(a, entry);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate data");
+		return (ARCHIVE_FATAL);
+	}
+	r = isofile_gen_utility_names(a, file);
+	if (r < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (r);
+	}
+	else if (r < ret)
+		ret = r;
+
+	/*
+	 * Ignore a path which looks like the top of directory name
+	 * since we have already made the root directory of an ISO image.
+	 */
+	if (archive_strlen(&(file->parentdir)) == 0 &&
+	    archive_strlen(&(file->basename)) == 0) {
+		isofile_free(file);
+		return (r);
+	}
+
+	isofile_add_entry(iso9660, file);
+	isoent = isoent_new(file);
+	if (isoent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate data");
+		return (ARCHIVE_FATAL);
+	}
+	if (isoent->file->dircnt > iso9660->dircnt_max)
+		iso9660->dircnt_max = isoent->file->dircnt;
+
+	/* Add the current file into tree */
+	r = isoent_tree(a, &isoent);
+	if (r != ARCHIVE_OK)
+		return (r);
+
+	/* If there is the same file in tree and
+	 * the current file is older than the file in tree.
+	 * So we don't need the current file data anymore. */
+	if (isoent->file != file)
+		return (ARCHIVE_OK);
+
+	/* Non regular files contents are unneeded to be saved to
+	 * temporary files. */
+	if (archive_entry_filetype(file->entry) != AE_IFREG)
+		return (ret);
+
+	/*
+	 * Set the current file to cur_file to read its contents.
+	 */
+	iso9660->cur_file = file;
+
+	if (archive_entry_nlink(file->entry) > 1) {
+		r = isofile_register_hardlink(a, file);
+		if (r != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/*
+	 * Prepare to save the contents of the file.
+	 */
+	if (iso9660->temp_fd < 0) {
+		iso9660->temp_fd = __archive_mktemp(NULL);
+		if (iso9660->temp_fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Couldn't create temporary file");
+			return (ARCHIVE_FATAL);
+		}
+	}
+
+	/* Save an offset of current file in temporary file. */
+	file->content.offset_of_temp = wb_offset(a);
+	file->cur_content = &(file->content);
+	r = zisofs_init(a, file);
+	if (r < ret)
+		ret = r;
+	iso9660->bytes_remaining =  archive_entry_size(file->entry);
+
+	return (ret);
 }
 
-void cmGlobalGenerator::ResolveLanguageCompiler(const std::string &lang,
-                                                cmMakefile *mf,
-                                                bool optional) const
+static int
+write_to_temp(struct archive_write *a, const void *buff, size_t s)
 {
-  std::string langComp = "CMAKE_";
-  langComp += lang;
-  langComp += "_COMPILER";
+	struct iso9660 *iso9660 = a->format_data;
+	ssize_t written;
+	const unsigned char *b;
 
-  if(!mf->GetDefinition(langComp))
-    {
-    if(!optional)
-      {
-      cmSystemTools::Error(langComp.c_str(),
-                           " not set, after EnableLanguage");
-      }
-    return;
-    }
-  const char* name = mf->GetRequiredDefinition(langComp);
-  std::string path;
-  if(!cmSystemTools::FileIsFullPath(name))
-    {
-    path = cmSystemTools::FindProgram(name);
-    }
-  else
-    {
-    path = name;
-    }
-  if((path.empty() || !cmSystemTools::FileExists(path.c_str()))
-      && (optional==false))
-    {
-    return;
-    }
-  const char* cname = this->GetCMakeInstance()->
-    GetState()->GetInitializedCacheValue(langComp);
-  std::string changeVars;
-  if(cname && !optional)
-    {
-    std::string cnameString;
-    if(!cmSystemTools::FileIsFullPath(cname))
-      {
-      cnameString = cmSystemTools::FindProgram(cname);
-      }
-    else
-      {
-      cnameString = cname;
-      }
-    std::string pathString = path;
-    // get rid of potentially multiple slashes:
-    cmSystemTools::ConvertToUnixSlashes(cnameString);
-    cmSystemTools::ConvertToUnixSlashes(pathString);
-    if (cnameString != pathString)
-      {
-      const char* cvars =
-        this->GetCMakeInstance()->GetState()->GetGlobalProperty(
-          "__CMAKE_DELETE_CACHE_CHANGE_VARS_");
-      if(cvars)
-        {
-        changeVars += cvars;
-        changeVars += ";";
-        }
-      changeVars += langComp;
-      changeVars += ";";
-      changeVars += cname;
-      this->GetCMakeInstance()->GetState()->SetGlobalProperty(
-        "__CMAKE_DELETE_CACHE_CHANGE_VARS_",
-        changeVars.c_str());
-      }
-    }
+	b = (const unsigned char *)buff;
+	while (s) {
+		written = write(iso9660->temp_fd, b, s);
+		if (written < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't write to temporary file");
+			return (ARCHIVE_FATAL);
+		}
+		s -= written;
+		b += written;
+	}
+	return (ARCHIVE_OK);
 }
 
-void cmGlobalGenerator::AddBuildExportSet(cmExportBuildFileGenerator* gen)
+static int
+wb_write_to_temp(struct archive_write *a, const void *buff, size_t s)
 {
-  this->BuildExportSets[gen->GetMainExportFileName()] = gen;
+	const char *xp = buff;
+	size_t xs = s;
+
+	/*
+	 * If a written data size is big enough to use system-call
+	 * and there is no waiting data, this calls write_to_temp() in
+	 * order to reduce a extra memory copy.
+	 */
+	if (wb_remaining(a) == wb_buffmax() && s > (1024 * 16)) {
+		struct iso9660 *iso9660 = (struct iso9660 *)a->format_data;
+		xs = s % LOGICAL_BLOCK_SIZE;
+		iso9660->wbuff_offset += s - xs;
+		if (write_to_temp(a, buff, s - xs) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		if (xs == 0)
+			return (ARCHIVE_OK);
+		xp += s - xs;
+	}
+
+	while (xs) {
+		size_t size = xs;
+		if (size > wb_remaining(a))
+			size = wb_remaining(a);
+		memcpy(wb_buffptr(a), xp, size);
+		if (wb_consume(a, size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		xs -= size;
+		xp += size;
+	}
+	return (ARCHIVE_OK);
 }
 
-void
-cmGlobalGenerator::AddBuildExportExportSet(cmExportBuildFileGenerator* gen)
+static int
+wb_write_padding_to_temp(struct archive_write *a, int64_t csize)
 {
-  this->BuildExportSets[gen->GetMainExportFileName()] = gen;
-  this->BuildExportExportSets[gen->GetMainExportFileName()] = gen;
+	size_t ns;
+	int ret;
+
+	ns = (size_t)(csize % LOGICAL_BLOCK_SIZE);
+	if (ns != 0)
+		ret = write_null(a, LOGICAL_BLOCK_SIZE - ns);
+	else
+		ret = ARCHIVE_OK;
+	return (ret);
 }
 
-bool cmGlobalGenerator::GenerateImportFile(const std::string &file)
+static ssize_t
+write_iso9660_data(struct archive_write *a, const void *buff, size_t s)
 {
-  std::map<std::string, cmExportBuildFileGenerator*>::iterator it
-                                          = this->BuildExportSets.find(file);
-  if (it != this->BuildExportSets.end())
-    {
-    bool result = it->second->GenerateImportFile();
-    delete it->second;
-    it->second = 0;
-    this->BuildExportSets.erase(it);
-    return result;
-    }
-  return false;
+	struct iso9660 *iso9660 = a->format_data;
+	size_t ws;
+
+	if (iso9660->temp_fd < 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Couldn't create temporary file");
+		return (ARCHIVE_FATAL);
+	}
+
+	ws = s;
+	if (iso9660->need_multi_extent &&
+	    (iso9660->cur_file->cur_content->size + ws) >=
+	      (MULTI_EXTENT_SIZE - LOGICAL_BLOCK_SIZE)) {
+		struct content *con;
+		size_t ts;
+
+		ts = (size_t)(MULTI_EXTENT_SIZE - LOGICAL_BLOCK_SIZE -
+		    iso9660->cur_file->cur_content->size);
+
+		if (iso9660->zisofs.detect_magic)
+			zisofs_detect_magic(a, buff, ts);
+
+		if (iso9660->zisofs.making) {
+			if (zisofs_write_to_temp(a, buff, ts) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		} else {
+			if (wb_write_to_temp(a, buff, ts) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->cur_file->cur_content->size += ts;
+		}
+
+		/* Write padding. */
+		if (wb_write_padding_to_temp(a,
+		    iso9660->cur_file->cur_content->size) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+
+		/* Compute the logical block number. */
+		iso9660->cur_file->cur_content->blocks = (int)
+		    ((iso9660->cur_file->cur_content->size
+		     + LOGICAL_BLOCK_SIZE -1) >> LOGICAL_BLOCK_BITS);
+
+		/*
+		 * Make next extent.
+		 */
+		ws -= ts;
+		buff = (const void *)(((const unsigned char *)buff) + ts);
+		/* Make a content for next extent. */
+		con = calloc(1, sizeof(*con));
+		if (con == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate content data");
+			return (ARCHIVE_FATAL);
+		}
+		con->offset_of_temp = wb_offset(a);
+		iso9660->cur_file->cur_content->next = con;
+		iso9660->cur_file->cur_content = con;
+#ifdef HAVE_ZLIB_H
+		iso9660->zisofs.block_offset = 0;
+#endif
+	}
+
+	if (iso9660->zisofs.detect_magic)
+		zisofs_detect_magic(a, buff, ws);
+
+	if (iso9660->zisofs.making) {
+		if (zisofs_write_to_temp(a, buff, ws) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	} else {
+		if (wb_write_to_temp(a, buff, ws) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		iso9660->cur_file->cur_content->size += ws;
+	}
+
+	return (s);
 }
 
-void cmGlobalGenerator::ForceLinkerLanguages()
+static ssize_t
+iso9660_write_data(struct archive_write *a, const void *buff, size_t s)
 {
+	struct iso9660 *iso9660 = a->format_data;
+	ssize_t r;
 
+	if (iso9660->cur_file == NULL)
+		return (0);
+	if (archive_entry_filetype(iso9660->cur_file->entry) != AE_IFREG)
+		return (0);
+	if (s > iso9660->bytes_remaining)
+		s = (size_t)iso9660->bytes_remaining;
+	if (s == 0)
+		return (0);
+
+	r = write_iso9660_data(a, buff, s);
+	if (r > 0)
+		iso9660->bytes_remaining -= r;
+	return (r);
 }
 
-bool
-cmGlobalGenerator::IsExportedTargetsFile(const std::string &filename) const
+static int
+iso9660_finish_entry(struct archive_write *a)
 {
-  const std::map<std::string, cmExportBuildFileGenerator*>::const_iterator it
-                                      = this->BuildExportSets.find(filename);
-  if (it == this->BuildExportSets.end())
-    {
-    return false;
-    }
-  return this->BuildExportExportSets.find(filename)
-                                        == this->BuildExportExportSets.end();
+	struct iso9660 *iso9660 = a->format_data;
+
+	if (iso9660->cur_file == NULL)
+		return (ARCHIVE_OK);
+	if (archive_entry_filetype(iso9660->cur_file->entry) != AE_IFREG)
+		return (ARCHIVE_OK);
+	if (iso9660->cur_file->content.size == 0)
+		return (ARCHIVE_OK);
+
+	/* If there are unwritten data, write null data instead. */
+	while (iso9660->bytes_remaining > 0) {
+		size_t s;
+
+		s = (iso9660->bytes_remaining > a->null_length)?
+		    a->null_length: (size_t)iso9660->bytes_remaining;
+		if (write_iso9660_data(a, a->nulls, s) < 0)
+			return (ARCHIVE_FATAL);
+		iso9660->bytes_remaining -= s;
+	}
+
+	if (iso9660->zisofs.making && zisofs_finish_entry(a) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write padding. */
+	if (wb_write_padding_to_temp(a, iso9660->cur_file->cur_content->size)
+	    != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Compute the logical block number. */
+	iso9660->cur_file->cur_content->blocks = (int)
+	    ((iso9660->cur_file->cur_content->size
+	     + LOGICAL_BLOCK_SIZE -1) >> LOGICAL_BLOCK_BITS);
+
+	/* Add the current file to data file list. */
+	isofile_add_data_file(iso9660, iso9660->cur_file);
+
+	return (ARCHIVE_OK);
 }
 
-// Find the make program for the generator, required for try compiles
-void cmGlobalGenerator::FindMakeProgram(cmMakefile* mf)
+static int
+iso9660_close(struct archive_write *a)
 {
-  if(this->FindMakeProgramFile.empty())
-    {
-    cmSystemTools::Error(
-      "Generator implementation error, "
-      "all generators must specify this->FindMakeProgramFile");
-    }
-  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
-     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
-    {
-    std::string setMakeProgram =
-      mf->GetModulesFile(this->FindMakeProgramFile.c_str());
-    if(!setMakeProgram.empty())
-      {
-      mf->ReadListFile(setMakeProgram.c_str());
-      }
-    }
-  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
-     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
-    {
-    std::ostringstream err;
-    err << "CMake was unable to find a build program corresponding to \""
-        << this->GetName() << "\".  CMAKE_MAKE_PROGRAM is not set.  You "
-        << "probably need to select a different build tool.";
-    cmSystemTools::Error(err.str().c_str());
-    cmSystemTools::SetFatalErrorOccured();
-    return;
-    }
-  std::string makeProgram = mf->GetRequiredDefinition("CMAKE_MAKE_PROGRAM");
-  // if there are spaces in the make program use short path
-  // but do not short path the actual program name, as
-  // this can cause trouble with VSExpress
-  if(makeProgram.find(' ') != makeProgram.npos)
-    {
-    std::string dir;
-    std::string file;
-    cmSystemTools::SplitProgramPath(makeProgram,
-                                    dir, file);
-    std::string saveFile = file;
-    cmSystemTools::GetShortPath(makeProgram, makeProgram);
-    cmSystemTools::SplitProgramPath(makeProgram,
-                                    dir, file);
-    makeProgram = dir;
-    makeProgram += "/";
-    makeProgram += saveFile;
-    mf->AddCacheDefinition("CMAKE_MAKE_PROGRAM", makeProgram.c_str(),
-                           "make program",
-                           cmState::FILEPATH);
-    }
+	struct iso9660 *iso9660;
+	int ret, blocks;
+
+	iso9660 = a->format_data;
+
+	/*
+	 * Write remaining data out to the temporary file.
+	 */
+	if (wb_remaining(a) > 0) {
+		ret = wb_write_out(a);
+		if (ret < 0)
+			return (ret);
+	}
+
+	/*
+	 * Preparations...
+	 */
+#ifdef DEBUG
+	if (iso9660->birth_time == 0)
+#endif
+		time(&(iso9660->birth_time));
+
+	/*
+	 * Prepare a bootable ISO image.
+	 */
+	if (iso9660->opt.boot) {
+		/* Find out the boot file entry. */
+		ret = isoent_find_out_boot_file(a, iso9660->primary.rootent);
+		if (ret < 0)
+			return (ret);
+		/* Reconvert the boot file from zisofs'ed form to
+		 * plain form. */
+		ret = zisofs_rewind_boot_file(a);
+		if (ret < 0)
+			return (ret);
+		/* Write remaining data out to the temporary file. */
+		if (wb_remaining(a) > 0) {
+			ret = wb_write_out(a);
+			if (ret < 0)
+				return (ret);
+		}
+		/* Create the boot catalog. */
+		ret = isoent_create_boot_catalog(a, iso9660->primary.rootent);
+		if (ret < 0)
+			return (ret);
+	}
+
+	/*
+	 * Prepare joliet extensions.
+	 */
+	if (iso9660->opt.joliet) {
+		/* Make a new tree for joliet. */
+		ret = isoent_clone_tree(a, &(iso9660->joliet.rootent),
+		    iso9660->primary.rootent);
+		if (ret < 0)
+			return (ret);
+		/* Make sure we have UTF-16BE convertors.
+		 * if there is no file entry, convertors are still
+		 * uninitilized. */
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), "UTF-16BE", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), "UTF-16BE", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+	}
+
+	/*
+	 * Make Path Tables.
+	 */
+	ret = isoent_make_path_table(a);
+	if (ret < 0)
+		return (ret);
+
+	/*
+	 * Calculate a total volume size and setup all locations of
+	 * contents of an iso9660 image.
+	 */
+	blocks = SYSTEM_AREA_BLOCK
+		+ PRIMARY_VOLUME_DESCRIPTOR_BLOCK
+		+ VOLUME_DESCRIPTOR_SET_TERMINATOR_BLOCK
+		+ NON_ISO_FILE_SYSTEM_INFORMATION_BLOCK;
+	if (iso9660->opt.boot)
+		blocks += BOOT_RECORD_DESCRIPTOR_BLOCK;
+	if (iso9660->opt.joliet)
+		blocks += SUPPLEMENTARY_VOLUME_DESCRIPTOR_BLOCK;
+	if (iso9660->opt.iso_level == 4)
+		blocks += SUPPLEMENTARY_VOLUME_DESCRIPTOR_BLOCK;
+
+	/* Setup the locations of Path Table. */
+	iso9660->primary.location_type_L_path_table = blocks;
+	blocks += iso9660->primary.path_table_block;
+	iso9660->primary.location_type_M_path_table = blocks;
+	blocks += iso9660->primary.path_table_block;
+	if (iso9660->opt.joliet) {
+		iso9660->joliet.location_type_L_path_table = blocks;
+		blocks += iso9660->joliet.path_table_block;
+		iso9660->joliet.location_type_M_path_table = blocks;
+		blocks += iso9660->joliet.path_table_block;
+	}
+
+	/* Setup the locations of directories. */
+	isoent_setup_directory_location(iso9660, blocks,
+	    &(iso9660->primary));
+	blocks += iso9660->primary.total_dir_block;
+	if (iso9660->opt.joliet) {
+		isoent_setup_directory_location(iso9660, blocks,
+		    &(iso9660->joliet));
+		blocks += iso9660->joliet.total_dir_block;
+	}
+
+	if (iso9660->opt.rr) {
+		iso9660->location_rrip_er = blocks;
+		blocks += RRIP_ER_BLOCK;
+	}
+
+	/* Setup the locations of all file contents. */
+ 	isoent_setup_file_location(iso9660, blocks);
+	blocks += iso9660->total_file_block;
+	if (iso9660->opt.boot && iso9660->opt.boot_info_table) {
+		ret = setup_boot_information(a);
+		if (ret < 0)
+			return (ret);
+	}
+
+	/* Now we have a total volume size. */
+	iso9660->volume_space_size = blocks;
+	if (iso9660->opt.pad)
+		iso9660->volume_space_size += PADDING_BLOCK;
+	iso9660->volume_sequence_number = 1;
+
+
+	/*
+	 * Write an ISO 9660 image.
+	 */
+
+	/* Switc to start using wbuff as file buffer. */
+	iso9660->wbuff_remaining = wb_buffmax();
+	iso9660->wbuff_type = WB_TO_STREAM;
+	iso9660->wbuff_offset = 0;
+	iso9660->wbuff_written = 0;
+	iso9660->wbuff_tail = 0;
+
+	/* Write The System Area */
+	ret = write_null(a, SYSTEM_AREA_BLOCK * LOGICAL_BLOCK_SIZE);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Primary Volume Descriptor */
+	ret = write_VD(a, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	if (iso9660->opt.boot) {
+		/* Write Boot Record Volume Descriptor */
+		ret = write_VD_boot_record(a);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->opt.iso_level == 4) {
+		/* Write Enhanced Volume Descriptor */
+		iso9660->primary.vdd_type = VDD_ENHANCED;
+		ret = write_VD(a, &(iso9660->primary));
+		iso9660->primary.vdd_type = VDD_PRIMARY;
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->opt.joliet) {
+		ret = write_VD(a, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Write Volume Descriptor Set Terminator */
+	ret = write_VD_terminator(a);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Non-ISO File System Information */
+	ret = write_information_block(a);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Type L Path Table */
+	ret = write_path_table(a, 0, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Type M Path Table */
+	ret = write_path_table(a, 1, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	if (iso9660->opt.joliet) {
+		/* Write Type L Path Table */
+		ret = write_path_table(a, 0, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+
+		/* Write Type M Path Table */
+		ret = write_path_table(a, 1, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Write Directory Descriptors */
+	ret = write_directory_descriptors(a, &(iso9660->primary));
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	if (iso9660->opt.joliet) {
+		ret = write_directory_descriptors(a, &(iso9660->joliet));
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->opt.rr) {
+		/* Write Rockridge ER(Extensions Reference) */
+		ret = write_rr_ER(a);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	/* Write File Descriptors */
+	ret = write_file_descriptors(a);
+	if (ret != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Write Padding  */
+	if (iso9660->opt.pad) {
+		ret = write_null(a, PADDING_BLOCK * LOGICAL_BLOCK_SIZE);
+		if (ret != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+	}
+
+	if (iso9660->directories_too_deep != NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "%s: Directories too deep.",
+		    archive_entry_pathname(
+			iso9660->directories_too_deep->file->entry));
+		return (ARCHIVE_WARN);
+	}
+
+	/* Write remaining data out. */
+	ret = wb_write_out(a);
+
+	return (ret);
 }
 
-// enable the given language
-//
-// The following files are loaded in this order:
-//
-// First figure out what OS we are running on:
-//
-// CMakeSystem.cmake - configured file created by CMakeDetermineSystem.cmake
-//   CMakeDetermineSystem.cmake - figure out os info and create
-//                                CMakeSystem.cmake IF CMAKE_SYSTEM
-//                                not set
-//   CMakeSystem.cmake - configured file created by
-//                       CMakeDetermineSystem.cmake IF CMAKE_SYSTEM_LOADED
-
-// CMakeSystemSpecificInitialize.cmake
-//   - includes Platform/${CMAKE_SYSTEM_NAME}-Initialize.cmake
-
-// Next try and enable all languages found in the languages vector
-//
-// FOREACH LANG in languages
-//   CMake(LANG)Compiler.cmake - configured file create by
-//                               CMakeDetermine(LANG)Compiler.cmake
-//     CMakeDetermine(LANG)Compiler.cmake - Finds compiler for LANG and
-//                                          creates CMake(LANG)Compiler.cmake
-//     CMake(LANG)Compiler.cmake - configured file created by
-//                                 CMakeDetermine(LANG)Compiler.cmake
-//
-// CMakeSystemSpecificInformation.cmake
-//   - includes Platform/${CMAKE_SYSTEM_NAME}.cmake
-//     may use compiler stuff
-
-// FOREACH LANG in languages
-//   CMake(LANG)Information.cmake
-//     - loads Platform/${CMAKE_SYSTEM_NAME}-${COMPILER}.cmake
-//   CMakeTest(LANG)Compiler.cmake
-//     - Make sure the compiler works with a try compile if
-//       CMakeDetermine(LANG) was loaded
-//
-// Now load a few files that can override values set in any of the above
-// (PROJECTNAME)Compatibility.cmake
-//   - load any backwards compatibility stuff for current project
-// ${CMAKE_USER_MAKE_RULES_OVERRIDE}
-//   - allow users a chance to override system variables
-//
-//
-
-void
-cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
-                                  cmMakefile *mf, bool optional)
+static int
+iso9660_free(struct archive_write *a)
 {
-  if(languages.empty())
-    {
-    cmSystemTools::Error("EnableLanguage must have a lang specified!");
-    cmSystemTools::SetFatalErrorOccured();
-    return;
-    }
+	struct iso9660 *iso9660;
+	int i, ret;
 
-  if(this->TryCompileOuterMakefile)
-    {
-    // In a try-compile we can only enable languages provided by caller.
-    for(std::vector<std::string>::const_iterator li = languages.begin();
-        li != languages.end(); ++li)
-      {
-      if(*li == "NONE")
-        {
-        this->SetLanguageEnabled("NONE", mf);
-        }
-      else
-        {
-        const char* lang = li->c_str();
-        if(this->LanguagesReady.find(lang) == this->LanguagesReady.end())
-          {
-          std::ostringstream e;
-          e << "The test project needs language "
-            << lang << " which is not enabled.";
-          this->TryCompileOuterMakefile
-            ->IssueMessage(cmake::FATAL_ERROR, e.str());
-          cmSystemTools::SetFatalErrorOccured();
-          return;
-          }
-        }
-      }
-    }
+	iso9660 = a->format_data;
 
-  bool fatalError = false;
+	/* Close the temporary file. */
+	if (iso9660->temp_fd >= 0)
+		close(iso9660->temp_fd);
 
-  mf->AddDefinition("RUN_CONFIGURE", true);
-  std::string rootBin = mf->GetHomeOutputDirectory();
-  rootBin += cmake::GetCMakeFilesDirectory();
+	/* Free some stuff for zisofs operations. */
+	ret = zisofs_free(a);
 
-  // If the configuration files path has been set,
-  // then we are in a try compile and need to copy the enable language
-  // files from the parent cmake bin dir, into the try compile bin dir
-  if(!this->ConfiguredFilesPath.empty())
-    {
-    rootBin = this->ConfiguredFilesPath;
-    }
-  rootBin += "/";
-  rootBin += cmVersion::GetCMakeVersion();
+	/* Remove directory entries in tree which includes file entries. */
+	isoent_free_all(iso9660->primary.rootent);
+	for (i = 0; i < iso9660->primary.max_depth; i++)
+		free(iso9660->primary.pathtbl[i].sorted);
+	free(iso9660->primary.pathtbl);
 
-  // set the dir for parent files so they can be used by modules
-  mf->AddDefinition("CMAKE_PLATFORM_INFO_DIR",rootBin.c_str());
+	if (iso9660->opt.joliet) {
+		isoent_free_all(iso9660->joliet.rootent);
+		for (i = 0; i < iso9660->joliet.max_depth; i++)
+			free(iso9660->joliet.pathtbl[i].sorted);
+		free(iso9660->joliet.pathtbl);
+	}
 
-  // find and make sure CMAKE_MAKE_PROGRAM is defined
-  this->FindMakeProgram(mf);
+	/* Remove isofile entries. */
+	isofile_free_all_entries(iso9660);
+	isofile_free_hardlinks(iso9660);
 
-  // try and load the CMakeSystem.cmake if it is there
-  std::string fpath = rootBin;
-  bool const readCMakeSystem = !mf->GetDefinition("CMAKE_SYSTEM_LOADED");
-  if(readCMakeSystem)
-    {
-    fpath += "/CMakeSystem.cmake";
-    if(cmSystemTools::FileExists(fpath.c_str()))
-      {
-      mf->ReadListFile(fpath.c_str());
-      }
-    }
-  //  Load the CMakeDetermineSystem.cmake file and find out
-  // what platform we are running on
-  if (!mf->GetDefinition("CMAKE_SYSTEM"))
-    {
+	archive_string_free(&(iso9660->cur_dirstr));
+	archive_string_free(&(iso9660->volume_identifier));
+	archive_string_free(&(iso9660->publisher_identifier));
+	archive_string_free(&(iso9660->data_preparer_identifier));
+	archive_string_free(&(iso9660->application_identifier));
+	archive_string_free(&(iso9660->copyright_file_identifier));
+	archive_string_free(&(iso9660->abstract_file_identifier));
+	archive_string_free(&(iso9660->bibliographic_file_identifier));
+	archive_string_free(&(iso9660->el_torito.catalog_filename));
+	archive_string_free(&(iso9660->el_torito.boot_filename));
+	archive_string_free(&(iso9660->el_torito.id));
+	archive_string_free(&(iso9660->utf16be));
+	archive_string_free(&(iso9660->mbs));
+
+	free(iso9660);
+	a->format_data = NULL;
+
+	return (ret);
+}
+
+/*
+ * Get the System Identifier
+ */
+static void
+get_system_identitier(char *system_id, size_t size)
+{
+#if defined(HAVE_SYS_UTSNAME_H)
+	struct utsname u;
+
+	uname(&u);
+	strncpy(system_id, u.sysname, size-1);
+	system_id[size-1] = '\0';
+#elif defined(_WIN32) && !defined(__CYGWIN__)
+	strncpy(system_id, "Windows", size-1);
+	system_id[size-1] = '\0';
+#else
+#error no way to get the system identifier on your platform.
+#endif
+}
+
+static void
+set_str(unsigned char *p, const char *s, size_t l, char f, const char *map)
+{
+	unsigned char c;
+
+	if (s == NULL)
+		s = "";
+	while ((c = *s++) != 0 && l > 0) {
+		if (c >= 0x80 || map[c] == 0)
+		 {
+			/* illegal character */
+			if (c >= 'a' && c <= 'z') {
+				/* convert c from a-z to A-Z */
+				c -= 0x20;
+			} else
+				c = 0x5f;
+		}
+		*p++ = c;
+		l--;
+	}
+	/* If l isn't zero, fill p buffer by the character
+	 * which indicated by f. */
+	if (l > 0)
+		memset(p , f, l);
+}
+
+static inline int
+joliet_allowed_char(unsigned char high, unsigned char low)
+{
+	int utf16 = (high << 8) | low;
+
+	if (utf16 <= 0x001F)
+		return (0);
+
+	switch (utf16) {
+	case 0x002A: /* '*' */
+	case 0x002F: /* '/' */
+	case 0x003A: /* ':' */
+	case 0x003B: /* ';' */
+	case 0x003F: /* '?' */
+	case 0x005C: /* '\' */
+		return (0);/* Not allowed. */
+	}
+	return (1);
+}
+
+static int
+set_str_utf16be(struct archive_write *a, unsigned char *p, const char *s,
+    size_t l, uint16_t uf, enum vdc vdc)
+{
+	size_t size, i;
+	int onepad;
+
+	if (s == NULL)
+		s = "";
+	if (l & 0x01) {
+		onepad = 1;
+		l &= ~1;
+	} else
+		onepad = 0;
+	if (vdc == VDC_UCS2) {
+		struct iso9660 *iso9660 = a->format_data;
+		if (archive_strncpy_l(&iso9660->utf16be, s, strlen(s),
+		    iso9660->sconv_to_utf16be) != 0 && errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for UTF-16BE");
+			return (ARCHIVE_FATAL);
+		}
+		size = iso9660->utf16be.length;
+		if (size > l)
+			size = l;
+		memcpy(p, iso9660->utf16be.s, size);
+	} else {
+		const uint16_t *u16 = (const uint16_t *)s;
+
+		size = 0;
+		while (*u16++)
+			size += 2;
+		if (size > l)
+			size = l;
+		memcpy(p, s, size);
+	}
+	for (i = 0; i < size; i += 2, p += 2) {
+		if (!joliet_allowed_char(p[0], p[1]))
+			archive_be16enc(p, 0x005F);/* '_' */
+	}
+	l -= size;
+	while (l > 0) {
+		archive_be16enc(p, uf);
+		p += 2;
+		l -= 2;
+	}
+	if (onepad)
+		*p = 0;
+	return (ARCHIVE_OK);
+}
+
+static const char a_characters_map[0x80] = {
+/*  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F          */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 00-0F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 10-1F */
+    1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 20-2F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 30-3F */
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 40-4F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1,/* 50-5F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 60-6F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 70-7F */
+};
+
+static const char a1_characters_map[0x80] = {
+/*  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F          */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 00-0F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 10-1F */
+    1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 20-2F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 30-3F */
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 40-4F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1,/* 50-5F */
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 60-6F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,/* 70-7F */
+};
+
+static const char d_characters_map[0x80] = {
+/*  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F          */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 00-0F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 10-1F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 20-2F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,/* 30-3F */
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 40-4F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1,/* 50-5F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 60-6F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 70-7F */
+};
+
+static const char d1_characters_map[0x80] = {
+/*  0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F          */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 00-0F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 10-1F */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,/* 20-2F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0,/* 30-3F */
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 40-4F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 1,/* 50-5F */
+    0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,/* 60-6F */
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0,/* 70-7F */
+};
+
+static int
+set_str_a_characters_bp(struct archive_write *a, unsigned char *bp,
+    int from, int to, const char *s, enum vdc vdc)
+{
+	int r;
+
+	switch (vdc) {
+	case VDC_STD:
+		set_str(bp+from, s, to - from + 1, 0x20,
+		    a_characters_map);
+		r = ARCHIVE_OK;
+		break;
+	case VDC_LOWERCASE:
+		set_str(bp+from, s, to - from + 1, 0x20,
+		    a1_characters_map);
+		r = ARCHIVE_OK;
+		break;
+	case VDC_UCS2:
+	case VDC_UCS2_DIRECT:
+		r = set_str_utf16be(a, bp+from, s, to - from + 1,
+		    0x0020, vdc);
+		break;
+	default:
+		r = ARCHIVE_FATAL;
+	}
+	return (r);
+}
+
+static int
+set_str_d_characters_bp(struct archive_write *a, unsigned char *bp,
+    int from, int to, const char *s, enum  vdc vdc)
+{
+	int r;
+
+	switch (vdc) {
+	case VDC_STD:
+		set_str(bp+from, s, to - from + 1, 0x20,
+		    d_characters_map);
+		r = ARCHIVE_OK;
+		break;
+	case VDC_LOWERCASE:
+		set_str(bp+from, s, to - from + 1, 0x20,
+		    d1_characters_map);
+		r = ARCHIVE_OK;
+		break;
+	case VDC_UCS2:
+	case VDC_UCS2_DIRECT:
+		r = set_str_utf16be(a, bp+from, s, to - from + 1,
+		    0x0020, vdc);
+		break;
+	default:
+		r = ARCHIVE_FATAL;
+	}
+	return (r);
+}
+
+static void
+set_VD_bp(unsigned char *bp, enum VD_type type, unsigned char ver)
+{
+
+	/* Volume Descriptor Type */
+	bp[1] = (unsigned char)type;
+	/* Standard Identifier */
+	memcpy(bp + 2, "CD001", 5);
+	/* Volume Descriptor Version */
+	bp[7] = ver;
+}
+
+static inline void
+set_unused_field_bp(unsigned char *bp, int from, int to)
+{
+	memset(bp + from, 0, to - from + 1);
+}
+
+/*
+ * 8-bit unsigned numerical values.
+ * ISO9660 Standard 7.1.1
+ */
+static inline void
+set_num_711(unsigned char *p, unsigned char value)
+{
+	*p = value;
+}
+
+/*
+ * 8-bit signed numerical values.
+ * ISO9660 Standard 7.1.2
+ */
+static inline void
+set_num_712(unsigned char *p, char value)
+{
+	*((char *)p) = value;
+}
+
+/*
+ * Least significant byte first.
+ * ISO9660 Standard 7.2.1
+ */
+static inline void
+set_num_721(unsigned char *p, uint16_t value)
+{
+	archive_le16enc(p, value);
+}
+
+/*
+ * Most significant byte first.
+ * ISO9660 Standard 7.2.2
+ */
+static inline void
+set_num_722(unsigned char *p, uint16_t value)
+{
+	archive_be16enc(p, value);
+}
+
+/*
+ * Both-byte orders.
+ * ISO9660 Standard 7.2.3
+ */
+static void
+set_num_723(unsigned char *p, uint16_t value)
+{
+	archive_le16enc(p, value);
+	archive_be16enc(p+2, value);
+}
+
+/*
+ * Least significant byte first.
+ * ISO9660 Standard 7.3.1
+ */
+static inline void
+set_num_731(unsigned char *p, uint32_t value)
+{
+	archive_le32enc(p, value);
+}
+
+/*
+ * Most significant byte first.
+ * ISO9660 Standard 7.3.2
+ */
+static inline void
+set_num_732(unsigned char *p, uint32_t value)
+{
+	archive_be32enc(p, value);
+}
+
+/*
+ * Both-byte orders.
+ * ISO9660 Standard 7.3.3
+ */
+static inline void
+set_num_733(unsigned char *p, uint32_t value)
+{
+	archive_le32enc(p, value);
+	archive_be32enc(p+4, value);
+}
+
+static void
+set_digit(unsigned char *p, size_t s, int value)
+{
+
+	while (s--) {
+		p[s] = '0' + (value % 10);
+		value /= 10;
+	}
+}
+
+#if defined(HAVE_STRUCT_TM_TM_GMTOFF)
+#define get_gmoffset(tm)	((tm)->tm_gmtoff)
+#elif defined(HAVE_STRUCT_TM___TM_GMTOFF)
+#define get_gmoffset(tm)	((tm)->__tm_gmtoff)
+#else
+static long
+get_gmoffset(struct tm *tm)
+{
+	long offset;
+
+#if defined(HAVE__GET_TIMEZONE)
+	_get_timezone(&offset);
+#elif defined(__CYGWIN__) || defined(__MINGW32__) || defined(__BORLANDC__)
+	offset = _timezone;
+#else
+	offset = timezone;
+#endif
+	offset *= -1;
+	if (tm->tm_isdst)
+		offset += 3600;
+	return (offset);
+}
+#endif
+
+static void
+get_tmfromtime(struct tm *tm, time_t *t)
+{
+#if HAVE_LOCALTIME_R
+	tzset();
+	localtime_r(t, tm);
+#elif HAVE__LOCALTIME64_S
+	_localtime64_s(tm, t);
+#else
+	memcpy(tm, localtime(t), sizeof(*tm));
+#endif
+}
+
+/*
+ * Date and Time Format.
+ * ISO9660 Standard 8.4.26.1
+ */
+static void
+set_date_time(unsigned char *p, time_t t)
+{
+	struct tm tm;
+
+	get_tmfromtime(&tm, &t);
+	set_digit(p, 4, tm.tm_year + 1900);
+	set_digit(p+4, 2, tm.tm_mon + 1);
+	set_digit(p+6, 2, tm.tm_mday);
+	set_digit(p+8, 2, tm.tm_hour);
+	set_digit(p+10, 2, tm.tm_min);
+	set_digit(p+12, 2, tm.tm_sec);
+	set_digit(p+14, 2, 0);
+	set_num_712(p+16, (char)(get_gmoffset(&tm)/(60*15)));
+}
+
+static void
+set_date_time_null(unsigned char *p)
+{
+	memset(p, '0', 16);
+	p[16] = 0;
+}
+
+static void
+set_time_915(unsigned char *p, time_t t)
+{
+	struct tm tm;
+
+	get_tmfromtime(&tm, &t);
+	set_num_711(p+0, tm.tm_year);
+	set_num_711(p+1, tm.tm_mon+1);
+	set_num_711(p+2, tm.tm_mday);
+	set_num_711(p+3, tm.tm_hour);
+	set_num_711(p+4, tm.tm_min);
+	set_num_711(p+5, tm.tm_sec);
+	set_num_712(p+6, (char)(get_gmoffset(&tm)/(60*15)));
+}
+
+
+/*
+ * Write SUSP "CE" System Use Entry.
+ */
+static int
+set_SUSP_CE(unsigned char *p, int location, int offset, int size)
+{
+	unsigned char *bp = p -1;
+	/*  Extend the System Use Area
+	 *   "CE" Format:
+	 *               len  ver
+	 *    +----+----+----+----+-----------+-----------+
+	 *    | 'C'| 'E'| 1C | 01 | LOCATION1 | LOCATION2 |
+	 *    +----+----+----+----+-----------+-----------+
+	 *    0    1    2    3    4          12          20
+	 *    +-----------+
+	 *    | LOCATION3 |
+	 *    +-----------+
+	 *   20          28
+	 *   LOCATION1 : Location of Continuation of System Use Area.
+	 *   LOCATION2 : Offset to Start of Continuation.
+	 *   LOCATION3 : Length of the Continuation.
+	 */
+
+	bp[1] = 'C';
+	bp[2] = 'E';
+	bp[3] = RR_CE_SIZE;	/* length	*/
+	bp[4] = 1;		/* version	*/
+	set_num_733(bp+5, location);
+	set_num_733(bp+13, offset);
+	set_num_733(bp+21, size);
+	return (RR_CE_SIZE);
+}
+
+/*
+ * The functions, which names are beginning with extra_, are used to
+ * control extra records.
+ * The maximum size of a Directory Record is 254. When a filename is
+ * very long, all of RRIP data of a file won't stored to the Directory
+ * Record and so remaining RRIP data store to an extra record instead.
+ */
+static unsigned char *
+extra_open_record(unsigned char *bp, int dr_len, struct isoent *isoent,
+    struct ctl_extr_rec *ctl)
+{
+	ctl->bp = bp;
+	if (bp != NULL)
+		bp += dr_len;
+	ctl->use_extr = 0;
+	ctl->isoent = isoent;
+	ctl->ce_ptr = NULL;
+	ctl->cur_len = ctl->dr_len = dr_len;
+	ctl->limit = DR_LIMIT;
+
+	return (bp);
+}
+
+static void
+extra_close_record(struct ctl_extr_rec *ctl, int ce_size)
+{
+	int padding = 0;
+
+	if (ce_size > 0)
+		extra_tell_used_size(ctl, ce_size);
+	/* Padding. */
+	if (ctl->cur_len & 0x01) {
+		ctl->cur_len++;
+		if (ctl->bp != NULL)
+			ctl->bp[ctl->cur_len] = 0;
+		padding = 1;
+	}
+	if (ctl->use_extr) {
+		if (ctl->ce_ptr != NULL)
+			set_SUSP_CE(ctl->ce_ptr, ctl->extr_loc,
+			    ctl->extr_off, ctl->cur_len - padding);
+	} else
+		ctl->dr_len = ctl->cur_len;
+}
+
+#define extra_space(ctl)	((ctl)->limit - (ctl)->cur_len)
+
+static unsigned char *
+extra_next_record(struct ctl_extr_rec *ctl, int length)
+{
+	int cur_len = ctl->cur_len;/* save cur_len */
+
+	/* Close the current extra record or Directory Record. */
+	extra_close_record(ctl, RR_CE_SIZE);
+
+	/* Get a next extra record. */
+	ctl->use_extr = 1;
+	if (ctl->bp != NULL) {
+		/* Storing data into an extra record. */
+		unsigned char *p;
+
+		/* Save the pointer where a CE extension will be
+		 * stored to. */
+		ctl->ce_ptr = &ctl->bp[cur_len+1];
+		p = extra_get_record(ctl->isoent,
+		    &ctl->limit, &ctl->extr_off, &ctl->extr_loc);
+		ctl->bp = p - 1;/* the base of bp offset is 1. */
+	} else
+		/* Calculating the size of an extra record. */
+		(void)extra_get_record(ctl->isoent,
+		    &ctl->limit, NULL, NULL);
+	ctl->cur_len = 0;
+	/* Check if an extra record is almost full.
+	 * If so, get a next one. */
+	if (extra_space(ctl) < length)
+		(void)extra_next_record(ctl, length);
+
+	return (ctl->bp);
+}
+
+static inline struct extr_rec *
+extra_last_record(struct isoent *isoent)
+{
+	if (isoent->extr_rec_list.first == NULL)
+		return (NULL);
+	return ((struct extr_rec *)(void *)
+		((char *)(isoent->extr_rec_list.last)
+		    - offsetof(struct extr_rec, next)));
+}
+
+static unsigned char *
+extra_get_record(struct isoent *isoent, int *space, int *off, int *loc)
+{
+	struct extr_rec *rec;
+
+	isoent = isoent->parent;
+	if (off != NULL) {
+		/* Storing data into an extra record. */
+		rec = isoent->extr_rec_list.current;
+		if (DR_SAFETY > LOGICAL_BLOCK_SIZE - rec->offset)
+			rec = rec->next;
+	} else {
+		/* Calculating the size of an extra record. */
+		rec = extra_last_record(isoent);
+		if (rec == NULL ||
+		    DR_SAFETY > LOGICAL_BLOCK_SIZE - rec->offset) {
+			rec = malloc(sizeof(*rec));
+			if (rec == NULL)
+				return (NULL);
+			rec->location = 0;
+			rec->offset = 0;
+			/* Insert `rec` into the tail of isoent->extr_rec_list */
+			rec->next = NULL;
+			/*
+			 * Note: testing isoent->extr_rec_list.last == NULL
+			 * here is really unneeded since it has been already
+			 * initialized at isoent_new function but Clang Static
+			 * Analyzer claims that it is dereference of null
+			 * pointer.
+			 */
+			if (isoent->extr_rec_list.last == NULL)
+				isoent->extr_rec_list.last =
+					&(isoent->extr_rec_list.first);
+			*isoent->extr_rec_list.last = rec;
+			isoent->extr_rec_list.last = &(rec->next);
+		}
+	}
+	*space = LOGICAL_BLOCK_SIZE - rec->offset - DR_SAFETY;
+	if (*space & 0x01)
+		*space -= 1;/* Keep padding space. */
+	if (off != NULL)
+		*off = rec->offset;
+	if (loc != NULL)
+		*loc = rec->location;
+	isoent->extr_rec_list.current = rec;
+
+	return (&rec->buf[rec->offset]);
+}
+
+static void
+extra_tell_used_size(struct ctl_extr_rec *ctl, int size)
+{
+	struct isoent *isoent;
+	struct extr_rec *rec;
+
+	if (ctl->use_extr) {
+		isoent = ctl->isoent->parent;
+		rec = isoent->extr_rec_list.current;
+		if (rec != NULL)
+			rec->offset += size;
+	}
+	ctl->cur_len += size;
+}
+
+static int
+extra_setup_location(struct isoent *isoent, int location)
+{
+	struct extr_rec *rec;
+	int cnt;
+
+	cnt = 0;
+	rec = isoent->extr_rec_list.first;
+	isoent->extr_rec_list.current = rec;
+	while (rec) {
+		cnt++;
+		rec->location = location++;
+		rec->offset = 0;
+		rec = rec->next;
+	}
+	return (cnt);
+}
+
+/*
+ * Create the RRIP entries.
+ */
+static int
+set_directory_record_rr(unsigned char *bp, int dr_len,
+    struct isoent *isoent, struct iso9660 *iso9660, enum dir_rec_type t)
+{
+	/* Flags(BP 5) of the Rockridge "RR" System Use Field */
+	unsigned char rr_flag;
+#define RR_USE_PX	0x01
+#define RR_USE_PN	0x02
+#define RR_USE_SL	0x04
+#define RR_USE_NM	0x08
+#define RR_USE_CL	0x10
+#define RR_USE_PL	0x20
+#define RR_USE_RE	0x40
+#define RR_USE_TF	0x80
+	int length;
+	struct ctl_extr_rec ctl;
+	struct isoent *rr_parent, *pxent;
+	struct isofile *file;
+
+	bp = extra_open_record(bp, dr_len, isoent, &ctl);
+
+	if (t == DIR_REC_PARENT) {
+		rr_parent = isoent->rr_parent;
+		pxent = isoent->parent;
+		if (rr_parent != NULL)
+			isoent = rr_parent;
+		else
+			isoent = isoent->parent;
+	} else {
+		rr_parent = NULL;
+		pxent = isoent;
+	}
+	file = isoent->file;
+
+	if (t != DIR_REC_NORMAL) {
+		rr_flag = RR_USE_PX | RR_USE_TF;
+		if (rr_parent != NULL)
+			rr_flag |= RR_USE_PL;
+	} else {
+		rr_flag = RR_USE_PX | RR_USE_NM | RR_USE_TF;
+		if (archive_entry_filetype(file->entry) == AE_IFLNK)
+			rr_flag |= RR_USE_SL;
+		if (isoent->rr_parent != NULL)
+			rr_flag |= RR_USE_RE;
+		if (isoent->rr_child != NULL)
+			rr_flag |= RR_USE_CL;
+		if (archive_entry_filetype(file->entry) == AE_IFCHR ||
+		    archive_entry_filetype(file->entry) == AE_IFBLK)
+			rr_flag |= RR_USE_PN;
+#ifdef COMPAT_MKISOFS
+		/*
+		 * mkisofs 2.01.01a63 records "RE" extension to
+		 * the entry of "rr_moved" directory.
+		 * I don't understand this behavior.
+		 */
+		if (isoent->virtual &&
+		    isoent->parent == iso9660->primary.rootent &&
+		    strcmp(isoent->file->basename.s, "rr_moved") == 0)
+			rr_flag |= RR_USE_RE;
+#endif
+	}
+
+	/* Write "SP" System Use Entry. */
+	if (t == DIR_REC_SELF && isoent == isoent->parent) {
+		length = 7;
+		if (bp != NULL) {
+			bp[1] = 'S';
+			bp[2] = 'P';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			bp[5] = 0xBE;  /* Check Byte	*/
+			bp[6] = 0xEF;  /* Check Byte	*/
+			bp[7] = 0;
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "RR" System Use Entry. */
+	length = 5;
+	if (extra_space(&ctl) < length)
+		bp = extra_next_record(&ctl, length);
+	if (bp != NULL) {
+		bp[1] = 'R';
+		bp[2] = 'R';
+		bp[3] = length;
+		bp[4] = 1;	/* version */
+		bp[5] = rr_flag;
+		bp += length;
+	}
+	extra_tell_used_size(&ctl, length);
+
+	/* Write "NM" System Use Entry. */
+	if (rr_flag & RR_USE_NM) {
+		/*
+		 *   "NM" Format:
+		 *     e.g. a basename is 'foo'
+		 *               len  ver  flg
+		 *    +----+----+----+----+----+----+----+----+
+		 *    | 'N'| 'M'| 08 | 01 | 00 | 'f'| 'o'| 'o'|
+		 *    +----+----+----+----+----+----+----+----+
+		 *    <----------------- len ----------------->
+		 */
+		size_t nmlen = file->basename.length;
+		const char *nm = file->basename.s;
+		size_t nmmax;
+
+		if (extra_space(&ctl) < 6)
+			bp = extra_next_record(&ctl, 6);
+		if (bp != NULL) {
+			bp[1] = 'N';
+			bp[2] = 'M';
+			bp[4] = 1;	    /* version	*/
+		}
+		nmmax = extra_space(&ctl);
+		if (nmmax > 0xff)
+			nmmax = 0xff;
+		while (nmlen + 5 > nmmax) {
+			length = (int)nmmax;
+			if (bp != NULL) {
+				bp[3] = length;
+				bp[5] = 0x01;/* Alternate Name continues
+					       * in next "NM" field */
+				memcpy(bp+6, nm, length - 5);
+				bp += length;
+			}
+			nmlen -= length - 5;
+			nm += length - 5;
+			extra_tell_used_size(&ctl, length);
+			if (extra_space(&ctl) < 6) {
+				bp = extra_next_record(&ctl, 6);
+				nmmax = extra_space(&ctl);
+				if (nmmax > 0xff)
+					nmmax = 0xff;
+			}
+			if (bp != NULL) {
+				bp[1] = 'N';
+				bp[2] = 'M';
+				bp[4] = 1;    /* version */
+			}
+		}
+		length = 5 + (int)nmlen;
+		if (bp != NULL) {
+			bp[3] = length;
+			bp[5] = 0;
+			memcpy(bp+6, nm, nmlen);
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "PX" System Use Entry. */
+	if (rr_flag & RR_USE_PX) {
+		/*
+		 *   "PX" Format:
+		 *               len  ver
+		 *    +----+----+----+----+-----------+-----------+
+		 *    | 'P'| 'X'| 2C | 01 | FILE MODE |   LINKS   |
+		 *    +----+----+----+----+-----------+-----------+
+		 *    0    1    2    3    4          12          20
+		 *    +-----------+-----------+------------------+
+		 *    |  USER ID  | GROUP ID  |FILE SERIAL NUMBER|
+		 *    +-----------+-----------+------------------+
+		 *   20          28          36                 44
+		 */
+		length = 44;
+		if (extra_space(&ctl) < length)
+			bp = extra_next_record(&ctl, length);
+		if (bp != NULL) {
+			mode_t mode;
+			int64_t uid;
+			int64_t gid;
+
+			mode = archive_entry_mode(file->entry);
+			uid = archive_entry_uid(file->entry);
+			gid = archive_entry_gid(file->entry);
+			if (iso9660->opt.rr == OPT_RR_USEFUL) {
+				/*
+				 * This action is simular mkisofs -r option
+				 * but our rockridge=useful option does not
+				 * set a zero to uid and gid.
+				 */
+				/* set all read bit ON */
+				mode |= 0444;
+#if !defined(_WIN32) && !defined(__CYGWIN__)
+				if (mode & 0111)
+#endif
+					/* set all exec bit ON */
+					mode |= 0111;
+				/* clear all write bits. */
+				mode &= ~0222;
+				/* clear setuid,setgid,sticky bits. */
+				mode &= ~07000;
+			}
+
+			bp[1] = 'P';
+			bp[2] = 'X';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			/* file mode */
+			set_num_733(bp+5, mode);
+			/* file links (stat.st_nlink) */
+			set_num_733(bp+13,
+			    archive_entry_nlink(file->entry));
+			set_num_733(bp+21, (uint32_t)uid);
+			set_num_733(bp+29, (uint32_t)gid);
+			/* File Serial Number */
+			if (pxent->dir)
+				set_num_733(bp+37, pxent->dir_location);
+			else if (file->hardlink_target != NULL)
+				set_num_733(bp+37,
+				    file->hardlink_target->cur_content->location);
+			else
+				set_num_733(bp+37,
+				    file->cur_content->location);
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "SL" System Use Entry. */
+	if (rr_flag & RR_USE_SL) {
+		/*
+		 *   "SL" Format:
+		 *     e.g. a symbolic name is 'foo/bar'
+		 *               len  ver  flg
+		 *    +----+----+----+----+----+------------+
+		 *    | 'S'| 'L'| 0F | 01 | 00 | components |
+		 *    +----+----+----+----+----+-----+------+
+		 *    0    1    2    3    4    5  ...|...  15
+		 *    <----------------- len --------+------>
+		 *    components :                   |
+		 *     cflg clen                     |
+		 *    +----+----+----+----+----+     |
+		 *    | 00 | 03 | 'f'| 'o'| 'o'| <---+
+		 *    +----+----+----+----+----+     |
+		 *    5    6    7    8    9   10     |
+		 *     cflg clen                     |
+		 *    +----+----+----+----+----+     |
+		 *    | 00 | 03 | 'b'| 'a'| 'r'| <---+
+		 *    +----+----+----+----+----+
+		 *   10   11   12   13   14   15
+		 *
+	 	 *    - cflg : flag of componet
+		 *    - clen : length of componet
+		 */
+		const char *sl;
+		char sl_last;
+
+		if (extra_space(&ctl) < 7)
+			bp = extra_next_record(&ctl, 7);
+		sl = file->symlink.s;
+		sl_last = '\0';
+		if (bp != NULL) {
+			bp[1] = 'S';
+			bp[2] = 'L';
+			bp[4] = 1;	/* version	*/
+		}
+		for (;;) {
+			unsigned char *nc, *cf,  *cl, cldmy = 0;
+			int sllen, slmax;
+
+			slmax = extra_space(&ctl);
+			if (slmax > 0xff)
+				slmax = 0xff;
+			if (bp != NULL)
+				nc = &bp[6];
+			else
+				nc = NULL;
+			cf = cl = NULL;
+			sllen = 0;
+			while (*sl && sllen + 11 < slmax) {
+				if (sl_last == '\0' && sl[0] == '/') {
+					/*
+					 *     flg  len
+					 *    +----+----+
+					 *    | 08 | 00 | ROOT component.
+					 *    +----+----+ ("/")
+					 *
+				 	 * Root component has to appear
+				 	 * at the first component only.
+					 */
+					if (nc != NULL) {
+						cf = nc++;
+						*cf = 0x08; /* ROOT */
+						*nc++ = 0;
+					}
+					sllen += 2;
+					sl++;
+					sl_last = '/';
+					cl = NULL;
+					continue;
+				}
+				if (((sl_last == '\0' || sl_last == '/') &&
+				      sl[0] == '.' && sl[1] == '.' &&
+				     (sl[2] == '/' || sl[2] == '\0')) ||
+				    (sl[0] == '/' &&
+				      sl[1] == '.' && sl[2] == '.' &&
+				     (sl[3] == '/' || sl[3] == '\0'))) {
+					/*
+					 *     flg  len
+					 *    +----+----+
+					 *    | 04 | 00 | PARENT component.
+					 *    +----+----+ ("..")
+					 */
+					if (nc != NULL) {
+						cf = nc++;
+						*cf = 0x04; /* PARENT */
+						*nc++ = 0;
+					}
+					sllen += 2;
+					if (sl[0] == '/')
+						sl += 3;/* skip "/.." */
+					else
+						sl += 2;/* skip ".." */
+					sl_last = '.';
+					cl = NULL;
+					continue;
+				}
+				if (((sl_last == '\0' || sl_last == '/') &&
+				      sl[0] == '.' &&
+				     (sl[1] == '/' || sl[1] == '\0')) ||
+				    (sl[0] == '/' && sl[1] == '.' &&
+				     (sl[2] == '/' || sl[2] == '\0'))) {
+					/*
+					 *     flg  len
+					 *    +----+----+
+					 *    | 02 | 00 | CURREENT component.
+					 *    +----+----+ (".")
+					 */
+					if (nc != NULL) {
+						cf = nc++;
+						*cf = 0x02; /* CURRENT */
+						*nc++ = 0;
+					}
+					sllen += 2;
+					if (sl[0] == '/')
+						sl += 2;/* skip "/." */
+					else
+						sl ++;  /* skip "." */
+					sl_last = '.';
+					cl = NULL;
+					continue;
+				}
+				if (sl[0] == '/' || cl == NULL) {
+					if (nc != NULL) {
+						cf = nc++;
+						*cf = 0;
+						cl = nc++;
+						*cl = 0;
+					} else
+						cl = &cldmy;
+					sllen += 2;
+					if (sl[0] == '/') {
+						sl_last = *sl++;
+						continue;
+					}
+				}
+				sl_last = *sl++;
+				if (nc != NULL) {
+					*nc++ = sl_last;
+					(*cl) ++;
+				}
+				sllen++;
+			}
+			if (*sl) {
+				length = 5 + sllen;
+				if (bp != NULL) {
+					/*
+					 * Mark flg as CONTINUE component.
+					 */
+					*cf |= 0x01;
+					/*
+					 *               len  ver  flg
+					 *    +----+----+----+----+----+-
+					 *    | 'S'| 'L'| XX | 01 | 01 |
+					 *    +----+----+----+----+----+-
+					 *                           ^
+					 *           continues in next "SL"
+					 */
+					bp[3] = length;
+					bp[5] = 0x01;/* This Symbolic Link
+						      * continues in next
+						      * "SL" field */
+					bp += length;
+				}
+				extra_tell_used_size(&ctl, length);
+				if (extra_space(&ctl) < 11)
+					bp = extra_next_record(&ctl, 11);
+				if (bp != NULL) {
+					/* Next 'SL' */
+					bp[1] = 'S';
+					bp[2] = 'L';
+					bp[4] = 1;    /* version */
+				}
+			} else {
+				length = 5 + sllen;
+				if (bp != NULL) {
+					bp[3] = length;
+					bp[5] = 0;
+					bp += length;
+				}
+				extra_tell_used_size(&ctl, length);
+				break;
+			}
+		}
+	}
+
+	/* Write "TF" System Use Entry. */
+	if (rr_flag & RR_USE_TF) {
+		/*
+		 *   "TF" Format:
+		 *               len  ver
+		 *    +----+----+----+----+-----+-------------+
+		 *    | 'T'| 'F'| XX | 01 |FLAGS| TIME STAMPS |
+		 *    +----+----+----+----+-----+-------------+
+		 *    0    1    2    3    4     5            XX
+		 *    TIME STAMPS : ISO 9660 Standard 9.1.5.
+		 *                  If TF_LONG_FORM FLAGS is set,
+		 *                  use ISO9660 Standard 8.4.26.1.
+		 */
+#define TF_CREATION	0x01	/* Creation time recorded		*/
+#define TF_MODIFY	0x02	/* Modification time recorded		*/
+#define TF_ACCESS	0x04	/* Last Access time recorded		*/
+#define TF_ATTRIBUTES	0x08	/* Last Attribute Change time recorded  */
+#define TF_BACKUP	0x10	/* Last Backup time recorded		*/
+#define TF_EXPIRATION	0x20	/* Expiration time recorded		*/
+#define TF_EFFECTIVE	0x40	/* Effective time recorded		*/
+#define TF_LONG_FORM	0x80	/* ISO 9660 17-byte time format used	*/
+		unsigned char tf_flags;
+
+		length = 5;
+		tf_flags = 0;
+#ifndef COMPAT_MKISOFS
+		if (archive_entry_birthtime_is_set(file->entry) &&
+		    archive_entry_birthtime(file->entry) <=
+		    archive_entry_mtime(file->entry)) {
+			length += 7;
+			tf_flags |= TF_CREATION;
+		}
+#endif
+		if (archive_entry_mtime_is_set(file->entry)) {
+			length += 7;
+			tf_flags |= TF_MODIFY;
+		}
+		if (archive_entry_atime_is_set(file->entry)) {
+			length += 7;
+			tf_flags |= TF_ACCESS;
+		}
+		if (archive_entry_ctime_is_set(file->entry)) {
+			length += 7;
+			tf_flags |= TF_ATTRIBUTES;
+		}
+		if (extra_space(&ctl) < length)
+			bp = extra_next_record(&ctl, length);
+		if (bp != NULL) {
+			bp[1] = 'T';
+			bp[2] = 'F';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			bp[5] = tf_flags;
+			bp += 5;
+			/* Creation time */
+			if (tf_flags & TF_CREATION) {
+				set_time_915(bp+1,
+				    archive_entry_birthtime(file->entry));
+				bp += 7;
+			}
+			/* Modification time */
+			if (tf_flags & TF_MODIFY) {
+				set_time_915(bp+1,
+				    archive_entry_mtime(file->entry));
+				bp += 7;
+			}
+			/* Last Access time */
+			if (tf_flags & TF_ACCESS) {
+				set_time_915(bp+1,
+				    archive_entry_atime(file->entry));
+				bp += 7;
+			}
+			/* Last Attribute Change time */
+			if (tf_flags & TF_ATTRIBUTES) {
+				set_time_915(bp+1,
+				    archive_entry_ctime(file->entry));
+				bp += 7;
+			}
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "RE" System Use Entry. */
+	if (rr_flag & RR_USE_RE) {
+		/*
+		 *   "RE" Format:
+		 *               len  ver
+		 *    +----+----+----+----+
+		 *    | 'R'| 'E'| 04 | 01 |
+		 *    +----+----+----+----+
+		 *    0    1    2    3    4
+		 */
+		length = 4;
+		if (extra_space(&ctl) < length)
+			bp = extra_next_record(&ctl, length);
+		if (bp != NULL) {
+			bp[1] = 'R';
+			bp[2] = 'E';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "PL" System Use Entry. */
+	if (rr_flag & RR_USE_PL) {
+		/*
+		 *   "PL" Format:
+		 *               len  ver
+		 *    +----+----+----+----+------------+
+		 *    | 'P'| 'L'| 0C | 01 | *LOCATION  |
+		 *    +----+----+----+----+------------+
+		 *    0    1    2    3    4           12
+		 *    *LOCATION: location of parent directory
+		 */
+		length = 12;
+		if (extra_space(&ctl) < length)
+			bp = extra_next_record(&ctl, length);
+		if (bp != NULL) {
+			bp[1] = 'P';
+			bp[2] = 'L';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			set_num_733(bp + 5,
+			    rr_parent->dir_location);
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "CL" System Use Entry. */
+	if (rr_flag & RR_USE_CL) {
+		/*
+		 *   "CL" Format:
+		 *               len  ver
+		 *    +----+----+----+----+------------+
+		 *    | 'C'| 'L'| 0C | 01 | *LOCATION  |
+		 *    +----+----+----+----+------------+
+		 *    0    1    2    3    4           12
+		 *    *LOCATION: location of child directory
+		 */
+		length = 12;
+		if (extra_space(&ctl) < length)
+			bp = extra_next_record(&ctl, length);
+		if (bp != NULL) {
+			bp[1] = 'C';
+			bp[2] = 'L';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			set_num_733(bp + 5,
+			    isoent->rr_child->dir_location);
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "PN" System Use Entry. */
+	if (rr_flag & RR_USE_PN) {
+		/*
+		 *   "PN" Format:
+		 *               len  ver
+		 *    +----+----+----+----+------------+------------+
+		 *    | 'P'| 'N'| 14 | 01 | dev_t high | dev_t low  |
+		 *    +----+----+----+----+------------+------------+
+		 *    0    1    2    3    4           12           20
+		 */
+		length = 20;
+		if (extra_space(&ctl) < length)
+			bp = extra_next_record(&ctl, length);
+		if (bp != NULL) {
+			uint64_t dev;
+
+			bp[1] = 'P';
+			bp[2] = 'N';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			dev = (uint64_t)archive_entry_rdev(file->entry);
+			set_num_733(bp + 5, (uint32_t)(dev >> 32));
+			set_num_733(bp + 13, (uint32_t)(dev & 0xFFFFFFFF));
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "ZF" System Use Entry. */
+	if (file->zisofs.header_size) {
+		/*
+		 *   "ZF" Format:
+		 *               len  ver
+		 *    +----+----+----+----+----+----+-------------+
+		 *    | 'Z'| 'F'| 10 | 01 | 'p'| 'z'| Header Size |
+		 *    +----+----+----+----+----+----+-------------+
+		 *    0    1    2    3    4    5    6             7
+		 *    +--------------------+-------------------+
+		 *    | Log2 of block Size | Uncompressed Size |
+		 *    +--------------------+-------------------+
+		 *    7                    8                   16
+		 */
+		length = 16;
+		if (extra_space(&ctl) < length)
+			bp = extra_next_record(&ctl, length);
+		if (bp != NULL) {
+			bp[1] = 'Z';
+			bp[2] = 'F';
+			bp[3] = length;
+			bp[4] = 1;	/* version	*/
+			bp[5] = 'p';
+			bp[6] = 'z';
+			bp[7] = file->zisofs.header_size;
+			bp[8] = file->zisofs.log2_bs;
+			set_num_733(bp + 9, file->zisofs.uncompressed_size);
+			bp += length;
+		}
+		extra_tell_used_size(&ctl, length);
+	}
+
+	/* Write "CE" System Use Entry. */
+	if (t == DIR_REC_SELF && isoent == isoent->parent) {
+		length = RR_CE_SIZE;
+		if (bp != NULL)
+			set_SUSP_CE(bp+1, iso9660->location_rrip_er,
+			    0, RRIP_ER_SIZE);
+		extra_tell_used_size(&ctl, length);
+	}
+
+	extra_close_record(&ctl, 0);
+
+	return (ctl.dr_len);
+}
+
+/*
+ * Write data of a Directory Record or calculate writing bytes itself.
+ * If parameter `p' is NULL, calculates the size of writing data, which
+ * a Directory Record needs to write, then it saved and return
+ * the calculated size.
+ * Parameter `n' is a remaining size of buffer. when parameter `p' is
+ * not NULL, check whether that `n' is not less than the saved size.
+ * if that `n' is small, return zero.
+ *
+ * This format of the Directory Record is according to
+ * ISO9660 Standard 9.1
+ */
+static int
+set_directory_record(unsigned char *p, size_t n, struct isoent *isoent,
+    struct iso9660 *iso9660, enum dir_rec_type t,
+    enum vdd_type vdd_type)
+{
+	unsigned char *bp;
+	size_t dr_len;
+	size_t fi_len;
+
+	if (p != NULL) {
+		/*
+		 * Check whether a write buffer size is less than the
+		 * saved size which is needed to write this Directory
+		 * Record.
+		 */
+		switch (t) {
+		case DIR_REC_VD:
+			dr_len = isoent->dr_len.vd; break;
+		case DIR_REC_SELF:
+			dr_len = isoent->dr_len.self; break;
+		case DIR_REC_PARENT:
+			dr_len = isoent->dr_len.parent; break;
+		case DIR_REC_NORMAL:
+		default:
+			dr_len = isoent->dr_len.normal; break;
+		}
+		if (dr_len > n)
+			return (0);/* Needs more buffer size. */
+	}
+
+	if (t == DIR_REC_NORMAL && isoent->identifier != NULL)
+		fi_len = isoent->id_len;
+	else
+		fi_len = 1;
+
+	if (p != NULL) {
+		struct isoent *xisoent;
+		struct isofile *file;
+		unsigned char flag;
+
+		if (t == DIR_REC_PARENT)
+			xisoent = isoent->parent;
+		else
+			xisoent = isoent;
+		file = isoent->file;
+		if (file->hardlink_target != NULL)
+			file = file->hardlink_target;
+		/* Make a file flag. */
+		if (xisoent->dir)
+			flag = FILE_FLAG_DIRECTORY;
+		else {
+			if (file->cur_content->next != NULL)
+				flag = FILE_FLAG_MULTI_EXTENT;
+			else
+				flag = 0;
+		}
+
+		bp = p -1;
+		/* Extended Attribute Record Length */
+		set_num_711(bp+2, 0);
+		/* Location of Extent */
+		if (xisoent->dir)
+			set_num_733(bp+3, xisoent->dir_location);
+		else
+			set_num_733(bp+3, file->cur_content->location);
+		/* Data Length */
+		if (xisoent->dir)
+			set_num_733(bp+11,
+			    xisoent->dir_block * LOGICAL_BLOCK_SIZE);
+		else
+			set_num_733(bp+11, (uint32_t)file->cur_content->size);
+		/* Recording Date and Time */
+		/* NOTE:
+		 *  If a file type is symbolic link, you are seeing this
+		 *  field value is different from a value mkisofs makes.
+		 *  libarchive uses lstat to get this one, but it
+		 *  seems mkisofs uses stat to get.
+		 */
+		set_time_915(bp+19,
+		    archive_entry_mtime(xisoent->file->entry));
+		/* File Flags */
+		bp[26] = flag;
+		/* File Unit Size */
+		set_num_711(bp+27, 0);
+		/* Interleave Gap Size */
+		set_num_711(bp+28, 0);
+		/* Volume Sequence Number */
+		set_num_723(bp+29, iso9660->volume_sequence_number);
+		/* Length of File Identifier */
+		set_num_711(bp+33, (unsigned char)fi_len);
+		/* File Identifier */
+		switch (t) {
+		case DIR_REC_VD:
+		case DIR_REC_SELF:
+			set_num_711(bp+34, 0);
+			break;
+		case DIR_REC_PARENT:
+			set_num_711(bp+34, 1);
+			break;
+		case DIR_REC_NORMAL:
+			if (isoent->identifier != NULL)
+				memcpy(bp+34, isoent->identifier, fi_len);
+			else
+				set_num_711(bp+34, 0);
+			break;
+		}
+	} else
+		bp = NULL;
+	dr_len = 33 + fi_len;
+	/* Padding Field */
+	if (dr_len & 0x01) {
+		dr_len ++;
+		if (p != NULL)
+			bp[dr_len] = 0;
+	}
+
+	/* Volume Descriptor does not record extension. */
+	if (t == DIR_REC_VD) {
+		if (p != NULL)
+			/* Length of Directory Record */
+			set_num_711(p, (unsigned char)dr_len);
+		else
+			isoent->dr_len.vd = (int)dr_len;
+		return ((int)dr_len);
+	}
+
+	/* Rockridge */
+	if (iso9660->opt.rr && vdd_type != VDD_JOLIET)
+		dr_len = set_directory_record_rr(bp, (int)dr_len,
+		    isoent, iso9660, t);
+
+	if (p != NULL)
+		/* Length of Directory Record */
+		set_num_711(p, (unsigned char)dr_len);
+	else {
+		/*
+		 * Save the size which is needed to write this
+		 * Directory Record.
+		 */
+		switch (t) {
+		case DIR_REC_VD:
+			/* This case does not come, but compiler
+			 * complains that DIR_REC_VD not handled
+			 *  in switch ....  */
+			break;
+		case DIR_REC_SELF:
+			isoent->dr_len.self = (int)dr_len; break;
+		case DIR_REC_PARENT:
+			isoent->dr_len.parent = (int)dr_len; break;
+		case DIR_REC_NORMAL:
+			isoent->dr_len.normal = (int)dr_len; break;
+		}
+	}
+
+	return ((int)dr_len);
+}
+
+/*
+ * Calculate the size of a directory record.
+ */
+static inline int
+get_dir_rec_size(struct iso9660 *iso9660, struct isoent *isoent,
+    enum dir_rec_type t, enum vdd_type vdd_type)
+{
+
+	return (set_directory_record(NULL, SIZE_MAX,
+	    isoent, iso9660, t, vdd_type));
+}
+
+/*
+ * Manage to write ISO-image data with wbuff to reduce calling
+ * __archive_write_output() for performance.
+ */
+
+
+static inline unsigned char *
+wb_buffptr(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = (struct iso9660 *)a->format_data;
+
+	return (&(iso9660->wbuff[sizeof(iso9660->wbuff)
+		- iso9660->wbuff_remaining]));
+}
+
+static int
+wb_write_out(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = (struct iso9660 *)a->format_data;
+	size_t wsize, nw;
+	int r;
+
+	wsize = sizeof(iso9660->wbuff) - iso9660->wbuff_remaining;
+	nw = wsize % LOGICAL_BLOCK_SIZE;
+	if (iso9660->wbuff_type == WB_TO_STREAM)
+		r = __archive_write_output(a, iso9660->wbuff, wsize - nw);
+	else
+		r = write_to_temp(a, iso9660->wbuff, wsize - nw);
+	/* Increase the offset. */
+	iso9660->wbuff_offset += wsize - nw;
+	if (iso9660->wbuff_offset > iso9660->wbuff_written)
+		iso9660->wbuff_written = iso9660->wbuff_offset;
+	iso9660->wbuff_remaining = sizeof(iso9660->wbuff);
+	if (nw) {
+		iso9660->wbuff_remaining -= nw;
+		memmove(iso9660->wbuff, iso9660->wbuff + wsize - nw, nw);
+	}
+	return (r);
+}
+
+static int
+wb_consume(struct archive_write *a, size_t size)
+{
+	struct iso9660 *iso9660 = (struct iso9660 *)a->format_data;
+
+	if (size > iso9660->wbuff_remaining ||
+	    iso9660->wbuff_remaining == 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal Programing error: iso9660:wb_consume()"
+		    " size=%jd, wbuff_remaining=%jd",
+		    (intmax_t)size, (intmax_t)iso9660->wbuff_remaining);
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->wbuff_remaining -= size;
+	if (iso9660->wbuff_remaining < LOGICAL_BLOCK_SIZE)
+		return (wb_write_out(a));
+	return (ARCHIVE_OK);
+}
+
+#ifdef HAVE_ZLIB_H
+
+static int
+wb_set_offset(struct archive_write *a, int64_t off)
+{
+	struct iso9660 *iso9660 = (struct iso9660 *)a->format_data;
+	int64_t used, ext_bytes;
+
+	if (iso9660->wbuff_type != WB_TO_TEMP) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal Programing error: iso9660:wb_set_offset()");
+		return (ARCHIVE_FATAL);
+	}
+
+	used = sizeof(iso9660->wbuff) - iso9660->wbuff_remaining;
+	if (iso9660->wbuff_offset + used > iso9660->wbuff_tail)
+		iso9660->wbuff_tail = iso9660->wbuff_offset + used;
+	if (iso9660->wbuff_offset < iso9660->wbuff_written) {
+		if (used > 0 &&
+		    write_to_temp(a, iso9660->wbuff, (size_t)used) != ARCHIVE_OK)
+			return (ARCHIVE_FATAL);
+		iso9660->wbuff_offset = iso9660->wbuff_written;
+		lseek(iso9660->temp_fd, iso9660->wbuff_offset, SEEK_SET);
+		iso9660->wbuff_remaining = sizeof(iso9660->wbuff);
+		used = 0;
+	}
+	if (off < iso9660->wbuff_offset) {
+		/*
+		 * Write out waiting data.
+		 */
+		if (used > 0) {
+			if (wb_write_out(a) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		}
+		lseek(iso9660->temp_fd, off, SEEK_SET);
+		iso9660->wbuff_offset = off;
+		iso9660->wbuff_remaining = sizeof(iso9660->wbuff);
+	} else if (off <= iso9660->wbuff_tail) {
+		iso9660->wbuff_remaining = (size_t)
+		    (sizeof(iso9660->wbuff) - (off - iso9660->wbuff_offset));
+	} else {
+		ext_bytes = off - iso9660->wbuff_tail;
+		iso9660->wbuff_remaining = (size_t)(sizeof(iso9660->wbuff)
+		   - (iso9660->wbuff_tail - iso9660->wbuff_offset));
+		while (ext_bytes >= (int64_t)iso9660->wbuff_remaining) {
+			if (write_null(a, (size_t)iso9660->wbuff_remaining)
+			    != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			ext_bytes -= iso9660->wbuff_remaining;
+		}
+		if (ext_bytes > 0) {
+			if (write_null(a, (size_t)ext_bytes) != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+		}
+	}
+	return (ARCHIVE_OK);
+}
+
+#endif /* HAVE_ZLIB_H */
+
+static int
+write_null(struct archive_write *a, size_t size)
+{
+	size_t remaining;
+	unsigned char *p, *old;
+	int r;
+
+	remaining = wb_remaining(a);
+	p = wb_buffptr(a);
+	if (size <= remaining) {
+		memset(p, 0, size);
+		return (wb_consume(a, size));
+	}
+	memset(p, 0, remaining);
+	r = wb_consume(a, remaining);
+	if (r != ARCHIVE_OK)
+		return (r);
+	size -= remaining;
+	old = p;
+	p = wb_buffptr(a);
+	memset(p, 0, old - p);
+	remaining = wb_remaining(a);
+	while (size) {
+		size_t wsize = size;
+
+		if (wsize > remaining)
+			wsize = remaining;
+		r = wb_consume(a, wsize);
+		if (r != ARCHIVE_OK)
+			return (r);
+		size -= wsize;
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Write Volume Descriptor Set Terminator
+ */
+static int
+write_VD_terminator(struct archive_write *a)
+{
+	unsigned char *bp;
+
+	bp = wb_buffptr(a) -1;
+	set_VD_bp(bp, VDT_TERMINATOR, 1);
+	set_unused_field_bp(bp, 8, LOGICAL_BLOCK_SIZE);
+
+	return (wb_consume(a, LOGICAL_BLOCK_SIZE));
+}
+
+static int
+set_file_identifier(unsigned char *bp, int from, int to, enum vdc vdc,
+    struct archive_write *a, struct vdd *vdd, struct archive_string *id,
+    const char *label, int leading_under, enum char_type char_type)
+{
+	char identifier[256];
+	struct isoent *isoent;
+	const char *ids;
+	size_t len;
+	int r;
+
+	if (id->length > 0 && leading_under && id->s[0] != '_') {
+		if (char_type == A_CHAR)
+			r = set_str_a_characters_bp(a, bp, from, to, id->s, vdc);
+		else
+			r = set_str_d_characters_bp(a, bp, from, to, id->s, vdc);
+	} else if (id->length > 0) {
+		ids = id->s;
+		if (leading_under)
+			ids++;
+		isoent = isoent_find_entry(vdd->rootent, ids);
+		if (isoent == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Not Found %s `%s'.",
+			    label, ids);
+			return (ARCHIVE_FATAL);
+		}
+		len = isoent->ext_off + isoent->ext_len;
+		if (vdd->vdd_type == VDD_JOLIET) {
+			if (len > sizeof(identifier)-2)
+				len = sizeof(identifier)-2;
+		} else {
+			if (len > sizeof(identifier)-1)
+				len = sizeof(identifier)-1;
+		}
+		memcpy(identifier, isoent->identifier, len);
+		identifier[len] = '\0';
+		if (vdd->vdd_type == VDD_JOLIET) {
+			identifier[len+1] = 0;
+			vdc = VDC_UCS2_DIRECT;
+		}
+		if (char_type == A_CHAR)
+			r = set_str_a_characters_bp(a, bp, from, to,
+			    identifier, vdc);
+		else
+			r = set_str_d_characters_bp(a, bp, from, to,
+			    identifier, vdc);
+	} else {
+		if (char_type == A_CHAR)
+			r = set_str_a_characters_bp(a, bp, from, to, NULL, vdc);
+		else
+			r = set_str_d_characters_bp(a, bp, from, to, NULL, vdc);
+	}
+	return (r);
+}
+
+/*
+ * Write Primary/Supplementary Volume Descriptor
+ */
+static int
+write_VD(struct archive_write *a, struct vdd *vdd)
+{
+	struct iso9660 *iso9660;
+	unsigned char *bp;
+	uint16_t volume_set_size = 1;
+	char identifier[256];
+	enum VD_type vdt;
+	enum vdc vdc;
+	unsigned char vd_ver, fst_ver;
+	int r;
+
+	iso9660 = a->format_data;
+	switch (vdd->vdd_type) {
+	case VDD_JOLIET:
+		vdt = VDT_SUPPLEMENTARY;
+		vd_ver = fst_ver = 1;
+		vdc = VDC_UCS2;
+		break;
+	case VDD_ENHANCED:
+		vdt = VDT_SUPPLEMENTARY;
+		vd_ver = fst_ver = 2;
+		vdc = VDC_LOWERCASE;
+		break;
+	case VDD_PRIMARY:
+	default:
+		vdt = VDT_PRIMARY;
+		vd_ver = fst_ver = 1;
+#ifdef COMPAT_MKISOFS
+		vdc = VDC_LOWERCASE;
+#else
+		vdc = VDC_STD;
+#endif
+		break;
+	}
+
+	bp = wb_buffptr(a) -1;
+	/* Volume Descriptor Type */
+	set_VD_bp(bp, vdt, vd_ver);
+	/* Unused Field */
+	set_unused_field_bp(bp, 8, 8);
+	/* System Identifier */
+	get_system_identitier(identifier, sizeof(identifier));
+	r = set_str_a_characters_bp(a, bp, 9, 40, identifier, vdc);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Volume Identifier */
+	r = set_str_d_characters_bp(a, bp, 41, 72,
+	    iso9660->volume_identifier.s, vdc);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Unused Field */
+	set_unused_field_bp(bp, 73, 80);
+	/* Volume Space Size */
+	set_num_733(bp+81, iso9660->volume_space_size);
+	if (vdd->vdd_type == VDD_JOLIET) {
+		/* Escape Sequences */
+		bp[89] = 0x25;/* UCS-2 Level 3 */
+		bp[90] = 0x2F;
+		bp[91] = 0x45;
+		memset(bp + 92, 0, 120 - 92 + 1);
+	} else {
+		/* Unused Field */
+		set_unused_field_bp(bp, 89, 120);
+	}
+	/* Volume Set Size */
+	set_num_723(bp+121, volume_set_size);
+	/* Volume Sequence Number */
+	set_num_723(bp+125, iso9660->volume_sequence_number);
+	/* Logical Block Size */
+	set_num_723(bp+129, LOGICAL_BLOCK_SIZE);
+	/* Path Table Size */
+	set_num_733(bp+133, vdd->path_table_size);
+	/* Location of Occurrence of Type L Path Table */
+	set_num_731(bp+141, vdd->location_type_L_path_table);
+	/* Location of Optional Occurrence of Type L Path Table */
+	set_num_731(bp+145, 0);
+	/* Location of Occurrence of Type M Path Table */
+	set_num_732(bp+149, vdd->location_type_M_path_table);
+	/* Location of Optional Occurrence of Type M Path Table */
+	set_num_732(bp+153, 0);
+	/* Directory Record for Root Directory(BP 157 to 190) */
+	set_directory_record(bp+157, 190-157+1, vdd->rootent,
+	    iso9660, DIR_REC_VD, vdd->vdd_type);
+	/* Volume Set Identifier */
+	r = set_str_d_characters_bp(a, bp, 191, 318, "", vdc);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Publisher Identifier */
+	r = set_file_identifier(bp, 319, 446, vdc, a, vdd,
+	    &(iso9660->publisher_identifier),
+	    "Publisher File", 1, A_CHAR);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Data Preparer Identifier */
+	r = set_file_identifier(bp, 447, 574, vdc, a, vdd,
+	    &(iso9660->data_preparer_identifier),
+	    "Data Preparer File", 1, A_CHAR);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Application Identifier */
+	r = set_file_identifier(bp, 575, 702, vdc, a, vdd,
+	    &(iso9660->application_identifier),
+	    "Application File", 1, A_CHAR);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Copyright File Identifier */
+	r = set_file_identifier(bp, 703, 739, vdc, a, vdd,
+	    &(iso9660->copyright_file_identifier),
+	    "Copyright File", 0, D_CHAR);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Abstract File Identifier */
+	r = set_file_identifier(bp, 740, 776, vdc, a, vdd,
+	    &(iso9660->abstract_file_identifier),
+	    "Abstract File", 0, D_CHAR);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Bibliongraphic File Identifier */
+	r = set_file_identifier(bp, 777, 813, vdc, a, vdd,
+	    &(iso9660->bibliographic_file_identifier),
+	    "Bibliongraphic File", 0, D_CHAR);
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Volume Creation Date and Time */
+	set_date_time(bp+814, iso9660->birth_time);
+	/* Volume Modification Date and Time */
+	set_date_time(bp+831, iso9660->birth_time);
+	/* Volume Expiration Date and Time(obsolete) */
+	set_date_time_null(bp+848);
+	/* Volume Effective Date and Time */
+	set_date_time(bp+865, iso9660->birth_time);
+	/* File Structure Version */
+	bp[882] = fst_ver;
+	/* Reserved */
+	bp[883] = 0;
+	/* Application Use */
+	memset(bp + 884, 0x20, 1395 - 884 + 1);
+	/* Reserved */
+	set_unused_field_bp(bp, 1396, LOGICAL_BLOCK_SIZE);
+
+	return (wb_consume(a, LOGICAL_BLOCK_SIZE));
+}
+
+/*
+ * Write Boot Record Volume Descriptor
+ */
+static int
+write_VD_boot_record(struct archive_write *a)
+{
+	struct iso9660 *iso9660;
+	unsigned char *bp;
+
+	iso9660 = a->format_data;
+	bp = wb_buffptr(a) -1;
+	/* Volume Descriptor Type */
+	set_VD_bp(bp, VDT_BOOT_RECORD, 1);
+	/* Boot System Identifier */
+	memcpy(bp+8, "EL TORITO SPECIFICATION", 23);
+	set_unused_field_bp(bp, 8+23, 39);
+	/* Unused */
+	set_unused_field_bp(bp, 40, 71);
+	/* Absolute pointer to first sector of Boot Catalog */
+	set_num_731(bp+72,
+	    iso9660->el_torito.catalog->file->content.location);
+	/* Unused */
+	set_unused_field_bp(bp, 76, LOGICAL_BLOCK_SIZE);
+
+	return (wb_consume(a, LOGICAL_BLOCK_SIZE));
+}
+
+enum keytype {
+	KEY_FLG,
+	KEY_STR,
+	KEY_INT,
+	KEY_HEX
+};
+static void
+set_option_info(struct archive_string *info, int *opt, const char *key,
+    enum keytype type,  ...)
+{
+	va_list ap;
+	char prefix;
+	const char *s;
+	int d;
+
+	prefix = (*opt==0)? ' ':',';
+	va_start(ap, type);
+	switch (type) {
+	case KEY_FLG:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, "%c%s%s",
+		    prefix, (d == 0)?"!":"", key);
+		break;
+	case KEY_STR:
+		s = va_arg(ap, const char *);
+		archive_string_sprintf(info, "%c%s=%s",
+		    prefix, key, s);
+		break;
+	case KEY_INT:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, "%c%s=%d",
+		    prefix, key, d);
+		break;
+	case KEY_HEX:
+		d = va_arg(ap, int);
+		archive_string_sprintf(info, "%c%s=%x",
+		    prefix, key, d);
+		break;
+	}
+	va_end(ap);
+
+	*opt = 1;
+}
+
+/*
+ * Make Non-ISO File System Information
+ */
+static int
+write_information_block(struct archive_write *a)
+{
+	struct iso9660 *iso9660;
+	char buf[128];
+	const char *v;
+	int opt, r;
+	struct archive_string info;
+	size_t info_size = LOGICAL_BLOCK_SIZE *
+			       NON_ISO_FILE_SYSTEM_INFORMATION_BLOCK;
+
+	iso9660 = (struct iso9660 *)a->format_data;
+	if (info_size > wb_remaining(a)) {
+		r = wb_write_out(a);
+		if (r != ARCHIVE_OK)
+			return (r);
+	}
+	archive_string_init(&info);
+	if (archive_string_ensure(&info, info_size) == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	memset(info.s, 0, info_size);
+	opt = 0;
+#if defined(HAVE__CTIME64_S)
+	_ctime64_s(buf, sizeof(buf), &(iso9660->birth_time));
+#elif defined(HAVE_CTIME_R)
+	ctime_r(&(iso9660->birth_time), buf);
+#else
+	strncpy(buf, ctime(&(iso9660->birth_time)), sizeof(buf)-1);
+	buf[sizeof(buf)-1] = '\0';
+#endif
+	archive_string_sprintf(&info,
+	    "INFO %s%s", buf, archive_version_string());
+	if (iso9660->opt.abstract_file != OPT_ABSTRACT_FILE_DEFAULT)
+		set_option_info(&info, &opt, "abstract-file",
+		    KEY_STR, iso9660->abstract_file_identifier.s);
+	if (iso9660->opt.application_id != OPT_APPLICATION_ID_DEFAULT)
+		set_option_info(&info, &opt, "application-id",
+		    KEY_STR, iso9660->application_identifier.s);
+	if (iso9660->opt.allow_vernum != OPT_ALLOW_VERNUM_DEFAULT)
+		set_option_info(&info, &opt, "allow-vernum",
+		    KEY_FLG, iso9660->opt.allow_vernum);
+	if (iso9660->opt.biblio_file != OPT_BIBLIO_FILE_DEFAULT)
+		set_option_info(&info, &opt, "biblio-file",
+		    KEY_STR, iso9660->bibliographic_file_identifier.s);
+	if (iso9660->opt.boot != OPT_BOOT_DEFAULT)
+		set_option_info(&info, &opt, "boot",
+		    KEY_STR, iso9660->el_torito.boot_filename.s);
+	if (iso9660->opt.boot_catalog != OPT_BOOT_CATALOG_DEFAULT)
+		set_option_info(&info, &opt, "boot-catalog",
+		    KEY_STR, iso9660->el_torito.catalog_filename.s);
+	if (iso9660->opt.boot_info_table != OPT_BOOT_INFO_TABLE_DEFAULT)
+		set_option_info(&info, &opt, "boot-info-table",
+		    KEY_FLG, iso9660->opt.boot_info_table);
+	if (iso9660->opt.boot_load_seg != OPT_BOOT_LOAD_SEG_DEFAULT)
+		set_option_info(&info, &opt, "boot-load-seg",
+		    KEY_HEX, iso9660->el_torito.boot_load_seg);
+	if (iso9660->opt.boot_load_size != OPT_BOOT_LOAD_SIZE_DEFAULT)
+		set_option_info(&info, &opt, "boot-load-size",
+		    KEY_INT, iso9660->el_torito.boot_load_size);
+	if (iso9660->opt.boot_type != OPT_BOOT_TYPE_DEFAULT) {
+		v = "no-emulation";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_FD)
+			v = "fd";
+		if (iso9660->opt.boot_type == OPT_BOOT_TYPE_HARD_DISK)
+			v = "hard-disk";
+		set_option_info(&info, &opt, "boot-type",
+		    KEY_STR, v);
+	}
+#ifdef HAVE_ZLIB_H
+	if (iso9660->opt.compression_level != OPT_COMPRESSION_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, "compression-level",
+		    KEY_INT, iso9660->zisofs.compression_level);
+#endif
+	if (iso9660->opt.copyright_file != OPT_COPYRIGHT_FILE_DEFAULT)
+		set_option_info(&info, &opt, "copyright-file",
+		    KEY_STR, iso9660->copyright_file_identifier.s);
+	if (iso9660->opt.iso_level != OPT_ISO_LEVEL_DEFAULT)
+		set_option_info(&info, &opt, "iso-level",
+		    KEY_INT, iso9660->opt.iso_level);
+	if (iso9660->opt.joliet != OPT_JOLIET_DEFAULT) {
+		if (iso9660->opt.joliet == OPT_JOLIET_LONGNAME)
+			set_option_info(&info, &opt, "joliet",
+			    KEY_STR, "long");
+		else
+			set_option_info(&info, &opt, "joliet",
+			    KEY_FLG, iso9660->opt.joliet);
+	}
+	if (iso9660->opt.limit_depth != OPT_LIMIT_DEPTH_DEFAULT)
+		set_option_info(&info, &opt, "limit-depth",
+		    KEY_FLG, iso9660->opt.limit_depth);
+	if (iso9660->opt.limit_dirs != OPT_LIMIT_DIRS_DEFAULT)
+		set_option_info(&info, &opt, "limit-dirs",
+		    KEY_FLG, iso9660->opt.limit_dirs);
+	if (iso9660->opt.pad != OPT_PAD_DEFAULT)
+		set_option_info(&info, &opt, "pad",
+		    KEY_FLG, iso9660->opt.pad);
+	if (iso9660->opt.publisher != OPT_PUBLISHER_DEFAULT)
+		set_option_info(&info, &opt, "publisher",
+		    KEY_STR, iso9660->publisher_identifier.s);
+	if (iso9660->opt.rr != OPT_RR_DEFAULT) {
+		if (iso9660->opt.rr == OPT_RR_DISABLED)
+			set_option_info(&info, &opt, "rockridge",
+			    KEY_FLG, iso9660->opt.rr);
+		else if (iso9660->opt.rr == OPT_RR_STRICT)
+			set_option_info(&info, &opt, "rockridge",
+			    KEY_STR, "strict");
+		else if (iso9660->opt.rr == OPT_RR_USEFUL)
+			set_option_info(&info, &opt, "rockridge",
+			    KEY_STR, "useful");
+	}
+	if (iso9660->opt.volume_id != OPT_VOLUME_ID_DEFAULT)
+		set_option_info(&info, &opt, "volume-id",
+		    KEY_STR, iso9660->volume_identifier.s);
+	if (iso9660->opt.zisofs != OPT_ZISOFS_DEFAULT)
+		set_option_info(&info, &opt, "zisofs",
+		    KEY_FLG, iso9660->opt.zisofs);
+
+	memcpy(wb_buffptr(a), info.s, info_size);
+	archive_string_free(&info);
+	return (wb_consume(a, info_size));
+}
+
+static int
+write_rr_ER(struct archive_write *a)
+{
+	unsigned char *p;
+
+	p = wb_buffptr(a);
+
+	memset(p, 0, LOGICAL_BLOCK_SIZE);
+	p[0] = 'E';
+	p[1] = 'R';
+	p[3] = 0x01;
+	p[2] = RRIP_ER_SIZE;
+	p[4] = RRIP_ER_ID_SIZE;
+	p[5] = RRIP_ER_DSC_SIZE;
+	p[6] = RRIP_ER_SRC_SIZE;
+	p[7] = 0x01;
+	memcpy(&p[8], rrip_identifier, p[4]);
+	memcpy(&p[8+p[4]], rrip_descriptor, p[5]);
+	memcpy(&p[8+p[4]+p[5]], rrip_source, p[6]);
+
+	return (wb_consume(a, LOGICAL_BLOCK_SIZE));
+}
+
+static void
+calculate_path_table_size(struct vdd *vdd)
+{
+	int depth, size;
+	struct path_table *pt;
+
+	pt = vdd->pathtbl;
+	size = 0;
+	for (depth = 0; depth < vdd->max_depth; depth++) {
+		struct isoent **ptbl;
+		int i, cnt;
+
+		if ((cnt = pt[depth].cnt) == 0)
+			break;
+
+		ptbl = pt[depth].sorted;
+		for (i = 0; i < cnt; i++) {
+			int len;
+
+			if (ptbl[i]->identifier == NULL)
+				len = 1; /* root directory */
+			else
+				len = ptbl[i]->id_len;
+			if (len & 0x01)
+				len++; /* Padding Field */
+			size += 8 + len;
+		}
+	}
+	vdd->path_table_size = size;
+	vdd->path_table_block =
+	    ((size + PATH_TABLE_BLOCK_SIZE -1) /
+	    PATH_TABLE_BLOCK_SIZE) *
+	    (PATH_TABLE_BLOCK_SIZE / LOGICAL_BLOCK_SIZE);
+}
+
+static int
+_write_path_table(struct archive_write *a, int type_m, int depth,
+    struct vdd *vdd)
+{
+	unsigned char *bp, *wb;
+	struct isoent **ptbl;
+	size_t wbremaining;
+	int i, r, wsize;
+
+	if (vdd->pathtbl[depth].cnt == 0)
+		return (0);
+
+	wsize = 0;
+	wb = wb_buffptr(a);
+	wbremaining = wb_remaining(a);
+	bp = wb - 1;
+	ptbl = vdd->pathtbl[depth].sorted;
+	for (i = 0; i < vdd->pathtbl[depth].cnt; i++) {
+		struct isoent *np;
+		size_t len;
+
+		np = ptbl[i];
+		if (np->identifier == NULL)
+			len = 1; /* root directory */
+		else
+			len = np->id_len;
+		if (wbremaining - ((bp+1) - wb) < (len + 1 + 8)) {
+			r = wb_consume(a, (bp+1) - wb);
+			if (r < 0)
+				return (r);
+			wb = wb_buffptr(a);
+			wbremaining = wb_remaining(a);
+			bp = wb -1;
+		}
+		/* Length of Directory Identifier */
+		set_num_711(bp+1, (unsigned char)len);
+		/* Extended Attribute Record Length */
+		set_num_711(bp+2, 0);
+		/* Location of Extent */
+		if (type_m)
+			set_num_732(bp+3, np->dir_location);
+		else
+			set_num_731(bp+3, np->dir_location);
+		/* Parent Directory Number */
+		if (type_m)
+			set_num_722(bp+7, np->parent->dir_number);
+		else
+			set_num_721(bp+7, np->parent->dir_number);
+		/* Directory Identifier */
+		if (np->identifier == NULL)
+			bp[9] = 0;
+		else
+			memcpy(&bp[9], np->identifier, len);
+		if (len & 0x01) {
+			/* Padding Field */
+			bp[9+len] = 0;
+			len++;
+		}
+		wsize += 8 + (int)len;
+		bp += 8 + len;
+	}
+	if ((bp + 1) > wb) {
+		r = wb_consume(a, (bp+1)-wb);
+		if (r < 0)
+			return (r);
+	}
+	return (wsize);
+}
+
+static int
+write_path_table(struct archive_write *a, int type_m, struct vdd *vdd)
+{
+	int depth, r;
+	size_t path_table_size;
+
+	r = ARCHIVE_OK;
+	path_table_size = 0;
+	for (depth = 0; depth < vdd->max_depth; depth++) {
+		r = _write_path_table(a, type_m, depth, vdd);
+		if (r < 0)
+			return (r);
+		path_table_size += r;
+	}
+
+	/* Write padding data. */
+	path_table_size = path_table_size % PATH_TABLE_BLOCK_SIZE;
+	if (path_table_size > 0)
+		r = write_null(a, PATH_TABLE_BLOCK_SIZE - path_table_size);
+	return (r);
+}
+
+static int
+calculate_directory_descriptors(struct iso9660 *iso9660, struct vdd *vdd,
+    struct isoent *isoent, int depth)
+{
+	struct isoent **enttbl;
+	int bs, block, i;
+
+	block = 1;
+	bs = get_dir_rec_size(iso9660, isoent, DIR_REC_SELF, vdd->vdd_type);
+	bs += get_dir_rec_size(iso9660, isoent, DIR_REC_PARENT, vdd->vdd_type);
+
+	if (isoent->children.cnt <= 0 || (vdd->vdd_type != VDD_JOLIET &&
+	    !iso9660->opt.rr && depth + 1 >= vdd->max_depth))
+		return (block);
+
+	enttbl = isoent->children_sorted;
+	for (i = 0; i < isoent->children.cnt; i++) {
+		struct isoent *np = enttbl[i];
+		struct isofile *file;
+
+		file = np->file;
+		if (file->hardlink_target != NULL)
+			file = file->hardlink_target;
+		file->cur_content = &(file->content);
+		do {
+			int dr_l;
+
+			dr_l = get_dir_rec_size(iso9660, np, DIR_REC_NORMAL,
+			    vdd->vdd_type);
+			if ((bs + dr_l) > LOGICAL_BLOCK_SIZE) {
+				block ++;
+				bs = dr_l;
+			} else
+				bs += dr_l;
+			file->cur_content = file->cur_content->next;
+		} while (file->cur_content != NULL);
+	}
+	return (block);
+}
+
+static int
+_write_directory_descriptors(struct archive_write *a, struct vdd *vdd,
+    struct isoent *isoent, int depth)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent **enttbl;
+	unsigned char *p, *wb;
+	int i, r;
+	int dr_l;
+
+	p = wb = wb_buffptr(a);
+#define WD_REMAINING	(LOGICAL_BLOCK_SIZE - (p - wb))
+	p += set_directory_record(p, WD_REMAINING, isoent,
+	    iso9660, DIR_REC_SELF, vdd->vdd_type);
+	p += set_directory_record(p, WD_REMAINING, isoent,
+	    iso9660, DIR_REC_PARENT, vdd->vdd_type);
+
+	if (isoent->children.cnt <= 0 || (vdd->vdd_type != VDD_JOLIET &&
+	    !iso9660->opt.rr && depth + 1 >= vdd->max_depth)) {
+		memset(p, 0, WD_REMAINING);
+		return (wb_consume(a, LOGICAL_BLOCK_SIZE));
+	}
+
+	enttbl = isoent->children_sorted;
+	for (i = 0; i < isoent->children.cnt; i++) {
+		struct isoent *np = enttbl[i];
+		struct isofile *file = np->file;
+
+		if (file->hardlink_target != NULL)
+			file = file->hardlink_target;
+		file->cur_content = &(file->content);
+		do {
+			dr_l = set_directory_record(p, WD_REMAINING,
+			    np, iso9660, DIR_REC_NORMAL,
+			    vdd->vdd_type);
+			if (dr_l == 0) {
+				memset(p, 0, WD_REMAINING);
+				r = wb_consume(a, LOGICAL_BLOCK_SIZE);
+				if (r < 0)
+					return (r);
+				p = wb = wb_buffptr(a);
+				dr_l = set_directory_record(p,
+				    WD_REMAINING, np, iso9660,
+				    DIR_REC_NORMAL, vdd->vdd_type);
+			}
+			p += dr_l;
+			file->cur_content = file->cur_content->next;
+		} while (file->cur_content != NULL);
+	}
+	memset(p, 0, WD_REMAINING);
+	return (wb_consume(a, LOGICAL_BLOCK_SIZE));
+}
+
+static int
+write_directory_descriptors(struct archive_write *a, struct vdd *vdd)
+{
+	struct isoent *np;
+	int depth, r;
+
+	depth = 0;
+	np = vdd->rootent;
+	do {
+		struct extr_rec *extr;
+
+		r = _write_directory_descriptors(a, vdd, np, depth);
+		if (r < 0)
+			return (r);
+		if (vdd->vdd_type != VDD_JOLIET) {
+			/*
+			 * This extract record is used by SUSP,RRIP.
+			 * Not for joliet.
+			 */
+			for (extr = np->extr_rec_list.first;
+			    extr != NULL;
+			    extr = extr->next) {
+				unsigned char *wb;
+
+				wb = wb_buffptr(a);
+				memcpy(wb, extr->buf, extr->offset);
+				memset(wb + extr->offset, 0,
+				    LOGICAL_BLOCK_SIZE - extr->offset);
+				r = wb_consume(a, LOGICAL_BLOCK_SIZE);
+				if (r < 0)
+					return (r);
+			}
+		}
+
+		if (np->subdirs.first != NULL && depth + 1 < vdd->max_depth) {
+			/* Enter to sub directories. */
+			np = np->subdirs.first;
+			depth++;
+			continue;
+		}
+		while (np != np->parent) {
+			if (np->drnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				depth--;
+			} else {
+				np = np->drnext;
+				break;
+			}
+		}
+	} while (np != np->parent);
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Read file contents from the temporary file, and write it.
+ */
+static int
+write_file_contents(struct archive_write *a, int64_t offset, int64_t size)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	int r;
+
+	lseek(iso9660->temp_fd, offset, SEEK_SET);
+
+	while (size) {
+		size_t rsize;
+		ssize_t rs;
+		unsigned char *wb;
+
+		wb = wb_buffptr(a);
+		rsize = wb_remaining(a);
+		if (rsize > (size_t)size)
+			rsize = (size_t)size;
+		rs = read(iso9660->temp_fd, wb, rsize);
+		if (rs <= 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't read temporary file(%jd)", (intmax_t)rs);
+			return (ARCHIVE_FATAL);
+		}
+		size -= rs;
+		r = wb_consume(a, rs);
+		if (r < 0)
+			return (r);
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+write_file_descriptors(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isofile *file;
+	int64_t blocks, offset;
+	int r;
+
+	blocks = 0;
+	offset = 0;
+
+	/* Make the boot catalog contents, and write it. */
+	if (iso9660->el_torito.catalog != NULL) {
+		r = make_boot_catalog(a);
+		if (r < 0)
+			return (r);
+	}
+
+	/* Write the boot file contents. */
+	if (iso9660->el_torito.boot != NULL) {
+		file = iso9660->el_torito.boot->file;
+		blocks = file->content.blocks;
+		offset = file->content.offset_of_temp;
+		if (offset != 0) {
+			r = write_file_contents(a, offset,
+			    blocks << LOGICAL_BLOCK_BITS);
+			if (r < 0)
+				return (r);
+			blocks = 0;
+			offset = 0;
+		}
+	}
+
+	/* Write out all file contents. */
+	for (file = iso9660->data_file_list.first;
+	    file != NULL; file = file->datanext) {
+
+		if (!file->write_content)
+			continue;
+
+		if ((offset + (blocks << LOGICAL_BLOCK_BITS)) <
+		     file->content.offset_of_temp) {
+			if (blocks > 0) {
+				r = write_file_contents(a, offset,
+				    blocks << LOGICAL_BLOCK_BITS);
+				if (r < 0)
+					return (r);
+			}
+			blocks = 0;
+			offset = file->content.offset_of_temp;
+		}
+
+		file->cur_content = &(file->content);
+		do {
+			blocks += file->cur_content->blocks;
+			/* Next fragument */
+			file->cur_content = file->cur_content->next;
+		} while (file->cur_content != NULL);
+	}
+
+	/* Flush out remaining blocks. */
+	if (blocks > 0) {
+		r = write_file_contents(a, offset,
+		    blocks << LOGICAL_BLOCK_BITS);
+		if (r < 0)
+			return (r);
+	}
+
+	return (ARCHIVE_OK);
+}
+
+static void
+isofile_init_entry_list(struct iso9660 *iso9660)
+{
+	iso9660->all_file_list.first = NULL;
+	iso9660->all_file_list.last = &(iso9660->all_file_list.first);
+}
+
+static void
+isofile_add_entry(struct iso9660 *iso9660, struct isofile *file)
+{
+	file->allnext = NULL;
+	*iso9660->all_file_list.last = file;
+	iso9660->all_file_list.last = &(file->allnext);
+}
+
+static void
+isofile_free_all_entries(struct iso9660 *iso9660)
+{
+	struct isofile *file, *file_next;
+
+	file = iso9660->all_file_list.first;
+	while (file != NULL) {
+		file_next = file->allnext;
+		isofile_free(file);
+		file = file_next;
+	}
+}
+
+static void
+isofile_init_entry_data_file_list(struct iso9660 *iso9660)
+{
+	iso9660->data_file_list.first = NULL;
+	iso9660->data_file_list.last = &(iso9660->data_file_list.first);
+}
+
+static void
+isofile_add_data_file(struct iso9660 *iso9660, struct isofile *file)
+{
+	file->datanext = NULL;
+	*iso9660->data_file_list.last = file;
+	iso9660->data_file_list.last = &(file->datanext);
+}
+
+
+static struct isofile *
+isofile_new(struct archive_write *a, struct archive_entry *entry)
+{
+	struct isofile *file;
+
+	file = calloc(1, sizeof(*file));
+	if (file == NULL)
+		return (NULL);
+
+	if (entry != NULL)
+		file->entry = archive_entry_clone(entry);
+	else
+		file->entry = archive_entry_new2(&a->archive);
+	if (file->entry == NULL) {
+		free(file);
+		return (NULL);
+	}
+	archive_string_init(&(file->parentdir));
+	archive_string_init(&(file->basename));
+	archive_string_init(&(file->basename_utf16));
+	archive_string_init(&(file->symlink));
+	file->cur_content = &(file->content);
+
+	return (file);
+}
+
+static void
+isofile_free(struct isofile *file)
+{
+	struct content *con, *tmp;
+
+	con = file->content.next;
+	while (con != NULL) {
+		tmp = con;
+		con = con->next;
+		free(tmp);
+	}
+	archive_entry_free(file->entry);
+	archive_string_free(&(file->parentdir));
+	archive_string_free(&(file->basename));
+	archive_string_free(&(file->basename_utf16));
+	archive_string_free(&(file->symlink));
+	free(file);
+}
+
+#if defined(_WIN32) || defined(__CYGWIN__)
+static int
+cleanup_backslash_1(char *p)
+{
+	int mb, dos;
+
+	mb = dos = 0;
+	while (*p) {
+		if (*(unsigned char *)p > 127)
+			mb = 1;
+		if (*p == '\\') {
+			/* If we have not met any multi-byte characters,
+			 * we can replace '\' with '/'. */
+			if (!mb)
+				*p = '/';
+			dos = 1;
+		}
+		p++;
+	}
+	if (!mb || !dos)
+		return (0);
+	return (-1);
+}
+
+static void
+cleanup_backslash_2(wchar_t *p)
+{
+
+	/* Convert a path-separator from '\' to  '/' */
+	while (*p != L'\0') {
+		if (*p == L'\\')
+			*p = L'/';
+		p++;
+	}
+}
+#endif
+
+/*
+ * Generate a parent directory name and a base name from a pathname.
+ */
+static int
+isofile_gen_utility_names(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660;
+	const char *pathname;
+	char *p, *dirname, *slash;
+	size_t len;
+	int ret = ARCHIVE_OK;
+
+	iso9660 = a->format_data;
+
+	archive_string_empty(&(file->parentdir));
+	archive_string_empty(&(file->basename));
+	archive_string_empty(&(file->basename_utf16));
+	archive_string_empty(&(file->symlink));
+
+	pathname =  archive_entry_pathname(file->entry);
+	if (pathname == NULL || pathname[0] == '\0') {/* virtual root */
+		file->dircnt = 0;
+		return (ret);
+	}
+
+	/*
+	 * Make a UTF-16BE basename if Joliet extension enabled.
+	 */
+	if (iso9660->opt.joliet) {
+		const char *u16, *ulast;
+		size_t u16len, ulen_last;
+
+		if (iso9660->sconv_to_utf16be == NULL) {
+			iso9660->sconv_to_utf16be =
+			    archive_string_conversion_to_charset(
+				&(a->archive), "UTF-16BE", 1);
+			if (iso9660->sconv_to_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+			iso9660->sconv_from_utf16be =
+			    archive_string_conversion_from_charset(
+				&(a->archive), "UTF-16BE", 1);
+			if (iso9660->sconv_from_utf16be == NULL)
+				/* Couldn't allocate memory */
+				return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Converte a filename to UTF-16BE.
+		 */
+		if (0 > archive_entry_pathname_l(file->entry, &u16, &u16len,
+		    iso9660->sconv_to_utf16be)) {
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for UTF-16BE");
+				return (ARCHIVE_FATAL);
+			}
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "A filename cannot be converted to UTF-16BE;"
+			    "You should disable making Joliet extension");
+			ret = ARCHIVE_WARN;
+		}
+
+		/*
+		 * Make sure a path separator is not in the last;
+		 * Remove trailing '/'.
+		 */
+		while (u16len >= 2) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[u16len-2] == 0 &&
+			    (u16[u16len-1] == '/' || u16[u16len-1] == '\\'))
+#else
+			if (u16[u16len-2] == 0 && u16[u16len-1] == '/')
+#endif
+			{
+				u16len -= 2;
+			} else
+				break;
+		}
+
+		/*
+		 * Find a basename in UTF-16BE.
+		 */
+		ulast = u16;
+		u16len >>= 1;
+		ulen_last = u16len;
+		while (u16len > 0) {
+#if defined(_WIN32) || defined(__CYGWIN__)
+			if (u16[0] == 0 && (u16[1] == '/' || u16[1] == '\\'))
+#else
+			if (u16[0] == 0 && u16[1] == '/')
+#endif
+			{
+				ulast = u16 + 2;
+				ulen_last = u16len -1;
+			}
+			u16 += 2;
+			u16len --;
+		}
+		ulen_last <<= 1;
+		if (archive_string_ensure(&(file->basename_utf16),
+		    ulen_last) == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for UTF-16BE");
+			return (ARCHIVE_FATAL);
+		}
+
+		/*
+		 * Set UTF-16BE basename.
+		 */
+		memcpy(file->basename_utf16.s, ulast, ulen_last);
+		file->basename_utf16.length = ulen_last;
+	}
+
+	archive_strcpy(&(file->parentdir), pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+	/*
+	 * Convert a path-separator from '\' to  '/'
+	 */
+	if (cleanup_backslash_1(file->parentdir.s) != 0) {
+		const wchar_t *wp = archive_entry_pathname_w(file->entry);
+		struct archive_wstring ws;
+
+		if (wp != NULL) {
+			int r;
+			archive_string_init(&ws);
+			archive_wstrcpy(&ws, wp);
+			cleanup_backslash_2(ws.s);
+			archive_string_empty(&(file->parentdir));
+			r = archive_string_append_from_wcs(&(file->parentdir),
+			    ws.s, ws.length);
+			archive_wstring_free(&ws);
+			if (r < 0 && errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory");
+				return (ARCHIVE_FATAL);
+			}
+		}
+	}
+#endif
+
+	len = file->parentdir.length;
+	p = dirname = file->parentdir.s;
+
+	/*
+	 * Remove leading '/', '../' and './' elements
+	 */
+	while (*p) {
+		if (p[0] == '/') {
+			p++;
+			len--;
+		} else if (p[0] != '.')
+			break;
+		else if (p[1] == '.' && p[2] == '/') {
+			p += 3;
+			len -= 3;
+		} else if (p[1] == '/' || (p[1] == '.' && p[2] == '\0')) {
+			p += 2;
+			len -= 2;
+		} else if (p[1] == '\0') {
+			p++;
+			len--;
+		} else
+			break;
+	}
+	if (p != dirname) {
+		memmove(dirname, p, len+1);
+		p = dirname;
+	}
+	/*
+	 * Remove "/","/." and "/.." elements from tail.
+	 */
+	while (len > 0) {
+		size_t ll = len;
+
+		if (len > 0 && p[len-1] == '/') {
+			p[len-1] = '\0';
+			len--;
+		}
+		if (len > 1 && p[len-2] == '/' && p[len-1] == '.') {
+			p[len-2] = '\0';
+			len -= 2;
+		}
+		if (len > 2 && p[len-3] == '/' && p[len-2] == '.' &&
+		    p[len-1] == '.') {
+			p[len-3] = '\0';
+			len -= 3;
+		}
+		if (ll == len)
+			break;
+	}
+	while (*p) {
+		if (p[0] == '/') {
+			if (p[1] == '/')
+				/* Convert '//' --> '/' */
+				strcpy(p, p+1);
+			else if (p[1] == '.' && p[2] == '/')
+				/* Convert '/./' --> '/' */
+				strcpy(p, p+2);
+			else if (p[1] == '.' && p[2] == '.' && p[3] == '/') {
+				/* Convert 'dir/dir1/../dir2/'
+				 *     --> 'dir/dir2/'
+				 */
+				char *rp = p -1;
+				while (rp >= dirname) {
+					if (*rp == '/')
+						break;
+					--rp;
+				}
+				if (rp > dirname) {
+					strcpy(rp, p+3);
+					p = rp;
+				} else {
+					strcpy(dirname, p+4);
+					p = dirname;
+				}
+			} else
+				p++;
+		} else
+			p++;
+	}
+	p = dirname;
+	len = strlen(p);
+
+	if (archive_entry_filetype(file->entry) == AE_IFLNK) {
+		/* Convert symlink name too. */
+		pathname = archive_entry_symlink(file->entry);
+		archive_strcpy(&(file->symlink),  pathname);
+#if defined(_WIN32) || defined(__CYGWIN__)
+		/*
+		 * Convert a path-separator from '\' to  '/'
+		 */
+		if (archive_strlen(&(file->symlink)) > 0 &&
+		    cleanup_backslash_1(file->symlink.s) != 0) {
+			const wchar_t *wp =
+			    archive_entry_symlink_w(file->entry);
+			struct archive_wstring ws;
+
+			if (wp != NULL) {
+				int r;
+				archive_string_init(&ws);
+				archive_wstrcpy(&ws, wp);
+				cleanup_backslash_2(ws.s);
+				archive_string_empty(&(file->symlink));
+				r = archive_string_append_from_wcs(
+				    &(file->symlink),
+				    ws.s, ws.length);
+				archive_wstring_free(&ws);
+				if (r < 0 && errno == ENOMEM) {
+					archive_set_error(&a->archive, ENOMEM,
+					    "Can't allocate memory");
+					return (ARCHIVE_FATAL);
+				}
+			}
+		}
+#endif
+	}
+	/*
+	 * - Count up directory elements.
+	 * - Find out the position which points the last position of
+	 *   path separator('/').
+	 */
+	slash = NULL;
+	file->dircnt = 0;
+	for (; *p != '\0'; p++)
+		if (*p == '/') {
+			slash = p;
+			file->dircnt++;
+		}
+	if (slash == NULL) {
+		/* The pathname doesn't have a parent directory. */
+		file->parentdir.length = len;
+		archive_string_copy(&(file->basename), &(file->parentdir));
+		archive_string_empty(&(file->parentdir));
+		*file->parentdir.s = '\0';
+		return (ret);
+	}
+
+	/* Make a basename from dirname and slash */
+	*slash  = '\0';
+	file->parentdir.length = slash - dirname;
+	archive_strcpy(&(file->basename),  slash + 1);
+	if (archive_entry_filetype(file->entry) == AE_IFDIR)
+		file->dircnt ++;
+	return (ret);
+}
+
+/*
+ * Register a entry to get a hardlink target.
+ */
+static int
+isofile_register_hardlink(struct archive_write *a, struct isofile *file)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct hardlink *hl;
+	const char *pathname;
+
+	archive_entry_set_nlink(file->entry, 1);
+	pathname = archive_entry_hardlink(file->entry);
+	if (pathname == NULL) {
+		/* This `file` is a hardlink target. */
+		hl = malloc(sizeof(*hl));
+		if (hl == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		hl->nlink = 1;
+		/* A hardlink target must be the first position. */
+		file->hlnext = NULL;
+		hl->file_list.first = file;
+		hl->file_list.last = &(file->hlnext);
+		__archive_rb_tree_insert_node(&(iso9660->hardlink_rbtree),
+		    (struct archive_rb_node *)hl);
+	} else {
+		hl = (struct hardlink *)__archive_rb_tree_find_node(
+		    &(iso9660->hardlink_rbtree), pathname);
+		if (hl != NULL) {
+			/* Insert `file` entry into the tail. */
+			file->hlnext = NULL;
+			*hl->file_list.last = file;
+			hl->file_list.last = &(file->hlnext);
+			hl->nlink++;
+		}
+		archive_entry_unset_size(file->entry);
+	}
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Hardlinked files have to have the same location of extent.
+ * We have to find out hardlink target entries for the entries
+ * which have a hardlink target name.
+ */
+static void
+isofile_connect_hardlink_files(struct iso9660 *iso9660)
+{
+	struct archive_rb_node *n;
+	struct hardlink *hl;
+	struct isofile *target, *nf;
+
+	ARCHIVE_RB_TREE_FOREACH(n, &(iso9660->hardlink_rbtree)) {
+		hl = (struct hardlink *)n;
+
+		/* The first entry must be a hardlink target. */
+		target = hl->file_list.first;
+		archive_entry_set_nlink(target->entry, hl->nlink);
+		/* Set a hardlink target to reference entries. */
+		for (nf = target->hlnext;
+		    nf != NULL; nf = nf->hlnext) {
+			nf->hardlink_target = target;
+			archive_entry_set_nlink(nf->entry, hl->nlink);
+		}
+	}
+}
+
+static int
+isofile_hd_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct hardlink *h1 = (const struct hardlink *)n1;
+	const struct hardlink *h2 = (const struct hardlink *)n2;
+
+	return (strcmp(archive_entry_pathname(h1->file_list.first->entry),
+		       archive_entry_pathname(h2->file_list.first->entry)));
+}
+
+static int
+isofile_hd_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct hardlink *h = (const struct hardlink *)n;
+
+	return (strcmp(archive_entry_pathname(h->file_list.first->entry),
+		       (const char *)key));
+}
+
+static void
+isofile_init_hardlinks(struct iso9660 *iso9660)
+{
+	static const struct archive_rb_tree_ops rb_ops = {
+		isofile_hd_cmp_node, isofile_hd_cmp_key,
+	};
+
+	__archive_rb_tree_init(&(iso9660->hardlink_rbtree), &rb_ops);
+}
+
+static void
+isofile_free_hardlinks(struct iso9660 *iso9660)
+{
+	struct archive_rb_node *n, *next;
+
+	for (n = ARCHIVE_RB_TREE_MIN(&(iso9660->hardlink_rbtree)); n;) {
+		next = __archive_rb_tree_iterate(&(iso9660->hardlink_rbtree),
+		    n, ARCHIVE_RB_DIR_RIGHT);
+		free(n);
+		n = next;
+	}
+}
+
+static struct isoent *
+isoent_new(struct isofile *file)
+{
+	struct isoent *isoent;
+	static const struct archive_rb_tree_ops rb_ops = {
+		isoent_cmp_node, isoent_cmp_key,
+	};
+
+	isoent = calloc(1, sizeof(*isoent));
+	if (isoent == NULL)
+		return (NULL);
+	isoent->file = file;
+	isoent->children.first = NULL;
+	isoent->children.last = &(isoent->children.first);
+	__archive_rb_tree_init(&(isoent->rbtree), &rb_ops);
+	isoent->subdirs.first = NULL;
+	isoent->subdirs.last = &(isoent->subdirs.first);
+	isoent->extr_rec_list.first = NULL;
+	isoent->extr_rec_list.last = &(isoent->extr_rec_list.first);
+	isoent->extr_rec_list.current = NULL;
+	if (archive_entry_filetype(file->entry) == AE_IFDIR)
+		isoent->dir = 1;
+
+	return (isoent);
+}
+
+static inline struct isoent *
+isoent_clone(struct isoent *src)
+{
+	return (isoent_new(src->file));
+}
+
+static void
+_isoent_free(struct isoent *isoent)
+{
+	struct extr_rec *er, *er_next;
+
+	free(isoent->children_sorted);
+	free(isoent->identifier);
+	er = isoent->extr_rec_list.first;
+	while (er != NULL) {
+		er_next = er->next;
+		free(er);
+		er = er_next;
+	}
+	free(isoent);
+}
+
+static void
+isoent_free_all(struct isoent *isoent)
+{
+	struct isoent *np, *np_temp;
+
+	if (isoent == NULL)
+		return;
+	np = isoent;
+	for (;;) {
+		if (np->dir) {
+			if (np->children.first != NULL) {
+				/* Enter to sub directories. */
+				np = np->children.first;
+				continue;
+			}
+		}
+		for (;;) {
+			np_temp = np;
+			if (np->chnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				_isoent_free(np_temp);
+				if (np == np_temp)
+					return;
+			} else {
+				np = np->chnext;
+				_isoent_free(np_temp);
+				break;
+			}
+		}
+	}
+}
+
+static struct isoent *
+isoent_create_virtual_dir(struct archive_write *a, struct iso9660 *iso9660, const char *pathname)
+{
+	struct isofile *file;
+	struct isoent *isoent;
+
+	file = isofile_new(a, NULL);
+	if (file == NULL)
+		return (NULL);
+	archive_entry_set_pathname(file->entry, pathname);
+	archive_entry_unset_mtime(file->entry);
+	archive_entry_unset_atime(file->entry);
+	archive_entry_unset_ctime(file->entry);
+	archive_entry_set_uid(file->entry, getuid());
+	archive_entry_set_gid(file->entry, getgid());
+	archive_entry_set_mode(file->entry, 0555 | AE_IFDIR);
+	archive_entry_set_nlink(file->entry, 2);
+	if (isofile_gen_utility_names(a, file) < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (NULL);
+	}
+	isofile_add_entry(iso9660, file);
+
+	isoent = isoent_new(file);
+	if (isoent == NULL)
+		return (NULL);
+	isoent->dir = 1;
+	isoent->virtual = 1;
+
+	return (isoent);
+}
+
+static int
+isoent_cmp_node(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct isoent *e1 = (const struct isoent *)n1;
+	const struct isoent *e2 = (const struct isoent *)n2;
+
+	return (strcmp(e1->file->basename.s, e2->file->basename.s));
+}
+
+static int
+isoent_cmp_key(const struct archive_rb_node *n, const void *key)
+{
+	const struct isoent *e = (const struct isoent *)n;
+
+	return (strcmp(e->file->basename.s, (const char *)key));
+}
+
+static int
+isoent_add_child_head(struct isoent *parent, struct isoent *child)
+{
+
+	if (!__archive_rb_tree_insert_node(
+	    &(parent->rbtree), (struct archive_rb_node *)child))
+		return (0);
+	if ((child->chnext = parent->children.first) == NULL)
+		parent->children.last = &(child->chnext);
+	parent->children.first = child;
+	parent->children.cnt++;
+	child->parent = parent;
+
+	/* Add a child to a sub-directory chain */
+	if (child->dir) {
+		if ((child->drnext = parent->subdirs.first) == NULL)
+			parent->subdirs.last = &(child->drnext);
+		parent->subdirs.first = child;
+		parent->subdirs.cnt++;
+		child->parent = parent;
+	} else
+		child->drnext = NULL;
+	return (1);
+}
+
+static int
+isoent_add_child_tail(struct isoent *parent, struct isoent *child)
+{
+
+	if (!__archive_rb_tree_insert_node(
+	    &(parent->rbtree), (struct archive_rb_node *)child))
+		return (0);
+	child->chnext = NULL;
+	*parent->children.last = child;
+	parent->children.last = &(child->chnext);
+	parent->children.cnt++;
+	child->parent = parent;
+
+	/* Add a child to a sub-directory chain */
+	child->drnext = NULL;
+	if (child->dir) {
+		*parent->subdirs.last = child;
+		parent->subdirs.last = &(child->drnext);
+		parent->subdirs.cnt++;
+		child->parent = parent;
+	}
+	return (1);
+}
+
+static void
+isoent_remove_child(struct isoent *parent, struct isoent *child)
+{
+	struct isoent *ent;
+
+	/* Remove a child entry from children chain. */
+	ent = parent->children.first;
+	while (ent->chnext != child)
+		ent = ent->chnext;
+	if ((ent->chnext = ent->chnext->chnext) == NULL)
+		parent->children.last = &(ent->chnext);
+	parent->children.cnt--;
+
+	if (child->dir) {
+		/* Remove a child entry from sub-directory chain. */
+		ent = parent->subdirs.first;
+		while (ent->drnext != child)
+			ent = ent->drnext;
+		if ((ent->drnext = ent->drnext->drnext) == NULL)
+			parent->subdirs.last = &(ent->drnext);
+		parent->subdirs.cnt--;
+	}
+
+	__archive_rb_tree_remove_node(&(parent->rbtree),
+	    (struct archive_rb_node *)child);
+}
+
+static int
+isoent_clone_tree(struct archive_write *a, struct isoent **nroot,
+    struct isoent *root)
+{
+	struct isoent *np, *xroot, *newent;
+
+	np = root;
+	xroot = NULL;
+	do {
+		newent = isoent_clone(np);
+		if (newent == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		if (xroot == NULL) {
+			*nroot = xroot = newent;
+			newent->parent = xroot;
+		} else
+			isoent_add_child_tail(xroot, newent);
+		if (np->dir && np->children.first != NULL) {
+			/* Enter to sub directories. */
+			np = np->children.first;
+			xroot = newent;
+			continue;
+		}
+		while (np != np->parent) {
+			if (np->chnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				xroot = xroot->parent;
+			} else {
+				np = np->chnext;
+				break;
+			}
+		}
+	} while (np != np->parent);
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Setup directory locations.
+ */
+static void
+isoent_setup_directory_location(struct iso9660 *iso9660, int location,
+    struct vdd *vdd)
+{
+	struct isoent *np;
+	int depth;
+
+	vdd->total_dir_block = 0;
+	depth = 0;
+	np = vdd->rootent;
+	do {
+		int block;
+
+		np->dir_block = calculate_directory_descriptors(
+		    iso9660, vdd, np, depth);
+		vdd->total_dir_block += np->dir_block;
+		np->dir_location = location;
+		location += np->dir_block;
+		block = extra_setup_location(np, location);
+		vdd->total_dir_block += block;
+		location += block;
+
+		if (np->subdirs.first != NULL && depth + 1 < vdd->max_depth) {
+			/* Enter to sub directories. */
+			np = np->subdirs.first;
+			depth++;
+			continue;
+		}
+		while (np != np->parent) {
+			if (np->drnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				depth--;
+			} else {
+				np = np->drnext;
+				break;
+			}
+		}
+	} while (np != np->parent);
+}
+
+static void
+_isoent_file_location(struct iso9660 *iso9660, struct isoent *isoent,
+    int *symlocation)
+{
+	struct isoent **children;
+	int n;
+
+	if (isoent->children.cnt == 0)
+		return;
+
+	children = isoent->children_sorted;
+	for (n = 0; n < isoent->children.cnt; n++) {
+		struct isoent *np;
+		struct isofile *file;
+
+		np = children[n];
+		if (np->dir)
+			continue;
+		if (np == iso9660->el_torito.boot)
+			continue;
+		file = np->file;
+		if (file->boot || file->hardlink_target != NULL)
+			continue;
+		if (archive_entry_filetype(file->entry) == AE_IFLNK ||
+		    file->content.size == 0) {
+			/*
+			 * Do not point a valid location.
+			 * Make sure entry is not hardlink file.
+			 */
+			file->content.location = (*symlocation)--;
+			continue;
+		}
+
+		file->write_content = 1;
+	}
+}
+
+/*
+ * Setup file locations.
+ */
+static void
+isoent_setup_file_location(struct iso9660 *iso9660, int location)
+{
+	struct isoent *isoent;
+	struct isoent *np;
+	struct isofile *file;
+	size_t size;
+	int block;
+	int depth;
+	int joliet;
+	int symlocation;
+	int total_block;
+
+	iso9660->total_file_block = 0;
+	if ((isoent = iso9660->el_torito.catalog) != NULL) {
+		isoent->file->content.location = location;
+		block = (int)((archive_entry_size(isoent->file->entry) +
+		    LOGICAL_BLOCK_SIZE -1) >> LOGICAL_BLOCK_BITS);
+		location += block;
+		iso9660->total_file_block += block;
+	}
+	if ((isoent = iso9660->el_torito.boot) != NULL) {
+		isoent->file->content.location = location;
+		size = fd_boot_image_size(iso9660->el_torito.media_type);
+		if (size == 0)
+			size = (size_t)archive_entry_size(isoent->file->entry);
+		block = ((int)size + LOGICAL_BLOCK_SIZE -1)
+		    >> LOGICAL_BLOCK_BITS;
+		location += block;
+		iso9660->total_file_block += block;
+		isoent->file->content.blocks = block;
+	}
+
+	depth = 0;
+	symlocation = -16;
+	if (!iso9660->opt.rr && iso9660->opt.joliet) {
+		joliet = 1;
+		np = iso9660->joliet.rootent;
+	} else {
+		joliet = 0;
+		np = iso9660->primary.rootent;
+	}
+	do {
+		_isoent_file_location(iso9660, np, &symlocation);
+
+		if (np->subdirs.first != NULL &&
+		    (joliet ||
+		    ((iso9660->opt.rr == OPT_RR_DISABLED &&
+		      depth + 2 < iso9660->primary.max_depth) ||
+		     (iso9660->opt.rr &&
+		      depth + 1 < iso9660->primary.max_depth)))) {
+			/* Enter to sub directories. */
+			np = np->subdirs.first;
+			depth++;
+			continue;
+		}
+		while (np != np->parent) {
+			if (np->drnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				depth--;
+			} else {
+				np = np->drnext;
+				break;
+			}
+		}
+	} while (np != np->parent);
+
+	total_block = 0;
+	for (file = iso9660->data_file_list.first;
+	    file != NULL; file = file->datanext) {
+
+		if (!file->write_content)
+			continue;
+
+		file->cur_content = &(file->content);
+		do {
+			file->cur_content->location = location;
+			location += file->cur_content->blocks;
+			total_block += file->cur_content->blocks;
+			/* Next fragument */
+			file->cur_content = file->cur_content->next;
+		} while (file->cur_content != NULL);
+	}
+	iso9660->total_file_block += total_block;
+}
+
+static int
+get_path_component(char *name, size_t n, const char *fn)
+{
+	char *p;
+	size_t l;
+
+	p = strchr(fn, '/');
+	if (p == NULL) {
+		if ((l = strlen(fn)) == 0)
+			return (0);
+	} else
+		l = p - fn;
+	if (l > n -1)
+		return (-1);
+	memcpy(name, fn, l);
+	name[l] = '\0';
+
+	return ((int)l);
+}
+
+/*
+ * Add a new entry into the tree.
+ */
+static int
+isoent_tree(struct archive_write *a, struct isoent **isoentpp)
+{
 #if defined(_WIN32) && !defined(__CYGWIN__)
-    /* Windows version number data.  */
-    OSVERSIONINFO osvi;
-    ZeroMemory(&osvi, sizeof(osvi));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
-# pragma warning (push)
-# pragma warning (disable:4996)
-#endif
-    GetVersionEx (&osvi);
-#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
-# pragma warning (pop)
-#endif
-    std::ostringstream windowsVersionString;
-    windowsVersionString << osvi.dwMajorVersion << "." << osvi.dwMinorVersion;
-    windowsVersionString.str();
-    mf->AddDefinition("CMAKE_HOST_SYSTEM_VERSION",
-                      windowsVersionString.str().c_str());
-#endif
-    // Read the DetermineSystem file
-    std::string systemFile = mf->GetModulesFile("CMakeDetermineSystem.cmake");
-    mf->ReadListFile(systemFile.c_str());
-    // load the CMakeSystem.cmake from the binary directory
-    // this file is configured by the CMakeDetermineSystem.cmake file
-    fpath = rootBin;
-    fpath += "/CMakeSystem.cmake";
-    mf->ReadListFile(fpath.c_str());
-    }
-
-  if(readCMakeSystem)
-    {
-    // Tell the generator about the target system.
-    std::string system = mf->GetSafeDefinition("CMAKE_SYSTEM_NAME");
-    if(!this->SetSystemName(system, mf))
-      {
-      cmSystemTools::SetFatalErrorOccured();
-      return;
-      }
-
-    // Tell the generator about the platform, if any.
-    std::string platform = mf->GetSafeDefinition("CMAKE_GENERATOR_PLATFORM");
-    if(!this->SetGeneratorPlatform(platform, mf))
-      {
-      cmSystemTools::SetFatalErrorOccured();
-      return;
-      }
-
-    // Tell the generator about the toolset, if any.
-    std::string toolset = mf->GetSafeDefinition("CMAKE_GENERATOR_TOOLSET");
-    if(!this->SetGeneratorToolset(toolset, mf))
-      {
-      cmSystemTools::SetFatalErrorOccured();
-      return;
-      }
-    }
-
-  // **** Load the system specific initialization if not yet loaded
-  if (!mf->GetDefinition("CMAKE_SYSTEM_SPECIFIC_INITIALIZE_LOADED"))
-    {
-    fpath = mf->GetModulesFile("CMakeSystemSpecificInitialize.cmake");
-    if(!mf->ReadListFile(fpath.c_str()))
-      {
-      cmSystemTools::Error("Could not find cmake module file: "
-                           "CMakeSystemSpecificInitialize.cmake");
-      }
-    }
-
-  std::map<std::string, bool> needTestLanguage;
-  std::map<std::string, bool> needSetLanguageEnabledMaps;
-  // foreach language
-  // load the CMakeDetermine(LANG)Compiler.cmake file to find
-  // the compiler
-
-  for(std::vector<std::string>::const_iterator l = languages.begin();
-      l != languages.end(); ++l)
-    {
-    const char* lang = l->c_str();
-    needSetLanguageEnabledMaps[lang] = false;
-    if(*l == "NONE")
-      {
-      this->SetLanguageEnabled("NONE", mf);
-      continue;
-      }
-    std::string loadedLang = "CMAKE_";
-    loadedLang +=  lang;
-    loadedLang += "_COMPILER_LOADED";
-    if(!mf->GetDefinition(loadedLang))
-      {
-      fpath = rootBin;
-      fpath += "/CMake";
-      fpath += lang;
-      fpath += "Compiler.cmake";
-
-      // If the existing build tree was already configured with this
-      // version of CMake then try to load the configured file first
-      // to avoid duplicate compiler tests.
-      if(cmSystemTools::FileExists(fpath.c_str()))
-        {
-        if(!mf->ReadListFile(fpath.c_str()))
-          {
-          cmSystemTools::Error("Could not find cmake module file: ",
-                               fpath.c_str());
-          }
-        // if this file was found then the language was already determined
-        // to be working
-        needTestLanguage[lang] = false;
-        this->SetLanguageEnabledFlag(lang, mf);
-        needSetLanguageEnabledMaps[lang] = true;
-        // this can only be called after loading CMake(LANG)Compiler.cmake
-        }
-      }
-
-    if(!this->GetLanguageEnabled(lang) )
-      {
-      if (this->CMakeInstance->GetIsInTryCompile())
-        {
-        cmSystemTools::Error("This should not have happened. "
-                             "If you see this message, you are probably "
-                             "using a broken CMakeLists.txt file or a "
-                             "problematic release of CMake");
-        }
-      // if the CMake(LANG)Compiler.cmake file was not found then
-      // load CMakeDetermine(LANG)Compiler.cmake
-      std::string determineCompiler = "CMakeDetermine";
-      determineCompiler += lang;
-      determineCompiler += "Compiler.cmake";
-      std::string determineFile =
-        mf->GetModulesFile(determineCompiler.c_str());
-      if(!mf->ReadListFile(determineFile.c_str()))
-        {
-        cmSystemTools::Error("Could not find cmake module file: ",
-                             determineCompiler.c_str());
-        }
-      if (cmSystemTools::GetFatalErrorOccured())
-        {
-        return;
-        }
-      needTestLanguage[lang] = true;
-      // Some generators like visual studio should not use the env variables
-      // So the global generator can specify that in this variable
-      if(!mf->GetDefinition("CMAKE_GENERATOR_NO_COMPILER_ENV"))
-        {
-        // put ${CMake_(LANG)_COMPILER_ENV_VAR}=${CMAKE_(LANG)_COMPILER
-        // into the environment, in case user scripts want to run
-        // configure, or sub cmakes
-        std::string compilerName = "CMAKE_";
-        compilerName += lang;
-        compilerName += "_COMPILER";
-        std::string compilerEnv = "CMAKE_";
-        compilerEnv += lang;
-        compilerEnv += "_COMPILER_ENV_VAR";
-        std::string envVar = mf->GetRequiredDefinition(compilerEnv);
-        std::string envVarValue =
-          mf->GetRequiredDefinition(compilerName);
-        std::string env = envVar;
-        env += "=";
-        env += envVarValue;
-        cmSystemTools::PutEnv(env);
-        }
-
-      // if determineLanguage was called then load the file it
-      // configures CMake(LANG)Compiler.cmake
-      fpath = rootBin;
-      fpath += "/CMake";
-      fpath += lang;
-      fpath += "Compiler.cmake";
-      if(!mf->ReadListFile(fpath.c_str()))
-        {
-        cmSystemTools::Error("Could not find cmake module file: ",
-                             fpath.c_str());
-        }
-      this->SetLanguageEnabledFlag(lang, mf);
-      needSetLanguageEnabledMaps[lang] = true;
-      // this can only be called after loading CMake(LANG)Compiler.cmake
-      // the language must be enabled for try compile to work, but we do
-      // not know if it is a working compiler yet so set the test language
-      // flag
-      needTestLanguage[lang] = true;
-      } // end if(!this->GetLanguageEnabled(lang) )
-    }  // end loop over languages
-
-  // **** Load the system specific information if not yet loaded
-  if (!mf->GetDefinition("CMAKE_SYSTEM_SPECIFIC_INFORMATION_LOADED"))
-    {
-    fpath = mf->GetModulesFile("CMakeSystemSpecificInformation.cmake");
-    if(!mf->ReadListFile(fpath.c_str()))
-      {
-      cmSystemTools::Error("Could not find cmake module file: "
-                           "CMakeSystemSpecificInformation.cmake");
-      }
-    }
-  // loop over languages again loading CMake(LANG)Information.cmake
-  //
-  for(std::vector<std::string>::const_iterator l = languages.begin();
-      l != languages.end(); ++l)
-    {
-    const char* lang = l->c_str();
-    if(*l == "NONE")
-      {
-      this->SetLanguageEnabled("NONE", mf);
-      continue;
-      }
-
-    // Check that the compiler was found.
-    std::string compilerName = "CMAKE_";
-    compilerName += lang;
-    compilerName += "_COMPILER";
-    std::string compilerEnv = "CMAKE_";
-    compilerEnv += lang;
-    compilerEnv += "_COMPILER_ENV_VAR";
-    std::ostringstream noCompiler;
-    const char* compilerFile = mf->GetDefinition(compilerName);
-    if(!compilerFile || !*compilerFile ||
-       cmSystemTools::IsNOTFOUND(compilerFile))
-      {
-      noCompiler <<
-        "No " << compilerName << " could be found.\n"
-        ;
-      }
-    else if(strcmp(lang, "RC") != 0 &&
-            strcmp(lang, "ASM_MASM") != 0)
-      {
-      if(!cmSystemTools::FileIsFullPath(compilerFile))
-        {
-        noCompiler <<
-          "The " << compilerName << ":\n"
-          "  " << compilerFile << "\n"
-          "is not a full path and was not found in the PATH.\n"
-          ;
-        }
-      else if(!cmSystemTools::FileExists(compilerFile))
-        {
-        noCompiler <<
-          "The " << compilerName << ":\n"
-          "  " << compilerFile << "\n"
-          "is not a full path to an existing compiler tool.\n"
-          ;
-        }
-      }
-    if(!noCompiler.str().empty())
-      {
-      // Skip testing this language since the compiler is not found.
-      needTestLanguage[lang] = false;
-      if(!optional)
-        {
-        // The compiler was not found and it is not optional.  Remove
-        // CMake(LANG)Compiler.cmake so we try again next time CMake runs.
-        std::string compilerLangFile = rootBin;
-        compilerLangFile += "/CMake";
-        compilerLangFile += lang;
-        compilerLangFile += "Compiler.cmake";
-        cmSystemTools::RemoveFile(compilerLangFile);
-        if(!this->CMakeInstance->GetIsInTryCompile())
-          {
-          this->PrintCompilerAdvice(noCompiler, lang,
-                                    mf->GetDefinition(compilerEnv));
-          mf->IssueMessage(cmake::FATAL_ERROR, noCompiler.str());
-          fatalError = true;
-          }
-        }
-      }
-
-    std::string langLoadedVar = "CMAKE_";
-    langLoadedVar += lang;
-    langLoadedVar += "_INFORMATION_LOADED";
-    if (!mf->GetDefinition(langLoadedVar))
-      {
-      fpath = "CMake";
-      fpath +=  lang;
-      fpath += "Information.cmake";
-      std::string informationFile = mf->GetModulesFile(fpath.c_str());
-      if (informationFile.empty())
-        {
-        cmSystemTools::Error("Could not find cmake module file: ",
-                             fpath.c_str());
-        }
-      else if(!mf->ReadListFile(informationFile.c_str()))
-        {
-        cmSystemTools::Error("Could not process cmake module file: ",
-                             informationFile.c_str());
-        }
-      }
-    if (needSetLanguageEnabledMaps[lang])
-      {
-      this->SetLanguageEnabledMaps(lang, mf);
-      }
-    this->LanguagesReady.insert(lang);
-
-    // Test the compiler for the language just setup
-    // (but only if a compiler has been actually found)
-    // At this point we should have enough info for a try compile
-    // which is used in the backward stuff
-    // If the language is untested then test it now with a try compile.
-    if(needTestLanguage[lang])
-      {
-      if (!this->CMakeInstance->GetIsInTryCompile())
-        {
-        std::string testLang = "CMakeTest";
-        testLang += lang;
-        testLang += "Compiler.cmake";
-        std::string ifpath = mf->GetModulesFile(testLang.c_str());
-        if(!mf->ReadListFile(ifpath.c_str()))
-          {
-          cmSystemTools::Error("Could not find cmake module file: ",
-                               testLang.c_str());
-          }
-        std::string compilerWorks = "CMAKE_";
-        compilerWorks += lang;
-        compilerWorks += "_COMPILER_WORKS";
-        // if the compiler did not work, then remove the
-        // CMake(LANG)Compiler.cmake file so that it will get tested the
-        // next time cmake is run
-        if(!mf->IsOn(compilerWorks))
-          {
-          std::string compilerLangFile = rootBin;
-          compilerLangFile += "/CMake";
-          compilerLangFile += lang;
-          compilerLangFile += "Compiler.cmake";
-          cmSystemTools::RemoveFile(compilerLangFile);
-          }
-        } // end if in try compile
-      } // end need test language
-    // Store the shared library flags so that we can satisfy CMP0018
-    std::string sharedLibFlagsVar = "CMAKE_SHARED_LIBRARY_";
-    sharedLibFlagsVar += lang;
-    sharedLibFlagsVar += "_FLAGS";
-    const char* sharedLibFlags =
-      mf->GetSafeDefinition(sharedLibFlagsVar);
-    if (sharedLibFlags)
-      {
-      this->LanguageToOriginalSharedLibFlags[lang] = sharedLibFlags;
-      }
-
-    // Translate compiler ids for compatibility.
-    this->CheckCompilerIdCompatibility(mf, lang);
-    } // end for each language
-
-  // Now load files that can override any settings on the platform or for
-  // the project First load the project compatibility file if it is in
-  // cmake
-  std::string projectCompatibility = mf->GetDefinition("CMAKE_ROOT");
-  projectCompatibility += "/Modules/";
-  projectCompatibility += mf->GetSafeDefinition("PROJECT_NAME");
-  projectCompatibility += "Compatibility.cmake";
-  if(cmSystemTools::FileExists(projectCompatibility.c_str()))
-    {
-    mf->ReadListFile(projectCompatibility.c_str());
-    }
-  // Inform any extra generator of the new language.
-  if (this->ExtraGenerator)
-    {
-    this->ExtraGenerator->EnableLanguage(languages, mf, false);
-    }
-
-  if(fatalError)
-    {
-    cmSystemTools::SetFatalErrorOccured();
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::PrintCompilerAdvice(std::ostream& os,
-                                            std::string const& lang,
-                                            const char* envVar) const
-{
-  // Subclasses override this method if they do not support this advice.
-  os <<
-    "Tell CMake where to find the compiler by setting "
-    ;
-  if(envVar)
-    {
-    os <<
-      "either the environment variable \"" << envVar << "\" or "
-      ;
-    }
-  os <<
-    "the CMake cache entry CMAKE_" << lang << "_COMPILER "
-    "to the full path to the compiler, or to the compiler name "
-    "if it is in the PATH."
-    ;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CheckCompilerIdCompatibility(cmMakefile* mf,
-                                                std::string const& lang) const
-{
-  std::string compilerIdVar = "CMAKE_" + lang + "_COMPILER_ID";
-  const char* compilerId = mf->GetDefinition(compilerIdVar);
-  if(!compilerId)
-    {
-    return;
-    }
-
-  if(strcmp(compilerId, "AppleClang") == 0)
-    {
-    switch(mf->GetPolicyStatus(cmPolicies::CMP0025))
-      {
-      case cmPolicies::WARN:
-        if(!this->CMakeInstance->GetIsInTryCompile() &&
-           mf->PolicyOptionalWarningEnabled("CMAKE_POLICY_WARNING_CMP0025"))
-          {
-          std::ostringstream w;
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0025) << "\n"
-            "Converting " << lang <<
-            " compiler id \"AppleClang\" to \"Clang\" for compatibility."
-            ;
-          mf->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-          }
-      case cmPolicies::OLD:
-        // OLD behavior is to convert AppleClang to Clang.
-        mf->AddDefinition(compilerIdVar, "Clang");
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0025)
-          );
-      case cmPolicies::NEW:
-        // NEW behavior is to keep AppleClang.
-        break;
-      }
-    }
-
-  if(strcmp(compilerId, "QCC") == 0)
-    {
-    switch(mf->GetPolicyStatus(cmPolicies::CMP0047))
-      {
-      case cmPolicies::WARN:
-        if(!this->CMakeInstance->GetIsInTryCompile() &&
-           mf->PolicyOptionalWarningEnabled("CMAKE_POLICY_WARNING_CMP0047"))
-          {
-          std::ostringstream w;
-          w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0047) << "\n"
-            "Converting " << lang <<
-            " compiler id \"QCC\" to \"GNU\" for compatibility."
-            ;
-          mf->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-          }
-      case cmPolicies::OLD:
-        // OLD behavior is to convert QCC to GNU.
-        mf->AddDefinition(compilerIdVar, "GNU");
-        if(lang == "C")
-          {
-          mf->AddDefinition("CMAKE_COMPILER_IS_GNUCC", "1");
-          }
-        else if(lang == "CXX")
-          {
-          mf->AddDefinition("CMAKE_COMPILER_IS_GNUCXX", "1");
-          }
-        break;
-      case cmPolicies::REQUIRED_IF_USED:
-      case cmPolicies::REQUIRED_ALWAYS:
-        mf->IssueMessage(
-          cmake::FATAL_ERROR,
-          cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0047)
-          );
-      case cmPolicies::NEW:
-        // NEW behavior is to keep QCC.
-        break;
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-std::string
-cmGlobalGenerator::GetLanguageOutputExtension(cmSourceFile const& source) const
-{
-  const std::string& lang = source.GetLanguage();
-  if(!lang.empty())
-    {
-    std::map<std::string, std::string>::const_iterator it =
-                                  this->LanguageToOutputExtension.find(lang);
-
-    if(it != this->LanguageToOutputExtension.end())
-      {
-      return it->second;
-      }
-    }
-  else
-    {
-    // if no language is found then check to see if it is already an
-    // ouput extension for some language.  In that case it should be ignored
-    // and in this map, so it will not be compiled but will just be used.
-    std::string const& ext = source.GetExtension();
-    if(!ext.empty())
-      {
-      if(this->OutputExtensions.count(ext))
-        {
-        return ext;
-        }
-      }
-    }
-  return "";
-}
-
-
-std::string cmGlobalGenerator::GetLanguageFromExtension(const char* ext) const
-{
-  // if there is an extension and it starts with . then move past the
-  // . because the extensions are not stored with a .  in the map
-  if(ext && *ext == '.')
-    {
-    ++ext;
-    }
-  std::map<std::string, std::string>::const_iterator it
-                                        = this->ExtensionToLanguage.find(ext);
-  if(it != this->ExtensionToLanguage.end())
-    {
-    return it->second;
-    }
-  return "";
-}
-
-/* SetLanguageEnabled() is now split in two parts:
-at first the enabled-flag is set. This can then be used in EnabledLanguage()
-for checking whether the language is already enabled. After setting this
-flag still the values from the cmake variables have to be copied into the
-internal maps, this is done in SetLanguageEnabledMaps() which is called
-after the system- and compiler specific files have been loaded.
-
-This split was done originally so that compiler-specific configuration
-files could change the object file extension
-(CMAKE_<LANG>_OUTPUT_EXTENSION) before the CMake variables were copied
-to the C++ maps.
-*/
-void cmGlobalGenerator::SetLanguageEnabled(const std::string& l,
-                                           cmMakefile* mf)
-{
-  this->SetLanguageEnabledFlag(l, mf);
-  this->SetLanguageEnabledMaps(l, mf);
-}
-
-void cmGlobalGenerator::SetLanguageEnabledFlag(const std::string& l,
-                                               cmMakefile* mf)
-{
-  this->CMakeInstance->GetState()->SetLanguageEnabled(l);
-
-  // Fill the language-to-extension map with the current variable
-  // settings to make sure it is available for the try_compile()
-  // command source file signature.  In SetLanguageEnabledMaps this
-  // will be done again to account for any compiler- or
-  // platform-specific entries.
-  this->FillExtensionToLanguageMap(l, mf);
-}
-
-void cmGlobalGenerator::SetLanguageEnabledMaps(const std::string& l,
-                                               cmMakefile* mf)
-{
-  // use LanguageToLinkerPreference to detect whether this functions has
-  // run before
-  if (this->LanguageToLinkerPreference.find(l) !=
-                                        this->LanguageToLinkerPreference.end())
-    {
-    return;
-    }
-
-  std::string linkerPrefVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_LINKER_PREFERENCE");
-  const char* linkerPref = mf->GetDefinition(linkerPrefVar);
-  int preference = 0;
-  if(linkerPref)
-    {
-    if (sscanf(linkerPref, "%d", &preference)!=1)
-      {
-      // backward compatibility: before 2.6 LINKER_PREFERENCE
-      // was either "None" or "Preferred", and only the first character was
-      // tested. So if there is a custom language out there and it is
-      // "Preferred", set its preference high
-      if (linkerPref[0]=='P')
-        {
-        preference = 100;
-        }
-      else
-        {
-        preference = 0;
-        }
-      }
-    }
-
-  if (preference < 0)
-    {
-    std::string msg = linkerPrefVar;
-    msg += " is negative, adjusting it to 0";
-    cmSystemTools::Message(msg.c_str(), "Warning");
-    preference = 0;
-    }
-
-  this->LanguageToLinkerPreference[l] = preference;
-
-  std::string outputExtensionVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_OUTPUT_EXTENSION");
-  const char* outputExtension = mf->GetDefinition(outputExtensionVar);
-  if(outputExtension)
-    {
-    this->LanguageToOutputExtension[l] = outputExtension;
-    this->OutputExtensions[outputExtension] = outputExtension;
-    if(outputExtension[0] == '.')
-      {
-      this->OutputExtensions[outputExtension+1] = outputExtension+1;
-      }
-    }
-
-  // The map was originally filled by SetLanguageEnabledFlag, but
-  // since then the compiler- and platform-specific files have been
-  // loaded which might have added more entries.
-  this->FillExtensionToLanguageMap(l, mf);
-
-  std::string ignoreExtensionsVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_IGNORE_EXTENSIONS");
-  std::string ignoreExts = mf->GetSafeDefinition(ignoreExtensionsVar);
-  std::vector<std::string> extensionList;
-  cmSystemTools::ExpandListArgument(ignoreExts, extensionList);
-  for(std::vector<std::string>::iterator i = extensionList.begin();
-      i != extensionList.end(); ++i)
-    {
-    this->IgnoreExtensions[*i] = true;
-    }
-
-}
-
-void cmGlobalGenerator::FillExtensionToLanguageMap(const std::string& l,
-                                                   cmMakefile* mf)
-{
-  std::string extensionsVar = std::string("CMAKE_") +
-    std::string(l) + std::string("_SOURCE_FILE_EXTENSIONS");
-  std::string exts = mf->GetSafeDefinition(extensionsVar);
-  std::vector<std::string> extensionList;
-  cmSystemTools::ExpandListArgument(exts, extensionList);
-  for(std::vector<std::string>::iterator i = extensionList.begin();
-      i != extensionList.end(); ++i)
-    {
-    this->ExtensionToLanguage[*i] = l;
-    }
-}
-
-bool cmGlobalGenerator::IgnoreFile(const char* ext) const
-{
-  if(!this->GetLanguageFromExtension(ext).empty())
-    {
-    return false;
-    }
-  return (this->IgnoreExtensions.count(ext) > 0);
-}
-
-bool cmGlobalGenerator::GetLanguageEnabled(const std::string& l) const
-{
-  return this->CMakeInstance->GetState()->GetLanguageEnabled(l);
-}
-
-void cmGlobalGenerator::ClearEnabledLanguages()
-{
-  return this->CMakeInstance->GetState()->ClearEnabledLanguages();
-}
-
-void cmGlobalGenerator::Configure()
-{
-  this->FirstTimeProgress = 0.0f;
-  this->ClearGeneratorMembers();
-
-  // start with this directory
-  cmLocalGenerator *lg = this->MakeLocalGenerator();
-  this->LocalGenerators.push_back(lg);
-
-  // set the Start directories
-  lg->GetMakefile()->SetCurrentSourceDirectory
-    (this->CMakeInstance->GetHomeDirectory());
-  lg->GetMakefile()->SetCurrentBinaryDirectory
-    (this->CMakeInstance->GetHomeOutputDirectory());
-
-  this->BinaryDirectories.insert(
-      this->CMakeInstance->GetHomeOutputDirectory());
-
-  // now do it
-  lg->GetMakefile()->Configure();
-  lg->GetMakefile()->EnforceDirectoryLevelRules();
-
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmState::INTERNAL);
-
-  // check for link libraries and include directories containing "NOTFOUND"
-  // and for infinite loops
-  this->CheckLocalGenerators();
-
-  // at this point this->LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
-
-  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
-    {
-    std::ostringstream msg;
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      msg << "Configuring incomplete, errors occurred!";
-      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
-      for(const char** log = logs; *log; ++log)
-        {
-        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
-        f += this->CMakeInstance->GetCMakeFilesDirectory();
-        f += "/";
-        f += *log;
-        if(cmSystemTools::FileExists(f.c_str()))
-          {
-          msg << "\nSee also \"" << f << "\".";
-          }
-        }
-      }
-    else
-      {
-      msg << "Configuring done";
-      }
-    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
-    }
-
-  unsigned int i;
-
-  // Put a copy of each global target in every directory.
-  cmTargets globalTargets;
-  this->CreateDefaultGlobalTargets(&globalTargets);
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
-    cmTargets* targets = &(mf->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
-      {
-      (*targets)[tit->first] = tit->second;
-      (*targets)[tit->first].SetMakefile(mf);
-      }
-    }
-
-}
-
-void cmGlobalGenerator::CreateGenerationObjects(TargetTypes targetTypes)
-{
-  cmDeleteAll(this->GeneratorTargets);
-  this->GeneratorTargets.clear();
-  this->CreateGeneratorTargets(targetTypes);
-}
-
-cmExportBuildFileGenerator*
-cmGlobalGenerator::GetExportedTargetsFile(const std::string &filename) const
-{
-  std::map<std::string, cmExportBuildFileGenerator*>::const_iterator it
-    = this->BuildExportSets.find(filename);
-  return it == this->BuildExportSets.end() ? 0 : it->second;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddCMP0042WarnTarget(const std::string& target)
-{
-  this->CMP0042WarnTargets.insert(target);
-}
-
-bool cmGlobalGenerator::CheckALLOW_DUPLICATE_CUSTOM_TARGETS() const
-{
-  // If the property is not enabled then okay.
-  if(!this->CMakeInstance->GetState()
-     ->GetGlobalPropertyAsBool("ALLOW_DUPLICATE_CUSTOM_TARGETS"))
-    {
-    return true;
-    }
-
-  // This generator does not support duplicate custom targets.
-  std::ostringstream e;
-  e << "This project has enabled the ALLOW_DUPLICATE_CUSTOM_TARGETS "
-    << "global property.  "
-    << "The \"" << this->GetName() << "\" generator does not support "
-    << "duplicate custom targets.  "
-    << "Consider using a Makefiles generator or fix the project to not "
-    << "use duplicate target names.";
-  cmSystemTools::Error(e.str().c_str());
-  return false;
-}
-
-void cmGlobalGenerator::DoGenerate()
-{
-  // Some generators track files replaced during the Generate.
-  // Start with an empty vector:
-  this->FilesReplacedDuringGenerate.clear();
-
-  // clear targets to issue warning CMP0042 for
-  this->CMP0042WarnTargets.clear();
-
-  this->Generate();
-}
-
-void cmGlobalGenerator::Generate()
-{
-  // Check whether this generator is allowed to run.
-  if(!this->CheckALLOW_DUPLICATE_CUSTOM_TARGETS())
-    {
-    return;
-    }
-
-  this->FinalizeTargetCompileInfo();
-
-  this->CreateGenerationObjects();
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // Iterate through all targets and set up automoc for those which have
-  // the AUTOMOC, AUTOUIC or AUTORCC property set
-  AutogensType autogens;
-  this->CreateQtAutoGeneratorsTargets(autogens);
-#endif
-
-  unsigned int i;
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->ComputeObjectMaxPath();
-    }
-
-  // Add generator specific helper commands
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->AddHelperCommands();
-    }
-
-  this->InitGeneratorTargets();
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  for (AutogensType::iterator it = autogens.begin(); it != autogens.end();
-       ++it)
-    {
-    it->first.SetupAutoGenerateTarget(it->second);
-    }
-#endif
-
-  // Trace the dependencies, after that no custom commands should be added
-  // because their dependencies might not be handled correctly
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->TraceDependencies();
-    }
-
-  this->ForceLinkerLanguages();
-
-  // Compute the manifest of main targets generated.
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->GenerateTargetManifest();
-    }
-
-  this->ProcessEvaluationFiles();
-
-  // Compute the inter-target dependencies.
-  if(!this->ComputeTargetDepends())
-    {
-    return;
-    }
-
-  // Create a map from local generator to the complete set of targets
-  // it builds by default.
-  this->FillLocalGeneratorToTargetMap();
-
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->ComputeHomeRelativeOutputPath();
-    }
-
-  // Generate project files
-  for (i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->SetCurrentMakefile(this->LocalGenerators[i]->GetMakefile());
-    this->LocalGenerators[i]->Generate();
-    if(!this->LocalGenerators[i]->GetMakefile()->IsOn(
-      "CMAKE_SKIP_INSTALL_RULES"))
-      {
-      this->LocalGenerators[i]->GenerateInstallRules();
-      }
-    this->LocalGenerators[i]->GenerateTestFiles();
-    this->CMakeInstance->UpdateProgress("Generating",
-      (static_cast<float>(i)+1.0f)/
-       static_cast<float>(this->LocalGenerators.size()));
-    }
-  this->SetCurrentMakefile(0);
-
-  if(!this->GenerateCPackPropertiesFile())
-    {
-    this->GetCMakeInstance()->IssueMessage(
-      cmake::FATAL_ERROR, "Could not write CPack properties file.");
-    }
-
-  for (std::map<std::string, cmExportBuildFileGenerator*>::iterator
-      it = this->BuildExportSets.begin(); it != this->BuildExportSets.end();
-      ++it)
-    {
-    if (!it->second->GenerateImportFile()
-        && !cmSystemTools::GetErrorOccuredFlag())
-      {
-      this->GetCMakeInstance()
-          ->IssueMessage(cmake::FATAL_ERROR, "Could not write export file.");
-      return;
-      }
-    }
-  // Update rule hashes.
-  this->CheckRuleHashes();
-
-  this->WriteSummary();
-
-  if (this->ExtraGenerator != 0)
-    {
-    this->ExtraGenerator->Generate();
-    }
-
-  if(!this->CMP0042WarnTargets.empty())
-    {
-    std::ostringstream w;
-    w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0042) << "\n";
-    w << "MACOSX_RPATH is not specified for"
-         " the following targets:\n";
-    for(std::set<std::string>::iterator
-      iter = this->CMP0042WarnTargets.begin();
-      iter != this->CMP0042WarnTargets.end();
-      ++iter)
-      {
-      w << " " << *iter << "\n";
-      }
-    this->GetCMakeInstance()->IssueMessage(cmake::AUTHOR_WARNING, w.str());
-    }
-
-  this->CMakeInstance->UpdateProgress("Generating done", -1);
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::ComputeTargetDepends()
-{
-  cmComputeTargetDepends ctd(this);
-  if(!ctd.Compute())
-    {
-    return false;
-    }
-  std::vector<cmGeneratorTarget const*> const& targets = ctd.GetTargets();
-  for(std::vector<cmGeneratorTarget const*>::const_iterator ti
-      = targets.begin(); ti != targets.end(); ++ti)
-    {
-    ctd.GetTargetDirectDepends(*ti, this->TargetDependencies[*ti]);
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateQtAutoGeneratorsTargets(AutogensType &autogens)
-{
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmTargets& targets =
-      this->LocalGenerators[i]->GetMakefile()->GetTargets();
-    std::vector<std::string> targetNames;
-    targetNames.reserve(targets.size());
-    for(cmTargets::iterator ti = targets.begin();
-        ti != targets.end(); ++ti)
-      {
-      if (ti->second.GetType() == cmTarget::GLOBAL_TARGET)
-        {
-        continue;
-        }
-      targetNames.push_back(ti->second.GetName());
-      }
-    for(std::vector<std::string>::iterator ti = targetNames.begin();
-        ti != targetNames.end(); ++ti)
-      {
-      cmTarget& target = *this->LocalGenerators[i]
-                              ->GetMakefile()->FindTarget(*ti, true);
-      if(target.GetType() == cmTarget::EXECUTABLE ||
-         target.GetType() == cmTarget::STATIC_LIBRARY ||
-         target.GetType() == cmTarget::SHARED_LIBRARY ||
-         target.GetType() == cmTarget::MODULE_LIBRARY ||
-         target.GetType() == cmTarget::OBJECT_LIBRARY)
-        {
-        if((target.GetPropertyAsBool("AUTOMOC")
-              || target.GetPropertyAsBool("AUTOUIC")
-              || target.GetPropertyAsBool("AUTORCC"))
-            && !target.IsImported())
-          {
-          cmQtAutoGenerators autogen;
-          if(autogen.InitializeAutogenTarget(this->LocalGenerators[i],
-                                             &target))
-            {
-            autogens.push_back(std::make_pair(autogen, &target));
-            }
-          }
-        }
-      }
-    }
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
 #else
-  (void)autogens;
+	char name[256];
 #endif
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *dent, *isoent, *np;
+	struct isofile *f1, *f2;
+	const char *fn, *p;
+	int l;
+
+	isoent = *isoentpp;
+	dent = iso9660->primary.rootent;
+	if (isoent->file->parentdir.length > 0)
+		fn = p = isoent->file->parentdir.s;
+	else
+		fn = p = "";
+
+	/*
+	 * If the path of the parent directory of `isoent' entry is
+	 * the same as the path of `cur_dirent', add isoent to
+	 * `cur_dirent'.
+	 */
+	if (archive_strlen(&(iso9660->cur_dirstr))
+	      == archive_strlen(&(isoent->file->parentdir)) &&
+	    strcmp(iso9660->cur_dirstr.s, fn) == 0) {
+		if (!isoent_add_child_tail(iso9660->cur_dirent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(iso9660->cur_dirent->rbtree),
+			    isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0) {
+			np = NULL;
+			break;
+		}
+		if (l < 0) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "A name buffer is too small");
+			_isoent_free(isoent);
+			return (ARCHIVE_FATAL);
+		}
+
+		np = isoent_find_child(dent, name);
+		if (np == NULL || fn[0] == '\0')
+			break;
+
+		/* Find next subdirectory. */
+		if (!np->dir) {
+			/* NOT Directory! */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "`%s' is not directory, we cannot insert `%s' ",
+			    archive_entry_pathname(np->file->entry),
+			    archive_entry_pathname(isoent->file->entry));
+			_isoent_free(isoent);
+			*isoentpp = NULL;
+			return (ARCHIVE_FAILED);
+		}
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+		dent = np;
+	}
+	if (np == NULL) {
+		/*
+		 * Create virtual parent directories.
+		 */
+		while (fn[0] != '\0') {
+			struct isoent *vp;
+			struct archive_string as;
+
+			archive_string_init(&as);
+			archive_strncat(&as, p, fn - p + l);
+			if (as.s[as.length-1] == '/') {
+				as.s[as.length-1] = '\0';
+				as.length--;
+			}
+			vp = isoent_create_virtual_dir(a, iso9660, as.s);
+			if (vp == NULL) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			archive_string_free(&as);
+
+			if (vp->file->dircnt > iso9660->dircnt_max)
+				iso9660->dircnt_max = vp->file->dircnt;
+			isoent_add_child_tail(dent, vp);
+			np = vp;
+
+			fn += l;
+			if (fn[0] == '/')
+				fn++;
+			l = get_path_component(name, sizeof(name), fn);
+			if (l < 0) {
+				archive_string_free(&as);
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "A name buffer is too small");
+				_isoent_free(isoent);
+				*isoentpp = NULL;
+				return (ARCHIVE_FATAL);
+			}
+			dent = np;
+		}
+
+		/* Found out the parent directory where isoent can be
+		 * inserted. */
+		iso9660->cur_dirent = dent;
+		archive_string_empty(&(iso9660->cur_dirstr));
+		archive_string_ensure(&(iso9660->cur_dirstr),
+		    archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) + 2);
+		if (archive_strlen(&(dent->file->parentdir)) +
+		    archive_strlen(&(dent->file->basename)) == 0)
+			iso9660->cur_dirstr.s[0] = 0;
+		else {
+			if (archive_strlen(&(dent->file->parentdir)) > 0) {
+				archive_string_copy(&(iso9660->cur_dirstr),
+				    &(dent->file->parentdir));
+				archive_strappend_char(&(iso9660->cur_dirstr), '/');
+			}
+			archive_string_concat(&(iso9660->cur_dirstr),
+			    &(dent->file->basename));
+		}
+
+		if (!isoent_add_child_tail(dent, isoent)) {
+			np = (struct isoent *)__archive_rb_tree_find_node(
+			    &(dent->rbtree), isoent->file->basename.s);
+			goto same_entry;
+		}
+		return (ARCHIVE_OK);
+	}
+
+same_entry:
+	/*
+	 * We have already has the entry the filename of which is
+	 * the same.
+	 */
+	f1 = np->file;
+	f2 = isoent->file;
+
+	/* If the file type of entries is different,
+	 * we cannot handle it. */
+	if (archive_entry_filetype(f1->entry) !=
+	    archive_entry_filetype(f2->entry)) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Found duplicate entries `%s' and its file type is "
+		    "different",
+		    archive_entry_pathname(f1->entry));
+		_isoent_free(isoent);
+		*isoentpp = NULL;
+		return (ARCHIVE_FAILED);
+	}
+
+	/* Swap file entries. */
+	np->file = f2;
+	isoent->file = f1;
+	np->virtual = 0;
+
+	_isoent_free(isoent);
+	*isoentpp = np;
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::FinalizeTargetCompileInfo()
+/*
+ * Find a entry from `isoent'
+ */
+static struct isoent *
+isoent_find_child(struct isoent *isoent, const char *child_name)
 {
-  // Construct per-target generator information.
-  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
-    {
-    cmMakefile *mf = this->LocalGenerators[i]->GetMakefile();
+	struct isoent *np;
 
-    const cmStringRange noconfig_compile_definitions =
-                                mf->GetCompileDefinitionsEntries();
-    const cmBacktraceRange noconfig_compile_definitions_bts =
-                                mf->GetCompileDefinitionsBacktraces();
-
-    cmTargets& targets = mf->GetTargets();
-    for(cmTargets::iterator ti = targets.begin();
-        ti != targets.end(); ++ti)
-      {
-      cmTarget* t = &ti->second;
-      if (t->GetType() == cmTarget::GLOBAL_TARGET)
-        {
-        continue;
-        }
-
-      t->AppendBuildInterfaceIncludes();
-
-      if (t->GetType() == cmTarget::INTERFACE_LIBRARY)
-        {
-        continue;
-        }
-
-      cmBacktraceRange::const_iterator btIt
-          = noconfig_compile_definitions_bts.begin();
-      for (cmStringRange::const_iterator it
-                                      = noconfig_compile_definitions.begin();
-          it != noconfig_compile_definitions.end(); ++it, ++btIt)
-        {
-        t->InsertCompileDefinition(*it, *btIt);
-        }
-
-      cmPolicies::PolicyStatus polSt
-                                  = mf->GetPolicyStatus(cmPolicies::CMP0043);
-      if (polSt == cmPolicies::WARN || polSt == cmPolicies::OLD)
-        {
-        std::vector<std::string> configs;
-        mf->GetConfigurations(configs);
-
-        for(std::vector<std::string>::const_iterator ci = configs.begin();
-            ci != configs.end(); ++ci)
-          {
-          std::string defPropName = "COMPILE_DEFINITIONS_";
-          defPropName += cmSystemTools::UpperCase(*ci);
-          t->AppendProperty(defPropName,
-                            mf->GetProperty(defPropName));
-          }
-        }
-      }
-    }
+	np = (struct isoent *)__archive_rb_tree_find_node(
+	    &(isoent->rbtree), child_name);
+	return (np);
 }
 
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateGeneratorTargets(TargetTypes targetTypes,
-                                               cmLocalGenerator *lg)
+/*
+ * Find a entry full-path of which is specified by `fn' parameter,
+ * in the tree.
+ */
+static struct isoent *
+isoent_find_entry(struct isoent *rootent, const char *fn)
 {
-  cmGeneratorTargetsType generatorTargets;
-  cmMakefile* mf = lg->GetMakefile();
-  if (targetTypes == AllTargets)
-    {
-    cmTargets& targets = mf->GetTargets();
-    for(cmTargets::iterator ti = targets.begin();
-        ti != targets.end(); ++ti)
-      {
-      cmTarget* t = &ti->second;
-      cmGeneratorTarget* gt = new cmGeneratorTarget(t, lg);
-      this->GeneratorTargets[t] = gt;
-      generatorTargets[t] = gt;
-      }
-    }
-
-  for(std::vector<cmTarget*>::const_iterator
-        j = mf->GetOwnedImportedTargets().begin();
-      j != mf->GetOwnedImportedTargets().end(); ++j)
-    {
-    cmGeneratorTarget* gt = new cmGeneratorTarget(*j, lg);
-    this->GeneratorTargets[*j] = gt;
-    generatorTargets[*j] = gt;
-    }
-  mf->SetGeneratorTargets(generatorTargets);
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::InitGeneratorTargets()
-{
-  for(cmGeneratorTargetsType::iterator ti =
-      this->GeneratorTargets.begin(); ti != this->GeneratorTargets.end(); ++ti)
-    {
-    if (!ti->second->Target->IsImported())
-      {
-      this->ComputeTargetObjectDirectory(ti->second);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateGeneratorTargets(TargetTypes targetTypes)
-{
-  // Construct per-target generator information.
-  for(unsigned int i=0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->CreateGeneratorTargets(targetTypes, this->LocalGenerators[i]);
-    }
-}
-
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::ClearGeneratorMembers()
-{
-  cmDeleteAll(this->GeneratorTargets);
-  this->GeneratorTargets.clear();
-
-  cmDeleteAll(this->EvaluationFiles);
-  this->EvaluationFiles.clear();
-
-  cmDeleteAll(this->BuildExportSets);
-  this->BuildExportSets.clear();
-
-  cmDeleteAll(this->LocalGenerators);
-  this->LocalGenerators.clear();
-
-  this->ExportSets.clear();
-  this->TargetDependencies.clear();
-  this->TotalTargets.clear();
-  this->ImportedTargets.clear();
-  this->LocalGeneratorToTargetMap.clear();
-  this->ProjectMap.clear();
-  this->RuleHashes.clear();
-  this->DirectoryContentMap.clear();
-  this->BinaryDirectories.clear();
-}
-
-//----------------------------------------------------------------------------
-cmGeneratorTarget*
-cmGlobalGenerator::GetGeneratorTarget(cmTarget const* t) const
-{
-  cmGeneratorTargetsType::const_iterator ti = this->GeneratorTargets.find(t);
-  if(ti == this->GeneratorTargets.end())
-    {
-    this->CMakeInstance->IssueMessage(
-      cmake::INTERNAL_ERROR, "Missing cmGeneratorTarget instance!");
-    return 0;
-    }
-  return ti->second;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::ComputeTargetObjectDirectory(cmGeneratorTarget*) const
-{
-}
-
-void cmGlobalGenerator::CheckLocalGenerators()
-{
-  std::map<std::string, std::string> notFoundMap;
-//  std::set<std::string> notFoundMap;
-  // after it is all done do a ConfigureFinalPass
-  cmState* state = this->GetCMakeInstance()->GetState();
-  for (unsigned int i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    this->LocalGenerators[i]->GetMakefile()->ConfigureFinalPass();
-    cmTargets &targets =
-      this->LocalGenerators[i]->GetMakefile()->GetTargets();
-    for (cmTargets::iterator l = targets.begin();
-         l != targets.end(); l++)
-      {
-      if (l->second.GetType() == cmTarget::INTERFACE_LIBRARY)
-        {
-        continue;
-        }
-      const cmTarget::LinkLibraryVectorType& libs =
-        l->second.GetOriginalLinkLibraries();
-      for(cmTarget::LinkLibraryVectorType::const_iterator lib = libs.begin();
-          lib != libs.end(); ++lib)
-        {
-        if(lib->first.size() > 9 &&
-           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
-          {
-          std::string varName = lib->first.substr(0, lib->first.size()-9);
-          if(state->GetCacheEntryPropertyAsBool(varName, "ADVANCED"))
-            {
-            varName += " (ADVANCED)";
-            }
-          std::string text = notFoundMap[varName];
-          text += "\n    linked by target \"";
-          text += l->second.GetName();
-          text += "\" in directory ";
-          text+=this->LocalGenerators[i]->GetMakefile()
-                    ->GetCurrentSourceDirectory();
-          notFoundMap[varName] = text;
-          }
-        }
-      std::vector<std::string> incs;
-      const char *incDirProp = l->second.GetProperty("INCLUDE_DIRECTORIES");
-      if (!incDirProp)
-        {
-        continue;
-        }
-
-      std::string incDirs = cmGeneratorExpression::Preprocess(incDirProp,
-                        cmGeneratorExpression::StripAllGeneratorExpressions);
-
-      cmSystemTools::ExpandListArgument(incDirs, incs);
-
-      for( std::vector<std::string>::const_iterator incDir = incs.begin();
-            incDir != incs.end(); ++incDir)
-        {
-        if(incDir->size() > 9 &&
-            cmSystemTools::IsNOTFOUND(incDir->c_str()))
-          {
-          std::string varName = incDir->substr(0, incDir->size()-9);
-          if(state->GetCacheEntryPropertyAsBool(varName, "ADVANCED"))
-            {
-            varName += " (ADVANCED)";
-            }
-          std::string text = notFoundMap[varName];
-          text += "\n   used as include directory in directory ";
-          text += this->LocalGenerators[i]
-                      ->GetMakefile()->GetCurrentSourceDirectory();
-          notFoundMap[varName] = text;
-          }
-        }
-      }
-    this->CMakeInstance->UpdateProgress
-      ("Configuring", 0.9f+0.1f*(static_cast<float>(i)+1.0f)/
-        static_cast<float>(this->LocalGenerators.size()));
-    }
-
-  if(!notFoundMap.empty())
-    {
-    std::string notFoundVars;
-    for(std::map<std::string, std::string>::const_iterator
-        ii = notFoundMap.begin();
-        ii != notFoundMap.end();
-        ++ii)
-      {
-      notFoundVars += ii->first;
-      notFoundVars += ii->second;
-      notFoundVars += "\n";
-      }
-    cmSystemTools::Error("The following variables are used in this project, "
-                         "but they are set to NOTFOUND.\n"
-                         "Please set them or make sure they are set and "
-                         "tested correctly in the CMake files:\n",
-                         notFoundVars.c_str());
-    }
-}
-
-int cmGlobalGenerator::TryCompile(const std::string& srcdir,
-                                  const std::string& bindir,
-                                  const std::string& projectName,
-                                  const std::string& target, bool fast,
-                                  std::string& output, cmMakefile *mf)
-{
-  // if this is not set, then this is a first time configure
-  // and there is a good chance that the try compile stuff will
-  // take the bulk of the time, so try and guess some progress
-  // by getting closer and closer to 100 without actually getting there.
-  if (!this->CMakeInstance->GetState()->GetInitializedCacheValue
-      ("CMAKE_NUMBER_OF_LOCAL_GENERATORS"))
-    {
-    // If CMAKE_NUMBER_OF_LOCAL_GENERATORS is not set
-    // we are in the first time progress and we have no
-    // idea how long it will be.  So, just move 1/10th of the way
-    // there each time, and don't go over 95%
-    this->FirstTimeProgress += ((1.0f - this->FirstTimeProgress) /30.0f);
-    if(this->FirstTimeProgress > 0.95f)
-      {
-      this->FirstTimeProgress = 0.95f;
-      }
-    this->CMakeInstance->UpdateProgress("Configuring",
-                                        this->FirstTimeProgress);
-    }
-
-  std::string newTarget;
-  if (!target.empty())
-    {
-    newTarget += target;
-#if 0
-#if defined(_WIN32) || defined(__CYGWIN__)
-    std::string tmp = target;
-    // if the target does not already end in . something
-    // then assume .exe
-    if(tmp.size() < 4 || tmp[tmp.size()-4] != '.')
-      {
-      newTarget += ".exe";
-      }
-#endif // WIN32
-#endif
-    }
-  std::string config =
-    mf->GetSafeDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
-  return this->Build(srcdir,bindir,projectName,
-                     newTarget,
-                     output,"",config,false,fast,false,
-                     this->TryCompileTimeout);
-}
-
-void cmGlobalGenerator::GenerateBuildCommand(
-  std::vector<std::string>& makeCommand, const std::string&,
-  const std::string&, const std::string&, const std::string&,
-  const std::string&, bool, bool,
-  std::vector<std::string> const&)
-{
-  makeCommand.push_back(
-    "cmGlobalGenerator::GenerateBuildCommand not implemented");
-}
-
-int cmGlobalGenerator::Build(
-  const std::string&, const std::string& bindir,
-  const std::string& projectName, const std::string& target,
-  std::string& output,
-  const std::string& makeCommandCSTR,
-  const std::string& config,
-  bool clean, bool fast, bool verbose,
-  double timeout,
-  cmSystemTools::OutputOption outputflag,
-  std::vector<std::string> const& nativeOptions)
-{
-  /**
-   * Run an executable command and put the stdout in output.
-   */
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  cmSystemTools::ChangeDirectory(bindir);
-  output += "Change Dir: ";
-  output += bindir;
-  output += "\n";
-
-  int retVal;
-  bool hideconsole = cmSystemTools::GetRunCommandHideConsole();
-  cmSystemTools::SetRunCommandHideConsole(true);
-  std::string outputBuffer;
-  std::string* outputPtr = &outputBuffer;
-
-  std::vector<std::string> makeCommand;
-  this->GenerateBuildCommand(makeCommand, makeCommandCSTR, projectName,
-                             bindir, target, config, fast, verbose,
-                             nativeOptions);
-
-  // Workaround to convince VCExpress.exe to produce output.
-  if (outputflag == cmSystemTools::OUTPUT_PASSTHROUGH &&
-      !makeCommand.empty() && cmSystemTools::LowerCase(
-        cmSystemTools::GetFilenameName(makeCommand[0])) == "vcexpress.exe")
-    {
-    outputflag = cmSystemTools::OUTPUT_NORMAL;
-    }
-
-  // should we do a clean first?
-  if (clean)
-    {
-    std::vector<std::string> cleanCommand;
-    this->GenerateBuildCommand(cleanCommand, makeCommandCSTR, projectName,
-                               bindir, "clean", config, fast, verbose);
-    output += "\nRun Clean Command:";
-    output += cmSystemTools::PrintSingleCommand(cleanCommand);
-    output += "\n";
-
-    if (!cmSystemTools::RunSingleCommand(cleanCommand, outputPtr, outputPtr,
-                                         &retVal, 0, outputflag, timeout))
-      {
-      cmSystemTools::SetRunCommandHideConsole(hideconsole);
-      cmSystemTools::Error("Generator: execution of make clean failed.");
-      output += *outputPtr;
-      output += "\nGenerator: execution of make clean failed.\n";
-
-      // return to the original directory
-      cmSystemTools::ChangeDirectory(cwd);
-      return 1;
-      }
-    output += *outputPtr;
-    }
-
-  // now build
-  std::string makeCommandStr = cmSystemTools::PrintSingleCommand(makeCommand);
-  output += "\nRun Build Command:";
-  output += makeCommandStr;
-  output += "\n";
-
-  if (!cmSystemTools::RunSingleCommand(makeCommand, outputPtr, outputPtr,
-                                       &retVal, 0, outputflag, timeout))
-    {
-    cmSystemTools::SetRunCommandHideConsole(hideconsole);
-    cmSystemTools::Error
-      ("Generator: execution of make failed. Make command was: ",
-       makeCommandStr.c_str());
-    output += *outputPtr;
-    output += "\nGenerator: execution of make failed. Make command was: "
-        + makeCommandStr + "\n";
-
-    // return to the original directory
-    cmSystemTools::ChangeDirectory(cwd);
-    return 1;
-    }
-  output += *outputPtr;
-  cmSystemTools::SetRunCommandHideConsole(hideconsole);
-
-  // The SGI MipsPro 7.3 compiler does not return an error code when
-  // the source has a #error in it!  This is a work-around for such
-  // compilers.
-  if((retVal == 0) && (output.find("#error") != std::string::npos))
-    {
-    retVal = 1;
-    }
-
-  cmSystemTools::ChangeDirectory(cwd);
-  return retVal;
-}
-
-//----------------------------------------------------------------------------
-std::string cmGlobalGenerator::GenerateCMakeBuildCommand(
-  const std::string& target, const std::string& config,
-  const std::string& native,
-  bool ignoreErrors)
-{
-  std::string makeCommand = cmSystemTools::GetCMakeCommand();
-  makeCommand = cmSystemTools::ConvertToOutputPath(makeCommand.c_str());
-  makeCommand += " --build .";
-  if(!config.empty())
-    {
-    makeCommand += " --config \"";
-    makeCommand += config;
-    makeCommand += "\"";
-    }
-  if(!target.empty())
-    {
-    makeCommand += " --target \"";
-    makeCommand += target;
-    makeCommand += "\"";
-    }
-  const char* sep = " -- ";
-  if(ignoreErrors)
-    {
-    const char* iflag = this->GetBuildIgnoreErrorsFlag();
-    if(iflag && *iflag)
-      {
-      makeCommand += sep;
-      makeCommand += iflag;
-      sep = " ";
-      }
-    }
-  if(!native.empty())
-    {
-    makeCommand += sep;
-    makeCommand += native;
-    }
-  return makeCommand;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddLocalGenerator(cmLocalGenerator *lg)
-{
-  this->LocalGenerators.push_back(lg);
-
-  // update progress
-  // estimate how many lg there will be
-  const char *numGenC =
-    this->CMakeInstance->GetState()->GetInitializedCacheValue
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS");
-
-  if (!numGenC)
-    {
-    // If CMAKE_NUMBER_OF_LOCAL_GENERATORS is not set
-    // we are in the first time progress and we have no
-    // idea how long it will be.  So, just move half way
-    // there each time, and don't go over 95%
-    this->FirstTimeProgress += ((1.0f - this->FirstTimeProgress) /30.0f);
-    if(this->FirstTimeProgress > 0.95f)
-      {
-      this->FirstTimeProgress = 0.95f;
-      }
-    this->CMakeInstance->UpdateProgress("Configuring",
-                                        this->FirstTimeProgress);
-    return;
-    }
-
-  int numGen = atoi(numGenC);
-  float prog = 0.9f*static_cast<float>(this->LocalGenerators.size())/
-    static_cast<float>(numGen);
-  if (prog > 0.9f)
-    {
-    prog = 0.9f;
-    }
-  this->CMakeInstance->UpdateProgress("Configuring", prog);
-}
-
-void cmGlobalGenerator::AddInstallComponent(const char* component)
-{
-  if(component && *component)
-    {
-    this->InstallComponents.insert(component);
-    }
-}
-
-void cmGlobalGenerator::EnableInstallTarget()
-{
-  this->InstallTargetEnabled = true;
-}
-
-cmLocalGenerator *
-cmGlobalGenerator::MakeLocalGenerator(cmState::Snapshot snapshot,
-                                      cmLocalGenerator *parent)
-{
-  if (!snapshot.IsValid())
-    {
-    snapshot = this->CMakeInstance->GetCurrentSnapshot();
-    }
-
-  return this->CreateLocalGenerator(parent, snapshot);
-}
-
-cmLocalGenerator*
-cmGlobalGenerator::CreateLocalGenerator(cmLocalGenerator* parent,
-                                        cmState::Snapshot snapshot)
-{
-  return new cmLocalGenerator(this, parent, snapshot);
-}
-
-void cmGlobalGenerator::EnableLanguagesFromGenerator(cmGlobalGenerator *gen,
-                                                     cmMakefile* mf)
-{
-  this->SetConfiguredFilesPath(gen);
-  this->TryCompileOuterMakefile = mf;
-  const char* make =
-    gen->GetCMakeInstance()->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
-  this->GetCMakeInstance()->AddCacheEntry("CMAKE_MAKE_PROGRAM", make,
-                                          "make program",
-                                          cmState::FILEPATH);
-  // copy the enabled languages
-  this->GetCMakeInstance()->GetState()->SetEnabledLanguages(
-    gen->GetCMakeInstance()->GetState()->GetEnabledLanguages()
-    );
-  this->LanguagesReady = gen->LanguagesReady;
-  this->ExtensionToLanguage = gen->ExtensionToLanguage;
-  this->IgnoreExtensions = gen->IgnoreExtensions;
-  this->LanguageToOutputExtension = gen->LanguageToOutputExtension;
-  this->LanguageToLinkerPreference = gen->LanguageToLinkerPreference;
-  this->OutputExtensions = gen->OutputExtensions;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::SetConfiguredFilesPath(cmGlobalGenerator* gen)
-{
-  if(!gen->ConfiguredFilesPath.empty())
-    {
-    this->ConfiguredFilesPath = gen->ConfiguredFilesPath;
-    }
-  else
-    {
-    this->ConfiguredFilesPath = gen->CMakeInstance->GetHomeOutputDirectory();
-    this->ConfiguredFilesPath += cmake::GetCMakeFilesDirectory();
-    }
-}
-
-bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
-                                   cmLocalGenerator* gen) const
-{
-  if(!gen || gen == root)
-    {
-    // No directory excludes itself.
-    return false;
-    }
-
-  if(gen->GetMakefile()->GetPropertyAsBool("EXCLUDE_FROM_ALL"))
-    {
-    // This directory is excluded from its parent.
-    return true;
-    }
-
-  // This directory is included in its parent.  Check whether the
-  // parent is excluded.
-  return this->IsExcluded(root, gen->GetParent());
-}
-
-bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root,
-                                   cmTarget const& target) const
-{
-  if(target.GetType() == cmTarget::INTERFACE_LIBRARY
-      || target.GetPropertyAsBool("EXCLUDE_FROM_ALL"))
-    {
-    // This target is excluded from its directory.
-    return true;
-    }
-  else
-    {
-    // This target is included in its directory.  Check whether the
-    // directory is excluded.
-    return this->IsExcluded(root, target.GetMakefile()->GetLocalGenerator());
-    }
-}
-
-void
-cmGlobalGenerator::GetEnabledLanguages(std::vector<std::string>& lang) const
-{
-  lang = this->CMakeInstance->GetState()->GetEnabledLanguages();
-}
-
-int cmGlobalGenerator::GetLinkerPreference(const std::string& lang) const
-{
-  std::map<std::string, int>::const_iterator it =
-                                   this->LanguageToLinkerPreference.find(lang);
-  if (it != this->LanguageToLinkerPreference.end())
-    {
-    return it->second;
-    }
-  return 0;
-}
-
-void cmGlobalGenerator::FillProjectMap()
-{
-  this->ProjectMap.clear(); // make sure we start with a clean map
-  unsigned int i;
-  for(i = 0; i < this->LocalGenerators.size(); ++i)
-    {
-    // for each local generator add all projects
-    cmLocalGenerator *lg = this->LocalGenerators[i];
-    std::string name;
-    do
-      {
-      if (name != lg->GetMakefile()->GetProjectName())
-        {
-        name = lg->GetMakefile()->GetProjectName();
-        this->ProjectMap[name].push_back(this->LocalGenerators[i]);
-        }
-      lg = lg->GetParent();
-      }
-    while (lg);
-    }
-}
-
-
-// Build a map that contains a the set of targets used by each local
-// generator directory level.
-void cmGlobalGenerator::FillLocalGeneratorToTargetMap()
-{
-  this->LocalGeneratorToTargetMap.clear();
-  // Loop over all targets in all local generators.
-  for(std::vector<cmLocalGenerator*>::const_iterator
-        lgi = this->LocalGenerators.begin();
-      lgi != this->LocalGenerators.end(); ++lgi)
-    {
-    cmLocalGenerator* lg = *lgi;
-    cmMakefile* mf = lg->GetMakefile();
-    cmTargets const& targets = mf->GetTargets();
-    for(cmTargets::const_iterator t = targets.begin(); t != targets.end(); ++t)
-      {
-      cmTarget const& target = t->second;
-
-      // Consider the directory containing the target and all its
-      // parents until something excludes the target.
-      for(cmLocalGenerator* clg = lg; clg && !this->IsExcluded(clg, target);
-          clg = clg->GetParent())
-        {
-        // This local generator includes the target.
-        std::set<cmGeneratorTarget const*>& targetSet =
-          this->LocalGeneratorToTargetMap[clg];
-        cmGeneratorTarget* gt = this->GetGeneratorTarget(&target);
-        targetSet.insert(gt);
-
-        // Add dependencies of the included target.  An excluded
-        // target may still be included if it is a dependency of a
-        // non-excluded target.
-        TargetDependSet const& tgtdeps = this->GetTargetDirectDepends(gt);
-        for(TargetDependSet::const_iterator ti = tgtdeps.begin();
-            ti != tgtdeps.end(); ++ti)
-          {
-          targetSet.insert(*ti);
-          }
-        }
-      }
-    }
-}
-
-
-///! Find a local generator by its startdirectory
-cmLocalGenerator*
-cmGlobalGenerator::FindLocalGenerator(const std::string& start_dir) const
-{
-  for(std::vector<cmLocalGenerator*>::const_iterator it =
-      this->LocalGenerators.begin(); it != this->LocalGenerators.end(); ++it)
-    {
-    std::string sd = (*it)->GetMakefile()->GetCurrentSourceDirectory();
-    if (sd == start_dir)
-      {
-      return *it;
-      }
-    }
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddAlias(const std::string& name, cmTarget *tgt)
-{
-  this->AliasTargets[name] = tgt;
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::IsAlias(const std::string& name) const
-{
-  return this->AliasTargets.find(name) != this->AliasTargets.end();
-}
-
-//----------------------------------------------------------------------------
-cmTarget*
-cmGlobalGenerator::FindTarget(const std::string& name,
-                              bool excludeAliases) const
-{
-  if (!excludeAliases)
-    {
-    TargetMap::const_iterator ai = this->AliasTargets.find(name);
-    if (ai != this->AliasTargets.end())
-      {
-      return ai->second;
-      }
-    }
-  TargetMap::const_iterator i = this->TotalTargets.find ( name );
-  if ( i != this->TotalTargets.end() )
-    {
-    return i->second;
-    }
-  i = this->ImportedTargets.find(name);
-  if ( i != this->ImportedTargets.end() )
-    {
-    return i->second;
-    }
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-bool
-cmGlobalGenerator::NameResolvesToFramework(const std::string& libname) const
-{
-  if(cmSystemTools::IsPathToFramework(libname.c_str()))
-    {
-    return true;
-    }
-
-  if(cmTarget* tgt = this->FindTarget(libname))
-    {
-    if(tgt->IsFrameworkOnApple())
-       {
-       return true;
-       }
-    }
-
-  return false;
-}
-
-//----------------------------------------------------------------------------
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
-}
-
-void cmGlobalGenerator::CreateDefaultGlobalTargets(cmTargets* targets)
-{
-  cmMakefile* mf = this->LocalGenerators[0]->GetMakefile();
-  const char* cmakeCfgIntDir = this->GetCMakeCFGIntDir();
-
-  // CPack
-  std::string workingDir =  mf->GetCurrentBinaryDirectory();
-  cmCustomCommandLines cpackCommandLines;
-  std::vector<std::string> depends;
-  cmCustomCommandLine singleLine;
-  singleLine.push_back(cmSystemTools::GetCPackCommand());
-  if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
-    {
-    singleLine.push_back("-C");
-    singleLine.push_back(cmakeCfgIntDir);
-    }
-  singleLine.push_back("--config");
-  std::string configFile = mf->GetCurrentBinaryDirectory();;
-  configFile += "/CPackConfig.cmake";
-  std::string relConfigFile = "./CPackConfig.cmake";
-  singleLine.push_back(relConfigFile);
-  cpackCommandLines.push_back(singleLine);
-  if ( this->GetPreinstallTargetName() )
-    {
-    depends.push_back(this->GetPreinstallTargetName());
-    }
-  else
-    {
-    const char* noPackageAll =
-      mf->GetDefinition("CMAKE_SKIP_PACKAGE_ALL_DEPENDENCY");
-    if(!noPackageAll || cmSystemTools::IsOff(noPackageAll))
-      {
-      depends.push_back(this->GetAllTargetName());
-      }
-    }
-  if(cmSystemTools::FileExists(configFile.c_str()))
-    {
-    (*targets)[this->GetPackageTargetName()]
-      = this->CreateGlobalTarget(this->GetPackageTargetName(),
-                                 "Run CPack packaging tool...",
-                                 &cpackCommandLines, depends,
-                                 workingDir.c_str(), /*uses_terminal*/true);
-    }
-  // CPack source
-  const char* packageSourceTargetName = this->GetPackageSourceTargetName();
-  if ( packageSourceTargetName )
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(cmSystemTools::GetCPackCommand());
-    singleLine.push_back("--config");
-    configFile = mf->GetCurrentBinaryDirectory();;
-    configFile += "/CPackSourceConfig.cmake";
-    relConfigFile = "./CPackSourceConfig.cmake";
-    singleLine.push_back(relConfigFile);
-    if(cmSystemTools::FileExists(configFile.c_str()))
-      {
-      singleLine.push_back(configFile);
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[packageSourceTargetName]
-        = this->CreateGlobalTarget(packageSourceTargetName,
-                                   "Run CPack packaging tool for source...",
-                                   &cpackCommandLines, depends,
-                                   workingDir.c_str(), /*uses_terminal*/true);
-      }
-    }
-
-  // Test
-  if(mf->IsOn("CMAKE_TESTING_ENABLED"))
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(cmSystemTools::GetCTestCommand());
-    singleLine.push_back("--force-new-ctest-process");
-    if(cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.')
-      {
-      singleLine.push_back("-C");
-      singleLine.push_back(cmakeCfgIntDir);
-      }
-    else // TODO: This is a hack. Should be something to do with the generator
-      {
-      singleLine.push_back("$(ARGS)");
-      }
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[this->GetTestTargetName()]
-      = this->CreateGlobalTarget(this->GetTestTargetName(),
-        "Running tests...", &cpackCommandLines, depends, 0,
-        /*uses_terminal*/true);
-    }
-
-  //Edit Cache
-  const char* editCacheTargetName = this->GetEditCacheTargetName();
-  if ( editCacheTargetName )
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-
-    // Use generator preference for the edit_cache rule if it is defined.
-    std::string edit_cmd = this->GetEditCacheCommand();
-    if (!edit_cmd.empty())
-      {
-      singleLine.push_back(edit_cmd);
-      singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
-      singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[editCacheTargetName] =
-        this->CreateGlobalTarget(
-          editCacheTargetName, "Running CMake cache editor...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-      }
-    else
-      {
-      singleLine.push_back(cmSystemTools::GetCMakeCommand());
-      singleLine.push_back("-E");
-      singleLine.push_back("echo");
-      singleLine.push_back("No interactive CMake dialog available.");
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[editCacheTargetName] =
-        this->CreateGlobalTarget(
-          editCacheTargetName,
-          "No interactive CMake dialog available...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/false);
-      }
-    }
-
-  //Rebuild Cache
-  const char* rebuildCacheTargetName = this->GetRebuildCacheTargetName();
-  if ( rebuildCacheTargetName )
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-                            cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(cmSystemTools::GetCMakeCommand());
-    singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
-    singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[rebuildCacheTargetName] =
-      this->CreateGlobalTarget(
-        rebuildCacheTargetName, "Running CMake to regenerate build system...",
-        &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-    }
-
-  //Install
-  bool skipInstallRules = mf->IsOn("CMAKE_SKIP_INSTALL_RULES");
-  if(this->InstallTargetEnabled && skipInstallRules)
-    {
-    mf->IssueMessage(cmake::WARNING,
-      "CMAKE_SKIP_INSTALL_RULES was enabled even though "
-      "installation rules have been specified");
-    }
-  else if(this->InstallTargetEnabled && !skipInstallRules)
-    {
-    if(!cmakeCfgIntDir || !*cmakeCfgIntDir || cmakeCfgIntDir[0] == '.')
-      {
-      std::set<std::string>* componentsSet = &this->InstallComponents;
-      cpackCommandLines.erase(cpackCommandLines.begin(),
-        cpackCommandLines.end());
-      depends.erase(depends.begin(), depends.end());
-      std::ostringstream ostr;
-      if (!componentsSet->empty())
-        {
-        ostr << "Available install components are: ";
-        ostr << cmWrap('"', *componentsSet, '"', " ");
-        }
-      else
-        {
-        ostr << "Only default component available";
-        }
-      singleLine.push_back(ostr.str());
-      (*targets)["list_install_components"]
-        = this->CreateGlobalTarget("list_install_components",
-          ostr.str().c_str(),
-          &cpackCommandLines, depends, 0, /*uses_terminal*/false);
-      }
-    std::string cmd = cmSystemTools::GetCMakeCommand();
-    cpackCommandLines.erase(cpackCommandLines.begin(),
-      cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    if ( this->GetPreinstallTargetName() )
-      {
-      depends.push_back(this->GetPreinstallTargetName());
-      }
-    else
-      {
-      const char* noall =
-        mf->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
-      if(!noall || cmSystemTools::IsOff(noall))
-        {
-        depends.push_back(this->GetAllTargetName());
-        }
-      }
-    if(mf->GetDefinition("CMake_BINARY_DIR") &&
-       !mf->IsOn("CMAKE_CROSSCOMPILING"))
-      {
-      // We are building CMake itself.  We cannot use the original
-      // executable to install over itself.  The generator will
-      // automatically convert this name to the build-time location.
-      cmd = "cmake";
-      }
-    singleLine.push_back(cmd);
-    if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
-      {
-      std::string cfgArg = "-DBUILD_TYPE=";
-      cfgArg += mf->GetDefinition("CMAKE_CFG_INTDIR");
-      singleLine.push_back(cfgArg);
-      }
-    singleLine.push_back("-P");
-    singleLine.push_back("cmake_install.cmake");
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[this->GetInstallTargetName()] =
-      this->CreateGlobalTarget(
-        this->GetInstallTargetName(), "Install the project...",
-        &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-
-    // install_local
-    if(const char* install_local = this->GetInstallLocalTargetName())
-      {
-      cmCustomCommandLine localCmdLine = singleLine;
-
-      localCmdLine.insert(localCmdLine.begin()+1,
-                                               "-DCMAKE_INSTALL_LOCAL_ONLY=1");
-      cpackCommandLines.erase(cpackCommandLines.begin(),
-                                                      cpackCommandLines.end());
-      cpackCommandLines.push_back(localCmdLine);
-
-      (*targets)[install_local] =
-        this->CreateGlobalTarget(
-          install_local, "Installing only the local directory...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-      }
-
-    // install_strip
-    const char* install_strip = this->GetInstallStripTargetName();
-    if((install_strip !=0) && (mf->IsSet("CMAKE_STRIP")))
-      {
-      cmCustomCommandLine stripCmdLine = singleLine;
-
-      stripCmdLine.insert(stripCmdLine.begin()+1,"-DCMAKE_INSTALL_DO_STRIP=1");
-      cpackCommandLines.erase(cpackCommandLines.begin(),
-        cpackCommandLines.end());
-      cpackCommandLines.push_back(stripCmdLine);
-
-      (*targets)[install_strip] =
-        this->CreateGlobalTarget(
-          install_strip, "Installing the project stripped...",
-          &cpackCommandLines, depends, 0, /*uses_terminal*/true);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-const char* cmGlobalGenerator::GetPredefinedTargetsFolder()
-{
-  const char* prop = this->GetCMakeInstance()->GetState()
-                         ->GetGlobalProperty("PREDEFINED_TARGETS_FOLDER");
-
-  if (prop)
-    {
-    return prop;
-    }
-
-  return "CMakePredefinedTargets";
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::UseFolderProperty()
-{
-  const char* prop = this->GetCMakeInstance()->GetState()
-                         ->GetGlobalProperty("USE_FOLDERS");
-
-  // If this property is defined, let the setter turn this on or off...
-  //
-  if (prop)
-    {
-    return cmSystemTools::IsOn(prop);
-    }
-
-  // By default, this feature is OFF, since it is not supported in the
-  // Visual Studio Express editions until VS11:
-  //
-  return false;
-}
-
-//----------------------------------------------------------------------------
-cmTarget cmGlobalGenerator::CreateGlobalTarget(
-  const std::string& name, const char* message,
-  const cmCustomCommandLines* commandLines,
-  std::vector<std::string> depends,
-  const char* workingDirectory,
-  bool uses_terminal)
-{
-  // Package
-  cmTarget target;
-  target.SetType(cmTarget::GLOBAL_TARGET, name);
-  target.SetProperty("EXCLUDE_FROM_ALL","TRUE");
-
-  std::vector<std::string> no_outputs;
-  std::vector<std::string> no_byproducts;
-  std::vector<std::string> no_depends;
-  // Store the custom command in the target.
-  cmCustomCommand cc(0, no_outputs, no_byproducts, no_depends,
-                     *commandLines, 0, workingDirectory);
-  cc.SetUsesTerminal(uses_terminal);
-  target.AddPostBuildCommand(cc);
-  target.SetProperty("EchoString", message);
-  std::vector<std::string>::iterator dit;
-  for ( dit = depends.begin(); dit != depends.end(); ++ dit )
-    {
-    target.AddUtility(*dit);
-    }
-
-  // Organize in the "predefined targets" folder:
-  //
-  if (this->UseFolderProperty())
-    {
-    target.SetProperty("FOLDER", this->GetPredefinedTargetsFolder());
-    }
-
-  return target;
-}
-
-//----------------------------------------------------------------------------
-std::string
-cmGlobalGenerator::GenerateRuleFile(std::string const& output) const
-{
-  std::string ruleFile = output;
-  ruleFile += ".rule";
-  const char* dir = this->GetCMakeCFGIntDir();
-  if(dir && dir[0] == '$')
-    {
-    cmSystemTools::ReplaceString(ruleFile, dir,
-                                 cmake::GetCMakeFilesDirectory());
-    }
-  return ruleFile;
-}
-
-//----------------------------------------------------------------------------
-std::string cmGlobalGenerator::GetSharedLibFlagsForLanguage(
-                                                  std::string const& l) const
-{
-  std::map<std::string, std::string>::const_iterator it =
-                              this->LanguageToOriginalSharedLibFlags.find(l);
-  if(it != this->LanguageToOriginalSharedLibFlags.end())
-    {
-    return it->second;
-    }
-  return "";
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AppendDirectoryForConfig(const std::string&,
-                                                 const std::string&,
-                                                 const std::string&,
-                                                 std::string&)
-{
-  // Subclasses that support multiple configurations should implement
-  // this method to append the subdirectory for the given build
-  // configuration.
-}
-
-//----------------------------------------------------------------------------
-cmGlobalGenerator::TargetDependSet const&
-cmGlobalGenerator::GetTargetDirectDepends(cmGeneratorTarget const* target)
-{
-  return this->TargetDependencies[target];
-}
-
-void cmGlobalGenerator::AddTarget(cmTarget* t)
-{
-  if(t->IsImported())
-    {
-    this->ImportedTargets[t->GetName()] = t;
-    }
-  else
-    {
-    this->TotalTargets[t->GetName()] = t;
-    }
-}
-
-bool cmGlobalGenerator::IsReservedTarget(std::string const& name)
-{
-  // The following is a list of targets reserved
-  // by one or more of the cmake generators.
-
-  // Adding additional targets to this list will require a policy!
-  const char* reservedTargets[] =
-  {
-    "all", "ALL_BUILD",
-    "help",
-    "install", "INSTALL",
-    "preinstall",
-    "clean",
-    "edit_cache",
-    "rebuild_cache",
-    "test", "RUN_TESTS",
-    "package", "PACKAGE",
-    "package_source",
-    "ZERO_CHECK"
-  };
-
-  return std::find(cmArrayBegin(reservedTargets),
-                   cmArrayEnd(reservedTargets), name)
-      != cmArrayEnd(reservedTargets);
-}
-
-void cmGlobalGenerator::SetExternalMakefileProjectGenerator(
-                            cmExternalMakefileProjectGenerator *extraGenerator)
-{
-  this->ExtraGenerator = extraGenerator;
-  if (this->ExtraGenerator!=0)
-    {
-    this->ExtraGenerator->SetGlobalGenerator(this);
-    }
-}
-
-std::string cmGlobalGenerator::GetExtraGeneratorName() const
-{
-  return this->ExtraGenerator? this->ExtraGenerator->GetName() : std::string();
-}
-
-void cmGlobalGenerator::FileReplacedDuringGenerate(const std::string& filename)
-{
-  this->FilesReplacedDuringGenerate.push_back(filename);
-}
-
-void
-cmGlobalGenerator
-::GetFilesReplacedDuringGenerate(std::vector<std::string>& filenames)
-{
-  filenames.clear();
-  std::copy(
-    this->FilesReplacedDuringGenerate.begin(),
-    this->FilesReplacedDuringGenerate.end(),
-    std::back_inserter(filenames));
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::GetTargetSets(TargetDependSet& projectTargets,
-                                      TargetDependSet& originalTargets,
-                                      cmLocalGenerator* root,
-                                      GeneratorVector const& generators)
-{
-  // loop over all local generators
-  for(std::vector<cmLocalGenerator*>::const_iterator i = generators.begin();
-      i != generators.end(); ++i)
-    {
-    // check to make sure generator is not excluded
-    if(this->IsExcluded(root, *i))
-      {
-      continue;
-      }
-    cmMakefile* mf = (*i)->GetMakefile();
-    // Get the targets in the makefile
-    cmTargets &tgts = mf->GetTargets();
-    // loop over all the targets
-    for (cmTargets::iterator l = tgts.begin(); l != tgts.end(); ++l)
-      {
-      cmTarget* target = &l->second;
-      if(this->IsRootOnlyTarget(target) &&
-         target->GetMakefile() != root->GetMakefile())
-        {
-        continue;
-        }
-      // put the target in the set of original targets
-      cmGeneratorTarget* gt = this->GetGeneratorTarget(target);
-      originalTargets.insert(gt);
-      // Get the set of targets that depend on target
-      this->AddTargetDepends(gt, projectTargets);
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::IsRootOnlyTarget(cmTarget* target) const
-{
-  return (target->GetType() == cmTarget::GLOBAL_TARGET ||
-          target->GetName() == this->GetAllTargetName());
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddTargetDepends(cmGeneratorTarget const* target,
-                                         TargetDependSet& projectTargets)
-{
-  // add the target itself
-  if(projectTargets.insert(target).second)
-    {
-    // This is the first time we have encountered the target.
-    // Recursively follow its dependencies.
-    TargetDependSet const& ts = this->GetTargetDirectDepends(target);
-    for(TargetDependSet::const_iterator i = ts.begin(); i != ts.end(); ++i)
-      {
-      this->AddTargetDepends(*i, projectTargets);
-      }
-    }
-}
-
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddToManifest(const std::string& config,
-                                      std::string const& f)
-{
-  // Add to the main manifest for this configuration.
-  this->TargetManifest[config].insert(f);
-
-  // Add to the content listing for the file's directory.
-  std::string dir = cmSystemTools::GetFilenamePath(f);
-  std::string file = cmSystemTools::GetFilenameName(f);
-  DirectoryContent& dc = this->DirectoryContentMap[dir];
-  dc.Generated.insert(file);
-  dc.All.insert(file);
-}
-
-//----------------------------------------------------------------------------
-std::set<std::string> const&
-cmGlobalGenerator::GetDirectoryContent(std::string const& dir, bool needDisk)
-{
-  DirectoryContent& dc = this->DirectoryContentMap[dir];
-  if(needDisk)
-    {
-    long mt = cmSystemTools::ModifiedTime(dir);
-    if (mt != dc.LastDiskTime)
-      {
-      // Reset to non-loaded directory content.
-      dc.All = dc.Generated;
-
-      // Load the directory content from disk.
-      cmsys::Directory d;
-      if(d.Load(dir))
-        {
-        unsigned long n = d.GetNumberOfFiles();
-        for(unsigned long i = 0; i < n; ++i)
-          {
-          const char* f = d.GetFile(i);
-          if(strcmp(f, ".") != 0 && strcmp(f, "..") != 0)
-            {
-            dc.All.insert(f);
-            }
-          }
-        }
-      dc.LastDiskTime = mt;
-      }
-    }
-  return dc.All;
-}
-
-//----------------------------------------------------------------------------
-void
-cmGlobalGenerator::AddRuleHash(const std::vector<std::string>& outputs,
-                               std::string const& content)
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  // Ignore if there are no outputs.
-  if(outputs.empty())
-    {
-    return;
-    }
-
-  // Compute a hash of the rule.
-  RuleHash hash;
-  {
-  unsigned char const* data =
-    reinterpret_cast<unsigned char const*>(content.c_str());
-  int length = static_cast<int>(content.length());
-  cmsysMD5* sum = cmsysMD5_New();
-  cmsysMD5_Initialize(sum);
-  cmsysMD5_Append(sum, data, length);
-  cmsysMD5_FinalizeHex(sum, hash.Data);
-  cmsysMD5_Delete(sum);
-  }
-
-  // Shorten the output name (in expected use case).
-  cmLocalGenerator* lg = this->GetLocalGenerators()[0];
-  std::string fname = lg->Convert(outputs[0],
-                                  cmLocalGenerator::HOME_OUTPUT);
-
-  // Associate the hash with this output.
-  this->RuleHashes[fname] = hash;
+#if defined(_WIN32) && !defined(__CYGWIN__)
+	char name[_MAX_FNAME];/* Included null terminator size. */
+#elif defined(NAME_MAX) && NAME_MAX >= 255
+	char name[NAME_MAX+1];
 #else
-  (void)outputs;
-  (void)content;
+	char name[256];
 #endif
+	struct isoent *isoent, *np;
+	int l;
+
+	isoent = rootent;
+	np = NULL;
+	for (;;) {
+		l = get_path_component(name, sizeof(name), fn);
+		if (l == 0)
+			break;
+		fn += l;
+		if (fn[0] == '/')
+			fn++;
+
+		np = isoent_find_child(isoent, name);
+		if (np == NULL)
+			break;
+		if (fn[0] == '\0')
+			break;/* We found out the entry */
+
+		/* Try sub directory. */
+		isoent = np;
+		np = NULL;
+		if (!isoent->dir)
+			break;/* Not directory */
+	}
+
+	return (np);
 }
 
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CheckRuleHashes()
+/*
+ * Following idr_* functions are used for resolving duplicated filenames
+ * and unreceivable filenames to generate ISO9660/Joliet Identifiers.
+ */
+
+static void
+idr_relaxed_filenames(char *map)
 {
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-  std::string home = this->GetCMakeInstance()->GetHomeOutputDirectory();
-  std::string pfile = home;
-  pfile += this->GetCMakeInstance()->GetCMakeFilesDirectory();
-  pfile += "/CMakeRuleHashes.txt";
-  this->CheckRuleHashes(pfile, home);
-  this->WriteRuleHashes(pfile);
-#endif
+	int i;
+
+	for (i = 0x21; i <= 0x2F; i++)
+		map[i] = 1;
+	for (i = 0x3A; i <= 0x41; i++)
+		map[i] = 1;
+	for (i = 0x5B; i <= 0x5E; i++)
+		map[i] = 1;
+	map[0x60] = 1;
+	for (i = 0x7B; i <= 0x7E; i++)
+		map[i] = 1;
 }
 
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CheckRuleHashes(std::string const& pfile,
-                                        std::string const& home)
+static void
+idr_init(struct iso9660 *iso9660, struct vdd *vdd, struct idr *idr)
 {
-#if defined(_WIN32) || defined(__CYGWIN__)
-  cmsys::ifstream fin(pfile.c_str(), std::ios::in | std::ios::binary);
+
+	idr->idrent_pool = NULL;
+	idr->pool_size = 0;
+	if (vdd->vdd_type != VDD_JOLIET) {
+		if (iso9660->opt.iso_level <= 3) {
+			memcpy(idr->char_map, d_characters_map,
+			    sizeof(idr->char_map));
+		} else {
+			memcpy(idr->char_map, d1_characters_map,
+			    sizeof(idr->char_map));
+			idr_relaxed_filenames(idr->char_map);
+		}
+	}
+}
+
+static void
+idr_cleanup(struct idr *idr)
+{
+	free(idr->idrent_pool);
+}
+
+static int
+idr_ensure_poolsize(struct archive_write *a, struct idr *idr,
+    int cnt)
+{
+
+	if (idr->pool_size < cnt) {
+		void *p;
+		const int bk = (1 << 7) - 1;
+		int psize;
+
+		psize = (cnt + bk) & ~bk;
+		p = realloc(idr->idrent_pool, sizeof(struct idrent) * psize);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		idr->idrent_pool = (struct idrent *)p;
+		idr->pool_size = psize;
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+idr_start(struct archive_write *a, struct idr *idr, int cnt, int ffmax,
+    int num_size, int null_size, const struct archive_rb_tree_ops *rbt_ops)
+{
+	int r;
+
+	(void)ffmax; /* UNUSED */
+
+	r = idr_ensure_poolsize(a, idr, cnt);
+	if (r != ARCHIVE_OK)
+		return (r);
+	__archive_rb_tree_init(&(idr->rbtree), rbt_ops);
+	idr->wait_list.first = NULL;
+	idr->wait_list.last = &(idr->wait_list.first);
+	idr->pool_idx = 0;
+	idr->num_size = num_size;
+	idr->null_size = null_size;
+	return (ARCHIVE_OK);
+}
+
+static void
+idr_register(struct idr *idr, struct isoent *isoent, int weight, int noff)
+{
+	struct idrent *idrent, *n;
+
+	idrent = &(idr->idrent_pool[idr->pool_idx++]);
+	idrent->wnext = idrent->avail = NULL;
+	idrent->isoent = isoent;
+	idrent->weight = weight;
+	idrent->noff = noff;
+	idrent->rename_num = 0;
+
+	if (!__archive_rb_tree_insert_node(&(idr->rbtree), &(idrent->rbnode))) {
+		n = (struct idrent *)__archive_rb_tree_find_node(
+		    &(idr->rbtree), idrent->isoent);
+		if (n != NULL) {
+			/* this `idrent' needs to rename. */
+			idrent->avail = n;
+			*idr->wait_list.last = idrent;
+			idr->wait_list.last = &(idrent->wnext);
+		}
+	}
+}
+
+static void
+idr_extend_identifier(struct idrent *wnp, int numsize, int nullsize)
+{
+	unsigned char *p;
+	int wnp_ext_off;
+
+	wnp_ext_off = wnp->isoent->ext_off;
+	if (wnp->noff + numsize != wnp_ext_off) {
+		p = (unsigned char *)wnp->isoent->identifier;
+		/* Extend the filename; foo.c --> foo___.c */
+		memmove(p + wnp->noff + numsize, p + wnp_ext_off,
+		    wnp->isoent->ext_len + nullsize);
+		wnp->isoent->ext_off = wnp_ext_off = wnp->noff + numsize;
+		wnp->isoent->id_len = wnp_ext_off + wnp->isoent->ext_len;
+	}
+}
+
+static void
+idr_resolve(struct idr *idr, void (*fsetnum)(unsigned char *p, int num))
+{
+	struct idrent *n;
+	unsigned char *p;
+
+	for (n = idr->wait_list.first; n != NULL; n = n->wnext) {
+		idr_extend_identifier(n, idr->num_size, idr->null_size);
+		p = (unsigned char *)n->isoent->identifier + n->noff;
+		do {
+			fsetnum(p, n->avail->rename_num++);
+		} while (!__archive_rb_tree_insert_node(
+		    &(idr->rbtree), &(n->rbnode)));
+	}
+}
+
+static void
+idr_set_num(unsigned char *p, int num)
+{
+	static const char xdig[] = {
+		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J',
+		'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T',
+		'U', 'V', 'W', 'X', 'Y', 'Z'
+	};
+
+	num %= sizeof(xdig) * sizeof(xdig) * sizeof(xdig);
+	p[0] = xdig[(num / (sizeof(xdig) * sizeof(xdig)))];
+	num %= sizeof(xdig) * sizeof(xdig);
+	p[1] = xdig[ (num / sizeof(xdig))];
+	num %= sizeof(xdig);
+	p[2] = xdig[num];
+}
+
+static void
+idr_set_num_beutf16(unsigned char *p, int num)
+{
+	static const uint16_t xdig[] = {
+		0x0030, 0x0031, 0x0032, 0x0033, 0x0034, 0x0035,
+		0x0036, 0x0037, 0x0038, 0x0039,
+		0x0041, 0x0042, 0x0043, 0x0044, 0x0045, 0x0046,
+		0x0047, 0x0048, 0x0049, 0x004A, 0x004B, 0x004C,
+		0x004D, 0x004E, 0x004F, 0x0050, 0x0051, 0x0052,
+		0x0053, 0x0054, 0x0055, 0x0056, 0x0057, 0x0058,
+		0x0059, 0x005A
+	};
+#define XDIG_CNT	(sizeof(xdig)/sizeof(xdig[0]))
+
+	num %= XDIG_CNT * XDIG_CNT * XDIG_CNT;
+	archive_be16enc(p, xdig[(num / (XDIG_CNT * XDIG_CNT))]);
+	num %= XDIG_CNT * XDIG_CNT;
+	archive_be16enc(p+2, xdig[ (num / XDIG_CNT)]);
+	num %= XDIG_CNT;
+	archive_be16enc(p+4, xdig[num]);
+}
+
+/*
+ * Generate ISO9660 Identifier.
+ */
+static int
+isoent_gen_iso9660_identifier(struct archive_write *a, struct isoent *isoent,
+    struct idr *idr)
+{
+	struct iso9660 *iso9660;
+	struct isoent *np;
+	char *p;
+	int l, r;
+	const char *char_map;
+	char allow_ldots, allow_multidot, allow_period, allow_vernum;
+	int fnmax, ffmax, dnmax;
+	static const struct archive_rb_tree_ops rb_ops = {
+		isoent_cmp_node_iso9660, isoent_cmp_key_iso9660
+	};
+
+	if (isoent->children.cnt == 0)
+		return (0);
+
+	iso9660 = a->format_data;
+	char_map = idr->char_map;
+	if (iso9660->opt.iso_level <= 3) {
+		allow_ldots = 0;
+		allow_multidot = 0;
+		allow_period = 1;
+		allow_vernum = iso9660->opt.allow_vernum;
+		if (iso9660->opt.iso_level == 1) {
+			fnmax = 8;
+			ffmax = 12;/* fnmax + '.' + 3 */
+			dnmax = 8;
+		} else {
+			fnmax = 30;
+			ffmax = 31;
+			dnmax = 31;
+		}
+	} else {
+		allow_ldots = allow_multidot = 1;
+		allow_period = allow_vernum = 0;
+		if (iso9660->opt.rr)
+			/*
+			 * MDR : The maximum size of Directory Record(254).
+			 * DRL : A Directory Record Length(33).
+			 * CE  : A size of SUSP CE System Use Entry(28).
+			 * MDR - DRL - CE = 254 - 33 - 28 = 193.
+			 */
+			fnmax = ffmax = dnmax = 193;
+		else
+			/*
+			 * XA  : CD-ROM XA System Use Extension
+			 *       Information(14).
+			 * MDR - DRL - XA = 254 - 33 -14 = 207.
+			 */
+			fnmax = ffmax = dnmax = 207;
+	}
+
+	r = idr_start(a, idr, isoent->children.cnt, ffmax, 3, 1, &rb_ops);
+	if (r < 0)
+		return (r);
+
+	for (np = isoent->children.first; np != NULL; np = np->chnext) {
+		char *dot, *xdot;
+		int ext_off, noff, weight;
+
+		l = (int)np->file->basename.length;
+		p = malloc(l+31+2+1);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		memcpy(p, np->file->basename.s, l);
+		p[l] = '\0';
+		np->identifier = p;
+
+		dot = xdot = NULL;
+		if (!allow_ldots) {
+			/*
+			 * If there is a '.' character at the first byte,
+			 * it has to be replaced by '_' character.
+			 */
+			if (*p == '.')
+				*p++ = '_';
+		}
+		for (;*p; p++) {
+			if (*p & 0x80) {
+				*p = '_';
+				continue;
+			}
+			if (char_map[(unsigned char)*p]) {
+				/* if iso-level is '4', a character '.' is
+				 * allowed by char_map. */
+				if (*p == '.') {
+					xdot = dot;
+					dot = p;
+				}
+				continue;
+			}
+			if (*p >= 'a' && *p <= 'z') {
+				*p -= 'a' - 'A';
+				continue;
+			}
+			if (*p == '.') {
+				xdot = dot;
+				dot = p;
+				if (allow_multidot)
+					continue;
+			}
+			*p = '_';
+		}
+		p = np->identifier;
+		weight = -1;
+		if (dot == NULL) {
+			int nammax;
+
+			if (np->dir)
+				nammax = dnmax;
+			else
+				nammax = fnmax;
+
+			if (l > nammax) {
+				p[nammax] = '\0';
+				weight = nammax;
+				ext_off = nammax;
+			} else
+				ext_off = l;
+		} else {
+			*dot = '.';
+			ext_off = (int)(dot - p);
+
+			if (iso9660->opt.iso_level == 1) {
+				if (dot - p <= 8) {
+					if (strlen(dot) > 4) {
+						/* A length of a file extension
+						 * must be less than 4 */
+						dot[4] = '\0';
+						weight = 0;
+					}
+				} else {
+					p[8] = dot[0];
+					p[9] = dot[1];
+					p[10] = dot[2];
+					p[11] = dot[3];
+					p[12] = '\0';
+					weight = 8;
+					ext_off = 8;
+				}
+			} else if (np->dir) {
+				if (l > dnmax) {
+					p[dnmax] = '\0';
+					weight = dnmax;
+					if (ext_off > dnmax)
+						ext_off = dnmax;
+				}
+			} else if (l > ffmax) {
+				int extlen = (int)strlen(dot);
+				int xdoff;
+
+				if (xdot != NULL)
+					xdoff = (int)(xdot - p);
+				else
+					xdoff = 0;
+
+				if (extlen > 1 && xdoff < fnmax-1) {
+					int off;
+
+					if (extlen > ffmax)
+						extlen = ffmax;
+					off = ffmax - extlen;
+					if (off == 0) {
+						/* A dot('.')  character
+						 * does't place to the first
+						 * byte of identifier. */
+						off ++;
+						extlen --;
+					}
+					memmove(p+off, dot, extlen);
+					p[ffmax] = '\0';
+					ext_off = off;
+					weight = off;
+#ifdef COMPAT_MKISOFS
+				} else if (xdoff >= fnmax-1) {
+					/* Simulate a bug(?) of mkisofs. */
+					p[fnmax-1] = '\0';
+					ext_off = fnmax-1;
+					weight = fnmax-1;
+#endif
+				} else {
+					p[fnmax] = '\0';
+					ext_off = fnmax;
+					weight = fnmax;
+				}
+			}
+		}
+		/* Save an offset of a file name extension to sort files. */
+		np->ext_off = ext_off;
+		np->ext_len = (int)strlen(&p[ext_off]);
+		np->id_len = l = ext_off + np->ext_len;
+
+		/* Make an offset of the number which is used to be set
+		 * hexadecimal number to avoid duplicate identififier. */
+		if (iso9660->opt.iso_level == 1) {
+			if (ext_off >= 5)
+				noff = 5;
+			else
+				noff = ext_off;
+		} else {
+			if (l == ffmax)
+				noff = ext_off - 3;
+			else if (l == ffmax-1)
+				noff = ext_off - 2;
+			else if (l == ffmax-2)
+				noff = ext_off - 1;
+			else
+				noff = ext_off;
+		}
+		/* Register entry to the identifier resolver. */
+		idr_register(idr, np, weight, noff);
+	}
+
+	/* Resolve duplicate identifier. */
+	idr_resolve(idr, idr_set_num);
+
+	/* Add a period and a version number to identifiers. */
+	for (np = isoent->children.first; np != NULL; np = np->chnext) {
+		if (!np->dir && np->rr_child == NULL) {
+			p = np->identifier + np->ext_off + np->ext_len;
+			if (np->ext_len == 0 && allow_period) {
+				*p++ = '.';
+				np->ext_len = 1;
+			}
+			if (np->ext_len == 1 && !allow_period) {
+				*--p = '\0';
+				np->ext_len = 0;
+			}
+			np->id_len = np->ext_off + np->ext_len;
+			if (allow_vernum) {
+				*p++ = ';';
+				*p++ = '1';
+				np->id_len += 2;
+			}
+			*p = '\0';
+		} else
+			np->id_len = np->ext_off + np->ext_len;
+		np->mb_len = np->id_len;
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * Generate Joliet Identifier.
+ */
+static int
+isoent_gen_joliet_identifier(struct archive_write *a, struct isoent *isoent,
+    struct idr *idr)
+{
+	struct iso9660 *iso9660;
+	struct isoent *np;
+	unsigned char *p;
+	size_t l;
+	int r;
+	int ffmax, parent_len;
+	static const struct archive_rb_tree_ops rb_ops = {
+		isoent_cmp_node_joliet, isoent_cmp_key_joliet
+	};
+
+	if (isoent->children.cnt == 0)
+		return (0);
+
+	iso9660 = a->format_data;
+	if (iso9660->opt.joliet == OPT_JOLIET_LONGNAME)
+		ffmax = 206;
+	else
+		ffmax = 128;
+
+	r = idr_start(a, idr, isoent->children.cnt, ffmax, 6, 2, &rb_ops);
+	if (r < 0)
+		return (r);
+
+	parent_len = 1;
+	for (np = isoent; np->parent != np; np = np->parent)
+		parent_len += np->mb_len + 1;
+
+	for (np = isoent->children.first; np != NULL; np = np->chnext) {
+		unsigned char *dot;
+		int ext_off, noff, weight;
+		size_t lt;
+
+		if ((int)(l = np->file->basename_utf16.length) > ffmax)
+			l = ffmax;
+
+		p = malloc((l+1)*2);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		memcpy(p, np->file->basename_utf16.s, l);
+		p[l] = 0;
+		p[l+1] = 0;
+
+		np->identifier = (char *)p;
+		lt = l;
+		dot = p + l;
+		weight = 0;
+		while (lt > 0) {
+			if (!joliet_allowed_char(p[0], p[1]))
+				archive_be16enc(p, 0x005F); /* '_' */
+			else if (p[0] == 0 && p[1] == 0x2E) /* '.' */
+				dot = p;
+			p += 2;
+			lt -= 2;
+		}
+		ext_off = (int)(dot - (unsigned char *)np->identifier);
+		np->ext_off = ext_off;
+		np->ext_len = (int)l - ext_off;
+		np->id_len = (int)l;
+
+		/*
+		 * Get a length of MBS of a full-pathname.
+		 */
+		if ((int)np->file->basename_utf16.length > ffmax) {
+			if (archive_strncpy_l(&iso9660->mbs,
+			    (const char *)np->identifier, l,
+				iso9660->sconv_from_utf16be) != 0 &&
+			    errno == ENOMEM) {
+				archive_set_error(&a->archive, errno,
+				    "No memory");
+				return (ARCHIVE_FATAL);
+			}
+			np->mb_len = (int)iso9660->mbs.length;
+			if (np->mb_len != (int)np->file->basename.length)
+				weight = np->mb_len;
+		} else
+			np->mb_len = (int)np->file->basename.length;
+
+		/* If a length of full-pathname is longer than 240 bytes,
+		 * it violates Joliet extensions regulation. */
+		if (parent_len + np->mb_len > 240) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "The regulation of Joliet extensions;"
+			    " A length of a full-pathname of `%s' is "
+			    "longer than 240 bytes, (p=%d, b=%d)",
+			    archive_entry_pathname(np->file->entry),
+			    (int)parent_len, (int)np->mb_len);
+			return (ARCHIVE_FATAL);
+		}
+
+		/* Make an offset of the number which is used to be set
+		 * hexadecimal number to avoid duplicate identifier. */
+		if ((int)l == ffmax)
+			noff = ext_off - 6;
+		else if ((int)l == ffmax-2)
+			noff = ext_off - 4;
+		else if ((int)l == ffmax-4)
+			noff = ext_off - 2;
+		else
+			noff = ext_off;
+		/* Register entry to the identifier resolver. */
+		idr_register(idr, np, weight, noff);
+	}
+
+	/* Resolve duplicate identifier with Joliet Volume. */
+	idr_resolve(idr, idr_set_num_beutf16);
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * This comparing rule is according to ISO9660 Standard 9.3
+ */
+static int
+isoent_cmp_iso9660_identifier(const struct isoent *p1, const struct isoent *p2)
+{
+	const char *s1, *s2;
+	int cmp;
+	int l;
+
+	s1 = p1->identifier;
+	s2 = p2->identifier;
+
+	/* Compare File Name */
+	l = p1->ext_off;
+	if (l > p2->ext_off)
+		l = p2->ext_off;
+	cmp = memcmp(s1, s2, l);
+	if (cmp != 0)
+		return (cmp);
+	if (p1->ext_off < p2->ext_off) {
+		s2 += l;
+		l = p2->ext_off - p1->ext_off;
+		while (l--)
+			if (0x20 != *s2++)
+				return (0x20
+				    - *(const unsigned char *)(s2 - 1));
+	} else if (p1->ext_off > p2->ext_off) {
+		s1 += l;
+		l = p1->ext_off - p2->ext_off;
+		while (l--)
+			if (0x20 != *s1++)
+				return (*(const unsigned char *)(s1 - 1)
+				    - 0x20);
+	}
+	/* Compare File Name Extension */
+	if (p1->ext_len == 0 && p2->ext_len == 0)
+		return (0);
+	if (p1->ext_len == 1 && p2->ext_len == 1)
+		return (0);
+	if (p1->ext_len <= 1)
+		return (-1);
+	if (p2->ext_len <= 1)
+		return (1);
+	l = p1->ext_len;
+	if (l > p2->ext_len)
+		l = p2->ext_len;
+	s1 = p1->identifier + p1->ext_off;
+	s2 = p2->identifier + p2->ext_off;
+	if (l > 1) {
+		cmp = memcmp(s1, s2, l);
+		if (cmp != 0)
+			return (cmp);
+	}
+	if (p1->ext_len < p2->ext_len) {
+		s2 += l;
+		l = p2->ext_len - p1->ext_len;
+		while (l--)
+			if (0x20 != *s2++)
+				return (0x20
+				    - *(const unsigned char *)(s2 - 1));
+	} else if (p1->ext_len > p2->ext_len) {
+		s1 += l;
+		l = p1->ext_len - p2->ext_len;
+		while (l--)
+			if (0x20 != *s1++)
+				return (*(const unsigned char *)(s1 - 1)
+				    - 0x20);
+	}
+	/* Compare File Version Number */
+	/* No operation. The File Version Number is always one. */
+
+	return (cmp);
+}
+
+static int
+isoent_cmp_node_iso9660(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct idrent *e1 = (const struct idrent *)n1;
+	const struct idrent *e2 = (const struct idrent *)n2;
+
+	return (isoent_cmp_iso9660_identifier(e2->isoent, e1->isoent));
+}
+
+static int
+isoent_cmp_key_iso9660(const struct archive_rb_node *node, const void *key)
+{
+	const struct isoent *isoent = (const struct isoent *)key;
+	const struct idrent *idrent = (const struct idrent *)node;
+
+	return (isoent_cmp_iso9660_identifier(isoent, idrent->isoent));
+}
+
+static int
+isoent_cmp_joliet_identifier(const struct isoent *p1, const struct isoent *p2)
+{
+	const unsigned char *s1, *s2;
+	int cmp;
+	int l;
+
+	s1 = (const unsigned char *)p1->identifier;
+	s2 = (const unsigned char *)p2->identifier;
+
+	/* Compare File Name */
+	l = p1->ext_off;
+	if (l > p2->ext_off)
+		l = p2->ext_off;
+	cmp = memcmp(s1, s2, l);
+	if (cmp != 0)
+		return (cmp);
+	if (p1->ext_off < p2->ext_off) {
+		s2 += l;
+		l = p2->ext_off - p1->ext_off;
+		while (l--)
+			if (0 != *s2++)
+				return (- *(const unsigned char *)(s2 - 1));
+	} else if (p1->ext_off > p2->ext_off) {
+		s1 += l;
+		l = p1->ext_off - p2->ext_off;
+		while (l--)
+			if (0 != *s1++)
+				return (*(const unsigned char *)(s1 - 1));
+	}
+	/* Compare File Name Extension */
+	if (p1->ext_len == 0 && p2->ext_len == 0)
+		return (0);
+	if (p1->ext_len == 2 && p2->ext_len == 2)
+		return (0);
+	if (p1->ext_len <= 2)
+		return (-1);
+	if (p2->ext_len <= 2)
+		return (1);
+	l = p1->ext_len;
+	if (l > p2->ext_len)
+		l = p2->ext_len;
+	s1 = (unsigned char *)(p1->identifier + p1->ext_off);
+	s2 = (unsigned char *)(p2->identifier + p2->ext_off);
+	if (l > 1) {
+		cmp = memcmp(s1, s2, l);
+		if (cmp != 0)
+			return (cmp);
+	}
+	if (p1->ext_len < p2->ext_len) {
+		s2 += l;
+		l = p2->ext_len - p1->ext_len;
+		while (l--)
+			if (0 != *s2++)
+				return (- *(const unsigned char *)(s2 - 1));
+	} else if (p1->ext_len > p2->ext_len) {
+		s1 += l;
+		l = p1->ext_len - p2->ext_len;
+		while (l--)
+			if (0 != *s1++)
+				return (*(const unsigned char *)(s1 - 1));
+	}
+	/* Compare File Version Number */
+	/* No operation. The File Version Number is always one. */
+
+	return (cmp);
+}
+
+static int
+isoent_cmp_node_joliet(const struct archive_rb_node *n1,
+    const struct archive_rb_node *n2)
+{
+	const struct idrent *e1 = (const struct idrent *)n1;
+	const struct idrent *e2 = (const struct idrent *)n2;
+
+	return (isoent_cmp_joliet_identifier(e2->isoent, e1->isoent));
+}
+
+static int
+isoent_cmp_key_joliet(const struct archive_rb_node *node, const void *key)
+{
+	const struct isoent *isoent = (const struct isoent *)key;
+	const struct idrent *idrent = (const struct idrent *)node;
+
+	return (isoent_cmp_joliet_identifier(isoent, idrent->isoent));
+}
+
+static int
+isoent_make_sorted_files(struct archive_write *a, struct isoent *isoent,
+    struct idr *idr)
+{
+	struct archive_rb_node *rn;
+	struct isoent **children;
+
+	children = malloc(isoent->children.cnt * sizeof(struct isoent *));
+	if (children == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	isoent->children_sorted = children;
+
+	ARCHIVE_RB_TREE_FOREACH(rn, &(idr->rbtree)) {
+		struct idrent *idrent = (struct idrent *)rn;
+		*children ++ = idrent->isoent;
+	}
+	return (ARCHIVE_OK);
+}
+
+/*
+ * - Generate ISO9660 and Joliet identifiers from basenames.
+ * - Sort files by each directory.
+ */
+static int
+isoent_traverse_tree(struct archive_write *a, struct vdd* vdd)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *np;
+	struct idr idr;
+	int depth;
+	int r;
+	int (*genid)(struct archive_write *, struct isoent *, struct idr *);
+
+	idr_init(iso9660, vdd, &idr);
+	np = vdd->rootent;
+	depth = 0;
+	if (vdd->vdd_type == VDD_JOLIET)
+		genid = isoent_gen_joliet_identifier;
+	else
+		genid = isoent_gen_iso9660_identifier;
+	do {
+		if (np->virtual &&
+		    !archive_entry_mtime_is_set(np->file->entry)) {
+			/* Set properly times to virtual directory */
+			archive_entry_set_mtime(np->file->entry,
+			    iso9660->birth_time, 0);
+			archive_entry_set_atime(np->file->entry,
+			    iso9660->birth_time, 0);
+			archive_entry_set_ctime(np->file->entry,
+			    iso9660->birth_time, 0);
+		}
+		if (np->children.first != NULL) {
+			if (vdd->vdd_type != VDD_JOLIET &&
+			    !iso9660->opt.rr && depth + 1 >= vdd->max_depth) {
+				if (np->children.cnt > 0)
+					iso9660->directories_too_deep = np;
+			} else {
+				/* Generate Identifier */
+				r = genid(a, np, &idr);
+				if (r < 0)
+					goto exit_traverse_tree;
+				r = isoent_make_sorted_files(a, np, &idr);
+				if (r < 0)
+					goto exit_traverse_tree;
+
+				if (np->subdirs.first != NULL &&
+				    depth + 1 < vdd->max_depth) {
+					/* Enter to sub directories. */
+					np = np->subdirs.first;
+					depth++;
+					continue;
+				}
+			}
+		}
+		while (np != np->parent) {
+			if (np->drnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				depth--;
+			} else {
+				np = np->drnext;
+				break;
+			}
+		}
+	} while (np != np->parent);
+
+	r = ARCHIVE_OK;
+exit_traverse_tree:
+	idr_cleanup(&idr);
+
+	return (r);
+}
+
+/*
+ * Collect directory entries into path_table by a directory depth.
+ */
+static int
+isoent_collect_dirs(struct vdd *vdd, struct isoent *rootent, int depth)
+{
+	struct isoent *np;
+
+	if (rootent == NULL)
+		rootent = vdd->rootent;
+	np = rootent;
+	do {
+		/* Register current directory to pathtable. */
+		path_table_add_entry(&(vdd->pathtbl[depth]), np);
+
+		if (np->subdirs.first != NULL && depth + 1 < vdd->max_depth) {
+			/* Enter to sub directories. */
+			np = np->subdirs.first;
+			depth++;
+			continue;
+		}
+		while (np != rootent) {
+			if (np->drnext == NULL) {
+				/* Return to the parent directory. */
+				np = np->parent;
+				depth--;
+			} else {
+				np = np->drnext;
+				break;
+			}
+		}
+	} while (np != rootent);
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * The entry whose number of levels in a directory hierarchy is
+ * large than eight relocate to rr_move directory.
+ */
+static int
+isoent_rr_move_dir(struct archive_write *a, struct isoent **rr_moved,
+    struct isoent *curent, struct isoent **newent)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *rrmoved, *mvent, *np;
+
+	if ((rrmoved = *rr_moved) == NULL) {
+		struct isoent *rootent = iso9660->primary.rootent;
+		/* There isn't rr_move entry.
+		 * Create rr_move entry and insert it into the root entry.
+		 */
+		rrmoved = isoent_create_virtual_dir(a, iso9660, "rr_moved");
+		if (rrmoved == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory");
+			return (ARCHIVE_FATAL);
+		}
+		/* Add "rr_moved" entry to the root entry. */
+		isoent_add_child_head(rootent, rrmoved);
+		archive_entry_set_nlink(rootent->file->entry,
+		    archive_entry_nlink(rootent->file->entry) + 1);
+		/* Register "rr_moved" entry to second level pathtable. */
+		path_table_add_entry(&(iso9660->primary.pathtbl[1]), rrmoved);
+		/* Save rr_moved. */
+		*rr_moved = rrmoved;
+	}
+	/*
+	 * Make a clone of curent which is going to be relocated
+	 * to rr_moved.
+	 */
+	mvent = isoent_clone(curent);
+	if (mvent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	/* linking..  and use for creating "CL", "PL" and "RE" */
+	mvent->rr_parent = curent->parent;
+	curent->rr_child = mvent;
+	/*
+	 * Move subdirectories from the curent to mvent
+	 */
+	if (curent->children.first != NULL) {
+		*mvent->children.last = curent->children.first;
+		mvent->children.last = curent->children.last;
+	}
+	for (np = mvent->children.first; np != NULL; np = np->chnext)
+		np->parent = mvent;
+	mvent->children.cnt = curent->children.cnt;
+	curent->children.cnt = 0;
+	curent->children.first = NULL;
+	curent->children.last = &curent->children.first;
+
+	if (curent->subdirs.first != NULL) {
+		*mvent->subdirs.last = curent->subdirs.first;
+		mvent->subdirs.last = curent->subdirs.last;
+	}
+	mvent->subdirs.cnt = curent->subdirs.cnt;
+	curent->subdirs.cnt = 0;
+	curent->subdirs.first = NULL;
+	curent->subdirs.last = &curent->subdirs.first;
+
+	/*
+	 * The mvent becomes a child of the rr_moved entry.
+	 */
+	isoent_add_child_tail(rrmoved, mvent);
+	archive_entry_set_nlink(rrmoved->file->entry,
+	    archive_entry_nlink(rrmoved->file->entry) + 1);
+	/*
+	 * This entry which relocated to the rr_moved directory
+	 * has to set the flag as a file.
+	 * See also RRIP 4.1.5.1 Description of the "CL" System Use Entry.
+	 */
+	curent->dir = 0;
+
+	*newent = mvent;
+
+	return (ARCHIVE_OK);
+}
+
+static int
+isoent_rr_move(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct path_table *pt;
+	struct isoent *rootent, *rr_moved;
+	struct isoent *np, *last;
+	int r;
+
+	pt = &(iso9660->primary.pathtbl[MAX_DEPTH-1]);
+	/* Theare aren't level 8 directories reaching a deepr level. */
+	if (pt->cnt == 0)
+		return (ARCHIVE_OK);
+
+	rootent = iso9660->primary.rootent;
+	/* If "rr_moved" directory is already existing,
+	 * we have to use it. */
+	rr_moved = isoent_find_child(rootent, "rr_moved");
+	if (rr_moved != NULL &&
+	    rr_moved != rootent->children.first) {
+		/*
+		 * It's necessary that rr_move is the first entry
+		 * of the root.
+		 */
+		/* Remove "rr_moved" entry from children chain. */
+		isoent_remove_child(rootent, rr_moved);
+
+		/* Add "rr_moved" entry into the head of children chain. */
+		isoent_add_child_head(rootent, rr_moved);
+	}
+
+	/*
+	 * Check level 8 path_table.
+	 * If find out sub directory entries, that entries move to rr_move.
+	 */
+	np = pt->first;
+	while (np != NULL) {
+		last = path_table_last_entry(pt);
+		for (; np != NULL; np = np->ptnext) {
+			struct isoent *mvent;
+			struct isoent *newent;
+
+			if (!np->dir)
+				continue;
+			for (mvent = np->subdirs.first;
+			    mvent != NULL; mvent = mvent->drnext) {
+				r = isoent_rr_move_dir(a, &rr_moved,
+				    mvent, &newent);
+				if (r < 0)
+					return (r);
+				isoent_collect_dirs(&(iso9660->primary),
+				    newent, 2);
+			}
+		}
+		/* If new entries are added to level 8 path_talbe,
+		 * its sub directory entries move to rr_move too.
+		 */
+		np = last->ptnext;
+	}
+
+	return (ARCHIVE_OK);
+}
+
+/*
+ * This comparing rule is according to ISO9660 Standard 6.9.1
+ */
+static int
+_compare_path_table(const void *v1, const void *v2)
+{
+	const struct isoent *p1, *p2;
+	const char *s1, *s2;
+	int cmp, l;
+
+	p1 = *((const struct isoent **)(uintptr_t)v1);
+	p2 = *((const struct isoent **)(uintptr_t)v2);
+
+	/* Compare parent directory number */
+	cmp = p1->parent->dir_number - p2->parent->dir_number;
+	if (cmp != 0)
+		return (cmp);
+
+	/* Compare indetifier */
+	s1 = p1->identifier;
+	s2 = p2->identifier;
+	l = p1->ext_off;
+	if (l > p2->ext_off)
+		l = p2->ext_off;
+	cmp = strncmp(s1, s2, l);
+	if (cmp != 0)
+		return (cmp);
+	if (p1->ext_off < p2->ext_off) {
+		s2 += l;
+		l = p2->ext_off - p1->ext_off;
+		while (l--)
+			if (0x20 != *s2++)
+				return (0x20
+				    - *(const unsigned char *)(s2 - 1));
+	} else if (p1->ext_off > p2->ext_off) {
+		s1 += l;
+		l = p1->ext_off - p2->ext_off;
+		while (l--)
+			if (0x20 != *s1++)
+				return (*(const unsigned char *)(s1 - 1)
+				    - 0x20);
+	}
+	return (0);
+}
+
+static int
+_compare_path_table_joliet(const void *v1, const void *v2)
+{
+	const struct isoent *p1, *p2;
+	const unsigned char *s1, *s2;
+	int cmp, l;
+
+	p1 = *((const struct isoent **)(uintptr_t)v1);
+	p2 = *((const struct isoent **)(uintptr_t)v2);
+
+	/* Compare parent directory number */
+	cmp = p1->parent->dir_number - p2->parent->dir_number;
+	if (cmp != 0)
+		return (cmp);
+
+	/* Compare indetifier */
+	s1 = (const unsigned char *)p1->identifier;
+	s2 = (const unsigned char *)p2->identifier;
+	l = p1->ext_off;
+	if (l > p2->ext_off)
+		l = p2->ext_off;
+	cmp = memcmp(s1, s2, l);
+	if (cmp != 0)
+		return (cmp);
+	if (p1->ext_off < p2->ext_off) {
+		s2 += l;
+		l = p2->ext_off - p1->ext_off;
+		while (l--)
+			if (0 != *s2++)
+				return (- *(const unsigned char *)(s2 - 1));
+	} else if (p1->ext_off > p2->ext_off) {
+		s1 += l;
+		l = p1->ext_off - p2->ext_off;
+		while (l--)
+			if (0 != *s1++)
+				return (*(const unsigned char *)(s1 - 1));
+	}
+	return (0);
+}
+
+static inline void
+path_table_add_entry(struct path_table *pathtbl, struct isoent *ent)
+{
+	ent->ptnext = NULL;
+	*pathtbl->last = ent;
+	pathtbl->last = &(ent->ptnext);
+	pathtbl->cnt ++;
+}
+
+static inline struct isoent *
+path_table_last_entry(struct path_table *pathtbl)
+{
+	if (pathtbl->first == NULL)
+		return (NULL);
+	return (((struct isoent *)(void *)
+		((char *)(pathtbl->last) - offsetof(struct isoent, ptnext))));
+}
+
+/*
+ * Sort directory entries in path_table
+ * and assign directory number to each entries.
+ */
+static int
+isoent_make_path_table_2(struct archive_write *a, struct vdd *vdd,
+    int depth, int *dir_number)
+{
+	struct isoent *np;
+	struct isoent **enttbl;
+	struct path_table *pt;
+	int i;
+
+	pt = &vdd->pathtbl[depth];
+	if (pt->cnt == 0) {
+		pt->sorted = NULL;
+		return (ARCHIVE_OK);
+	}
+	enttbl = malloc(pt->cnt * sizeof(struct isoent *));
+	if (enttbl == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	pt->sorted = enttbl;
+	for (np = pt->first; np != NULL; np = np->ptnext)
+		*enttbl ++ = np;
+	enttbl = pt->sorted;
+
+	switch (vdd->vdd_type) {
+	case VDD_PRIMARY:
+	case VDD_ENHANCED:
+#ifdef __COMPAR_FN_T
+		qsort(enttbl, pt->cnt, sizeof(struct isoent *),
+		    (__compar_fn_t)_compare_path_table);
 #else
-  cmsys::ifstream fin(pfile.c_str(), std::ios::in);
+		qsort(enttbl, pt->cnt, sizeof(struct isoent *),
+		    _compare_path_table);
 #endif
-  if(!fin)
-    {
-    return;
-    }
-  std::string line;
-  std::string fname;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    // Line format is a 32-byte hex string followed by a space
-    // followed by a file name (with no escaping).
-
-    // Skip blank and comment lines.
-    if(line.size() < 34 || line[0] == '#')
-      {
-      continue;
-      }
-
-    // Get the filename.
-    fname = line.substr(33, line.npos);
-
-    // Look for a hash for this file's rule.
-    std::map<std::string, RuleHash>::const_iterator rhi =
-      this->RuleHashes.find(fname);
-    if(rhi != this->RuleHashes.end())
-      {
-      // Compare the rule hash in the file to that we were given.
-      if(strncmp(line.c_str(), rhi->second.Data, 32) != 0)
-        {
-        // The rule has changed.  Delete the output so it will be
-        // built again.
-        fname = cmSystemTools::CollapseFullPath(fname, home.c_str());
-        cmSystemTools::RemoveFile(fname);
-        }
-      }
-    else
-      {
-      // We have no hash for a rule previously listed.  This may be a
-      // case where a user has turned off a build option and might
-      // want to turn it back on later, so do not delete the file.
-      // Instead, we keep the rule hash as long as the file exists so
-      // that if the feature is turned back on and the rule has
-      // changed the file is still rebuilt.
-      std::string fpath =
-        cmSystemTools::CollapseFullPath(fname, home.c_str());
-      if(cmSystemTools::FileExists(fpath.c_str()))
-        {
-        RuleHash hash;
-        strncpy(hash.Data, line.c_str(), 32);
-        this->RuleHashes[fname] = hash;
-        }
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::WriteRuleHashes(std::string const& pfile)
-{
-  // Now generate a new persistence file with the current hashes.
-  if(this->RuleHashes.empty())
-    {
-    cmSystemTools::RemoveFile(pfile);
-    }
-  else
-    {
-    cmGeneratedFileStream fout(pfile.c_str());
-    fout << "# Hashes of file build rules.\n";
-    for(std::map<std::string, RuleHash>::const_iterator
-          rhi = this->RuleHashes.begin(); rhi != this->RuleHashes.end(); ++rhi)
-      {
-      fout.write(rhi->second.Data, 32);
-      fout << " " << rhi->first << "\n";
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::WriteSummary()
-{
-  cmMakefile* mf = this->LocalGenerators[0]->GetMakefile();
-
-  // Record all target directories in a central location.
-  std::string fname = mf->GetHomeOutputDirectory();
-  fname += cmake::GetCMakeFilesDirectory();
-  fname += "/TargetDirectories.txt";
-  cmGeneratedFileStream fout(fname.c_str());
-
-  // Generate summary information files for each target.
-  for(TargetMap::const_iterator ti =
-        this->TotalTargets.begin(); ti != this->TotalTargets.end(); ++ti)
-    {
-    if ((ti->second)->GetType() == cmTarget::INTERFACE_LIBRARY)
-      {
-      continue;
-      }
-    this->WriteSummary(ti->second);
-    fout << ti->second->GetSupportDirectory() << "\n";
-    }
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::WriteSummary(cmTarget* target)
-{
-  // Place the labels file in a per-target support directory.
-  std::string dir = target->GetSupportDirectory();
-  std::string file = dir;
-  file += "/Labels.txt";
-  std::string json_file = dir + "/Labels.json";
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // Check whether labels are enabled for this target.
-  if(const char* value = target->GetProperty("LABELS"))
-    {
-    Json::Value lj_root(Json::objectValue);
-    Json::Value& lj_target =
-      lj_root["target"] = Json::objectValue;
-    lj_target["name"] = target->GetName();
-    Json::Value& lj_target_labels =
-      lj_target["labels"] = Json::arrayValue;
-    Json::Value& lj_sources =
-      lj_root["sources"] = Json::arrayValue;
-
-    cmSystemTools::MakeDirectory(dir.c_str());
-    cmGeneratedFileStream fout(file.c_str());
-
-    // List the target-wide labels.  All sources in the target get
-    // these labels.
-    std::vector<std::string> labels;
-    cmSystemTools::ExpandListArgument(value, labels);
-    if(!labels.empty())
-      {
-      fout << "# Target labels\n";
-      for(std::vector<std::string>::const_iterator li = labels.begin();
-          li != labels.end(); ++li)
-        {
-        fout << " " << *li << "\n";
-        lj_target_labels.append(*li);
-        }
-      }
-
-    // List the source files with any per-source labels.
-    fout << "# Source files and their labels\n";
-    std::vector<cmSourceFile*> sources;
-    std::vector<std::string> configs;
-    target->GetMakefile()->GetConfigurations(configs);
-    if (configs.empty())
-      {
-      configs.push_back("");
-      }
-    for(std::vector<std::string>::const_iterator ci = configs.begin();
-        ci != configs.end(); ++ci)
-      {
-      target->GetSourceFiles(sources, *ci);
-      }
-    std::vector<cmSourceFile*>::const_iterator sourcesEnd
-        = cmRemoveDuplicates(sources);
-    for(std::vector<cmSourceFile*>::const_iterator si = sources.begin();
-        si != sourcesEnd; ++si)
-      {
-      Json::Value& lj_source = lj_sources.append(Json::objectValue);
-      cmSourceFile* sf = *si;
-      std::string const& sfp = sf->GetFullPath();
-      fout << sfp << "\n";
-      lj_source["file"] = sfp;
-      if(const char* svalue = sf->GetProperty("LABELS"))
-        {
-        labels.clear();
-        Json::Value& lj_source_labels =
-          lj_source["labels"] = Json::arrayValue;
-        cmSystemTools::ExpandListArgument(svalue, labels);
-        for(std::vector<std::string>::const_iterator li = labels.begin();
-            li != labels.end(); ++li)
-          {
-          fout << " " << *li << "\n";
-          lj_source_labels.append(*li);
-          }
-        }
-      }
-    cmGeneratedFileStream json_fout(json_file.c_str());
-    json_fout << lj_root;
-    }
-  else
+		break;
+	case VDD_JOLIET:
+#ifdef __COMPAR_FN_T
+		qsort(enttbl, pt->cnt, sizeof(struct isoent *),
+		    (__compar_fn_t)_compare_path_table_joliet);
+#else
+		qsort(enttbl, pt->cnt, sizeof(struct isoent *),
+		    _compare_path_table_joliet);
 #endif
-    {
-    cmSystemTools::RemoveFile(file);
-    cmSystemTools::RemoveFile(json_file);
-    }
+		break;
+	}
+	for (i = 0; i < pt->cnt; i++)
+		enttbl[i]->dir_number = (*dir_number)++;
+
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-// static
-std::string cmGlobalGenerator::EscapeJSON(const std::string& s) {
-  std::string result;
-  for (std::string::size_type i = 0; i < s.size(); ++i) {
-    if (s[i] == '"' || s[i] == '\\') {
-      result += '\\';
-    }
-    result += s[i];
-  }
-  return result;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::SetFilenameTargetDepends(cmSourceFile* sf,
-                                              std::set<cmTarget const*> tgts)
+static int
+isoent_alloc_path_table(struct archive_write *a, struct vdd *vdd,
+    int max_depth)
 {
-  this->FilenameTargetDepends[sf] = tgts;
+	int i;
+
+	vdd->max_depth = max_depth;
+	vdd->pathtbl = malloc(sizeof(*vdd->pathtbl) * vdd->max_depth);
+	if (vdd->pathtbl == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	for (i = 0; i < vdd->max_depth; i++) {
+		vdd->pathtbl[i].first = NULL;
+		vdd->pathtbl[i].last = &(vdd->pathtbl[i].first);
+		vdd->pathtbl[i].sorted = NULL;
+		vdd->pathtbl[i].cnt = 0;
+	}
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-std::set<cmTarget const*> const&
-cmGlobalGenerator::GetFilenameTargetDepends(cmSourceFile* sf) const {
-  return this->FilenameTargetDepends[sf];
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::CreateEvaluationSourceFiles(
-                                              std::string const& config) const
+/*
+ * Make Path Tables
+ */
+static int
+isoent_make_path_table(struct archive_write *a)
 {
-  for(std::vector<cmGeneratorExpressionEvaluationFile*>::const_iterator
-      li = this->EvaluationFiles.begin();
-      li != this->EvaluationFiles.end();
-      ++li)
-    {
-    (*li)->CreateOutputFile(config);
-    }
+	struct iso9660 *iso9660 = a->format_data;
+	int depth, r;
+	int dir_number;
+
+	/*
+	 * Init Path Table.
+	 */
+	if (iso9660->dircnt_max >= MAX_DEPTH &&
+	    (!iso9660->opt.limit_depth || iso9660->opt.iso_level == 4))
+		r = isoent_alloc_path_table(a, &(iso9660->primary),
+		    iso9660->dircnt_max + 1);
+	else
+		/* The number of levels in the hierarchy cannot exceed
+		 * eight. */
+		r = isoent_alloc_path_table(a, &(iso9660->primary),
+		    MAX_DEPTH);
+	if (r < 0)
+		return (r);
+	if (iso9660->opt.joliet) {
+		r = isoent_alloc_path_table(a, &(iso9660->joliet),
+		    iso9660->dircnt_max + 1);
+		if (r < 0)
+			return (r);
+	}
+
+	/* Step 0.
+	 * - Collect directories for primary and joliet.
+	 */
+	isoent_collect_dirs(&(iso9660->primary), NULL, 0);
+	if (iso9660->opt.joliet)
+		isoent_collect_dirs(&(iso9660->joliet), NULL, 0);
+	/*
+	 * Rockridge; move deeper depth directories to rr_moved.
+	 */
+	if (iso9660->opt.rr) {
+		r = isoent_rr_move(a);
+		if (r < 0)
+			return (r);
+	}
+
+ 	/* Update nlink. */
+	isofile_connect_hardlink_files(iso9660);
+
+	/* Step 1.
+	 * - Renew a value of the depth of that directories.
+	 * - Resolve hardlinks.
+ 	 * - Convert pathnames to ISO9660 name or UCS2(joliet).
+	 * - Sort files by each directory.
+	 */
+	r = isoent_traverse_tree(a, &(iso9660->primary));
+	if (r < 0)
+		return (r);
+	if (iso9660->opt.joliet) {
+		r = isoent_traverse_tree(a, &(iso9660->joliet));
+		if (r < 0)
+			return (r);
+	}
+
+	/* Step 2.
+	 * - Sort directories.
+	 * - Assign all directory number.
+	 */
+	dir_number = 1;
+	for (depth = 0; depth < iso9660->primary.max_depth; depth++) {
+		r = isoent_make_path_table_2(a, &(iso9660->primary),
+		    depth, &dir_number);
+		if (r < 0)
+			return (r);
+	}
+	if (iso9660->opt.joliet) {
+		dir_number = 1;
+		for (depth = 0; depth < iso9660->joliet.max_depth; depth++) {
+			r = isoent_make_path_table_2(a, &(iso9660->joliet),
+			    depth, &dir_number);
+			if (r < 0)
+				return (r);
+		}
+	}
+	if (iso9660->opt.limit_dirs && dir_number > 0xffff) {
+		/*
+		 * Maximum number of directories is 65535(0xffff)
+		 * doe to size(16bit) of Parent Directory Number of
+		 * the Path Table.
+		 * See also ISO9660 Standard 9.4.
+		 */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Too many directories(%d) over 65535.", dir_number);
+		return (ARCHIVE_FATAL);
+	}
+
+	/* Get the size of the Path Table. */
+	calculate_path_table_size(&(iso9660->primary));
+	if (iso9660->opt.joliet)
+		calculate_path_table_size(&(iso9660->joliet));
+
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AddEvaluationFile(const std::string &inputFile,
-                    cmsys::auto_ptr<cmCompiledGeneratorExpression> outputExpr,
-                    cmMakefile *makefile,
-                    cmsys::auto_ptr<cmCompiledGeneratorExpression> condition,
-                    bool inputIsContent)
+static int
+isoent_find_out_boot_file(struct archive_write *a, struct isoent *rootent)
 {
-  this->EvaluationFiles.push_back(
-              new cmGeneratorExpressionEvaluationFile(inputFile, outputExpr,
-                                                      makefile, condition,
-                                                      inputIsContent));
+	struct iso9660 *iso9660 = a->format_data;
+
+	/* Find a isoent of the boot file. */
+	iso9660->el_torito.boot = isoent_find_entry(rootent,
+	    iso9660->el_torito.boot_filename.s);
+	if (iso9660->el_torito.boot == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Can't find the boot image file ``%s''",
+		    iso9660->el_torito.boot_filename.s);
+		return (ARCHIVE_FATAL);
+	}
+	iso9660->el_torito.boot->file->boot = BOOT_IMAGE;
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::ProcessEvaluationFiles()
+static int
+isoent_create_boot_catalog(struct archive_write *a, struct isoent *rootent)
 {
-  std::vector<std::string> generatedFiles;
-  for(std::vector<cmGeneratorExpressionEvaluationFile*>::const_iterator
-      li = this->EvaluationFiles.begin();
-      li != this->EvaluationFiles.end();
-      ++li)
-    {
-    (*li)->Generate();
-    if (cmSystemTools::GetFatalErrorOccured())
-      {
-      return;
-      }
-    std::vector<std::string> files = (*li)->GetFiles();
-    std::sort(files.begin(), files.end());
+	struct iso9660 *iso9660 = a->format_data;
+	struct isofile *file;
+	struct isoent *isoent;
+	struct archive_entry *entry;
 
-    std::vector<std::string> intersection;
-    std::set_intersection(files.begin(), files.end(),
-                          generatedFiles.begin(), generatedFiles.end(),
-                          std::back_inserter(intersection));
-    if (!intersection.empty())
-      {
-      cmSystemTools::Error("Files to be generated by multiple different "
-        "commands: ", cmWrap('"', intersection, '"', " ").c_str());
-      return;
-      }
+	(void)rootent; /* UNUSED */
+	/*
+	 * Create the entry which is the "boot.catalog" file.
+	 */
+	file = isofile_new(a, NULL);
+	if (file == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	archive_entry_set_pathname(file->entry,
+	    iso9660->el_torito.catalog_filename.s);
+	archive_entry_set_size(file->entry, LOGICAL_BLOCK_SIZE);
+	archive_entry_set_mtime(file->entry, iso9660->birth_time, 0);
+	archive_entry_set_atime(file->entry, iso9660->birth_time, 0);
+	archive_entry_set_ctime(file->entry, iso9660->birth_time, 0);
+	archive_entry_set_uid(file->entry, getuid());
+	archive_entry_set_gid(file->entry, getgid());
+	archive_entry_set_mode(file->entry, AE_IFREG | 0444);
+	archive_entry_set_nlink(file->entry, 1);
 
-        generatedFiles.insert(generatedFiles.end(),
-                              files.begin(), files.end());
-    std::vector<std::string>::iterator newIt =
-        generatedFiles.end() - files.size();
-    std::inplace_merge(generatedFiles.begin(), newIt, generatedFiles.end());
-    }
+	if (isofile_gen_utility_names(a, file) < ARCHIVE_WARN) {
+		isofile_free(file);
+		return (ARCHIVE_FATAL);
+	}
+	file->boot = BOOT_CATALOG;
+	file->content.size = LOGICAL_BLOCK_SIZE;
+	isofile_add_entry(iso9660, file);
+
+	isoent = isoent_new(file);
+	if (isoent == NULL) {
+		archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	isoent->virtual = 1;
+
+	/* Add the "boot.catalog" entry into tree */
+	if (isoent_tree(a, &isoent) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	iso9660->el_torito.catalog = isoent;
+	/*
+	 * Get a boot medai type.
+	 */
+	switch (iso9660->opt.boot_type) {
+	default:
+	case OPT_BOOT_TYPE_AUTO:
+		/* Try detecting a media type of the boot image. */
+		entry = iso9660->el_torito.boot->file->entry;
+		if (archive_entry_size(entry) == FD_1_2M_SIZE)
+			iso9660->el_torito.media_type =
+			    BOOT_MEDIA_1_2M_DISKETTE;
+		else if (archive_entry_size(entry) == FD_1_44M_SIZE)
+			iso9660->el_torito.media_type =
+			    BOOT_MEDIA_1_44M_DISKETTE;
+		else if (archive_entry_size(entry) == FD_2_88M_SIZE)
+			iso9660->el_torito.media_type =
+			    BOOT_MEDIA_2_88M_DISKETTE;
+		else
+			/* We cannot decide whether the boot image is
+			 * hard-disk. */
+			iso9660->el_torito.media_type =
+			    BOOT_MEDIA_NO_EMULATION;
+		break;
+	case OPT_BOOT_TYPE_NO_EMU:
+		iso9660->el_torito.media_type = BOOT_MEDIA_NO_EMULATION;
+		break;
+	case OPT_BOOT_TYPE_HARD_DISK:
+		iso9660->el_torito.media_type = BOOT_MEDIA_HARD_DISK;
+		break;
+	case OPT_BOOT_TYPE_FD:
+		entry = iso9660->el_torito.boot->file->entry;
+		if (archive_entry_size(entry) <= FD_1_2M_SIZE)
+			iso9660->el_torito.media_type =
+			    BOOT_MEDIA_1_2M_DISKETTE;
+		else if (archive_entry_size(entry) <= FD_1_44M_SIZE)
+			iso9660->el_torito.media_type =
+			    BOOT_MEDIA_1_44M_DISKETTE;
+		else if (archive_entry_size(entry) <= FD_2_88M_SIZE)
+			iso9660->el_torito.media_type =
+			    BOOT_MEDIA_2_88M_DISKETTE;
+		else {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Boot image file(``%s'') size is too big "
+			    "for fd type.",
+			    iso9660->el_torito.boot_filename.s);
+			return (ARCHIVE_FATAL);
+		}
+		break;
+	}
+
+	/*
+	 * Get a system type.
+	 * TODO: `El Torito' specification says "A copy of byte 5 from the
+	 *       Partition Table found in the boot image".
+	 */
+	iso9660->el_torito.system_type = 0;
+
+	/*
+	 * Get an ID.
+	 */
+	if (iso9660->opt.publisher)
+		archive_string_copy(&(iso9660->el_torito.id),
+		    &(iso9660->publisher_identifier));
+
+
+	return (ARCHIVE_OK);
 }
 
-//----------------------------------------------------------------------------
-std::string cmGlobalGenerator::ExpandCFGIntDir(const std::string& str,
-                            const std::string& /*config*/) const
+/*
+ * If a media type is floppy, return its image size.
+ * otherwise return 0.
+ */
+static size_t
+fd_boot_image_size(int media_type)
 {
-  return str;
+	switch (media_type) {
+	case BOOT_MEDIA_1_2M_DISKETTE:
+		return (FD_1_2M_SIZE);
+	case BOOT_MEDIA_1_44M_DISKETTE:
+		return (FD_1_44M_SIZE);
+	case BOOT_MEDIA_2_88M_DISKETTE:
+		return (FD_2_88M_SIZE);
+	default:
+		return (0);
+	}
 }
 
-//----------------------------------------------------------------------------
-bool cmGlobalGenerator::GenerateCPackPropertiesFile()
+/*
+ * Make a boot catalog image data.
+ */
+static int
+make_boot_catalog(struct archive_write *a)
 {
-  cmake::InstalledFilesMap const& installedFiles =
-    this->CMakeInstance->GetInstalledFiles();
+	struct iso9660 *iso9660 = a->format_data;
+	unsigned char *block;
+	unsigned char *p;
+	uint16_t sum, *wp;
 
-  cmLocalGenerator* lg = this->LocalGenerators[0];
-  cmMakefile* mf = lg->GetMakefile();
+	block = wb_buffptr(a);
+	memset(block, 0, LOGICAL_BLOCK_SIZE);
+	p = block;
+	/*
+	 * Validation Entry
+	 */
+	/* Header ID */
+	p[0] = 1;
+	/* Platform ID */
+	p[1] = iso9660->el_torito.platform_id;
+	/* Reserved */
+	p[2] = p[3] = 0;
+	/* ID */
+	if (archive_strlen(&(iso9660->el_torito.id)) > 0)
+		strncpy((char *)p+4, iso9660->el_torito.id.s, 23);
+	p[27] = 0;
+	/* Checksum */
+	p[28] = p[29] = 0;
+	/* Key */
+	p[30] = 0x55;
+	p[31] = 0xAA;
 
-  std::vector<std::string> configs;
-  std::string config = mf->GetConfigurations(configs, false);
+	sum = 0;
+	wp = (uint16_t *)block;
+	while (wp < (uint16_t *)&block[32])
+		sum += archive_le16dec(wp++);
+	set_num_721(&block[28], (~sum) + 1);
 
-  std::string path = this->CMakeInstance->GetHomeOutputDirectory();
-  path += "/CPackProperties.cmake";
+	/*
+	 * Initial/Default Entry
+	 */
+	p = &block[32];
+	/* Boot Indicator */
+	p[0] = 0x88;
+	/* Boot media type */
+	p[1] = iso9660->el_torito.media_type;
+	/* Load Segment */
+	if (iso9660->el_torito.media_type == BOOT_MEDIA_NO_EMULATION)
+		set_num_721(&p[2], iso9660->el_torito.boot_load_seg);
+	else
+		set_num_721(&p[2], 0);
+	/* System Type */
+	p[4] = iso9660->el_torito.system_type;
+	/* Unused */
+	p[5] = 0;
+	/* Sector Count */
+	if (iso9660->el_torito.media_type == BOOT_MEDIA_NO_EMULATION)
+		set_num_721(&p[6], iso9660->el_torito.boot_load_size);
+	else
+		set_num_721(&p[6], 1);
+	/* Load RBA */
+	set_num_731(&p[8],
+	    iso9660->el_torito.boot->file->content.location);
+	/* Unused */
+	memset(&p[12], 0, 20);
 
-  if(!cmSystemTools::FileExists(path.c_str()) && installedFiles.empty())
-    {
-      return true;
-    }
-
-  cmGeneratedFileStream file(path.c_str());
-  file << "# CPack properties\n";
-
-  for(cmake::InstalledFilesMap::const_iterator i = installedFiles.begin();
-    i != installedFiles.end(); ++i)
-    {
-    cmInstalledFile const& installedFile = i->second;
-
-    cmCPackPropertiesGenerator cpackPropertiesGenerator(
-      lg, installedFile, configs);
-
-    cpackPropertiesGenerator.Generate(file, config, configs);
-    }
-
-  return true;
+	return (wb_consume(a, LOGICAL_BLOCK_SIZE));
 }
+
+static int
+setup_boot_information(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isoent *np;
+	int64_t size;
+	uint32_t sum;
+	unsigned char buff[4096];
+
+	np = iso9660->el_torito.boot;
+	lseek(iso9660->temp_fd,
+	    np->file->content.offset_of_temp + 64, SEEK_SET);
+	size = archive_entry_size(np->file->entry) - 64;
+	if (size <= 0) {
+		archive_set_error(&a->archive, errno,
+		    "Boot file(%jd) is too small", (intmax_t)size + 64);
+		return (ARCHIVE_FATAL);
+	}
+	sum = 0;
+	while (size > 0) {
+		size_t rsize;
+		ssize_t i, rs;
+
+		if (size > (int64_t)sizeof(buff))
+			rsize = sizeof(buff);
+		else
+			rsize = (size_t)size;
+
+		rs = read(iso9660->temp_fd, buff, rsize);
+		if (rs <= 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't read temporary file(%jd)",
+			    (intmax_t)rs);
+			return (ARCHIVE_FATAL);
+		}
+		for (i = 0; i < rs; i += 4)
+			sum += archive_le32dec(buff + i);
+		size -= rs;
+	}
+	/* Set the location of Primary Volume Descriptor. */
+	set_num_731(buff, SYSTEM_AREA_BLOCK);
+	/* Set the location of the boot file. */
+	set_num_731(buff+4, np->file->content.location);
+	/* Set the size of the boot file. */
+	size = fd_boot_image_size(iso9660->el_torito.media_type);
+	if (size == 0)
+		size = archive_entry_size(np->file->entry);
+	set_num_731(buff+8, (uint32_t)size);
+	/* Set the sum of the boot file. */
+	set_num_731(buff+12, sum);
+	/* Clear reserved bytes. */
+	memset(buff+16, 0, 40);
+
+	/* Overwrite the boot file. */
+	lseek(iso9660->temp_fd,
+	    np->file->content.offset_of_temp + 8, SEEK_SET);
+	return (write_to_temp(a, buff, 56));
+}
+
+#ifdef HAVE_ZLIB_H
+
+static int
+zisofs_init_zstream(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	int r;
+
+	iso9660->zisofs.stream.next_in = NULL;
+	iso9660->zisofs.stream.avail_in = 0;
+	iso9660->zisofs.stream.total_in = 0;
+	iso9660->zisofs.stream.total_out = 0;
+	if (iso9660->zisofs.stream_valid)
+		r = deflateReset(&(iso9660->zisofs.stream));
+	else {
+		r = deflateInit(&(iso9660->zisofs.stream),
+		    iso9660->zisofs.compression_level);
+		iso9660->zisofs.stream_valid = 1;
+	}
+	switch (r) {
+	case Z_OK:
+		break;
+	default:
+	case Z_STREAM_ERROR:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing "
+		    "compression library: invalid setup parameter");
+		return (ARCHIVE_FATAL);
+	case Z_MEM_ERROR:
+		archive_set_error(&a->archive, ENOMEM,
+		    "Internal error initializing "
+		    "compression library");
+		return (ARCHIVE_FATAL);
+	case Z_VERSION_ERROR:
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing "
+		    "compression library: invalid library version");
+		return (ARCHIVE_FATAL);
+	}
+	return (ARCHIVE_OK);
+}
+
+#endif /* HAVE_ZLIB_H */
+
+static int
+zisofs_init(struct archive_write *a,  struct isofile *file)
+{
+	struct iso9660 *iso9660 = a->format_data;
+#ifdef HAVE_ZLIB_H
+	uint64_t tsize;
+	size_t _ceil, bpsize;
+	int r;
+#endif
+
+	iso9660->zisofs.detect_magic = 0;
+	iso9660->zisofs.making = 0;
+
+	if (!iso9660->opt.rr || !iso9660->opt.zisofs)
+		return (ARCHIVE_OK);
+
+	if (archive_entry_size(file->entry) >= 24 &&
+	    archive_entry_size(file->entry) < MULTI_EXTENT_SIZE) {
+		/* Acceptable file size for zisofs. */
+		iso9660->zisofs.detect_magic = 1;
+		iso9660->zisofs.magic_cnt = 0;
+	}
+	if (!iso9660->zisofs.detect_magic)
+		return (ARCHIVE_OK);
+
+#ifdef HAVE_ZLIB_H
+	/* The number of Logical Blocks which uncompressed data
+	 * will use in iso-image file is the same as the number of
+	 * Logical Blocks which zisofs(compressed) data will use
+	 * in ISO-image file. It won't reduce iso-image file size. */
+	if (archive_entry_size(file->entry) <= LOGICAL_BLOCK_SIZE)
+		return (ARCHIVE_OK);
+
+	/* Initialize compression library */
+	r = zisofs_init_zstream(a);
+	if (r != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Mark file->zisofs to create RRIP 'ZF' Use Entry. */
+	file->zisofs.header_size = ZF_HEADER_SIZE >> 2;
+	file->zisofs.log2_bs = ZF_LOG2_BS;
+	file->zisofs.uncompressed_size =
+		(uint32_t)archive_entry_size(file->entry);
+
+	/* Calculate a size of Block Pointers of zisofs. */
+	_ceil = (file->zisofs.uncompressed_size + ZF_BLOCK_SIZE -1)
+		>> file->zisofs.log2_bs;
+	iso9660->zisofs.block_pointers_cnt = (int)_ceil + 1;
+	iso9660->zisofs.block_pointers_idx = 0;
+
+	/* Ensure a buffer size used for Block Pointers */
+	bpsize = iso9660->zisofs.block_pointers_cnt *
+	    sizeof(iso9660->zisofs.block_pointers[0]);
+	if (iso9660->zisofs.block_pointers_allocated < bpsize) {
+		free(iso9660->zisofs.block_pointers);
+		iso9660->zisofs.block_pointers = malloc(bpsize);
+		if (iso9660->zisofs.block_pointers == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate data");
+			return (ARCHIVE_FATAL);
+		}
+		iso9660->zisofs.block_pointers_allocated = bpsize;
+	}
+
+	/*
+	 * Skip zisofs header and Block Pointers, which we will write
+	 * after all compressed data of a file written to the temporary
+	 * file.
+	 */
+	tsize = ZF_HEADER_SIZE + bpsize;
+	if (write_null(a, (size_t)tsize) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/*
+	 * Initialize some variables to make zisofs.
+	 */
+	archive_le32enc(&(iso9660->zisofs.block_pointers[0]),
+		(uint32_t)tsize);
+	iso9660->zisofs.remaining = file->zisofs.uncompressed_size;
+	iso9660->zisofs.making = 1;
+	iso9660->zisofs.allzero = 1;
+	iso9660->zisofs.block_offset = tsize;
+	iso9660->zisofs.total_size = tsize;
+	iso9660->cur_file->cur_content->size = tsize;
+#endif
+
+	return (ARCHIVE_OK);
+}
+
+static void
+zisofs_detect_magic(struct archive_write *a, const void *buff, size_t s)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isofile *file = iso9660->cur_file;
+	const unsigned char *p, *endp;
+	const unsigned char *magic_buff;
+	uint32_t uncompressed_size;
+	unsigned char header_size;
+	unsigned char log2_bs;
+	size_t _ceil, doff;
+	uint32_t bst, bed;
+	int magic_max;
+	int64_t entry_size;
+
+	entry_size = archive_entry_size(file->entry);
+	if ((int64_t)sizeof(iso9660->zisofs.magic_buffer) > entry_size)
+		magic_max = (int)entry_size;
+	else
+		magic_max = sizeof(iso9660->zisofs.magic_buffer);
+
+	if (iso9660->zisofs.magic_cnt == 0 && s >= (size_t)magic_max)
+		/* It's unnecessary we copy buffer. */
+		magic_buff = buff;
+	else {
+		if (iso9660->zisofs.magic_cnt < magic_max) {
+			size_t l;
+
+			l = sizeof(iso9660->zisofs.magic_buffer)
+			    - iso9660->zisofs.magic_cnt;
+			if (l > s)
+				l = s;
+			memcpy(iso9660->zisofs.magic_buffer
+			    + iso9660->zisofs.magic_cnt, buff, l);
+			iso9660->zisofs.magic_cnt += (int)l;
+			if (iso9660->zisofs.magic_cnt < magic_max)
+				return;
+		}
+		magic_buff = iso9660->zisofs.magic_buffer;
+	}
+	iso9660->zisofs.detect_magic = 0;
+	p = magic_buff;
+
+	/* Check the magic code of zisofs. */
+	if (memcmp(p, zisofs_magic, sizeof(zisofs_magic)) != 0)
+		/* This is not zisofs file which made by mkzftree. */
+		return;
+	p += sizeof(zisofs_magic);
+
+	/* Read a zisofs header. */
+	uncompressed_size = archive_le32dec(p);
+	header_size = p[4];
+	log2_bs = p[5];
+	if (uncompressed_size < 24 || header_size != 4 ||
+	    log2_bs > 30 || log2_bs < 7)
+		return;/* Invalid or not supported header. */
+
+	/* Calculate a size of Block Pointers of zisofs. */
+	_ceil = (uncompressed_size +
+	        (ARCHIVE_LITERAL_LL(1) << log2_bs) -1) >> log2_bs;
+	doff = (_ceil + 1) * 4 + 16;
+	if (entry_size < (int64_t)doff)
+		return;/* Invalid data. */
+
+	/* Check every Block Pointer has valid value. */
+	p = magic_buff + 16;
+	endp = magic_buff + magic_max;
+	while (_ceil && p + 8 <= endp) {
+		bst = archive_le32dec(p);
+		if (bst != doff)
+			return;/* Invalid data. */
+		p += 4;
+		bed = archive_le32dec(p);
+		if (bed < bst || bed > entry_size)
+			return;/* Invalid data. */
+		doff += bed - bst;
+		_ceil--;
+	}
+
+	file->zisofs.uncompressed_size = uncompressed_size;
+	file->zisofs.header_size = header_size;
+	file->zisofs.log2_bs = log2_bs;
+
+	/* Disable making a zisofs image. */
+	iso9660->zisofs.making = 0;
+}
+
+#ifdef HAVE_ZLIB_H
+
+/*
+ * Compress data and write it to a temporary file.
+ */
+static int
+zisofs_write_to_temp(struct archive_write *a, const void *buff, size_t s)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isofile *file = iso9660->cur_file;
+	const unsigned char *b;
+	z_stream *zstrm;
+	size_t avail, csize;
+	int flush, r;
+
+	zstrm = &(iso9660->zisofs.stream);
+	zstrm->next_out = wb_buffptr(a);
+	zstrm->avail_out = (uInt)wb_remaining(a);
+	b = (const unsigned char *)buff;
+	do {
+		avail = ZF_BLOCK_SIZE - zstrm->total_in;
+		if (s < avail) {
+			avail = s;
+			flush = Z_NO_FLUSH;
+		} else
+			flush = Z_FINISH;
+		iso9660->zisofs.remaining -= avail;
+		if (iso9660->zisofs.remaining <= 0)
+			flush = Z_FINISH;
+
+		zstrm->next_in = (Bytef *)(uintptr_t)(const void *)b;
+		zstrm->avail_in = (uInt)avail;
+
+		/*
+		 * Check if current data block are all zero.
+		 */
+		if (iso9660->zisofs.allzero) {
+			const unsigned char *nonzero = b;
+			const unsigned char *nonzeroend = b + avail;
+
+			while (nonzero < nonzeroend)
+				if (*nonzero++) {
+					iso9660->zisofs.allzero = 0;
+					break;
+				}
+		}
+		b += avail;
+		s -= avail;
+
+		/*
+		 * If current data block are all zero, we do not use
+		 * compressed data.
+		 */
+		if (flush == Z_FINISH && iso9660->zisofs.allzero &&
+		    avail + zstrm->total_in == ZF_BLOCK_SIZE) {
+			if (iso9660->zisofs.block_offset !=
+			    file->cur_content->size) {
+				int64_t diff;
+
+				r = wb_set_offset(a,
+				    file->cur_content->offset_of_temp +
+				        iso9660->zisofs.block_offset);
+				if (r != ARCHIVE_OK)
+					return (r);
+				diff = file->cur_content->size -
+				    iso9660->zisofs.block_offset;
+				file->cur_content->size -= diff;
+				iso9660->zisofs.total_size -= diff;
+			}
+			zstrm->avail_in = 0;
+		}
+
+		/*
+		 * Compress file data.
+		 */
+		while (zstrm->avail_in > 0) {
+			csize = zstrm->total_out;
+			r = deflate(zstrm, flush);
+			switch (r) {
+			case Z_OK:
+			case Z_STREAM_END:
+				csize = zstrm->total_out - csize;
+				if (wb_consume(a, csize) != ARCHIVE_OK)
+					return (ARCHIVE_FATAL);
+				iso9660->zisofs.total_size += csize;
+				iso9660->cur_file->cur_content->size += csize;
+				zstrm->next_out = wb_buffptr(a);
+				zstrm->avail_out = (uInt)wb_remaining(a);
+				break;
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_MISC,
+				    "Compression failed:"
+				    " deflate() call returned status %d",
+				    r);
+				return (ARCHIVE_FATAL);
+			}
+		}
+
+		if (flush == Z_FINISH) {
+			/*
+			 * Save the information of one zisofs block.
+			 */
+			iso9660->zisofs.block_pointers_idx ++;
+			archive_le32enc(&(iso9660->zisofs.block_pointers[
+			    iso9660->zisofs.block_pointers_idx]),
+				(uint32_t)iso9660->zisofs.total_size);
+			r = zisofs_init_zstream(a);
+			if (r != ARCHIVE_OK)
+				return (ARCHIVE_FATAL);
+			iso9660->zisofs.allzero = 1;
+			iso9660->zisofs.block_offset = file->cur_content->size;
+		}
+	} while (s);
+
+	return (ARCHIVE_OK);
+}
+
+static int
+zisofs_finish_entry(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isofile *file = iso9660->cur_file;
+	unsigned char buff[16];
+	size_t s;
+	int64_t tail;
+
+	/* Direct temp file stream to zisofs temp file stream. */
+	archive_entry_set_size(file->entry, iso9660->zisofs.total_size);
+
+	/*
+	 * Save a file pointer which points the end of current zisofs data.
+	 */
+	tail = wb_offset(a);
+
+	/*
+	 * Make a header.
+	 *
+	 * +-----------------+----------------+-----------------+
+	 * | Header 16 bytes | Block Pointers | Compressed data |
+	 * +-----------------+----------------+-----------------+
+	 * 0                16               +X
+	 * Block Pointers :
+	 *   4 * (((Uncompressed file size + block_size -1) / block_size) + 1)
+	 *
+	 * Write zisofs header.
+	 *    Magic number
+	 * +----+----+----+----+----+----+----+----+
+	 * | 37 | E4 | 53 | 96 | C9 | DB | D6 | 07 |
+	 * +----+----+----+----+----+----+----+----+
+	 * 0    1    2    3    4    5    6    7    8
+	 *
+	 * +------------------------+------------------+
+	 * | Uncompressed file size | header_size >> 2 |
+	 * +------------------------+------------------+
+	 * 8                       12                 13
+	 *
+	 * +-----------------+----------------+
+	 * | log2 block_size | Reserved(0000) |
+	 * +-----------------+----------------+
+	 * 13               14               16
+	 */
+	memcpy(buff, zisofs_magic, 8);
+	set_num_731(buff+8, file->zisofs.uncompressed_size);
+	buff[12] = file->zisofs.header_size;
+	buff[13] = file->zisofs.log2_bs;
+	buff[14] = buff[15] = 0;/* Reserved */
+
+	/* Move to the right position to write the header. */
+	wb_set_offset(a, file->content.offset_of_temp);
+
+	/* Write the header. */
+	if (wb_write_to_temp(a, buff, 16) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/*
+	 * Write zisofs Block Pointers.
+	 */
+	s = iso9660->zisofs.block_pointers_cnt *
+	    sizeof(iso9660->zisofs.block_pointers[0]);
+	if (wb_write_to_temp(a, iso9660->zisofs.block_pointers, s)
+	    != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	/* Set a file pointer back to the end of the temporary file. */
+	wb_set_offset(a, tail);
+
+	return (ARCHIVE_OK);
+}
+
+static int
+zisofs_free(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	int ret = ARCHIVE_OK;
+
+	free(iso9660->zisofs.block_pointers);
+	if (iso9660->zisofs.stream_valid &&
+	    deflateEnd(&(iso9660->zisofs.stream)) != Z_OK) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		ret = ARCHIVE_FATAL;
+	}
+	iso9660->zisofs.block_pointers = NULL;
+	iso9660->zisofs.stream_valid = 0;
+	return (ret);
+}
+
+struct zisofs_extract {
+	int		 pz_log2_bs; /* Log2 of block size */
+	uint64_t	 pz_uncompressed_size;
+	size_t		 uncompressed_buffer_size;
+
+	int		 initialized:1;
+	int		 header_passed:1;
+
+	uint32_t	 pz_offset;
+	unsigned char	*block_pointers;
+	size_t		 block_pointers_size;
+	size_t		 block_pointers_avail;
+	size_t		 block_off;
+	uint32_t	 block_avail;
+
+	z_stream	 stream;
+	int		 stream_valid;
+};
+
+static ssize_t
+zisofs_extract_init(struct archive_write *a, struct zisofs_extract *zisofs,
+    const unsigned char *p, size_t bytes)
+{
+	size_t avail = bytes;
+	size_t _ceil, xsize;
+
+	/* Allocate block pointers buffer. */
+	_ceil = (size_t)((zisofs->pz_uncompressed_size +
+		(((int64_t)1) << zisofs->pz_log2_bs) - 1)
+		>> zisofs->pz_log2_bs);
+	xsize = (_ceil + 1) * 4;
+	if (zisofs->block_pointers == NULL) {
+		size_t alloc = ((xsize >> 10) + 1) << 10;
+		zisofs->block_pointers = malloc(alloc);
+		if (zisofs->block_pointers == NULL) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "No memory for zisofs decompression");
+			return (ARCHIVE_FATAL);
+		}
+	}
+	zisofs->block_pointers_size = xsize;
+
+	/* Allocate uncompressed data buffer. */
+	zisofs->uncompressed_buffer_size = (size_t)1UL << zisofs->pz_log2_bs;
+
+	/*
+	 * Read the file header, and check the magic code of zisofs.
+	 */
+	if (!zisofs->header_passed) {
+		int err = 0;
+		if (avail < 16) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Illegal zisofs file body");
+			return (ARCHIVE_FATAL);
+		}
+
+		if (memcmp(p, zisofs_magic, sizeof(zisofs_magic)) != 0)
+			err = 1;
+		else if (archive_le32dec(p + 8) != zisofs->pz_uncompressed_size)
+			err = 1;
+		else if (p[12] != 4 || p[13] != zisofs->pz_log2_bs)
+			err = 1;
+		if (err) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Illegal zisofs file body");
+			return (ARCHIVE_FATAL);
+		}
+		avail -= 16;
+		p += 16;
+		zisofs->header_passed = 1;
+	}
+
+	/*
+	 * Read block pointers.
+	 */
+	if (zisofs->header_passed &&
+	    zisofs->block_pointers_avail < zisofs->block_pointers_size) {
+		xsize = zisofs->block_pointers_size
+		    - zisofs->block_pointers_avail;
+		if (avail < xsize)
+			xsize = avail;
+		memcpy(zisofs->block_pointers
+		    + zisofs->block_pointers_avail, p, xsize);
+		zisofs->block_pointers_avail += xsize;
+		avail -= xsize;
+	    	if (zisofs->block_pointers_avail
+		    == zisofs->block_pointers_size) {
+			/* We've got all block pointers and initialize
+			 * related variables.	*/
+			zisofs->block_off = 0;
+			zisofs->block_avail = 0;
+			/* Complete a initialization */
+			zisofs->initialized = 1;
+		}
+	}
+	return ((ssize_t)avail);
+}
+
+static ssize_t
+zisofs_extract(struct archive_write *a, struct zisofs_extract *zisofs,
+    const unsigned char *p, size_t bytes)
+{
+	size_t avail;
+	int r;
+
+	if (!zisofs->initialized) {
+		ssize_t rs = zisofs_extract_init(a, zisofs, p, bytes);
+		if (rs < 0)
+			return (rs);
+		if (!zisofs->initialized) {
+			/* We need more data. */
+			zisofs->pz_offset += (uint32_t)bytes;
+			return (bytes);
+		}
+		avail = rs;
+		p += bytes - avail;
+	} else
+		avail = bytes;
+
+	/*
+	 * Get block offsets from block pointers.
+	 */
+	if (zisofs->block_avail == 0) {
+		uint32_t bst, bed;
+
+		if (zisofs->block_off + 4 >= zisofs->block_pointers_size) {
+			/* There isn't a pair of offsets. */
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Illegal zisofs block pointers");
+			return (ARCHIVE_FATAL);
+		}
+		bst = archive_le32dec(
+		    zisofs->block_pointers + zisofs->block_off);
+		if (bst != zisofs->pz_offset + (bytes - avail)) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Illegal zisofs block pointers(cannot seek)");
+			return (ARCHIVE_FATAL);
+		}
+		bed = archive_le32dec(
+		    zisofs->block_pointers + zisofs->block_off + 4);
+		if (bed < bst) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Illegal zisofs block pointers");
+			return (ARCHIVE_FATAL);
+		}
+		zisofs->block_avail = bed - bst;
+		zisofs->block_off += 4;
+
+		/* Initialize compression library for new block. */
+		if (zisofs->stream_valid)
+			r = inflateReset(&zisofs->stream);
+		else
+			r = inflateInit(&zisofs->stream);
+		if (r != Z_OK) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Can't initialize zisofs decompression.");
+			return (ARCHIVE_FATAL);
+		}
+		zisofs->stream_valid = 1;
+		zisofs->stream.total_in = 0;
+		zisofs->stream.total_out = 0;
+	}
+
+	/*
+	 * Make uncompressed data.
+	 */
+	if (zisofs->block_avail == 0) {
+		/*
+		 * It's basically 32K bytes NUL data.
+		 */
+		unsigned char *wb;
+		size_t size, wsize;
+
+		size = zisofs->uncompressed_buffer_size;
+		while (size) {
+			wb = wb_buffptr(a);
+			if (size > wb_remaining(a))
+				wsize = wb_remaining(a);
+			else
+				wsize = size;
+			memset(wb, 0, wsize);
+			r = wb_consume(a, wsize);
+			if (r < 0)
+				return (r);
+			size -= wsize;
+		}
+	} else {
+		zisofs->stream.next_in = (Bytef *)(uintptr_t)(const void *)p;
+		if (avail > zisofs->block_avail)
+			zisofs->stream.avail_in = zisofs->block_avail;
+		else
+			zisofs->stream.avail_in = (uInt)avail;
+		zisofs->stream.next_out = wb_buffptr(a);
+		zisofs->stream.avail_out = (uInt)wb_remaining(a);
+
+		r = inflate(&zisofs->stream, 0);
+		switch (r) {
+		case Z_OK: /* Decompressor made some progress.*/
+		case Z_STREAM_END: /* Found end of stream. */
+			break;
+		default:
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "zisofs decompression failed (%d)", r);
+			return (ARCHIVE_FATAL);
+		}
+		avail -= zisofs->stream.next_in - p;
+		zisofs->block_avail -= (uint32_t)(zisofs->stream.next_in - p);
+		r = wb_consume(a, wb_remaining(a) - zisofs->stream.avail_out);
+		if (r < 0)
+			return (r);
+	}
+	zisofs->pz_offset += (uint32_t)bytes;
+	return (bytes - avail);
+}
+
+static int
+zisofs_rewind_boot_file(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+	struct isofile *file;
+	unsigned char *rbuff;
+	ssize_t r;
+	size_t remaining, rbuff_size;
+	struct zisofs_extract zext;
+	int64_t read_offset, write_offset, new_offset;
+	int fd, ret = ARCHIVE_OK;
+
+	file = iso9660->el_torito.boot->file;
+	/*
+	 * There is nothing to do if this boot file does not have
+	 * zisofs header.
+	 */
+	if (file->zisofs.header_size == 0)
+		return (ARCHIVE_OK);
+
+	/*
+	 * Uncompress the zisofs'ed file contents.
+	 */
+	memset(&zext, 0, sizeof(zext));
+	zext.pz_uncompressed_size = file->zisofs.uncompressed_size;
+	zext.pz_log2_bs = file->zisofs.log2_bs;
+
+	fd = iso9660->temp_fd;
+	new_offset = wb_offset(a);
+	read_offset = file->content.offset_of_temp;
+	remaining = (size_t)file->content.size;
+	if (remaining > 1024 * 32)
+		rbuff_size = 1024 * 32;
+	else
+		rbuff_size = remaining;
+
+	rbuff = malloc(rbuff_size);
+	if (rbuff == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Can't allocate memory");
+		return (ARCHIVE_FATAL);
+	}
+	while (remaining) {
+		size_t rsize;
+		ssize_t rs;
+
+		/* Get the current file pointer. */
+		write_offset = lseek(fd, 0, SEEK_CUR);
+
+		/* Change the file pointer to read. */
+		lseek(fd, read_offset, SEEK_SET);
+
+		rsize = rbuff_size;
+		if (rsize > remaining)
+			rsize = remaining;
+		rs = read(iso9660->temp_fd, rbuff, rsize);
+		if (rs <= 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't read temporary file(%jd)", (intmax_t)rs);
+			ret = ARCHIVE_FATAL;
+			break;
+		}
+		remaining -= rs;
+		read_offset += rs;
+
+		/* Put the file pointer back to write. */
+		lseek(fd, write_offset, SEEK_SET);
+
+		r = zisofs_extract(a, &zext, rbuff, rs);
+		if (r < 0) {
+			ret = (int)r;
+			break;
+		}
+	}
+
+	if (ret == ARCHIVE_OK) {
+		/*
+		 * Change the boot file content from zisofs'ed data
+		 * to plain data.
+		 */
+		file->content.offset_of_temp = new_offset;
+		file->content.size = file->zisofs.uncompressed_size;
+		archive_entry_set_size(file->entry, file->content.size);
+		/* Set to be no zisofs. */
+		file->zisofs.header_size = 0;
+		file->zisofs.log2_bs = 0;
+		file->zisofs.uncompressed_size = 0;
+		r = wb_write_padding_to_temp(a, file->content.size);
+		if (r < 0)
+			ret = ARCHIVE_FATAL;
+	}
+
+	/*
+	 * Free the resource we used in this function only.
+	 */
+	free(rbuff);
+	free(zext.block_pointers);
+	if (zext.stream_valid && inflateEnd(&(zext.stream)) != Z_OK) {
+        	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "Failed to clean up compressor");
+		ret = ARCHIVE_FATAL;
+	}
+
+	return (ret);
+}
+
+#else
+
+static int
+zisofs_write_to_temp(struct archive_write *a, const void *buff, size_t s)
+{
+	(void)buff; /* UNUSED */
+	(void)s; /* UNUSED */
+	archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC, "Programing error");
+	return (ARCHIVE_FATAL);
+}
+
+static int
+zisofs_rewind_boot_file(struct archive_write *a)
+{
+	struct iso9660 *iso9660 = a->format_data;
+
+	if (iso9660->el_torito.boot->file->zisofs.header_size != 0) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+		    "We cannot extract the zisofs imaged boot file;"
+		    " this may not boot in being zisofs imaged");
+		return (ARCHIVE_FAILED);
+	}
+	return (ARCHIVE_OK);
+}
+
+static int
+zisofs_finish_entry(struct archive_write *a)
+{
+	(void)a; /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+static int
+zisofs_free(struct archive_write *a)
+{
+	(void)a; /* UNUSED */
+	return (ARCHIVE_OK);
+}
+
+#endif /* HAVE_ZLIB_H */
+

@@ -1,7 +1,7 @@
-    cmSystemTools::ExpandListArgument(includes, includeDirs);
 
-    std::string includeFlags = lg->GetIncludeFlags(includeDirs, 0,
-                                                   language.c_str(), false);
+}
 
-    std::string definitions = mf->GetSafeDefinition("PACKAGE_DEFINITIONS");
-    printf("%s %s\n", includeFlags.c_str(), definitions.c_str());
+void CMakeErrorHandler(const char* message, const char* title, bool&, void* clientData)
+{
+  cmCursesForm* self = static_cast<cmCursesForm*>( clientData );
+  self->AddError(message, title);

@@ -1,0 +1,1 @@
+memset(d->freq, 0, sizeof(d->freq))

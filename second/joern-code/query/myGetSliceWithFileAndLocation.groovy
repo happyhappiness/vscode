@@ -79,7 +79,7 @@ Gremlin.defineStep('getStatementByFileNameAndLoc', [Vertex,Pipe], { filename, lo
 Gremlin.defineStep('getControledNodes', [Vertex,Pipe], {  ->
 	_().transform{
 		node_id = (int)it.id
-		g.V[node_id].out("CONTROLS")[0]
+		g.V[node_id].out("CONTROLS").has("location")[0]
 	}.scatter()
 });
 
@@ -90,17 +90,27 @@ Gremlin.defineStep('getFile', [Vertex,Pipe], {  ->
 		g.V[function_id].in("IS_FILE_OF")
 	}.scatter()
 });
-// input:
+
+// input: condition node id
 // output: basic block node controled by condition node
-Gremlin.defineStep('getAllConditionControledNodes', [Vertex,Pipe], { ->
+Gremlin.defineStep('getControledNodeForCondition', [Vertex,Pipe], { condition_id ->
  	_().transform{
-		g.V("type","Condition") //.gather{it[1..4]}.scatter()
+		g.V[condition_id]//.gather{it[1..4]}.scatter()
 		.getControledNodes()
 		.as("node")
 		.getFile().as("file")
 		.select(["node", "file"])
 		{ [it.id, it.code, it.type, it.location] }
 		{ it.filepath }
+	 }.scatter()
+});
+
+// input:
+// output: all conditions
+Gremlin.defineStep('getAllConditions', [Vertex,Pipe], { ->
+ 	_().transform{
+		g.V("type","Condition")//.gather{it[534]}.scatter()
+		.id
 	 }.scatter()
 });
 

@@ -1,0 +1,1 @@
+smtp->trailing_crlf = TRUE

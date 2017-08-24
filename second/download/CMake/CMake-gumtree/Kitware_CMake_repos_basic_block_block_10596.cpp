@@ -1,0 +1,1 @@
+filters[fi].id = LZMA_FILTER_LZMA1

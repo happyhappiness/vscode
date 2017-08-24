@@ -1,13 +1,22 @@
-static char *get_netscape_format(const struct Cookie *co)
+ */
+CURL *curl_easy_init(void)
 {
-  return aprintf(
-    "%s%s\t" /* domain */
-    "%s\t"   /* tailmatch */
-    "%s\t"   /* path */
-    "%s\t"   /* secure */
-    "%" FORMAT_OFF_T "\t"   /* expires */
-    "%s\t"   /* name */
-    "%s",    /* value */
-    /* Make sure all domains are prefixed with a dot if they allow
-       tailmatching. This is Mozilla-style. */
-    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+  CURLcode res;
+  struct SessionHandle *data;
+
+  /* Make sure we inited the global SSL stuff */
+  if(!initialized) {
+    res = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if(res) {
+      /* something in the global init failed, return nothing */
+      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
+      return NULL;
+    }
+  }
+
+  /* We use curl_open() with undefined URL so far */
+  res = Curl_open(&data);
+  if(res != CURLE_OK) {
+    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
+    return NULL;
+  }

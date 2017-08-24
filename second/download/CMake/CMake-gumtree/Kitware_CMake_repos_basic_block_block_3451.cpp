@@ -1,0 +1,1 @@
+(s->blockNo > 1) s->numZ = 0

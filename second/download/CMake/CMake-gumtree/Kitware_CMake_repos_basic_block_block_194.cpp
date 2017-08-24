@@ -1,0 +1,1 @@
+return typ->ccheck(ch,(void *)argp);

@@ -1,0 +1,1 @@
+width = sizeof(work)-1

@@ -1,0 +1,1 @@
+ratio = (int)(state->in_count * 256 / state->out_count)

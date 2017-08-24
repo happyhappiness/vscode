@@ -1,0 +1,63 @@
+--- /dev/null
++++ /dev/null
+@@ -685,38 +690,32 @@
+   parseCommandLine(GetCommandLine(), lang, srcfile, dfile, objfile,
+                                      prefix, cl, binpath, rest);
+ 
+-  // needed to suppress filename output of msvc tools
+-  string srcfilename;
+-  std::string::size_type pos = srcfile.rfind("\\");
+-  if (pos != string::npos) {
+-    srcfilename = srcfile.substr(pos + 1);
+-  }
++#if 0
++  fprintf(stderr, "\n\ncmcldebug:\n");
++  fprintf(stderr, ".d  : %s\n", dfile.c_str());
++  fprintf(stderr, "OBJ : %s\n", objfile.c_str());
++  fprintf(stderr, "CL  : %s\n", clpath.c_str());
++  fprintf(stderr, "REST: %s\n", rest.c_str());
++  fprintf(stderr, "\n\n");
++#endif
+ 
+-  std::string nol = " /nologo ";
+-  std::string show = " /showIncludes ";
+-  if (lang == "C" || lang == "CXX") {
+-    return process(srcfilename, dfile, objfile, prefix,
+-                   binpath + nol + show + rest);
+-  } else if (lang == "RC") {
++  std::string showflag = " /showIncludes /nologo ";
++  if (lang != "RC") {
++    return process(srcfile, dfile, objfile, prefix,
++                   binpath + showflag + rest);
++  } else {
+     // "misuse" cl.exe to get headers from .rc files
++    // rc: /fo  x\CMakeFiles\x.dir\x.rc.res              src\x\x.rc
++    // cl: /out:x\CMakeFiles\x.dir\x.rc.res.dep.obj  /Tc src\x\x.rc
+ 
+-    string clrest = rest;
+-    // rc: /fo x.dir\x.rc.res  ->  cl: /out:x.dir\x.rc.res.dep.obj
+-    clrest = replace(clrest, "/fo", "/out:");
+-    clrest = replace(clrest, objfile, objfile + ".dep.obj ");
+-    // rc: src\x\x.rc  ->  cl: /Tc src\x\x.rc
+-    clrest = replace(clrest, srcfile, "/Tc " + srcfile);
+-
+-    cl = "\"" + cl + "\" /P /DRC_INVOKED ";
+-
+-    // extract dependencies with cl.exe
+-    process(srcfilename, dfile, objfile,
+-                  prefix, cl + nol + show + clrest, true);
++    cl = "\"" + cl + "\" /P /DRC_INVOKED " + showflag +
++         replace(rest, "/fo" + objfile, "/out:" + objfile + ".dep.obj /Tc ");
+ 
+-    // compile rc file with rc.exe
+-    return process(srcfilename, "" , objfile, prefix, binpath + nol + rest);
++    int ret;
++    ret = process(srcfile, dfile, objfile, prefix, cl, true);
++    ret = process(srcfile, ""   , objfile, prefix,
++                  binpath + " /nologo "  + rest);
++    return ret;
+   }
+ 
+-  usage("Invalid language specified.");
+-  return 1;
+ 

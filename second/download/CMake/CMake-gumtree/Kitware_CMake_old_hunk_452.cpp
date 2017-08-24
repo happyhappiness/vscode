@@ -1,15 +1,9 @@
 {
-	unsigned offset = 0;
+	struct unknown_tag *tag;
 
-	while (offset < extra_length - 4)
-	{
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
-		offset += 4;
-		if (offset + datasize > extra_length)
-			break;
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%x, length %d\n",
-		    headerid, datasize);
+#if DEBUG
+	fprintf(stderr, "unknowntag_start:%s\n", name);
 #endif
-		switch (headerid) {
+	tag = malloc(sizeof(*tag));
+	if (tag == NULL) {
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");

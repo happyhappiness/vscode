@@ -1,0 +1,1 @@
+(*localPart) *uri++ = *localPart++

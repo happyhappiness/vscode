@@ -1,0 +1,1 @@
+(s->nMTF < 1200) nGroups = 4

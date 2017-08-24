@@ -1,0 +1,1 @@
+infof(data, "failed to load '%s' from CURLOPT_CAPATH\n", fullpath)

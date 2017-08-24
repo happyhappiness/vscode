@@ -1,0 +1,1 @@
+new_fd = te->symlink_parent_fd

@@ -1,0 +1,4 @@
+{
+    fprintf(stderr, "Something wrong with T2\n");
+    return 1;
+  }

@@ -1,0 +1,1 @@
+fd = open("/proc/self/stat", O_RDONLY)

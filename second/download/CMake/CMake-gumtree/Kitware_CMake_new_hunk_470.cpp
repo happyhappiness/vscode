@@ -1,13 +1,7 @@
-  sprintf(version+sideSpace, "%s", vertmp);
-  version[width] = '\0';
+		}
 
-  char fmt_s[] = "%s";
-  curses_move(y-4,0);
-  attron(A_STANDOUT);
-  printw(fmt_s, bar);
-  attroff(A_STANDOUT);
-  curses_move(y-3,0);
-  printw(fmt_s, version);
-  pos_form_cursor(this->Form);
-}
-
+		if (a->read_data_offset < a->read_data_output_offset) {
+			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
+		}

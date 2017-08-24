@@ -1,0 +1,1 @@
+set_num_731(bp+3, np->dir_location)

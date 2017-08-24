@@ -1,0 +1,1 @@
+(*a->client_closer)(&a->archive, a->client_data)

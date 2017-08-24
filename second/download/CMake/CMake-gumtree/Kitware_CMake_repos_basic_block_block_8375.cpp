@@ -1,0 +1,1 @@
+return delta < 0;

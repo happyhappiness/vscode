@@ -1,0 +1,1 @@
+archive_entry_set_size(entry_main, 0)

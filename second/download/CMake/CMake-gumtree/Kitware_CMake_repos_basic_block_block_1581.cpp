@@ -1,0 +1,1 @@
+regc(*regparse++)

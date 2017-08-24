@@ -1,19 +1,38 @@
-
-    /* we got OK from server */
-    if(data->set.ftp_skip_ip) {
-      /* told to ignore the remotely given IP but instead use the host we used
-         for the control connection */
-      infof(data, "Skip %d.%d.%d.%d for data connection, re-use %s instead\n",
-            ip[0], ip[1], ip[2], ip[3],
-            conn->host.name);
-      ftpc->newhost = strdup(control_address(conn));
-    }
-    else
-      ftpc->newhost = aprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-
-    if(!ftpc->newhost)
-      return CURLE_OUT_OF_MEMORY;
-
-    ftpc->newport = (unsigned short)(((port[0]<<8) + port[1]) & 0xffff);
-  }
-  else if(ftpc->count1 == 0) {
+				}
+			case 'c':
+				if (strcmp(val, "char") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFCHR);
+					break;
+				}
+			case 'd':
+				if (strcmp(val, "dir") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFDIR);
+					break;
+				}
+			case 'f':
+				if (strcmp(val, "fifo") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFIFO);
+					break;
+				}
+				if (strcmp(val, "file") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFREG);
+					break;
+				}
+			case 'l':
+				if (strcmp(val, "link") == 0) {
+					archive_entry_set_filetype(entry,
+						AE_IFLNK);
+					break;
+				}
+			default:
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Unrecognized file type \"%s\"; "
+				    "assuming \"file\"", val);
+				archive_entry_set_filetype(entry, AE_IFREG);
+				return (ARCHIVE_WARN);
+			}

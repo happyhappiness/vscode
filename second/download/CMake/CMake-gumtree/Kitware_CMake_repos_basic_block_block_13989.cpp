@@ -1,0 +1,2 @@
+(ch == 0xfc || ch == 0xfd)
+			cnt = 6

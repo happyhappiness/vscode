@@ -1,0 +1,3 @@
+{
+        memAvail = min(procLimit, memAvail);
+      }

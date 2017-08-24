@@ -1,7 +1,12 @@
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      str << kwsys_ios::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+		if (entry_size == 0) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Invalid string table");
+			return (ARCHIVE_WARN);
+		}
+		if (ar->strtab != NULL) {
+			archive_set_error(&a->archive, EINVAL,
+			    "More than one string tables exist");
+			return (ARCHIVE_WARN);
+		}
+
+		/* Read the filename table into memory. */

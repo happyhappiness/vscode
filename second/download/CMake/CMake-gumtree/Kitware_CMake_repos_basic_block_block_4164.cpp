@@ -1,0 +1,2 @@
+f(!stream)
+      return NGHTTP2_ERR_CALLBACK_FAILURE;

@@ -1,0 +1,3 @@
+{
+    return SystemTools::FileIsDirectory(path);
+  }

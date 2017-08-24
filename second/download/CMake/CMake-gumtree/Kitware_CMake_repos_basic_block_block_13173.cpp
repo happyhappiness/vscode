@@ -1,0 +1,1 @@
+r = _checksum_final(&(xar->e_sumwrk), e_sum_val, e_sum_len)

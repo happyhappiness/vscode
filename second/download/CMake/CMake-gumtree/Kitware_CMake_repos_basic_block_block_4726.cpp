@@ -1,0 +1,1 @@
+return CURLM_BAD_HANDLE;

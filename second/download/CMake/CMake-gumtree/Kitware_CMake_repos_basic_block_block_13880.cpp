@@ -1,0 +1,1 @@
+flag |= SCONV_TO_UTF16LE | SCONV_WIN_CP

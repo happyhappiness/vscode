@@ -1,0 +1,1 @@
+archive_le16enc(utf16, c)

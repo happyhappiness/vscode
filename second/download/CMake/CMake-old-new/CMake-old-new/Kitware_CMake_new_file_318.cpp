@@ -20,1321 +20,1346 @@
  *
  ***************************************************************************/
 
+/***
+
+
+RECEIVING COOKIE INFORMATION
+============================
+
+struct CookieInfo *cookie_init(char *file);
+
+        Inits a cookie struct to store data in a local file. This is always
+        called before any cookies are set.
+
+int cookies_set(struct CookieInfo *cookie, char *cookie_line);
+
+        The 'cookie_line' parameter is a full "Set-cookie:" line as
+        received from a server.
+
+        The function need to replace previously stored lines that this new
+        line superceeds.
+
+        It may remove lines that are expired.
+
+        It should return an indication of success/error.
+
+
+SENDING COOKIE INFORMATION
+==========================
+
+struct Cookies *cookie_getlist(struct CookieInfo *cookie,
+                               char *host, char *path, bool secure);
+
+        For a given host and path, return a linked list of cookies that
+        the client should send to the server if used now. The secure
+        boolean informs the cookie if a secure connection is achieved or
+        not.
+
+        It shall only return cookies that haven't expired.
+
+
+Example set of cookies:
+
+    Set-cookie: PRODUCTINFO=webxpress; domain=.fidelity.com; path=/; secure
+    Set-cookie: PERSONALIZE=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/ftgw; secure
+    Set-cookie: FidHist=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: FidOrder=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: DisPend=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie: FidDis=none;expires=Monday, 13-Jun-1988 03:04:55 GMT;
+    domain=.fidelity.com; path=/; secure
+    Set-cookie:
+    Session_Key@6791a9e0-901a-11d0-a1c8-9b012c88aa77=none;expires=Monday,
+    13-Jun-1988 03:04:55 GMT; domain=.fidelity.com; path=/; secure
+****/
+
+
 #include "curl_setup.h"
 
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h> /* <netinet/tcp.h> may need it */
-#endif
-#ifdef HAVE_SYS_UN_H
-#include <sys/un.h> /* for sockaddr_un */
-#endif
-#ifdef HAVE_NETINET_TCP_H
-#include <netinet/tcp.h> /* for TCP_NODELAY */
-#endif
-#ifdef HAVE_SYS_IOCTL_H
-#include <sys/ioctl.h>
-#endif
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
+#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
 
-#if (defined(HAVE_IOCTL_FIONBIO) && defined(NETWARE))
-#include <sys/filio.h>
-#endif
-#ifdef NETWARE
-#undef in_addr_t
-#define in_addr_t unsigned long
-#endif
-#ifdef __VMS
-#include <in.h>
-#include <inet.h>
-#endif
-
-#define _MPRINTF_REPLACE /* use our functions only */
+#define _MPRINTF_REPLACE
 #include <curl/mprintf.h>
 
 #include "urldata.h"
+#include "cookie.h"
+#include "strequal.h"
+#include "strtok.h"
 #include "sendf.h"
-#include "if2ip.h"
-#include "strerror.h"
-#include "connect.h"
+#include "slist.h"
 #include "curl_memory.h"
-#include "select.h"
-#include "url.h" /* for Curl_safefree() */
-#include "multiif.h"
-#include "sockaddr.h" /* required for Curl_sockaddr_storage */
-#include "inet_ntop.h"
+#include "share.h"
+#include "strtoofft.h"
+#include "rawstr.h"
+#include "curl_memrchr.h"
 #include "inet_pton.h"
-#include "vtls/vtls.h" /* for Curl_ssl_check_cxn() */
-#include "progress.h"
-#include "warnless.h"
-#include "conncache.h"
-#include "multihandle.h"
 
 /* The last #include file should be: */
 #include "memdebug.h"
 
-#ifdef __SYMBIAN32__
-/* This isn't actually supported under Symbian OS */
-#undef SO_NOSIGPIPE
-#endif
-
-static bool verifyconnect(curl_socket_t sockfd, int *error);
-
-#if defined(__DragonFly__) || defined(HAVE_WINSOCK_H)
-/* DragonFlyBSD and Windows use millisecond units */
-#define KEEPALIVE_FACTOR(x) (x *= 1000)
-#else
-#define KEEPALIVE_FACTOR(x)
-#endif
-
-#if defined(HAVE_WINSOCK2_H) && !defined(SIO_KEEPALIVE_VALS)
-#define SIO_KEEPALIVE_VALS    _WSAIOW(IOC_VENDOR,4)
-
-struct tcp_keepalive {
-  u_long onoff;
-  u_long keepalivetime;
-  u_long keepaliveinterval;
-};
-#endif
-
-static void
-tcpkeepalive(struct SessionHandle *data,
-             curl_socket_t sockfd)
+static void freecookie(struct Cookie *co)
 {
-  int optval = data->set.tcp_keepalive?1:0;
+  if(co->expirestr)
+    free(co->expirestr);
+  if(co->domain)
+    free(co->domain);
+  if(co->path)
+    free(co->path);
+  if(co->spath)
+    free(co->spath);
+  if(co->name)
+    free(co->name);
+  if(co->value)
+    free(co->value);
+  if(co->maxage)
+    free(co->maxage);
+  if(co->version)
+    free(co->version);
 
-  /* only set IDLE and INTVL if setting KEEPALIVE is successful */
-  if(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE,
-        (void *)&optval, sizeof(optval)) < 0) {
-    infof(data, "Failed to set SO_KEEPALIVE on fd %d\n", sockfd);
-  }
-  else {
-#if defined(SIO_KEEPALIVE_VALS)
-    struct tcp_keepalive vals;
-    DWORD dummy;
-    vals.onoff = 1;
-    optval = curlx_sltosi(data->set.tcp_keepidle);
-    KEEPALIVE_FACTOR(optval);
-    vals.keepalivetime = optval;
-    optval = curlx_sltosi(data->set.tcp_keepintvl);
-    KEEPALIVE_FACTOR(optval);
-    vals.keepaliveinterval = optval;
-    if(WSAIoctl(sockfd, SIO_KEEPALIVE_VALS, (LPVOID) &vals, sizeof(vals),
-                NULL, 0, &dummy, NULL, NULL) != 0) {
-      infof(data, "Failed to set SIO_KEEPALIVE_VALS on fd %d: %d\n",
-            (int)sockfd, WSAGetLastError());
-    }
-#else
-#ifdef TCP_KEEPIDLE
-    optval = curlx_sltosi(data->set.tcp_keepidle);
-    KEEPALIVE_FACTOR(optval);
-    if(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPIDLE,
-          (void *)&optval, sizeof(optval)) < 0) {
-      infof(data, "Failed to set TCP_KEEPIDLE on fd %d\n", sockfd);
-    }
-#endif
-#ifdef TCP_KEEPINTVL
-    optval = curlx_sltosi(data->set.tcp_keepintvl);
-    KEEPALIVE_FACTOR(optval);
-    if(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL,
-          (void *)&optval, sizeof(optval)) < 0) {
-      infof(data, "Failed to set TCP_KEEPINTVL on fd %d\n", sockfd);
-    }
-#endif
-#ifdef TCP_KEEPALIVE
-    /* Mac OS X style */
-    optval = curlx_sltosi(data->set.tcp_keepidle);
-    KEEPALIVE_FACTOR(optval);
-    if(setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPALIVE,
-          (void *)&optval, sizeof(optval)) < 0) {
-      infof(data, "Failed to set TCP_KEEPALIVE on fd %d\n", sockfd);
-    }
-#endif
-#endif
-  }
+  free(co);
 }
 
-static CURLcode
-singleipconnect(struct connectdata *conn,
-                const Curl_addrinfo *ai, /* start connecting to this */
-                curl_socket_t *sock);
-
-/*
- * Curl_timeleft() returns the amount of milliseconds left allowed for the
- * transfer/connection. If the value is negative, the timeout time has already
- * elapsed.
- *
- * The start time is stored in progress.t_startsingle - as set with
- * Curl_pgrsTime(..., TIMER_STARTSINGLE);
- *
- * If 'nowp' is non-NULL, it points to the current time.
- * 'duringconnect' is FALSE if not during a connect, as then of course the
- * connect timeout is not taken into account!
- *
- * @unittest: 1303
- */
-long Curl_timeleft(struct SessionHandle *data,
-                   struct timeval *nowp,
-                   bool duringconnect)
+static bool tailmatch(const char *cooke_domain, const char *hostname)
 {
-  int timeout_set = 0;
-  long timeout_ms = duringconnect?DEFAULT_CONNECT_TIMEOUT:0;
-  struct timeval now;
+  size_t cookie_domain_len = strlen(cooke_domain);
+  size_t hostname_len = strlen(hostname);
 
-  /* if a timeout is set, use the most restrictive one */
+  if(hostname_len < cookie_domain_len)
+    return FALSE;
 
-  if(data->set.timeout > 0)
-    timeout_set |= 1;
-  if(duringconnect && (data->set.connecttimeout > 0))
-    timeout_set |= 2;
+  if(!Curl_raw_equal(cooke_domain, hostname+hostname_len-cookie_domain_len))
+    return FALSE;
 
-  switch (timeout_set) {
-  case 1:
-    timeout_ms = data->set.timeout;
-    break;
-  case 2:
-    timeout_ms = data->set.connecttimeout;
-    break;
-  case 3:
-    if(data->set.timeout < data->set.connecttimeout)
-      timeout_ms = data->set.timeout;
-    else
-      timeout_ms = data->set.connecttimeout;
-    break;
-  default:
-    /* use the default */
-    if(!duringconnect)
-      /* if we're not during connect, there's no default timeout so if we're
-         at zero we better just return zero and not make it a negative number
-         by the math below */
-      return 0;
-    break;
-  }
-
-  if(!nowp) {
-    now = Curl_tvnow();
-    nowp = &now;
-  }
-
-  /* subtract elapsed time */
-  if(duringconnect)
-    /* since this most recent connect started */
-    timeout_ms -= Curl_tvdiff(*nowp, data->progress.t_startsingle);
-  else
-    /* since the entire operation started */
-    timeout_ms -= Curl_tvdiff(*nowp, data->progress.t_startop);
-  if(!timeout_ms)
-    /* avoid returning 0 as that means no timeout! */
-    return -1;
-
-  return timeout_ms;
-}
-
-static CURLcode bindlocal(struct connectdata *conn,
-                          curl_socket_t sockfd, int af)
-{
-  struct SessionHandle *data = conn->data;
-
-  struct Curl_sockaddr_storage sa;
-  struct sockaddr *sock = (struct sockaddr *)&sa;  /* bind to this address */
-  curl_socklen_t sizeof_sa = 0; /* size of the data sock points to */
-  struct sockaddr_in *si4 = (struct sockaddr_in *)&sa;
-#ifdef ENABLE_IPV6
-  struct sockaddr_in6 *si6 = (struct sockaddr_in6 *)&sa;
-#endif
-
-  struct Curl_dns_entry *h=NULL;
-  unsigned short port = data->set.localport; /* use this port number, 0 for
-                                                "random" */
-  /* how many port numbers to try to bind to, increasing one at a time */
-  int portnum = data->set.localportrange;
-  const char *dev = data->set.str[STRING_DEVICE];
-  int error;
-  char myhost[256] = "";
-  int done = 0; /* -1 for error, 1 for address found */
-  bool is_interface = FALSE;
-  bool is_host = FALSE;
-  static const char *if_prefix = "if!";
-  static const char *host_prefix = "host!";
-
-  /*************************************************************
-   * Select device to bind socket to
-   *************************************************************/
-  if(!dev && !port)
-    /* no local kind of binding was requested */
-    return CURLE_OK;
-
-  memset(&sa, 0, sizeof(struct Curl_sockaddr_storage));
-
-  if(dev && (strlen(dev)<255) ) {
-    if(strncmp(if_prefix, dev, strlen(if_prefix)) == 0) {
-      dev += strlen(if_prefix);
-      is_interface = TRUE;
-    }
-    else if(strncmp(host_prefix, dev, strlen(host_prefix)) == 0) {
-      dev += strlen(host_prefix);
-      is_host = TRUE;
-    }
-
-    /* interface */
-    if(!is_host) {
-      switch(Curl_if2ip(af, conn->scope, dev, myhost, sizeof(myhost))) {
-        case IF2IP_NOT_FOUND:
-          if(is_interface) {
-            /* Do not fall back to treating it as a host name */
-            failf(data, "Couldn't bind to interface '%s'", dev);
-            return CURLE_INTERFACE_FAILED;
-          }
-          break;
-        case IF2IP_AF_NOT_SUPPORTED:
-          /* Signal the caller to try another address family if available */
-          return CURLE_UNSUPPORTED_PROTOCOL;
-        case IF2IP_FOUND:
-          is_interface = TRUE;
-          /*
-           * We now have the numerical IP address in the 'myhost' buffer
-           */
-          infof(data, "Local Interface %s is ip %s using address family %i\n",
-                dev, myhost, af);
-          done = 1;
-
-#ifdef SO_BINDTODEVICE
-          /* I am not sure any other OSs than Linux that provide this feature,
-           * and at the least I cannot test. --Ben
-           *
-           * This feature allows one to tightly bind the local socket to a
-           * particular interface.  This will force even requests to other
-           * local interfaces to go out the external interface.
-           *
-           *
-           * Only bind to the interface when specified as interface, not just
-           * as a hostname or ip address.
-           */
-          if(setsockopt(sockfd, SOL_SOCKET, SO_BINDTODEVICE,
-                        dev, (curl_socklen_t)strlen(dev)+1) != 0) {
-            error = SOCKERRNO;
-            infof(data, "SO_BINDTODEVICE %s failed with errno %d: %s;"
-                  " will do regular bind\n",
-                  dev, error, Curl_strerror(conn, error));
-            /* This is typically "errno 1, error: Operation not permitted" if
-               you're not running as root or another suitable privileged
-               user */
-          }
-#endif
-          break;
-      }
-    }
-    if(!is_interface) {
-      /*
-       * This was not an interface, resolve the name as a host name
-       * or IP number
-       *
-       * Temporarily force name resolution to use only the address type
-       * of the connection. The resolve functions should really be changed
-       * to take a type parameter instead.
-       */
-      long ipver = conn->ip_version;
-      int rc;
-
-      if(af == AF_INET)
-        conn->ip_version = CURL_IPRESOLVE_V4;
-#ifdef ENABLE_IPV6
-      else if(af == AF_INET6)
-        conn->ip_version = CURL_IPRESOLVE_V6;
-#endif
-
-      rc = Curl_resolv(conn, dev, 0, &h);
-      if(rc == CURLRESOLV_PENDING)
-        (void)Curl_resolver_wait_resolv(conn, &h);
-      conn->ip_version = ipver;
-
-      if(h) {
-        /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
-        Curl_printable_address(h->addr, myhost, sizeof(myhost));
-        infof(data, "Name '%s' family %i resolved to '%s' family %i\n",
-              dev, af, myhost, h->addr->ai_family);
-        Curl_resolv_unlock(data, h);
-        done = 1;
-      }
-      else {
-        /*
-         * provided dev was no interface (or interfaces are not supported
-         * e.g. solaris) no ip address and no domain we fail here
-         */
-        done = -1;
-      }
-    }
-
-    if(done > 0) {
-#ifdef ENABLE_IPV6
-      /* ipv6 address */
-      if(af == AF_INET6) {
-#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
-        char *scope_ptr = strchr(myhost, '%');
-        if(scope_ptr)
-          *(scope_ptr++) = 0;
-#endif
-        if(Curl_inet_pton(AF_INET6, myhost, &si6->sin6_addr) > 0) {
-          si6->sin6_family = AF_INET6;
-          si6->sin6_port = htons(port);
-#ifdef HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
-          if(scope_ptr)
-            /* The "myhost" string either comes from Curl_if2ip or from
-               Curl_printable_address. The latter returns only numeric scope
-               IDs and the former returns none at all.  So the scope ID, if
-               present, is known to be numeric */
-            si6->sin6_scope_id = atoi(scope_ptr);
-#endif
-        }
-        sizeof_sa = sizeof(struct sockaddr_in6);
-      }
-      else
-#endif
-      /* ipv4 address */
-      if((af == AF_INET) &&
-         (Curl_inet_pton(AF_INET, myhost, &si4->sin_addr) > 0)) {
-        si4->sin_family = AF_INET;
-        si4->sin_port = htons(port);
-        sizeof_sa = sizeof(struct sockaddr_in);
-      }
-    }
-
-    if(done < 1) {
-      failf(data, "Couldn't bind to '%s'", dev);
-      return CURLE_INTERFACE_FAILED;
-    }
-  }
-  else {
-    /* no device was given, prepare sa to match af's needs */
-#ifdef ENABLE_IPV6
-    if(af == AF_INET6) {
-      si6->sin6_family = AF_INET6;
-      si6->sin6_port = htons(port);
-      sizeof_sa = sizeof(struct sockaddr_in6);
-    }
-    else
-#endif
-    if(af == AF_INET) {
-      si4->sin_family = AF_INET;
-      si4->sin_port = htons(port);
-      sizeof_sa = sizeof(struct sockaddr_in);
-    }
-  }
-
-  for(;;) {
-    if(bind(sockfd, sock, sizeof_sa) >= 0) {
-      /* we succeeded to bind */
-      struct Curl_sockaddr_storage add;
-      curl_socklen_t size = sizeof(add);
-      memset(&add, 0, sizeof(struct Curl_sockaddr_storage));
-      if(getsockname(sockfd, (struct sockaddr *) &add, &size) < 0) {
-        data->state.os_errno = error = SOCKERRNO;
-        failf(data, "getsockname() failed with errno %d: %s",
-              error, Curl_strerror(conn, error));
-        return CURLE_INTERFACE_FAILED;
-      }
-      infof(data, "Local port: %hu\n", port);
-      conn->bits.bound = TRUE;
-      return CURLE_OK;
-    }
-
-    if(--portnum > 0) {
-      infof(data, "Bind to local port %hu failed, trying next\n", port);
-      port++; /* try next port */
-      /* We re-use/clobber the port variable here below */
-      if(sock->sa_family == AF_INET)
-        si4->sin_port = ntohs(port);
-#ifdef ENABLE_IPV6
-      else
-        si6->sin6_port = ntohs(port);
-#endif
-    }
-    else
-      break;
-  }
-
-  data->state.os_errno = error = SOCKERRNO;
-  failf(data, "bind failed with errno %d: %s",
-        error, Curl_strerror(conn, error));
-
-  return CURLE_INTERFACE_FAILED;
+  /* A lead char of cookie_domain is not '.'.
+     RFC6265 4.1.2.3. The Domain Attribute says:
+       For example, if the value of the Domain attribute is
+       "example.com", the user agent will include the cookie in the Cookie
+       header when making HTTP requests to example.com, www.example.com, and
+       www.corp.example.com.
+   */
+  if(hostname_len == cookie_domain_len)
+    return TRUE;
+  if('.' == *(hostname + hostname_len - cookie_domain_len - 1))
+    return TRUE;
+  return FALSE;
 }
 
 /*
- * verifyconnect() returns TRUE if the connect really has happened.
+ * matching cookie path and url path
+ * RFC6265 5.1.4 Paths and Path-Match
  */
-static bool verifyconnect(curl_socket_t sockfd, int *error)
+static bool pathmatch(const char* cookie_path, const char* request_uri)
 {
-  bool rc = TRUE;
-#ifdef SO_ERROR
-  int err = 0;
-  curl_socklen_t errSize = sizeof(err);
+  size_t cookie_path_len;
+  size_t uri_path_len;
+  char* uri_path = NULL;
+  char* pos;
+  bool ret = FALSE;
 
-#ifdef WIN32
-  /*
-   * In October 2003 we effectively nullified this function on Windows due to
-   * problems with it using all CPU in multi-threaded cases.
-   *
-   * In May 2004, we bring it back to offer more info back on connect failures.
-   * Gisle Vanem could reproduce the former problems with this function, but
-   * could avoid them by adding this SleepEx() call below:
-   *
-   *    "I don't have Rational Quantify, but the hint from his post was
-   *    ntdll::NtRemoveIoCompletion(). So I'd assume the SleepEx (or maybe
-   *    just Sleep(0) would be enough?) would release whatever
-   *    mutex/critical-section the ntdll call is waiting on.
-   *
-   *    Someone got to verify this on Win-NT 4.0, 2000."
+  /* cookie_path must not have last '/' separator. ex: /sample */
+  cookie_path_len = strlen(cookie_path);
+  if(1 == cookie_path_len) {
+    /* cookie_path must be '/' */
+    return TRUE;
+  }
+
+  uri_path = strdup(request_uri);
+  if(!uri_path)
+    return FALSE;
+  pos = strchr(uri_path, '?');
+  if(pos)
+    *pos = 0x0;
+
+  /* #-fragments are already cut off! */
+  if(0 == strlen(uri_path) || uri_path[0] != '/') {
+    free(uri_path);
+    uri_path = strdup("/");
+    if(!uri_path)
+      return FALSE;
+  }
+
+  /* here, RFC6265 5.1.4 says
+     4. Output the characters of the uri-path from the first character up
+        to, but not including, the right-most %x2F ("/").
+     but URL path /hoge?fuga=xxx means /hoge/index.cgi?fuga=xxx in some site
+     without redirect.
+     Ignore this algorithm because /hoge is uri path for this case
+     (uri path is not /).
    */
 
-#ifdef _WIN32_WCE
-  Sleep(0);
-#else
-  SleepEx(0, FALSE);
-#endif
+  uri_path_len = strlen(uri_path);
 
-#endif
+  if(uri_path_len < cookie_path_len) {
+    ret = FALSE;
+    goto pathmatched;
+  }
 
-  if(0 != getsockopt(sockfd, SOL_SOCKET, SO_ERROR, (void *)&err, &errSize))
-    err = SOCKERRNO;
-#ifdef _WIN32_WCE
-  /* Old WinCE versions don't support SO_ERROR */
-  if(WSAENOPROTOOPT == err) {
-    SET_SOCKERRNO(0);
-    err = 0;
+  /* not using checkprefix() because matching should be case-sensitive */
+  if(strncmp(cookie_path, uri_path, cookie_path_len)) {
+    ret = FALSE;
+    goto pathmatched;
   }
-#endif
-#ifdef __minix
-  /* Minix 3.1.x doesn't support getsockopt on UDP sockets */
-  if(EBADIOCTL == err) {
-    SET_SOCKERRNO(0);
-    err = 0;
+
+  /* The cookie-path and the uri-path are identical. */
+  if(cookie_path_len == uri_path_len) {
+    ret = TRUE;
+    goto pathmatched;
   }
-#endif
-  if((0 == err) || (EISCONN == err))
-    /* we are connected, awesome! */
-    rc = TRUE;
-  else
-    /* This wasn't a successful connect */
-    rc = FALSE;
-  if(error)
-    *error = err;
-#else
-  (void)sockfd;
-  if(error)
-    *error = SOCKERRNO;
-#endif
-  return rc;
+
+  /* here, cookie_path_len < url_path_len */
+  if(uri_path[cookie_path_len] == '/') {
+    ret = TRUE;
+    goto pathmatched;
+  }
+
+  ret = FALSE;
+
+pathmatched:
+  free(uri_path);
+  return ret;
 }
 
-/* Used within the multi interface. Try next IP address, return TRUE if no
-   more address exists or error */
-static CURLcode trynextip(struct connectdata *conn,
-                          int sockindex,
-                          int tempindex)
+/*
+ * cookie path sanitize
+ */
+static char *sanitize_cookie_path(const char *cookie_path)
 {
-  CURLcode rc = CURLE_COULDNT_CONNECT;
+  size_t len;
+  char *new_path = strdup(cookie_path);
+  if(!new_path)
+    return NULL;
 
-  /* First clean up after the failed socket.
-     Don't close it yet to ensure that the next IP's socket gets a different
-     file descriptor, which can prevent bugs when the curl_multi_socket_action
-     interface is used with certain select() replacements such as kqueue. */
-  curl_socket_t fd_to_close = conn->tempsock[tempindex];
-  conn->tempsock[tempindex] = CURL_SOCKET_BAD;
-
-  if(sockindex == FIRSTSOCKET) {
-    Curl_addrinfo *ai = NULL;
-    int family = AF_UNSPEC;
-
-    if(conn->tempaddr[tempindex]) {
-      /* find next address in the same protocol family */
-      family = conn->tempaddr[tempindex]->ai_family;
-      ai = conn->tempaddr[tempindex]->ai_next;
-    }
-    else if(conn->tempaddr[0]) {
-      /* happy eyeballs - try the other protocol family */
-      int firstfamily = conn->tempaddr[0]->ai_family;
-#ifdef ENABLE_IPV6
-      family = (firstfamily == AF_INET) ? AF_INET6 : AF_INET;
-#else
-      family = firstfamily;
-#endif
-      ai = conn->tempaddr[0]->ai_next;
-    }
-
-    while(ai) {
-      while(ai && ai->ai_family != family)
-        ai = ai->ai_next;
-
-      if(ai) {
-        rc = singleipconnect(conn, ai, &conn->tempsock[tempindex]);
-        if(rc == CURLE_COULDNT_CONNECT) {
-          ai = ai->ai_next;
-          continue;
-        }
-        conn->tempaddr[tempindex] = ai;
-      }
-      break;
-    }
+  /* some stupid site sends path attribute with '"'. */
+  if(new_path[0] == '\"') {
+    memmove((void *)new_path, (const void *)(new_path + 1), strlen(new_path));
+  }
+  if(new_path[strlen(new_path) - 1] == '\"') {
+    new_path[strlen(new_path) - 1] = 0x0;
   }
 
-  if(fd_to_close != CURL_SOCKET_BAD)
-    Curl_closesocket(conn, fd_to_close);
-
-  return rc;
-}
-
-/* Copies connection info into the session handle to make it available
-   when the session handle is no longer associated with a connection. */
-void Curl_persistconninfo(struct connectdata *conn)
-{
-  memcpy(conn->data->info.conn_primary_ip, conn->primary_ip, MAX_IPADR_LEN);
-  memcpy(conn->data->info.conn_local_ip, conn->local_ip, MAX_IPADR_LEN);
-  conn->data->info.conn_primary_port = conn->primary_port;
-  conn->data->info.conn_local_port = conn->local_port;
-}
-
-/* retrieves ip address and port from a sockaddr structure */
-static bool getaddressinfo(struct sockaddr* sa, char* addr,
-                           long* port)
-{
-  unsigned short us_port;
-  struct sockaddr_in* si = NULL;
-#ifdef ENABLE_IPV6
-  struct sockaddr_in6* si6 = NULL;
-#endif
-#if defined(HAVE_SYS_UN_H) && defined(AF_UNIX)
-  struct sockaddr_un* su = NULL;
-#endif
-
-  switch (sa->sa_family) {
-    case AF_INET:
-      si = (struct sockaddr_in*) sa;
-      if(Curl_inet_ntop(sa->sa_family, &si->sin_addr,
-                        addr, MAX_IPADR_LEN)) {
-        us_port = ntohs(si->sin_port);
-        *port = us_port;
-        return TRUE;
-      }
-      break;
-#ifdef ENABLE_IPV6
-    case AF_INET6:
-      si6 = (struct sockaddr_in6*)sa;
-      if(Curl_inet_ntop(sa->sa_family, &si6->sin6_addr,
-                        addr, MAX_IPADR_LEN)) {
-        us_port = ntohs(si6->sin6_port);
-        *port = us_port;
-        return TRUE;
-      }
-      break;
-#endif
-#if defined(HAVE_SYS_UN_H) && defined(AF_UNIX)
-    case AF_UNIX:
-      su = (struct sockaddr_un*)sa;
-      snprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);
-      *port = 0;
-      return TRUE;
-#endif
-    default:
-      break;
+  /* RFC6265 5.2.4 The Path Attribute */
+  if(new_path[0] != '/') {
+    /* Let cookie-path be the default-path. */
+    free(new_path);
+    new_path = strdup("/");
+    return new_path;
   }
 
-  addr[0] = '\0';
-  *port = 0;
+  /* convert /hoge/ to /hoge */
+  len = strlen(new_path);
+  if(1 < len && new_path[len - 1] == '/') {
+    new_path[len - 1] = 0x0;
+  }
+
+  return new_path;
+}
+
+/*
+ * Load cookies from all given cookie files (CURLOPT_COOKIEFILE).
+ */
+void Curl_cookie_loadfiles(struct SessionHandle *data)
+{
+  struct curl_slist *list = data->change.cookielist;
+  if(list) {
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+    while(list) {
+      data->cookies = Curl_cookie_init(data,
+                                       list->data,
+                                       data->cookies,
+                                       data->set.cookiesession);
+      list = list->next;
+    }
+    curl_slist_free_all(data->change.cookielist); /* clean up list */
+    data->change.cookielist = NULL; /* don't do this again! */
+    Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+  }
+}
+
+/*
+ * strstore() makes a strdup() on the 'newstr' and if '*str' is non-NULL
+ * that will be freed before the allocated string is stored there.
+ *
+ * It is meant to easily replace strdup()
+ */
+static void strstore(char **str, const char *newstr)
+{
+  if(*str)
+    free(*str);
+  *str = strdup(newstr);
+}
+
+/*
+ * remove_expired() removes expired cookies.
+ */
+static void remove_expired(struct CookieInfo *cookies)
+{
+  struct Cookie *co, *nx, *pv;
+  curl_off_t now = (curl_off_t)time(NULL);
+
+  co = cookies->cookies;
+  pv = NULL;
+  while(co) {
+    nx = co->next;
+    if((co->expirestr || co->maxage) && co->expires < now) {
+      if(co == cookies->cookies) {
+        cookies->cookies = co->next;
+      }
+      else {
+        pv->next = co->next;
+      }
+      cookies->numcookies--;
+      freecookie(co);
+    }
+    else {
+      pv = co;
+    }
+    co = nx;
+  }
+}
+
+/*
+ * Return true if the given string is an IP(v4|v6) address.
+ */
+static bool isip(const char *domain)
+{
+  struct in_addr addr;
+#ifdef ENABLE_IPV6
+  struct in6_addr addr6;
+#endif
+
+  if(Curl_inet_pton(AF_INET, domain, &addr)
+#ifdef ENABLE_IPV6
+     || Curl_inet_pton(AF_INET6, domain, &addr6)
+#endif
+    ) {
+    /* domain name given as IP address */
+    return TRUE;
+  }
 
   return FALSE;
 }
 
-/* retrieves the start/end point information of a socket of an established
-   connection */
-void Curl_updateconninfo(struct connectdata *conn, curl_socket_t sockfd)
+/****************************************************************************
+ *
+ * Curl_cookie_add()
+ *
+ * Add a single cookie line to the cookie keeping object.
+ *
+ * Be aware that sometimes we get an IP-only host name, and that might also be
+ * a numerical IPv6 address.
+ *
+ ***************************************************************************/
+
+struct Cookie *
+Curl_cookie_add(struct SessionHandle *data,
+                /* The 'data' pointer here may be NULL at times, and thus
+                   must only be used very carefully for things that can deal
+                   with data being NULL. Such as infof() and similar */
+
+                struct CookieInfo *c,
+                bool httpheader, /* TRUE if HTTP header-style line */
+                char *lineptr,   /* first character of the line */
+                const char *domain, /* default domain */
+                const char *path)   /* full path used when this cookie is set,
+                                       used to get default path for the cookie
+                                       unless set */
 {
-  int error;
-  curl_socklen_t len;
-  struct Curl_sockaddr_storage ssrem;
-  struct Curl_sockaddr_storage ssloc;
-  struct SessionHandle *data = conn->data;
+  struct Cookie *clist;
+  char name[MAX_NAME];
+  struct Cookie *co;
+  struct Cookie *lastc=NULL;
+  time_t now = time(NULL);
+  bool replace_old = FALSE;
+  bool badcookie = FALSE; /* cookies are good by default. mmmmm yummy */
 
-  if(conn->socktype == SOCK_DGRAM)
-    /* there's no connection! */
-    return;
-
-  if(!conn->bits.reuse) {
-
-    len = sizeof(struct Curl_sockaddr_storage);
-    if(getpeername(sockfd, (struct sockaddr*) &ssrem, &len)) {
-      error = SOCKERRNO;
-      failf(data, "getpeername() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
-    }
-
-    len = sizeof(struct Curl_sockaddr_storage);
-    if(getsockname(sockfd, (struct sockaddr*) &ssloc, &len)) {
-      error = SOCKERRNO;
-      failf(data, "getsockname() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
-    }
-
-    if(!getaddressinfo((struct sockaddr*)&ssrem,
-                        conn->primary_ip, &conn->primary_port)) {
-      error = ERRNO;
-      failf(data, "ssrem inet_ntop() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
-    }
-    memcpy(conn->ip_addr_str, conn->primary_ip, MAX_IPADR_LEN);
-
-    if(!getaddressinfo((struct sockaddr*)&ssloc,
-                       conn->local_ip, &conn->local_port)) {
-      error = ERRNO;
-      failf(data, "ssloc inet_ntop() failed with errno %d: %s",
-            error, Curl_strerror(conn, error));
-      return;
-    }
-
-  }
-
-  /* persist connection info in session handle */
-  Curl_persistconninfo(conn);
-}
-
-/*
- * Curl_is_connected() checks if the socket has connected.
- */
-
-CURLcode Curl_is_connected(struct connectdata *conn,
-                           int sockindex,
-                           bool *connected)
-{
-  struct SessionHandle *data = conn->data;
-  CURLcode code = CURLE_OK;
-  long allow;
-  int error = 0;
-  struct timeval now;
-  int result;
-  int i;
-
-  DEBUGASSERT(sockindex >= FIRSTSOCKET && sockindex <= SECONDARYSOCKET);
-
-  *connected = FALSE; /* a very negative world view is best */
-
-  if(conn->bits.tcpconnect[sockindex]) {
-    /* we are connected already! */
-    *connected = TRUE;
-    return CURLE_OK;
-  }
-
-  now = Curl_tvnow();
-
-  /* figure out how long time we have left to connect */
-  allow = Curl_timeleft(data, &now, TRUE);
-
-  if(allow < 0) {
-    /* time-out, bail out, go home */
-    failf(data, "Connection time-out");
-    return CURLE_OPERATION_TIMEDOUT;
-  }
-
-  for(i=0; i<2; i++) {
-    if(conn->tempsock[i] == CURL_SOCKET_BAD)
-      continue;
-
-#ifdef mpeix
-    /* Call this function once now, and ignore the results. We do this to
-       "clear" the error state on the socket so that we can later read it
-       reliably. This is reported necessary on the MPE/iX operating system. */
-    (void)verifyconnect(conn->tempsock[i], NULL);
+#ifdef CURL_DISABLE_VERBOSE_STRINGS
+  (void)data;
 #endif
 
-    /* check socket for connect */
-    result = Curl_socket_ready(CURL_SOCKET_BAD, conn->tempsock[i], 0);
+  /* First, alloc and init a new struct for it */
+  co = calloc(1, sizeof(struct Cookie));
+  if(!co)
+    return NULL; /* bail out if we're this low on memory */
 
-    if(result == 0) { /* no connection yet */
-      if(curlx_tvdiff(now, conn->connecttime) >= conn->timeoutms_per_addr) {
-        infof(data, "After %ldms connect time, move on!\n",
-              conn->timeoutms_per_addr);
-        error = ETIMEDOUT;
-      }
+  if(httpheader) {
+    /* This line was read off a HTTP-header */
+    const char *ptr;
+    const char *semiptr;
+    char *what;
 
-      /* should we try another protocol family? */
-      if(i == 0 && conn->tempaddr[1] == NULL &&
-         curlx_tvdiff(now, conn->connecttime) >= HAPPY_EYEBALLS_TIMEOUT) {
-        trynextip(conn, sockindex, 1);
-      }
+    what = malloc(MAX_COOKIE_LINE);
+    if(!what) {
+      free(co);
+      return NULL;
     }
-    else if(result == CURL_CSELECT_OUT) {
-      if(verifyconnect(conn->tempsock[i], &error)) {
-        /* we are connected with TCP, awesome! */
-        int other = i ^ 1;
 
-        /* use this socket from now on */
-        conn->sock[sockindex] = conn->tempsock[i];
-        conn->ip_addr = conn->tempaddr[i];
-        conn->tempsock[i] = CURL_SOCKET_BAD;
+    semiptr=strchr(lineptr, ';'); /* first, find a semicolon */
 
-        /* close the other socket, if open */
-        if(conn->tempsock[other] != CURL_SOCKET_BAD) {
-          Curl_closesocket(conn, conn->tempsock[other]);
-          conn->tempsock[other] = CURL_SOCKET_BAD;
+    while(*lineptr && ISBLANK(*lineptr))
+      lineptr++;
+
+    ptr = lineptr;
+    do {
+      /* we have a <what>=<this> pair or a stand-alone word here */
+      name[0]=what[0]=0; /* init the buffers */
+      if(1 <= sscanf(ptr, "%" MAX_NAME_TXT "[^;\r\n =]=%"
+                     MAX_COOKIE_LINE_TXT "[^;\r\n]",
+                     name, what)) {
+        /* Use strstore() below to properly deal with received cookie
+           headers that have the same string property set more than once,
+           and then we use the last one. */
+        const char *whatptr;
+        bool done = FALSE;
+        bool sep;
+        size_t len=strlen(what);
+        const char *endofn = &ptr[ strlen(name) ];
+
+        /* skip trailing spaces in name */
+        while(*endofn && ISBLANK(*endofn))
+          endofn++;
+
+        /* name ends with a '=' ? */
+        sep = (*endofn == '=')?TRUE:FALSE;
+
+        /* Strip off trailing whitespace from the 'what' */
+        while(len && ISBLANK(what[len-1])) {
+          what[len-1]=0;
+          len--;
         }
 
-        /* see if we need to do any proxy magic first once we connected */
-        code = Curl_connected_proxy(conn, sockindex);
-        if(code)
-          return code;
+        /* Skip leading whitespace from the 'what' */
+        whatptr=what;
+        while(*whatptr && ISBLANK(*whatptr))
+          whatptr++;
 
-        conn->bits.tcpconnect[sockindex] = TRUE;
+        if(!len) {
+          /* this was a "<name>=" with no content, and we must allow
+             'secure' and 'httponly' specified this weirdly */
+          done = TRUE;
+          if(Curl_raw_equal("secure", name))
+            co->secure = TRUE;
+          else if(Curl_raw_equal("httponly", name))
+            co->httponly = TRUE;
+          else if(sep)
+            /* there was a '=' so we're not done parsing this field */
+            done = FALSE;
+        }
+        if(done)
+          ;
+        else if(Curl_raw_equal("path", name)) {
+          strstore(&co->path, whatptr);
+          if(!co->path) {
+            badcookie = TRUE; /* out of memory bad */
+            break;
+          }
+          co->spath = sanitize_cookie_path(co->path);
+          if(!co->spath) {
+            badcookie = TRUE; /* out of memory bad */
+            break;
+          }
+        }
+        else if(Curl_raw_equal("domain", name)) {
+          bool is_ip;
+          const char *dotp;
 
-        *connected = TRUE;
-        if(sockindex == FIRSTSOCKET)
-          Curl_pgrsTime(data, TIMER_CONNECT); /* connect done */
-        Curl_updateconninfo(conn, conn->sock[sockindex]);
-        Curl_verboseconnect(conn);
+          /* Now, we make sure that our host is within the given domain,
+             or the given domain is not valid and thus cannot be set. */
 
-        return CURLE_OK;
+          if('.' == whatptr[0])
+            whatptr++; /* ignore preceding dot */
+
+          is_ip = isip(domain ? domain : whatptr);
+
+          /* check for more dots */
+          dotp = strchr(whatptr, '.');
+          if(!dotp)
+            domain=":";
+
+          if(!domain
+             || (is_ip && !strcmp(whatptr, domain))
+             || (!is_ip && tailmatch(whatptr, domain))) {
+            strstore(&co->domain, whatptr);
+            if(!co->domain) {
+              badcookie = TRUE;
+              break;
+            }
+            if(!is_ip)
+              co->tailmatch=TRUE; /* we always do that if the domain name was
+                                     given */
+          }
+          else {
+            /* we did not get a tailmatch and then the attempted set domain
+               is not a domain to which the current host belongs. Mark as
+               bad. */
+            badcookie=TRUE;
+            infof(data, "skipped cookie with bad tailmatch domain: %s\n",
+                  whatptr);
+          }
+        }
+        else if(Curl_raw_equal("version", name)) {
+          strstore(&co->version, whatptr);
+          if(!co->version) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(Curl_raw_equal("max-age", name)) {
+          /* Defined in RFC2109:
+
+             Optional.  The Max-Age attribute defines the lifetime of the
+             cookie, in seconds.  The delta-seconds value is a decimal non-
+             negative integer.  After delta-seconds seconds elapse, the
+             client should discard the cookie.  A value of zero means the
+             cookie should be discarded immediately.
+
+          */
+          strstore(&co->maxage, whatptr);
+          if(!co->maxage) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(Curl_raw_equal("expires", name)) {
+          strstore(&co->expirestr, whatptr);
+          if(!co->expirestr) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        else if(!co->name) {
+          co->name = strdup(name);
+          co->value = strdup(whatptr);
+          if(!co->name || !co->value) {
+            badcookie = TRUE;
+            break;
+          }
+        }
+        /*
+          else this is the second (or more) name we don't know
+          about! */
       }
+      else {
+        /* this is an "illegal" <what>=<this> pair */
+      }
+
+      if(!semiptr || !*semiptr) {
+        /* we already know there are no more cookies */
+        semiptr = NULL;
+        continue;
+      }
+
+      ptr=semiptr+1;
+      while(*ptr && ISBLANK(*ptr))
+        ptr++;
+      semiptr=strchr(ptr, ';'); /* now, find the next semicolon */
+
+      if(!semiptr && *ptr)
+        /* There are no more semicolons, but there's a final name=value pair
+           coming up */
+        semiptr=strchr(ptr, '\0');
+    } while(semiptr);
+
+    if(co->maxage) {
+      co->expires =
+        curlx_strtoofft((*co->maxage=='\"')?
+                        &co->maxage[1]:&co->maxage[0], NULL, 10);
+      if(CURL_OFF_T_MAX - now < co->expires)
+        /* avoid overflow */
+        co->expires = CURL_OFF_T_MAX;
       else
-        infof(data, "Connection failed\n");
+        co->expires += now;
     }
-    else if(result & CURL_CSELECT_ERR)
-      (void)verifyconnect(conn->tempsock[i], &error);
+    else if(co->expirestr) {
+      /* Note that if the date couldn't get parsed for whatever reason,
+         the cookie will be treated as a session cookie */
+      co->expires = curl_getdate(co->expirestr, NULL);
 
-    /*
-     * The connection failed here, we should attempt to connect to the "next
-     * address" for the given host. But first remember the latest error.
-     */
-    if(error) {
-      char ipaddress[MAX_IPADR_LEN];
-      data->state.os_errno = error;
-      SET_SOCKERRNO(error);
-      if(conn->tempaddr[i]) {
-        Curl_printable_address(conn->tempaddr[i], ipaddress, MAX_IPADR_LEN);
-        infof(data, "connect to %s port %ld failed: %s\n",
-              ipaddress, conn->port, Curl_strerror(conn, error));
+      /* Session cookies have expires set to 0 so if we get that back
+         from the date parser let's add a second to make it a
+         non-session cookie */
+      if(co->expires == 0)
+        co->expires = 1;
+      else if(co->expires < 0)
+        co->expires = 0;
+    }
 
-        conn->timeoutms_per_addr = conn->tempaddr[i]->ai_next == NULL ?
-                                   allow : allow / 2;
-
-        code = trynextip(conn, sockindex, i);
+    if(!badcookie && !co->domain) {
+      if(domain) {
+        /* no domain was given in the header line, set the default */
+        co->domain=strdup(domain);
+        if(!co->domain)
+          badcookie = TRUE;
       }
     }
-  }
 
-  if(code) {
-    /* no more addresses to try */
+    if(!badcookie && !co->path && path) {
+      /* No path was given in the header line, set the default.
+         Note that the passed-in path to this function MAY have a '?' and
+         following part that MUST not be stored as part of the path. */
+      char *queryp = strchr(path, '?');
 
-    /* if the first address family runs out of addresses to try before
-       the happy eyeball timeout, go ahead and try the next family now */
-    if(conn->tempaddr[1] == NULL) {
-      int rc;
-      rc = trynextip(conn, sockindex, 1);
-      if(rc == CURLE_OK)
-        return CURLE_OK;
+      /* queryp is where the interesting part of the path ends, so now we
+         want to the find the last */
+      char *endslash;
+      if(!queryp)
+        endslash = strrchr(path, '/');
+      else
+        endslash = memrchr(path, '/', (size_t)(queryp - path));
+      if(endslash) {
+        size_t pathlen = (size_t)(endslash-path+1); /* include ending slash */
+        co->path=malloc(pathlen+1); /* one extra for the zero byte */
+        if(co->path) {
+          memcpy(co->path, path, pathlen);
+          co->path[pathlen]=0; /* zero terminate */
+          co->spath = sanitize_cookie_path(co->path);
+          if(!co->spath)
+            badcookie = TRUE; /* out of memory bad */
+        }
+        else
+          badcookie = TRUE;
+      }
     }
 
-    failf(data, "Failed to connect to %s port %ld: %s",
-          conn->bits.proxy?conn->proxy.name:conn->host.name,
-          conn->port, Curl_strerror(conn, error));
-  }
+    free(what);
 
-  return code;
-}
-
-static void tcpnodelay(struct connectdata *conn,
-                       curl_socket_t sockfd)
-{
-#ifdef TCP_NODELAY
-  struct SessionHandle *data= conn->data;
-  curl_socklen_t onoff = (curl_socklen_t) data->set.tcp_nodelay;
-  int level = IPPROTO_TCP;
-
-#if 0
-  /* The use of getprotobyname() is disabled since it isn't thread-safe on
-     numerous systems. On these getprotobyname_r() should be used instead, but
-     that exists in at least one 4 arg version and one 5 arg version, and
-     since the proto number rarely changes anyway we now just use the hard
-     coded number. The "proper" fix would need a configure check for the
-     correct function much in the same style the gethostbyname_r versions are
-     detected. */
-  struct protoent *pe = getprotobyname("tcp");
-  if(pe)
-    level = pe->p_proto;
-#endif
-
-  if(setsockopt(sockfd, level, TCP_NODELAY, (void *)&onoff,
-                sizeof(onoff)) < 0)
-    infof(data, "Could not set TCP_NODELAY: %s\n",
-          Curl_strerror(conn, SOCKERRNO));
-  else
-    infof(data,"TCP_NODELAY set\n");
-#else
-  (void)conn;
-  (void)sockfd;
-#endif
-}
-
-#ifdef SO_NOSIGPIPE
-/* The preferred method on Mac OS X (10.2 and later) to prevent SIGPIPEs when
-   sending data to a dead peer (instead of relying on the 4th argument to send
-   being MSG_NOSIGNAL). Possibly also existing and in use on other BSD
-   systems? */
-static void nosigpipe(struct connectdata *conn,
-                      curl_socket_t sockfd)
-{
-  struct SessionHandle *data= conn->data;
-  int onoff = 1;
-  if(setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, (void *)&onoff,
-                sizeof(onoff)) < 0)
-    infof(data, "Could not set SO_NOSIGPIPE: %s\n",
-          Curl_strerror(conn, SOCKERRNO));
-}
-#else
-#define nosigpipe(x,y) Curl_nop_stmt
-#endif
-
-#ifdef USE_WINSOCK
-/* When you run a program that uses the Windows Sockets API, you may
-   experience slow performance when you copy data to a TCP server.
-
-   http://support.microsoft.com/kb/823764
-
-   Work-around: Make the Socket Send Buffer Size Larger Than the Program Send
-   Buffer Size
-
-   The problem described in this knowledge-base is applied only to pre-Vista
-   Windows.  Following function trying to detect OS version and skips
-   SO_SNDBUF adjustment for Windows Vista and above.
-*/
-#define DETECT_OS_NONE 0
-#define DETECT_OS_PREVISTA 1
-#define DETECT_OS_VISTA_OR_LATER 2
-
-void Curl_sndbufset(curl_socket_t sockfd)
-{
-  int val = CURL_MAX_WRITE_SIZE + 32;
-  int curval = 0;
-  int curlen = sizeof(curval);
-  DWORD majorVersion = 6;
-
-  static int detectOsState = DETECT_OS_NONE;
-
-  if(detectOsState == DETECT_OS_NONE) {
-#if !defined(_WIN32_WINNT) || !defined(_WIN32_WINNT_WIN2K) || \
-    (_WIN32_WINNT < _WIN32_WINNT_WIN2K)
-    OSVERSIONINFO osver;
-
-    memset(&osver, 0, sizeof(osver));
-    osver.dwOSVersionInfoSize = sizeof(osver);
-
-    detectOsState = DETECT_OS_PREVISTA;
-    if(GetVersionEx(&osver)) {
-      if(osver.dwMajorVersion >= majorVersion)
-        detectOsState = DETECT_OS_VISTA_OR_LATER;
+    if(badcookie || !co->name) {
+      /* we didn't get a cookie name or a bad one,
+         this is an illegal line, bail out */
+      freecookie(co);
+      return NULL;
     }
-#else
-    ULONGLONG majorVersionMask;
-    OSVERSIONINFOEX osver;
 
-    memset(&osver, 0, sizeof(osver));
-    osver.dwOSVersionInfoSize = sizeof(osver);
-    osver.dwMajorVersion = majorVersion;
-    majorVersionMask = VerSetConditionMask(0, VER_MAJORVERSION,
-                                           VER_GREATER_EQUAL);
-
-    if(VerifyVersionInfo(&osver, VER_MAJORVERSION, majorVersionMask))
-      detectOsState = DETECT_OS_VISTA_OR_LATER;
-    else
-      detectOsState = DETECT_OS_PREVISTA;
-#endif
-  }
-
-  if(detectOsState == DETECT_OS_VISTA_OR_LATER)
-    return;
-
-  if(getsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (char *)&curval, &curlen) == 0)
-    if(curval > val)
-      return;
-
-  setsockopt(sockfd, SOL_SOCKET, SO_SNDBUF, (const char *)&val, sizeof(val));
-}
-#endif
-
-/*
- * singleipconnect()
- *
- * Note that even on connect fail it returns CURLE_OK, but with 'sock' set to
- * CURL_SOCKET_BAD. Other errors will however return proper errors.
- *
- * singleipconnect() connects to the given IP only, and it may return without
- * having connected.
- */
-static CURLcode
-singleipconnect(struct connectdata *conn,
-                const Curl_addrinfo *ai,
-                curl_socket_t *sockp)
-{
-  struct Curl_sockaddr_ex addr;
-  int rc;
-  int error = 0;
-  bool isconnected = FALSE;
-  struct SessionHandle *data = conn->data;
-  curl_socket_t sockfd;
-  CURLcode res = CURLE_OK;
-  char ipaddress[MAX_IPADR_LEN];
-  long port;
-
-  *sockp = CURL_SOCKET_BAD;
-
-  res = Curl_socket(conn, ai, &addr, &sockfd);
-  if(res)
-    /* Failed to create the socket, but still return OK since we signal the
-       lack of socket as well. This allows the parent function to keep looping
-       over alternative addresses/socket families etc. */
-    return CURLE_OK;
-
-  /* store remote address and port used in this connection attempt */
-  if(!getaddressinfo((struct sockaddr*)&addr.sa_addr,
-                     ipaddress, &port)) {
-    /* malformed address or bug in inet_ntop, try next address */
-    error = ERRNO;
-    failf(data, "sa_addr inet_ntop() failed with errno %d: %s",
-          error, Curl_strerror(conn, error));
-    Curl_closesocket(conn, sockfd);
-    return CURLE_OK;
-  }
-  infof(data, "  Trying %s...\n", ipaddress);
-
-  if(data->set.tcp_nodelay)
-    tcpnodelay(conn, sockfd);
-
-  nosigpipe(conn, sockfd);
-
-  Curl_sndbufset(sockfd);
-
-  if(data->set.tcp_keepalive)
-    tcpkeepalive(data, sockfd);
-
-  if(data->set.fsockopt) {
-    /* activate callback for setting socket options */
-    error = data->set.fsockopt(data->set.sockopt_client,
-                               sockfd,
-                               CURLSOCKTYPE_IPCXN);
-
-    if(error == CURL_SOCKOPT_ALREADY_CONNECTED)
-      isconnected = TRUE;
-    else if(error) {
-      Curl_closesocket(conn, sockfd); /* close the socket and bail out */
-      return CURLE_ABORTED_BY_CALLBACK;
-    }
-  }
-
-  /* possibly bind the local end to an IP, interface or port */
-  res = bindlocal(conn, sockfd, addr.family);
-  if(res) {
-    Curl_closesocket(conn, sockfd); /* close socket and bail out */
-    if(res == CURLE_UNSUPPORTED_PROTOCOL) {
-      /* The address family is not supported on this interface.
-         We can continue trying addresses */
-      return CURLE_OK;
-    }
-    return res;
-  }
-
-  /* set socket non-blocking */
-  curlx_nonblock(sockfd, TRUE);
-
-  conn->connecttime = Curl_tvnow();
-  if(conn->num_addr > 1)
-    Curl_expire_latest(data, conn->timeoutms_per_addr);
-
-  /* Connect TCP sockets, bind UDP */
-  if(!isconnected && (conn->socktype == SOCK_STREAM)) {
-    rc = connect(sockfd, &addr.sa_addr, addr.addrlen);
-    if(-1 == rc)
-      error = SOCKERRNO;
   }
   else {
-    *sockp = sockfd;
-    return CURLE_OK;
-  }
+    /* This line is NOT a HTTP header style line, we do offer support for
+       reading the odd netscape cookies-file format here */
+    char *ptr;
+    char *firstptr;
+    char *tok_buf=NULL;
+    int fields;
 
-#ifdef ENABLE_IPV6
-  conn->bits.ipv6 = (addr.family == AF_INET6)?TRUE:FALSE;
-#endif
-
-  if(-1 == rc) {
-    switch(error) {
-    case EINPROGRESS:
-    case EWOULDBLOCK:
-#if defined(EAGAIN)
-#if (EAGAIN) != (EWOULDBLOCK)
-      /* On some platforms EAGAIN and EWOULDBLOCK are the
-       * same value, and on others they are different, hence
-       * the odd #if
-       */
-    case EAGAIN:
-#endif
-#endif
-      res = CURLE_OK;
-      break;
-
-    default:
-      /* unknown error, fallthrough and try another address! */
-      infof(data, "Immediate connect fail for %s: %s\n",
-            ipaddress, Curl_strerror(conn,error));
-      data->state.os_errno = error;
-
-      /* connect failed */
-      Curl_closesocket(conn, sockfd);
-      res = CURLE_COULDNT_CONNECT;
+    /* IE introduced HTTP-only cookies to prevent XSS attacks. Cookies
+       marked with httpOnly after the domain name are not accessible
+       from javascripts, but since curl does not operate at javascript
+       level, we include them anyway. In Firefox's cookie files, these
+       lines are preceded with #HttpOnly_ and then everything is
+       as usual, so we skip 10 characters of the line..
+    */
+    if(strncmp(lineptr, "#HttpOnly_", 10) == 0) {
+      lineptr += 10;
+      co->httponly = TRUE;
     }
-  }
 
-  if(!res)
-    *sockp = sockfd;
+    if(lineptr[0]=='#') {
+      /* don't even try the comments */
+      free(co);
+      return NULL;
+    }
+    /* strip off the possible end-of-line characters */
+    ptr=strchr(lineptr, '\r');
+    if(ptr)
+      *ptr=0; /* clear it */
+    ptr=strchr(lineptr, '\n');
+    if(ptr)
+      *ptr=0; /* clear it */
 
-  return res;
-}
+    firstptr=strtok_r(lineptr, "\t", &tok_buf); /* tokenize it on the TAB */
 
-/*
- * TCP connect to the given host with timeout, proxy or remote doesn't matter.
- * There might be more than one IP address to try out. Fill in the passed
- * pointer with the connected socket.
- */
-
-CURLcode Curl_connecthost(struct connectdata *conn,  /* context */
-                          const struct Curl_dns_entry *remotehost)
-{
-  struct SessionHandle *data = conn->data;
-  struct timeval before = Curl_tvnow();
-  CURLcode res = CURLE_COULDNT_CONNECT;
-
-  long timeout_ms = Curl_timeleft(data, &before, TRUE);
-
-  if(timeout_ms < 0) {
-    /* a precaution, no need to continue if time already is up */
-    failf(data, "Connection time-out");
-    return CURLE_OPERATION_TIMEDOUT;
-  }
-
-  conn->num_addr = Curl_num_addresses(remotehost->addr);
-  conn->tempaddr[0] = remotehost->addr;
-  conn->tempaddr[1] = NULL;
-  conn->tempsock[0] = CURL_SOCKET_BAD;
-  conn->tempsock[1] = CURL_SOCKET_BAD;
-  Curl_expire(conn->data, HAPPY_EYEBALLS_TIMEOUT);
-
-  /* Max time for the next connection attempt */
-  conn->timeoutms_per_addr =
-    conn->tempaddr[0]->ai_next == NULL ? timeout_ms : timeout_ms / 2;
-
-  /* start connecting to first IP */
-  while(conn->tempaddr[0]) {
-    res = singleipconnect(conn, conn->tempaddr[0], &(conn->tempsock[0]));
-    if(res == CURLE_OK)
+    /* Now loop through the fields and init the struct we already have
+       allocated */
+    for(ptr=firstptr, fields=0; ptr && !badcookie;
+        ptr=strtok_r(NULL, "\t", &tok_buf), fields++) {
+      switch(fields) {
+      case 0:
+        if(ptr[0]=='.') /* skip preceding dots */
+          ptr++;
+        co->domain = strdup(ptr);
+        if(!co->domain)
+          badcookie = TRUE;
         break;
-    conn->tempaddr[0] = conn->tempaddr[0]->ai_next;
-  }
+      case 1:
+        /* This field got its explanation on the 23rd of May 2001 by
+           Andrés García:
 
-  if(conn->tempsock[0] == CURL_SOCKET_BAD)
-    return res;
+           flag: A TRUE/FALSE value indicating if all machines within a given
+           domain can access the variable. This value is set automatically by
+           the browser, depending on the value you set for the domain.
 
-  data->info.numconnects++; /* to track the number of connections made */
-
-  return CURLE_OK;
-}
-
-struct connfind {
-  struct connectdata *tofind;
-  bool found;
-};
-
-static int conn_is_conn(struct connectdata *conn, void *param)
-{
-  struct connfind *f = (struct connfind *)param;
-  if(conn == f->tofind) {
-    f->found = TRUE;
-    return 1;
-  }
-  return 0;
-}
-
-/*
- * Used to extract socket and connectdata struct for the most recent
- * transfer on the given SessionHandle.
- *
- * The returned socket will be CURL_SOCKET_BAD in case of failure!
- */
-curl_socket_t Curl_getconnectinfo(struct SessionHandle *data,
-                                  struct connectdata **connp)
-{
-  curl_socket_t sockfd;
-
-  DEBUGASSERT(data);
-
-  /* this only works for an easy handle that has been used for
-     curl_easy_perform()! */
-  if(data->state.lastconnect && data->multi_easy) {
-    struct connectdata *c = data->state.lastconnect;
-    struct connfind find;
-    find.tofind = data->state.lastconnect;
-    find.found = FALSE;
-
-    Curl_conncache_foreach(data->multi_easy->conn_cache, &find, conn_is_conn);
-
-    if(!find.found) {
-      data->state.lastconnect = NULL;
-      return CURL_SOCKET_BAD;
-    }
-
-    if(connp)
-      /* only store this if the caller cares for it */
-      *connp = c;
-    sockfd = c->sock[FIRSTSOCKET];
-    /* we have a socket connected, let's determine if the server shut down */
-    /* determine if ssl */
-    if(c->ssl[FIRSTSOCKET].use) {
-      /* use the SSL context */
-      if(!Curl_ssl_check_cxn(c))
-        return CURL_SOCKET_BAD;   /* FIN received */
-    }
-/* Minix 3.1 doesn't support any flags on recv; just assume socket is OK */
-#ifdef MSG_PEEK
-    else {
-      /* use the socket */
-      char buf;
-      if(recv((RECV_TYPE_ARG1)c->sock[FIRSTSOCKET], (RECV_TYPE_ARG2)&buf,
-              (RECV_TYPE_ARG3)1, (RECV_TYPE_ARG4)MSG_PEEK) == 0) {
-        return CURL_SOCKET_BAD;   /* FIN received */
+           As far as I can see, it is set to true when the cookie says
+           .domain.com and to false when the domain is complete www.domain.com
+        */
+        co->tailmatch = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
+        break;
+      case 2:
+        /* It turns out, that sometimes the file format allows the path
+           field to remain not filled in, we try to detect this and work
+           around it! Andrés García made us aware of this... */
+        if(strcmp("TRUE", ptr) && strcmp("FALSE", ptr)) {
+          /* only if the path doesn't look like a boolean option! */
+          co->path = strdup(ptr);
+          if(!co->path)
+            badcookie = TRUE;
+          else {
+            co->spath = sanitize_cookie_path(co->path);
+            if(!co->spath) {
+              badcookie = TRUE; /* out of memory bad */
+            }
+          }
+          break;
+        }
+        /* this doesn't look like a path, make one up! */
+        co->path = strdup("/");
+        if(!co->path)
+          badcookie = TRUE;
+        co->spath = strdup("/");
+        if(!co->spath)
+          badcookie = TRUE;
+        fields++; /* add a field and fall down to secure */
+        /* FALLTHROUGH */
+      case 3:
+        co->secure = Curl_raw_equal(ptr, "TRUE")?TRUE:FALSE;
+        break;
+      case 4:
+        co->expires = curlx_strtoofft(ptr, NULL, 10);
+        break;
+      case 5:
+        co->name = strdup(ptr);
+        if(!co->name)
+          badcookie = TRUE;
+        break;
+      case 6:
+        co->value = strdup(ptr);
+        if(!co->value)
+          badcookie = TRUE;
+        break;
       }
     }
-#endif
+    if(6 == fields) {
+      /* we got a cookie with blank contents, fix it */
+      co->value = strdup("");
+      if(!co->value)
+        badcookie = TRUE;
+      else
+        fields++;
+    }
+
+    if(!badcookie && (7 != fields))
+      /* we did not find the sufficient number of fields */
+      badcookie = TRUE;
+
+    if(badcookie) {
+      freecookie(co);
+      return NULL;
+    }
+
+  }
+
+  if(!c->running &&    /* read from a file */
+     c->newsession &&  /* clean session cookies */
+     !co->expires) {   /* this is a session cookie since it doesn't expire! */
+    freecookie(co);
+    return NULL;
+  }
+
+  co->livecookie = c->running;
+
+  /* now, we have parsed the incoming line, we must now check if this
+     superceeds an already existing cookie, which it may if the previous have
+     the same domain and path as this */
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+  clist = c->cookies;
+  replace_old = FALSE;
+  while(clist) {
+    if(Curl_raw_equal(clist->name, co->name)) {
+      /* the names are identical */
+
+      if(clist->domain && co->domain) {
+        if(Curl_raw_equal(clist->domain, co->domain))
+          /* The domains are identical */
+          replace_old=TRUE;
+      }
+      else if(!clist->domain && !co->domain)
+        replace_old = TRUE;
+
+      if(replace_old) {
+        /* the domains were identical */
+
+        if(clist->spath && co->spath) {
+          if(Curl_raw_equal(clist->spath, co->spath)) {
+            replace_old = TRUE;
+          }
+          else
+            replace_old = FALSE;
+        }
+        else if(!clist->spath && !co->spath)
+          replace_old = TRUE;
+        else
+          replace_old = FALSE;
+
+      }
+
+      if(replace_old && !co->livecookie && clist->livecookie) {
+        /* Both cookies matched fine, except that the already present
+           cookie is "live", which means it was set from a header, while
+           the new one isn't "live" and thus only read from a file. We let
+           live cookies stay alive */
+
+        /* Free the newcomer and get out of here! */
+        freecookie(co);
+        return NULL;
+      }
+
+      if(replace_old) {
+        co->next = clist->next; /* get the next-pointer first */
+
+        /* then free all the old pointers */
+        free(clist->name);
+        if(clist->value)
+          free(clist->value);
+        if(clist->domain)
+          free(clist->domain);
+        if(clist->path)
+          free(clist->path);
+        if(clist->spath)
+          free(clist->spath);
+        if(clist->expirestr)
+          free(clist->expirestr);
+
+        if(clist->version)
+          free(clist->version);
+        if(clist->maxage)
+          free(clist->maxage);
+
+        *clist = *co;  /* then store all the new data */
+
+        free(co);   /* free the newly alloced memory */
+        co = clist; /* point to the previous struct instead */
+
+        /* We have replaced a cookie, now skip the rest of the list but
+           make sure the 'lastc' pointer is properly set */
+        do {
+          lastc = clist;
+          clist = clist->next;
+        } while(clist);
+        break;
+      }
+    }
+    lastc = clist;
+    clist = clist->next;
+  }
+
+  if(c->running)
+    /* Only show this when NOT reading the cookies from a file */
+    infof(data, "%s cookie %s=\"%s\" for domain %s, path %s, "
+          "expire %" CURL_FORMAT_CURL_OFF_T "\n",
+          replace_old?"Replaced":"Added", co->name, co->value,
+          co->domain, co->path, co->expires);
+
+  if(!replace_old) {
+    /* then make the last item point on this new one */
+    if(lastc)
+      lastc->next = co;
+    else
+      c->cookies = co;
+    c->numcookies++; /* one more cookie in the jar */
+  }
+
+  return co;
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_init()
+ *
+ * Inits a cookie struct to read data from a local file. This is always
+ * called before any cookies are set. File may be NULL.
+ *
+ * If 'newsession' is TRUE, discard all "session cookies" on read from file.
+ *
+ ****************************************************************************/
+struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
+                                    const char *file,
+                                    struct CookieInfo *inc,
+                                    bool newsession)
+{
+  struct CookieInfo *c;
+  FILE *fp;
+  bool fromfile=TRUE;
+
+  if(NULL == inc) {
+    /* we didn't get a struct, create one */
+    c = calloc(1, sizeof(struct CookieInfo));
+    if(!c)
+      return NULL; /* failed to get memory */
+    c->filename = strdup(file?file:"none"); /* copy the name just in case */
+  }
+  else {
+    /* we got an already existing one, use that */
+    c = inc;
+  }
+  c->running = FALSE; /* this is not running, this is init */
+
+  if(file && strequal(file, "-")) {
+    fp = stdin;
+    fromfile=FALSE;
+  }
+  else if(file && !*file) {
+    /* points to a "" string */
+    fp = NULL;
   }
   else
-    return CURL_SOCKET_BAD;
+    fp = file?fopen(file, "r"):NULL;
 
-  return sockfd;
+  c->newsession = newsession; /* new session? */
+
+  if(fp) {
+    char *lineptr;
+    bool headerline;
+
+    char *line = malloc(MAX_COOKIE_LINE);
+    if(line) {
+      while(fgets(line, MAX_COOKIE_LINE, fp)) {
+        if(checkprefix("Set-Cookie:", line)) {
+          /* This is a cookie line, get it! */
+          lineptr=&line[11];
+          headerline=TRUE;
+        }
+        else {
+          lineptr=line;
+          headerline=FALSE;
+        }
+        while(*lineptr && ISBLANK(*lineptr))
+          lineptr++;
+
+        Curl_cookie_add(data, c, headerline, lineptr, NULL, NULL);
+      }
+      free(line); /* free the line buffer */
+    }
+    if(fromfile)
+      fclose(fp);
+  }
+
+  c->running = TRUE;          /* now, we're running */
+
+  return c;
+}
+
+/* sort this so that the longest path gets before the shorter path */
+static int cookie_sort(const void *p1, const void *p2)
+{
+  struct Cookie *c1 = *(struct Cookie **)p1;
+  struct Cookie *c2 = *(struct Cookie **)p2;
+  size_t l1, l2;
+
+  /* 1 - compare cookie path lengths */
+  l1 = c1->path ? strlen(c1->path) : 0;
+  l2 = c2->path ? strlen(c2->path) : 0;
+
+  if(l1 != l2)
+    return (l2 > l1) ? 1 : -1 ; /* avoid size_t <=> int conversions */
+
+  /* 2 - compare cookie domain lengths */
+  l1 = c1->domain ? strlen(c1->domain) : 0;
+  l2 = c2->domain ? strlen(c2->domain) : 0;
+
+  if(l1 != l2)
+    return (l2 > l1) ? 1 : -1 ;  /* avoid size_t <=> int conversions */
+
+  /* 3 - compare cookie names */
+  if(c1->name && c2->name)
+    return strcmp(c1->name, c2->name);
+
+  /* sorry, can't be more deterministic */
+  return 0;
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_getlist()
+ *
+ * For a given host and path, return a linked list of cookies that the
+ * client should send to the server if used now. The secure boolean informs
+ * the cookie if a secure connection is achieved or not.
+ *
+ * It shall only return cookies that haven't expired.
+ *
+ ****************************************************************************/
+
+struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
+                                   const char *host, const char *path,
+                                   bool secure)
+{
+  struct Cookie *newco;
+  struct Cookie *co;
+  time_t now = time(NULL);
+  struct Cookie *mainco=NULL;
+  size_t matches = 0;
+  bool is_ip;
+
+  if(!c || !c->cookies)
+    return NULL; /* no cookie struct or no cookies in the struct */
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+  /* check if host is an IP(v4|v6) address */
+  is_ip = isip(host);
+
+  co = c->cookies;
+
+  while(co) {
+    /* only process this cookie if it is not expired or had no expire
+       date AND that if the cookie requires we're secure we must only
+       continue if we are! */
+    if((!co->expires || (co->expires > now)) &&
+       (co->secure?secure:TRUE)) {
+
+      /* now check if the domain is correct */
+      if(!co->domain ||
+         (co->tailmatch && !is_ip && tailmatch(co->domain, host)) ||
+         ((!co->tailmatch || is_ip) && Curl_raw_equal(host, co->domain)) ) {
+        /* the right part of the host matches the domain stuff in the
+           cookie data */
+
+        /* now check the left part of the path with the cookies path
+           requirement */
+        if(!co->spath || pathmatch(co->spath, path) ) {
+
+          /* and now, we know this is a match and we should create an
+             entry for the return-linked-list */
+
+          newco = malloc(sizeof(struct Cookie));
+          if(newco) {
+            /* first, copy the whole source cookie: */
+            memcpy(newco, co, sizeof(struct Cookie));
+
+            /* then modify our next */
+            newco->next = mainco;
+
+            /* point the main to us */
+            mainco = newco;
+
+            matches++;
+          }
+          else {
+            fail:
+            /* failure, clear up the allocated chain and return NULL */
+            while(mainco) {
+              co = mainco->next;
+              free(mainco);
+              mainco = co;
+            }
+
+            return NULL;
+          }
+        }
+      }
+    }
+    co = co->next;
+  }
+
+  if(matches) {
+    /* Now we need to make sure that if there is a name appearing more than
+       once, the longest specified path version comes first. To make this
+       the swiftest way, we just sort them all based on path length. */
+    struct Cookie **array;
+    size_t i;
+
+    /* alloc an array and store all cookie pointers */
+    array = malloc(sizeof(struct Cookie *) * matches);
+    if(!array)
+      goto fail;
+
+    co = mainco;
+
+    for(i=0; co; co = co->next)
+      array[i++] = co;
+
+    /* now sort the cookie pointers in path length order */
+    qsort(array, matches, sizeof(struct Cookie *), cookie_sort);
+
+    /* remake the linked list order according to the new order */
+
+    mainco = array[0]; /* start here */
+    for(i=0; i<matches-1; i++)
+      array[i]->next = array[i+1];
+    array[matches-1]->next = NULL; /* terminate the list */
+
+    free(array); /* remove the temporary data again */
+  }
+
+  return mainco; /* return the new list */
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_clearall()
+ *
+ * Clear all existing cookies and reset the counter.
+ *
+ ****************************************************************************/
+void Curl_cookie_clearall(struct CookieInfo *cookies)
+{
+  if(cookies) {
+    Curl_cookie_freelist(cookies->cookies, TRUE);
+    cookies->cookies = NULL;
+    cookies->numcookies = 0;
+  }
+}
+
+/*****************************************************************************
+ *
+ * Curl_cookie_freelist()
+ *
+ * Free a list of cookies previously returned by Curl_cookie_getlist();
+ *
+ * The 'cookiestoo' argument tells this function whether to just free the
+ * list or actually also free all cookies within the list as well.
+ *
+ ****************************************************************************/
+
+void Curl_cookie_freelist(struct Cookie *co, bool cookiestoo)
+{
+  struct Cookie *next;
+  if(co) {
+    while(co) {
+      next = co->next;
+      if(cookiestoo)
+        freecookie(co);
+      else
+        free(co); /* we only free the struct since the "members" are all just
+                     pointed out in the main cookie list! */
+      co = next;
+    }
+  }
+}
+
+
+/*****************************************************************************
+ *
+ * Curl_cookie_clearsess()
+ *
+ * Free all session cookies in the cookies list.
+ *
+ ****************************************************************************/
+void Curl_cookie_clearsess(struct CookieInfo *cookies)
+{
+  struct Cookie *first, *curr, *next, *prev = NULL;
+
+  if(!cookies || !cookies->cookies)
+    return;
+
+  first = curr = prev = cookies->cookies;
+
+  for(; curr; curr = next) {
+    next = curr->next;
+    if(!curr->expires) {
+      if(first == curr)
+        first = next;
+
+      if(prev == curr)
+        prev = next;
+      else
+        prev->next = next;
+
+      freecookie(curr);
+      cookies->numcookies--;
+    }
+    else
+      prev = curr;
+  }
+
+  cookies->cookies = first;
+}
+
+
+/*****************************************************************************
+ *
+ * Curl_cookie_cleanup()
+ *
+ * Free a "cookie object" previous created with cookie_init().
+ *
+ ****************************************************************************/
+void Curl_cookie_cleanup(struct CookieInfo *c)
+{
+  struct Cookie *co;
+  struct Cookie *next;
+  if(c) {
+    if(c->filename)
+      free(c->filename);
+    co = c->cookies;
+
+    while(co) {
+      next = co->next;
+      freecookie(co);
+      co = next;
+    }
+    free(c); /* free the base struct as well */
+  }
+}
+
+/* get_netscape_format()
+ *
+ * Formats a string for Netscape output file, w/o a newline at the end.
+ *
+ * Function returns a char * to a formatted line. Has to be free()d
+*/
+static char *get_netscape_format(const struct Cookie *co)
+{
+  return aprintf(
+    "%s"     /* httponly preamble */
+    "%s%s\t" /* domain */
+    "%s\t"   /* tailmatch */
+    "%s\t"   /* path */
+    "%s\t"   /* secure */
+    "%" CURL_FORMAT_CURL_OFF_T "\t"   /* expires */
+    "%s\t"   /* name */
+    "%s",    /* value */
+    co->httponly?"#HttpOnly_":"",
+    /* Make sure all domains are prefixed with a dot if they allow
+       tailmatching. This is Mozilla-style. */
+    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+    co->domain?co->domain:"unknown",
+    co->tailmatch?"TRUE":"FALSE",
+    co->path?co->path:"/",
+    co->secure?"TRUE":"FALSE",
+    co->expires,
+    co->name,
+    co->value?co->value:"");
 }
 
 /*
- * Close a socket.
+ * cookie_output()
  *
- * 'conn' can be NULL, beware!
+ * Writes all internally known cookies to the specified file. Specify
+ * "-" as file name to write to stdout.
+ *
+ * The function returns non-zero on write failure.
  */
-int Curl_closesocket(struct connectdata *conn,
-                      curl_socket_t sock)
+static int cookie_output(struct CookieInfo *c, const char *dumphere)
 {
-  if(conn && conn->fclosesocket) {
-    if((sock == conn->sock[SECONDARYSOCKET]) &&
-       conn->sock_accepted[SECONDARYSOCKET])
-      /* if this socket matches the second socket, and that was created with
-         accept, then we MUST NOT call the callback but clear the accepted
-         status */
-      conn->sock_accepted[SECONDARYSOCKET] = FALSE;
-    else
-      return conn->fclosesocket(conn->closesocket_client, sock);
-  }
-  sclose(sock);
+  struct Cookie *co;
+  FILE *out;
+  bool use_stdout=FALSE;
 
-  if(conn)
-    /* tell the multi-socket code about this */
-    Curl_multi_closed(conn, sock);
+  if((NULL == c) || (0 == c->numcookies))
+    /* If there are no known cookies, we don't write or even create any
+       destination file */
+    return 0;
+
+  /* at first, remove expired cookies */
+  remove_expired(c);
+
+  if(strequal("-", dumphere)) {
+    /* use stdout */
+    out = stdout;
+    use_stdout=TRUE;
+  }
+  else {
+    out = fopen(dumphere, "w");
+    if(!out)
+      return 1; /* failure */
+  }
+
+  if(c) {
+    char *format_ptr;
+
+    fputs("# Netscape HTTP Cookie File\n"
+          "# http://curl.haxx.se/docs/http-cookies.html\n"
+          "# This file was generated by libcurl! Edit at your own risk.\n\n",
+          out);
+    co = c->cookies;
+
+    while(co) {
+      format_ptr = get_netscape_format(co);
+      if(format_ptr == NULL) {
+        fprintf(out, "#\n# Fatal libcurl error\n");
+        if(!use_stdout)
+          fclose(out);
+        return 1;
+      }
+      fprintf(out, "%s\n", format_ptr);
+      free(format_ptr);
+      co=co->next;
+    }
+  }
+
+  if(!use_stdout)
+    fclose(out);
 
   return 0;
 }
 
-/*
- * Create a socket based on info from 'conn' and 'ai'.
- *
- * 'addr' should be a pointer to the correct struct to get data back, or NULL.
- * 'sockfd' must be a pointer to a socket descriptor.
- *
- * If the open socket callback is set, used that!
- *
- */
-CURLcode Curl_socket(struct connectdata *conn,
-                     const Curl_addrinfo *ai,
-                     struct Curl_sockaddr_ex *addr,
-                     curl_socket_t *sockfd)
+struct curl_slist *Curl_cookie_list(struct SessionHandle *data)
 {
-  struct SessionHandle *data = conn->data;
-  struct Curl_sockaddr_ex dummy;
+  struct curl_slist *list = NULL;
+  struct curl_slist *beg;
+  struct Cookie *c;
+  char *line;
 
-  if(!addr)
-    /* if the caller doesn't want info back, use a local temp copy */
-    addr = &dummy;
+  if((data->cookies == NULL) ||
+      (data->cookies->numcookies == 0))
+    return NULL;
 
-  /*
-   * The Curl_sockaddr_ex structure is basically libcurl's external API
-   * curl_sockaddr structure with enough space available to directly hold
-   * any protocol-specific address structures. The variable declared here
-   * will be used to pass / receive data to/from the fopensocket callback
-   * if this has been set, before that, it is initialized from parameters.
-   */
+  c = data->cookies->cookies;
 
-  addr->family = ai->ai_family;
-  addr->socktype = conn->socktype;
-  addr->protocol = conn->socktype==SOCK_DGRAM?IPPROTO_UDP:ai->ai_protocol;
-  addr->addrlen = ai->ai_addrlen;
-
-  if(addr->addrlen > sizeof(struct Curl_sockaddr_storage))
-     addr->addrlen = sizeof(struct Curl_sockaddr_storage);
-  memcpy(&addr->sa_addr, ai->ai_addr, addr->addrlen);
-
-  if(data->set.fopensocket)
-   /*
-    * If the opensocket callback is set, all the destination address
-    * information is passed to the callback. Depending on this information the
-    * callback may opt to abort the connection, this is indicated returning
-    * CURL_SOCKET_BAD; otherwise it will return a not-connected socket. When
-    * the callback returns a valid socket the destination address information
-    * might have been changed and this 'new' address will actually be used
-    * here to connect.
-    */
-    *sockfd = data->set.fopensocket(data->set.opensocket_client,
-                                    CURLSOCKTYPE_IPCXN,
-                                    (struct curl_sockaddr *)addr);
-  else
-    /* opensocket callback not set, so simply create the socket now */
-    *sockfd = socket(addr->family, addr->socktype, addr->protocol);
-
-  if(*sockfd == CURL_SOCKET_BAD)
-    /* no socket, no connection */
-    return CURLE_COULDNT_CONNECT;
-
-#if defined(ENABLE_IPV6) && defined(HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID)
-  if(conn->scope && (addr->family == AF_INET6)) {
-    struct sockaddr_in6 * const sa6 = (void *)&addr->sa_addr;
-    sa6->sin6_scope_id = conn->scope;
+  while(c) {
+    /* fill the list with _all_ the cookies we know */
+    line = get_netscape_format(c);
+    if(!line) {
+      curl_slist_free_all(list);
+      return NULL;
+    }
+    beg = Curl_slist_append_nodup(list, line);
+    if(!beg) {
+      free(line);
+      curl_slist_free_all(list);
+      return NULL;
+    }
+    list = beg;
+    c = c->next;
   }
-#endif
 
-  return CURLE_OK;
-
+  return list;
 }
 
-#ifdef CURLDEBUG
-/*
- * Curl_conncontrol() is used to set the conn->bits.close bit on or off. It
- * MUST be called with the connclose() or connclose() macros with a stated
- * reason. The reason is only shown in debug builds but helps to figure out
- * decision paths when connections are or aren't re-used as expected.
- */
-void Curl_conncontrol(struct connectdata *conn, bool closeit,
-                      const char *reason)
+void Curl_flush_cookies(struct SessionHandle *data, int cleanup)
 {
-  infof(conn->data, "Marked for [%s]: %s\n", closeit?"closure":"keep alive",
-        reason);
-  conn->bits.close = closeit; /* the only place in the source code that should
-                                 assign this bit */
+  if(data->set.str[STRING_COOKIEJAR]) {
+    if(data->change.cookielist) {
+      /* If there is a list of cookie files to read, do it first so that
+         we have all the told files read before we write the new jar.
+         Curl_cookie_loadfiles() LOCKS and UNLOCKS the share itself! */
+      Curl_cookie_loadfiles(data);
+    }
+
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+
+    /* if we have a destination file for all the cookies to get dumped to */
+    if(cookie_output(data->cookies, data->set.str[STRING_COOKIEJAR]))
+      infof(data, "WARNING: failed to save cookies in %s\n",
+            data->set.str[STRING_COOKIEJAR]);
+  }
+  else {
+    if(cleanup && data->change.cookielist) {
+      /* since nothing is written, we can just free the list of cookie file
+         names */
+      curl_slist_free_all(data->change.cookielist); /* clean up list */
+      data->change.cookielist = NULL;
+    }
+    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+  }
+
+  if(cleanup && (!data->share || (data->cookies != data->share->cookies))) {
+    Curl_cookie_cleanup(data->cookies);
+  }
+  Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
 }
-#endif
+
+#endif /* CURL_DISABLE_HTTP || CURL_DISABLE_COOKIES */

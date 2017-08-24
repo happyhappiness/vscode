@@ -1,0 +1,2 @@
+(eventFlags[i] & kFSEventsSystem)
+        continue;

@@ -1,7 +1,8 @@
-#endif
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before crash on stdout from crash test.\n");
-  fprintf(stderr, "Output before crash on stderr from crash test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  assert(invalidAddress); /* Quiet Clang scan-build. */
+			en = create_filesystem_object(a);
+		} else if (!S_ISDIR(a->mode)) {
+			/* A dir is in the way of a non-dir, rmdir it. */
+			if (a->flags & ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS)
+				(void)clear_nochange_fflags(a);
+			if (rmdir(a->name) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't replace existing directory with non-directory");

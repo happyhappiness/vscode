@@ -1,0 +1,1 @@
+uv__stream_io(stream->loop, &stream->io_watcher, POLLIN)

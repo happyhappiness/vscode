@@ -1,0 +1,1 @@
+facl_get(*fd, 0, &acl)

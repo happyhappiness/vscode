@@ -1,0 +1,1 @@
+smbc->send_size = 0

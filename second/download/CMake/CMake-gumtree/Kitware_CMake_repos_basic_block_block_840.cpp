@@ -1,0 +1,4 @@
+{
+        --windows_backslashes;
+        *out++ = '\\';
+      }

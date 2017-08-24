@@ -1,0 +1,1 @@
+slash = strchr(req->share, '\\')

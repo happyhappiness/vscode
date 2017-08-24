@@ -1,0 +1,4 @@
+{
+    FREE(parser);
+    return NULL;
+  }

@@ -1,7 +1,8 @@
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
+{
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Open file: "
+    << covLogFilename << std::endl);
+  if(!this->StartResultingXML(cmCTest::PartCoverage,
+                              covLogFilename, covLogFile))
+    {

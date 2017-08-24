@@ -1,24 +1,16 @@
-  intptr_t srchHandle;
-#endif
-  char* buf;
-  size_t n = name.size();
-  if ( *name.rbegin() == '/' || *name.rbegin() == '\\' )
-    {
-    buf = new char[n + 1 + 1];
-    sprintf(buf, "%s*", name.c_str());
-    }
-  else
-    {
-    // Make sure the slashes in the wildcard suffix are consistent with the
-    // rest of the path
-    buf = new char[n + 2 + 1];
-    if ( name.find('\\') != name.npos )
-      {
-      sprintf(buf, "%s\\*", name.c_str());
-      }
-    else
-      {
-      sprintf(buf, "%s/*", name.c_str());
-      }
-    }
-  struct _wfinddata_t data;      // data of current file
+
+  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+
+  result = Curl_base64_encode(data,
+                              data->state.buffer, strlen(data->state.buffer),
+                              &authorization, &size);
+  if(result)
+    return result;
+
+  if(!authorization)
+    return CURLE_REMOTE_ACCESS_DENIED;
+
+  free(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy?"Proxy-":"",
+                   authorization);

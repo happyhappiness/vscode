@@ -1,0 +1,1 @@
+loop->stop_flag = 0

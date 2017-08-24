@@ -1,0 +1,1 @@
+lzma_next_end(next, allocator)

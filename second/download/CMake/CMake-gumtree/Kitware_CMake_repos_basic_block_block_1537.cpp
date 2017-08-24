@@ -1,0 +1,1 @@
+this->regstart = *OPERAND(scan)

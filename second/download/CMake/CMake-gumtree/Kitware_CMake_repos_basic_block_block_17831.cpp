@@ -1,0 +1,1 @@
+(p==NULL) { len=0; bEnd=p=(const BYTE*)(size_t)16; }

@@ -1,0 +1,4 @@
+{
+          have[i] = true;
+          ++count;
+        }

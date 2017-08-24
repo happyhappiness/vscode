@@ -1,0 +1,1 @@
+add_converter(sc, win_strncat_to_utf16be)

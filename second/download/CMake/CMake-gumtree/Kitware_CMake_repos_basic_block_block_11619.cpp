@@ -1,0 +1,1 @@
+vd = &(iso9660->joliet)

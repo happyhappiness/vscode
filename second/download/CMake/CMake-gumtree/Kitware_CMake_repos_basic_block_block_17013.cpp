@@ -1,0 +1,1 @@
+sparse_count = archive_entry_sparse_reset(entry_main)

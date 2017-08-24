@@ -1,15 +1,28 @@
+
+static void yy_fatal_error (yyconst char* msg , yyscan_t yyscanner)
 {
-	unsigned offset = 0;
+	struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
+	(void)yyg;
+	(void) fprintf( stderr, "%s\n", msg );
+	exit( YY_EXIT_FAILURE );
+}
 
-	while (offset < extra_length - 4) {
-		unsigned short headerid = archive_le16dec(p + offset);
-		unsigned short datasize = archive_le16dec(p + offset + 2);
+/* Redefine yyless() so it works in section 3 code. */
 
-		offset += 4;
-		if (offset + datasize > extra_length)
-			break;
-#ifdef DEBUG
-		fprintf(stderr, "Header id 0x%04x, length %d\n",
-		    headerid, datasize);
-#endif
-		switch (headerid) {
+#undef yyless
+#define yyless(n) \
+	do \
+		{ \
+		/* Undo effects of setting up yytext. */ \
+        int yyless_macro_arg = (n); \
+        YY_LESS_LINENO(yyless_macro_arg);\
+		yytext[yyleng] = yyg->yy_hold_char; \
+		yyg->yy_c_buf_p = yytext + yyless_macro_arg; \
+		yyg->yy_hold_char = *yyg->yy_c_buf_p; \
+		*yyg->yy_c_buf_p = '\0'; \
+		yyleng = yyless_macro_arg; \
+		} \
+	while ( 0 )
+
+/* Accessor  methods (get/set functions) to struct members. */
+

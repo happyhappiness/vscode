@@ -1,0 +1,1 @@
+zip_entry->decdat = p[19]

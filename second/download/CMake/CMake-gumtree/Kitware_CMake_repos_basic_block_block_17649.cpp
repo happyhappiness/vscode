@@ -1,0 +1,1 @@
+archive_le16enc(zip->file_header + 10, WINZIP_AES_ENCRYPTION)

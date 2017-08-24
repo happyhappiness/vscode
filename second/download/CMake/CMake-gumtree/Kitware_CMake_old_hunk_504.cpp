@@ -1,12 +1,11 @@
-    if(res)
-      return res;
+		 */
+		if (ar->strtab == NULL || number > ar->strtab_size) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Can't find long filename for entry");
+			archive_entry_copy_pathname(entry, filename);
+			/* Parse the time, owner, mode, size fields. */
+			ar_parse_common_header(ar, entry, h);
+			return (ARCHIVE_WARN);
+		}
 
-    Curl_safefree(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
-    DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
-    Curl_safefree(conn->response_header);
-    conn->response_header = NULL;
-    break;
-  case NTLMSTATE_TYPE2:
+		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);

@@ -1,0 +1,1 @@
+gss_release_buffer(&unused_status, &output_token)

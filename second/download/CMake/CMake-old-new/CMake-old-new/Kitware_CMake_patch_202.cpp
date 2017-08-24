@@ -1,176 +1,243 @@
-@@ -47,7 +47,7 @@ __FBSDID("$FreeBSD$");
+@@ -5,11 +5,11 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+- * are also available at http://curl.haxx.se/docs/copyright.html.
++ * are also available at https://curl.haxx.se/docs/copyright.html.
+  *
+  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+  * copies of the Software, and permit persons to whom the Software is
+@@ -57,10 +57,10 @@
+ #include "url.h"
+ #include "rawstr.h"
+ #include "speedcheck.h"
+-#include "curl_printf.h"
+ #include "select.h"
+ 
+-/* The last #include files should be: */
++/* The last 3 #include files should be in this order */
++#include "curl_printf.h"
+ #include "curl_memory.h"
+ #include "memdebug.h"
+ 
+@@ -312,14 +312,14 @@ static const char *tftp_option_get(const char *buf, size_t len,
+ {
+   size_t loc;
+ 
+-  loc = Curl_strnlen( buf, len );
++  loc = Curl_strnlen(buf, len);
+   loc++; /* NULL term */
+ 
+   if(loc >= len)
+     return NULL;
+   *option = buf;
+ 
+-  loc += Curl_strnlen( buf+loc, len-loc );
++  loc += Curl_strnlen(buf+loc, len-loc);
+   loc++; /* NULL term */
+ 
+   if(loc > len)
+@@ -333,7 +333,7 @@ static CURLcode tftp_parse_option_ack(tftp_state_data_t *state,
+                                       const char *ptr, int len)
+ {
+   const char *tmp = ptr;
+-  struct SessionHandle *data = state->conn->data;
++  struct Curl_easy *data = state->conn->data;
+ 
+   /* if OACK doesn't contain blksize option, the default (512) must be used */
+   state->blksize = TFTP_BLKSIZE_DEFAULT;
+@@ -352,7 +352,7 @@ static CURLcode tftp_parse_option_ack(tftp_state_data_t *state,
+     if(checkprefix(option, TFTP_OPTION_BLKSIZE)) {
+       long blksize;
+ 
+-      blksize = strtol( value, NULL, 10 );
++      blksize = strtol(value, NULL, 10);
+ 
+       if(!blksize) {
+         failf(data, "invalid blocksize value in OACK packet");
+@@ -384,7 +384,7 @@ static CURLcode tftp_parse_option_ack(tftp_state_data_t *state,
+     else if(checkprefix(option, TFTP_OPTION_TSIZE)) {
+       long tsize = 0;
+ 
+-      tsize = strtol( value, NULL, 10 );
++      tsize = strtol(value, NULL, 10);
+       infof(data, "%s (%ld)\n", "tsize parsed from OACK", tsize);
+ 
+       /* tsize should be ignored on upload: Who cares about the size of the
+@@ -405,7 +405,7 @@ static CURLcode tftp_parse_option_ack(tftp_state_data_t *state,
+ static size_t tftp_option_add(tftp_state_data_t *state, size_t csize,
+                               char *buf, const char *option)
+ {
+-  if(( strlen(option) + csize + 1 ) > (size_t)state->blksize)
++  if(( strlen(option) + csize + 1) > (size_t)state->blksize)
+     return 0;
+   strcpy(buf, option);
+   return strlen(option) + 1;
+@@ -416,7 +416,7 @@ static CURLcode tftp_connect_for_tx(tftp_state_data_t *state,
+ {
+   CURLcode result;
+ #ifndef CURL_DISABLE_VERBOSE_STRINGS
+-  struct SessionHandle *data = state->conn->data;
++  struct Curl_easy *data = state->conn->data;
+ 
+   infof(data, "%s\n", "Connected for transmit");
  #endif
- 
- #include "archive.h"
--#include "archive_crypto_private.h"
-+#include "archive_digest_private.h"
- #include "archive_endian.h"
- #include "archive_entry.h"
- #include "archive_entry_locale.h"
-@@ -114,7 +114,7 @@ enum sumalg {
- #define MAX_SUM_SIZE	20
- #define MD5_NAME	"md5"
- #define SHA1_NAME	"sha1"
-- 
-+
- enum enctype {
- 	NONE,
- 	GZIP,
-@@ -242,6 +242,7 @@ struct xar {
- 	enum sumalg		 opt_sumalg;
- 	enum enctype		 opt_compression;
- 	int			 opt_compression_level;
-+	uint32_t		 opt_threads;
- 
- 	struct chksumwork	 a_sumwrk;	/* archived checksum.	*/
- 	struct chksumwork	 e_sumwrk;	/* extracted checksum.	*/
-@@ -317,7 +318,7 @@ static int	compression_end_bzip2(struct archive *, struct la_zstream *);
- static int	compression_init_encoder_lzma(struct archive *,
- 		    struct la_zstream *, int);
- static int	compression_init_encoder_xz(struct archive *,
--		    struct la_zstream *, int);
-+		    struct la_zstream *, int, int);
- #if defined(HAVE_LZMA_H)
- static int	compression_code_lzma(struct archive *,
- 		    struct la_zstream *, enum la_zaction);
-@@ -380,9 +381,10 @@ archive_write_set_format_xar(struct archive *_a)
- 	/* Set default checksum type. */
- 	xar->opt_toc_sumalg = CKSUM_SHA1;
- 	xar->opt_sumalg = CKSUM_SHA1;
--	/* Set default compression type and level. */
-+	/* Set default compression type, level, and number of threads. */
- 	xar->opt_compression = GZIP;
- 	xar->opt_compression_level = 6;
-+	xar->opt_threads = 1;
- 
- 	a->format_data = xar;
- 
-@@ -493,6 +495,26 @@ xar_options(struct archive_write *a, const char *key, const char *value)
- 		}
- 		return (ARCHIVE_OK);
- 	}
-+	if (strcmp(key, "threads") == 0) {
-+		if (value == NULL)
-+			return (ARCHIVE_FAILED);
-+		xar->opt_threads = (int)strtoul(value, NULL, 10);
-+		if (xar->opt_threads == 0 && errno != 0) {
-+			xar->opt_threads = 1;
-+			archive_set_error(&(a->archive),
-+			    ARCHIVE_ERRNO_MISC,
-+			    "Illegal value `%s'",
-+			    value);
-+			return (ARCHIVE_FAILED);
-+		}
-+		if (xar->opt_threads == 0) {
-+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
-+			xar->opt_threads = lzma_cputhreads();
-+#else
-+			xar->opt_threads = 1;
-+#endif
-+		}
-+	}
- 
- 	/* Note: The "warn" return is just to inform the options
- 	 * supervisor that we didn't handle it.  It will generate
-@@ -805,7 +827,7 @@ xmlwrite_string(struct archive_write *a, xmlTextWriterPtr writer,
- 
- 	if (value == NULL)
- 		return (ARCHIVE_OK);
--	
-+
- 	r = xmlTextWriterStartElement(writer, BAD_CAST_CONST(key));
- 	if (r < 0) {
- 		archive_set_error(&a->archive,
-@@ -1875,7 +1897,7 @@ file_cmp_node(const struct archive_rb_node *n1,
- 
- 	return (strcmp(f1->basename.s, f2->basename.s));
- }
--        
-+
- static int
- file_cmp_key(const struct archive_rb_node *n, const void *key)
+@@ -432,7 +432,7 @@ static CURLcode tftp_connect_for_rx(tftp_state_data_t *state,
  {
-@@ -2154,7 +2176,7 @@ file_gen_utility_names(struct archive_write *a, struct file *file)
- 		file->parentdir.length = len;
- 		archive_string_copy(&(file->basename), &(file->parentdir));
- 		archive_string_empty(&(file->parentdir));
--		file->parentdir.s = '\0';
-+		*file->parentdir.s = '\0';
- 		return (r);
- 	}
+   CURLcode result;
+ #ifndef CURL_DISABLE_VERBOSE_STRINGS
+-  struct SessionHandle *data = state->conn->data;
++  struct Curl_easy *data = state->conn->data;
  
-@@ -2494,7 +2516,7 @@ file_init_hardlinks(struct xar *xar)
- 	static const struct archive_rb_tree_ops rb_ops = {
- 		file_hd_cmp_node, file_hd_cmp_key,
- 	};
-- 
-+
- 	__archive_rb_tree_init(&(xar->hardlink_rbtree), &rb_ops);
- }
+   infof(data, "%s\n", "Connected for receive");
+ #endif
+@@ -450,7 +450,7 @@ static CURLcode tftp_send_first(tftp_state_data_t *state, tftp_event_t event)
+   const char *mode = "octet";
+   char *filename;
+   char buf[64];
+-  struct SessionHandle *data = state->conn->data;
++  struct Curl_easy *data = state->conn->data;
+   CURLcode result = CURLE_OK;
  
-@@ -2848,13 +2870,18 @@ compression_init_encoder_lzma(struct archive *a,
+   /* Set ascii mode if -B flag was used */
+@@ -494,33 +494,36 @@ static CURLcode tftp_send_first(tftp_state_data_t *state, tftp_event_t event)
+              "%s%c%s%c", filename, '\0',  mode, '\0');
+     sbytes = 4 + strlen(filename) + strlen(mode);
  
- static int
- compression_init_encoder_xz(struct archive *a,
--    struct la_zstream *lastrm, int level)
-+    struct la_zstream *lastrm, int level, int threads)
- {
- 	static const lzma_stream lzma_init_data = LZMA_STREAM_INIT;
- 	lzma_stream *strm;
- 	lzma_filter *lzmafilters;
- 	lzma_options_lzma lzma_opt;
- 	int r;
-+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
-+	lzma_mt mt_options;
-+#endif
-+
-+	(void)threads; /* UNUSED (if multi-threaded LZMA library not avail) */
- 
- 	if (lastrm->valid)
- 		compression_end(a, lastrm);
-@@ -2879,7 +2906,17 @@ compression_init_encoder_xz(struct archive *a,
- 	lzmafilters[1].id = LZMA_VLI_UNKNOWN;/* Terminate */
- 
- 	*strm = lzma_init_data;
--	r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
-+#ifdef HAVE_LZMA_STREAM_ENCODER_MT
-+	if (threads > 1) {
-+		bzero(&mt_options, sizeof(mt_options));
-+		mt_options.threads = threads;
-+		mt_options.timeout = 300;
-+		mt_options.filters = lzmafilters;
-+		mt_options.check = LZMA_CHECK_CRC64;
-+		r = lzma_stream_encoder_mt(strm, &mt_options);
-+	} else
-+#endif
-+		r = lzma_stream_encoder(strm, lzmafilters, LZMA_CHECK_CRC64);
- 	switch (r) {
- 	case LZMA_OK:
- 		lastrm->real_stream = strm;
-@@ -2979,10 +3016,11 @@ compression_init_encoder_lzma(struct archive *a,
- }
- static int
- compression_init_encoder_xz(struct archive *a,
--    struct la_zstream *lastrm, int level)
-+    struct la_zstream *lastrm, int level, int threads)
- {
- 
- 	(void) level; /* UNUSED */
-+	(void) threads; /* UNUSED */
- 	if (lastrm->valid)
- 		compression_end(a, lastrm);
- 	return (compression_unsupported_encoder(a, lastrm, "xz"));
-@@ -3015,7 +3053,7 @@ xar_compression_init_encoder(struct archive_write *a)
- 	case XZ:
- 		r = compression_init_encoder_xz(
- 		    &(a->archive), &(xar->stream),
--		    xar->opt_compression_level);
-+		    xar->opt_compression_level, xar->opt_threads);
- 		break;
- 	default:
- 		r = ARCHIVE_OK;
-@@ -3178,4 +3216,3 @@ getalgname(enum sumalg sumalg)
- }
- 
- #endif /* Support xar format */
+-    /* add tsize option */
+-    if(data->set.upload && (data->state.infilesize != -1))
+-      snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
+-               data->state.infilesize);
+-    else
+-      strcpy(buf, "0"); /* the destination is large enough */
 -
+-    sbytes += tftp_option_add(state, sbytes,
+-                              (char *)state->spacket.data+sbytes,
+-                              TFTP_OPTION_TSIZE);
+-    sbytes += tftp_option_add(state, sbytes,
+-                              (char *)state->spacket.data+sbytes, buf);
+-    /* add blksize option */
+-    snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
+-    sbytes += tftp_option_add(state, sbytes,
+-                              (char *)state->spacket.data+sbytes,
+-                              TFTP_OPTION_BLKSIZE);
+-    sbytes += tftp_option_add(state, sbytes,
+-                              (char *)state->spacket.data+sbytes, buf );
+-
+-    /* add timeout option */
+-    snprintf( buf, sizeof(buf), "%d", state->retry_time);
+-    sbytes += tftp_option_add(state, sbytes,
+-                              (char *)state->spacket.data+sbytes,
+-                              TFTP_OPTION_INTERVAL);
+-    sbytes += tftp_option_add(state, sbytes,
+-                              (char *)state->spacket.data+sbytes, buf );
++    /* optional addition of TFTP options */
++    if(!data->set.tftp_no_options) {
++      /* add tsize option */
++      if(data->set.upload && (data->state.infilesize != -1))
++        snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
++                 data->state.infilesize);
++      else
++        strcpy(buf, "0"); /* the destination is large enough */
++
++      sbytes += tftp_option_add(state, sbytes,
++                                (char *)state->spacket.data+sbytes,
++                                TFTP_OPTION_TSIZE);
++      sbytes += tftp_option_add(state, sbytes,
++                                (char *)state->spacket.data+sbytes, buf);
++      /* add blksize option */
++      snprintf(buf, sizeof(buf), "%d", state->requested_blksize);
++      sbytes += tftp_option_add(state, sbytes,
++                                (char *)state->spacket.data+sbytes,
++                                TFTP_OPTION_BLKSIZE);
++      sbytes += tftp_option_add(state, sbytes,
++                                (char *)state->spacket.data+sbytes, buf);
++
++      /* add timeout option */
++      snprintf(buf, sizeof(buf), "%d", state->retry_time);
++      sbytes += tftp_option_add(state, sbytes,
++                                (char *)state->spacket.data+sbytes,
++                                TFTP_OPTION_INTERVAL);
++      sbytes += tftp_option_add(state, sbytes,
++                                (char *)state->spacket.data+sbytes, buf);
++    }
+ 
+     /* the typecase for the 3rd argument is mostly for systems that do
+        not have a size_t argument, like older unixes that want an 'int' */
+@@ -578,7 +581,7 @@ static CURLcode tftp_rx(tftp_state_data_t *state, tftp_event_t event)
+ {
+   ssize_t sbytes;
+   int rblock;
+-  struct SessionHandle *data = state->conn->data;
++  struct Curl_easy *data = state->conn->data;
+ 
+   switch(event) {
+ 
+@@ -697,7 +700,7 @@ static CURLcode tftp_rx(tftp_state_data_t *state, tftp_event_t event)
+  **********************************************************/
+ static CURLcode tftp_tx(tftp_state_data_t *state, tftp_event_t event)
+ {
+-  struct SessionHandle *data = state->conn->data;
++  struct Curl_easy *data = state->conn->data;
+   ssize_t sbytes;
+   int rblock;
+   CURLcode result = CURLE_OK;
+@@ -886,7 +889,7 @@ static CURLcode tftp_state_machine(tftp_state_data_t *state,
+                                    tftp_event_t event)
+ {
+   CURLcode result = CURLE_OK;
+-  struct SessionHandle *data = state->conn->data;
++  struct Curl_easy *data = state->conn->data;
+ 
+   switch(state->state) {
+   case TFTP_STATE_START:
+@@ -957,7 +960,7 @@ static CURLcode tftp_connect(struct connectdata *conn, bool *done)
+   /* alloc pkt buffers based on specified blksize */
+   if(conn->data->set.tftp_blksize) {
+     blksize = (int)conn->data->set.tftp_blksize;
+-    if(blksize > TFTP_BLKSIZE_MAX || blksize < TFTP_BLKSIZE_MIN )
++    if(blksize > TFTP_BLKSIZE_MAX || blksize < TFTP_BLKSIZE_MIN)
+       return CURLE_TFTP_ILLEGAL;
+   }
+ 
+@@ -975,7 +978,7 @@ static CURLcode tftp_connect(struct connectdata *conn, bool *done)
+       return CURLE_OUT_OF_MEMORY;
+   }
+ 
+-  /* we don't keep TFTP connections up bascially because there's none or very
++  /* we don't keep TFTP connections up basically because there's none or very
+    * little gain for UDP */
+   connclose(conn, "TFTP");
+ 
+@@ -1078,7 +1081,7 @@ static CURLcode tftp_receive_packet(struct connectdata *conn)
+   struct Curl_sockaddr_storage fromaddr;
+   curl_socklen_t        fromlen;
+   CURLcode              result = CURLE_OK;
+-  struct SessionHandle  *data = conn->data;
++  struct Curl_easy  *data = conn->data;
+   tftp_state_data_t     *state = (tftp_state_data_t *)conn->proto.tftpc;
+   struct SingleRequest  *k = &data->req;
+ 
+@@ -1197,7 +1200,7 @@ static CURLcode tftp_multi_statemach(struct connectdata *conn, bool *done)
+   int                   rc;
+   tftp_event_t          event;
+   CURLcode              result = CURLE_OK;
+-  struct SessionHandle  *data = conn->data;
++  struct Curl_easy  *data = conn->data;
+   tftp_state_data_t     *state = (tftp_state_data_t *)conn->proto.tftpc;
+   long                  timeout_ms = tftp_state_timeout(conn, &event);
+ 
+@@ -1339,7 +1342,7 @@ static CURLcode tftp_do(struct connectdata *conn, bool *done)
+ 
+ static CURLcode tftp_setup_connection(struct connectdata * conn)
+ {
+-  struct SessionHandle *data = conn->data;
++  struct Curl_easy *data = conn->data;
+   char * type;
+   char command;
+ 

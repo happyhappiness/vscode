@@ -93,8 +93,8 @@ def fetch_basic_block(gumtree, joern):
     for record in records:
         file_name = record[my_constant.ANALYZE_REPOS_BASIC_BLOCK_FILE]
         loc = record[my_constant.ANALYZE_REPOS_BASIC_BLOCK_LOC]
-        record.remove(file_name)
-        record.remove(loc)
+        condition_info = json.dumps(record[2])
+        normalized_condition = json.dumps(record[3])
         gumtree.set_file(file_name)
         if gumtree.set_loc(int(loc) - 1):
             # get and save block
@@ -104,11 +104,10 @@ def fetch_basic_block(gumtree, joern):
             # get block feature
             gumtree.set_file(block_file_name)
             block_feature = json.dumps(gumtree.get_block_feature())
-            record = [file_name, loc, block, block_file_name, block_feature] \
-                + record
+            record = [file_name, loc, block, block_file_name, block_feature, condition_info, normalized_condition]
             repos_basic_block_writer.writerow(record)
             total_record += 1
-            print 'have dealed with %d record' %(total_record)
+            print 'block feature have dealed with %d record' %(total_record)
 
     repos_basic_block_file.close()
 
@@ -198,8 +197,8 @@ def analyze_repos_joern(is_rebuild = False):
     if is_rebuild:
         # fetch all basic block
         fetch_basic_block(gumtree, joern)
-        # cluster to get class info
-        analyze_control_repos_cluster.cluster()
+    # cluster to get class info
+    analyze_control_repos_cluster.cluster()
     # log info + [normalized condition, z3 feature, class index]
     fetch_log(gumtree, joern)
     gumtree.close()
@@ -209,6 +208,7 @@ def analyze_repos_joern(is_rebuild = False):
 main function
 """
 if __name__ == "__main__":
-   analyze_repos_joern(True)
+#    analyze_repos_joern(True)
+    analyze_repos_joern()
 
     

@@ -1,0 +1,1 @@
+result = nss_load_key(conn, sockindex, key_file)

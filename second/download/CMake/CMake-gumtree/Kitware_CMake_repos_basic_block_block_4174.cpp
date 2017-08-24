@@ -1,0 +1,1 @@
+Curl_expire(data_s, 0, EXPIRE_RUN_NOW)

@@ -1,0 +1,1 @@
+return compression_methods[i].name;

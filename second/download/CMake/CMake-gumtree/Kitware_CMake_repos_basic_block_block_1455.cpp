@@ -1,0 +1,3 @@
+{
+      SetCurrentDirectoryW(cp->RealWorkingDirectory);
+    }

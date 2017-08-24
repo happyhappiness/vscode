@@ -1,7 +1,6 @@
-  idna_init();
-#endif
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
+		}
 
-  if(Curl_resolver_global_init()) {
-    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))

@@ -1,0 +1,1 @@
+a->deferred |= (a->todo & TODO_MODE)

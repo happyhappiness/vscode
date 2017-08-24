@@ -1,0 +1,1 @@
+nva[2].value = (unsigned char *)"https"

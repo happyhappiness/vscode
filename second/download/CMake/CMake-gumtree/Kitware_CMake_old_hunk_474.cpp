@@ -1,7 +1,11 @@
-    CommandLineArguments::Internal::SetOfStrings::iterator sit;
-    for ( sit = mpit->second.begin(); sit != mpit->second.end(); sit++ )
-      {
-      str << kwsys_ios::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
+		 */
+		if (ar->strtab == NULL || number > ar->strtab_size) {
+			archive_set_error(&a->archive, EINVAL,
+			    "Can't find long filename for entry");
+			archive_entry_copy_pathname(entry, filename);
+			/* Parse the time, owner, mode, size fields. */
+			ar_parse_common_header(ar, entry, h);
+			return (ARCHIVE_WARN);
+		}
+
+		archive_entry_copy_pathname(entry, &ar->strtab[(size_t)number]);

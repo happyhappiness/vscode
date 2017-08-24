@@ -1,21 +1,8 @@
 
-  /* not set means empty */
-  if(!userp)
-    userp = "";
-
-  if(!passwdp)
-    passwdp = "";
-
-#if defined(USE_WINDOWS_SSPI)
-  have_chlg = digest->input_token ? TRUE : FALSE;
-#else
-  have_chlg = digest->nonce ? TRUE : FALSE;
-#endif
-
-  if(!have_chlg) {
-    authp->done = FALSE;
-    return CURLE_OK;
-  }
-
-  /* So IE browsers < v7 cut off the URI part at the query part when they
-     evaluate the MD5 and some (IIS?) servers work with them so we may need to
+		if (!S_ISDIR(a->st.st_mode)) {
+			/* A non-dir is in the way, unlink it. */
+			if (a->flags & ARCHIVE_EXTRACT_CLEAR_NOCHANGE_FFLAGS)
+				(void)clear_nochange_fflags(a);
+			if (unlink(a->name) != 0) {
+				archive_set_error(&a->archive, errno,
+				    "Can't unlink already-existing object");

@@ -1,0 +1,1 @@
+Curl_ssl_delsessionid(conn, old_ssl_sessionid)

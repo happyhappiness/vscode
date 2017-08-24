@@ -1,109 +1,133 @@
-@@ -128,6 +128,9 @@ struct mtree_entry {
- 	unsigned long fflags_clear;
- 	dev_t rdevmajor;
- 	dev_t rdevminor;
-+	dev_t devmajor;
-+	dev_t devminor;
-+	int64_t ino;
- };
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -22,7 +22,8 @@
  
- struct mtree_writer {
-@@ -210,6 +213,9 @@ struct mtree_writer {
- #define	F_SHA256	0x00800000		/* SHA-256 digest */
- #define	F_SHA384	0x01000000		/* SHA-384 digest */
- #define	F_SHA512	0x02000000		/* SHA-512 digest */
-+#define	F_INO		0x04000000		/* inode number */
-+#define	F_RESDEV	0x08000000		/* device ID on which the
-+						 * entry resides */
+ #include "curl_setup.h"
  
- 	/* Options */
- 	int dironly;		/* If it is set, ignore all files except
-@@ -823,8 +829,11 @@ mtree_entry_new(struct archive_write *a, struct archive_entry *entry,
- 	archive_entry_fflags(entry, &me->fflags_set, &me->fflags_clear);
- 	me->mtime = archive_entry_mtime(entry);
- 	me->mtime_nsec = archive_entry_mtime_nsec(entry);
--	me->rdevmajor =	archive_entry_rdevmajor(entry);
-+	me->rdevmajor = archive_entry_rdevmajor(entry);
- 	me->rdevminor = archive_entry_rdevminor(entry);
-+	me->devmajor = archive_entry_devmajor(entry);
-+	me->devminor = archive_entry_devminor(entry);
-+	me->ino = archive_entry_ino(entry);
- 	me->size = archive_entry_size(entry);
- 	if (me->filetype == AE_IFDIR) {
- 		me->dir_info = calloc(1, sizeof(*me->dir_info));
-@@ -882,7 +891,7 @@ archive_write_mtree_header(struct archive_write *a,
- 		mtree->first = 0;
- 		archive_strcat(&mtree->buf, "#mtree\n");
- 		if ((mtree->keys & SET_KEYS) == 0)
--			mtree->output_global_set = 0;/* Disalbed. */
-+			mtree->output_global_set = 0;/* Disabled. */
- 	}
+-#if defined(USE_NTLM) && defined(NTLM_WB_ENABLED)
++#if !defined(CURL_DISABLE_HTTP) && defined(USE_NTLM) && \
++    defined(NTLM_WB_ENABLED)
  
- 	mtree->entry_bytes_remaining = archive_entry_size(entry);
-@@ -983,6 +992,15 @@ write_mtree_entry(struct archive_write *a, struct mtree_entry *me)
- 	if ((keys & F_UID) != 0)
- 		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
+ /*
+  * NTLM details:
+@@ -50,12 +51,10 @@
+ #include "curl_ntlm_wb.h"
+ #include "url.h"
+ #include "strerror.h"
+-#include "curl_memory.h"
+-
+-#define _MPRINTF_REPLACE /* use our functions only */
+-#include <curl/mprintf.h>
++#include "curl_printf.h"
  
-+	if ((keys & F_INO) != 0)
-+		archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
-+	if ((keys & F_RESDEV) != 0) {
-+		archive_string_sprintf(str,
-+		    " resdevice=native,%ju,%ju",
-+		    (uintmax_t)me->devmajor,
-+		    (uintmax_t)me->devminor);
-+	}
+-/* The last #include file should be: */
++/* The last #include files should be: */
++#include "curl_memory.h"
+ #include "memdebug.h"
+ 
+ #if DEBUG_ME
+@@ -106,9 +105,9 @@ void Curl_ntlm_wb_cleanup(struct connectdata *conn)
+     conn->ntlm_auth_hlpr_pid = 0;
+   }
+ 
+-  Curl_safefree(conn->challenge_header);
++  free(conn->challenge_header);
+   conn->challenge_header = NULL;
+-  Curl_safefree(conn->response_header);
++  free(conn->response_header);
+   conn->response_header = NULL;
+ }
+ 
+@@ -245,13 +244,13 @@ static CURLcode ntlm_wb_init(struct connectdata *conn, const char *userp)
+   sclose(sockfds[1]);
+   conn->ntlm_auth_hlpr_socket = sockfds[0];
+   conn->ntlm_auth_hlpr_pid = child_pid;
+-  Curl_safefree(domain);
+-  Curl_safefree(ntlm_auth_alloc);
++  free(domain);
++  free(ntlm_auth_alloc);
+   return CURLE_OK;
+ 
+ done:
+-  Curl_safefree(domain);
+-  Curl_safefree(ntlm_auth_alloc);
++  free(domain);
++  free(ntlm_auth_alloc);
+   return CURLE_REMOTE_ACCESS_DENIED;
+ }
+ 
+@@ -293,7 +292,7 @@ static CURLcode ntlm_wb_response(struct connectdata *conn,
+     len_out += size;
+     if(buf[len_out - 1] == '\n') {
+       buf[len_out - 1] = '\0';
+-      goto wrfinish;
++      break;
+     }
+     newbuf = realloc(buf, len_out + NTLM_BUFSIZE);
+     if(!newbuf) {
+@@ -302,13 +301,12 @@ static CURLcode ntlm_wb_response(struct connectdata *conn,
+     }
+     buf = newbuf;
+   }
+-  goto done;
+-wrfinish:
 +
- 	switch (me->filetype) {
- 	case AE_IFLNK:
- 		if ((keys & F_TYPE) != 0)
-@@ -1117,7 +1135,7 @@ write_mtree_entry_tree(struct archive_write *a)
- 		} else {
- 			/* Whenever output_global_set is enabled
- 			 * output global value(/set keywords)
--			 * even if the directory entry is not allowd
-+			 * even if the directory entry is not allowed
- 			 * to be written because the global values
- 			 * can be used for the children. */
- 			if (mtree->output_global_set)
-@@ -1296,6 +1314,8 @@ archive_write_mtree_options(struct archive_write *a, const char *key,
- 		if (strcmp(key, "indent") == 0) {
- 			mtree->indent = (value != NULL)? 1: 0;
- 			return (ARCHIVE_OK);
-+		} else if (strcmp(key, "inode") == 0) {
-+			keybit = F_INO;
- 		}
- 		break;
- 	case 'l':
-@@ -1314,7 +1334,9 @@ archive_write_mtree_options(struct archive_write *a, const char *key,
- 			keybit = F_NLINK;
- 		break;
- 	case 'r':
--		if (strcmp(key, "ripemd160digest") == 0 ||
-+		if (strcmp(key, "resdevice") == 0) {
-+			keybit = F_RESDEV;
-+		} else if (strcmp(key, "ripemd160digest") == 0 ||
- 		    strcmp(key, "rmd160") == 0 ||
- 		    strcmp(key, "rmd160digest") == 0)
- 			keybit = F_RMD160;
-@@ -1855,9 +1877,9 @@ mtree_entry_setup_filenames(struct archive_write *a, struct mtree_entry *file,
- 		return (ret);
- 	}
+   /* Samba/winbind installed but not configured */
+   if(state == NTLMSTATE_TYPE1 &&
+      len_out == 3 &&
+      buf[0] == 'P' && buf[1] == 'W')
+-    return CURLE_REMOTE_ACCESS_DENIED;
++    goto done;
+   /* invalid response */
+   if(len_out < 4)
+     goto done;
+@@ -391,12 +389,12 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
+     if(res)
+       return res;
  
--	/* Make a basename from dirname and slash */
-+	/* Make a basename from file->parentdir.s and slash */
- 	*slash  = '\0';
--	file->parentdir.length = slash - dirname;
-+	file->parentdir.length = slash - file->parentdir.s;
- 	archive_strcpy(&(file->basename),  slash + 1);
- 	return (ret);
- }
-@@ -2198,6 +2220,9 @@ mtree_entry_exchange_same_entry(struct archive_write *a, struct mtree_entry *np,
- 	np->mtime_nsec = file->mtime_nsec;
- 	np->rdevmajor = file->rdevmajor;
- 	np->rdevminor = file->rdevminor;
-+	np->devmajor = file->devmajor;
-+	np->devminor = file->devminor;
-+	np->ino = file->ino;
+-    Curl_safefree(*allocuserpwd);
++    free(*allocuserpwd);
+     *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                             proxy ? "Proxy-" : "",
+                             conn->response_header);
+     DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+-    Curl_safefree(conn->response_header);
++    free(conn->response_header);
+     conn->response_header = NULL;
+     break;
+   case NTLMSTATE_TYPE2:
+@@ -409,7 +407,7 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
+     if(res)
+       return res;
  
- 	return (ARCHIVE_WARN);
+-    Curl_safefree(*allocuserpwd);
++    free(*allocuserpwd);
+     *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
+                             proxy ? "Proxy-" : "",
+                             conn->response_header);
+@@ -421,15 +419,13 @@ CURLcode Curl_output_ntlm_wb(struct connectdata *conn,
+   case NTLMSTATE_TYPE3:
+     /* connection is already authenticated,
+      * don't send a header in future requests */
+-    if(*allocuserpwd) {
+-      free(*allocuserpwd);
+-      *allocuserpwd=NULL;
+-    }
++    free(*allocuserpwd);
++    *allocuserpwd=NULL;
+     authp->done = TRUE;
+     break;
+   }
+ 
+   return CURLE_OK;
  }
+ 
+-#endif /* USE_NTLM && NTLM_WB_ENABLED */
++#endif /* !CURL_DISABLE_HTTP && USE_NTLM && NTLM_WB_ENABLED */

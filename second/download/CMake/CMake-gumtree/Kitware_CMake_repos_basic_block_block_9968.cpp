@@ -1,0 +1,1 @@
+archive_wstrappend_wchar(&t->full_path, L'\\')

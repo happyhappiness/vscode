@@ -1,0 +1,3 @@
+{
+    lastStream = stream_id;
+  }

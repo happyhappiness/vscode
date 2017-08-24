@@ -1,0 +1,1 @@
+Curl_expire(data->easy_conn->recv_pipe.head->ptr, 0, EXPIRE_RUN_NOW)

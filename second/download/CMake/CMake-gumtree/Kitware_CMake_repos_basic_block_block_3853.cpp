@@ -1,0 +1,1 @@
+return Curl_ip2addr(AF_INET6, &in6, address, port);

@@ -1,0 +1,1 @@
+sum_final(mtree, me->reg_info)

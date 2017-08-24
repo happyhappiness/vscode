@@ -1,0 +1,1 @@
+r = set_str_d_characters_bp(a, bp, from, to, NULL, vdc)

@@ -1,0 +1,1 @@
+gss_release_buffer(&gss_status, &gss_recv_token)

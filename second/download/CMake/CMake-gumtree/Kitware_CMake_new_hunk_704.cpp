@@ -1,7 +1,8 @@
-}
-inline const char* Getcwd(char* buf, unsigned int len)
-{
-  return getcwd(buf, len);
-}
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName().c_str(),
+            this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
+    }
 
-inline int Chdir(const char* dir)

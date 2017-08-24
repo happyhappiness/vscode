@@ -1,0 +1,2 @@
+f(!c->domain)
+      continue;

@@ -1,0 +1,1 @@
+chlglen = strlen(chlg)

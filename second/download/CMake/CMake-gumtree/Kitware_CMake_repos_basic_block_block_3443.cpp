@@ -1,0 +1,1 @@
+s->len[t][v] = BZ_GREATER_ICOST

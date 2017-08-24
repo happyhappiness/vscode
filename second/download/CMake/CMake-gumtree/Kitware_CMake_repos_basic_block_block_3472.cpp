@@ -1,0 +1,1 @@
+s->tt[nblock]   = (UInt32)(s->seqToUnseq[uc])

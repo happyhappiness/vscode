@@ -1,0 +1,2 @@
+(pwd == NULL)
+    return -EINVAL;

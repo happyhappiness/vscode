@@ -1,0 +1,1 @@
+dtdDestroy(_dtd, (XML_Bool)!parentParser, &parser->m_mem)

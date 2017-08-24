@@ -1,0 +1,1 @@
+max_name_size = INT_MAX

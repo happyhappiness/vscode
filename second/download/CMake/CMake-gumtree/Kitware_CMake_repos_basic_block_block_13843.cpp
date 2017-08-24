@@ -1,0 +1,1 @@
+add_converter(sc, best_effort_strncat_from_utf16be)

@@ -1,0 +1,2 @@
+(wpath == NULL)
+		return (handle);

@@ -1,0 +1,1 @@
+return (sign < 0) ? INT64_MIN : INT64_MAX;

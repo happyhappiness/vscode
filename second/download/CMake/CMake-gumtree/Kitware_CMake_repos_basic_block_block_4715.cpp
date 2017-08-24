@@ -1,0 +1,1 @@
+data->prev->next = data->next

@@ -1,0 +1,4 @@
+{
+          yyp++;
+          yyformat++;
+        }

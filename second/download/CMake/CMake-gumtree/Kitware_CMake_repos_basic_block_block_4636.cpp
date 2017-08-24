@@ -1,0 +1,1 @@
+len = (size_t)prec

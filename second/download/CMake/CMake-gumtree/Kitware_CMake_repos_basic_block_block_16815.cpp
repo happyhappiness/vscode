@@ -1,0 +1,1 @@
+archive_md5_update(&mtree->md5ctx, buff, n)

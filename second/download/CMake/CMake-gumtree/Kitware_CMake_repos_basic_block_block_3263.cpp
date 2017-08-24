@@ -1,0 +1,1 @@
+(aa->name != NULL) free(aa->name)

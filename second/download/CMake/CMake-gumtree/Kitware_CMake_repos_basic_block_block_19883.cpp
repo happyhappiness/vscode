@@ -1,0 +1,1 @@
+uv_timer_stop(handle)

@@ -1,0 +1,1 @@
+canpipe &= ~ CURLPIPE_HTTP1

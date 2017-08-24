@@ -1,0 +1,1 @@
+(wfact < 1  ) wfact = 1

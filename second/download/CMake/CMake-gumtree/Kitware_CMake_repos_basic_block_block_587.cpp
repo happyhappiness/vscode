@@ -1,0 +1,1 @@
+b->yy_buf_size *= 2

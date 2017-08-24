@@ -1,0 +1,1 @@
+r = copy_data(_a, ad)

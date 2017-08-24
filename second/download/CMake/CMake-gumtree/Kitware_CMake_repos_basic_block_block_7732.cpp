@@ -1,0 +1,1 @@
+nsAttsPower = 3

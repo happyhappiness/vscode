@@ -1,0 +1,1 @@
+calculate_path_table_size(&(iso9660->joliet))

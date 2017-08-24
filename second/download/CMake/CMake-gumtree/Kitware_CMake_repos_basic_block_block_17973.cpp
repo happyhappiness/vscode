@@ -1,0 +1,1 @@
+return UINT32_MAX;

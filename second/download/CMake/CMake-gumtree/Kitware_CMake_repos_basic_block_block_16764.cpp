@@ -1,0 +1,1 @@
+n = (size_t)mtree->entry_bytes_remaining

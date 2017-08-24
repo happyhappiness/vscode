@@ -1,0 +1,1 @@
+archive_entry_set_rdev(entry, 0)

@@ -1,0 +1,1 @@
+t->maxOpenCount = t->openCount

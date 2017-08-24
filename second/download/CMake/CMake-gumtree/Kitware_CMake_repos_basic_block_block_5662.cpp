@@ -1,0 +1,1 @@
+infof(data, "%s %s %d\n", direction, fmt, option)

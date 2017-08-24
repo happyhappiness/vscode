@@ -1,0 +1,2 @@
+(namespaceSeparator)
+      len--

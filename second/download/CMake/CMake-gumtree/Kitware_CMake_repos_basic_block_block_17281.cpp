@@ -1,0 +1,1 @@
+s = (size_t)v7tar->entry_bytes_remaining

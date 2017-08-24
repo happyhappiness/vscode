@@ -1,0 +1,1 @@
+self = self->rb_nodes[other]

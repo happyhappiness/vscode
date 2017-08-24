@@ -1,9 +1,7 @@
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
-          ftpc->newhost = strdup(control_address(conn));
-          if(!ftpc->newhost)
-            return CURLE_OUT_OF_MEMORY;
-        }
-      }
-      else
+				    "Missing number");
+				return ARCHIVE_WARN;
+			}
+			numbers[argc++] = (unsigned long)mtree_atol(&p);
+			if (argc > MAX_PACK_ARGS) {
+				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Too many arguments");

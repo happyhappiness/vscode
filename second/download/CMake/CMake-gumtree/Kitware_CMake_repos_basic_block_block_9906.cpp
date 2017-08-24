@@ -1,0 +1,1 @@
+flags |= FILE_FLAG_OVERLAPPED

@@ -1,0 +1,1 @@
+ret = archive_string_normalize_D(&u16, s, count, sc)

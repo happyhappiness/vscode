@@ -1,0 +1,1 @@
+outbuf[j++] = CURL_IAC

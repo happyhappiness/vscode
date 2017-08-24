@@ -1,0 +1,4 @@
+{
+        free(decomp);
+        return result;
+      }

@@ -1,0 +1,3 @@
+{
+      cmSystemTools::Touch(logfile, true);
+    }

@@ -1,13 +1,33 @@
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_zip");
+	struct private_data *data = (struct private_data *)f->data;
+	int outsize;
 
-	zip = (struct zip *)malloc(sizeof(*zip));
-	if (zip == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate zip data");
-		return (ARCHIVE_FATAL);
+	if (data->compression_level < 3) {
+		if (data->lz4_stream == NULL) {
+			data->lz4_stream = LZ4_createStream();
+			if (data->lz4_stream == NULL) {
+				archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		outsize = LZ4_compress_limitedOutput_continue(
+		    data->lz4_stream, p, data->out + 4, (int)length,
+		    (int)data->block_size);
+	} else {
+		if (data->lz4_stream == NULL) {
+			data->lz4_stream =
+			    LZ4_createHC(data->in_buffer_allocated);
+			if (data->lz4_stream == NULL) {
+				archive_set_error(f->archive, ENOMEM,
+				    "Can't allocate data for compression"
+				    " buffer");
+				return (ARCHIVE_FATAL);
+			}
+		}
+		outsize = LZ4_compressHC2_limitedOutput_continue(
+		    data->lz4_stream, p, data->out + 4, (int)length,
+		    (int)data->block_size, data->compression_level);
 	}
-	memset(zip, 0, sizeof(*zip));
 
-	/* Streamable reader doesn't support mac extensions. */
-	zip->process_mac_extensions = 0;
+	if (outsize) {

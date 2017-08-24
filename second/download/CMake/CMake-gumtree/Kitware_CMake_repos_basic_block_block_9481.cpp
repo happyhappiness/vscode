@@ -1,0 +1,1 @@
+acl = acl_get_file(accpath, ACL_TYPE_DEFAULT)

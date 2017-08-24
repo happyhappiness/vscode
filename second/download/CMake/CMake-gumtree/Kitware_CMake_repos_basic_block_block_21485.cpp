@@ -1,0 +1,1 @@
+(*(ush*)&buf != 0) return buf;

@@ -1,0 +1,1 @@
+free(iso9660->primary.pathtbl[i].sorted)

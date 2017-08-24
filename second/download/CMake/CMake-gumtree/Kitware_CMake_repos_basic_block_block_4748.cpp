@@ -1,0 +1,1 @@
+mask |= CURL_WAIT_POLLIN

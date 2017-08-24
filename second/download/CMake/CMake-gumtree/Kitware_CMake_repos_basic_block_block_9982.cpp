@@ -1,0 +1,1 @@
+t->visit_type = TREE_POSTDESCENT

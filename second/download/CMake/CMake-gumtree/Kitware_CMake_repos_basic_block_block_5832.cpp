@@ -1,0 +1,1 @@
+avail |= CURLPIPE_MULTIPLEX

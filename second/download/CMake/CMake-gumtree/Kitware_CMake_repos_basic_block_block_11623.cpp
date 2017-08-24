@@ -1,0 +1,1 @@
+iso9660->entry_bytes_remaining = iso9660->entry_content->size

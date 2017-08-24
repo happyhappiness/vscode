@@ -1,0 +1,1 @@
+r = write(fd, buf, len)

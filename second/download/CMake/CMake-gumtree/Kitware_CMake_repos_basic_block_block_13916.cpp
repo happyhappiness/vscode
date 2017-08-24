@@ -1,0 +1,1 @@
+return (CP_C_LOCALE);

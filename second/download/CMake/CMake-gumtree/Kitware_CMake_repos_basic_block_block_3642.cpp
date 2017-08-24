@@ -1,0 +1,1 @@
+connclose(conn, "c-ares resolve failed")

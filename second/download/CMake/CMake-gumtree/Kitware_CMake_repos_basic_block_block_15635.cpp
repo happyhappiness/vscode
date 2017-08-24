@@ -1,0 +1,2 @@
+(strcmp(name, names[i].name) == 0)
+			return ((names[i].setter)(a));

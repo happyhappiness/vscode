@@ -1,0 +1,2 @@
+(!entity)
+            return XML_ERROR_NO_MEMORY;

@@ -1,0 +1,1 @@
+file->entry = archive_entry_new2(&a->archive)

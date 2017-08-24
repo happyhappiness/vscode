@@ -1,0 +1,1 @@
+uv__close(loop->async_wfd)

@@ -1,0 +1,2 @@
+(++nonce[j])
+			break;

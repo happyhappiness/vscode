@@ -1,0 +1,1 @@
+pCFRelease(paths[--i])

@@ -1,0 +1,1 @@
+(val<low || val>high) return FALSE;

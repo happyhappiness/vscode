@@ -1,0 +1,1 @@
+flags = r | O_NONBLOCK

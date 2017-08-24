@@ -1,0 +1,1 @@
+xar->xmlsts = TOC_CHECKSUM_OFFSET

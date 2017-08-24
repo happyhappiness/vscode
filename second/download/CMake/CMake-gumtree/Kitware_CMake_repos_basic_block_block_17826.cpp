@@ -1,0 +1,1 @@
+return endian==XXH_littleEndian ? A32(ptr) : XXH_swap32(A32(ptr));

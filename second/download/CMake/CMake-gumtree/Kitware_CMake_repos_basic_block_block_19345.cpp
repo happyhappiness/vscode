@@ -1,0 +1,1 @@
+uv__io_start(handle->loop, &handle->io_watcher, POLLIN | POLLOUT)

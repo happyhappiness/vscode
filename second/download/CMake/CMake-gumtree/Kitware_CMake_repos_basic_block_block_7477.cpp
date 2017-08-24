@@ -1,0 +1,1 @@
+newDtd = oldDtd

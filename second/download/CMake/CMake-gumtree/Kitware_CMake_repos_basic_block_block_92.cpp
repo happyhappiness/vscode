@@ -1,0 +1,1 @@
+res = _nc_Synchronize_Options( Normalize_Field(field), opts )

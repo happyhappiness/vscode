@@ -1,0 +1,1 @@
+read_consume(a)

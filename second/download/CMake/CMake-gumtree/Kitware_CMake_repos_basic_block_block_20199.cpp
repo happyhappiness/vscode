@@ -1,0 +1,1 @@
+dirent->d_type = UV__DT_DIR

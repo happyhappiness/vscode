@@ -1,87 +1,62 @@
-@@ -91,6 +91,31 @@ extern char** environ;
- # endif
+@@ -21,6 +21,7 @@
  #endif
  
-+#if defined(CMAKE_BUILD_WITH_CMAKE)
-+static std::string
-+cm_archive_entry_pathname(struct archive_entry *entry)
-+{
-+#if cmsys_STL_HAS_WSTRING
-+  return cmsys::Encoding::ToNarrow(
-+    archive_entry_pathname_w(entry)).c_str();
-+#else
-+  return archive_entry_pathname(entry);
-+#endif
-+}
-+
-+static int cm_archive_read_open_file(struct archive* a,
-+                                     const char* file,
-+                                     int block_size)
-+{
-+#if cmsys_STL_HAS_WSTRING
-+  std::wstring wfile = cmsys::Encoding::ToWide(file);
-+  return archive_read_open_filename_w(a, wfile.c_str(), block_size);
-+#else
-+  return archive_read_open_filename(a, file, block_size);
-+#endif
-+}
-+#endif
-+
- #ifdef _WIN32
- class cmSystemToolsWindowsHandle
+ #include <assert.h>
++#include <limits.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -74,6 +75,16 @@ int runChild(const char* cmd[], int state, int exception, int value,
+ 
+ static int test1(int argc, const char* argv[])
  {
-@@ -1581,7 +1606,7 @@ namespace{
++  /* This is a very basic functional test of kwsysProcess.  It is repeated
++     numerous times to verify that there are no resource leaks in kwsysProcess
++     that eventually lead to an error.  Many versions of OS X will fail after
++     256 leaked file handles, so 257 iterations seems to be a good test.  On
++     the other hand, too many iterations will cause the test to time out -
++     especially if the test is instrumented with e.g. valgrind.
++
++     If you have problems with this test timing out on your system, or want to
++     run more than 257 iterations, you can change the number of iterations by
++     setting the KWSYS_TEST_PROCESS_1_COUNT environment variable.  */
+   (void)argc; (void)argv;
+   fprintf(stdout, "Output on stdout from test returning 0.\n");
+   fprintf(stderr, "Output on stderr from test returning 0.\n");
+@@ -557,6 +568,10 @@ int runChild(const char* cmd[], int state, int exception, int value,
+     result = runChild2(kp, cmd, state, exception, value, share,
+                        output, delay, timeout, poll, disown, createNewGroup,
+                        interruptDelay);
++    if(result)
++      {
++      break;
++      }
      }
-   strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
-   fprintf(out, " %s ", tmp);
--  fprintf(out, "%s", archive_entry_pathname(entry));
-+  fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
- 
-   /* Extra information for links. */
-   if (archive_entry_hardlink(entry)) /* Hard link */
-@@ -1641,7 +1666,7 @@ bool extract_tar(const char* outFileName, bool verbose,
-   archive_read_support_compression_all(a);
-   archive_read_support_format_all(a);
-   struct archive_entry *entry;
--  int r = archive_read_open_file(a, outFileName, 10240);
-+  int r = cm_archive_read_open_file(a, outFileName, 10240);
-   if(r)
-     {
-     cmSystemTools::Error("Problem with archive_read_open_file(): ",
-@@ -1666,7 +1691,7 @@ bool extract_tar(const char* outFileName, bool verbose,
-       if(extract)
-         {
-         cmSystemTools::Stdout("x ");
--        cmSystemTools::Stdout(archive_entry_pathname(entry));
-+        cmSystemTools::Stdout(cm_archive_entry_pathname(entry).c_str());
-         }
-       else
-         {
-@@ -1676,7 +1701,7 @@ bool extract_tar(const char* outFileName, bool verbose,
-       }
-     else if(!extract)
+   kwsysProcess_Delete(kp);
+   return result;
+@@ -660,13 +675,24 @@ int main(int argc, const char* argv[])
+     int delays[10] = {0, 0, 0, 0, 0, 1, 0, 0, 0, 0};
+     double timeouts[10] = {10, 10, 10, 30, 30, 10, -1, 10, 6, 4};
+     int polls[10] = {0, 0, 0, 0, 0, 0, 1, 0, 0, 0};
+-    int repeat[10] = {2, 1, 1, 1, 1, 1, 1, 1, 1, 1};
++    int repeat[10] = {257, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+     int createNewGroups[10] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 1};
+     unsigned int interruptDelays[10] = {0, 0, 0, 0, 0, 0, 0, 0, 3, 2};
+     int r;
+     const char* cmd[4];
+ #ifdef _WIN32
+     char* argv0 = 0;
++#endif
++    char* test1IterationsStr = getenv("KWSYS_TEST_PROCESS_1_COUNT");
++    if(test1IterationsStr)
++      {
++      long int test1Iterations = strtol(test1IterationsStr, 0, 10);
++      if(test1Iterations > 10 && test1Iterations != LONG_MAX)
++        {
++        repeat[0] = (int)test1Iterations;
++        }
++      }
++#ifdef _WIN32
+     if(n == 0 && (argv0 = strdup(argv[0])))
        {
--      cmSystemTools::Stdout(archive_entry_pathname(entry));
-+      cmSystemTools::Stdout(cm_archive_entry_pathname(entry).c_str());
-       cmSystemTools::Stdout("\n");
-       }
-     if(extract)
-@@ -1706,7 +1731,8 @@ bool extract_tar(const char* outFileName, bool verbose,
-       else if(const char* linktext = archive_entry_symlink(entry))
-         {
-         std::cerr << "cmake -E tar: warning: skipping symbolic link \""
--                  << archive_entry_pathname(entry) << "\" -> \""
-+                  << cm_archive_entry_pathname(entry)
-+                  << "\" -> \""
-                   << linktext << "\"." << std::endl;
-         }
- #endif
-@@ -1715,7 +1741,7 @@ bool extract_tar(const char* outFileName, bool verbose,
-         cmSystemTools::Error("Problem with archive_write_header(): ",
-                              archive_error_string(ext));
-         cmSystemTools::Error("Current file: ",
--                             archive_entry_pathname(entry));
-+                             cm_archive_entry_pathname(entry).c_str());
-         break;
-         }
-       }
+       /* Try converting to forward slashes to see if it works.  */

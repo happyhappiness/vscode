@@ -1,0 +1,1 @@
+s_pSecFn->FreeContextBuffer(sspi_recv_token.pvBuffer)

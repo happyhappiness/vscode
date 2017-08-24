@@ -1,0 +1,1 @@
+reportDefault(parser, encoding, s, next)

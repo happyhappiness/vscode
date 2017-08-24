@@ -1,0 +1,1 @@
+iso9660->opt.zisofs = OPT_ZISOFS_DISABLED

@@ -1,0 +1,1 @@
+td->poll_interval = 250

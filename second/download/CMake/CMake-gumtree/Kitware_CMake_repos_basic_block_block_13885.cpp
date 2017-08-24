@@ -1,0 +1,1 @@
+flag |= SCONV_FROM_UTF8

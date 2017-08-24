@@ -1,0 +1,1 @@
+curl_multi_remove_handle(data->multi, data)

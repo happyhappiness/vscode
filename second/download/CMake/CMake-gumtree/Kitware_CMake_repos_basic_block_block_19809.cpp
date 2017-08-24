@@ -1,0 +1,1 @@
+handle->flags |= UV_TCP_KEEPALIVE

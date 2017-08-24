@@ -1,8 +1,15 @@
-  this->CTest->EndXML(ostr);
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
-    << covLogFilename << std::endl, this->Quiet);
-  ostr.Close();
-}
+                  hostname, conn->bits.ipv6_ip?"]":"",
+                  remote_port);
+        if(!hostheader) {
+          Curl_add_buffer_free(req_buffer);
+          return CURLE_OUT_OF_MEMORY;
+        }
 
+        if(!Curl_checkProxyheaders(conn, "Host:")) {
+          host = aprintf("Host: %s\r\n", hostheader);
+          if(!host) {
+            free(hostheader);
+            Curl_add_buffer_free(req_buffer);
+            return CURLE_OUT_OF_MEMORY;
+          }
+        }

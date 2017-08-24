@@ -1,0 +1,1 @@
+xar->opt_compression = LZMA

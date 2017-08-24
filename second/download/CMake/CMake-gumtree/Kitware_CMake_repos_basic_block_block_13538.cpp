@@ -1,0 +1,1 @@
+dec_size = zip->decrypted_buffer_size

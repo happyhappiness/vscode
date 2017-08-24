@@ -1,0 +1,4 @@
+{
+			slash = p;
+			file->dircnt++;
+		}

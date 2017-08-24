@@ -11,13 +11,11 @@ import my_constant
 """
 @ param  var to deal with
 @ return list of analyzed node info
-@ callee ...
-@ caller analyze_control.py, similarity_func.py ..
 @ involve remove namespace bafore ::,
           and remove caller before ->, .
           and remove parameter after (
 """
-def removeNamespace(name):
+def remove_name_space_and_caller(name):
     # remove namespace before ::
     startpos = name.find("::")
     while not startpos == -1:
@@ -235,7 +233,7 @@ def rebuild_joern_index(index_dir, code_dir):
 def get_tuple_from_list(tuple_list):
     tuple_tuple = ()
     for tuple_element in tuple_list:
-        tuple_tuple += tuple_element
+        tuple_tuple += tuple(tuple_element)
     return tuple_tuple
 
 """

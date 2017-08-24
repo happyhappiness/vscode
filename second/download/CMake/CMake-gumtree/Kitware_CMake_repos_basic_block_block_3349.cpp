@@ -1,0 +1,1 @@
+blockCRC = (buffHi << 16) | (buffLo >> 16)

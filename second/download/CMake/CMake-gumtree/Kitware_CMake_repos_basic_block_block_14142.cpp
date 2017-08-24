@@ -1,0 +1,1 @@
+val = archive_le16dec(u16+b)

@@ -1,0 +1,1 @@
+archive_be16enc(outp, UNICODE_R_CHAR)

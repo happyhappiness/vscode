@@ -1,0 +1,1 @@
+cksum = state->compressed_cksum

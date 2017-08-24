@@ -1,0 +1,1 @@
+(nblock >= nblockMAX) RETURN(BZ_DATA_ERROR)

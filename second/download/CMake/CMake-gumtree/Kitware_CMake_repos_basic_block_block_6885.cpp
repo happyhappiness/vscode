@@ -1,0 +1,1 @@
+return nss_fail_connect(connssl, data, CURLE_SSL_CONNECT_ERROR);

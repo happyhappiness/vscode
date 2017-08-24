@@ -1,0 +1,1 @@
+entries[i].flg |= CRC32_IS_SET

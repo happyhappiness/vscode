@@ -1,0 +1,1 @@
+(bzerr != BZ_OK) panic ( "test:bzReadGetUnused" )

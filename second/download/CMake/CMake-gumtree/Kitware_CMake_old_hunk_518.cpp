@@ -1,15 +1,7 @@
-                  hostname, conn->bits.ipv6_ip?"]":"",
-                  remote_port);
-        if(!hostheader) {
-          free(req_buffer);
-          return CURLE_OUT_OF_MEMORY;
-        }
-
-        if(!Curl_checkProxyheaders(conn, "Host:")) {
-          host = aprintf("Host: %s\r\n", hostheader);
-          if(!host) {
-            free(hostheader);
-            free(req_buffer);
-            return CURLE_OUT_OF_MEMORY;
-          }
-        }
+			return (ARCHIVE_WARN);
+		}
+		/* Check computed CRC against header */
+		if (zip->entry->crc32 != zip->entry_crc32
+		    && !zip->ignore_crc32) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP bad CRC: 0x%lx should be 0x%lx",

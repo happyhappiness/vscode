@@ -1,0 +1,1 @@
+*avail = a->archive.read_data_requested

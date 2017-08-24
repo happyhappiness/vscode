@@ -1,0 +1,1 @@
+Curl_getASN1Element(&cert->extensions, elem.beg, elem.end)

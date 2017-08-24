@@ -1,0 +1,1 @@
+uv__handle_stop(stream)

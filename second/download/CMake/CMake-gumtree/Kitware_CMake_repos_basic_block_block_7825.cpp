@@ -1,0 +1,1 @@
+paramEntityParsing = XML_PARAM_ENTITY_PARSING_NEVER

@@ -1,0 +1,1 @@
+connssl_proxy->handle = NULL

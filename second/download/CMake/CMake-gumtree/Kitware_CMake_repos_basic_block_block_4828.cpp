@@ -1,0 +1,1 @@
+multi_done(&data->easy_conn, result, FALSE)

@@ -1,0 +1,1 @@
+*avail = (ssize_t)rar->bytes_remaining

@@ -1,0 +1,3 @@
+{
+    child->right->parent = child;
+  }

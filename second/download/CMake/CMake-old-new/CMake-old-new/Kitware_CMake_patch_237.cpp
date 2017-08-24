@@ -1,192 +1,201 @@
-@@ -5,7 +5,7 @@
-  *                            | (__| |_| |  _ <| |___
-  *                             \___|\___/|_| \_\_____|
-  *
-- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
-+ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
-  *
-  * This software is licensed as described in the file COPYING, which
-  * you should have received as part of this distribution. The terms
-@@ -35,10 +35,7 @@
- #include "progress.h"
- #include "non-ascii.h"
- #include "connect.h"
--
--#define _MPRINTF_REPLACE /* use our functions only */
--#include <curl/mprintf.h>
--
-+#include "curl_printf.h"
- #include "curlx.h"
- 
- #include "curl_memory.h"
-@@ -71,10 +68,11 @@ CURLcode Curl_proxy_connect(struct connectdata *conn)
-     conn->data->req.protop = &http_proxy;
-     connkeep(conn, "HTTP proxy CONNECT");
-     result = Curl_proxyCONNECT(conn, FIRSTSOCKET,
--                               conn->host.name, conn->remote_port);
-+                               conn->host.name, conn->remote_port, FALSE);
-     conn->data->req.protop = prot_save;
-     if(CURLE_OK != result)
-       return result;
-+    Curl_safefree(conn->allocptr.proxyuserpwd);
- #else
-     return CURLE_NOT_BUILT_IN;
- #endif
-@@ -87,12 +85,16 @@ CURLcode Curl_proxy_connect(struct connectdata *conn)
-  * Curl_proxyCONNECT() requires that we're connected to a HTTP proxy. This
-  * function will issue the necessary commands to get a seamless tunnel through
-  * this proxy. After that, the socket can be used just as a normal socket.
-+ *
-+ * 'blocking' set to TRUE means that this function will do the entire CONNECT
-+ * + response in a blocking fashion. Should be avoided!
-  */
- 
- CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-                            int sockindex,
-                            const char *hostname,
--                           int remote_port)
-+                           int remote_port,
-+                           bool blocking)
+@@ -101,16 +101,17 @@ archive_read_new(void)
  {
-   int subversion=0;
-   struct SessionHandle *data=conn->data;
-@@ -123,13 +125,11 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-       infof(data, "Establish HTTP proxy tunnel to %s:%hu\n",
-             hostname, remote_port);
+ 	struct archive_read *a;
  
--      if(data->req.newurl) {
-         /* This only happens if we've looped here due to authentication
-            reasons, and we don't really use the newly cloned URL here
-            then. Just free() it. */
--        free(data->req.newurl);
--        data->req.newurl = NULL;
--      }
-+      free(data->req.newurl);
-+      data->req.newurl = NULL;
+-	a = (struct archive_read *)malloc(sizeof(*a));
++	a = (struct archive_read *)calloc(1, sizeof(*a));
+ 	if (a == NULL)
+ 		return (NULL);
+-	memset(a, 0, sizeof(*a));
+ 	a->archive.magic = ARCHIVE_READ_MAGIC;
  
-       /* initialize a dynamic send-buffer */
-       req_buffer = Curl_add_buffer_init();
-@@ -139,7 +139,7 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
+ 	a->archive.state = ARCHIVE_STATE_NEW;
+ 	a->entry = archive_entry_new2(&a->archive);
+ 	a->archive.vtable = archive_read_vtable();
  
-       host_port = aprintf("%s:%hu", hostname, remote_port);
-       if(!host_port) {
--        free(req_buffer);
-+        Curl_add_buffer_free(req_buffer);
-         return CURLE_OUT_OF_MEMORY;
-       }
++	a->passphrases.last = &a->passphrases.first;
++
+ 	return (&a->archive);
+ }
  
-@@ -148,7 +148,7 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
+@@ -194,10 +195,12 @@ client_skip_proxy(struct archive_read_filter *self, int64_t request)
+ 				ask = skip_limit;
+ 			get = (self->archive->client.skipper)
+ 				(&self->archive->archive, self->data, ask);
+-			if (get == 0)
++			total += get;
++			if (get == 0 || get == request)
+ 				return (total);
++			if (get > request)
++				return ARCHIVE_FATAL;
+ 			request -= get;
+-			total += get;
+ 		}
+ 	} else if (self->archive->client.seeker != NULL
+ 		&& request > 64 * 1024) {
+@@ -230,8 +233,11 @@ client_seek_proxy(struct archive_read_filter *self, int64_t offset, int whence)
+ 	 * other libarchive code that assumes a successful forward
+ 	 * seek means it can also seek backwards.
+ 	 */
+-	if (self->archive->client.seeker == NULL)
++	if (self->archive->client.seeker == NULL) {
++		archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
++		    "Current client reader does not support seeking a device");
+ 		return (ARCHIVE_FAILED);
++	}
+ 	return (self->archive->client.seeker)(&self->archive->archive,
+ 	    self->data, offset, whence);
+ }
+@@ -454,7 +460,7 @@ archive_read_open1(struct archive *_a)
+ {
+ 	struct archive_read *a = (struct archive_read *)_a;
+ 	struct archive_read_filter *filter, *tmp;
+-	int slot, e;
++	int slot, e = ARCHIVE_OK;
+ 	unsigned int i;
  
-       free(host_port);
+ 	archive_check_magic(_a, ARCHIVE_READ_MAGIC, ARCHIVE_STATE_NEW,
+@@ -544,13 +550,13 @@ archive_read_open1(struct archive *_a)
+ static int
+ choose_filters(struct archive_read *a)
+ {
+-	int number_bidders, i, bid, best_bid;
++	int number_bidders, i, bid, best_bid, n;
+ 	struct archive_read_filter_bidder *bidder, *best_bidder;
+ 	struct archive_read_filter *filter;
+ 	ssize_t avail;
+ 	int r;
  
--      if(CURLE_OK == result) {
-+      if(!result) {
-         char *host=(char *)"";
-         const char *proxyconn="";
-         const char *useragent="";
-@@ -159,15 +159,15 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-                   hostname, conn->bits.ipv6_ip?"]":"",
-                   remote_port);
-         if(!hostheader) {
--          free(req_buffer);
-+          Curl_add_buffer_free(req_buffer);
-           return CURLE_OUT_OF_MEMORY;
-         }
+-	for (;;) {
++	for (n = 0; n < 25; ++n) {
+ 		number_bidders = sizeof(a->bidders) / sizeof(a->bidders[0]);
  
-         if(!Curl_checkProxyheaders(conn, "Host:")) {
-           host = aprintf("Host: %s\r\n", hostheader);
-           if(!host) {
-             free(hostheader);
--            free(req_buffer);
-+            Curl_add_buffer_free(req_buffer);
-             return CURLE_OUT_OF_MEMORY;
-           }
-         }
-@@ -197,14 +197,14 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-           free(host);
-         free(hostheader);
+ 		best_bid = 0;
+@@ -596,6 +602,9 @@ choose_filters(struct archive_read *a)
+ 			return (ARCHIVE_FATAL);
+ 		}
+ 	}
++	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
++	    "Input requires too many filters for decoding");
++	return (ARCHIVE_FATAL);
+ }
  
--        if(CURLE_OK == result)
-+        if(!result)
-           result = Curl_add_custom_headers(conn, TRUE, req_buffer);
+ /*
+@@ -658,16 +667,14 @@ _archive_read_next_header2(struct archive *_a, struct archive_entry *entry)
+ 		break;
+ 	}
  
--        if(CURLE_OK == result)
-+        if(!result)
-           /* CRLF terminate the request */
-           result = Curl_add_bufferf(req_buffer, "\r\n");
+-	a->read_data_output_offset = 0;
+-	a->read_data_remaining = 0;
+-	a->read_data_is_posix_read = 0;
+-	a->read_data_requested = 0;
++	__archive_reset_read_data(&a->archive);
++
+ 	a->data_start_node = a->client.cursor;
+ 	/* EOF always wins; otherwise return the worst error. */
+ 	return (r2 < r1 || r2 == ARCHIVE_EOF) ? r2 : r1;
+ }
  
--        if(CURLE_OK == result) {
-+        if(!result) {
-           /* Send the connect request to the proxy */
-           /* BLOCKING */
-           result =
-@@ -216,7 +216,7 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-           failf(data, "Failed sending CONNECT to proxy");
-       }
+-int
++static int
+ _archive_read_next_header(struct archive *_a, struct archive_entry **entryp)
+ {
+ 	int ret;
+@@ -813,7 +820,7 @@ archive_read_format_capabilities(struct archive *_a)
+ ssize_t
+ archive_read_data(struct archive *_a, void *buff, size_t s)
+ {
+-	struct archive_read *a = (struct archive_read *)_a;
++	struct archive *a = (struct archive *)_a;
+ 	char	*dest;
+ 	const void *read_buf;
+ 	size_t	 bytes_read;
+@@ -828,7 +835,7 @@ archive_read_data(struct archive *_a, void *buff, size_t s)
+ 			read_buf = a->read_data_block;
+ 			a->read_data_is_posix_read = 1;
+ 			a->read_data_requested = s;
+-			r = _archive_read_data_block(&a->archive, &read_buf,
++			r = archive_read_data_block(a, &read_buf,
+ 			    &a->read_data_remaining, &a->read_data_offset);
+ 			a->read_data_block = read_buf;
+ 			if (r == ARCHIVE_EOF)
+@@ -843,7 +850,7 @@ archive_read_data(struct archive *_a, void *buff, size_t s)
+ 		}
  
--      Curl_safefree(req_buffer);
-+      Curl_add_buffer_free(req_buffer);
-       if(result)
-         return result;
+ 		if (a->read_data_offset < a->read_data_output_offset) {
+-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
++			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+ 			    "Encountered out-of-order sparse blocks");
+ 			return (ARCHIVE_RETRY);
+ 		}
+@@ -887,6 +894,21 @@ archive_read_data(struct archive *_a, void *buff, size_t s)
+ }
  
-@@ -229,12 +229,14 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-       return CURLE_RECV_ERROR;
-     }
+ /*
++ * Reset the read_data_* variables, used for starting a new entry.
++ */
++void __archive_reset_read_data(struct archive * a)
++{
++	a->read_data_output_offset = 0;
++	a->read_data_remaining = 0;
++	a->read_data_is_posix_read = 0;
++	a->read_data_requested = 0;
++
++   /* extra resets, from rar.c */
++   a->read_data_block = NULL;
++   a->read_data_offset = 0;
++}
++
++/*
+  * Skip over all remaining data in this entry.
+  */
+ int
+@@ -953,7 +975,7 @@ _archive_read_data_block(struct archive *_a,
+ 	if (a->format->read_data == NULL) {
+ 		archive_set_error(&a->archive, ARCHIVE_ERRNO_PROGRAMMER,
+ 		    "Internal error: "
+-		    "No format_read_data_block function registered");
++		    "No format->read_data function registered");
+ 		return (ARCHIVE_FATAL);
+ 	}
  
--    if(0 == Curl_socket_ready(tunnelsocket, CURL_SOCKET_BAD, 0))
--      /* return so we'll be called again polling-style */
--      return CURLE_OK;
--    else {
--      DEBUGF(infof(data,
--                   "Read response immediately from proxy CONNECT\n"));
-+    if(!blocking) {
-+      if(0 == Curl_socket_ready(tunnelsocket, CURL_SOCKET_BAD, 0))
-+        /* return so we'll be called again polling-style */
-+        return CURLE_OK;
-+      else {
-+        DEBUGF(infof(data,
-+               "Read response immediately from proxy CONNECT\n"));
-+      }
-     }
+@@ -1040,6 +1062,7 @@ static int
+ _archive_read_free(struct archive *_a)
+ {
+ 	struct archive_read *a = (struct archive_read *)_a;
++	struct archive_read_passphrase *p;
+ 	int i, n;
+ 	int slots;
+ 	int r = ARCHIVE_OK;
+@@ -1077,9 +1100,20 @@ _archive_read_free(struct archive *_a)
+ 		}
+ 	}
  
-     /* at this point, the tunnel_connecting phase is over. */
-@@ -252,7 +254,6 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
++	/* Release passphrase list. */
++	p = a->passphrases.first;
++	while (p != NULL) {
++		struct archive_read_passphrase *np = p->next;
++
++		/* A passphrase should be cleaned. */
++		memset(p->passphrase, 0, strlen(p->passphrase));
++		free(p->passphrase);
++		free(p);
++		p = np;
++	}
++
+ 	archive_string_free(&a->archive.error_string);
+-	if (a->entry)
+-		archive_entry_free(a->entry);
++	archive_entry_free(a->entry);
+ 	a->archive.magic = 0;
+ 	__archive_clean(&a->archive);
+ 	free(a->client.dataset);
+@@ -1451,6 +1485,8 @@ __archive_read_filter_consume(struct archive_read_filter * filter,
+ {
+ 	int64_t skipped;
  
-       nread=0;
-       perline=0;
--      keepon=TRUE;
++	if (request < 0)
++		return ARCHIVE_FATAL;
+ 	if (request == 0)
+ 		return 0;
  
-       while((nread<BUFSIZE) && (keepon && !error)) {
- 
-@@ -286,7 +287,7 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-               /* proxy auth was requested and there was proxy auth available,
-                  then deem this as "mere" proxy disconnect */
-               conn->bits.proxy_connect_closed = TRUE;
--              infof(data, "Proxy CONNECT connection closed");
-+              infof(data, "Proxy CONNECT connection closed\n");
-             }
-             else {
-               error = SELECT_ERROR;
-@@ -468,7 +469,7 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
- 
-                     result = Curl_http_input_auth(conn, proxy, auth);
- 
--                    Curl_safefree(auth);
-+                    free(auth);
- 
-                     if(result)
-                       return result;
-@@ -555,11 +556,8 @@ CURLcode Curl_proxyCONNECT(struct connectdata *conn,
-       infof(data, "Connect me again please\n");
-     }
-     else {
--      if(data->req.newurl) {
--        /* this won't be used anymore for the CONNECT so free it now */
--        free(data->req.newurl);
--        data->req.newurl = NULL;
--      }
-+      free(data->req.newurl);
-+      data->req.newurl = NULL;
-       /* failure, close this connection to avoid re-use */
-       connclose(conn, "proxy CONNECT failure");
-       Curl_closesocket(conn, conn->sock[sockindex]);

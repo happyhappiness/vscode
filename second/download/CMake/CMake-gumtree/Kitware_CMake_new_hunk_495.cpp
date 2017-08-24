@@ -1,7 +1,23 @@
-
-      host_port = aprintf("%s:%hu", hostname, remote_port);
-      if(!host_port) {
-        Curl_add_buffer_free(req_buffer);
-        return CURLE_OUT_OF_MEMORY;
-      }
-
+		 * impact.
+		 */
+		if (lchmod(a->name, mode) != 0) {
+			switch (errno) {
+			case ENOTSUP:
+			case ENOSYS:
+#if ENOTSUP != EOPNOTSUPP
+			case EOPNOTSUPP:
+#endif
+				/*
+				 * if lchmod is defined but the platform
+				 * doesn't support it, silently ignore
+				 * error
+				 */
+				break;
+			default:
+				archive_set_error(&a->archive, errno,
+				    "Can't set permissions to 0%o", (int)mode);
+				r = ARCHIVE_WARN;
+			}
+		}
+#endif
+	} else if (!S_ISDIR(a->mode)) {

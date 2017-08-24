@@ -1,0 +1,1 @@
+infof(data, "Internal error removing splay node = %d\n", rc)

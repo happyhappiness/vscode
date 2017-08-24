@@ -1,0 +1,3 @@
+{
+    return OPTIMIZED_LibraryType;
+  }

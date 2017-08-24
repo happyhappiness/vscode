@@ -1,0 +1,1 @@
+(s->nInUse == 0) RETURN(BZ_DATA_ERROR)

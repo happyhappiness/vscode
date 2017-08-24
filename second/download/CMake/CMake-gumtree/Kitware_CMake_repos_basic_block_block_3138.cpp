@@ -1,0 +1,1 @@
+fwrite ( obuf, sizeof(UChar), nread, stream )

@@ -1,0 +1,1 @@
+regtail(chain, latest)

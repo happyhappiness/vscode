@@ -1,0 +1,1 @@
+(uc != 0x72) RETURN(BZ_DATA_ERROR)

@@ -1,0 +1,1 @@
+(i > 0 && filename[--i] != '\\' && filename[i] != '/');

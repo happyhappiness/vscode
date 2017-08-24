@@ -1,0 +1,1 @@
+numDigests += (uint32_t)f[i].numUnpackStreams

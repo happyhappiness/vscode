@@ -1,0 +1,1 @@
+return LZMA_OPTIONS_ERROR;

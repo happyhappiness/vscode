@@ -1,0 +1,1 @@
+infof(data, "schannel: checking server certificate revocation\n")

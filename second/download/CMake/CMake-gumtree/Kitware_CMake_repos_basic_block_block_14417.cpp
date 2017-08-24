@@ -1,0 +1,1 @@
+b64_encode(&state->encoded_buff, state->hold, state->hold_len)

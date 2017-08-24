@@ -1,0 +1,1 @@
+slash = strchr(conn->user, '\\')

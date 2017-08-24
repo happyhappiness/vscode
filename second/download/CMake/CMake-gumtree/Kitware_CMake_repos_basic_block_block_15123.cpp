@@ -1,0 +1,1 @@
+return (a->total_bytes_written);

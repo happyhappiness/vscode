@@ -1,0 +1,1 @@
+wsize = wb_remaining(a)

@@ -1,7 +1,7 @@
 
-        /* column is only valid if an input buffer exists. */
-        if (! YY_CURRENT_BUFFER )
-           YY_FATAL_ERROR( "cmFortran_yyset_column called with no buffer" );
-
-    yycolumn = column_no;
-}
+  /* Use uname if it's present, else uid. */
+  p = archive_entry_uname(entry);
+  if ((p == CM_NULLPTR) || (*p == '\0')) {
+    sprintf(tmp, "%lu ", (unsigned long)archive_entry_uid(entry));
+    p = tmp;
+  }

@@ -1,0 +1,1 @@
+return CURLE_SEND_ERROR;

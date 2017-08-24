@@ -1,0 +1,4 @@
+{
+        program.erase(pos);
+        pos--;
+      }

@@ -1,0 +1,1 @@
+wmove(form->w,form->currow,form->curcol)

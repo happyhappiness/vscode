@@ -1,0 +1,1 @@
+ptr[ copyStart[c1]++ ] = k

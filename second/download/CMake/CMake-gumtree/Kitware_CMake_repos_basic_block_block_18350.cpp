@@ -1,0 +1,1 @@
+(result) le32_copy(result, 0, &ctx->hash, 16)

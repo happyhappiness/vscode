@@ -1,0 +1,1 @@
+r = owner_excluded(a, entry)

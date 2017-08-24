@@ -1,0 +1,1 @@
+cache_add_entry(iso9660, iso9660->rr_moved)

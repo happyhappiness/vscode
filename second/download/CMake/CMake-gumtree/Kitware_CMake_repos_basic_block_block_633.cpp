@@ -1,0 +1,1 @@
+YY_FATAL_ERROR( "cmListFileLexer_yyset_column called with no buffer" )

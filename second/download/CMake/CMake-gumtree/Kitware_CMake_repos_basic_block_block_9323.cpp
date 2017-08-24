@@ -1,0 +1,1 @@
+r = (a->cleanup_archive_extract)(a)

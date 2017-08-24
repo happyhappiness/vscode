@@ -1,0 +1,1 @@
+return ((errno == EINVAL)?1:-1);

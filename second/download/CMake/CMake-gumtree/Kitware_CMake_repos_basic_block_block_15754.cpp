@@ -1,0 +1,1 @@
+checksum += 255 & (unsigned int)h[i]

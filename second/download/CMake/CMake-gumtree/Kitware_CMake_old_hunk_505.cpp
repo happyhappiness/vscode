@@ -1,7 +1,6 @@
-    if(res)
-      return res;
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Pathname is too long");
+		}
 
-    Curl_safefree(*allocuserpwd);
-    *allocuserpwd = aprintf("%sAuthorization: %s\r\n",
-                            proxy ? "Proxy-" : "",
-                            conn->response_header);
+		r = archive_entry_copy_pathname_l(entry,

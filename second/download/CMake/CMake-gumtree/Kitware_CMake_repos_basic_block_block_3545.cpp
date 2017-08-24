@@ -1,0 +1,1 @@
+f(fp_r!=stdin)fclose(fp_r)

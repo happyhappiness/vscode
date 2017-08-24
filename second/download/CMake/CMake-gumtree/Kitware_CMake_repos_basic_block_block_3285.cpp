@@ -1,0 +1,1 @@
+(verbosity > 4) verbosity = 4

@@ -1,0 +1,1 @@
+reportDefault(parser, enc, start, end)

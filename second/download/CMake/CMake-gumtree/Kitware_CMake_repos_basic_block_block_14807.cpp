@@ -1,0 +1,1 @@
+return hfs_decompress(a);

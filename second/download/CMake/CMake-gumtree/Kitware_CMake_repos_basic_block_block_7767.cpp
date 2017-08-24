@@ -1,0 +1,1 @@
+b->uri[len - 1] = namespaceSeparator

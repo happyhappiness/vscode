@@ -1,0 +1,1 @@
+req->cb(req, req->retcode, req->addrinfo)

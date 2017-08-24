@@ -1,0 +1,1 @@
+err = uv__open_cloexec("/", O_RDONLY)

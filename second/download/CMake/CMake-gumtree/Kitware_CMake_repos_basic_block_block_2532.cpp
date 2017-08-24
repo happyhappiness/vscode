@@ -1,0 +1,3 @@
+{
+    kwsysProcess_Disown(kp);
+  }

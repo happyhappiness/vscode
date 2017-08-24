@@ -1,0 +1,1 @@
+Curl_ssl_shutdown(conn, sockindex)

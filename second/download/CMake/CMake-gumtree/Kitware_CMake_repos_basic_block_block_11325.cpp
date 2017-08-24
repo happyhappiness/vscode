@@ -1,0 +1,1 @@
+l = (int)strm->avail_in

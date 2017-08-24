@@ -1,0 +1,1 @@
+uv_tty_default_fg_bright = 1

@@ -1,0 +1,1 @@
+(WORD_BH(k) == 0xffffffff) k += 32

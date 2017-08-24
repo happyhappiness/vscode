@@ -1,13 +1,7 @@
-}
-inline const char* Getcwd(char* buf, unsigned int len)
-{
-  const char* ret = getcwd(buf, len);
-  if(!ret)
-    {
-    fprintf(stderr, "No current working directory\n");
-    abort();
+            "---------------------------------------"
+            "---------------------------------------\n");
+    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
+            this->Target->GetName(), this->Config?this->Config:"noconfig");
+    this->DisplayConstraintGraph();
     }
-  return ret;
-}
 
-inline int Chdir(const char* dir)

@@ -1,0 +1,1 @@
+effkeys &= ~(F_UNAME | F_UID)

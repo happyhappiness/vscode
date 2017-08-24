@@ -1,0 +1,1 @@
+length -= fe->fe_logical + length - size

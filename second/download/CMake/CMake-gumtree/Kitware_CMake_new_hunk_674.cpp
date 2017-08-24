@@ -1,23 +1,15 @@
-    // package has been requested.
-    std::string ver = this->Name;
-    ver += "_FIND_VERSION";
-    this->AddFindDefinition(ver, this->Version.c_str());
-    char buf[64];
-    sprintf(buf, "%u", this->VersionMajor);
-    this->AddFindDefinition(ver+"_MAJOR", buf);
-    sprintf(buf, "%u", this->VersionMinor);
-    this->AddFindDefinition(ver+"_MINOR", buf);
-    sprintf(buf, "%u", this->VersionPatch);
-    this->AddFindDefinition(ver+"_PATCH", buf);
-    sprintf(buf, "%u", this->VersionTweak);
-    this->AddFindDefinition(ver+"_TWEAK", buf);
-    sprintf(buf, "%u", this->VersionCount);
-    this->AddFindDefinition(ver+"_COUNT", buf);
+	if ((keys & F_UID) != 0)
+		archive_string_sprintf(str, " uid=%jd", (intmax_t)me->uid);
 
-    // Tell the module whether an exact version has been requested.
-    std::string exact = this->Name;
-    exact += "_FIND_VERSION_EXACT";
-    this->AddFindDefinition(exact, this->VersionExact? "1":"0");
-   }
-}
+	if ((keys & F_INO) != 0)
+		archive_string_sprintf(str, " inode=%jd", (intmax_t)me->ino);
+	if ((keys & F_RESDEV) != 0) {
+		archive_string_sprintf(str,
+		    " resdevice=native,%ju,%ju",
+		    (uintmax_t)me->devmajor,
+		    (uintmax_t)me->devminor);
+	}
 
+	switch (me->filetype) {
+	case AE_IFLNK:
+		if ((keys & F_TYPE) != 0)

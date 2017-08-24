@@ -1,0 +1,1 @@
+r = fcntl(fd, F_GETFD)

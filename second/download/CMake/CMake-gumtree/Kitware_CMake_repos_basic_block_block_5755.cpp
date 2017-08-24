@@ -1,0 +1,1 @@
+infof(data, "FreeLibrary(wsock2) failed (%d)", ERRNO)

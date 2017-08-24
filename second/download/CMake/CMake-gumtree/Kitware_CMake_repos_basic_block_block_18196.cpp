@@ -1,0 +1,1 @@
+lzma_lzma_lclppb_encode(&coder->opt_cur, coder->buf + pos)

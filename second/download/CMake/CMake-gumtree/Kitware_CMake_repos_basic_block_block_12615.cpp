@@ -1,0 +1,1 @@
+table[i].length = -1

@@ -1,0 +1,1 @@
+ret = kevent(kq, filter, 1, events, 1, &timeout)

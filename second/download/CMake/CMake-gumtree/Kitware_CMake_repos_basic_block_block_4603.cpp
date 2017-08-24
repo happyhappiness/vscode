@@ -1,0 +1,1 @@
+*(int *) p->data.ptr = (int)done

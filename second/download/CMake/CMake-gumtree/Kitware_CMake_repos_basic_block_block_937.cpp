@@ -1,0 +1,3 @@
+(clen > maxlen) {
+        maxlen = clen;
+      }

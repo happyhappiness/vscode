@@ -1,0 +1,1 @@
+uv_tty_default_text_attributes = 7

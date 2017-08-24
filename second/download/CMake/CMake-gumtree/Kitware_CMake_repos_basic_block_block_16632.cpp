@@ -1,0 +1,1 @@
+keys &= ~(F_UNAME | F_UID)

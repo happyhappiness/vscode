@@ -1,0 +1,1 @@
+memset(rar->lengthtable, 0, sizeof(rar->lengthtable))

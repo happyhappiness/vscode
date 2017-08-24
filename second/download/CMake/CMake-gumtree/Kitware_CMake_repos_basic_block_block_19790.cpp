@@ -1,0 +1,1 @@
+return handle->delayed_error;

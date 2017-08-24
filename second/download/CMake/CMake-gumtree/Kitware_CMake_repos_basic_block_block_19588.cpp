@@ -1,0 +1,1 @@
+stream->flags |= UV_STREAM_SHUT

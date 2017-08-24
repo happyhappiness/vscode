@@ -1,0 +1,1 @@
+len = buf->size - buf->index

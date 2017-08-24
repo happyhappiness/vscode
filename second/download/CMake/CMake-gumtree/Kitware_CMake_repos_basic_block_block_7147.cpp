@@ -1,0 +1,3 @@
+{
+            reallocated_length = len;
+          }

@@ -1,0 +1,1 @@
+ldap_unbind_s(server)

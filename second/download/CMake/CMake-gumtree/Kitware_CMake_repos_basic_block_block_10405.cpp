@@ -1,0 +1,1 @@
+nbytes_req <<= 1

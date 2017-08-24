@@ -1,7 +1,14 @@
-        // write the count into the directory
-        std::string fName = dirName;
-        fName += "/count.txt";
-        FILE *progFile = cmsys::SystemTools::Fopen(fName.c_str(),"w");
-        if (progFile)
-          {
-          fprintf(progFile,"%i\n",count);
+//----------------------------------------------------------------------------
+void cmComputeLinkDepends::DisplayFinalEntries()
+{
+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+  for(std::vector<LinkEntry>::const_iterator lei =
+        this->FinalLinkEntries.begin();
+      lei != this->FinalLinkEntries.end(); ++lei)
+    {
+    if(lei->Target)
+      {
+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+      }
+    else
+      {

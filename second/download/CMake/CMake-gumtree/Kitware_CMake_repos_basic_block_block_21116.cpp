@@ -1,0 +1,1 @@
+CloseHandle(active_screen_buffer)

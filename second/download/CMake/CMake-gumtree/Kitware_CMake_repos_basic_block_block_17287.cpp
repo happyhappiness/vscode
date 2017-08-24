@@ -1,0 +1,9 @@
+{
+			WT_RSRC,
+			/*uri*/NULL,
+			/*urn*/NULL,
+			/*rtm*/0,
+			/*mtm*/0,
+			/*cty*/NULL,
+			/*len*/0,
+		}

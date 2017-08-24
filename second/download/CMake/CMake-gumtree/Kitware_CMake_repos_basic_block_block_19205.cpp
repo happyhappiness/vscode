@@ -1,0 +1,1 @@
+errno = ENOSYS

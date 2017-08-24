@@ -1,0 +1,4 @@
+{
+        ++nfds;
+        s = sockbunch[i];
+      }

@@ -1,0 +1,1 @@
+cpio->links_head = le->next

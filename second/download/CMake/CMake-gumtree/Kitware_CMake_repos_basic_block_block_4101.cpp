@@ -1,0 +1,2 @@
+f(!hostp->data)
+      continue;

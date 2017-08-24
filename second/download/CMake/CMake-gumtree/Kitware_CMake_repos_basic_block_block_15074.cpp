@@ -1,0 +1,1 @@
+uid = result->pw_uid

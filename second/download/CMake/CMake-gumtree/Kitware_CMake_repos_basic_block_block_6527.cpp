@@ -1,0 +1,2 @@
+f(publicKeyBits == NULL)
+      break;

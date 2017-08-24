@@ -1,0 +1,3 @@
+{
+        res += "Microsoft Windows NT";
+      }

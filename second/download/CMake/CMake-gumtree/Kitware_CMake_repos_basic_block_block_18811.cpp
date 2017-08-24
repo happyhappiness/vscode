@@ -1,0 +1,1 @@
+r = dup2(oldfd, newfd)

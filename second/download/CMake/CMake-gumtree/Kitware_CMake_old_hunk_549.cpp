@@ -1,12 +1,7 @@
-
-   dosHeader = (PIMAGE_DOS_HEADER)lpFileBase;
-   if (dosHeader->e_magic == IMAGE_DOS_SIGNATURE) {
-#if 0
-      DumpExeFile( dosHeader );
-#else
-      fprintf(stderr, "File is an executable.  I don't dump those.\n");
-      return;
-#endif
-   }
-   /* Does it look like a i386 COFF OBJ file??? */
-   else if (
+     information. Which for FILE can't be much more than the file size and
+     date. */
+  if(data->set.opt_no_body && data->set.include_header && fstated) {
+    CURLcode result;
+    snprintf(buf, sizeof(data->state.buffer),
+             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+    result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);

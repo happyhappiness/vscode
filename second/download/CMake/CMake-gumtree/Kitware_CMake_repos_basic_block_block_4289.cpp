@@ -1,0 +1,1 @@
+stream->header_recvbuf = Curl_add_buffer_init()

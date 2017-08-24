@@ -1,0 +1,1 @@
+(DLLProc)(GetCurrentProcess(), &bIsWindows64Bit)

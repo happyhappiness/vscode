@@ -1,0 +1,1 @@
+bytes_to_read = (size_t)(mtree->cur_size - mtree->offset)

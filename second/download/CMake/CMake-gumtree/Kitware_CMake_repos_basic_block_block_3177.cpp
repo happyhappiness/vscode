@@ -1,0 +1,1 @@
+(tmp != NULL) fclose ( tmp )

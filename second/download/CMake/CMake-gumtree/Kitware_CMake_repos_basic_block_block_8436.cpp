@@ -1,0 +1,3 @@
+(!node->isObject()) {
+        // Error: node is not an object at position...
+      }

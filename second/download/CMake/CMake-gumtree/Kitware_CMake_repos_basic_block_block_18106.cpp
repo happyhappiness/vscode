@@ -1,0 +1,1 @@
+dict->full = dict->pos

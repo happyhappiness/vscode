@@ -1,0 +1,3 @@
+{
+      linuxMinor = minorChar - '0';
+    }

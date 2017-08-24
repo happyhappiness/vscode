@@ -1,0 +1,1 @@
+Curl_closesocket(conn, conn->tempsock[0])

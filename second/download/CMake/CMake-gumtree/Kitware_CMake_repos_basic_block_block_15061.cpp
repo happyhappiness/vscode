@@ -1,0 +1,13 @@
+(strncmp(name, "user.", 5) == 0) {
+				/* "user." attributes go to user namespace */
+				name += 5;
+				namespace = EXTATTR_NAMESPACE_USER;
+			} else {
+				/* Warn about other extended attributes. */
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Can't restore extended attribute ``%s''",
+				    name);
+				ret = ARCHIVE_WARN;
+				continue;
+			}

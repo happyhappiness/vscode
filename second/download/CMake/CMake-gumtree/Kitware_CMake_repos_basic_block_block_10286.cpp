@@ -1,0 +1,1 @@
+state->stage = SELECT_STREAM

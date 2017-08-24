@@ -1,0 +1,2 @@
+(memcmp(p, LZOP_HEADER_MAGIC, LZOP_HEADER_MAGIC_LEN))
+		return (ARCHIVE_EOF);

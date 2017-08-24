@@ -1,0 +1,1 @@
+(nextSym == BZ_RUNB) es = es + (1+1) * N

@@ -1,0 +1,1 @@
+(bzerr == BZ_DATA_ERROR_MAGIC) goto errhandler;

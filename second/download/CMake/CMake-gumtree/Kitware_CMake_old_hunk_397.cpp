@@ -1,7 +1,7 @@
-		close(data->child_stdout);
-		data->child_stdout = -1;
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
-#else
+
+  free(*userp);
+  *userp = aprintf("%sAuthorization: Basic %s\r\n",
+                   proxy?"Proxy-":"",
+                   authorization);
+  free(authorization);
+  if(!*userp)

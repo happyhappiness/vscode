@@ -1,0 +1,1 @@
+initialTokenOk = readToken(tokenName)

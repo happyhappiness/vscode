@@ -1,0 +1,1 @@
+res = readlink(buf, buffer, res)

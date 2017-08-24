@@ -1,0 +1,3 @@
+(PInfo.Relationship != RelationProcessorCore) {
+      continue;
+    }

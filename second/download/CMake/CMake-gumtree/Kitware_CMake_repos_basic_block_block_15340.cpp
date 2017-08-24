@@ -1,0 +1,1 @@
+*mine->client_size = mine->used

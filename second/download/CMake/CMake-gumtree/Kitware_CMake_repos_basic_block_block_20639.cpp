@@ -1,0 +1,4 @@
+{
+    *dup = INVALID_HANDLE_VALUE;
+    return ERROR_INVALID_HANDLE;
+  }

@@ -1,0 +1,2 @@
+(i == LZMA_FILTERS_MAX)
+			return LZMA_PROG_ERROR;

@@ -1,7 +1,14 @@
-    fprintf(fout, "set(CMAKE_RUNTIME_OUTPUT_DIRECTORY \"%s\")\n",
-            this->BinaryDirectory.c_str());
-    /* Create the actual executable.  */
-    fprintf(fout, "add_executable(%s", targetName.c_str());
-    for(std::vector<std::string>::iterator si = sources.begin();
-        si != sources.end(); ++si)
+                            sizeof(rar->reserved2));
+      }
+
+      /* Main header is password encrytped, so we cannot read any
+         file names or any other info about files from the header. */
+      if (rar->main_flags & MHD_PASSWORD)
       {
+        archive_entry_set_is_metadata_encrypted(entry, 1);
+        archive_entry_set_is_data_encrypted(entry, 1);
+        rar->has_encrypted_entries = 1;
+         archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR encryption support unavailable.");
+        return (ARCHIVE_FATAL);
+      }

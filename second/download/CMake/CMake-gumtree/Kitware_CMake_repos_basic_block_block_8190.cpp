@@ -1,0 +1,2 @@
+(!newV)
+        return NULL;

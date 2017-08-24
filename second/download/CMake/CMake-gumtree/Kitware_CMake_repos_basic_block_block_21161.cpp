@@ -1,0 +1,1 @@
+(fg_color & 2) info.wAttributes |= FOREGROUND_GREEN

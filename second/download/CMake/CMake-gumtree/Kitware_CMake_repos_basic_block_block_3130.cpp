@@ -1,0 +1,1 @@
+(ret == EOF) goto errhandler_io;

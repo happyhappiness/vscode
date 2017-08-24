@@ -1,0 +1,6 @@
+(code->tree[node].branches[bit] < 0)
+    {
+      archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                        "Invalid prefix code in bitstream");
+      return -1;
+    }

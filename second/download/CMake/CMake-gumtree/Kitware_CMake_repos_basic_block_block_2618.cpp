@@ -1,0 +1,4 @@
+{
+      NextNonWhitespace();
+      return true;
+    }

@@ -1,0 +1,1 @@
+zip->bcj2_p[i] = kBitModelTotal >> 1

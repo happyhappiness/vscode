@@ -1,0 +1,1 @@
+LZ4_freeStream(data->lz4_stream)

@@ -1,5 +1,5 @@
 /*============================================================================
-  CMake - Cross Platform Makefile Generator
+  KWSys - Kitware System Library
   Copyright 2000-2009 Kitware, Inc., Insight Software Consortium
 
   Distributed under the OSI-approved BSD License (the "License");
@@ -9,2714 +9,3009 @@
   implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
   See the License for more information.
 ============================================================================*/
-#include "cmake.h"
-#include "cmCacheManager.h"
-#include "cmMakefile.h"
-#include "cmLocalGenerator.h"
-#include "cmExternalMakefileProjectGenerator.h"
-#include "cmCommands.h"
-#include "cmCommand.h"
-#include "cmFileTimeComparison.h"
-#include "cmSourceFile.h"
-#include "cmTest.h"
-#include "cmDocumentationFormatter.h"
+#include "kwsysPrivate.h"
+#include KWSYS_HEADER(Process.h)
+#include KWSYS_HEADER(Encoding.h)
 
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-# include "cmGraphVizWriter.h"
-# include "cmVariableWatch.h"
+/* Work-around CMake dependency scanning limitation.  This must
+   duplicate the above list of headers.  */
+#if 0
+# include "Process.h.in"
+# include "Encoding_c.h.in"
 #endif
 
-#include <cmsys/Glob.hxx>
-#include <cmsys/RegularExpression.hxx>
-#include <cmsys/FStream.hxx>
+/*
 
-// only build kdevelop generator on non-windows platforms
-// when not bootstrapping cmake
-#if !defined(_WIN32)
-# if defined(CMAKE_BUILD_WITH_CMAKE)
-#   define CMAKE_USE_KDEVELOP
+Implementation for Windows
+
+On windows, a thread is created to wait for data on each pipe.  The
+threads are synchronized with the main thread to simulate the use of
+a UNIX-style select system call.
+
+*/
+
+#ifdef _MSC_VER
+#pragma warning (push, 1)
+#endif
+#include <windows.h> /* Windows API */
+#if defined(_MSC_VER) && _MSC_VER >= 1800
+# define KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+#endif
+#include <string.h>  /* strlen, strdup */
+#include <stdio.h>   /* sprintf */
+#include <io.h>      /* _unlink */
+#ifdef __WATCOMC__
+#define _unlink unlink
+#endif
+
+#ifndef _MAX_FNAME
+#define _MAX_FNAME 4096
+#endif
+#ifndef _MAX_PATH
+#define _MAX_PATH 4096
+#endif
+
+#ifdef _MSC_VER
+#pragma warning (pop)
+#pragma warning (disable: 4514)
+#pragma warning (disable: 4706)
+#endif
+
+#if defined(__BORLANDC__)
+# pragma warn -8004 /* assigned a value that is never used  */
+# pragma warn -8060 /* Assignment inside if() condition.  */
+#endif
+
+/* There are pipes for the process pipeline's stdout and stderr.  */
+#define KWSYSPE_PIPE_COUNT 2
+#define KWSYSPE_PIPE_STDOUT 0
+#define KWSYSPE_PIPE_STDERR 1
+
+/* The maximum amount to read from a pipe at a time.  */
+#define KWSYSPE_PIPE_BUFFER_SIZE 1024
+
+/* Debug output macro.  */
+#if 0
+# define KWSYSPE_DEBUG(x) \
+( \
+  (void*)cp == (void*)0x00226DE0? \
+  ( \
+    fprintf(stderr, "%d/%p/%d ", (int)GetCurrentProcessId(), cp, __LINE__), \
+    fprintf x, \
+    fflush(stderr), \
+    1 \
+  ) : (1) \
+)
+#else
+# define KWSYSPE_DEBUG(x) (void)1
+#endif
+
+typedef LARGE_INTEGER kwsysProcessTime;
+
+typedef struct kwsysProcessCreateInformation_s
+{
+  /* Windows child startup control data.  */
+  STARTUPINFOW StartupInfo;
+
+  /* Original handles before making inherited duplicates.  */
+  HANDLE hStdInput;
+  HANDLE hStdOutput;
+  HANDLE hStdError;
+} kwsysProcessCreateInformation;
+
+
+/*--------------------------------------------------------------------------*/
+typedef struct kwsysProcessPipeData_s kwsysProcessPipeData;
+static DWORD WINAPI kwsysProcessPipeThreadRead(LPVOID ptd);
+static void kwsysProcessPipeThreadReadPipe(kwsysProcess* cp,
+                                           kwsysProcessPipeData* td);
+static DWORD WINAPI kwsysProcessPipeThreadWake(LPVOID ptd);
+static void kwsysProcessPipeThreadWakePipe(kwsysProcess* cp,
+                                           kwsysProcessPipeData* td);
+static int kwsysProcessInitialize(kwsysProcess* cp);
+static DWORD kwsysProcessCreate(kwsysProcess* cp, int index,
+                                kwsysProcessCreateInformation* si);
+static void kwsysProcessDestroy(kwsysProcess* cp, int event);
+static DWORD kwsysProcessSetupOutputPipeFile(PHANDLE handle,
+                                             const char* name);
+static void kwsysProcessSetupSharedPipe(DWORD nStdHandle, PHANDLE handle);
+static void kwsysProcessSetupPipeNative(HANDLE native, PHANDLE handle);
+static void kwsysProcessCleanupHandle(PHANDLE h);
+static void kwsysProcessCleanup(kwsysProcess* cp, DWORD error);
+static void kwsysProcessCleanErrorMessage(kwsysProcess* cp);
+static int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
+                                      kwsysProcessTime* timeoutTime);
+static int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
+                                      double* userTimeout,
+                                      kwsysProcessTime* timeoutLength);
+static kwsysProcessTime kwsysProcessTimeGetCurrent(void);
+static DWORD kwsysProcessTimeToDWORD(kwsysProcessTime t);
+static double kwsysProcessTimeToDouble(kwsysProcessTime t);
+static kwsysProcessTime kwsysProcessTimeFromDouble(double d);
+static int kwsysProcessTimeLess(kwsysProcessTime in1, kwsysProcessTime in2);
+static kwsysProcessTime kwsysProcessTimeAdd(kwsysProcessTime in1, kwsysProcessTime in2);
+static kwsysProcessTime kwsysProcessTimeSubtract(kwsysProcessTime in1, kwsysProcessTime in2);
+static void kwsysProcessSetExitException(kwsysProcess* cp, int code);
+static void kwsysProcessKillTree(int pid);
+static void kwsysProcessDisablePipeThreads(kwsysProcess* cp);
+static int kwsysProcessesInitialize(void);
+static int kwsysTryEnterCreateProcessSection(void);
+static void kwsysLeaveCreateProcessSection(void);
+static int kwsysProcessesAdd(HANDLE hProcess, DWORD dwProcessId,
+                             int newProcessGroup);
+static void kwsysProcessesRemove(HANDLE hProcess);
+static BOOL WINAPI kwsysCtrlHandler(DWORD dwCtrlType);
+
+/*--------------------------------------------------------------------------*/
+/* A structure containing synchronization data for each thread.  */
+typedef struct kwsysProcessPipeSync_s kwsysProcessPipeSync;
+struct kwsysProcessPipeSync_s
+{
+  /* Handle to the thread.  */
+  HANDLE Thread;
+
+  /* Semaphore indicating to the thread that a process has started.  */
+  HANDLE Ready;
+
+  /* Semaphore indicating to the thread that it should begin work.  */
+  HANDLE Go;
+
+  /* Semaphore indicating thread has reset for another process.  */
+  HANDLE Reset;
+};
+
+/*--------------------------------------------------------------------------*/
+/* A structure containing data for each pipe's threads.  */
+struct kwsysProcessPipeData_s
+{
+  /* ------------- Data managed per instance of kwsysProcess ------------- */
+
+  /* Synchronization data for reading thread.  */
+  kwsysProcessPipeSync Reader;
+
+  /* Synchronization data for waking thread.  */
+  kwsysProcessPipeSync Waker;
+
+  /* Index of this pipe.  */
+  int Index;
+
+  /* The kwsysProcess instance owning this pipe.  */
+  kwsysProcess* Process;
+
+  /* ------------- Data managed per call to Execute ------------- */
+
+  /* Buffer for data read in this pipe's thread.  */
+  char DataBuffer[KWSYSPE_PIPE_BUFFER_SIZE];
+
+  /* The length of the data stored in the buffer.  */
+  DWORD DataLength;
+
+  /* Whether the pipe has been closed.  */
+  int Closed;
+
+  /* Handle for the read end of this pipe. */
+  HANDLE Read;
+
+  /* Handle for the write end of this pipe. */
+  HANDLE Write;
+};
+
+/*--------------------------------------------------------------------------*/
+/* Structure containing data used to implement the child's execution.  */
+struct kwsysProcess_s
+{
+  /* ------------- Data managed per instance of kwsysProcess ------------- */
+
+  /* The status of the process structure.  */
+  int State;
+
+  /* The command lines to execute.  */
+  wchar_t** Commands;
+  int NumberOfCommands;
+
+  /* The exit code of each command.  */
+  DWORD* CommandExitCodes;
+
+  /* The working directory for the child process.  */
+  wchar_t* WorkingDirectory;
+
+  /* Whether to create the child as a detached process.  */
+  int OptionDetach;
+
+  /* Whether the child was created as a detached process.  */
+  int Detached;
+
+  /* Whether to hide the child process's window.  */
+  int HideWindow;
+
+  /* Whether to treat command lines as verbatim.  */
+  int Verbatim;
+
+  /* Whether to merge stdout/stderr of the child.  */
+  int MergeOutput;
+
+  /* Whether to create the process in a new process group.  */
+  int CreateProcessGroup;
+
+  /* Mutex to protect the shared index used by threads to report data.  */
+  HANDLE SharedIndexMutex;
+
+  /* Semaphore used by threads to signal data ready.  */
+  HANDLE Full;
+
+  /* Whether we are currently deleting this kwsysProcess instance.  */
+  int Deleting;
+
+  /* Data specific to each pipe and its thread.  */
+  kwsysProcessPipeData Pipe[KWSYSPE_PIPE_COUNT];
+
+  /* Name of files to which stdin and stdout pipes are attached.  */
+  char* PipeFileSTDIN;
+  char* PipeFileSTDOUT;
+  char* PipeFileSTDERR;
+
+  /* Whether each pipe is shared with the parent process.  */
+  int PipeSharedSTDIN;
+  int PipeSharedSTDOUT;
+  int PipeSharedSTDERR;
+
+  /* Native pipes provided by the user.  */
+  HANDLE PipeNativeSTDIN[2];
+  HANDLE PipeNativeSTDOUT[2];
+  HANDLE PipeNativeSTDERR[2];
+
+  /* ------------- Data managed per call to Execute ------------- */
+
+  /* The exceptional behavior that terminated the process, if any.  */
+  int ExitException;
+
+  /* The process exit code.  */
+  DWORD ExitCode;
+
+  /* The process return code, if any.  */
+  int ExitValue;
+
+  /* Index of last pipe to report data, if any.  */
+  int CurrentIndex;
+
+  /* Index shared by threads to report data.  */
+  int SharedIndex;
+
+  /* The timeout length.  */
+  double Timeout;
+
+  /* Time at which the child started.  */
+  kwsysProcessTime StartTime;
+
+  /* Time at which the child will timeout.  Negative for no timeout.  */
+  kwsysProcessTime TimeoutTime;
+
+  /* Flag for whether the process was killed.  */
+  int Killed;
+
+  /* Flag for whether the timeout expired.  */
+  int TimeoutExpired;
+
+  /* Flag for whether the process has terminated.  */
+  int Terminated;
+
+  /* The number of pipes still open during execution and while waiting
+     for pipes to close after process termination.  */
+  int PipesLeft;
+
+  /* Buffer for error messages.  */
+  char ErrorMessage[KWSYSPE_PIPE_BUFFER_SIZE+1];
+
+  /* Description for the ExitException.  */
+  char ExitExceptionString[KWSYSPE_PIPE_BUFFER_SIZE+1];
+
+  /* Windows process information data.  */
+  PROCESS_INFORMATION* ProcessInformation;
+
+  /* Data and process termination events for which to wait.  */
+  PHANDLE ProcessEvents;
+  int ProcessEventsLength;
+
+  /* Real working directory of our own process.  */
+  DWORD RealWorkingDirectoryLength;
+  wchar_t* RealWorkingDirectory;
+
+  /* Own handles for the child's ends of the pipes in the parent process.
+     Used temporarily during process creation.  */
+  HANDLE PipeChildStd[3];
+};
+
+/*--------------------------------------------------------------------------*/
+kwsysProcess* kwsysProcess_New(void)
+{
+  int i;
+
+  /* Process control structure.  */
+  kwsysProcess* cp;
+
+  /* Windows version number data.  */
+  OSVERSIONINFO osv;
+
+  /* Initialize list of processes before we get any farther.  It's especially
+     important that the console Ctrl handler be added BEFORE starting the
+     first process.  This prevents the risk of an orphaned process being
+     started by the main thread while the default Ctrl handler is in
+     progress.  */
+  if(!kwsysProcessesInitialize())
+    {
+    return 0;
+    }
+
+  /* Allocate a process control structure.  */
+  cp = (kwsysProcess*)malloc(sizeof(kwsysProcess));
+  if(!cp)
+    {
+    /* Could not allocate memory for the control structure.  */
+    return 0;
+    }
+  ZeroMemory(cp, sizeof(*cp));
+
+  /* Share stdin with the parent process by default.  */
+  cp->PipeSharedSTDIN = 1;
+
+  /* Set initial status.  */
+  cp->State = kwsysProcess_State_Starting;
+
+  /* Choose a method of running the child based on version of
+     windows.  */
+  ZeroMemory(&osv, sizeof(osv));
+  osv.dwOSVersionInfoSize = sizeof(osv);
+#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+# pragma warning (push)
+# ifdef __INTEL_COMPILER
+#  pragma warning (disable:1478)
+# else
+#  pragma warning (disable:4996)
 # endif
 #endif
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-#  define CMAKE_USE_ECLIPSE
+  GetVersionEx(&osv);
+#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+# pragma warning (pop)
 #endif
-
-#if defined(__MINGW32__) && !defined(CMAKE_BUILD_WITH_CMAKE)
-# define CMAKE_BOOT_MINGW
-#endif
-
-// include the generator
-#if defined(_WIN32) && !defined(__CYGWIN__)
-#  if !defined(CMAKE_BOOT_MINGW)
-#    include "cmGlobalVisualStudio6Generator.h"
-#    include "cmGlobalVisualStudio7Generator.h"
-#    include "cmGlobalVisualStudio71Generator.h"
-#    include "cmGlobalVisualStudio8Generator.h"
-#    include "cmGlobalVisualStudio9Generator.h"
-#    include "cmGlobalVisualStudio10Generator.h"
-#    include "cmGlobalVisualStudio11Generator.h"
-#    include "cmGlobalVisualStudio12Generator.h"
-#    include "cmGlobalBorlandMakefileGenerator.h"
-#    include "cmGlobalNMakeMakefileGenerator.h"
-#    include "cmGlobalJOMMakefileGenerator.h"
-#    include "cmGlobalWatcomWMakeGenerator.h"
-#    define CMAKE_HAVE_VS_GENERATORS
-#  endif
-#  include "cmGlobalMSYSMakefileGenerator.h"
-#  include "cmGlobalMinGWMakefileGenerator.h"
-#else
-#endif
-#include "cmGlobalUnixMakefileGenerator3.h"
-#include "cmGlobalNinjaGenerator.h"
-#include "cmExtraCodeLiteGenerator.h"
-
-#if !defined(CMAKE_BOOT_MINGW)
-# include "cmExtraCodeBlocksGenerator.h"
-#endif
-#include "cmExtraSublimeTextGenerator.h"
-#include "cmExtraKateGenerator.h"
-
-#ifdef CMAKE_USE_KDEVELOP
-# include "cmGlobalKdevelopGenerator.h"
-#endif
-
-#ifdef CMAKE_USE_ECLIPSE
-# include "cmExtraEclipseCDT4Generator.h"
-#endif
-
-#include <stdlib.h> // required for atoi
-
-#if defined( __APPLE__ )
-#  if defined(CMAKE_BUILD_WITH_CMAKE)
-#    include "cmGlobalXCodeGenerator.h"
-#    define CMAKE_USE_XCODE 1
-#  endif
-#  include <sys/types.h>
-#  include <sys/time.h>
-#  include <sys/resource.h>
-#endif
-
-#include <sys/stat.h> // struct stat
-
-static bool cmakeCheckStampFile(const char* stampName);
-static bool cmakeCheckStampList(const char* stampName);
-
-void cmWarnUnusedCliWarning(const std::string& variable,
-  int, void* ctx, const char*, const cmMakefile*)
-{
-  cmake* cm = reinterpret_cast<cmake*>(ctx);
-  cm->MarkCliAsUsed(variable);
-}
-
-cmake::cmake()
-{
-  this->Trace = false;
-  this->WarnUninitialized = false;
-  this->WarnUnused = false;
-  this->WarnUnusedCli = true;
-  this->CheckSystemVars = false;
-  this->SuppressDevWarnings = false;
-  this->DoSuppressDevWarnings = false;
-  this->DebugOutput = false;
-  this->DebugTryCompile = false;
-  this->ClearBuildSystem = false;
-  this->FileComparison = new cmFileTimeComparison;
-
-  this->Policies = new cmPolicies();
-  this->InitializeProperties();
-
-#ifdef __APPLE__
-  struct rlimit rlp;
-  if(!getrlimit(RLIMIT_STACK, &rlp))
+  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
     {
-    if(rlp.rlim_cur != rlp.rlim_max)
+    /* Win9x no longer supported.  */
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
+  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
+    {
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Initially no data are available.  Initialize semaphore to 0.  */
+  if(!(cp->Full = CreateSemaphore(0, 0, 1, 0)))
+    {
+    kwsysProcess_Delete(cp);
+    return 0;
+    }
+
+  /* Create the thread to read each pipe.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    DWORD dummy=0;
+
+    /* Assign the thread its index.  */
+    cp->Pipe[i].Index = i;
+
+    /* Give the thread a pointer back to the kwsysProcess instance.  */
+    cp->Pipe[i].Process = cp;
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Ready = CreateSemaphore(0, 0, 1, 0)))
       {
-        rlp.rlim_cur = rlp.rlim_max;
-         setrlimit(RLIMIT_STACK, &rlp);
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Reader.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The thread's buffer is initially empty.  Initialize semaphore to 1.  */
+    if(!(cp->Pipe[i].Reader.Go = CreateSemaphore(0, 1, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the reading thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Reader.Thread = CreateThread(0, 1024,
+                                                  kwsysProcessPipeThreadRead,
+                                                  &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* No process is yet running.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Ready = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The pipe is not yet reset.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Reset = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* The waker should not wake immediately.  Initialize semaphore to 0.  */
+    if(!(cp->Pipe[i].Waker.Go = CreateSemaphore(0, 0, 1, 0)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
+      }
+
+    /* Create the waking thread.  It will block immediately.  The
+       thread will not make deeply nested calls, so we need only a
+       small stack.  */
+    if(!(cp->Pipe[i].Waker.Thread = CreateThread(0, 1024,
+                                                 kwsysProcessPipeThreadWake,
+                                                 &cp->Pipe[i], 0, &dummy)))
+      {
+      kwsysProcess_Delete(cp);
+      return 0;
       }
     }
-#endif
+  for(i=0; i < 3; ++i)
+    {
+    cp->PipeChildStd[i] = INVALID_HANDLE_VALUE;
+    }
 
-  this->Verbose = false;
-  this->InTryCompile = false;
-  this->CacheManager = new cmCacheManager(this);
-  this->GlobalGenerator = 0;
-  this->ProgressCallback = 0;
-  this->ProgressCallbackClientData = 0;
-  this->CurrentWorkingMode = NORMAL_MODE;
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  this->VariableWatch = new cmVariableWatch;
-#endif
-
-  this->AddDefaultGenerators();
-  this->AddDefaultExtraGenerators();
-  this->AddDefaultCommands();
-
-  // Make sure we can capture the build tool output.
-  cmSystemTools::EnableVSConsoleOutput();
+  return cp;
 }
 
-cmake::~cmake()
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Delete(kwsysProcess* cp)
 {
-  delete this->CacheManager;
-  delete this->Policies;
-  if (this->GlobalGenerator)
-    {
-    delete this->GlobalGenerator;
-    this->GlobalGenerator = 0;
-    }
-  for(RegisteredCommandsMap::iterator j = this->Commands.begin();
-      j != this->Commands.end(); ++j)
-    {
-    delete (*j).second;
-    }
-  for(RegisteredGeneratorsVector::iterator j = this->Generators.begin();
-      j != this->Generators.end(); ++j)
-    {
-    delete *j;
-    }
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  delete this->VariableWatch;
-#endif
-  delete this->FileComparison;
-}
+  int i;
 
-void cmake::InitializeProperties()
-{
-  this->Properties.clear();
-  this->Properties.SetCMakeInstance(this);
-  this->AccessedProperties.clear();
-  this->PropertyDefinitions.clear();
-
-  // initialize properties
-  cmTarget::DefineProperties(this);
-  cmMakefile::DefineProperties(this);
-}
-
-void cmake::CleanupCommandsAndMacros()
-{
-  this->InitializeProperties();
-  std::vector<cmCommand*> commands;
-  for(RegisteredCommandsMap::iterator j = this->Commands.begin();
-      j != this->Commands.end(); ++j)
-    {
-    if ( !j->second->IsA("cmMacroHelperCommand") &&
-         !j->second->IsA("cmFunctionHelperCommand"))
-      {
-      commands.push_back(j->second);
-      }
-    else
-      {
-      delete j->second;
-      }
-    }
-  this->Commands.erase(this->Commands.begin(), this->Commands.end());
-  std::vector<cmCommand*>::iterator it;
-  for ( it = commands.begin(); it != commands.end();
-    ++ it )
-    {
-    this->Commands[cmSystemTools::LowerCase((*it)->GetName())] = *it;
-    }
-}
-
-bool cmake::CommandExists(const std::string& name) const
-{
-  std::string sName = cmSystemTools::LowerCase(name);
-  return (this->Commands.find(sName) != this->Commands.end());
-}
-
-cmCommand *cmake::GetCommand(const std::string& name)
-{
-  cmCommand* rm = 0;
-  std::string sName = cmSystemTools::LowerCase(name);
-  RegisteredCommandsMap::iterator pos = this->Commands.find(sName);
-  if (pos != this->Commands.end())
-    {
-    rm = (*pos).second;
-    }
-  return rm;
-}
-
-void cmake::RenameCommand(const std::string& oldName,
-                          const std::string& newName)
-{
-  // if the command already exists, free the old one
-  std::string sOldName = cmSystemTools::LowerCase(oldName);
-  std::string sNewName = cmSystemTools::LowerCase(newName);
-  RegisteredCommandsMap::iterator pos = this->Commands.find(sOldName);
-  if ( pos == this->Commands.end() )
+  /* Make sure we have an instance.  */
+  if(!cp)
     {
     return;
     }
-  cmCommand* cmd = pos->second;
 
-  pos = this->Commands.find(sNewName);
-  if (pos != this->Commands.end())
+  /* If the process is executing, wait for it to finish.  */
+  if(cp->State == kwsysProcess_State_Executing)
     {
-    delete pos->second;
-    this->Commands.erase(pos);
-    }
-  this->Commands.insert(RegisteredCommandsMap::value_type(sNewName, cmd));
-  pos = this->Commands.find(sOldName);
-  this->Commands.erase(pos);
-}
-
-void cmake::RemoveCommand(const std::string& name)
-{
-  std::string sName = cmSystemTools::LowerCase(name);
-  RegisteredCommandsMap::iterator pos = this->Commands.find(sName);
-  if ( pos != this->Commands.end() )
-    {
-    delete pos->second;
-    this->Commands.erase(pos);
-    }
-}
-
-void cmake::AddCommand(cmCommand* wg)
-{
-  std::string name = cmSystemTools::LowerCase(wg->GetName());
-  // if the command already exists, free the old one
-  RegisteredCommandsMap::iterator pos = this->Commands.find(name);
-  if (pos != this->Commands.end())
-    {
-    delete pos->second;
-    this->Commands.erase(pos);
-    }
-  this->Commands.insert( RegisteredCommandsMap::value_type(name, wg));
-}
-
-
-void cmake::RemoveUnscriptableCommands()
-{
-  std::vector<std::string> unscriptableCommands;
-  cmake::RegisteredCommandsMap* commands = this->GetCommands();
-  for (cmake::RegisteredCommandsMap::const_iterator pos = commands->begin();
-       pos != commands->end();
-       ++pos)
-    {
-    if (!pos->second->IsScriptable())
+    if(cp->Detached)
       {
-      unscriptableCommands.push_back(pos->first);
+      kwsysProcess_Disown(cp);
       }
-    }
-
-  for(std::vector<std::string>::const_iterator it=unscriptableCommands.begin();
-      it != unscriptableCommands.end();
-      ++it)
-    {
-    this->RemoveCommand(*it);
-    }
-}
-
-// Parse the args
-bool cmake::SetCacheArgs(const std::vector<std::string>& args)
-{
-  bool findPackageMode = false;
-  for(unsigned int i=1; i < args.size(); ++i)
-    {
-    std::string arg = args[i];
-    if(arg.find("-D",0) == 0)
-      {
-      std::string entry = arg.substr(2);
-      if(entry.size() == 0)
-        {
-        ++i;
-        if(i < args.size())
-          {
-          entry = args[i];
-          }
-        else
-          {
-          cmSystemTools::Error("-D must be followed with VAR=VALUE.");
-          return false;
-          }
-        }
-      std::string var, value;
-      cmCacheManager::CacheEntryType type = cmCacheManager::UNINITIALIZED;
-      if(cmCacheManager::ParseEntry(entry, var, value, type))
-        {
-        // The value is transformed if it is a filepath for example, so
-        // we can't compare whether the value is already in the cache until
-        // after we call AddCacheEntry.
-        const char *cachedValue =
-                              this->CacheManager->GetCacheValue(var);
-
-        this->CacheManager->AddCacheEntry(var, value.c_str(),
-          "No help, variable specified on the command line.", type);
-        if(this->WarnUnusedCli)
-          {
-          if (!cachedValue
-              || strcmp(this->CacheManager->GetCacheValue(var),
-                        cachedValue) != 0)
-            {
-            this->WatchUnusedCli(var);
-            }
-          }
-        }
-      else
-        {
-        std::cerr << "Parse error in command line argument: " << arg << "\n"
-                  << "Should be: VAR:type=value\n";
-        cmSystemTools::Error("No cmake script provided.");
-        return false;
-        }
-      }
-    else if(arg.find("-Wno-dev",0) == 0)
-      {
-      this->SuppressDevWarnings = true;
-      this->DoSuppressDevWarnings = true;
-      }
-    else if(arg.find("-Wdev",0) == 0)
-      {
-      this->SuppressDevWarnings = false;
-      this->DoSuppressDevWarnings = true;
-      }
-    else if(arg.find("-U",0) == 0)
-      {
-      std::string entryPattern = arg.substr(2);
-      if(entryPattern.size() == 0)
-        {
-        ++i;
-        if(i < args.size())
-          {
-          entryPattern = args[i];
-          }
-        else
-          {
-          cmSystemTools::Error("-U must be followed with VAR.");
-          return false;
-          }
-        }
-      cmsys::RegularExpression regex(
-        cmsys::Glob::PatternToRegex(entryPattern, true, true).c_str());
-      //go through all cache entries and collect the vars which will be removed
-      std::vector<std::string> entriesToDelete;
-      cmCacheManager::CacheIterator it =
-                                    this->CacheManager->GetCacheIterator();
-      for ( it.Begin(); !it.IsAtEnd(); it.Next() )
-        {
-        cmCacheManager::CacheEntryType t = it.GetType();
-        if(t != cmCacheManager::STATIC)
-          {
-          std::string entryName = it.GetName();
-          if (regex.find(entryName.c_str()))
-            {
-            entriesToDelete.push_back(entryName);
-            }
-          }
-        }
-
-      // now remove them from the cache
-      for(std::vector<std::string>::const_iterator currentEntry =
-          entriesToDelete.begin();
-          currentEntry != entriesToDelete.end();
-          ++currentEntry)
-        {
-        this->CacheManager->RemoveCacheEntry(*currentEntry);
-        }
-      }
-    else if(arg.find("-C",0) == 0)
-      {
-      std::string path = arg.substr(2);
-      if ( path.size() == 0 )
-        {
-        ++i;
-        if(i < args.size())
-          {
-          path = args[i];
-          }
-        else
-          {
-          cmSystemTools::Error("-C must be followed by a file name.");
-          return false;
-          }
-        }
-      std::cerr << "loading initial cache file " << path.c_str() << "\n";
-      this->ReadListFile(args, path.c_str());
-      }
-    else if(arg.find("-P",0) == 0)
-      {
-      i++;
-      if(i >= args.size())
-        {
-        cmSystemTools::Error("-P must be followed by a file name.");
-        return false;
-        }
-      std::string path = args[i];
-      if ( path.size() == 0 )
-        {
-        cmSystemTools::Error("No cmake script provided.");
-        return false;
-        }
-      this->ReadListFile(args, path.c_str());
-      }
-    else if (arg.find("--find-package",0) == 0)
-      {
-      findPackageMode = true;
-      }
-    }
-
-  if (findPackageMode)
-    {
-    return this->FindPackage(args);
-    }
-
-  return true;
-}
-
-void cmake::ReadListFile(const std::vector<std::string>& args,
-                         const char *path)
-{
-  // if a generator was not yet created, temporarily create one
-  cmGlobalGenerator *gg = this->GetGlobalGenerator();
-  bool created = false;
-
-  // if a generator was not specified use a generic one
-  if (!gg)
-    {
-    gg = new cmGlobalGenerator;
-    gg->SetCMakeInstance(this);
-    created = true;
-    }
-
-  // read in the list file to fill the cache
-  if(path)
-    {
-    cmsys::auto_ptr<cmLocalGenerator> lg(gg->CreateLocalGenerator());
-    lg->GetMakefile()->SetHomeOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
-    lg->GetMakefile()->SetStartOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
-    lg->GetMakefile()->SetHomeDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
-    lg->GetMakefile()->SetStartDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
-    if (this->GetWorkingMode() != NORMAL_MODE)
-      {
-      std::string file(cmSystemTools::CollapseFullPath(path));
-      cmSystemTools::ConvertToUnixSlashes(file);
-      lg->GetMakefile()->SetScriptModeFile(file.c_str());
-
-      lg->GetMakefile()->SetArgcArgv(args);
-      }
-    if (!lg->GetMakefile()->ReadListFile(0, path))
-      {
-      cmSystemTools::Error("Error processing file: ", path);
-      }
-    }
-
-  // free generic one if generated
-  if (created)
-    {
-    delete gg;
-    }
-}
-
-
-bool cmake::FindPackage(const std::vector<std::string>& args)
-{
-  // if a generator was not yet created, temporarily create one
-  cmGlobalGenerator *gg = new cmGlobalGenerator;
-  gg->SetCMakeInstance(this);
-  this->SetGlobalGenerator(gg);
-
-  // read in the list file to fill the cache
-  cmsys::auto_ptr<cmLocalGenerator> lg(gg->CreateLocalGenerator());
-  cmMakefile* mf = lg->GetMakefile();
-  mf->SetHomeOutputDirectory
-    (cmSystemTools::GetCurrentWorkingDirectory());
-  mf->SetStartOutputDirectory
-    (cmSystemTools::GetCurrentWorkingDirectory());
-  mf->SetHomeDirectory
-    (cmSystemTools::GetCurrentWorkingDirectory());
-  mf->SetStartDirectory
-    (cmSystemTools::GetCurrentWorkingDirectory());
-
-  mf->SetArgcArgv(args);
-
-  std::string systemFile = mf->GetModulesFile("CMakeFindPackageMode.cmake");
-  mf->ReadListFile(0, systemFile.c_str());
-
-  std::string language = mf->GetSafeDefinition("LANGUAGE");
-  std::string mode = mf->GetSafeDefinition("MODE");
-  std::string packageName = mf->GetSafeDefinition("NAME");
-  bool packageFound = mf->IsOn("PACKAGE_FOUND");
-  bool quiet = mf->IsOn("PACKAGE_QUIET");
-
-  if (!packageFound)
-    {
-    if (!quiet)
-      {
-      printf("%s not found.\n", packageName.c_str());
-      }
-    }
-  else if (mode == "EXIST")
-    {
-    if (!quiet)
-      {
-      printf("%s found.\n", packageName.c_str());
-      }
-    }
-  else if (mode == "COMPILE")
-    {
-    std::string includes = mf->GetSafeDefinition("PACKAGE_INCLUDE_DIRS");
-    std::vector<std::string> includeDirs;
-    cmSystemTools::ExpandListArgument(includes, includeDirs);
-
-    std::string includeFlags = lg->GetIncludeFlags(includeDirs, 0,
-                                                   language, false);
-
-    std::string definitions = mf->GetSafeDefinition("PACKAGE_DEFINITIONS");
-    printf("%s %s\n", includeFlags.c_str(), definitions.c_str());
-    }
-  else if (mode == "LINK")
-    {
-    const char* targetName = "dummy";
-    std::vector<std::string> srcs;
-    cmTarget* tgt = mf->AddExecutable(targetName, srcs, true);
-    tgt->SetProperty("LINKER_LANGUAGE", language.c_str());
-
-    std::string libs = mf->GetSafeDefinition("PACKAGE_LIBRARIES");
-    std::vector<std::string> libList;
-    cmSystemTools::ExpandListArgument(libs, libList);
-    for(std::vector<std::string>::const_iterator libIt=libList.begin();
-            libIt != libList.end();
-            ++libIt)
-      {
-      mf->AddLinkLibraryForTarget(targetName, *libIt,
-                                  cmTarget::GENERAL);
-      }
-
-
-    std::string linkLibs;
-    std::string frameworkPath;
-    std::string linkPath;
-    std::string flags;
-    std::string linkFlags;
-    gg->CreateGeneratorTargets(mf);
-    cmGeneratorTarget *gtgt = gg->GetGeneratorTarget(tgt);
-    lg->GetTargetFlags(linkLibs, frameworkPath, linkPath, flags, linkFlags,
-                       gtgt);
-    linkLibs = frameworkPath + linkPath + linkLibs;
-
-    printf("%s\n", linkLibs.c_str() );
-
-/*    if ( use_win32 )
-      {
-      tgt->SetProperty("WIN32_EXECUTABLE", "ON");
-      }
-    if ( use_macbundle)
-      {
-      tgt->SetProperty("MACOSX_BUNDLE", "ON");
-      }*/
-    }
-
-  // free generic one if generated
-//  this->SetGlobalGenerator(0); // setting 0-pointer is not possible
-//  delete gg; // this crashes inside the cmake instance
-
-  return packageFound;
-}
-
-
-// Parse the args
-void cmake::SetArgs(const std::vector<std::string>& args,
-                    bool directoriesSetBefore)
-{
-  bool directoriesSet = directoriesSetBefore;
-  bool haveToolset = false;
-  for(unsigned int i=1; i < args.size(); ++i)
-    {
-    std::string arg = args[i];
-    if(arg.find("-H",0) == 0)
-      {
-      directoriesSet = true;
-      std::string path = arg.substr(2);
-      path = cmSystemTools::CollapseFullPath(path.c_str());
-      cmSystemTools::ConvertToUnixSlashes(path);
-      this->SetHomeDirectory(path);
-      }
-    else if(arg.find("-S",0) == 0)
-      {
-      // There is no local generate anymore.  Ignore -S option.
-      }
-    else if(arg.find("-O",0) == 0)
-      {
-      // There is no local generate anymore.  Ignore -O option.
-      }
-    else if(arg.find("-B",0) == 0)
-      {
-      directoriesSet = true;
-      std::string path = arg.substr(2);
-      path = cmSystemTools::CollapseFullPath(path.c_str());
-      cmSystemTools::ConvertToUnixSlashes(path);
-      this->SetHomeOutputDirectory(path);
-      }
-    else if((i < args.size()-2) && (arg.find("--check-build-system",0) == 0))
-      {
-      this->CheckBuildSystemArgument = args[++i];
-      this->ClearBuildSystem = (atoi(args[++i].c_str()) > 0);
-      }
-    else if((i < args.size()-1) && (arg.find("--check-stamp-file",0) == 0))
-      {
-      this->CheckStampFile = args[++i];
-      }
-    else if((i < args.size()-1) && (arg.find("--check-stamp-list",0) == 0))
-      {
-      this->CheckStampList = args[++i];
-      }
-#if defined(CMAKE_HAVE_VS_GENERATORS)
-    else if((i < args.size()-1) && (arg.find("--vs-solution-file",0) == 0))
-      {
-      this->VSSolutionFile = args[++i];
-      }
-#endif
-    else if(arg.find("-V",0) == 0)
-      {
-        this->Verbose = true;
-      }
-    else if(arg.find("-D",0) == 0)
-      {
-      // skip for now
-      }
-    else if(arg.find("-U",0) == 0)
-      {
-      // skip for now
-      }
-    else if(arg.find("-C",0) == 0)
-      {
-      // skip for now
-      }
-    else if(arg.find("-P",0) == 0)
-      {
-      // skip for now
-      i++;
-      }
-    else if(arg.find("--find-package",0) == 0)
-      {
-      // skip for now
-      i++;
-      }
-    else if(arg.find("-Wno-dev",0) == 0)
-      {
-      // skip for now
-      }
-    else if(arg.find("-Wdev",0) == 0)
-      {
-      // skip for now
-      }
-    else if(arg.find("--graphviz=",0) == 0)
-      {
-      std::string path = arg.substr(strlen("--graphviz="));
-      path = cmSystemTools::CollapseFullPath(path.c_str());
-      cmSystemTools::ConvertToUnixSlashes(path);
-      this->GraphVizFile = path;
-      if ( this->GraphVizFile.empty() )
-        {
-        cmSystemTools::Error("No file specified for --graphviz");
-        }
-      }
-    else if(arg.find("--debug-trycompile",0) == 0)
-      {
-      std::cout << "debug trycompile on\n";
-      this->DebugTryCompileOn();
-      }
-    else if(arg.find("--debug-output",0) == 0)
-      {
-      std::cout << "Running with debug output on.\n";
-      this->SetDebugOutputOn(true);
-      }
-    else if(arg.find("--trace",0) == 0)
-      {
-      std::cout << "Running with trace output on.\n";
-      this->SetTrace(true);
-      }
-    else if(arg.find("--warn-uninitialized",0) == 0)
-      {
-      std::cout << "Warn about uninitialized values.\n";
-      this->SetWarnUninitialized(true);
-      }
-    else if(arg.find("--warn-unused-vars",0) == 0)
-      {
-      std::cout << "Finding unused variables.\n";
-      this->SetWarnUnused(true);
-      }
-    else if(arg.find("--no-warn-unused-cli",0) == 0)
-      {
-      std::cout << "Not searching for unused variables given on the " <<
-                   "command line.\n";
-      this->SetWarnUnusedCli(false);
-      }
-    else if(arg.find("--check-system-vars",0) == 0)
-      {
-      std::cout << "Also check system files when warning about unused and " <<
-                   "uninitialized variables.\n";
-      this->SetCheckSystemVars(true);
-      }
-    else if(arg.find("-T",0) == 0)
-      {
-      std::string value = arg.substr(2);
-      if(value.size() == 0)
-        {
-        ++i;
-        if(i >= args.size())
-          {
-          cmSystemTools::Error("No toolset specified for -T");
-          return;
-          }
-        value = args[i];
-        }
-      if(haveToolset)
-        {
-        cmSystemTools::Error("Multiple -T options not allowed");
-        return;
-        }
-      this->GeneratorToolset = value;
-      haveToolset = true;
-      }
-    else if(arg.find("-G",0) == 0)
-      {
-      std::string value = arg.substr(2);
-      if(value.size() == 0)
-        {
-        ++i;
-        if(i >= args.size())
-          {
-          cmSystemTools::Error("No generator specified for -G");
-          return;
-          }
-        value = args[i];
-        }
-      cmGlobalGenerator* gen =
-        this->CreateGlobalGenerator(value);
-      if(!gen)
-        {
-        cmSystemTools::Error("Could not create named generator ",
-                             value.c_str());
-        }
-      else
-        {
-        this->SetGlobalGenerator(gen);
-        }
-      }
-    // no option assume it is the path to the source
     else
       {
-      directoriesSet = true;
-      this->SetDirectoriesFromFile(arg.c_str());
+      kwsysProcess_WaitForExit(cp, 0);
       }
     }
-  if(!directoriesSet)
+
+  /* We are deleting the kwsysProcess instance.  */
+  cp->Deleting = 1;
+
+  /* Terminate each of the threads.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
     {
-    this->SetHomeOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
-    this->SetStartOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
-    this->SetHomeDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
-    this->SetStartDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory());
+    /* Terminate this reading thread.  */
+    if(cp->Pipe[i].Reader.Thread)
+      {
+      /* Signal the thread we are ready for it.  It will terminate
+         immediately since Deleting is set.  */
+      ReleaseSemaphore(cp->Pipe[i].Reader.Ready, 1, 0);
+
+      /* Wait for the thread to exit.  */
+      WaitForSingleObject(cp->Pipe[i].Reader.Thread, INFINITE);
+
+      /* Close the handle to the thread. */
+      kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Thread);
+      }
+
+    /* Terminate this waking thread.  */
+    if(cp->Pipe[i].Waker.Thread)
+      {
+      /* Signal the thread we are ready for it.  It will terminate
+         immediately since Deleting is set.  */
+      ReleaseSemaphore(cp->Pipe[i].Waker.Ready, 1, 0);
+
+      /* Wait for the thread to exit.  */
+      WaitForSingleObject(cp->Pipe[i].Waker.Thread, INFINITE);
+
+      /* Close the handle to the thread. */
+      kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Thread);
+      }
+
+    /* Cleanup the pipe's semaphores.  */
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Ready);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Go);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Reader.Reset);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Ready);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Go);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Waker.Reset);
     }
 
-  this->SetStartDirectory(this->GetHomeDirectory());
-  this->SetStartOutputDirectory(this->GetHomeOutputDirectory());
+  /* Close the shared semaphores.  */
+  kwsysProcessCleanupHandle(&cp->SharedIndexMutex);
+  kwsysProcessCleanupHandle(&cp->Full);
+
+  /* Free memory.  */
+  kwsysProcess_SetCommand(cp, 0);
+  kwsysProcess_SetWorkingDirectory(cp, 0);
+  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDIN, 0);
+  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDOUT, 0);
+  kwsysProcess_SetPipeFile(cp, kwsysProcess_Pipe_STDERR, 0);
+  if(cp->CommandExitCodes)
+    {
+    free(cp->CommandExitCodes);
+    }
+  free(cp);
 }
 
-//----------------------------------------------------------------------------
-void cmake::SetDirectoriesFromFile(const char* arg)
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_SetCommand(kwsysProcess* cp, char const* const* command)
 {
-  // Check if the argument refers to a CMakeCache.txt or
-  // CMakeLists.txt file.
-  std::string listPath;
-  std::string cachePath;
-  bool argIsFile = false;
-  if(cmSystemTools::FileIsDirectory(arg))
+  int i;
+  if(!cp)
     {
-    std::string path = cmSystemTools::CollapseFullPath(arg);
-    cmSystemTools::ConvertToUnixSlashes(path);
-    std::string cacheFile = path;
-    cacheFile += "/CMakeCache.txt";
-    std::string listFile = path;
-    listFile += "/CMakeLists.txt";
-    if(cmSystemTools::FileExists(cacheFile.c_str()))
-      {
-      cachePath = path;
-      }
-    if(cmSystemTools::FileExists(listFile.c_str()))
-      {
-      listPath = path;
-      }
+    return 0;
     }
-  else if(cmSystemTools::FileExists(arg))
+  for(i=0; i < cp->NumberOfCommands; ++i)
     {
-    argIsFile = true;
-    std::string fullPath = cmSystemTools::CollapseFullPath(arg);
-    std::string name = cmSystemTools::GetFilenameName(fullPath);
-    name = cmSystemTools::LowerCase(name);
-    if(name == "cmakecache.txt")
-      {
-      cachePath = cmSystemTools::GetFilenamePath(fullPath);
-      }
-    else if(name == "cmakelists.txt")
-      {
-      listPath = cmSystemTools::GetFilenamePath(fullPath);
-      }
+    free(cp->Commands[i]);
+    }
+  cp->NumberOfCommands = 0;
+  if(cp->Commands)
+    {
+    free(cp->Commands);
+    cp->Commands = 0;
+    }
+  if(command)
+    {
+    return kwsysProcess_AddCommand(cp, command);
+    }
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_AddCommand(kwsysProcess* cp, char const* const* command)
+{
+  int newNumberOfCommands;
+  wchar_t** newCommands;
+
+  /* Make sure we have a command to add.  */
+  if(!cp || !command || !*command)
+    {
+    return 0;
+    }
+
+
+  /* Allocate a new array for command pointers.  */
+  newNumberOfCommands = cp->NumberOfCommands + 1;
+  if(!(newCommands = (wchar_t**)malloc(sizeof(wchar_t*) * newNumberOfCommands)))
+    {
+    /* Out of memory.  */
+    return 0;
+    }
+
+  /* Copy any existing commands into the new array.  */
+  {
+  int i;
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    newCommands[i] = cp->Commands[i];
+    }
+  }
+
+  if (cp->Verbatim)
+    {
+    /* Copy the verbatim command line into the buffer.  */
+    newCommands[cp->NumberOfCommands] = kwsysEncoding_DupToWide(*command);
     }
   else
     {
-    // Specified file or directory does not exist.  Try to set things
-    // up to produce a meaningful error message.
-    std::string fullPath = cmSystemTools::CollapseFullPath(arg);
-    std::string name = cmSystemTools::GetFilenameName(fullPath);
-    name = cmSystemTools::LowerCase(name);
-    if(name == "cmakecache.txt" || name == "cmakelists.txt")
+    /* Encode the arguments so CommandLineToArgvW can decode
+       them from the command line string in the child.  */
+    char buffer[32768]; /* CreateProcess max command-line length.  */
+    char* end = buffer + sizeof(buffer);
+    char* out = buffer;
+    char const* const* a;
+    for (a = command; *a; ++a)
       {
-      argIsFile = true;
-      listPath = cmSystemTools::GetFilenamePath(fullPath);
+      int quote = !**a; /* Quote the empty string.  */
+      int slashes = 0;
+      char const* c;
+      if (a != command && out != end) { *out++ = ' '; }
+      for (c = *a; !quote && *c; ++c)
+        { quote = (*c == ' ' || *c == '\t'); }
+      if (quote && out != end) { *out++ = '"'; }
+      for (c = *a; *c; ++c)
+        {
+        if (*c == '\\')
+          {
+          ++slashes;
+          }
+        else
+          {
+          if (*c == '"')
+            {
+            // Add n+1 backslashes to total 2n+1 before internal '"'.
+            while(slashes-- >= 0 && out != end) { *out++ = '\\'; }
+            }
+          slashes = 0;
+          }
+        if (out != end) { *out++ = *c; }
+        }
+      if (quote)
+        {
+        // Add n backslashes to total 2n before ending '"'.
+        while (slashes-- > 0 && out != end) { *out++ = '\\'; }
+        if (out != end) { *out++ = '"'; }
+        }
+      }
+    if(out != end)
+      {
+      *out = '\0';
+      newCommands[cp->NumberOfCommands] = kwsysEncoding_DupToWide(buffer);
       }
     else
       {
-      listPath = fullPath;
+      newCommands[cp->NumberOfCommands] = 0;
       }
     }
-
-  // If there is a CMakeCache.txt file, use its settings.
-  if(cachePath.length() > 0)
+  if (!newCommands[cp->NumberOfCommands])
     {
-    cmCacheManager* cachem = this->GetCacheManager();
-    cmCacheManager::CacheIterator it = cachem->NewIterator();
-    if(cachem->LoadCache(cachePath) &&
-      it.Find("CMAKE_HOME_DIRECTORY"))
-      {
-      this->SetHomeOutputDirectory(cachePath);
-      this->SetStartOutputDirectory(cachePath);
-      this->SetHomeDirectory(it.GetValue());
-      this->SetStartDirectory(it.GetValue());
-      return;
-      }
-    }
-
-  // If there is a CMakeLists.txt file, use it as the source tree.
-  if(listPath.length() > 0)
-    {
-    this->SetHomeDirectory(listPath);
-    this->SetStartDirectory(listPath);
-
-    if(argIsFile)
-      {
-      // Source CMakeLists.txt file given.  It was probably dropped
-      // onto the executable in a GUI.  Default to an in-source build.
-      this->SetHomeOutputDirectory(listPath);
-      this->SetStartOutputDirectory(listPath);
-      }
-    else
-      {
-      // Source directory given on command line.  Use current working
-      // directory as build tree.
-      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-      this->SetHomeOutputDirectory(cwd);
-      this->SetStartOutputDirectory(cwd);
-      }
-    return;
-    }
-
-  // We didn't find a CMakeLists.txt or CMakeCache.txt file from the
-  // argument.  Assume it is the path to the source tree, and use the
-  // current working directory as the build tree.
-  std::string full = cmSystemTools::CollapseFullPath(arg);
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  this->SetHomeDirectory(full);
-  this->SetStartDirectory(full);
-  this->SetHomeOutputDirectory(cwd);
-  this->SetStartOutputDirectory(cwd);
-}
-
-// at the end of this CMAKE_ROOT and CMAKE_COMMAND should be added to the
-// cache
-int cmake::AddCMakePaths()
-{
-  // Save the value in the cache
-  this->CacheManager->AddCacheEntry
-    ("CMAKE_COMMAND", cmSystemTools::GetCMakeCommand().c_str(),
-     "Path to CMake executable.", cmCacheManager::INTERNAL);
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  this->CacheManager->AddCacheEntry
-    ("CMAKE_CTEST_COMMAND", cmSystemTools::GetCTestCommand().c_str(),
-     "Path to ctest program executable.", cmCacheManager::INTERNAL);
-  this->CacheManager->AddCacheEntry
-    ("CMAKE_CPACK_COMMAND", cmSystemTools::GetCPackCommand().c_str(),
-     "Path to cpack program executable.", cmCacheManager::INTERNAL);
-#endif
-  if(!cmSystemTools::FileExists(
-       (cmSystemTools::GetCMakeRoot()+"/Modules/CMake.cmake").c_str()))
-    {
-    // couldn't find modules
-    cmSystemTools::Error("Could not find CMAKE_ROOT !!!\n"
-      "CMake has most likely not been installed correctly.\n"
-      "Modules directory not found in\n",
-      cmSystemTools::GetCMakeRoot().c_str());
+    /* Out of memory or command line too long.  */
+    free(newCommands);
     return 0;
     }
-  this->CacheManager->AddCacheEntry
-    ("CMAKE_ROOT", cmSystemTools::GetCMakeRoot().c_str(),
-     "Path to CMake installation.", cmCacheManager::INTERNAL);
+
+  /* Save the new array of commands.  */
+  free(cp->Commands);
+  cp->Commands = newCommands;
+  cp->NumberOfCommands = newNumberOfCommands;
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetTimeout(kwsysProcess* cp, double timeout)
+{
+  if(!cp)
+    {
+    return;
+    }
+  cp->Timeout = timeout;
+  if(cp->Timeout < 0)
+    {
+    cp->Timeout = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_SetWorkingDirectory(kwsysProcess* cp, const char* dir)
+{
+  if(!cp)
+    {
+    return 0;
+    }
+  if(cp->WorkingDirectory)
+    {
+    free(cp->WorkingDirectory);
+    cp->WorkingDirectory = 0;
+    }
+  if(dir && dir[0])
+    {
+    wchar_t* wdir = kwsysEncoding_DupToWide(dir);
+    /* We must convert the working directory to a full path.  */
+    DWORD length = GetFullPathNameW(wdir, 0, 0, 0);
+    if(length > 0)
+      {
+      wchar_t* work_dir = malloc(length*sizeof(wchar_t));
+      if(!work_dir)
+        {
+        free(wdir);
+        return 0;
+        }
+      if(!GetFullPathNameW(wdir, length, work_dir, 0))
+        {
+        free(work_dir);
+        free(wdir);
+        return 0;
+        }
+      cp->WorkingDirectory = work_dir;
+      }
+    free(wdir);
+    }
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_SetPipeFile(kwsysProcess* cp, int pipe, const char* file)
+{
+  char** pfile;
+  if(!cp)
+    {
+    return 0;
+    }
+  switch(pipe)
+    {
+    case kwsysProcess_Pipe_STDIN: pfile = &cp->PipeFileSTDIN; break;
+    case kwsysProcess_Pipe_STDOUT: pfile = &cp->PipeFileSTDOUT; break;
+    case kwsysProcess_Pipe_STDERR: pfile = &cp->PipeFileSTDERR; break;
+    default: return 0;
+    }
+  if(*pfile)
+    {
+    free(*pfile);
+    *pfile = 0;
+    }
+  if(file)
+    {
+    *pfile = (char*)malloc(strlen(file)+1);
+    if(!*pfile)
+      {
+      return 0;
+      }
+    strcpy(*pfile, file);
+    }
+
+  /* If we are redirecting the pipe, do not share it or use a native
+     pipe.  */
+  if(*pfile)
+    {
+    kwsysProcess_SetPipeNative(cp, pipe, 0);
+    kwsysProcess_SetPipeShared(cp, pipe, 0);
+    }
 
   return 1;
 }
 
-void cmake::AddExtraGenerator(const std::string& name,
-                              CreateExtraGeneratorFunctionType newFunction)
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetPipeShared(kwsysProcess* cp, int pipe, int shared)
 {
-  cmExternalMakefileProjectGenerator* extraGenerator = newFunction();
-  const std::vector<std::string>& supportedGlobalGenerators =
-                                extraGenerator->GetSupportedGlobalGenerators();
-
-  for(std::vector<std::string>::const_iterator
-      it = supportedGlobalGenerators.begin();
-      it != supportedGlobalGenerators.end();
-      ++it )
+  if(!cp)
     {
-    std::string fullName = cmExternalMakefileProjectGenerator::
-                                    CreateFullGeneratorName(*it, name);
-    this->ExtraGenerators[fullName] = newFunction;
+    return;
     }
-  delete extraGenerator;
-}
 
-void cmake::AddDefaultExtraGenerators()
-{
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  // e.g. kdevelop4 ?
-#endif
-
-  this->AddExtraGenerator(cmExtraCodeBlocksGenerator::GetActualName(),
-                          &cmExtraCodeBlocksGenerator::New);
-  this->AddExtraGenerator(cmExtraCodeLiteGenerator::GetActualName(),
-                          &cmExtraCodeLiteGenerator::New);
-  this->AddExtraGenerator(cmExtraSublimeTextGenerator::GetActualName(),
-                          &cmExtraSublimeTextGenerator::New);
-  this->AddExtraGenerator(cmExtraKateGenerator::GetActualName(),
-                          &cmExtraKateGenerator::New);
-
-#ifdef CMAKE_USE_ECLIPSE
-  this->AddExtraGenerator(cmExtraEclipseCDT4Generator::GetActualName(),
-                          &cmExtraEclipseCDT4Generator::New);
-#endif
-
-#ifdef CMAKE_USE_KDEVELOP
-  this->AddExtraGenerator(cmGlobalKdevelopGenerator::GetActualName(),
-                          &cmGlobalKdevelopGenerator::New);
-  // for kdevelop also add the generator with just the name of the
-  // extra generator, since it was this way since cmake 2.2
-  this->ExtraGenerators[cmGlobalKdevelopGenerator::GetActualName()]
-                                             = &cmGlobalKdevelopGenerator::New;
-#endif
-
-#endif
-}
-
-
-//----------------------------------------------------------------------------
-void cmake::GetRegisteredGenerators(std::vector<std::string>& names)
-{
-  for(RegisteredGeneratorsVector::const_iterator i = this->Generators.begin();
-      i != this->Generators.end(); ++i)
+  switch(pipe)
     {
-    (*i)->GetGenerators(names);
+    case kwsysProcess_Pipe_STDIN: cp->PipeSharedSTDIN = shared?1:0; break;
+    case kwsysProcess_Pipe_STDOUT: cp->PipeSharedSTDOUT = shared?1:0; break;
+    case kwsysProcess_Pipe_STDERR: cp->PipeSharedSTDERR = shared?1:0; break;
+    default: return;
     }
-  for(RegisteredExtraGeneratorsMap::const_iterator
-      i = this->ExtraGenerators.begin();
-      i != this->ExtraGenerators.end(); ++i)
+
+  /* If we are sharing the pipe, do not redirect it to a file or use a
+     native pipe.  */
+  if(shared)
     {
-    names.push_back(i->first);
+    kwsysProcess_SetPipeFile(cp, pipe, 0);
+    kwsysProcess_SetPipeNative(cp, pipe, 0);
     }
 }
 
-cmGlobalGenerator* cmake::CreateGlobalGenerator(const std::string& gname)
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetPipeNative(kwsysProcess* cp, int pipe, HANDLE p[2])
 {
-  cmExternalMakefileProjectGenerator* extraGenerator = 0;
-  std::string name = gname;
-  RegisteredExtraGeneratorsMap::const_iterator extraGenIt =
-                                            this->ExtraGenerators.find(name);
-  if (extraGenIt != this->ExtraGenerators.end())
+  HANDLE* pPipeNative = 0;
+
+  if(!cp)
     {
-    extraGenerator = (extraGenIt->second)();
-    name = extraGenerator->GetGlobalGeneratorName(name);
+    return;
     }
 
-  cmGlobalGenerator* generator = 0;
-  for (RegisteredGeneratorsVector::const_iterator i =
-    this->Generators.begin(); i != this->Generators.end(); ++i)
+  switch(pipe)
     {
-    generator = (*i)->CreateGlobalGenerator(name);
-    if (generator)
+    case kwsysProcess_Pipe_STDIN: pPipeNative = cp->PipeNativeSTDIN; break;
+    case kwsysProcess_Pipe_STDOUT: pPipeNative = cp->PipeNativeSTDOUT; break;
+    case kwsysProcess_Pipe_STDERR: pPipeNative = cp->PipeNativeSTDERR; break;
+    default: return;
+    }
+
+  /* Copy the native pipe handles provided.  */
+  if(p)
+    {
+    pPipeNative[0] = p[0];
+    pPipeNative[1] = p[1];
+    }
+  else
+    {
+    pPipeNative[0] = 0;
+    pPipeNative[1] = 0;
+    }
+
+  /* If we are using a native pipe, do not share it or redirect it to
+     a file.  */
+  if(p)
+    {
+    kwsysProcess_SetPipeFile(cp, pipe, 0);
+    kwsysProcess_SetPipeShared(cp, pipe, 0);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetOption(kwsysProcess* cp, int optionId)
+{
+  if(!cp)
+    {
+    return 0;
+    }
+
+  switch(optionId)
+    {
+    case kwsysProcess_Option_Detach: return cp->OptionDetach;
+    case kwsysProcess_Option_HideWindow: return cp->HideWindow;
+    case kwsysProcess_Option_MergeOutput: return cp->MergeOutput;
+    case kwsysProcess_Option_Verbatim: return cp->Verbatim;
+    case kwsysProcess_Option_CreateProcessGroup:
+      return cp->CreateProcessGroup;
+    default: return 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_SetOption(kwsysProcess* cp, int optionId, int value)
+{
+  if(!cp)
+    {
+    return;
+    }
+
+  switch(optionId)
+    {
+    case kwsysProcess_Option_Detach: cp->OptionDetach = value; break;
+    case kwsysProcess_Option_HideWindow: cp->HideWindow = value; break;
+    case kwsysProcess_Option_MergeOutput: cp->MergeOutput = value; break;
+    case kwsysProcess_Option_Verbatim: cp->Verbatim = value; break;
+    case kwsysProcess_Option_CreateProcessGroup:
+      cp->CreateProcessGroup = value; break;
+    default: break;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetState(kwsysProcess* cp)
+{
+  return cp? cp->State : kwsysProcess_State_Error;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetExitException(kwsysProcess* cp)
+{
+  return cp? cp->ExitException : kwsysProcess_Exception_Other;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetExitValue(kwsysProcess* cp)
+{
+  return cp? cp->ExitValue : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_GetExitCode(kwsysProcess* cp)
+{
+  return cp? cp->ExitCode : 0;
+}
+
+/*--------------------------------------------------------------------------*/
+const char* kwsysProcess_GetErrorString(kwsysProcess* cp)
+{
+  if(!cp)
+    {
+    return "Process management structure could not be allocated";
+    }
+  else if(cp->State == kwsysProcess_State_Error)
+    {
+    return cp->ErrorMessage;
+    }
+  return "Success";
+}
+
+/*--------------------------------------------------------------------------*/
+const char* kwsysProcess_GetExceptionString(kwsysProcess* cp)
+{
+  if(!cp)
+    {
+    return "GetExceptionString called with NULL process management structure";
+    }
+  else if(cp->State == kwsysProcess_State_Exception)
+    {
+    return cp->ExitExceptionString;
+    }
+  return "No exception";
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Execute(kwsysProcess* cp)
+{
+  int i;
+
+  /* Do not execute a second time.  */
+  if(!cp || cp->State == kwsysProcess_State_Executing)
+    {
+    return;
+    }
+
+  /* Make sure we have something to run.  */
+  if(cp->NumberOfCommands < 1)
+    {
+    strcpy(cp->ErrorMessage, "No command");
+    cp->State = kwsysProcess_State_Error;
+    return;
+    }
+
+  /* Initialize the control structure for a new process.  */
+  if(!kwsysProcessInitialize(cp))
+    {
+    strcpy(cp->ErrorMessage, "Out of memory");
+    cp->State = kwsysProcess_State_Error;
+    return;
+    }
+
+  /* Save the real working directory of this process and change to
+     the working directory for the child processes.  This is needed
+     to make pipe file paths evaluate correctly.  */
+  if(cp->WorkingDirectory)
+    {
+    if(!GetCurrentDirectoryW(cp->RealWorkingDirectoryLength,
+                            cp->RealWorkingDirectory))
+      {
+      kwsysProcessCleanup(cp, GetLastError());
+      return;
+      }
+    SetCurrentDirectoryW(cp->WorkingDirectory);
+    }
+
+
+  /* Setup the stdin pipe for the first process.  */
+  if(cp->PipeFileSTDIN)
+    {
+    /* Create a handle to read a file for stdin.  */
+    wchar_t* wstdin = kwsysEncoding_DupToWide(cp->PipeFileSTDIN);
+    DWORD error;
+    cp->PipeChildStd[0] =
+      CreateFileW(wstdin, GENERIC_READ|GENERIC_WRITE,
+                  FILE_SHARE_READ|FILE_SHARE_WRITE,
+                  0, OPEN_EXISTING, 0, 0);
+    error = GetLastError(); /* Check now in case free changes this.  */
+    free(wstdin);
+    if(cp->PipeChildStd[0] == INVALID_HANDLE_VALUE)
+      {
+      kwsysProcessCleanup(cp, error);
+      return;
+      }
+    }
+  else if(cp->PipeSharedSTDIN)
+    {
+    /* Share this process's stdin with the child.  */
+    kwsysProcessSetupSharedPipe(STD_INPUT_HANDLE, &cp->PipeChildStd[0]);
+    }
+  else if(cp->PipeNativeSTDIN[0])
+    {
+    /* Use the provided native pipe.  */
+    kwsysProcessSetupPipeNative(cp->PipeNativeSTDIN[0], &cp->PipeChildStd[0]);
+    }
+  else
+    {
+    /* Explicitly give the child no stdin.  */
+    cp->PipeChildStd[0] = INVALID_HANDLE_VALUE;
+    }
+
+  /* Create the output pipe for the last process.
+     We always create this so the pipe thread can run even if we
+     do not end up giving the write end to the child below.  */
+  if(!CreatePipe(&cp->Pipe[KWSYSPE_PIPE_STDOUT].Read,
+                 &cp->Pipe[KWSYSPE_PIPE_STDOUT].Write, 0, 0))
+    {
+    kwsysProcessCleanup(cp, GetLastError());
+    return;
+    }
+
+  if(cp->PipeFileSTDOUT)
+    {
+    /* Use a file for stdout.  */
+    DWORD error = kwsysProcessSetupOutputPipeFile(&cp->PipeChildStd[1],
+                                                  cp->PipeFileSTDOUT);
+    if(error)
+      {
+      kwsysProcessCleanup(cp, error);
+      return;
+      }
+    }
+  else if(cp->PipeSharedSTDOUT)
+    {
+    /* Use the parent stdout.  */
+    kwsysProcessSetupSharedPipe(STD_OUTPUT_HANDLE, &cp->PipeChildStd[1]);
+    }
+  else if(cp->PipeNativeSTDOUT[1])
+    {
+    /* Use the given handle for stdout.  */
+    kwsysProcessSetupPipeNative(cp->PipeNativeSTDOUT[1], &cp->PipeChildStd[1]);
+    }
+  else
+    {
+    /* Use our pipe for stdout.  Duplicate the handle since our waker
+       thread will use the original.  Do not make it inherited yet.  */
+    if(!DuplicateHandle(GetCurrentProcess(),
+                        cp->Pipe[KWSYSPE_PIPE_STDOUT].Write,
+                        GetCurrentProcess(), &cp->PipeChildStd[1],
+                        0, FALSE, DUPLICATE_SAME_ACCESS))
+      {
+      kwsysProcessCleanup(cp, GetLastError());
+      return;
+      }
+    }
+
+  /* Create stderr pipe to be shared by all processes in the pipeline.
+     We always create this so the pipe thread can run even if we do not
+     end up giving the write end to the child below.  */
+  if(!CreatePipe(&cp->Pipe[KWSYSPE_PIPE_STDERR].Read,
+                 &cp->Pipe[KWSYSPE_PIPE_STDERR].Write, 0, 0))
+    {
+    kwsysProcessCleanup(cp, GetLastError());
+    return;
+    }
+
+  if(cp->PipeFileSTDERR)
+    {
+    /* Use a file for stderr.  */
+    DWORD error = kwsysProcessSetupOutputPipeFile(&cp->PipeChildStd[2],
+                                                  cp->PipeFileSTDERR);
+    if(error)
+      {
+      kwsysProcessCleanup(cp, error);
+      return;
+      }
+    }
+  else if(cp->PipeSharedSTDERR)
+    {
+    /* Use the parent stderr.  */
+    kwsysProcessSetupSharedPipe(STD_ERROR_HANDLE, &cp->PipeChildStd[2]);
+    }
+  else if(cp->PipeNativeSTDERR[1])
+    {
+    /* Use the given handle for stderr.  */
+    kwsysProcessSetupPipeNative(cp->PipeNativeSTDERR[1], &cp->PipeChildStd[2]);
+    }
+  else
+    {
+    /* Use our pipe for stderr.  Duplicate the handle since our waker
+       thread will use the original.  Do not make it inherited yet.  */
+    if(!DuplicateHandle(GetCurrentProcess(),
+                        cp->Pipe[KWSYSPE_PIPE_STDERR].Write,
+                        GetCurrentProcess(), &cp->PipeChildStd[2],
+                        0, FALSE, DUPLICATE_SAME_ACCESS))
+      {
+      kwsysProcessCleanup(cp, GetLastError());
+      return;
+      }
+    }
+
+  /* Create the pipeline of processes.  */
+  {
+  /* Child startup control data.  */
+  kwsysProcessCreateInformation si;
+  HANDLE nextStdInput = cp->PipeChildStd[0];
+
+  /* Initialize startup info data.  */
+  ZeroMemory(&si, sizeof(si));
+  si.StartupInfo.cb = sizeof(si.StartupInfo);
+
+  /* Decide whether a child window should be shown.  */
+  si.StartupInfo.dwFlags |= STARTF_USESHOWWINDOW;
+  si.StartupInfo.wShowWindow =
+    (unsigned short)(cp->HideWindow?SW_HIDE:SW_SHOWDEFAULT);
+
+  /* Connect the child's output pipes to the threads.  */
+  si.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
+
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    /* Setup the process's pipes.  */
+    si.hStdInput = nextStdInput;
+    if (i == cp->NumberOfCommands-1)
+      {
+      /* The last child gets the overall stdout.  */
+      nextStdInput = INVALID_HANDLE_VALUE;
+      si.hStdOutput = cp->PipeChildStd[1];
+      }
+    else
+      {
+      /* Create a pipe to sit between the children.  */
+      HANDLE p[2] = {INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE};
+      if (!CreatePipe(&p[0], &p[1], 0, 0))
+        {
+        DWORD error = GetLastError();
+        if (nextStdInput != cp->PipeChildStd[0])
+          {
+          kwsysProcessCleanupHandle(&nextStdInput);
+          }
+        kwsysProcessCleanup(cp, error);
+        return;
+        }
+      nextStdInput = p[0];
+      si.hStdOutput = p[1];
+      }
+    si.hStdError = cp->MergeOutput? cp->PipeChildStd[1] : cp->PipeChildStd[2];
+
+    {
+    DWORD error = kwsysProcessCreate(cp, i, &si);
+
+    /* Close our copies of pipes used between children.  */
+    if (si.hStdInput != cp->PipeChildStd[0])
+      {
+      kwsysProcessCleanupHandle(&si.hStdInput);
+      }
+    if (si.hStdOutput != cp->PipeChildStd[1])
+      {
+      kwsysProcessCleanupHandle(&si.hStdOutput);
+      }
+    if (si.hStdError != cp->PipeChildStd[2] && !cp->MergeOutput)
+      {
+      kwsysProcessCleanupHandle(&si.hStdError);
+      }
+    if (!error)
+      {
+      cp->ProcessEvents[i+1] = cp->ProcessInformation[i].hProcess;
+      }
+    else
+      {
+      if (nextStdInput != cp->PipeChildStd[0])
+        {
+        kwsysProcessCleanupHandle(&nextStdInput);
+        }
+      kwsysProcessCleanup(cp, error);
+      return;
+      }
+    }
+    }
+  }
+
+  /* The parent process does not need the child's pipe ends.  */
+  for (i=0; i < 3; ++i)
+    {
+    kwsysProcessCleanupHandle(&cp->PipeChildStd[i]);
+    }
+
+  /* Restore the working directory.  */
+  if(cp->RealWorkingDirectory)
+    {
+    SetCurrentDirectoryW(cp->RealWorkingDirectory);
+    free(cp->RealWorkingDirectory);
+    cp->RealWorkingDirectory = 0;
+    }
+
+  /* The timeout period starts now.  */
+  cp->StartTime = kwsysProcessTimeGetCurrent();
+  cp->TimeoutTime = kwsysProcessTimeFromDouble(-1);
+
+  /* All processes in the pipeline have been started in suspended
+     mode.  Resume them all now.  */
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    ResumeThread(cp->ProcessInformation[i].hThread);
+    }
+
+  /* ---- It is no longer safe to call kwsysProcessCleanup. ----- */
+  /* Tell the pipe threads that a process has started.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    ReleaseSemaphore(cp->Pipe[i].Reader.Ready, 1, 0);
+    ReleaseSemaphore(cp->Pipe[i].Waker.Ready, 1, 0);
+    }
+
+  /* We don't care about the children's main threads.  */
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
+    }
+
+  /* No pipe has reported data.  */
+  cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
+  cp->PipesLeft = KWSYSPE_PIPE_COUNT;
+
+  /* The process has now started.  */
+  cp->State = kwsysProcess_State_Executing;
+  cp->Detached = cp->OptionDetach;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Disown(kwsysProcess* cp)
+{
+  int i;
+
+  /* Make sure we are executing a detached process.  */
+  if(!cp || !cp->Detached || cp->State != kwsysProcess_State_Executing ||
+     cp->TimeoutExpired || cp->Killed || cp->Terminated)
+    {
+    return;
+    }
+
+  /* Disable the reading threads.  */
+  kwsysProcessDisablePipeThreads(cp);
+
+  /* Wait for all pipe threads to reset.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    WaitForSingleObject(cp->Pipe[i].Reader.Reset, INFINITE);
+    WaitForSingleObject(cp->Pipe[i].Waker.Reset, INFINITE);
+    }
+
+  /* We will not wait for exit, so cleanup now.  */
+  kwsysProcessCleanup(cp, 0);
+
+  /* The process has been disowned.  */
+  cp->State = kwsysProcess_State_Disowned;
+}
+
+/*--------------------------------------------------------------------------*/
+
+int kwsysProcess_WaitForData(kwsysProcess* cp, char** data, int* length,
+                             double* userTimeout)
+{
+  kwsysProcessTime userStartTime;
+  kwsysProcessTime timeoutLength;
+  kwsysProcessTime timeoutTime;
+  DWORD timeout;
+  int user;
+  int done = 0;
+  int expired = 0;
+  int pipeId = kwsysProcess_Pipe_None;
+  DWORD w;
+
+  /* Make sure we are executing a process.  */
+  if(!cp || cp->State != kwsysProcess_State_Executing || cp->Killed ||
+     cp->TimeoutExpired)
+    {
+    return kwsysProcess_Pipe_None;
+    }
+
+  /* Record the time at which user timeout period starts.  */
+  userStartTime = kwsysProcessTimeGetCurrent();
+
+  /* Calculate the time at which a timeout will expire, and whether it
+     is the user or process timeout.  */
+  user = kwsysProcessGetTimeoutTime(cp, userTimeout, &timeoutTime);
+
+  /* Loop until we have a reason to return.  */
+  while(!done && cp->PipesLeft > 0)
+    {
+    /* If we previously got data from a thread, let it know we are
+       done with the data.  */
+    if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
+      {
+      KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
+      ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+      cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
+      }
+
+    /* Setup a timeout if required.  */
+    if(kwsysProcessGetTimeoutLeft(&timeoutTime, user?userTimeout:0,
+                                  &timeoutLength))
+      {
+      /* Timeout has already expired.  */
+      expired = 1;
+      break;
+      }
+    if(timeoutTime.QuadPart < 0)
+      {
+      timeout = INFINITE;
+      }
+    else
+      {
+      timeout = kwsysProcessTimeToDWORD(timeoutLength);
+      }
+
+    /* Wait for a pipe's thread to signal or a process to terminate.  */
+    w = WaitForMultipleObjects(cp->ProcessEventsLength, cp->ProcessEvents,
+                               0, timeout);
+    if(w == WAIT_TIMEOUT)
+      {
+      /* Timeout has expired.  */
+      expired = 1;
+      done = 1;
+      }
+    else if(w == WAIT_OBJECT_0)
+      {
+      /* Save the index of the reporting thread and release the mutex.
+         The thread will block until we signal its Empty mutex.  */
+      cp->CurrentIndex = cp->SharedIndex;
+      ReleaseSemaphore(cp->SharedIndexMutex, 1, 0);
+
+      /* Data are available or a pipe closed.  */
+      if(cp->Pipe[cp->CurrentIndex].Closed)
+        {
+        /* The pipe closed at the write end.  Close the read end and
+           inform the wakeup thread it is done with this process.  */
+        kwsysProcessCleanupHandle(&cp->Pipe[cp->CurrentIndex].Read);
+        ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Waker.Go, 1, 0);
+        KWSYSPE_DEBUG((stderr, "wakeup %d\n", cp->CurrentIndex));
+        --cp->PipesLeft;
+        }
+      else if(data && length)
+        {
+        /* Report this data.  */
+        *data = cp->Pipe[cp->CurrentIndex].DataBuffer;
+        *length = cp->Pipe[cp->CurrentIndex].DataLength;
+        switch(cp->CurrentIndex)
+          {
+          case KWSYSPE_PIPE_STDOUT:
+            pipeId = kwsysProcess_Pipe_STDOUT; break;
+          case KWSYSPE_PIPE_STDERR:
+            pipeId = kwsysProcess_Pipe_STDERR; break;
+          }
+        done = 1;
+        }
+      }
+    else
+      {
+      /* A process has terminated.  */
+      kwsysProcessDestroy(cp, w-WAIT_OBJECT_0);
+      }
+    }
+
+  /* Update the user timeout.  */
+  if(userTimeout)
+    {
+    kwsysProcessTime userEndTime = kwsysProcessTimeGetCurrent();
+    kwsysProcessTime difference = kwsysProcessTimeSubtract(userEndTime,
+                                                           userStartTime);
+    double d = kwsysProcessTimeToDouble(difference);
+    *userTimeout -= d;
+    if(*userTimeout < 0)
+      {
+      *userTimeout = 0;
+      }
+    }
+
+  /* Check what happened.  */
+  if(pipeId)
+    {
+    /* Data are ready on a pipe.  */
+    return pipeId;
+    }
+  else if(expired)
+    {
+    /* A timeout has expired.  */
+    if(user)
+      {
+      /* The user timeout has expired.  It has no time left.  */
+      return kwsysProcess_Pipe_Timeout;
+      }
+    else
+      {
+      /* The process timeout has expired.  Kill the child now.  */
+      KWSYSPE_DEBUG((stderr, "killing child because timeout expired\n"));
+      kwsysProcess_Kill(cp);
+      cp->TimeoutExpired = 1;
+      cp->Killed = 0;
+      return kwsysProcess_Pipe_None;
+      }
+    }
+  else
+    {
+    /* The children have terminated and no more data are available.  */
+    return kwsysProcess_Pipe_None;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcess_WaitForExit(kwsysProcess* cp, double* userTimeout)
+{
+  int i;
+  int pipe;
+
+  /* Make sure we are executing a process.  */
+  if(!cp || cp->State != kwsysProcess_State_Executing)
+    {
+    return 1;
+    }
+
+  /* Wait for the process to terminate.  Ignore all data.  */
+  while((pipe = kwsysProcess_WaitForData(cp, 0, 0, userTimeout)) > 0)
+    {
+    if(pipe == kwsysProcess_Pipe_Timeout)
+      {
+      /* The user timeout has expired.  */
+      return 0;
+      }
+    }
+
+  KWSYSPE_DEBUG((stderr, "no more data\n"));
+
+  /* When the last pipe closes in WaitForData, the loop terminates
+     without releasing the pipe's thread.  Release it now.  */
+  if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
+    {
+    KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
+    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+    cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
+    }
+
+  /* Wait for all pipe threads to reset.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    KWSYSPE_DEBUG((stderr, "waiting reader reset %d\n", i));
+    WaitForSingleObject(cp->Pipe[i].Reader.Reset, INFINITE);
+    KWSYSPE_DEBUG((stderr, "waiting waker reset %d\n", i));
+    WaitForSingleObject(cp->Pipe[i].Waker.Reset, INFINITE);
+    }
+
+  /* ---- It is now safe again to call kwsysProcessCleanup. ----- */
+  /* Close all the pipes.  */
+  kwsysProcessCleanup(cp, 0);
+
+  /* Determine the outcome.  */
+  if(cp->Killed)
+    {
+    /* We killed the child.  */
+    cp->State = kwsysProcess_State_Killed;
+    }
+  else if(cp->TimeoutExpired)
+    {
+    /* The timeout expired.  */
+    cp->State = kwsysProcess_State_Expired;
+    }
+  else
+    {
+    /* The children exited.  Report the outcome of the last process.  */
+    cp->ExitCode = cp->CommandExitCodes[cp->NumberOfCommands-1];
+    if((cp->ExitCode & 0xF0000000) == 0xC0000000)
+      {
+      /* Child terminated due to exceptional behavior.  */
+      cp->State = kwsysProcess_State_Exception;
+      cp->ExitValue = 1;
+      kwsysProcessSetExitException(cp, cp->ExitCode);
+      }
+    else
+      {
+      /* Child exited without exception.  */
+      cp->State = kwsysProcess_State_Exited;
+      cp->ExitException = kwsysProcess_Exception_None;
+      cp->ExitValue = cp->ExitCode;
+      }
+    }
+
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Interrupt(kwsysProcess* cp)
+{
+  int i;
+  /* Make sure we are executing a process.  */
+  if(!cp || cp->State != kwsysProcess_State_Executing || cp->TimeoutExpired ||
+     cp->Killed)
+    {
+    KWSYSPE_DEBUG((stderr, "interrupt: child not executing\n"));
+    return;
+    }
+
+  /* Skip actually interrupting the child if it has already terminated.  */
+  if(cp->Terminated)
+    {
+    KWSYSPE_DEBUG((stderr, "interrupt: child already terminated\n"));
+    return;
+    }
+
+  /* Interrupt the children.  */
+  if (cp->CreateProcessGroup)
+    {
+    if(cp->ProcessInformation)
+      {
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {
+        /* Make sure the process handle isn't closed (e.g. from disowning). */
+        if(cp->ProcessInformation[i].hProcess)
+          {
+          /* The user created a process group for this process.  The group ID
+             is the process ID for the original process in the group.  Note
+             that we have to use Ctrl+Break: Ctrl+C is not allowed for process
+             groups.  */
+          GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT,
+                                   cp->ProcessInformation[i].dwProcessId);
+          }
+        }
+      }
+    }
+  else
+    {
+    /* No process group was created.  Kill our own process group...  */
+    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcess_Kill(kwsysProcess* cp)
+{
+  int i;
+  /* Make sure we are executing a process.  */
+  if(!cp || cp->State != kwsysProcess_State_Executing || cp->TimeoutExpired ||
+     cp->Killed)
+    {
+    KWSYSPE_DEBUG((stderr, "kill: child not executing\n"));
+    return;
+    }
+
+  /* Disable the reading threads.  */
+  KWSYSPE_DEBUG((stderr, "kill: disabling pipe threads\n"));
+  kwsysProcessDisablePipeThreads(cp);
+
+  /* Skip actually killing the child if it has already terminated.  */
+  if(cp->Terminated)
+    {
+    KWSYSPE_DEBUG((stderr, "kill: child already terminated\n"));
+    return;
+    }
+
+  /* Kill the children.  */
+  cp->Killed = 1;
+  for(i=0; i < cp->NumberOfCommands; ++i)
+    {
+    kwsysProcessKillTree(cp->ProcessInformation[i].dwProcessId);
+    /* Remove from global list of processes and close handles.  */
+    kwsysProcessesRemove(cp->ProcessInformation[i].hProcess);
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
+    }
+
+  /* We are killing the children and ignoring all data.  Do not wait
+     for them to exit.  */
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function executed for each pipe's thread.  Argument is a pointer to
+  the kwsysProcessPipeData instance for this thread.
+*/
+DWORD WINAPI kwsysProcessPipeThreadRead(LPVOID ptd)
+{
+  kwsysProcessPipeData* td = (kwsysProcessPipeData*)ptd;
+  kwsysProcess* cp = td->Process;
+
+  /* Wait for a process to be ready.  */
+  while((WaitForSingleObject(td->Reader.Ready, INFINITE), !cp->Deleting))
+    {
+    /* Read output from the process for this thread's pipe.  */
+    kwsysProcessPipeThreadReadPipe(cp, td);
+
+    /* Signal the main thread we have reset for a new process.  */
+    ReleaseSemaphore(td->Reader.Reset, 1, 0);
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function called in each pipe's thread to handle data for one
+  execution of a subprocess.
+*/
+void kwsysProcessPipeThreadReadPipe(kwsysProcess* cp, kwsysProcessPipeData* td)
+{
+  /* Wait for space in the thread's buffer. */
+  while((KWSYSPE_DEBUG((stderr, "wait for read %d\n", td->Index)),
+         WaitForSingleObject(td->Reader.Go, INFINITE), !td->Closed))
+    {
+    KWSYSPE_DEBUG((stderr, "reading %d\n", td->Index));
+
+    /* Read data from the pipe.  This may block until data are available.  */
+    if(!ReadFile(td->Read, td->DataBuffer, KWSYSPE_PIPE_BUFFER_SIZE,
+                 &td->DataLength, 0))
+      {
+      if(GetLastError() != ERROR_BROKEN_PIPE)
+        {
+        /* UNEXPECTED failure to read the pipe.  */
+        }
+
+      /* The pipe closed.  There are no more data to read.  */
+      td->Closed = 1;
+      KWSYSPE_DEBUG((stderr, "read closed %d\n", td->Index));
+      }
+
+    KWSYSPE_DEBUG((stderr, "read %d\n", td->Index));
+
+    /* Wait for our turn to be handled by the main thread.  */
+    WaitForSingleObject(cp->SharedIndexMutex, INFINITE);
+
+    KWSYSPE_DEBUG((stderr, "reporting read %d\n", td->Index));
+
+    /* Tell the main thread we have something to report.  */
+    cp->SharedIndex = td->Index;
+    ReleaseSemaphore(cp->Full, 1, 0);
+    }
+
+  /* We were signalled to exit with our buffer empty.  Reset the
+     mutex for a new process.  */
+  KWSYSPE_DEBUG((stderr, "self releasing reader %d\n", td->Index));
+  ReleaseSemaphore(td->Reader.Go, 1, 0);
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function executed for each pipe's thread.  Argument is a pointer to
+  the kwsysProcessPipeData instance for this thread.
+*/
+DWORD WINAPI kwsysProcessPipeThreadWake(LPVOID ptd)
+{
+  kwsysProcessPipeData* td = (kwsysProcessPipeData*)ptd;
+  kwsysProcess* cp = td->Process;
+
+  /* Wait for a process to be ready.  */
+  while((WaitForSingleObject(td->Waker.Ready, INFINITE), !cp->Deleting))
+    {
+    /* Wait for a possible wakeup.  */
+    kwsysProcessPipeThreadWakePipe(cp, td);
+
+    /* Signal the main thread we have reset for a new process.  */
+    ReleaseSemaphore(td->Waker.Reset, 1, 0);
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+
+/*
+  Function called in each pipe's thread to handle reading thread
+  wakeup for one execution of a subprocess.
+*/
+void kwsysProcessPipeThreadWakePipe(kwsysProcess* cp, kwsysProcessPipeData* td)
+{
+  (void)cp;
+
+  /* Wait for a possible wake command. */
+  KWSYSPE_DEBUG((stderr, "wait for wake %d\n", td->Index));
+  WaitForSingleObject(td->Waker.Go, INFINITE);
+  KWSYSPE_DEBUG((stderr, "waking %d\n", td->Index));
+
+  /* If the pipe is not closed, we need to wake up the reading thread.  */
+  if(!td->Closed)
+    {
+    DWORD dummy;
+    KWSYSPE_DEBUG((stderr, "waker %d writing byte\n", td->Index));
+    WriteFile(td->Write, "", 1, &dummy, 0);
+    KWSYSPE_DEBUG((stderr, "waker %d wrote byte\n", td->Index));
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+/* Initialize a process control structure for kwsysProcess_Execute.  */
+int kwsysProcessInitialize(kwsysProcess* cp)
+{
+  /* Reset internal status flags.  */
+  cp->TimeoutExpired = 0;
+  cp->Terminated = 0;
+  cp->Killed = 0;
+  cp->ExitException = kwsysProcess_Exception_None;
+  cp->ExitCode = 1;
+  cp->ExitValue = 1;
+
+  /* Reset error data.  */
+  cp->ErrorMessage[0] = 0;
+  strcpy(cp->ExitExceptionString, "No exception");
+
+  /* Allocate process information for each process.  */
+  cp->ProcessInformation =
+    (PROCESS_INFORMATION*)malloc(sizeof(PROCESS_INFORMATION) *
+                                 cp->NumberOfCommands);
+  if(!cp->ProcessInformation)
+    {
+    return 0;
+    }
+  ZeroMemory(cp->ProcessInformation,
+             sizeof(PROCESS_INFORMATION) * cp->NumberOfCommands);
+  if(cp->CommandExitCodes)
+    {
+    free(cp->CommandExitCodes);
+    }
+  cp->CommandExitCodes = (DWORD*)malloc(sizeof(DWORD)*cp->NumberOfCommands);
+  if(!cp->CommandExitCodes)
+    {
+    return 0;
+    }
+  ZeroMemory(cp->CommandExitCodes, sizeof(DWORD)*cp->NumberOfCommands);
+
+  /* Allocate event wait array.  The first event is cp->Full, the rest
+     are the process termination events.  */
+  cp->ProcessEvents = (PHANDLE)malloc(sizeof(HANDLE)*(cp->NumberOfCommands+1));
+  if(!cp->ProcessEvents)
+    {
+    return 0;
+    }
+  ZeroMemory(cp->ProcessEvents, sizeof(HANDLE) * (cp->NumberOfCommands+1));
+  cp->ProcessEvents[0] = cp->Full;
+  cp->ProcessEventsLength = cp->NumberOfCommands+1;
+
+  /* Allocate space to save the real working directory of this process.  */
+  if(cp->WorkingDirectory)
+    {
+    cp->RealWorkingDirectoryLength = GetCurrentDirectoryW(0, 0);
+    if(cp->RealWorkingDirectoryLength > 0)
+      {
+      cp->RealWorkingDirectory = malloc(cp->RealWorkingDirectoryLength * sizeof(wchar_t));
+      if(!cp->RealWorkingDirectory)
+        {
+        return 0;
+        }
+      }
+    }
+  {
+  int i;
+  for (i=0; i < 3; ++i)
+    {
+    cp->PipeChildStd[i] = INVALID_HANDLE_VALUE;
+    }
+  }
+
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+static DWORD kwsysProcessCreateChildHandle(PHANDLE out, HANDLE in, int isStdIn)
+{
+  DWORD flags;
+
+  /* Check whether the handle is valid for this process.  */
+  if (in != INVALID_HANDLE_VALUE && GetHandleInformation(in, &flags))
+    {
+    /* Use the handle as-is if it is already inherited.  */
+    if (flags & HANDLE_FLAG_INHERIT)
+      {
+      *out = in;
+      return ERROR_SUCCESS;
+      }
+
+    /* Create an inherited copy of this handle.  */
+    if (DuplicateHandle(GetCurrentProcess(), in, GetCurrentProcess(), out,
+                        0, TRUE, DUPLICATE_SAME_ACCESS))
+      {
+      return ERROR_SUCCESS;
+      }
+    else
+      {
+      return GetLastError();
+      }
+    }
+  else
+    {
+    /* The given handle is not valid for this process.  Some child
+       processes may break if they do not have a valid standard handle,
+       so open NUL to give to the child.  */
+    SECURITY_ATTRIBUTES sa;
+    ZeroMemory(&sa, sizeof(sa));
+    sa.nLength = (DWORD)sizeof(sa);
+    sa.bInheritHandle = 1;
+    *out = CreateFileW(L"NUL",
+                       (isStdIn ? GENERIC_READ :
+                        (GENERIC_WRITE | FILE_READ_ATTRIBUTES)),
+                       FILE_SHARE_READ|FILE_SHARE_WRITE,
+                       &sa, OPEN_EXISTING, 0, 0);
+    return (*out != INVALID_HANDLE_VALUE) ? ERROR_SUCCESS : GetLastError();
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+DWORD kwsysProcessCreate(kwsysProcess* cp, int index,
+                         kwsysProcessCreateInformation* si)
+{
+  DWORD creationFlags;
+  DWORD error = ERROR_SUCCESS;
+
+  /* Check if we are currently exiting.  */
+  if (!kwsysTryEnterCreateProcessSection())
+    {
+    /* The Ctrl handler is currently working on exiting our process.  Rather
+    than return an error code, which could cause incorrect conclusions to be
+    reached by the caller, we simply hang.  (For example, a CMake try_run
+    configure step might cause the project to configure wrong.)  */
+    Sleep(INFINITE);
+    }
+
+  /* Create the child in a suspended state so we can wait until all
+     children have been created before running any one.  */
+  creationFlags = CREATE_SUSPENDED;
+  if (cp->CreateProcessGroup)
+    {
+    creationFlags |= CREATE_NEW_PROCESS_GROUP;
+    }
+
+  /* Create inherited copies of the handles.  */
+  (error = kwsysProcessCreateChildHandle(&si->StartupInfo.hStdInput,
+                                          si->hStdInput, 1)) ||
+  (error = kwsysProcessCreateChildHandle(&si->StartupInfo.hStdOutput,
+                                          si->hStdOutput, 0)) ||
+  (error = kwsysProcessCreateChildHandle(&si->StartupInfo.hStdError,
+                                          si->hStdError, 0)) ||
+  /* Create the process.  */
+  (!CreateProcessW(0, cp->Commands[index], 0, 0, TRUE, creationFlags, 0,
+                  0, &si->StartupInfo, &cp->ProcessInformation[index]) &&
+    (error = GetLastError()));
+
+  /* Close the inherited copies of the handles. */
+  if (si->StartupInfo.hStdInput != si->hStdInput)
+    {
+    kwsysProcessCleanupHandle(&si->StartupInfo.hStdInput);
+    }
+  if (si->StartupInfo.hStdOutput != si->hStdOutput)
+    {
+    kwsysProcessCleanupHandle(&si->StartupInfo.hStdOutput);
+    }
+  if (si->StartupInfo.hStdError != si->hStdError)
+    {
+    kwsysProcessCleanupHandle(&si->StartupInfo.hStdError);
+    }
+
+  /* Add the process to the global list of processes. */
+  if (!error &&
+      !kwsysProcessesAdd(cp->ProcessInformation[index].hProcess,
+      cp->ProcessInformation[index].dwProcessId, cp->CreateProcessGroup))
+    {
+    /* This failed for some reason.  Kill the suspended process. */
+    TerminateProcess(cp->ProcessInformation[index].hProcess, 1);
+    /* And clean up... */
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
+    kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hThread);
+    strcpy(cp->ErrorMessage, "kwsysProcessesAdd function failed");
+    error = ERROR_NOT_ENOUGH_MEMORY; /* Most likely reason.  */
+    }
+
+  /* If the console Ctrl handler is waiting for us, this will release it... */
+  kwsysLeaveCreateProcessSection();
+  return error;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcessDestroy(kwsysProcess* cp, int event)
+{
+  int i;
+  int index;
+
+  /* Find the process index for the termination event.  */
+  for(index=0; index < cp->NumberOfCommands; ++index)
+    {
+    if(cp->ProcessInformation[index].hProcess == cp->ProcessEvents[event])
       {
       break;
       }
     }
 
-  if (generator)
+  /* Check the exit code of the process.  */
+  GetExitCodeProcess(cp->ProcessInformation[index].hProcess,
+                     &cp->CommandExitCodes[index]);
+
+  /* Remove from global list of processes.  */
+  kwsysProcessesRemove(cp->ProcessInformation[index].hProcess);
+
+  /* Close the process handle for the terminated process.  */
+  kwsysProcessCleanupHandle(&cp->ProcessInformation[index].hProcess);
+
+  /* Remove the process from the available events.  */
+  cp->ProcessEventsLength -= 1;
+  for(i=event; i < cp->ProcessEventsLength; ++i)
     {
-    generator->SetCMakeInstance(this);
-    generator->SetExternalMakefileProjectGenerator(extraGenerator);
+    cp->ProcessEvents[i] = cp->ProcessEvents[i+1];
+    }
+
+  /* Check if all processes have terminated.  */
+  if(cp->ProcessEventsLength == 1)
+    {
+    cp->Terminated = 1;
+
+    /* Close our copies of the pipe write handles so the pipe threads
+       can detect end-of-data.  */
+    for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+      {
+      /* TODO: If the child created its own child (our grandchild)
+         which inherited a copy of the pipe write-end then the pipe
+         may not close and we will still need the waker write pipe.
+         However we still want to be able to detect end-of-data in the
+         normal case.  The reader thread will have to switch to using
+         PeekNamedPipe to read the last bit of data from the pipe
+         without blocking.  This is equivalent to using a non-blocking
+         read on posix.  */
+      KWSYSPE_DEBUG((stderr, "closing wakeup write %d\n", i));
+      kwsysProcessCleanupHandle(&cp->Pipe[i].Write);
+      }
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+DWORD kwsysProcessSetupOutputPipeFile(PHANDLE phandle, const char* name)
+{
+  HANDLE fout;
+  wchar_t* wname;
+  DWORD error;
+  if(!name)
+    {
+    return ERROR_INVALID_PARAMETER;
+    }
+
+  /* Close the existing handle.  */
+  kwsysProcessCleanupHandle(phandle);
+
+  /* Create a handle to write a file for the pipe.  */
+  wname = kwsysEncoding_DupToWide(name);
+  fout = CreateFileW(wname, GENERIC_WRITE, FILE_SHARE_READ, 0,
+                    CREATE_ALWAYS, 0, 0);
+  error = GetLastError();
+  free(wname);
+  if(fout == INVALID_HANDLE_VALUE)
+    {
+    return error;
+    }
+
+  /* Assign the replacement handle.  */
+  *phandle = fout;
+  return ERROR_SUCCESS;
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcessSetupSharedPipe(DWORD nStdHandle, PHANDLE handle)
+{
+  /* Close the existing handle.  */
+  kwsysProcessCleanupHandle(handle);
+  /* Store the new standard handle.  */
+  *handle = GetStdHandle(nStdHandle);
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcessSetupPipeNative(HANDLE native, PHANDLE handle)
+{
+  /* Close the existing handle.  */
+  kwsysProcessCleanupHandle(handle);
+  /* Store the new given handle.  */
+  *handle = native;
+}
+
+/*--------------------------------------------------------------------------*/
+
+/* Close the given handle if it is open.  Reset its value to 0.  */
+void kwsysProcessCleanupHandle(PHANDLE h)
+{
+  if(h && *h && *h != INVALID_HANDLE_VALUE &&
+     *h != GetStdHandle(STD_INPUT_HANDLE) &&
+     *h != GetStdHandle(STD_OUTPUT_HANDLE) &&
+     *h != GetStdHandle(STD_ERROR_HANDLE))
+    {
+    CloseHandle(*h);
+    *h = INVALID_HANDLE_VALUE;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+
+/* Close all handles created by kwsysProcess_Execute.  */
+void kwsysProcessCleanup(kwsysProcess* cp, DWORD error)
+{
+  int i;
+  /* If this is an error case, report the error.  */
+  if(error)
+    {
+    /* Construct an error message if one has not been provided already.  */
+    if(cp->ErrorMessage[0] == 0)
+      {
+      /* Format the error message.  */
+      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
+      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, error,
+                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
+      if(length < 1)
+        {
+        /* FormatMessage failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "FormatMessage failed with error 0x%X",
+                  error, GetLastError());
+        }
+      if(!WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
+                              KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL))
+        {
+        /* WideCharToMultiByte failed.  Use a default message.  */
+        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
+                  "Process execution failed with error 0x%X.  "
+                  "WideCharToMultiByte failed with error 0x%X",
+                  error, GetLastError());
+        }
+      }
+
+    /* Remove trailing period and newline, if any.  */
+    kwsysProcessCleanErrorMessage(cp);
+
+    /* Set the error state.  */
+    cp->State = kwsysProcess_State_Error;
+
+    /* Cleanup any processes already started in a suspended state.  */
+    if(cp->ProcessInformation)
+      {
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {
+        if(cp->ProcessInformation[i].hProcess)
+          {
+          TerminateProcess(cp->ProcessInformation[i].hProcess, 255);
+          WaitForSingleObject(cp->ProcessInformation[i].hProcess, INFINITE);
+          }
+        }
+      for(i=0; i < cp->NumberOfCommands; ++i)
+        {
+        /* Remove from global list of processes and close handles.  */
+        kwsysProcessesRemove(cp->ProcessInformation[i].hProcess);
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hThread);
+        kwsysProcessCleanupHandle(&cp->ProcessInformation[i].hProcess);
+        }
+      }
+
+    /* Restore the working directory.  */
+    if(cp->RealWorkingDirectory)
+      {
+      SetCurrentDirectoryW(cp->RealWorkingDirectory);
+      }
+    }
+
+  /* Free memory.  */
+  if(cp->ProcessInformation)
+    {
+    free(cp->ProcessInformation);
+    cp->ProcessInformation = 0;
+    }
+  if(cp->ProcessEvents)
+    {
+    free(cp->ProcessEvents);
+    cp->ProcessEvents = 0;
+    }
+  if(cp->RealWorkingDirectory)
+    {
+    free(cp->RealWorkingDirectory);
+    cp->RealWorkingDirectory = 0;
+    }
+
+  /* Close each pipe.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
+    {
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Write);
+    kwsysProcessCleanupHandle(&cp->Pipe[i].Read);
+    cp->Pipe[i].Closed = 0;
+    }
+  for(i=0; i < 3; ++i)
+    {
+    kwsysProcessCleanupHandle(&cp->PipeChildStd[i]);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+void kwsysProcessCleanErrorMessage(kwsysProcess* cp)
+{
+  /* Remove trailing period and newline, if any.  */
+  size_t length = strlen(cp->ErrorMessage);
+  if(cp->ErrorMessage[length-1] == '\n')
+    {
+    cp->ErrorMessage[length-1] = 0;
+    --length;
+    if(length > 0 && cp->ErrorMessage[length-1] == '\r')
+      {
+      cp->ErrorMessage[length-1] = 0;
+      --length;
+      }
+    }
+  if(length > 0 && cp->ErrorMessage[length-1] == '.')
+    {
+    cp->ErrorMessage[length-1] = 0;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+/* Get the time at which either the process or user timeout will
+   expire.  Returns 1 if the user timeout is first, and 0 otherwise.  */
+int kwsysProcessGetTimeoutTime(kwsysProcess* cp, double* userTimeout,
+                               kwsysProcessTime* timeoutTime)
+{
+  /* The first time this is called, we need to calculate the time at
+     which the child will timeout.  */
+  if(cp->Timeout && cp->TimeoutTime.QuadPart < 0)
+    {
+    kwsysProcessTime length = kwsysProcessTimeFromDouble(cp->Timeout);
+    cp->TimeoutTime = kwsysProcessTimeAdd(cp->StartTime, length);
+    }
+
+  /* Start with process timeout.  */
+  *timeoutTime = cp->TimeoutTime;
+
+  /* Check if the user timeout is earlier.  */
+  if(userTimeout)
+    {
+    kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
+    kwsysProcessTime userTimeoutLength = kwsysProcessTimeFromDouble(*userTimeout);
+    kwsysProcessTime userTimeoutTime = kwsysProcessTimeAdd(currentTime,
+                                                           userTimeoutLength);
+    if(timeoutTime->QuadPart < 0 ||
+       kwsysProcessTimeLess(userTimeoutTime, *timeoutTime))
+      {
+      *timeoutTime = userTimeoutTime;
+      return 1;
+      }
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+/* Get the length of time before the given timeout time arrives.
+   Returns 1 if the time has already arrived, and 0 otherwise.  */
+int kwsysProcessGetTimeoutLeft(kwsysProcessTime* timeoutTime,
+                               double* userTimeout,
+                               kwsysProcessTime* timeoutLength)
+{
+  if(timeoutTime->QuadPart < 0)
+    {
+    /* No timeout time has been requested.  */
+    return 0;
     }
   else
     {
-    delete extraGenerator;
-    }
+    /* Calculate the remaining time.  */
+    kwsysProcessTime currentTime = kwsysProcessTimeGetCurrent();
+    *timeoutLength = kwsysProcessTimeSubtract(*timeoutTime, currentTime);
 
-  return generator;
-}
-
-void cmake::SetHomeDirectory(const std::string& dir)
-{
-  this->cmHomeDirectory = dir;
-  cmSystemTools::ConvertToUnixSlashes(this->cmHomeDirectory);
-}
-
-void cmake::SetHomeOutputDirectory(const std::string& lib)
-{
-  this->HomeOutputDirectory = lib;
-  cmSystemTools::ConvertToUnixSlashes(this->HomeOutputDirectory);
-}
-
-void cmake::SetGlobalGenerator(cmGlobalGenerator *gg)
-{
-  if(!gg)
-    {
-    cmSystemTools::Error("Error SetGlobalGenerator called with null");
-    return;
-    }
-  // delete the old generator
-  if (this->GlobalGenerator)
-    {
-    delete this->GlobalGenerator;
-    // restore the original environment variables CXX and CC
-    // Restore CC
-    std::string env = "CC=";
-    if(this->CCEnvironment.size())
+    if(timeoutLength->QuadPart < 0 && userTimeout && *userTimeout <= 0)
       {
-      env += this->CCEnvironment;
+      /* Caller has explicitly requested a zero timeout.  */
+      timeoutLength->QuadPart = 0;
       }
-    cmSystemTools::PutEnv(env.c_str());
-    env = "CXX=";
-    if(this->CXXEnvironment.size())
+
+    if(timeoutLength->QuadPart < 0)
       {
-      env += this->CXXEnvironment;
-      }
-    cmSystemTools::PutEnv(env.c_str());
-    }
-
-  // set the new
-  this->GlobalGenerator = gg;
-
-  // set the global flag for unix style paths on cmSystemTools as soon as
-  // the generator is set.  This allows gmake to be used on windows.
-  cmSystemTools::SetForceUnixPaths
-    (this->GlobalGenerator->GetForceUnixPaths());
-
-  // Save the environment variables CXX and CC
-  const char* cxx = getenv("CXX");
-  const char* cc = getenv("CC");
-  if(cxx)
-    {
-    this->CXXEnvironment = cxx;
-    }
-  else
-    {
-    this->CXXEnvironment = "";
-    }
-  if(cc)
-    {
-    this->CCEnvironment = cc;
-    }
-  else
-    {
-    this->CCEnvironment = "";
-    }
-  // set the cmake instance just to be sure
-  gg->SetCMakeInstance(this);
-}
-
-int cmake::DoPreConfigureChecks()
-{
-  // Make sure the Start directory contains a CMakeLists.txt file.
-  std::string srcList = this->GetHomeDirectory();
-  srcList += "/CMakeLists.txt";
-  if(!cmSystemTools::FileExists(srcList.c_str()))
-    {
-    cmOStringStream err;
-    if(cmSystemTools::FileIsDirectory(this->GetHomeDirectory()))
-      {
-      err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" does not appear to contain CMakeLists.txt.\n";
-      }
-    else if(cmSystemTools::FileExists(this->GetHomeDirectory()))
-      {
-      err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" is a file, not a directory.\n";
+      /* Timeout has already expired.  */
+      return 1;
       }
     else
       {
-      err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" does not exist.\n";
+      /* There is some time left.  */
+      return 0;
       }
-    err << "Specify --help for usage, or press the help button on the CMake "
-      "GUI.";
-    cmSystemTools::Error(err.str().c_str());
-    return -2;
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeGetCurrent()
+{
+  kwsysProcessTime current;
+  FILETIME ft;
+  GetSystemTimeAsFileTime(&ft);
+  current.LowPart = ft.dwLowDateTime;
+  current.HighPart = ft.dwHighDateTime;
+  return current;
+}
+
+/*--------------------------------------------------------------------------*/
+DWORD kwsysProcessTimeToDWORD(kwsysProcessTime t)
+{
+  return (DWORD)(t.QuadPart * 0.0001);
+}
+
+/*--------------------------------------------------------------------------*/
+double kwsysProcessTimeToDouble(kwsysProcessTime t)
+{
+  return t.QuadPart * 0.0000001;
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeFromDouble(double d)
+{
+  kwsysProcessTime t;
+  t.QuadPart = (LONGLONG)(d*10000000);
+  return t;
+}
+
+/*--------------------------------------------------------------------------*/
+int kwsysProcessTimeLess(kwsysProcessTime in1, kwsysProcessTime in2)
+{
+  return in1.QuadPart < in2.QuadPart;
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeAdd(kwsysProcessTime in1, kwsysProcessTime in2)
+{
+  kwsysProcessTime out;
+  out.QuadPart = in1.QuadPart + in2.QuadPart;
+  return out;
+}
+
+/*--------------------------------------------------------------------------*/
+kwsysProcessTime kwsysProcessTimeSubtract(kwsysProcessTime in1, kwsysProcessTime in2)
+{
+  kwsysProcessTime out;
+  out.QuadPart = in1.QuadPart - in2.QuadPart;
+  return out;
+}
+
+/*--------------------------------------------------------------------------*/
+#define KWSYSPE_CASE(type, str) \
+  cp->ExitException = kwsysProcess_Exception_##type; \
+  strcpy(cp->ExitExceptionString, str)
+static void kwsysProcessSetExitException(kwsysProcess* cp, int code)
+{
+  switch (code)
+    {
+    case STATUS_CONTROL_C_EXIT:
+      KWSYSPE_CASE(Interrupt, "User interrupt"); break;
+
+    case STATUS_FLOAT_DENORMAL_OPERAND:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (denormal operand)"); break;
+    case STATUS_FLOAT_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Divide-by-zero"); break;
+    case STATUS_FLOAT_INEXACT_RESULT:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (inexact result)"); break;
+    case STATUS_FLOAT_INVALID_OPERATION:
+      KWSYSPE_CASE(Numerical, "Invalid floating-point operation"); break;
+    case STATUS_FLOAT_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point overflow"); break;
+    case STATUS_FLOAT_STACK_CHECK:
+      KWSYSPE_CASE(Numerical, "Floating-point stack check failed"); break;
+    case STATUS_FLOAT_UNDERFLOW:
+      KWSYSPE_CASE(Numerical, "Floating-point underflow"); break;
+#ifdef STATUS_FLOAT_MULTIPLE_FAULTS
+    case STATUS_FLOAT_MULTIPLE_FAULTS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple faults)"); break;
+#endif
+#ifdef STATUS_FLOAT_MULTIPLE_TRAPS
+    case STATUS_FLOAT_MULTIPLE_TRAPS:
+      KWSYSPE_CASE(Numerical, "Floating-point exception (multiple traps)"); break;
+#endif
+    case STATUS_INTEGER_DIVIDE_BY_ZERO:
+      KWSYSPE_CASE(Numerical, "Integer divide-by-zero"); break;
+    case STATUS_INTEGER_OVERFLOW:
+      KWSYSPE_CASE(Numerical, "Integer overflow"); break;
+
+    case STATUS_DATATYPE_MISALIGNMENT:
+      KWSYSPE_CASE(Fault, "Datatype misalignment"); break;
+    case STATUS_ACCESS_VIOLATION:
+      KWSYSPE_CASE(Fault, "Access violation"); break;
+    case STATUS_IN_PAGE_ERROR:
+      KWSYSPE_CASE(Fault, "In-page error"); break;
+    case STATUS_INVALID_HANDLE:
+      KWSYSPE_CASE(Fault, "Invalid hanlde"); break;
+    case STATUS_NONCONTINUABLE_EXCEPTION:
+      KWSYSPE_CASE(Fault, "Noncontinuable exception"); break;
+    case STATUS_INVALID_DISPOSITION:
+      KWSYSPE_CASE(Fault, "Invalid disposition"); break;
+    case STATUS_ARRAY_BOUNDS_EXCEEDED:
+      KWSYSPE_CASE(Fault, "Array bounds exceeded"); break;
+    case STATUS_STACK_OVERFLOW:
+      KWSYSPE_CASE(Fault, "Stack overflow"); break;
+
+    case STATUS_ILLEGAL_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Illegal instruction"); break;
+    case STATUS_PRIVILEGED_INSTRUCTION:
+      KWSYSPE_CASE(Illegal, "Privileged instruction"); break;
+
+    case STATUS_NO_MEMORY:
+    default:
+      cp->ExitException = kwsysProcess_Exception_Other;
+      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
+      break;
+    }
+}
+#undef KWSYSPE_CASE
+
+typedef struct kwsysProcess_List_s kwsysProcess_List;
+static kwsysProcess_List* kwsysProcess_List_New(void);
+static void kwsysProcess_List_Delete(kwsysProcess_List* self);
+static int kwsysProcess_List_Update(kwsysProcess_List* self);
+static int kwsysProcess_List_NextProcess(kwsysProcess_List* self);
+static int kwsysProcess_List_GetCurrentProcessId(kwsysProcess_List* self);
+static int kwsysProcess_List_GetCurrentParentId(kwsysProcess_List* self);
+
+/*--------------------------------------------------------------------------*/
+/* Windows NT 4 API definitions.  */
+#define STATUS_INFO_LENGTH_MISMATCH ((NTSTATUS)0xC0000004L)
+typedef LONG NTSTATUS;
+typedef LONG KPRIORITY;
+typedef struct _UNICODE_STRING UNICODE_STRING;
+struct _UNICODE_STRING
+{
+  USHORT Length;
+  USHORT MaximumLength;
+  PWSTR Buffer;
+};
+
+/* The process information structure.  Declare only enough to get
+   process identifiers.  The rest may be ignored because we use the
+   NextEntryDelta to move through an array of instances.  */
+typedef struct _SYSTEM_PROCESS_INFORMATION SYSTEM_PROCESS_INFORMATION;
+typedef SYSTEM_PROCESS_INFORMATION* PSYSTEM_PROCESS_INFORMATION;
+struct _SYSTEM_PROCESS_INFORMATION
+{
+  ULONG          NextEntryDelta;
+  ULONG          ThreadCount;
+  ULONG          Reserved1[6];
+  LARGE_INTEGER  CreateTime;
+  LARGE_INTEGER  UserTime;
+  LARGE_INTEGER  KernelTime;
+  UNICODE_STRING ProcessName;
+  KPRIORITY      BasePriority;
+  ULONG          ProcessId;
+  ULONG          InheritedFromProcessId;
+};
+
+/*--------------------------------------------------------------------------*/
+/* Toolhelp32 API definitions.  */
+#define TH32CS_SNAPPROCESS  0x00000002
+#if defined(_WIN64)
+typedef unsigned __int64 ProcessULONG_PTR;
+#else
+typedef unsigned long ProcessULONG_PTR;
+#endif
+typedef struct tagPROCESSENTRY32 PROCESSENTRY32;
+typedef PROCESSENTRY32* LPPROCESSENTRY32;
+struct tagPROCESSENTRY32
+{
+  DWORD dwSize;
+  DWORD cntUsage;
+  DWORD th32ProcessID;
+  ProcessULONG_PTR th32DefaultHeapID;
+  DWORD th32ModuleID;
+  DWORD cntThreads;
+  DWORD th32ParentProcessID;
+  LONG  pcPriClassBase;
+  DWORD dwFlags;
+  char szExeFile[MAX_PATH];
+};
+
+/*--------------------------------------------------------------------------*/
+/* Windows API function types.  */
+typedef HANDLE (WINAPI* CreateToolhelp32SnapshotType)(DWORD, DWORD);
+typedef BOOL (WINAPI* Process32FirstType)(HANDLE, LPPROCESSENTRY32);
+typedef BOOL (WINAPI* Process32NextType)(HANDLE, LPPROCESSENTRY32);
+typedef NTSTATUS (WINAPI* ZwQuerySystemInformationType)(ULONG, PVOID,
+                                                        ULONG, PULONG);
+
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__New_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__New_Snapshot(kwsysProcess_List* self);
+static void kwsysProcess_List__Delete_NT4(kwsysProcess_List* self);
+static void kwsysProcess_List__Delete_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__Update_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__Update_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__Next_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__Next_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__GetProcessId_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__GetProcessId_Snapshot(kwsysProcess_List* self);
+static int kwsysProcess_List__GetParentId_NT4(kwsysProcess_List* self);
+static int kwsysProcess_List__GetParentId_Snapshot(kwsysProcess_List* self);
+
+struct kwsysProcess_List_s
+{
+  /* Implementation switches at runtime based on version of Windows.  */
+  int NT4;
+
+  /* Implementation functions and data for NT 4.  */
+  ZwQuerySystemInformationType P_ZwQuerySystemInformation;
+  char* Buffer;
+  int BufferSize;
+  PSYSTEM_PROCESS_INFORMATION CurrentInfo;
+
+  /* Implementation functions and data for other Windows versions.  */
+  CreateToolhelp32SnapshotType P_CreateToolhelp32Snapshot;
+  Process32FirstType P_Process32First;
+  Process32NextType P_Process32Next;
+  HANDLE Snapshot;
+  PROCESSENTRY32 CurrentEntry;
+};
+
+/*--------------------------------------------------------------------------*/
+static kwsysProcess_List* kwsysProcess_List_New(void)
+{
+  OSVERSIONINFO osv;
+  kwsysProcess_List* self;
+
+  /* Allocate and initialize the list object.  */
+  if(!(self = (kwsysProcess_List*)malloc(sizeof(kwsysProcess_List))))
+    {
+    return 0;
+    }
+  memset(self, 0, sizeof(*self));
+
+  /* Select an implementation.  */
+  ZeroMemory(&osv, sizeof(osv));
+  osv.dwOSVersionInfoSize = sizeof(osv);
+#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+# pragma warning (push)
+# ifdef __INTEL_COMPILER
+#  pragma warning (disable:1478)
+# else
+#  pragma warning (disable:4996)
+# endif
+#endif
+  GetVersionEx(&osv);
+#ifdef KWSYS_WINDOWS_DEPRECATED_GetVersionEx
+# pragma warning (pop)
+#endif
+  self->NT4 = (osv.dwPlatformId == VER_PLATFORM_WIN32_NT &&
+               osv.dwMajorVersion < 5)? 1:0;
+
+  /* Initialize the selected implementation.  */
+  if(!(self->NT4?
+       kwsysProcess_List__New_NT4(self) :
+       kwsysProcess_List__New_Snapshot(self)))
+    {
+    kwsysProcess_List_Delete(self);
+    return 0;
     }
 
-  // do a sanity check on some values
-  if(this->CacheManager->GetCacheValue("CMAKE_HOME_DIRECTORY"))
+  /* Update to the current set of processes.  */
+  if(!kwsysProcess_List_Update(self))
     {
-    std::string cacheStart =
-      this->CacheManager->GetCacheValue("CMAKE_HOME_DIRECTORY");
-    cacheStart += "/CMakeLists.txt";
-    std::string currentStart = this->GetHomeDirectory();
-    currentStart += "/CMakeLists.txt";
-    if(!cmSystemTools::SameFile(cacheStart.c_str(), currentStart.c_str()))
+    kwsysProcess_List_Delete(self);
+    return 0;
+    }
+  return self;
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcess_List_Delete(kwsysProcess_List* self)
+{
+  if(self)
+    {
+    if(self->NT4)
       {
-      std::string message = "The source \"";
-      message += currentStart;
-      message += "\" does not match the source \"";
-      message += cacheStart;
-      message += "\" used to generate cache.  ";
-      message += "Re-run cmake with a different source directory.";
-      cmSystemTools::Error(message.c_str());
-      return -2;
+      kwsysProcess_List__Delete_NT4(self);
+      }
+    else
+      {
+      kwsysProcess_List__Delete_Snapshot(self);
+      }
+    free(self);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_Update(kwsysProcess_List* self)
+{
+  return self? (self->NT4?
+                kwsysProcess_List__Update_NT4(self) :
+                kwsysProcess_List__Update_Snapshot(self)) : 0;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_GetCurrentProcessId(kwsysProcess_List* self)
+{
+  return self? (self->NT4?
+                kwsysProcess_List__GetProcessId_NT4(self) :
+                kwsysProcess_List__GetProcessId_Snapshot(self)) : -1;
+
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_GetCurrentParentId(kwsysProcess_List* self)
+{
+  return self? (self->NT4?
+                kwsysProcess_List__GetParentId_NT4(self) :
+                kwsysProcess_List__GetParentId_Snapshot(self)) : -1;
+
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List_NextProcess(kwsysProcess_List* self)
+{
+  return (self? (self->NT4?
+                 kwsysProcess_List__Next_NT4(self) :
+                 kwsysProcess_List__Next_Snapshot(self)) : 0);
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__New_NT4(kwsysProcess_List* self)
+{
+  /* Get a handle to the NT runtime module that should already be
+     loaded in this program.  This does not actually increment the
+     reference count to the module so we do not need to close the
+     handle.  */
+  HMODULE hNT = GetModuleHandleW(L"ntdll.dll");
+  if(hNT)
+    {
+    /* Get pointers to the needed API functions.  */
+    self->P_ZwQuerySystemInformation =
+      ((ZwQuerySystemInformationType)
+       GetProcAddress(hNT, "ZwQuerySystemInformation"));
+    }
+  if(!self->P_ZwQuerySystemInformation)
+    {
+    return 0;
+    }
+
+  /* Allocate an initial process information buffer.  */
+  self->BufferSize = 32768;
+  self->Buffer = (char*)malloc(self->BufferSize);
+  return self->Buffer? 1:0;
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcess_List__Delete_NT4(kwsysProcess_List* self)
+{
+  /* Free the process information buffer.  */
+  if(self->Buffer)
+    {
+    free(self->Buffer);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Update_NT4(kwsysProcess_List* self)
+{
+  self->CurrentInfo = 0;
+  for(;;)
+    {
+    /* Query number 5 is for system process list.  */
+    NTSTATUS status =
+      self->P_ZwQuerySystemInformation(5, self->Buffer, self->BufferSize, 0);
+    if(status == STATUS_INFO_LENGTH_MISMATCH)
+      {
+      /* The query requires a bigger buffer.  */
+      int newBufferSize = self->BufferSize * 2;
+      char* newBuffer = (char*)malloc(newBufferSize);
+      if(newBuffer)
+        {
+        free(self->Buffer);
+        self->Buffer = newBuffer;
+        self->BufferSize = newBufferSize;
+        }
+      else
+        {
+        return 0;
+        }
+      }
+    else if(status >= 0)
+      {
+      /* The query succeeded.  Initialize traversal of the process list.  */
+      self->CurrentInfo = (PSYSTEM_PROCESS_INFORMATION)self->Buffer;
+      return 1;
+      }
+    else
+      {
+      /* The query failed.  */
+      return 0;
       }
     }
-  else
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Next_NT4(kwsysProcess_List* self)
+{
+  if(self->CurrentInfo)
     {
+    if(self->CurrentInfo->NextEntryDelta > 0)
+      {
+      self->CurrentInfo = ((PSYSTEM_PROCESS_INFORMATION)
+                              ((char*)self->CurrentInfo +
+                               self->CurrentInfo->NextEntryDelta));
+      return 1;
+      }
+    self->CurrentInfo = 0;
+    }
+  return 0;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetProcessId_NT4(kwsysProcess_List* self)
+{
+  return self->CurrentInfo? self->CurrentInfo->ProcessId : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetParentId_NT4(kwsysProcess_List* self)
+{
+  return self->CurrentInfo? self->CurrentInfo->InheritedFromProcessId : -1;
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__New_Snapshot(kwsysProcess_List* self)
+{
+  /* Get a handle to the Windows runtime module that should already be
+     loaded in this program.  This does not actually increment the
+     reference count to the module so we do not need to close the
+     handle.  */
+  HMODULE hKernel = GetModuleHandleW(L"kernel32.dll");
+  if(hKernel)
+    {
+    self->P_CreateToolhelp32Snapshot =
+      ((CreateToolhelp32SnapshotType)
+       GetProcAddress(hKernel, "CreateToolhelp32Snapshot"));
+    self->P_Process32First =
+      ((Process32FirstType)
+       GetProcAddress(hKernel, "Process32First"));
+    self->P_Process32Next =
+      ((Process32NextType)
+       GetProcAddress(hKernel, "Process32Next"));
+    }
+  return (self->P_CreateToolhelp32Snapshot &&
+          self->P_Process32First &&
+          self->P_Process32Next)? 1:0;
+}
+
+/*--------------------------------------------------------------------------*/
+static void kwsysProcess_List__Delete_Snapshot(kwsysProcess_List* self)
+{
+  if(self->Snapshot)
+    {
+    CloseHandle(self->Snapshot);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Update_Snapshot(kwsysProcess_List* self)
+{
+  if(self->Snapshot)
+    {
+    CloseHandle(self->Snapshot);
+    }
+  if(!(self->Snapshot =
+       self->P_CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)))
+    {
+    return 0;
+    }
+  ZeroMemory(&self->CurrentEntry, sizeof(self->CurrentEntry));
+  self->CurrentEntry.dwSize = sizeof(self->CurrentEntry);
+  if(!self->P_Process32First(self->Snapshot, &self->CurrentEntry))
+    {
+    CloseHandle(self->Snapshot);
+    self->Snapshot = 0;
     return 0;
     }
   return 1;
 }
-struct SaveCacheEntry
-{
-  std::string key;
-  std::string value;
-  std::string help;
-  cmCacheManager::CacheEntryType type;
-};
 
-int cmake::HandleDeleteCacheVariables(const std::string& var)
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__Next_Snapshot(kwsysProcess_List* self)
 {
-  std::vector<std::string> argsSplit;
-  cmSystemTools::ExpandListArgument(std::string(var), argsSplit, true);
-  // erase the property to avoid infinite recursion
-  this->SetProperty("__CMAKE_DELETE_CACHE_CHANGE_VARS_", "");
-  if(this->GetIsInTryCompile())
+  if(self->Snapshot)
     {
-    return 0;
-    }
-  cmCacheManager::CacheIterator ci = this->CacheManager->NewIterator();
-  std::vector<SaveCacheEntry> saved;
-  cmOStringStream warning;
-  warning
-    << "You have changed variables that require your cache to be deleted.\n"
-    << "Configure will be re-run and you may have to reset some variables.\n"
-    << "The following variables have changed:\n";
-  for(std::vector<std::string>::iterator i = argsSplit.begin();
-      i != argsSplit.end(); ++i)
-    {
-    SaveCacheEntry save;
-    save.key = *i;
-    warning << *i << "= ";
-    i++;
-    save.value = *i;
-    warning << *i << "\n";
-    if(ci.Find(save.key))
+    if(self->P_Process32Next(self->Snapshot, &self->CurrentEntry))
       {
-      save.type = ci.GetType();
-      save.help = ci.GetProperty("HELPSTRING");
+      return 1;
       }
-    saved.push_back(save);
-    }
-
-  // remove the cache
-  this->CacheManager->DeleteCache(this->GetStartOutputDirectory());
-  // load the empty cache
-  this->LoadCache();
-  // restore the changed compilers
-  for(std::vector<SaveCacheEntry>::iterator i = saved.begin();
-      i != saved.end(); ++i)
-    {
-    this->AddCacheEntry(i->key, i->value.c_str(),
-                        i->help.c_str(), i->type);
-    }
-  cmSystemTools::Message(warning.str().c_str());
-  // avoid reconfigure if there were errors
-  if(!cmSystemTools::GetErrorOccuredFlag())
-    {
-    // re-run configure
-    return this->Configure();
+    CloseHandle(self->Snapshot);
+    self->Snapshot = 0;
     }
   return 0;
 }
 
-int cmake::Configure()
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetProcessId_Snapshot(kwsysProcess_List* self)
 {
-  if(this->DoSuppressDevWarnings)
-    {
-    if(this->SuppressDevWarnings)
-      {
-      this->CacheManager->
-        AddCacheEntry("CMAKE_SUPPRESS_DEVELOPER_WARNINGS", "TRUE",
-                      "Suppress Warnings that are meant for"
-                      " the author of the CMakeLists.txt files.",
-                      cmCacheManager::INTERNAL);
-      }
-    else
-      {
-      this->CacheManager->
-        AddCacheEntry("CMAKE_SUPPRESS_DEVELOPER_WARNINGS", "FALSE",
-                      "Suppress Warnings that are meant for"
-                      " the author of the CMakeLists.txt files.",
-                      cmCacheManager::INTERNAL);
-      }
-    }
-  int ret = this->ActualConfigure();
-  const char* delCacheVars =
-    this->GetProperty("__CMAKE_DELETE_CACHE_CHANGE_VARS_");
-  if(delCacheVars && delCacheVars[0] != 0)
-    {
-    return this->HandleDeleteCacheVariables(delCacheVars);
-    }
-  return ret;
-
+  return self->Snapshot? self->CurrentEntry.th32ProcessID : -1;
 }
 
-int cmake::ActualConfigure()
+/*--------------------------------------------------------------------------*/
+static int kwsysProcess_List__GetParentId_Snapshot(kwsysProcess_List* self)
 {
-  // Construct right now our path conversion table before it's too late:
-  this->UpdateConversionPathTable();
-  this->CleanupCommandsAndMacros();
+  return self->Snapshot? self->CurrentEntry.th32ParentProcessID : -1;
+}
 
-  int res = 0;
-  if ( this->GetWorkingMode() == NORMAL_MODE )
+/*--------------------------------------------------------------------------*/
+static void kwsysProcessKill(DWORD pid)
+{
+  HANDLE h = OpenProcess(PROCESS_TERMINATE, 0, pid);
+  if(h)
     {
-    res = this->DoPreConfigureChecks();
+    TerminateProcess(h, 255);
+    WaitForSingleObject(h, INFINITE);
+    CloseHandle(h);
     }
-  if ( res < 0 )
-    {
-    return -2;
-    }
-  if ( !res )
-    {
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_HOME_DIRECTORY",
-       this->GetHomeDirectory(),
-       "Start directory with the top level CMakeLists.txt file for this "
-       "project",
-       cmCacheManager::INTERNAL);
-    }
+}
 
-  // no generator specified on the command line
-  if(!this->GlobalGenerator)
+/*--------------------------------------------------------------------------*/
+static void kwsysProcessKillTree(int pid)
+{
+  kwsysProcess_List* plist = kwsysProcess_List_New();
+  kwsysProcessKill(pid);
+  if(plist)
     {
-    const char* genName =
-      this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
-    const char* extraGenName =
-      this->CacheManager->GetCacheValue("CMAKE_EXTRA_GENERATOR");
-    if(genName)
+    do
       {
-      std::string fullName = cmExternalMakefileProjectGenerator::
-                                CreateFullGeneratorName(genName,
-                                    extraGenName ? extraGenName : "");
-      this->GlobalGenerator = this->CreateGlobalGenerator(fullName);
-      }
-    if(this->GlobalGenerator)
-      {
-      // set the global flag for unix style paths on cmSystemTools as
-      // soon as the generator is set.  This allows gmake to be used
-      // on windows.
-      cmSystemTools::SetForceUnixPaths
-        (this->GlobalGenerator->GetForceUnixPaths());
-      }
-    else
-      {
-#if defined(__BORLANDC__) && defined(_WIN32)
-      this->SetGlobalGenerator(new cmGlobalBorlandMakefileGenerator);
-#elif defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)
-      std::string installedCompiler;
-      // Try to find the newest VS installed on the computer and
-      // use that as a default if -G is not specified
-      const std::string vsregBase =
-        "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\";
-      std::vector<std::string> vsVerions;
-      vsVerions.push_back("VisualStudio\\");
-      vsVerions.push_back("VCExpress\\");
-      vsVerions.push_back("WDExpress\\");
-      struct VSRegistryEntryName
-      {
-        const char* MSVersion;
-        const char* GeneratorName;
-      };
-      VSRegistryEntryName version[] = {
-        {"6.0", "Visual Studio 6"},
-        {"7.0", "Visual Studio 7"},
-        {"7.1", "Visual Studio 7 .NET 2003"},
-        {"8.0", "Visual Studio 8 2005"},
-        {"9.0", "Visual Studio 9 2008"},
-        {"10.0", "Visual Studio 10 2010"},
-        {"11.0", "Visual Studio 11 2012"},
-        {"12.0", "Visual Studio 12 2013"},
-        {0, 0}};
-      for(int i=0; version[i].MSVersion != 0; i++)
+      if(kwsysProcess_List_GetCurrentParentId(plist) == pid)
         {
-        for(size_t b=0; b < vsVerions.size(); b++)
-          {
-          std::string reg = vsregBase + vsVerions[b] + version[i].MSVersion;
-          reg += ";InstallDir]";
-          cmSystemTools::ExpandRegistryValues(reg,
-                                              cmSystemTools::KeyWOW64_32);
-          if (!(reg == "/registry"))
-            {
-            installedCompiler = version[i].GeneratorName;
-            break;
-            }
-          }
+        int ppid = kwsysProcess_List_GetCurrentProcessId(plist);
+        kwsysProcessKillTree(ppid);
         }
-      cmGlobalGenerator* gen
-        = this->CreateGlobalGenerator(installedCompiler.c_str());
-      if(!gen)
-        {
-        gen = new cmGlobalNMakeMakefileGenerator;
-        }
-      this->SetGlobalGenerator(gen);
-      std::cout << "-- Building for: " << gen->GetName() << "\n";
-#else
-      this->SetGlobalGenerator(new cmGlobalUnixMakefileGenerator3);
-#endif
-      }
-    if(!this->GlobalGenerator)
-      {
-      cmSystemTools::Error("Could not create generator");
-      return -1;
-      }
-    }
-
-  const char* genName = this->CacheManager->GetCacheValue("CMAKE_GENERATOR");
-  if(genName)
-    {
-    if(!this->GlobalGenerator->MatchesGeneratorName(genName))
-      {
-      std::string message = "Error: generator : ";
-      message += this->GlobalGenerator->GetName();
-      message += "\nDoes not match the generator used previously: ";
-      message += genName;
-      message +=
-        "\nEither remove the CMakeCache.txt file or choose a different"
-        " binary directory.";
-      cmSystemTools::Error(message.c_str());
-      return -2;
-      }
-    }
-  if(!this->CacheManager->GetCacheValue("CMAKE_GENERATOR"))
-    {
-    this->CacheManager->AddCacheEntry("CMAKE_GENERATOR",
-                                      this->GlobalGenerator->GetName().c_str(),
-                                      "Name of generator.",
-                                      cmCacheManager::INTERNAL);
-    this->CacheManager->AddCacheEntry("CMAKE_EXTRA_GENERATOR",
-                        this->GlobalGenerator->GetExtraGeneratorName().c_str(),
-                        "Name of external makefile project generator.",
-                        cmCacheManager::INTERNAL);
-    }
-
-  if(const char* tsName =
-     this->CacheManager->GetCacheValue("CMAKE_GENERATOR_TOOLSET"))
-    {
-    if(this->GeneratorToolset.empty())
-      {
-      this->GeneratorToolset = tsName;
-      }
-    else if(this->GeneratorToolset != tsName)
-      {
-      std::string message = "Error: generator toolset: ";
-      message += this->GeneratorToolset;
-      message += "\nDoes not match the toolset used previously: ";
-      message += tsName;
-      message +=
-        "\nEither remove the CMakeCache.txt file or choose a different"
-        " binary directory.";
-      cmSystemTools::Error(message.c_str());
-      return -2;
-      }
-    }
-  else
-    {
-    this->CacheManager->AddCacheEntry("CMAKE_GENERATOR_TOOLSET",
-                                      this->GeneratorToolset.c_str(),
-                                      "Name of generator toolset.",
-                                      cmCacheManager::INTERNAL);
-    }
-  if(!this->GeneratorToolset.empty() &&
-     !this->GlobalGenerator->SetGeneratorToolset(this->GeneratorToolset))
-    {
-    return -2;
-    }
-
-  // reset any system configuration information, except for when we are
-  // InTryCompile. With TryCompile the system info is taken from the parent's
-  // info to save time
-  if (!this->InTryCompile)
-    {
-    this->GlobalGenerator->ClearEnabledLanguages();
-    }
-
-  // Truncate log files
-  if (!this->InTryCompile)
-    {
-    this->TruncateOutputLog("CMakeOutput.log");
-    this->TruncateOutputLog("CMakeError.log");
-    }
-
-  // actually do the configure
-  this->GlobalGenerator->Configure();
-  // Before saving the cache
-  // if the project did not define one of the entries below, add them now
-  // so users can edit the values in the cache:
-
-  // We used to always present LIBRARY_OUTPUT_PATH and
-  // EXECUTABLE_OUTPUT_PATH.  They are now documented as old-style and
-  // should no longer be used.  Therefore we present them only if the
-  // project requires compatibility with CMake 2.4.  We detect this
-  // here by looking for the old CMAKE_BACKWARDS_COMPATIBILITY
-  // variable created when CMP0001 is not set to NEW.
-  if(this->GetCacheManager()->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    if(!this->CacheManager->GetCacheValue("LIBRARY_OUTPUT_PATH"))
-      {
-      this->CacheManager->AddCacheEntry
-        ("LIBRARY_OUTPUT_PATH", "",
-         "Single output directory for building all libraries.",
-         cmCacheManager::PATH);
-      }
-    if(!this->CacheManager->GetCacheValue("EXECUTABLE_OUTPUT_PATH"))
-      {
-      this->CacheManager->AddCacheEntry
-        ("EXECUTABLE_OUTPUT_PATH", "",
-         "Single output directory for building all executables.",
-         cmCacheManager::PATH);
-      }
-    }
-  if(!this->CacheManager->GetCacheValue("CMAKE_USE_RELATIVE_PATHS"))
-    {
-    this->CacheManager->AddCacheEntry
-      ("CMAKE_USE_RELATIVE_PATHS", "OFF",
-       "If true, cmake will use relative paths in makefiles and projects.",
-       cmCacheManager::BOOL);
-    cmCacheManager::CacheIterator it =
-      this->CacheManager->GetCacheIterator("CMAKE_USE_RELATIVE_PATHS");
-    if ( !it.PropertyExists("ADVANCED") )
-      {
-      it.SetProperty("ADVANCED", "1");
-      }
-    }
-
-  if(cmSystemTools::GetFatalErrorOccured() &&
-     (!this->CacheManager->GetCacheValue("CMAKE_MAKE_PROGRAM") ||
-      cmSystemTools::IsOff(this->CacheManager->
-                           GetCacheValue("CMAKE_MAKE_PROGRAM"))))
-    {
-    // We must have a bad generator selection.  Wipe the cache entry so the
-    // user can select another.
-    this->CacheManager->RemoveCacheEntry("CMAKE_GENERATOR");
-    this->CacheManager->RemoveCacheEntry("CMAKE_EXTRA_GENERATOR");
-    }
-
-  cmMakefile* mf=this->GlobalGenerator->GetLocalGenerators()[0]->GetMakefile();
-  if (mf->IsOn("CTEST_USE_LAUNCHERS")
-              && !this->GetProperty("RULE_LAUNCH_COMPILE", cmProperty::GLOBAL))
-    {
-    cmSystemTools::Error("CTEST_USE_LAUNCHERS is enabled, but the "
-                        "RULE_LAUNCH_COMPILE global property is not defined.\n"
-                        "Did you forget to include(CTest) in the toplevel "
-                         "CMakeLists.txt ?");
-    }
-
-  // only save the cache if there were no fatal errors
-  if ( this->GetWorkingMode() == NORMAL_MODE )
-    {
-    this->CacheManager->SaveCache(this->GetHomeOutputDirectory());
-    }
-  if(cmSystemTools::GetErrorOccuredFlag())
-    {
-    return -1;
-    }
-  return 0;
-}
-
-void cmake::PreLoadCMakeFiles()
-{
-  std::vector<std::string> args;
-  std::string pre_load = this->GetHomeDirectory();
-  if ( pre_load.size() > 0 )
-    {
-    pre_load += "/PreLoad.cmake";
-    if ( cmSystemTools::FileExists(pre_load.c_str()) )
-      {
-      this->ReadListFile(args, pre_load.c_str());
-      }
-    }
-  pre_load = this->GetHomeOutputDirectory();
-  if ( pre_load.size() > 0 )
-    {
-    pre_load += "/PreLoad.cmake";
-    if ( cmSystemTools::FileExists(pre_load.c_str()) )
-      {
-      this->ReadListFile(args, pre_load.c_str());
-      }
+      } while(kwsysProcess_List_NextProcess(plist));
+    kwsysProcess_List_Delete(plist);
     }
 }
 
-// handle a command line invocation
-int cmake::Run(const std::vector<std::string>& args, bool noconfigure)
+/*--------------------------------------------------------------------------*/
+static void kwsysProcessDisablePipeThreads(kwsysProcess* cp)
 {
-  // Process the arguments
-  this->SetArgs(args);
-  if(cmSystemTools::GetErrorOccuredFlag())
+  int i;
+
+  /* If data were just reported data, release the pipe's thread.  */
+  if(cp->CurrentIndex < KWSYSPE_PIPE_COUNT)
     {
-    return -1;
+    KWSYSPE_DEBUG((stderr, "releasing reader %d\n", cp->CurrentIndex));
+    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+    cp->CurrentIndex = KWSYSPE_PIPE_COUNT;
     }
 
-  // If we are given a stamp list file check if it is really out of date.
-  if(!this->CheckStampList.empty() &&
-     cmakeCheckStampList(this->CheckStampList.c_str()))
+  /* Wakeup all reading threads that are not on closed pipes.  */
+  for(i=0; i < KWSYSPE_PIPE_COUNT; ++i)
     {
-    return 0;
-    }
-
-  // If we are given a stamp file check if it is really out of date.
-  if(!this->CheckStampFile.empty() &&
-     cmakeCheckStampFile(this->CheckStampFile.c_str()))
-    {
-    return 0;
-    }
-
-  if ( this->GetWorkingMode() == NORMAL_MODE )
-    {
-    // load the cache
-    if(this->LoadCache() < 0)
+    /* The wakeup threads will write one byte to the pipe write ends.
+       If there are no data in the pipe then this is enough to wakeup
+       the reading threads.  If there are already data in the pipe
+       this may block.  We cannot use PeekNamedPipe to check whether
+       there are data because an outside process might still be
+       writing data if we are disowning it.  Also, PeekNamedPipe will
+       block if checking a pipe on which the reading thread is
+       currently calling ReadPipe.  Therefore we need a separate
+       thread to call WriteFile.  If it blocks, that is okay because
+       it will unblock when we close the read end and break the pipe
+       below.  */
+    if(cp->Pipe[i].Read)
       {
-      cmSystemTools::Error("Error executing cmake::LoadCache(). Aborting.\n");
-      return -1;
+      KWSYSPE_DEBUG((stderr, "releasing waker %d\n", i));
+      ReleaseSemaphore(cp->Pipe[i].Waker.Go, 1, 0);
       }
     }
-  else
-    {
-    this->AddCMakePaths();
-    }
-  // Add any cache args
-  if ( !this->SetCacheArgs(args) )
-    {
-    cmSystemTools::Error("Problem processing arguments. Aborting.\n");
-    return -1;
-    }
 
-  // In script mode we terminate after running the script.
-  if(this->GetWorkingMode() != NORMAL_MODE)
+  /* Tell pipe threads to reset until we run another process.  */
+  while(cp->PipesLeft > 0)
     {
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      return -1;
-      }
-    else
+    /* The waking threads will cause all reading threads to report.
+       Wait for the next one and save its index.  */
+    KWSYSPE_DEBUG((stderr, "waiting for reader\n"));
+    WaitForSingleObject(cp->Full, INFINITE);
+    cp->CurrentIndex = cp->SharedIndex;
+    ReleaseSemaphore(cp->SharedIndexMutex, 1, 0);
+    KWSYSPE_DEBUG((stderr, "got reader %d\n", cp->CurrentIndex));
+
+    /* We are done reading this pipe.  Close its read handle.  */
+    cp->Pipe[cp->CurrentIndex].Closed = 1;
+    kwsysProcessCleanupHandle(&cp->Pipe[cp->CurrentIndex].Read);
+    --cp->PipesLeft;
+
+    /* Tell the reading thread we are done with the data.  It will
+       reset immediately because the pipe is closed.  */
+    ReleaseSemaphore(cp->Pipe[cp->CurrentIndex].Reader.Go, 1, 0);
+    }
+}
+
+/*--------------------------------------------------------------------------*/
+/* Global set of executing processes for use by the Ctrl handler.
+   This global instance will be zero-initialized by the compiler.
+
+   Note that the console Ctrl handler runs on a background thread and so
+   everything it does must be thread safe.  Here, we track the hProcess
+   HANDLEs directly instead of kwsysProcess instances, so that we don't have
+   to make kwsysProcess thread safe.  */
+typedef struct kwsysProcessInstance_s
+{
+  HANDLE hProcess;
+  DWORD dwProcessId;
+  int NewProcessGroup; /* Whether the process was created in a new group.  */
+} kwsysProcessInstance;
+
+typedef struct kwsysProcessInstances_s
+{
+  /* Whether we have initialized key fields below, like critical sections.  */
+  int Initialized;
+
+  /* Ctrl handler runs on a different thread, so we must sync access.  */
+  CRITICAL_SECTION Lock;
+
+  int Exiting;
+  size_t Count;
+  size_t Size;
+  kwsysProcessInstance* Processes;
+} kwsysProcessInstances;
+static kwsysProcessInstances kwsysProcesses;
+
+/*--------------------------------------------------------------------------*/
+/* Initialize critial section and set up console Ctrl handler.  You MUST call
+   this before using any other kwsysProcesses* functions below.  */
+static int kwsysProcessesInitialize(void)
+{
+  /* Initialize everything if not done already.  */
+  if(!kwsysProcesses.Initialized)
+    {
+    InitializeCriticalSection(&kwsysProcesses.Lock);
+
+    /* Set up console ctrl handler.  */
+    if(!SetConsoleCtrlHandler(kwsysCtrlHandler, TRUE))
       {
       return 0;
       }
-    }
 
-  // If MAKEFLAGS are given in the environment, remove the environment
-  // variable.  This will prevent try-compile from succeeding when it
-  // should fail (if "-i" is an option).  We cannot simply test
-  // whether "-i" is given and remove it because some make programs
-  // encode the MAKEFLAGS variable in a strange way.
-  if(getenv("MAKEFLAGS"))
+    kwsysProcesses.Initialized = 1;
+    }
+  return 1;
+}
+
+/*--------------------------------------------------------------------------*/
+/* The Ctrl handler waits on the global list of processes.  To prevent an
+   orphaned process, do not create a new process if the Ctrl handler is
+   already running.  Do so by using this function to check if it is ok to
+   create a process.  */
+static int kwsysTryEnterCreateProcessSection(void)
+{
+  /* Enter main critical section; this means creating a process and the Ctrl
+     handler are mutually exclusive.  */
+  EnterCriticalSection(&kwsysProcesses.Lock);
+  /* Indicate to the caller if they can create a process.  */
+  if(kwsysProcesses.Exiting)
     {
-    cmSystemTools::PutEnv("MAKEFLAGS=");
+    LeaveCriticalSection(&kwsysProcesses.Lock);
+    return 0;
     }
+  else
+    {
+    return 1;
+    }
+}
 
-  this->PreLoadCMakeFiles();
+/*--------------------------------------------------------------------------*/
+/* Matching function on successful kwsysTryEnterCreateProcessSection return.
+   Make sure you called kwsysProcessesAdd if applicable before calling this.*/
+static void kwsysLeaveCreateProcessSection(void)
+{
+  LeaveCriticalSection(&kwsysProcesses.Lock);
+}
 
-  if ( noconfigure )
+/*--------------------------------------------------------------------------*/
+/* Add new process to global process list.  The Ctrl handler will wait for
+   the process to exit before it returns.  Do not close the process handle
+   until after calling kwsysProcessesRemove.  The newProcessGroup parameter
+   must be set if the process was created with CREATE_NEW_PROCESS_GROUP.  */
+static int kwsysProcessesAdd(HANDLE hProcess, DWORD dwProcessid,
+                             int newProcessGroup)
+{
+  if(!kwsysProcessesInitialize() || !hProcess ||
+      hProcess == INVALID_HANDLE_VALUE)
     {
     return 0;
     }
 
-  // now run the global generate
-  // Check the state of the build system to see if we need to regenerate.
-  if(!this->CheckBuildSystem())
-    {
-    return 0;
-    }
+  /* Enter the critical section. */
+  EnterCriticalSection(&kwsysProcesses.Lock);
 
-  // If we are doing global generate, we better set start and start
-  // output directory to the root of the project.
-  std::string oldstartdir = this->GetStartDirectory();
-  std::string oldstartoutputdir = this->GetStartOutputDirectory();
-  this->SetStartDirectory(this->GetHomeDirectory());
-  this->SetStartOutputDirectory(this->GetHomeOutputDirectory());
-  int ret = this->Configure();
-  if (ret || this->GetWorkingMode() != NORMAL_MODE)
+  /* Make sure there is enough space for the new process handle.  */
+  if(kwsysProcesses.Count == kwsysProcesses.Size)
     {
-#if defined(CMAKE_HAVE_VS_GENERATORS)
-    if(!this->VSSolutionFile.empty() && this->GlobalGenerator)
+    size_t newSize;
+    kwsysProcessInstance *newArray;
+    /* Start with enough space for a small number of process handles
+       and double the size each time more is needed.  */
+    newSize = kwsysProcesses.Size? kwsysProcesses.Size*2 : 4;
+
+    /* Try allocating the new block of memory.  */
+    if(newArray = (kwsysProcessInstance*)malloc(
+       newSize*sizeof(kwsysProcessInstance)))
       {
-      // CMake is running to regenerate a Visual Studio build tree
-      // during a build from the VS IDE.  The build files cannot be
-      // regenerated, so we should stop the build.
-      cmSystemTools::Message(
-        "CMake Configure step failed.  "
-        "Build files cannot be regenerated correctly.  "
-        "Attempting to stop IDE build.");
-      cmGlobalVisualStudioGenerator* gg =
-        static_cast<cmGlobalVisualStudioGenerator*>(this->GlobalGenerator);
-      gg->CallVisualStudioMacro(cmGlobalVisualStudioGenerator::MacroStop,
-                                this->VSSolutionFile.c_str());
-      }
-#endif
-    return ret;
-    }
-  ret = this->Generate();
-  std::string message = "Build files have been written to: ";
-  message += this->GetHomeOutputDirectory();
-  this->UpdateProgress(message.c_str(), -1);
-  if(ret)
-    {
-    return ret;
-    }
-  this->SetStartDirectory(oldstartdir);
-  this->SetStartOutputDirectory(oldstartoutputdir);
-
-  return ret;
-}
-
-int cmake::Generate()
-{
-  if(!this->GlobalGenerator)
-    {
-    return -1;
-    }
-  this->GlobalGenerator->Generate();
-  if ( !this->GraphVizFile.empty() )
-    {
-    std::cout << "Generate graphviz: " << this->GraphVizFile << std::endl;
-    this->GenerateGraphViz(this->GraphVizFile.c_str());
-    }
-  if(this->WarnUnusedCli)
-    {
-    this->RunCheckForUnusedVariables();
-    }
-  if(cmSystemTools::GetErrorOccuredFlag())
-    {
-    return -1;
-    }
-  // Save the cache again after a successful Generate so that any internal
-  // variables created during Generate are saved. (Specifically target GUIDs
-  // for the Visual Studio and Xcode generators.)
-  if ( this->GetWorkingMode() == NORMAL_MODE )
-    {
-    this->CacheManager->SaveCache(this->GetHomeOutputDirectory());
-    }
-  return 0;
-}
-
-void cmake::AddCacheEntry(const std::string& key, const char* value,
-                          const char* helpString,
-                          int type)
-{
-  this->CacheManager->AddCacheEntry(key, value,
-                                    helpString,
-                                    cmCacheManager::CacheEntryType(type));
-}
-
-const char* cmake::GetCacheDefinition(const std::string& name) const
-{
-  return this->CacheManager->GetCacheValue(name);
-}
-
-void cmake::AddDefaultCommands()
-{
-  std::list<cmCommand*> commands;
-  GetBootstrapCommands1(commands);
-  GetBootstrapCommands2(commands);
-  GetPredefinedCommands(commands);
-  for(std::list<cmCommand*>::iterator i = commands.begin();
-      i != commands.end(); ++i)
-    {
-    this->AddCommand(*i);
-    }
-}
-
-void cmake::AddDefaultGenerators()
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-# if !defined(CMAKE_BOOT_MINGW)
-  this->Generators.push_back(
-    cmGlobalVisualStudio6Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalVisualStudio7Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalVisualStudio10Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalVisualStudio11Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalVisualStudio12Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalVisualStudio71Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalVisualStudio8Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalVisualStudio9Generator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalBorlandMakefileGenerator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalNMakeMakefileGenerator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalJOMMakefileGenerator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalWatcomWMakeGenerator::NewFactory());
-# endif
-  this->Generators.push_back(
-    cmGlobalMSYSMakefileGenerator::NewFactory());
-  this->Generators.push_back(
-    cmGlobalMinGWMakefileGenerator::NewFactory());
-#endif
-  this->Generators.push_back(
-    cmGlobalUnixMakefileGenerator3::NewFactory());
-  this->Generators.push_back(
-    cmGlobalNinjaGenerator::NewFactory());
-#ifdef CMAKE_USE_XCODE
-  this->Generators.push_back(
-    cmGlobalXCodeGenerator::NewFactory());
-#endif
-}
-
-int cmake::LoadCache()
-{
-  // could we not read the cache
-  if (!this->CacheManager->LoadCache(this->GetHomeOutputDirectory()))
-    {
-    // if it does exist, but isn't readable then warn the user
-    std::string cacheFile = this->GetHomeOutputDirectory();
-    cacheFile += "/CMakeCache.txt";
-    if(cmSystemTools::FileExists(cacheFile.c_str()))
-      {
-      cmSystemTools::Error(
-        "There is a CMakeCache.txt file for the current binary tree but "
-        "cmake does not have permission to read it. Please check the "
-        "permissions of the directory you are trying to run CMake on.");
-      return -1;
-      }
-    }
-
-  // setup CMAKE_ROOT and CMAKE_COMMAND
-  if(!this->AddCMakePaths())
-    {
-    return -3;
-    }
-  return 0;
-}
-
-void cmake::SetProgressCallback(ProgressCallbackType f, void *cd)
-{
-  this->ProgressCallback = f;
-  this->ProgressCallbackClientData = cd;
-}
-
-void cmake::UpdateProgress(const char *msg, float prog)
-{
-  if(this->ProgressCallback && !this->InTryCompile)
-    {
-    (*this->ProgressCallback)(msg, prog, this->ProgressCallbackClientData);
-    return;
-    }
-}
-
-void cmake::GetGeneratorDocumentation(std::vector<cmDocumentationEntry>& v)
-{
-  for(RegisteredGeneratorsVector::const_iterator i =
-      this->Generators.begin(); i != this->Generators.end(); ++i)
-    {
-    cmDocumentationEntry e;
-    (*i)->GetDocumentation(e);
-    v.push_back(e);
-    }
-  for(RegisteredExtraGeneratorsMap::const_iterator i =
-      this->ExtraGenerators.begin(); i != this->ExtraGenerators.end(); ++i)
-    {
-    cmDocumentationEntry e;
-    cmExternalMakefileProjectGenerator* generator = (i->second)();
-    generator->GetDocumentation(e, i->first);
-    e.Name = i->first;
-    delete generator;
-    v.push_back(e);
-    }
-}
-
-void cmake::UpdateConversionPathTable()
-{
-  // Update the path conversion table with any specified file:
-  const char* tablepath =
-    this->CacheManager->GetCacheValue("CMAKE_PATH_TRANSLATION_FILE");
-
-  if(tablepath)
-    {
-    cmsys::ifstream table( tablepath );
-    if(!table)
-      {
-      cmSystemTools::Error("CMAKE_PATH_TRANSLATION_FILE set to ", tablepath,
-        ". CMake can not open file.");
-      cmSystemTools::ReportLastSystemError("CMake can not open file.");
-      }
-    else
-      {
-      std::string a, b;
-      while(!table.eof())
+      /* Copy the old process handles to the new memory.  */
+      if(kwsysProcesses.Count > 0)
         {
-        // two entries per line
-        table >> a; table >> b;
-        cmSystemTools::AddTranslationPath( a.c_str(), b.c_str());
-        }
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-int cmake::CheckBuildSystem()
-{
-  // We do not need to rerun CMake.  Check dependency integrity.  Use
-  // the make system's VERBOSE environment variable to enable verbose
-  // output. This can be skipped by setting CMAKE_NO_VERBOSE (which is set
-  // by the Eclipse and KDevelop generators).
-  bool verbose = ((cmSystemTools::GetEnv("VERBOSE") != 0)
-                   && (cmSystemTools::GetEnv("CMAKE_NO_VERBOSE") == 0));
-
-  // This method will check the integrity of the build system if the
-  // option was given on the command line.  It reads the given file to
-  // determine whether CMake should rerun.
-
-  // If no file is provided for the check, we have to rerun.
-  if(this->CheckBuildSystemArgument.size() == 0)
-    {
-    if(verbose)
-      {
-      cmOStringStream msg;
-      msg << "Re-run cmake no build system arguments\n";
-      cmSystemTools::Stdout(msg.str().c_str());
-      }
-    return 1;
-    }
-
-  // If the file provided does not exist, we have to rerun.
-  if(!cmSystemTools::FileExists(this->CheckBuildSystemArgument.c_str()))
-    {
-    if(verbose)
-      {
-      cmOStringStream msg;
-      msg << "Re-run cmake missing file: "
-          << this->CheckBuildSystemArgument.c_str() << "\n";
-      cmSystemTools::Stdout(msg.str().c_str());
-      }
-    return 1;
-    }
-
-  // Read the rerun check file and use it to decide whether to do the
-  // global generate.
-  cmake cm;
-  cmGlobalGenerator gg;
-  gg.SetCMakeInstance(&cm);
-  cmsys::auto_ptr<cmLocalGenerator> lg(gg.CreateLocalGenerator());
-  cmMakefile* mf = lg->GetMakefile();
-  if(!mf->ReadListFile(0, this->CheckBuildSystemArgument.c_str()) ||
-     cmSystemTools::GetErrorOccuredFlag())
-    {
-    if(verbose)
-      {
-      cmOStringStream msg;
-      msg << "Re-run cmake error reading : "
-          << this->CheckBuildSystemArgument.c_str() << "\n";
-      cmSystemTools::Stdout(msg.str().c_str());
-      }
-    // There was an error reading the file.  Just rerun.
-    return 1;
-    }
-
-  if(this->ClearBuildSystem)
-    {
-    // Get the generator used for this build system.
-    const char* genName = mf->GetDefinition("CMAKE_DEPENDS_GENERATOR");
-    if(!genName || genName[0] == '\0')
-      {
-      genName = "Unix Makefiles";
-      }
-
-    // Create the generator and use it to clear the dependencies.
-    cmsys::auto_ptr<cmGlobalGenerator>
-      ggd(this->CreateGlobalGenerator(genName));
-    if(ggd.get())
-      {
-      cmsys::auto_ptr<cmLocalGenerator> lgd(ggd->CreateLocalGenerator());
-      lgd->ClearDependencies(mf, verbose);
-      }
-    }
-
-  // If any byproduct of makefile generation is missing we must re-run.
-  std::vector<std::string> products;
-  if(const char* productStr = mf->GetDefinition("CMAKE_MAKEFILE_PRODUCTS"))
-    {
-    cmSystemTools::ExpandListArgument(productStr, products);
-    }
-  for(std::vector<std::string>::const_iterator pi = products.begin();
-      pi != products.end(); ++pi)
-    {
-    if(!(cmSystemTools::FileExists(pi->c_str()) ||
-         cmSystemTools::FileIsSymlink(pi->c_str())))
-      {
-      if(verbose)
-        {
-        cmOStringStream msg;
-        msg << "Re-run cmake, missing byproduct: " << *pi << "\n";
-        cmSystemTools::Stdout(msg.str().c_str());
-        }
-      return 1;
-      }
-    }
-
-  // Get the set of dependencies and outputs.
-  std::vector<std::string> depends;
-  std::vector<std::string> outputs;
-  const char* dependsStr = mf->GetDefinition("CMAKE_MAKEFILE_DEPENDS");
-  const char* outputsStr = mf->GetDefinition("CMAKE_MAKEFILE_OUTPUTS");
-  if(dependsStr && outputsStr)
-    {
-    cmSystemTools::ExpandListArgument(dependsStr, depends);
-    cmSystemTools::ExpandListArgument(outputsStr, outputs);
-    }
-  if(depends.empty() || outputs.empty())
-    {
-    // Not enough information was provided to do the test.  Just rerun.
-    if(verbose)
-      {
-      cmOStringStream msg;
-      msg << "Re-run cmake no CMAKE_MAKEFILE_DEPENDS "
-        "or CMAKE_MAKEFILE_OUTPUTS :\n";
-      cmSystemTools::Stdout(msg.str().c_str());
-      }
-    return 1;
-    }
-
-  // Find the newest dependency.
-  std::vector<std::string>::iterator dep = depends.begin();
-  std::string dep_newest = *dep++;
-  for(;dep != depends.end(); ++dep)
-    {
-    int result = 0;
-    if(this->FileComparison->FileTimeCompare(dep_newest.c_str(),
-                                             dep->c_str(), &result))
-      {
-      if(result < 0)
-        {
-        dep_newest = *dep;
+        memcpy(newArray, kwsysProcesses.Processes,
+               kwsysProcesses.Count * sizeof(kwsysProcessInstance));
         }
       }
     else
       {
-      if(verbose)
-        {
-        cmOStringStream msg;
-        msg << "Re-run cmake: build system dependency is missing\n";
-        cmSystemTools::Stdout(msg.str().c_str());
-        }
-      return 1;
+      /* Failed to allocate memory for the new process handle set.  */
+      LeaveCriticalSection(&kwsysProcesses.Lock);
+      return 0;
       }
+
+    /* Free original array. */
+    free(kwsysProcesses.Processes);
+
+    /* Update original structure with new allocation. */
+    kwsysProcesses.Size = newSize;
+    kwsysProcesses.Processes = newArray;
     }
 
-  // Find the oldest output.
-  std::vector<std::string>::iterator out = outputs.begin();
-  std::string out_oldest = *out++;
-  for(;out != outputs.end(); ++out)
-    {
-    int result = 0;
-    if(this->FileComparison->FileTimeCompare(out_oldest.c_str(),
-                                             out->c_str(), &result))
-      {
-      if(result > 0)
-        {
-        out_oldest = *out;
-        }
-      }
-    else
-      {
-      if(verbose)
-        {
-        cmOStringStream msg;
-        msg << "Re-run cmake: build system output is missing\n";
-        cmSystemTools::Stdout(msg.str().c_str());
-        }
-      return 1;
-      }
-    }
+  /* Append the new process information to the set.  */
+  kwsysProcesses.Processes[kwsysProcesses.Count].hProcess = hProcess;
+  kwsysProcesses.Processes[kwsysProcesses.Count].dwProcessId = dwProcessid;
+  kwsysProcesses.Processes[kwsysProcesses.Count++].NewProcessGroup =
+    newProcessGroup;
 
-  // If any output is older than any dependency then rerun.
-  {
-  int result = 0;
-  if(!this->FileComparison->FileTimeCompare(out_oldest.c_str(),
-                                            dep_newest.c_str(),
-                                            &result) ||
-     result < 0)
-    {
-    if(verbose)
-      {
-      cmOStringStream msg;
-      msg << "Re-run cmake file: " << out_oldest.c_str()
-          << " older than: " << dep_newest.c_str() << "\n";
-      cmSystemTools::Stdout(msg.str().c_str());
-      }
-    return 1;
-    }
-  }
+  /* Leave critical section and return success. */
+  LeaveCriticalSection(&kwsysProcesses.Lock);
 
-  // No need to rerun.
-  return 0;
+  return 1;
 }
 
-//----------------------------------------------------------------------------
-void cmake::TruncateOutputLog(const char* fname)
+/*--------------------------------------------------------------------------*/
+/* Removes process to global process list.  */
+static void kwsysProcessesRemove(HANDLE hProcess)
 {
-  std::string fullPath = this->GetHomeOutputDirectory();
-  fullPath += "/";
-  fullPath += fname;
-  struct stat st;
-  if ( ::stat(fullPath.c_str(), &st) )
+  size_t i;
+
+  if (!hProcess || hProcess == INVALID_HANDLE_VALUE)
     {
     return;
     }
-  if ( !this->CacheManager->GetCacheValue("CMAKE_CACHEFILE_DIR") )
+
+  EnterCriticalSection(&kwsysProcesses.Lock);
+
+  /* Find the given process in the set.  */
+  for(i=0; i < kwsysProcesses.Count; ++i)
     {
-    cmSystemTools::RemoveFile(fullPath.c_str());
-    return;
-    }
-  off_t fsize = st.st_size;
-  const off_t maxFileSize = 50 * 1024;
-  if ( fsize < maxFileSize )
-    {
-    //TODO: truncate file
-    return;
-    }
-}
-
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
-}
-
-void cmake::MarkCliAsUsed(const std::string& variable)
-{
-  this->UsedCliVariables[variable] = true;
-}
-
-void cmake::GenerateGraphViz(const char* fileName) const
-{
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  cmsys::auto_ptr<cmGraphVizWriter> gvWriter(
-       new cmGraphVizWriter(this->GetGlobalGenerator()->GetLocalGenerators()));
-
-  std::string settingsFile = this->GetHomeOutputDirectory();
-  settingsFile += "/CMakeGraphVizOptions.cmake";
-  std::string fallbackSettingsFile = this->GetHomeDirectory();
-  fallbackSettingsFile += "/CMakeGraphVizOptions.cmake";
-
-  gvWriter->ReadSettings(settingsFile.c_str(), fallbackSettingsFile.c_str());
-
-  gvWriter->WritePerTargetFiles(fileName);
-  gvWriter->WriteTargetDependersFiles(fileName);
-  gvWriter->WriteGlobalFile(fileName);
-
-#endif
-}
-
-void cmake::DefineProperty(const std::string& name,
-                           cmProperty::ScopeType scope,
-                           const char *ShortDescription,
-                           const char *FullDescription,
-                           bool chained)
-{
-  this->PropertyDefinitions[scope].DefineProperty(name,scope,ShortDescription,
-                                                  FullDescription,
-                                                  chained);
-}
-
-cmPropertyDefinition *cmake
-::GetPropertyDefinition(const std::string& name,
-                        cmProperty::ScopeType scope)
-{
-  if (this->IsPropertyDefined(name,scope))
-    {
-    return &(this->PropertyDefinitions[scope][name]);
-    }
-  return 0;
-}
-
-bool cmake::IsPropertyDefined(const std::string& name,
-                              cmProperty::ScopeType scope)
-{
-  return this->PropertyDefinitions[scope].IsPropertyDefined(name);
-}
-
-bool cmake::IsPropertyChained(const std::string& name,
-                              cmProperty::ScopeType scope)
-{
-  return this->PropertyDefinitions[scope].IsPropertyChained(name);
-}
-
-void cmake::SetProperty(const std::string& prop, const char* value)
-{
-  // Special hook to invalidate cached value.
-  if(prop == "DEBUG_CONFIGURATIONS")
-    {
-    this->DebugConfigs.clear();
-    }
-
-  this->Properties.SetProperty(prop, value, cmProperty::GLOBAL);
-}
-
-void cmake::AppendProperty(const std::string& prop,
-                           const char* value, bool asString)
-{
-  // Special hook to invalidate cached value.
-  if(prop == "DEBUG_CONFIGURATIONS")
-    {
-    this->DebugConfigs.clear();
-    }
-
-  this->Properties.AppendProperty(prop, value, cmProperty::GLOBAL, asString);
-}
-
-const char *cmake::GetProperty(const std::string& prop)
-{
-  return this->GetProperty(prop, cmProperty::GLOBAL);
-}
-
-const char *cmake::GetProperty(const std::string& prop,
-                               cmProperty::ScopeType scope)
-{
-  bool chain = false;
-
-  // watch for special properties
-  std::string output = "";
-  if ( prop == "CACHE_VARIABLES" )
-    {
-    cmCacheManager::CacheIterator cit =
-      this->GetCacheManager()->GetCacheIterator();
-    for ( cit.Begin(); !cit.IsAtEnd(); cit.Next() )
+    if(kwsysProcesses.Processes[i].hProcess == hProcess)
       {
-      if ( output.size() )
-        {
-        output += ";";
-        }
-      output += cit.GetName();
+      break;
       }
-    this->SetProperty("CACHE_VARIABLES", output.c_str());
     }
-  else if ( prop == "COMMANDS" )
+  if(i < kwsysProcesses.Count)
     {
-    cmake::RegisteredCommandsMap::iterator cmds
-        = this->GetCommands()->begin();
-    for (unsigned int cc=0 ; cmds != this->GetCommands()->end(); ++ cmds )
+    /* Found it!  Remove the process from the set.  */
+    --kwsysProcesses.Count;
+    for(; i < kwsysProcesses.Count; ++i)
       {
-      if ( cc > 0 )
-        {
-        output += ";";
-        }
-      output += cmds->first.c_str();
-      cc++;
+      kwsysProcesses.Processes[i] = kwsysProcesses.Processes[i+1];
       }
-    this->SetProperty("COMMANDS",output.c_str());
-    }
-  else if ( prop == "IN_TRY_COMPILE" )
-    {
-    this->SetProperty("IN_TRY_COMPILE",
-                      this->GetIsInTryCompile()? "1":"0");
-    }
-  else if ( prop == "ENABLED_LANGUAGES" )
-    {
-    std::string lang;
-    if(this->GlobalGenerator)
+
+    /* If this was the last process, free the array.  */
+    if(kwsysProcesses.Count == 0)
       {
-      std::vector<std::string> enLangs;
-      this->GlobalGenerator->GetEnabledLanguages(enLangs);
-      const char* sep = "";
-      for(std::vector<std::string>::iterator i = enLangs.begin();
-          i != enLangs.end(); ++i)
+      kwsysProcesses.Size = 0;
+      free(kwsysProcesses.Processes);
+      kwsysProcesses.Processes = 0;
+      }
+    }
+
+  LeaveCriticalSection(&kwsysProcesses.Lock);
+}
+
+/*--------------------------------------------------------------------------*/
+static BOOL WINAPI kwsysCtrlHandler(DWORD dwCtrlType)
+{
+  size_t i;
+  (void)dwCtrlType;
+  /* Enter critical section.  */
+  EnterCriticalSection(&kwsysProcesses.Lock);
+
+  /* Set flag indicating that we are exiting.  */
+  kwsysProcesses.Exiting = 1;
+
+  /* If some of our processes were created in a new process group, we must
+     manually interrupt them.  They won't otherwise receive a Ctrl+C/Break. */
+  for(i=0; i < kwsysProcesses.Count; ++i)
+    {
+    if(kwsysProcesses.Processes[i].NewProcessGroup)
+      {
+      DWORD groupId = kwsysProcesses.Processes[i].dwProcessId;
+      if(groupId)
         {
-        lang += sep;
-        sep = ";";
-        lang += *i;
+        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, groupId);
         }
       }
-    this->SetProperty("ENABLED_LANGUAGES", lang.c_str());
-    }
-  return this->Properties.GetPropertyValue(prop, scope, chain);
-}
-
-bool cmake::GetPropertyAsBool(const std::string& prop)
-{
-  return cmSystemTools::IsOn(this->GetProperty(prop));
-}
-
-int cmake::GetSystemInformation(std::vector<std::string>& args)
-{
-  // so create the directory
-  std::string resultFile;
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  std::string destPath = cwd + "/__cmake_systeminformation";
-  cmSystemTools::RemoveADirectory(destPath.c_str());
-  if (!cmSystemTools::MakeDirectory(destPath.c_str()))
-    {
-    std::cerr << "Error: --system-information must be run from a "
-      "writable directory!\n";
-    return 1;
     }
 
-  // process the arguments
-  bool writeToStdout = true;
-  for(unsigned int i=1; i < args.size(); ++i)
+  /* Wait for each child process to exit.  This is the key step that prevents
+     us from leaving several orphaned children processes running in the
+     background when the user presses Ctrl+C.  */
+  for(i=0; i < kwsysProcesses.Count; ++i)
     {
-    std::string arg = args[i];
-    if(arg.find("-V",0) == 0)
-      {
-      this->Verbose = true;
-      }
-    else if(arg.find("-G",0) == 0)
-      {
-      std::string value = arg.substr(2);
-      if(value.size() == 0)
-        {
-        ++i;
-        if(i >= args.size())
-          {
-          cmSystemTools::Error("No generator specified for -G");
-          return -1;
-          }
-        value = args[i];
-        }
-      cmGlobalGenerator* gen =
-        this->CreateGlobalGenerator(value);
-      if(!gen)
-        {
-        cmSystemTools::Error("Could not create named generator ",
-                             value.c_str());
-        }
-      else
-        {
-        this->SetGlobalGenerator(gen);
-        }
-      }
-    // no option assume it is the output file
-    else
-      {
-      if (!cmSystemTools::FileIsFullPath(arg.c_str()))
-        {
-        resultFile = cwd;
-        resultFile += "/";
-        }
-      resultFile += arg;
-      writeToStdout = false;
-      }
+    WaitForSingleObject(kwsysProcesses.Processes[i].hProcess, INFINITE);
     }
 
+  /* Leave critical section.  */
+  LeaveCriticalSection(&kwsysProcesses.Lock);
 
-  // we have to find the module directory, so we can copy the files
-  this->AddCMakePaths();
-  std::string modulesPath =
-    this->CacheManager->GetCacheValue("CMAKE_ROOT");
-  modulesPath += "/Modules";
-  std::string inFile = modulesPath;
-  inFile += "/SystemInformation.cmake";
-  std::string outFile = destPath;
-  outFile += "/CMakeLists.txt";
-
-  // Copy file
-  if(!cmSystemTools::cmCopyFile(inFile.c_str(), outFile.c_str()))
-    {
-    std::cerr << "Error copying file \"" << inFile.c_str()
-              << "\" to \"" << outFile.c_str() << "\".\n";
-    return 1;
-    }
-
-  // do we write to a file or to stdout?
-  if (resultFile.size() == 0)
-    {
-    resultFile = cwd;
-    resultFile += "/__cmake_systeminformation/results.txt";
-    }
-
-  // now run cmake on the CMakeLists file
-  cmSystemTools::ChangeDirectory(destPath.c_str());
-  std::vector<std::string> args2;
-  args2.push_back(args[0]);
-  args2.push_back(destPath);
-  std::string resultArg = "-DRESULT_FILE=";
-  resultArg += resultFile;
-  args2.push_back(resultArg);
-  int res = this->Run(args2, false);
-
-  if (res != 0)
-    {
-    std::cerr << "Error: --system-information failed on internal CMake!\n";
-    return res;
-    }
-
-  // change back to the original directory
-  cmSystemTools::ChangeDirectory(cwd.c_str());
-
-  // echo results to stdout if needed
-  if (writeToStdout)
-    {
-    FILE* fin = cmsys::SystemTools::Fopen(resultFile.c_str(), "r");
-    if(fin)
-      {
-      const int bufferSize = 4096;
-      char buffer[bufferSize];
-      size_t n;
-      while((n = fread(buffer, 1, bufferSize, fin)) > 0)
-        {
-        for(char* c = buffer; c < buffer+n; ++c)
-          {
-          putc(*c, stdout);
-          }
-        fflush(stdout);
-        }
-      fclose(fin);
-      }
-    }
-
-  // clean up the directory
-  cmSystemTools::RemoveADirectory(destPath.c_str());
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-static bool cmakeCheckStampFile(const char* stampName)
-{
-  // The stamp file does not exist.  Use the stamp dependencies to
-  // determine whether it is really out of date.  This works in
-  // conjunction with cmLocalVisualStudio7Generator to avoid
-  // repeatedly re-running CMake when the user rebuilds the entire
-  // solution.
-  std::string stampDepends = stampName;
-  stampDepends += ".depend";
-#if defined(_WIN32) || defined(__CYGWIN__)
-  cmsys::ifstream fin(stampDepends.c_str(), std::ios::in | std::ios::binary);
-#else
-  cmsys::ifstream fin(stampDepends.c_str(), std::ios::in);
-#endif
-  if(!fin)
-    {
-    // The stamp dependencies file cannot be read.  Just assume the
-    // build system is really out of date.
-    std::cout << "CMake is re-running because " << stampName
-              << " dependency file is missing.\n";
-    return false;
-    }
-
-  // Compare the stamp dependencies against the dependency file itself.
-  cmFileTimeComparison ftc;
-  std::string dep;
-  while(cmSystemTools::GetLineFromStream(fin, dep))
-    {
-    int result;
-    if(dep.length() >= 1 && dep[0] != '#' &&
-       (!ftc.FileTimeCompare(stampDepends.c_str(), dep.c_str(), &result)
-        || result < 0))
-      {
-      // The stamp depends file is older than this dependency.  The
-      // build system is really out of date.
-      std::cout << "CMake is re-running because " << stampName
-                << " is out-of-date.\n";
-      std::cout << "  the file '" << dep << "'\n";
-      std::cout << "  is newer than '" << stampDepends << "'\n";
-      std::cout << "  result='" << result << "'\n";
-      return false;
-      }
-    }
-
-  // The build system is up to date.  The stamp file has been removed
-  // by the VS IDE due to a "rebuild" request.  Restore it atomically.
-  cmOStringStream stampTempStream;
-  stampTempStream << stampName << ".tmp" << cmSystemTools::RandomSeed();
-  std::string stampTempString = stampTempStream.str();
-  const char* stampTemp = stampTempString.c_str();
-  {
-  // TODO: Teach cmGeneratedFileStream to use a random temp file (with
-  // multiple tries in unlikely case of conflict) and use that here.
-  cmsys::ofstream stamp(stampTemp);
-  stamp << "# CMake generation timestamp file for this directory.\n";
-  }
-  if(cmSystemTools::RenameFile(stampTemp, stampName))
-    {
-    // Notify the user why CMake is not re-running.  It is safe to
-    // just print to stdout here because this code is only reachable
-    // through an undocumented flag used by the VS generator.
-    std::cout << "CMake does not need to re-run because "
-              << stampName << " is up-to-date.\n";
-    return true;
-    }
-  else
-    {
-    cmSystemTools::RemoveFile(stampTemp);
-    cmSystemTools::Error("Cannot restore timestamp ", stampName);
-    return false;
-    }
-}
-
-//----------------------------------------------------------------------------
-static bool cmakeCheckStampList(const char* stampList)
-{
-  // If the stamp list does not exist CMake must rerun to generate it.
-  if(!cmSystemTools::FileExists(stampList))
-    {
-    std::cout << "CMake is re-running because generate.stamp.list "
-              << "is missing.\n";
-    return false;
-    }
-  cmsys::ifstream fin(stampList);
-  if(!fin)
-    {
-    std::cout << "CMake is re-running because generate.stamp.list "
-              << "could not be read.\n";
-    return false;
-    }
-
-  // Check each stamp.
-  std::string stampName;
-  while(cmSystemTools::GetLineFromStream(fin, stampName))
-    {
-    if(!cmakeCheckStampFile(stampName.c_str()))
-      {
-      return false;
-      }
-    }
-  return true;
-}
-
-//----------------------------------------------------------------------------
-void cmake::IssueMessage(cmake::MessageType t, std::string const& text,
-                         cmListFileBacktrace const& backtrace)
-{
-  cmOStringStream msg;
-  bool isError = false;
-  // Construct the message header.
-  if(t == cmake::FATAL_ERROR)
-    {
-    isError = true;
-    msg << "CMake Error";
-    }
-  else if(t == cmake::INTERNAL_ERROR)
-    {
-    isError = true;
-    msg << "CMake Internal Error (please report a bug)";
-    }
-  else if(t == cmake::LOG)
-    {
-    msg << "CMake Debug Log";
-    }
-  else if(t == cmake::DEPRECATION_ERROR)
-    {
-    msg << "CMake Deprecation Error";
-    isError = true;
-    }
-  else if (t == cmake::DEPRECATION_WARNING)
-    {
-    msg << "CMake Deprecation Warning";
-    }
-  else
-    {
-    msg << "CMake Warning";
-    if(t == cmake::AUTHOR_WARNING)
-      {
-      // Allow suppression of these warnings.
-      cmCacheManager::CacheIterator it = this->CacheManager
-        ->GetCacheIterator("CMAKE_SUPPRESS_DEVELOPER_WARNINGS");
-      if(!it.IsAtEnd() && it.GetValueAsBool())
-        {
-        return;
-        }
-      msg << " (dev)";
-      }
-    }
-
-  // Add the immediate context.
-  cmListFileBacktrace::const_iterator i = backtrace.begin();
-  if(i != backtrace.end())
-    {
-    cmListFileContext const& lfc = *i;
-    msg << (lfc.Line? " at ": " in ") << lfc;
-    ++i;
-    }
-
-  // Add the message text.
-  {
-  msg << ":\n";
-  cmDocumentationFormatter formatter;
-  formatter.SetIndent("  ");
-  formatter.PrintFormatted(msg, text.c_str());
-  }
-
-  // Add the rest of the context.
-  if(i != backtrace.end())
-    {
-    msg << "Call Stack (most recent call first):\n";
-    while(i != backtrace.end())
-      {
-      cmListFileContext const& lfc = *i;
-      msg << "  " << lfc << "\n";
-      ++i;
-      }
-    }
-
-  // Add a note about warning suppression.
-  if(t == cmake::AUTHOR_WARNING)
-    {
-    msg <<
-      "This warning is for project developers.  Use -Wno-dev to suppress it.";
-    }
-
-  // Add a terminating blank line.
-  msg << "\n";
-
-  // Output the message.
-  if(isError)
-    {
-    cmSystemTools::SetErrorOccured();
-    cmSystemTools::Message(msg.str().c_str(), "Error");
-    }
-  else
-    {
-    cmSystemTools::Message(msg.str().c_str(), "Warning");
-    }
-}
-
-//----------------------------------------------------------------------------
-std::vector<std::string> const& cmake::GetDebugConfigs()
-{
-  // Compute on-demand.
-  if(this->DebugConfigs.empty())
-    {
-    if(const char* config_list = this->GetProperty("DEBUG_CONFIGURATIONS"))
-      {
-      // Expand the specified list and convert to upper-case.
-      cmSystemTools::ExpandListArgument(config_list, this->DebugConfigs);
-      for(std::vector<std::string>::iterator i = this->DebugConfigs.begin();
-          i != this->DebugConfigs.end(); ++i)
-        {
-        *i = cmSystemTools::UpperCase(*i);
-        }
-      }
-    // If no configurations were specified, use a default list.
-    if(this->DebugConfigs.empty())
-      {
-      this->DebugConfigs.push_back("DEBUG");
-      }
-    }
-  return this->DebugConfigs;
-}
-
-
-int cmake::Build(const std::string& dir,
-                 const std::string& target,
-                 const std::string& config,
-                 const std::vector<std::string>& nativeOptions,
-                 bool clean)
-{
-  if(!cmSystemTools::FileIsDirectory(dir.c_str()))
-    {
-    std::cerr << "Error: " << dir << " is not a directory\n";
-    return 1;
-    }
-  std::string cachePath = dir;
-  cmSystemTools::ConvertToUnixSlashes(cachePath);
-  cmCacheManager* cachem = this->GetCacheManager();
-  cmCacheManager::CacheIterator it = cachem->NewIterator();
-  if(!cachem->LoadCache(cachePath))
-    {
-    std::cerr << "Error: could not load cache\n";
-    return 1;
-    }
-  if(!it.Find("CMAKE_GENERATOR"))
-    {
-    std::cerr << "Error: could find generator in Cache\n";
-    return 1;
-    }
-  cmsys::auto_ptr<cmGlobalGenerator> gen(
-    this->CreateGlobalGenerator(it.GetValue()));
-  std::string output;
-  std::string projName;
-  if(!it.Find("CMAKE_PROJECT_NAME"))
-    {
-    std::cerr << "Error: could not find CMAKE_PROJECT_NAME in Cache\n";
-    return 1;
-    }
-  projName = it.GetValue();
-  return gen->Build("", dir,
-                    projName, target,
-                    &output,
-                    "",
-                    config, clean, false, 0,
-                    cmSystemTools::OUTPUT_PASSTHROUGH,
-                    nativeOptions);
-}
-
-void cmake::WatchUnusedCli(const std::string& var)
-{
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  this->VariableWatch->AddWatch(var, cmWarnUnusedCliWarning, this);
-  if(this->UsedCliVariables.find(var) == this->UsedCliVariables.end())
-    {
-    this->UsedCliVariables[var] = false;
-    }
-#endif
-}
-
-void cmake::UnwatchUnusedCli(const std::string& var)
-{
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  this->VariableWatch->RemoveWatch(var, cmWarnUnusedCliWarning);
-  this->UsedCliVariables.erase(var);
-#endif
-}
-
-void cmake::RunCheckForUnusedVariables()
-{
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  bool haveUnused = false;
-  cmOStringStream msg;
-  msg << "Manually-specified variables were not used by the project:";
-  for(std::map<std::string, bool>::const_iterator
-        it = this->UsedCliVariables.begin();
-      it != this->UsedCliVariables.end(); ++it)
-    {
-    if(!it->second)
-      {
-      haveUnused = true;
-      msg << "\n  " << it->first;
-      }
-    }
-  if(haveUnused)
-    {
-    this->IssueMessage(cmake::WARNING, msg.str(), cmListFileBacktrace());
-    }
-#endif
+  /* Continue on to default Ctrl handler (which calls ExitProcess).  */
+  return FALSE;
 }

@@ -1,0 +1,1 @@
+infof(data, "%s IAC %s\n", direction, CURL_TELCMD(option))

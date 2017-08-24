@@ -1,0 +1,1 @@
+(s->ll16 == NULL || s->ll4 == NULL) RETURN(BZ_MEM_ERROR)

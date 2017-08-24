@@ -1,0 +1,1 @@
+empty_sparse_region = 1

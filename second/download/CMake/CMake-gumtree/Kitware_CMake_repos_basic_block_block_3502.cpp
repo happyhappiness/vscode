@@ -1,0 +1,1 @@
+(curr < 1 || curr > 20) RETURN(BZ_DATA_ERROR)

@@ -1,0 +1,1 @@
+free(zisofs->uncompressed_buffer)

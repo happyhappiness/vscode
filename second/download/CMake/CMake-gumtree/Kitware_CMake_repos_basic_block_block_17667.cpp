@@ -1,0 +1,1 @@
+slink_size = strlen(slink)

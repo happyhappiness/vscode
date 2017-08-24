@@ -1,0 +1,1 @@
+ret = write_null(a, LOGICAL_BLOCK_SIZE - ns)

@@ -1,0 +1,1 @@
+uv__signal_stop((uv_signal_t*) handle)

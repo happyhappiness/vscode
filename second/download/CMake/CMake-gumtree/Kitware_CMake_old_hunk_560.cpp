@@ -1,8 +1,7 @@
-    label.resize(maxlen +3, ' ');
-    char buf[1024];
-    sprintf(buf, "%6.2f sec", labelTimes[*i]);
-    cmCTestLog(this->CTest, HANDLER_OUTPUT, "\n"
-               << label << " = " << buf );
-    if ( this->LogFile )
-      {
-      *this->LogFile << "\n" << *i << " = "
+                                      (unsigned char **)&_gssresp.value,
+                                      &_gssresp.length);
+          if(result) {
+            Curl_failf(data,"base64-decoding: %s", curl_easy_strerror(result));
+            ret = AUTH_CONTINUE;
+            break;
+          }

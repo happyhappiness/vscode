@@ -1,11 +1,9 @@
-  GetVersionEx(&osv);
-  if(osv.dwPlatformId == VER_PLATFORM_WIN32_WINDOWS)
-    {
-    /* Win9x no longer supported.  */
-    kwsysProcess_Delete(cp);
-    return 0;
-    }
+{
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->Makefile->GetStartOutputDirectory()) +
+                           target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName().c_str(), count);
+  std::string comment = this->ConstructComment(origCommand, "<hack>");
 
-  /* Initially no thread owns the mutex.  Initialize semaphore to 1.  */
-  if(!(cp->SharedIndexMutex = CreateSemaphore(0, 1, 1, 0)))
-    {
+  // Add the rule with the given dependencies and commands.

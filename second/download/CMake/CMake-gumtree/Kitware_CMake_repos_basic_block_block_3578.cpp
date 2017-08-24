@@ -1,0 +1,1 @@
+base[i] += base[i-1]

@@ -1,7 +1,8 @@
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            this->DataSymbols.insert(symbol);
-         }
-      }
+
+CURLcode Curl_sendf(curl_socket_t sockfd, struct connectdata *,
+                    const char *fmt, ...);
+void Curl_infof(struct Curl_easy *, const char *fmt, ...);
+void Curl_failf(struct Curl_easy *, const char *fmt, ...);
+
+#if defined(CURL_DISABLE_VERBOSE_STRINGS)
 

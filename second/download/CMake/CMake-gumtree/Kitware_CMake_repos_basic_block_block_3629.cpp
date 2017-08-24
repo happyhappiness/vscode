@@ -1,0 +1,1 @@
+ares_cancel((ares_channel)conn->data->state.resolver)

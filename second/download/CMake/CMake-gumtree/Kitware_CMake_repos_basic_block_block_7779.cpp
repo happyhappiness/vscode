@@ -1,0 +1,1 @@
+mustBeXML = XML_TRUE

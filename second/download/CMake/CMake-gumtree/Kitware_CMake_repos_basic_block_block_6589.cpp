@@ -1,0 +1,1 @@
+strerr = gnutls_strerror(rc)

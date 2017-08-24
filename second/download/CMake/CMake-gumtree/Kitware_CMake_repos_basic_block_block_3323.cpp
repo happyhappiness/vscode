@@ -1,0 +1,1 @@
+(bs == NULL) mallocFail ( sizeof(BitStream) )

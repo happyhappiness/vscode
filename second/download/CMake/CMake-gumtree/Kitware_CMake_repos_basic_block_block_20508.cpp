@@ -1,0 +1,3 @@
+(bytes <= buf.len) {
+          break;
+        }

@@ -1,0 +1,1 @@
+(bg_color & 4) info.wAttributes |= BACKGROUND_BLUE

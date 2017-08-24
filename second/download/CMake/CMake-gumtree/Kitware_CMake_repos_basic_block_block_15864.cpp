@@ -1,0 +1,1 @@
+iso9660->bytes_remaining -= r

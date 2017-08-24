@@ -1,134 +1,181 @@
-@@ -172,7 +172,7 @@ satisfy dependencies.
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2015, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -22,7 +22,7 @@
  
- //----------------------------------------------------------------------------
- cmComputeLinkDepends
--::cmComputeLinkDepends(cmTarget const* target, const char* config,
-+::cmComputeLinkDepends(cmTarget const* target, const std::string& config,
-                        cmTarget const* head)
- {
-   // Store context information.
-@@ -184,7 +184,8 @@ ::cmComputeLinkDepends(cmTarget const* target, const char* config,
-   this->CMakeInstance = this->GlobalGenerator->GetCMakeInstance();
+ #include "curl_setup.h"
  
-   // The configuration being linked.
--  this->Config = (config && *config)? config : 0;
-+  this->HasConfig = !config.empty();
-+  this->Config = (this->HasConfig)? config : std::string();
-   this->LinkType = this->Target->ComputeLinkType(this->Config);
+-#ifdef USE_NTLM
++#if !defined(CURL_DISABLE_HTTP) && defined(USE_NTLM)
  
-   // Enable debug mode if requested.
-@@ -254,7 +255,8 @@ cmComputeLinkDepends::Compute()
-             "---------------------------------------"
-             "---------------------------------------\n");
-     fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
--            this->Target->GetName(), this->Config?this->Config:"noconfig");
-+            this->Target->GetName().c_str(),
-+            this->HasConfig?this->Config.c_str():"noconfig");
-     this->DisplayConstraintGraph();
+ /*
+  * NTLM details:
+@@ -39,19 +39,18 @@
+ #include "curl_ntlm.h"
+ #include "curl_ntlm_msgs.h"
+ #include "curl_ntlm_wb.h"
++#include "curl_sasl.h"
+ #include "url.h"
+-#include "curl_memory.h"
+-
+-#define _MPRINTF_REPLACE /* use our functions only */
+-#include <curl/mprintf.h>
++#include "curl_printf.h"
+ 
+ #if defined(USE_NSS)
+ #include "vtls/nssg.h"
+ #elif defined(USE_WINDOWS_SSPI)
+ #include "curl_sspi.h"
+ #endif
+ 
+-/* The last #include file should be: */
++/* The last #include files should be: */
++#include "curl_memory.h"
+ #include "memdebug.h"
+ 
+ #if DEBUG_ME
+@@ -69,12 +68,6 @@ CURLcode Curl_input_ntlm(struct connectdata *conn,
+   struct ntlmdata *ntlm;
+   CURLcode result = CURLE_OK;
+ 
+-#ifdef USE_NSS
+-  result = Curl_nss_force_init(conn->data);
+-  if(result)
+-    return result;
+-#endif
+-
+   ntlm = proxy ? &conn->proxyntlm : &conn->ntlm;
+ 
+   if(checkprefix("NTLM", header)) {
+@@ -84,14 +77,18 @@ CURLcode Curl_input_ntlm(struct connectdata *conn,
+       header++;
+ 
+     if(*header) {
+-      result = Curl_ntlm_decode_type2_message(conn->data, header, ntlm);
+-      if(CURLE_OK != result)
++      result = Curl_sasl_decode_ntlm_type2_message(conn->data, header, ntlm);
++      if(result)
+         return result;
+ 
+       ntlm->state = NTLMSTATE_TYPE2; /* We got a type-2 message */
      }
+     else {
+-      if(ntlm->state == NTLMSTATE_TYPE3) {
++      if(ntlm->state == NTLMSTATE_LAST) {
++        infof(conn->data, "NTLM auth restarted\n");
++        Curl_http_ntlm_cleanup(conn);
++      }
++      else if(ntlm->state == NTLMSTATE_TYPE3) {
+         infof(conn->data, "NTLM handshake rejected\n");
+         Curl_http_ntlm_cleanup(conn);
+         ntlm->state = NTLMSTATE_NONE;
+@@ -112,12 +109,11 @@ CURLcode Curl_input_ntlm(struct connectdata *conn,
+ /*
+  * This is for creating ntlm header output
+  */
+-CURLcode Curl_output_ntlm(struct connectdata *conn,
+-                          bool proxy)
++CURLcode Curl_output_ntlm(struct connectdata *conn, bool proxy)
+ {
+   char *base64 = NULL;
+   size_t len = 0;
+-  CURLcode error;
++  CURLcode result;
  
-@@ -278,12 +280,12 @@ cmComputeLinkDepends::Compute()
+   /* point to the address of the pointer that holds the string to send to the
+      server, which is for a plain host or for a HTTP proxy */
+@@ -175,38 +171,40 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+   case NTLMSTATE_TYPE1:
+   default: /* for the weird cases we (re)start here */
+     /* Create a type-1 message */
+-    error = Curl_ntlm_create_type1_message(userp, passwdp, ntlm, &base64,
+-                                           &len);
+-    if(error)
+-      return error;
++    result = Curl_sasl_create_ntlm_type1_message(userp, passwdp, ntlm, &base64,
++                                                 &len);
++    if(result)
++      return result;
+ 
+     if(base64) {
+-      Curl_safefree(*allocuserpwd);
++      free(*allocuserpwd);
+       *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
+                               proxy ? "Proxy-" : "",
+                               base64);
+       free(base64);
+       if(!*allocuserpwd)
+         return CURLE_OUT_OF_MEMORY;
++
+       DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+     }
+     break;
+ 
+   case NTLMSTATE_TYPE2:
+     /* We already received the type-2 message, create a type-3 message */
+-    error = Curl_ntlm_create_type3_message(conn->data, userp, passwdp,
+-                                           ntlm, &base64, &len);
+-    if(error)
+-      return error;
++    result = Curl_sasl_create_ntlm_type3_message(conn->data, userp, passwdp,
++                                                 ntlm, &base64, &len);
++    if(result)
++      return result;
+ 
+     if(base64) {
+-      Curl_safefree(*allocuserpwd);
++      free(*allocuserpwd);
+       *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
+                               proxy ? "Proxy-" : "",
+                               base64);
+       free(base64);
+       if(!*allocuserpwd)
+         return CURLE_OUT_OF_MEMORY;
++
+       DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
+ 
+       ntlm->state = NTLMSTATE_TYPE3; /* we send a type-3 */
+@@ -217,6 +215,9 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+   case NTLMSTATE_TYPE3:
+     /* connection is already authenticated,
+      * don't send a header in future requests */
++    ntlm->state = NTLMSTATE_LAST;
++
++  case NTLMSTATE_LAST:
+     Curl_safefree(*allocuserpwd);
+     authp->done = TRUE;
+     break;
+@@ -227,22 +228,12 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+ 
+ void Curl_http_ntlm_cleanup(struct connectdata *conn)
+ {
+-#ifdef USE_WINDOWS_SSPI
+-  Curl_ntlm_sspi_cleanup(&conn->ntlm);
+-  Curl_ntlm_sspi_cleanup(&conn->proxyntlm);
+-#elif defined(NTLM_WB_ENABLED)
+-  Curl_ntlm_wb_cleanup(conn);
+-#else
+-  (void)conn;
+-#endif
++  Curl_sasl_ntlm_cleanup(&conn->ntlm);
++  Curl_sasl_ntlm_cleanup(&conn->proxyntlm);
+ 
+-#ifndef USE_WINDOWS_SSPI
+-  Curl_safefree(conn->ntlm.target_info);
+-  conn->ntlm.target_info_len = 0;
+-
+-  Curl_safefree(conn->proxyntlm.target_info);
+-  conn->proxyntlm.target_info_len = 0;
++#if defined(NTLM_WB_ENABLED)
++  Curl_ntlm_wb_cleanup(conn);
+ #endif
  }
  
- //----------------------------------------------------------------------------
--std::map<cmStdString, int>::iterator
-+std::map<std::string, int>::iterator
- cmComputeLinkDepends::AllocateLinkEntry(std::string const& item)
- {
--  std::map<cmStdString, int>::value_type
-+  std::map<std::string, int>::value_type
-     index_entry(item, static_cast<int>(this->EntryList.size()));
--  std::map<cmStdString, int>::iterator
-+  std::map<std::string, int>::iterator
-     lei = this->LinkEntryIndex.insert(index_entry).first;
-   this->EntryList.push_back(LinkEntry());
-   this->InferredDependSets.push_back(0);
-@@ -296,7 +298,7 @@ int cmComputeLinkDepends::AddLinkEntry(int depender_index,
-                                        std::string const& item)
- {
-   // Check if the item entry has already been added.
--  std::map<cmStdString, int>::iterator lei = this->LinkEntryIndex.find(item);
-+  std::map<std::string, int>::iterator lei = this->LinkEntryIndex.find(item);
-   if(lei != this->LinkEntryIndex.end())
-     {
-     // Yes.  We do not need to follow the item's dependencies again.
-@@ -310,7 +312,7 @@ int cmComputeLinkDepends::AddLinkEntry(int depender_index,
-   int index = lei->second;
-   LinkEntry& entry = this->EntryList[index];
-   entry.Item = item;
--  entry.Target = this->FindTargetToLink(depender_index, entry.Item.c_str());
-+  entry.Target = this->FindTargetToLink(depender_index, entry.Item);
-   entry.IsFlag = (!entry.Target && item[0] == '-' && item[1] != 'l' &&
-                   item.substr(0, 10) != "-framework");
- 
-@@ -326,7 +328,7 @@ int cmComputeLinkDepends::AddLinkEntry(int depender_index,
-     // Look for an old-style <item>_LIB_DEPENDS variable.
-     std::string var = entry.Item;
-     var += "_LIB_DEPENDS";
--    if(const char* val = this->Makefile->GetDefinition(var.c_str()))
-+    if(const char* val = this->Makefile->GetDefinition(var))
-       {
-       // The item dependencies are known.  Follow them.
-       BFSEntry qe = {index, val};
-@@ -422,7 +424,7 @@ ::QueueSharedDependencies(int depender_index,
- void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
- {
-   // Check if the target already has an entry.
--  std::map<cmStdString, int>::iterator lei =
-+  std::map<std::string, int>::iterator lei =
-     this->LinkEntryIndex.find(dep.Item);
-   if(lei == this->LinkEntryIndex.end())
-     {
-@@ -433,7 +435,7 @@ void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
-     LinkEntry& entry = this->EntryList[lei->second];
-     entry.Item = dep.Item;
-     entry.Target = this->FindTargetToLink(dep.DependerIndex,
--                                          dep.Item.c_str());
-+                                          dep.Item);
- 
-     // This item was added specifically because it is a dependent
-     // shared library.  It may get special treatment
-@@ -504,7 +506,7 @@ void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
-         {
-         std::string var = *di;
-         var += "_LINK_TYPE";
--        if(const char* val = this->Makefile->GetDefinition(var.c_str()))
-+        if(const char* val = this->Makefile->GetDefinition(var))
-           {
-           if(strcmp(val, "debug") == 0)
-             {
-@@ -620,7 +622,7 @@ cmComputeLinkDepends::AddLinkEntries(int depender_index,
- 
- //----------------------------------------------------------------------------
- cmTarget const* cmComputeLinkDepends::FindTargetToLink(int depender_index,
--                                                 const char* name)
-+                                                 const std::string& name)
- {
-   // Look for a target in the scope of the depender.
-   cmMakefile* mf = this->Makefile;
-@@ -968,14 +970,14 @@ int cmComputeLinkDepends::ComputeComponentCount(NodeList const& nl)
- //----------------------------------------------------------------------------
- void cmComputeLinkDepends::DisplayFinalEntries()
- {
--  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());
-+  fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
-   for(std::vector<LinkEntry>::const_iterator lei =
-         this->FinalLinkEntries.begin();
-       lei != this->FinalLinkEntries.end(); ++lei)
-     {
-     if(lei->Target)
-       {
--      fprintf(stderr, "  target [%s]\n", lei->Target->GetName());
-+      fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
-       }
-     else
-       {
-@@ -998,7 +1000,7 @@ void cmComputeLinkDepends::CheckWrongConfigItem(int depender_index,
-   // directories of targets linked in another configuration as link
-   // directories.
-   if(cmTarget const* tgt
--                      = this->FindTargetToLink(depender_index, item.c_str()))
-+                      = this->FindTargetToLink(depender_index, item))
-     {
-     if(!tgt->IsImported())
-       {
+-#endif /* USE_NTLM */
++#endif /* !CURL_DISABLE_HTTP && USE_NTLM */

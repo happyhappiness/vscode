@@ -1,0 +1,1 @@
+host->name[len-1]=0

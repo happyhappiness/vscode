@@ -1,0 +1,1 @@
+file->offset = iso9660->current_position

@@ -1,0 +1,1 @@
+return XXH32_intermediateDigest_endian(state_in, XXH_bigEndian);

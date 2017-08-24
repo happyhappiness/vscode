@@ -1,0 +1,1 @@
+iconv_close(sc->cd_w)

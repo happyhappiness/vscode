@@ -1,0 +1,1 @@
+sigpipe_restore(&pipe_st)

@@ -1,0 +1,1 @@
+bytes_avail = cfdata->compressed_bytes_remaining

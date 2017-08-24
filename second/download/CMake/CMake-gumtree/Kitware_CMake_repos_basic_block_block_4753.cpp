@@ -1,0 +1,1 @@
+ufds[nfds].events |= POLLPRI

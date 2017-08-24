@@ -1,0 +1,1 @@
+archive_strcpy(&me->uname, s)

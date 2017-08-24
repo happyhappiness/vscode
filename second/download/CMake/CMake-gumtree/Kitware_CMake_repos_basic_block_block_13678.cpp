@@ -1,0 +1,1 @@
+r = read_decryption_header(a)

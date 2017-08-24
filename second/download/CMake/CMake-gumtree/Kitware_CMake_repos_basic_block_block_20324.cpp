@@ -1,0 +1,1 @@
+req->getaddrinfo_cb(req, req->retcode, req->addrinfo)

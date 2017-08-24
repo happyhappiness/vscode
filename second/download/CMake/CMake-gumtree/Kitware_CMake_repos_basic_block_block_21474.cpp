@@ -1,0 +1,1 @@
+(buf[len] == 0) break;

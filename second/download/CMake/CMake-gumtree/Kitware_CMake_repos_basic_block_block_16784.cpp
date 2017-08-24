@@ -1,0 +1,3 @@
+{
+			keybit = F_INO;
+		}

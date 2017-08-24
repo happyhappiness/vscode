@@ -1,0 +1,1 @@
+return charsets[c].cp;

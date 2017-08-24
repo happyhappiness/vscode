@@ -1,1984 +1,1379 @@
-/*-
- * Copyright (c) 2003-2007 Tim Kientzle
- * Copyright (c) 2008 Joerg Sonnenberger
- * Copyright (c) 2011-2012 Michihiro NAKAJIMA
- * All rights reserved.
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR(S) ``AS IS'' AND ANY EXPRESS OR
- * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
- * IN NO EVENT SHALL THE AUTHOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
- * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
- * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at https://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ ***************************************************************************/
+
+#include "curl_setup.h"
+
+#ifndef CURL_DISABLE_TFTP
+
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#ifdef HAVE_SYS_IOCTL_H
+#include <sys/ioctl.h>
+#endif
+
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+
+#include "urldata.h"
+#include <curl/curl.h>
+#include "transfer.h"
+#include "sendf.h"
+#include "tftp.h"
+#include "progress.h"
+#include "connect.h"
+#include "strerror.h"
+#include "sockaddr.h" /* required for Curl_sockaddr_storage */
+#include "multiif.h"
+#include "url.h"
+#include "rawstr.h"
+#include "speedcheck.h"
+#include "select.h"
+
+/* The last 3 #include files should be in this order */
+#include "curl_printf.h"
+#include "curl_memory.h"
+#include "memdebug.h"
+
+/* RFC2348 allows the block size to be negotiated */
+#define TFTP_BLKSIZE_DEFAULT 512
+#define TFTP_BLKSIZE_MIN 8
+#define TFTP_BLKSIZE_MAX 65464
+#define TFTP_OPTION_BLKSIZE "blksize"
+
+/* from RFC2349: */
+#define TFTP_OPTION_TSIZE    "tsize"
+#define TFTP_OPTION_INTERVAL "timeout"
+
+typedef enum {
+  TFTP_MODE_NETASCII=0,
+  TFTP_MODE_OCTET
+} tftp_mode_t;
+
+typedef enum {
+  TFTP_STATE_START=0,
+  TFTP_STATE_RX,
+  TFTP_STATE_TX,
+  TFTP_STATE_FIN
+} tftp_state_t;
+
+typedef enum {
+  TFTP_EVENT_NONE = -1,
+  TFTP_EVENT_INIT = 0,
+  TFTP_EVENT_RRQ = 1,
+  TFTP_EVENT_WRQ = 2,
+  TFTP_EVENT_DATA = 3,
+  TFTP_EVENT_ACK = 4,
+  TFTP_EVENT_ERROR = 5,
+  TFTP_EVENT_OACK = 6,
+  TFTP_EVENT_TIMEOUT
+} tftp_event_t;
+
+typedef enum {
+  TFTP_ERR_UNDEF=0,
+  TFTP_ERR_NOTFOUND,
+  TFTP_ERR_PERM,
+  TFTP_ERR_DISKFULL,
+  TFTP_ERR_ILLEGAL,
+  TFTP_ERR_UNKNOWNID,
+  TFTP_ERR_EXISTS,
+  TFTP_ERR_NOSUCHUSER,  /* This will never be triggered by this code */
+
+  /* The remaining error codes are internal to curl */
+  TFTP_ERR_NONE = -100,
+  TFTP_ERR_TIMEOUT,
+  TFTP_ERR_NORESPONSE
+} tftp_error_t;
+
+typedef struct tftp_packet {
+  unsigned char *data;
+} tftp_packet_t;
+
+typedef struct tftp_state_data {
+  tftp_state_t    state;
+  tftp_mode_t     mode;
+  tftp_error_t    error;
+  tftp_event_t    event;
+  struct connectdata      *conn;
+  curl_socket_t   sockfd;
+  int             retries;
+  int             retry_time;
+  int             retry_max;
+  time_t          start_time;
+  time_t          max_time;
+  time_t          rx_time;
+  unsigned short  block;
+  struct Curl_sockaddr_storage   local_addr;
+  struct Curl_sockaddr_storage   remote_addr;
+  curl_socklen_t  remote_addrlen;
+  int             rbytes;
+  int             sbytes;
+  int             blksize;
+  int             requested_blksize;
+  tftp_packet_t   rpacket;
+  tftp_packet_t   spacket;
+} tftp_state_data_t;
+
+
+/* Forward declarations */
+static CURLcode tftp_rx(tftp_state_data_t *state, tftp_event_t event);
+static CURLcode tftp_tx(tftp_state_data_t *state, tftp_event_t event);
+static CURLcode tftp_connect(struct connectdata *conn, bool *done);
+static CURLcode tftp_disconnect(struct connectdata *conn,
+                                bool dead_connection);
+static CURLcode tftp_do(struct connectdata *conn, bool *done);
+static CURLcode tftp_done(struct connectdata *conn,
+                          CURLcode, bool premature);
+static CURLcode tftp_setup_connection(struct connectdata * conn);
+static CURLcode tftp_multi_statemach(struct connectdata *conn, bool *done);
+static CURLcode tftp_doing(struct connectdata *conn, bool *dophase_done);
+static int tftp_getsock(struct connectdata *conn, curl_socket_t *socks,
+                        int numsocks);
+static CURLcode tftp_translate_code(tftp_error_t error);
+
+
+/*
+ * TFTP protocol handler.
  */
 
-#include "archive_platform.h"
-__FBSDID("$FreeBSD: head/lib/libarchive/archive_read_support_format_mtree.c 201165 2009-12-29 05:52:13Z kientzle $");
-
-#ifdef HAVE_SYS_STAT_H
-#include <sys/stat.h>
-#endif
-#ifdef HAVE_ERRNO_H
-#include <errno.h>
-#endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-#include <stddef.h>
-/* #include <stdint.h> */ /* See archive_platform.h */
-#ifdef HAVE_STDLIB_H
-#include <stdlib.h>
-#endif
-#ifdef HAVE_STRING_H
-#include <string.h>
-#endif
-
-#include "archive.h"
-#include "archive_entry.h"
-#include "archive_private.h"
-#include "archive_read_private.h"
-#include "archive_string.h"
-#include "archive_pack_dev.h"
-
-#ifndef O_BINARY
-#define	O_BINARY 0
-#endif
-#ifndef O_CLOEXEC
-#define O_CLOEXEC	0
-#endif
-
-#define	MTREE_HAS_DEVICE	0x0001
-#define	MTREE_HAS_FFLAGS	0x0002
-#define	MTREE_HAS_GID		0x0004
-#define	MTREE_HAS_GNAME		0x0008
-#define	MTREE_HAS_MTIME		0x0010
-#define	MTREE_HAS_NLINK		0x0020
-#define	MTREE_HAS_PERM		0x0040
-#define	MTREE_HAS_SIZE		0x0080
-#define	MTREE_HAS_TYPE		0x0100
-#define	MTREE_HAS_UID		0x0200
-#define	MTREE_HAS_UNAME		0x0400
-
-#define	MTREE_HAS_OPTIONAL	0x0800
-#define	MTREE_HAS_NOCHANGE	0x1000 /* FreeBSD specific */
-
-struct mtree_option {
-	struct mtree_option *next;
-	char *value;
+const struct Curl_handler Curl_handler_tftp = {
+  "TFTP",                               /* scheme */
+  tftp_setup_connection,                /* setup_connection */
+  tftp_do,                              /* do_it */
+  tftp_done,                            /* done */
+  ZERO_NULL,                            /* do_more */
+  tftp_connect,                         /* connect_it */
+  tftp_multi_statemach,                 /* connecting */
+  tftp_doing,                           /* doing */
+  tftp_getsock,                         /* proto_getsock */
+  tftp_getsock,                         /* doing_getsock */
+  ZERO_NULL,                            /* domore_getsock */
+  ZERO_NULL,                            /* perform_getsock */
+  tftp_disconnect,                      /* disconnect */
+  ZERO_NULL,                            /* readwrite */
+  PORT_TFTP,                            /* defport */
+  CURLPROTO_TFTP,                       /* protocol */
+  PROTOPT_NONE | PROTOPT_NOURLQUERY     /* flags */
 };
 
-struct mtree_entry {
-	struct mtree_entry *next;
-	struct mtree_option *options;
-	char *name;
-	char full;
-	char used;
-};
-
-struct mtree {
-	struct archive_string	 line;
-	size_t			 buffsize;
-	char			*buff;
-	int64_t			 offset;
-	int			 fd;
-	int			 archive_format;
-	const char		*archive_format_name;
-	struct mtree_entry	*entries;
-	struct mtree_entry	*this_entry;
-	struct archive_string	 current_dir;
-	struct archive_string	 contents_name;
-
-	struct archive_entry_linkresolver *resolver;
-
-	int64_t			 cur_size;
-	char checkfs;
-};
-
-static int	bid_keycmp(const char *, const char *, ssize_t);
-static int	cleanup(struct archive_read *);
-static int	detect_form(struct archive_read *, int *);
-static int	mtree_bid(struct archive_read *, int);
-static int	parse_file(struct archive_read *, struct archive_entry *,
-		    struct mtree *, struct mtree_entry *, int *);
-static void	parse_escapes(char *, struct mtree_entry *);
-static int	parse_line(struct archive_read *, struct archive_entry *,
-		    struct mtree *, struct mtree_entry *, int *);
-static int	parse_keyword(struct archive_read *, struct mtree *,
-		    struct archive_entry *, struct mtree_option *, int *);
-static int	read_data(struct archive_read *a,
-		    const void **buff, size_t *size, int64_t *offset);
-static ssize_t	readline(struct archive_read *, struct mtree *, char **, ssize_t);
-static int	skip(struct archive_read *a);
-static int	read_header(struct archive_read *,
-		    struct archive_entry *);
-static int64_t	mtree_atol10(char **);
-static int64_t	mtree_atol8(char **);
-static int64_t	mtree_atol(char **);
-
-/*
- * There's no standard for TIME_T_MAX/TIME_T_MIN.  So we compute them
- * here.  TODO: Move this to configure time, but be careful
- * about cross-compile environments.
- */
-static int64_t
-get_time_t_max(void)
-{
-#if defined(TIME_T_MAX)
-	return TIME_T_MAX;
-#else
-	/* ISO C allows time_t to be a floating-point type,
-	   but POSIX requires an integer type.  The following
-	   should work on any system that follows the POSIX
-	   conventions. */
-	if (((time_t)0) < ((time_t)-1)) {
-		/* Time_t is unsigned */
-		return (~(time_t)0);
-	} else {
-		/* Time_t is signed. */
-		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
-		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
-		return (time_t)max_signed_time_t;
-	}
-#endif
-}
-
-static int64_t
-get_time_t_min(void)
-{
-#if defined(TIME_T_MIN)
-	return TIME_T_MIN;
-#else
-	if (((time_t)0) < ((time_t)-1)) {
-		/* Time_t is unsigned */
-		return (time_t)0;
-	} else {
-		/* Time_t is signed. */
-		const uintmax_t max_unsigned_time_t = (uintmax_t)(~(time_t)0);
-		const uintmax_t max_signed_time_t = max_unsigned_time_t >> 1;
-		const intmax_t min_signed_time_t = (intmax_t)~max_signed_time_t;
-		return (time_t)min_signed_time_t;
-	}
-#endif
-}
-
-static int
-archive_read_format_mtree_options(struct archive_read *a,
-    const char *key, const char *val)
-{
-	struct mtree *mtree;
-
-	mtree = (struct mtree *)(a->format->data);
-	if (strcmp(key, "checkfs")  == 0) {
-		/* Allows to read information missing from the mtree from the file system */
-		if (val == NULL || val[0] == 0) {
-			mtree->checkfs = 0;
-		} else {
-			mtree->checkfs = 1;
-		}
-		return (ARCHIVE_OK);
-	}
-
-	/* Note: The "warn" return is just to inform the options
-	 * supervisor that we didn't handle it.  It will generate
-	 * a suitable error if no one used this option. */
-	return (ARCHIVE_WARN);
-}
-
-static void
-free_options(struct mtree_option *head)
-{
-	struct mtree_option *next;
-
-	for (; head != NULL; head = next) {
-		next = head->next;
-		free(head->value);
-		free(head);
-	}
-}
-
-int
-archive_read_support_format_mtree(struct archive *_a)
-{
-	struct archive_read *a = (struct archive_read *)_a;
-	struct mtree *mtree;
-	int r;
-
-	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
-	    ARCHIVE_STATE_NEW, "archive_read_support_format_mtree");
-
-	mtree = (struct mtree *)malloc(sizeof(*mtree));
-	if (mtree == NULL) {
-		archive_set_error(&a->archive, ENOMEM,
-		    "Can't allocate mtree data");
-		return (ARCHIVE_FATAL);
-	}
-	memset(mtree, 0, sizeof(*mtree));
-	mtree->fd = -1;
-
-	r = __archive_read_register_format(a, mtree, "mtree",
-           mtree_bid, archive_read_format_mtree_options, read_header, read_data, skip, NULL, cleanup, NULL, NULL);
-
-	if (r != ARCHIVE_OK)
-		free(mtree);
-	return (ARCHIVE_OK);
-}
-
-static int
-cleanup(struct archive_read *a)
-{
-	struct mtree *mtree;
-	struct mtree_entry *p, *q;
-
-	mtree = (struct mtree *)(a->format->data);
-
-	p = mtree->entries;
-	while (p != NULL) {
-		q = p->next;
-		free(p->name);
-		free_options(p->options);
-		free(p);
-		p = q;
-	}
-	archive_string_free(&mtree->line);
-	archive_string_free(&mtree->current_dir);
-	archive_string_free(&mtree->contents_name);
-	archive_entry_linkresolver_free(mtree->resolver);
-
-	free(mtree->buff);
-	free(mtree);
-	(a->format->data) = NULL;
-	return (ARCHIVE_OK);
-}
-
-static ssize_t
-get_line_size(const char *b, ssize_t avail, ssize_t *nlsize)
-{
-	ssize_t len;
-
-	len = 0;
-	while (len < avail) {
-		switch (*b) {
-		case '\0':/* Non-ascii character or control character. */
-			if (nlsize != NULL)
-				*nlsize = 0;
-			return (-1);
-		case '\r':
-			if (avail-len > 1 && b[1] == '\n') {
-				if (nlsize != NULL)
-					*nlsize = 2;
-				return (len+2);
-			}
-			/* FALL THROUGH */
-		case '\n':
-			if (nlsize != NULL)
-				*nlsize = 1;
-			return (len+1);
-		default:
-			b++;
-			len++;
-			break;
-		}
-	}
-	if (nlsize != NULL)
-		*nlsize = 0;
-	return (avail);
-}
-
-static ssize_t
-next_line(struct archive_read *a,
-    const char **b, ssize_t *avail, ssize_t *ravail, ssize_t *nl)
-{
-	ssize_t len;
-	int quit;
-	
-	quit = 0;
-	if (*avail == 0) {
-		*nl = 0;
-		len = 0;
-	} else
-		len = get_line_size(*b, *avail, nl);
-	/*
-	 * Read bytes more while it does not reach the end of line.
-	 */
-	while (*nl == 0 && len == *avail && !quit) {
-		ssize_t diff = *ravail - *avail;
-		size_t nbytes_req = (*ravail+1023) & ~1023U;
-		ssize_t tested;
-
-		/* Increase reading bytes if it is not enough to at least
-		 * new two lines. */
-		if (nbytes_req < (size_t)*ravail + 160)
-			nbytes_req <<= 1;
-
-		*b = __archive_read_ahead(a, nbytes_req, avail);
-		if (*b == NULL) {
-			if (*ravail >= *avail)
-				return (0);
-			/* Reading bytes reaches the end of file. */
-			*b = __archive_read_ahead(a, *avail, avail);
-			quit = 1;
-		}
-		*ravail = *avail;
-		*b += diff;
-		*avail -= diff;
-		tested = len;/* Skip some bytes we already determinated. */
-		len = get_line_size(*b, *avail, nl);
-		if (len >= 0)
-			len += tested;
-	}
-	return (len);
-}
-
-/*
- * Compare characters with a mtree keyword.
- * Returns the length of a mtree keyword if matched.
- * Returns 0 if not matched.
- */
-static int
-bid_keycmp(const char *p, const char *key, ssize_t len)
-{
-	int match_len = 0;
-
-	while (len > 0 && *p && *key) {
-		if (*p == *key) {
-			--len;
-			++p;
-			++key;
-			++match_len;
-			continue;
-		}
-		return (0);/* Not match */
-	}
-	if (*key != '\0')
-		return (0);/* Not match */
-
-	/* A following character should be specified characters */
-	if (p[0] == '=' || p[0] == ' ' || p[0] == '\t' ||
-	    p[0] == '\n' || p[0] == '\r' ||
-	   (p[0] == '\\' && (p[1] == '\n' || p[1] == '\r')))
-		return (match_len);
-	return (0);/* Not match */
-}
-
-/*
- * Test whether the characters 'p' has is mtree keyword.
- * Returns the length of a detected keyword.
- * Returns 0 if any keywords were not found.
- */
-static int
-bid_keyword(const char *p,  ssize_t len)
-{
-	static const char *keys_c[] = {
-		"content", "contents", "cksum", NULL
-	};
-	static const char *keys_df[] = {
-		"device", "flags", NULL
-	};
-	static const char *keys_g[] = {
-		"gid", "gname", NULL
-	};
-	static const char *keys_il[] = {
-		"ignore", "inode", "link", NULL
-	};
-	static const char *keys_m[] = {
-		"md5", "md5digest", "mode", NULL
-	};
-	static const char *keys_no[] = {
-		"nlink", "nochange", "optional", NULL
-	};
-	static const char *keys_r[] = {
-		"resdevice", "rmd160", "rmd160digest", NULL
-	};
-	static const char *keys_s[] = {
-		"sha1", "sha1digest",
-		"sha256", "sha256digest",
-		"sha384", "sha384digest",
-		"sha512", "sha512digest",
-		"size", NULL
-	};
-	static const char *keys_t[] = {
-		"tags", "time", "type", NULL
-	};
-	static const char *keys_u[] = {
-		"uid", "uname",	NULL
-	};
-	const char **keys;
-	int i;
-
-	switch (*p) {
-	case 'c': keys = keys_c; break;
-	case 'd': case 'f': keys = keys_df; break;
-	case 'g': keys = keys_g; break;
-	case 'i': case 'l': keys = keys_il; break;
-	case 'm': keys = keys_m; break;
-	case 'n': case 'o': keys = keys_no; break;
-	case 'r': keys = keys_r; break;
-	case 's': keys = keys_s; break;
-	case 't': keys = keys_t; break;
-	case 'u': keys = keys_u; break;
-	default: return (0);/* Unknown key */
-	}
-
-	for (i = 0; keys[i] != NULL; i++) {
-		int l = bid_keycmp(p, keys[i], len);
-		if (l > 0)
-			return (l);
-	}
-	return (0);/* Unknown key */
-}
-
-/*
- * Test whether there is a set of mtree keywords.
- * Returns the number of keyword.
- * Returns -1 if we got incorrect sequence.
- * This function expects a set of "<space characters>keyword=value".
- * When "unset" is specified, expects a set of "<space characters>keyword".
- */
-static int
-bid_keyword_list(const char *p,  ssize_t len, int unset, int last_is_path)
-{
-	int l;
-	int keycnt = 0;
-
-	while (len > 0 && *p) {
-		int blank = 0;
-
-		/* Test whether there are blank characters in the line. */
-		while (len >0 && (*p == ' ' || *p == '\t')) {
-			++p;
-			--len;
-			blank = 1;
-		}
-		if (*p == '\n' || *p == '\r')
-			break;
-		if (p[0] == '\\' && (p[1] == '\n' || p[1] == '\r'))
-			break;
-		if (!blank && !last_is_path) /* No blank character. */
-			return (-1);
-		if (last_is_path && len == 0)
-				return (keycnt);
-
-		if (unset) {
-			l = bid_keycmp(p, "all", len);
-			if (l > 0)
-				return (1);
-		}
-		/* Test whether there is a correct key in the line. */
-		l = bid_keyword(p, len);
-		if (l == 0)
-			return (-1);/* Unknown keyword was found. */
-		p += l;
-		len -= l;
-		keycnt++;
-
-		/* Skip value */
-		if (*p == '=') {
-			int value = 0;
-			++p;
-			--len;
-			while (len > 0 && *p != ' ' && *p != '\t') {
-				++p;
-				--len;
-				value = 1;
-			}
-			/* A keyword should have a its value unless
-			 * "/unset" operation. */ 
-			if (!unset && value == 0)
-				return (-1);
-		}
-	}
-	return (keycnt);
-}
-
-static int
-bid_entry(const char *p, ssize_t len, ssize_t nl, int *last_is_path)
-{
-	int f = 0;
-	static const unsigned char safe_char[256] = {
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 00 - 0F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 10 - 1F */
-		/* !"$%&'()*+,-./  EXCLUSION:( )(#) */
-		0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 20 - 2F */
-		/* 0123456789:;<>?  EXCLUSION:(=) */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, /* 30 - 3F */
-		/* @ABCDEFGHIJKLMNO */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 40 - 4F */
-		/* PQRSTUVWXYZ[\]^_  */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 50 - 5F */
-		/* `abcdefghijklmno */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, /* 60 - 6F */
-		/* pqrstuvwxyz{|}~ */
-		1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, /* 70 - 7F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 80 - 8F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* 90 - 9F */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* A0 - AF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* B0 - BF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* C0 - CF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* D0 - DF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* E0 - EF */
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, /* F0 - FF */
-	};
-	ssize_t ll;
-	const char *pp = p;
-	const char * const pp_end = pp + len;
-
-	*last_is_path = 0;
-	/*
-	 * Skip the path-name which is quoted.
-	 */
-	for (;pp < pp_end; ++pp) {
-		if (!safe_char[*(const unsigned char *)pp]) {
-			if (*pp != ' ' && *pp != '\t' && *pp != '\r'
-			    && *pp != '\n')
-				f = 0;
-			break;
-		}
-		f = 1;
-	}
-	ll = pp_end - pp;
-
-	/* If a path-name was not found at the first, try to check
-	 * a mtree format(a.k.a form D) ``NetBSD's mtree -D'' creates,
-	 * which places the path-name at the last. */
-	if (f == 0) {
-		const char *pb = p + len - nl;
-		int name_len = 0;
-		int slash;
-
-		/* The form D accepts only a single line for an entry. */
-		if (pb-2 >= p &&
-		    pb[-1] == '\\' && (pb[-2] == ' ' || pb[-2] == '\t'))
-			return (-1);
-		if (pb-1 >= p && pb[-1] == '\\')
-			return (-1);
-
-		slash = 0;
-		while (p <= --pb && *pb != ' ' && *pb != '\t') {
-			if (!safe_char[*(const unsigned char *)pb])
-				return (-1);
-			name_len++;
-			/* The pathname should have a slash in this
-			 * format. */
-			if (*pb == '/')
-				slash = 1;
-		}
-		if (name_len == 0 || slash == 0)
-			return (-1);
-		/* If '/' is placed at the first in this field, this is not
-		 * a valid filename. */
-		if (pb[1] == '/')
-			return (-1);
-		ll = len - nl - name_len;
-		pp = p;
-		*last_is_path = 1;
-	}
-
-	return (bid_keyword_list(pp, ll, 0, *last_is_path));
-}
-
-#define MAX_BID_ENTRY	3
-
-static int
-mtree_bid(struct archive_read *a, int best_bid)
-{
-	const char *signature = "#mtree";
-	const char *p;
-
-	(void)best_bid; /* UNUSED */
-
-	/* Now let's look at the actual header and see if it matches. */
-	p = __archive_read_ahead(a, strlen(signature), NULL);
-	if (p == NULL)
-		return (-1);
-
-	if (memcmp(p, signature, strlen(signature)) == 0)
-		return (8 * (int)strlen(signature));
-
-	/*
-	 * There is not a mtree signature. Let's try to detect mtree format.
-	 */
-	return (detect_form(a, NULL));
-}
-
-static int
-detect_form(struct archive_read *a, int *is_form_d)
-{
-	const char *p;
-	ssize_t avail, ravail;
-	ssize_t detected_bytes = 0, len, nl;
-	int entry_cnt = 0, multiline = 0;
-	int form_D = 0;/* The archive is generated by `NetBSD mtree -D'
-			* (In this source we call it `form D') . */
-
-	if (is_form_d != NULL)
-		*is_form_d = 0;
-	p = __archive_read_ahead(a, 1, &avail);
-	if (p == NULL)
-		return (-1);
-	ravail = avail;
-	for (;;) {
-		len = next_line(a, &p, &avail, &ravail, &nl);
-		/* The terminal character of the line should be
-		 * a new line character, '\r\n' or '\n'. */
-		if (len <= 0 || nl == 0)
-			break;
-		if (!multiline) {
-			/* Leading whitespace is never significant,
-			 * ignore it. */
-			while (len > 0 && (*p == ' ' || *p == '\t')) {
-				++p;
-				--avail;
-				--len;
-			}
-			/* Skip comment or empty line. */ 
-			if (p[0] == '#' || p[0] == '\n' || p[0] == '\r') {
-				p += len;
-				avail -= len;
-				continue;
-			}
-		} else {
-			/* A continuance line; the terminal
-			 * character of previous line was '\' character. */
-			if (bid_keyword_list(p, len, 0, 0) <= 0)
-				break;
-			if (multiline == 1)
-				detected_bytes += len;
-			if (p[len-nl-1] != '\\') {
-				if (multiline == 1 &&
-				    ++entry_cnt >= MAX_BID_ENTRY)
-					break;
-				multiline = 0;
-			}
-			p += len;
-			avail -= len;
-			continue;
-		}
-		if (p[0] != '/') {
-			int last_is_path, keywords;
-
-			keywords = bid_entry(p, len, nl, &last_is_path);
-			if (keywords >= 0) {
-				detected_bytes += len;
-				if (form_D == 0) {
-					if (last_is_path)
-						form_D = 1;
-					else if (keywords > 0)
-						/* This line is not `form D'. */
-						form_D = -1;
-				} else if (form_D == 1) {
-					if (!last_is_path && keywords > 0)
-						/* This this is not `form D'
-						 * and We cannot accept mixed
-						 * format. */
-						break;
-				}
-				if (!last_is_path && p[len-nl-1] == '\\')
-					/* This line continues. */
-					multiline = 1;
-				else {
-					/* We've got plenty of correct lines
-					 * to assume that this file is a mtree
-					 * format. */
-					if (++entry_cnt >= MAX_BID_ENTRY)
-						break;
-				}
-			} else
-				break;
-		} else if (strncmp(p, "/set", 4) == 0) {
-			if (bid_keyword_list(p+4, len-4, 0, 0) <= 0)
-				break;
-			/* This line continues. */
-			if (p[len-nl-1] == '\\')
-				multiline = 2;
-		} else if (strncmp(p, "/unset", 6) == 0) {
-			if (bid_keyword_list(p+6, len-6, 1, 0) <= 0)
-				break;
-			/* This line continues. */
-			if (p[len-nl-1] == '\\')
-				multiline = 2;
-		} else
-			break;
-
-		/* Test next line. */
-		p += len;
-		avail -= len;
-	}
-	if (entry_cnt >= MAX_BID_ENTRY || (entry_cnt > 0 && len == 0)) {
-		if (is_form_d != NULL) {
-			if (form_D == 1)
-				*is_form_d = 1;
-		}
-		return (32);
-	}
-
-	return (0);
-}
-
-/*
- * The extended mtree format permits multiple lines specifying
- * attributes for each file.  For those entries, only the last line
- * is actually used.  Practically speaking, that means we have
- * to read the entire mtree file into memory up front.
+/**********************************************************
  *
- * The parsing is done in two steps.  First, it is decided if a line
- * changes the global defaults and if it is, processed accordingly.
- * Otherwise, the options of the line are merged with the current
- * global options.
- */
-static int
-add_option(struct archive_read *a, struct mtree_option **global,
-    const char *value, size_t len)
+ * tftp_set_timeouts -
+ *
+ * Set timeouts based on state machine state.
+ * Use user provided connect timeouts until DATA or ACK
+ * packet is received, then use user-provided transfer timeouts
+ *
+ *
+ **********************************************************/
+static CURLcode tftp_set_timeouts(tftp_state_data_t *state)
 {
-	struct mtree_option *opt;
+  time_t maxtime, timeout;
+  long timeout_ms;
+  bool start = (state->state == TFTP_STATE_START) ? TRUE : FALSE;
 
-	if ((opt = malloc(sizeof(*opt))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-	if ((opt->value = malloc(len + 1)) == NULL) {
-		free(opt);
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-	memcpy(opt->value, value, len);
-	opt->value[len] = '\0';
-	opt->next = *global;
-	*global = opt;
-	return (ARCHIVE_OK);
+  time(&state->start_time);
+
+  /* Compute drop-dead time */
+  timeout_ms = Curl_timeleft(state->conn->data, NULL, start);
+
+  if(timeout_ms < 0) {
+    /* time-out, bail out, go home */
+    failf(state->conn->data, "Connection time-out");
+    return CURLE_OPERATION_TIMEDOUT;
+  }
+
+  if(start) {
+
+    maxtime = (time_t)(timeout_ms + 500) / 1000;
+    state->max_time = state->start_time+maxtime;
+
+    /* Set per-block timeout to total */
+    timeout = maxtime;
+
+    /* Average restart after 5 seconds */
+    state->retry_max = (int)timeout/5;
+
+    if(state->retry_max < 1)
+      /* avoid division by zero below */
+      state->retry_max = 1;
+
+    /* Compute the re-start interval to suit the timeout */
+    state->retry_time = (int)timeout/state->retry_max;
+    if(state->retry_time<1)
+      state->retry_time=1;
+
+  }
+  else {
+    if(timeout_ms > 0)
+      maxtime = (time_t)(timeout_ms + 500) / 1000;
+    else
+      maxtime = 3600;
+
+    state->max_time = state->start_time+maxtime;
+
+    /* Set per-block timeout to total */
+    timeout = maxtime;
+
+    /* Average reposting an ACK after 5 seconds */
+    state->retry_max = (int)timeout/5;
+  }
+  /* But bound the total number */
+  if(state->retry_max<3)
+    state->retry_max=3;
+
+  if(state->retry_max>50)
+    state->retry_max=50;
+
+  /* Compute the re-ACK interval to suit the timeout */
+  state->retry_time = (int)(timeout/state->retry_max);
+  if(state->retry_time<1)
+    state->retry_time=1;
+
+  infof(state->conn->data,
+        "set timeouts for state %d; Total %ld, retry %d maxtry %d\n",
+        (int)state->state, (long)(state->max_time-state->start_time),
+        state->retry_time, state->retry_max);
+
+  /* init RX time */
+  time(&state->rx_time);
+
+  return CURLE_OK;
 }
 
-static void
-remove_option(struct mtree_option **global, const char *value, size_t len)
+/**********************************************************
+ *
+ * tftp_set_send_first
+ *
+ * Event handler for the START state
+ *
+ **********************************************************/
+
+static void setpacketevent(tftp_packet_t *packet, unsigned short num)
 {
-	struct mtree_option *iter, *last;
-
-	last = NULL;
-	for (iter = *global; iter != NULL; last = iter, iter = iter->next) {
-		if (strncmp(iter->value, value, len) == 0 &&
-		    (iter->value[len] == '\0' ||
-		     iter->value[len] == '='))
-			break;
-	}
-	if (iter == NULL)
-		return;
-	if (last == NULL)
-		*global = iter->next;
-	else
-		last->next = iter->next;
-
-	free(iter->value);
-	free(iter);
+  packet->data[0] = (unsigned char)(num >> 8);
+  packet->data[1] = (unsigned char)(num & 0xff);
 }
 
-static int
-process_global_set(struct archive_read *a,
-    struct mtree_option **global, const char *line)
+
+static void setpacketblock(tftp_packet_t *packet, unsigned short num)
 {
-	const char *next, *eq;
-	size_t len;
-	int r;
-
-	line += 4;
-	for (;;) {
-		next = line + strspn(line, " \t\r\n");
-		if (*next == '\0')
-			return (ARCHIVE_OK);
-		line = next;
-		next = line + strcspn(line, " \t\r\n");
-		eq = strchr(line, '=');
-		if (eq > next)
-			len = next - line;
-		else
-			len = eq - line;
-
-		remove_option(global, line, len);
-		r = add_option(a, global, line, next - line);
-		if (r != ARCHIVE_OK)
-			return (r);
-		line = next;
-	}
+  packet->data[2] = (unsigned char)(num >> 8);
+  packet->data[3] = (unsigned char)(num & 0xff);
 }
 
-static int
-process_global_unset(struct archive_read *a,
-    struct mtree_option **global, const char *line)
+static unsigned short getrpacketevent(const tftp_packet_t *packet)
 {
-	const char *next;
-	size_t len;
-
-	line += 6;
-	if (strchr(line, '=') != NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "/unset shall not contain `='");
-		return ARCHIVE_FATAL;
-	}
-
-	for (;;) {
-		next = line + strspn(line, " \t\r\n");
-		if (*next == '\0')
-			return (ARCHIVE_OK);
-		line = next;
-		len = strcspn(line, " \t\r\n");
-
-		if (len == 3 && strncmp(line, "all", 3) == 0) {
-			free_options(*global);
-			*global = NULL;
-		} else {
-			remove_option(global, line, len);
-		}
-
-		line += len;
-	}
+  return (unsigned short)((packet->data[0] << 8) | packet->data[1]);
 }
 
-static int
-process_add_entry(struct archive_read *a, struct mtree *mtree,
-    struct mtree_option **global, const char *line, ssize_t line_len,
-    struct mtree_entry **last_entry, int is_form_d)
+static unsigned short getrpacketblock(const tftp_packet_t *packet)
 {
-	struct mtree_entry *entry;
-	struct mtree_option *iter;
-	const char *next, *eq, *name, *end;
-	size_t len;
-	int r;
-
-	if ((entry = malloc(sizeof(*entry))) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-	entry->next = NULL;
-	entry->options = NULL;
-	entry->name = NULL;
-	entry->used = 0;
-	entry->full = 0;
-
-	/* Add this entry to list. */
-	if (*last_entry == NULL)
-		mtree->entries = entry;
-	else
-		(*last_entry)->next = entry;
-	*last_entry = entry;
-
-	if (is_form_d) {
-		/*
-		 * This form places the file name as last parameter.
-		 */
-		name = line + line_len -1;
-		while (line_len > 0) {
-			if (*name != '\r' && *name != '\n' &&
-			    *name != '\t' && *name != ' ')
-				break;
-			name--;
-			line_len--;
-		}
-		len = 0;
-		while (line_len > 0) {
-			if (*name == '\r' || *name == '\n' ||
-			    *name == '\t' || *name == ' ') {
-				name++;
-				break;
-			}
-			name--;
-			line_len--;
-			len++;
-		}
-		end = name;
-	} else {
-		len = strcspn(line, " \t\r\n");
-		name = line;
-		line += len;
-		end = line + line_len;
-	}
-
-	if ((entry->name = malloc(len + 1)) == NULL) {
-		archive_set_error(&a->archive, errno, "Can't allocate memory");
-		return (ARCHIVE_FATAL);
-	}
-
-	memcpy(entry->name, name, len);
-	entry->name[len] = '\0';
-	parse_escapes(entry->name, entry);
-
-	for (iter = *global; iter != NULL; iter = iter->next) {
-		r = add_option(a, &entry->options, iter->value,
-		    strlen(iter->value));
-		if (r != ARCHIVE_OK)
-			return (r);
-	}
-
-	for (;;) {
-		next = line + strspn(line, " \t\r\n");
-		if (*next == '\0')
-			return (ARCHIVE_OK);
-		if (next >= end)
-			return (ARCHIVE_OK);
-		line = next;
-		next = line + strcspn(line, " \t\r\n");
-		eq = strchr(line, '=');
-		if (eq == NULL || eq > next)
-			len = next - line;
-		else
-			len = eq - line;
-
-		remove_option(&entry->options, line, len);
-		r = add_option(a, &entry->options, line, next - line);
-		if (r != ARCHIVE_OK)
-			return (r);
-		line = next;
-	}
+  return (unsigned short)((packet->data[2] << 8) | packet->data[3]);
 }
 
-static int
-read_mtree(struct archive_read *a, struct mtree *mtree)
+static size_t Curl_strnlen(const char *string, size_t maxlen)
 {
-	ssize_t len;
-	uintmax_t counter;
-	char *p;
-	struct mtree_option *global;
-	struct mtree_entry *last_entry;
-	int r, is_form_d;
-
-	mtree->archive_format = ARCHIVE_FORMAT_MTREE;
-	mtree->archive_format_name = "mtree";
-
-	global = NULL;
-	last_entry = NULL;
-
-	(void)detect_form(a, &is_form_d);
-
-	for (counter = 1; ; ++counter) {
-		len = readline(a, mtree, &p, 65536);
-		if (len == 0) {
-			mtree->this_entry = mtree->entries;
-			free_options(global);
-			return (ARCHIVE_OK);
-		}
-		if (len < 0) {
-			free_options(global);
-			return ((int)len);
-		}
-		/* Leading whitespace is never significant, ignore it. */
-		while (*p == ' ' || *p == '\t') {
-			++p;
-			--len;
-		}
-		/* Skip content lines and blank lines. */
-		if (*p == '#')
-			continue;
-		if (*p == '\r' || *p == '\n' || *p == '\0')
-			continue;
-		if (*p != '/') {
-			r = process_add_entry(a, mtree, &global, p, len,
-			    &last_entry, is_form_d);
-		} else if (strncmp(p, "/set", 4) == 0) {
-			if (p[4] != ' ' && p[4] != '\t')
-				break;
-			r = process_global_set(a, &global, p);
-		} else if (strncmp(p, "/unset", 6) == 0) {
-			if (p[6] != ' ' && p[6] != '\t')
-				break;
-			r = process_global_unset(a, &global, p);
-		} else
-			break;
-
-		if (r != ARCHIVE_OK) {
-			free_options(global);
-			return r;
-		}
-	}
-
-	archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-	    "Can't parse line %ju", counter);
-	free_options(global);
-	return (ARCHIVE_FATAL);
+  const char *end = memchr (string, '\0', maxlen);
+  return end ? (size_t) (end - string) : maxlen;
 }
 
-/*
- * Read in the entire mtree file into memory on the first request.
- * Then use the next unused file to satisfy each header request.
- */
-static int
-read_header(struct archive_read *a, struct archive_entry *entry)
+static const char *tftp_option_get(const char *buf, size_t len,
+                                   const char **option, const char **value)
 {
-	struct mtree *mtree;
-	char *p;
-	int r, use_next;
+  size_t loc;
 
-	mtree = (struct mtree *)(a->format->data);
+  loc = Curl_strnlen(buf, len);
+  loc++; /* NULL term */
 
-	if (mtree->fd >= 0) {
-		close(mtree->fd);
-		mtree->fd = -1;
-	}
+  if(loc >= len)
+    return NULL;
+  *option = buf;
 
-	if (mtree->entries == NULL) {
-		mtree->resolver = archive_entry_linkresolver_new();
-		if (mtree->resolver == NULL)
-			return ARCHIVE_FATAL;
-		archive_entry_linkresolver_set_strategy(mtree->resolver,
-		    ARCHIVE_FORMAT_MTREE);
-		r = read_mtree(a, mtree);
-		if (r != ARCHIVE_OK)
-			return (r);
-	}
+  loc += Curl_strnlen(buf+loc, len-loc);
+  loc++; /* NULL term */
 
-	a->archive.archive_format = mtree->archive_format;
-	a->archive.archive_format_name = mtree->archive_format_name;
+  if(loc > len)
+    return NULL;
+  *value = &buf[strlen(*option) + 1];
 
-	for (;;) {
-		if (mtree->this_entry == NULL)
-			return (ARCHIVE_EOF);
-		if (strcmp(mtree->this_entry->name, "..") == 0) {
-			mtree->this_entry->used = 1;
-			if (archive_strlen(&mtree->current_dir) > 0) {
-				/* Roll back current path. */
-				p = mtree->current_dir.s
-				    + mtree->current_dir.length - 1;
-				while (p >= mtree->current_dir.s && *p != '/')
-					--p;
-				if (p >= mtree->current_dir.s)
-					--p;
-				mtree->current_dir.length
-				    = p - mtree->current_dir.s + 1;
-			}
-		}
-		if (!mtree->this_entry->used) {
-			use_next = 0;
-			r = parse_file(a, entry, mtree, mtree->this_entry,
-				&use_next);
-			if (use_next == 0)
-				return (r);
-		}
-		mtree->this_entry = mtree->this_entry->next;
-	}
+  return &buf[loc];
 }
 
-/*
- * A single file can have multiple lines contribute specifications.
- * Parse as many lines as necessary, then pull additional information
- * from a backing file on disk as necessary.
- */
-static int
-parse_file(struct archive_read *a, struct archive_entry *entry,
-    struct mtree *mtree, struct mtree_entry *mentry, int *use_next)
+static CURLcode tftp_parse_option_ack(tftp_state_data_t *state,
+                                      const char *ptr, int len)
 {
-	const char *path;
-	struct stat st_storage, *st;
-	struct mtree_entry *mp;
-	struct archive_entry *sparse_entry;
-	int r = ARCHIVE_OK, r1, parsed_kws;
+  const char *tmp = ptr;
+  struct Curl_easy *data = state->conn->data;
 
-	mentry->used = 1;
+  /* if OACK doesn't contain blksize option, the default (512) must be used */
+  state->blksize = TFTP_BLKSIZE_DEFAULT;
 
-	/* Initialize reasonable defaults. */
-	archive_entry_set_filetype(entry, AE_IFREG);
-	archive_entry_set_size(entry, 0);
-	archive_string_empty(&mtree->contents_name);
+  while(tmp < ptr + len) {
+    const char *option, *value;
 
-	/* Parse options from this line. */
-	parsed_kws = 0;
-	r = parse_line(a, entry, mtree, mentry, &parsed_kws);
+    tmp = tftp_option_get(tmp, ptr + len - tmp, &option, &value);
+    if(tmp == NULL) {
+      failf(data, "Malformed ACK packet, rejecting");
+      return CURLE_TFTP_ILLEGAL;
+    }
 
-	if (mentry->full) {
-		archive_entry_copy_pathname(entry, mentry->name);
-		/*
-		 * "Full" entries are allowed to have multiple lines
-		 * and those lines aren't required to be adjacent.  We
-		 * don't support multiple lines for "relative" entries
-		 * nor do we make any attempt to merge data from
-		 * separate "relative" and "full" entries.  (Merging
-		 * "relative" and "full" entries would require dealing
-		 * with pathname canonicalization, which is a very
-		 * tricky subject.)
-		 */
-		for (mp = mentry->next; mp != NULL; mp = mp->next) {
-			if (mp->full && !mp->used
-			    && strcmp(mentry->name, mp->name) == 0) {
-				/* Later lines override earlier ones. */
-				mp->used = 1;
-				r1 = parse_line(a, entry, mtree, mp,
-				    &parsed_kws);
-				if (r1 < r)
-					r = r1;
-			}
-		}
-	} else {
-		/*
-		 * Relative entries require us to construct
-		 * the full path and possibly update the
-		 * current directory.
-		 */
-		size_t n = archive_strlen(&mtree->current_dir);
-		if (n > 0)
-			archive_strcat(&mtree->current_dir, "/");
-		archive_strcat(&mtree->current_dir, mentry->name);
-		archive_entry_copy_pathname(entry, mtree->current_dir.s);
-		if (archive_entry_filetype(entry) != AE_IFDIR)
-			mtree->current_dir.length = n;
-	}
+    infof(data, "got option=(%s) value=(%s)\n", option, value);
 
-	if (mtree->checkfs) {
-		/*
-		 * Try to open and stat the file to get the real size
-		 * and other file info.  It would be nice to avoid
-		 * this here so that getting a listing of an mtree
-		 * wouldn't require opening every referenced contents
-		 * file.  But then we wouldn't know the actual
-		 * contents size, so I don't see a really viable way
-		 * around this.  (Also, we may want to someday pull
-		 * other unspecified info from the contents file on
-		 * disk.)
-		 */
-		mtree->fd = -1;
-		if (archive_strlen(&mtree->contents_name) > 0)
-			path = mtree->contents_name.s;
-		else
-			path = archive_entry_pathname(entry);
+    if(checkprefix(option, TFTP_OPTION_BLKSIZE)) {
+      long blksize;
 
-		if (archive_entry_filetype(entry) == AE_IFREG ||
-				archive_entry_filetype(entry) == AE_IFDIR) {
-			mtree->fd = open(path, O_RDONLY | O_BINARY | O_CLOEXEC);
-			__archive_ensure_cloexec_flag(mtree->fd);
-			if (mtree->fd == -1 &&
-				(errno != ENOENT ||
-				 archive_strlen(&mtree->contents_name) > 0)) {
-				archive_set_error(&a->archive, errno,
-						"Can't open %s", path);
-				r = ARCHIVE_WARN;
-			}
-		}
+      blksize = strtol(value, NULL, 10);
 
-		st = &st_storage;
-		if (mtree->fd >= 0) {
-			if (fstat(mtree->fd, st) == -1) {
-				archive_set_error(&a->archive, errno,
-						"Could not fstat %s", path);
-				r = ARCHIVE_WARN;
-				/* If we can't stat it, don't keep it open. */
-				close(mtree->fd);
-				mtree->fd = -1;
-				st = NULL;
-			}
-		} else if (lstat(path, st) == -1) {
-			st = NULL;
-		}
+      if(!blksize) {
+        failf(data, "invalid blocksize value in OACK packet");
+        return CURLE_TFTP_ILLEGAL;
+      }
+      else if(blksize > TFTP_BLKSIZE_MAX) {
+        failf(data, "%s (%d)", "blksize is larger than max supported",
+              TFTP_BLKSIZE_MAX);
+        return CURLE_TFTP_ILLEGAL;
+      }
+      else if(blksize < TFTP_BLKSIZE_MIN) {
+        failf(data, "%s (%d)", "blksize is smaller than min supported",
+              TFTP_BLKSIZE_MIN);
+        return CURLE_TFTP_ILLEGAL;
+      }
+      else if(blksize > state->requested_blksize) {
+        /* could realloc pkt buffers here, but the spec doesn't call out
+         * support for the server requesting a bigger blksize than the client
+         * requests */
+        failf(data, "%s (%ld)",
+              "server requested blksize larger than allocated", blksize);
+        return CURLE_TFTP_ILLEGAL;
+      }
 
-		/*
-		 * Check for a mismatch between the type in the specification
-		 * and the type of the contents object on disk.
-		 */
-		if (st != NULL) {
-			if (((st->st_mode & S_IFMT) == S_IFREG &&
-			      archive_entry_filetype(entry) == AE_IFREG)
-#ifdef S_IFLNK
-			  ||((st->st_mode & S_IFMT) == S_IFLNK &&
-			      archive_entry_filetype(entry) == AE_IFLNK)
+      state->blksize = (int)blksize;
+      infof(data, "%s (%d) %s (%d)\n", "blksize parsed from OACK",
+            state->blksize, "requested", state->requested_blksize);
+    }
+    else if(checkprefix(option, TFTP_OPTION_TSIZE)) {
+      long tsize = 0;
+
+      tsize = strtol(value, NULL, 10);
+      infof(data, "%s (%ld)\n", "tsize parsed from OACK", tsize);
+
+      /* tsize should be ignored on upload: Who cares about the size of the
+         remote file? */
+      if(!data->set.upload) {
+        if(!tsize) {
+          failf(data, "invalid tsize -:%s:- value in OACK packet", value);
+          return CURLE_TFTP_ILLEGAL;
+        }
+        Curl_pgrsSetDownloadSize(data, tsize);
+      }
+    }
+  }
+
+  return CURLE_OK;
+}
+
+static size_t tftp_option_add(tftp_state_data_t *state, size_t csize,
+                              char *buf, const char *option)
+{
+  if(( strlen(option) + csize + 1) > (size_t)state->blksize)
+    return 0;
+  strcpy(buf, option);
+  return strlen(option) + 1;
+}
+
+static CURLcode tftp_connect_for_tx(tftp_state_data_t *state,
+                                    tftp_event_t event)
+{
+  CURLcode result;
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
+  struct Curl_easy *data = state->conn->data;
+
+  infof(data, "%s\n", "Connected for transmit");
 #endif
-#ifdef S_IFSOCK
-			  ||((st->st_mode & S_IFSOCK) == S_IFSOCK &&
-			      archive_entry_filetype(entry) == AE_IFSOCK)
+  state->state = TFTP_STATE_TX;
+  result = tftp_set_timeouts(state);
+  if(result)
+    return result;
+  return tftp_tx(state, event);
+}
+
+static CURLcode tftp_connect_for_rx(tftp_state_data_t *state,
+                                    tftp_event_t event)
+{
+  CURLcode result;
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
+  struct Curl_easy *data = state->conn->data;
+
+  infof(data, "%s\n", "Connected for receive");
 #endif
-#ifdef S_IFCHR
-			  ||((st->st_mode & S_IFMT) == S_IFCHR &&
-			      archive_entry_filetype(entry) == AE_IFCHR)
+  state->state = TFTP_STATE_RX;
+  result = tftp_set_timeouts(state);
+  if(result)
+    return result;
+  return tftp_rx(state, event);
+}
+
+static CURLcode tftp_send_first(tftp_state_data_t *state, tftp_event_t event)
+{
+  size_t sbytes;
+  ssize_t senddata;
+  const char *mode = "octet";
+  char *filename;
+  char buf[64];
+  struct Curl_easy *data = state->conn->data;
+  CURLcode result = CURLE_OK;
+
+  /* Set ascii mode if -B flag was used */
+  if(data->set.prefer_ascii)
+    mode = "netascii";
+
+  switch(event) {
+
+  case TFTP_EVENT_INIT:    /* Send the first packet out */
+  case TFTP_EVENT_TIMEOUT: /* Resend the first packet out */
+    /* Increment the retry counter, quit if over the limit */
+    state->retries++;
+    if(state->retries>state->retry_max) {
+      state->error = TFTP_ERR_NORESPONSE;
+      state->state = TFTP_STATE_FIN;
+      return result;
+    }
+
+    if(data->set.upload) {
+      /* If we are uploading, send an WRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_WRQ);
+      state->conn->data->req.upload_fromhere =
+        (char *)state->spacket.data+4;
+      if(data->state.infilesize != -1)
+        Curl_pgrsSetUploadSize(data, data->state.infilesize);
+    }
+    else {
+      /* If we are downloading, send an RRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_RRQ);
+    }
+    /* As RFC3617 describes the separator slash is not actually part of the
+       file name so we skip the always-present first letter of the path
+       string. */
+    filename = curl_easy_unescape(data, &state->conn->data->state.path[1], 0,
+                                  NULL);
+    if(!filename)
+      return CURLE_OUT_OF_MEMORY;
+
+    snprintf((char *)state->spacket.data+2,
+             state->blksize,
+             "%s%c%s%c", filename, '\0',  mode, '\0');
+    sbytes = 4 + strlen(filename) + strlen(mode);
+
+    /* optional addition of TFTP options */
+    if(!data->set.tftp_no_options) {
+      /* add tsize option */
+      if(data->set.upload && (data->state.infilesize != -1))
+        snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
+                 data->state.infilesize);
+      else
+        strcpy(buf, "0"); /* the destination is large enough */
+
+      sbytes += tftp_option_add(state, sbytes,
+                                (char *)state->spacket.data+sbytes,
+                                TFTP_OPTION_TSIZE);
+      sbytes += tftp_option_add(state, sbytes,
+                                (char *)state->spacket.data+sbytes, buf);
+      /* add blksize option */
+      snprintf(buf, sizeof(buf), "%d", state->requested_blksize);
+      sbytes += tftp_option_add(state, sbytes,
+                                (char *)state->spacket.data+sbytes,
+                                TFTP_OPTION_BLKSIZE);
+      sbytes += tftp_option_add(state, sbytes,
+                                (char *)state->spacket.data+sbytes, buf);
+
+      /* add timeout option */
+      snprintf(buf, sizeof(buf), "%d", state->retry_time);
+      sbytes += tftp_option_add(state, sbytes,
+                                (char *)state->spacket.data+sbytes,
+                                TFTP_OPTION_INTERVAL);
+      sbytes += tftp_option_add(state, sbytes,
+                                (char *)state->spacket.data+sbytes, buf);
+    }
+
+    /* the typecase for the 3rd argument is mostly for systems that do
+       not have a size_t argument, like older unixes that want an 'int' */
+    senddata = sendto(state->sockfd, (void *)state->spacket.data,
+                      (SEND_TYPE_ARG3)sbytes, 0,
+                      state->conn->ip_addr->ai_addr,
+                      state->conn->ip_addr->ai_addrlen);
+    if(senddata != (ssize_t)sbytes) {
+      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+    }
+    free(filename);
+    break;
+
+  case TFTP_EVENT_OACK:
+    if(data->set.upload) {
+      result = tftp_connect_for_tx(state, event);
+    }
+    else {
+      result = tftp_connect_for_rx(state, event);
+    }
+    break;
+
+  case TFTP_EVENT_ACK: /* Connected for transmit */
+    result = tftp_connect_for_tx(state, event);
+    break;
+
+  case TFTP_EVENT_DATA: /* Connected for receive */
+    result = tftp_connect_for_rx(state, event);
+    break;
+
+  case TFTP_EVENT_ERROR:
+    state->state = TFTP_STATE_FIN;
+    break;
+
+  default:
+    failf(state->conn->data, "tftp_send_first: internal error");
+    break;
+  }
+
+  return result;
+}
+
+/* the next blocknum is x + 1 but it needs to wrap at an unsigned 16bit
+   boundary */
+#define NEXT_BLOCKNUM(x) (((x)+1)&0xffff)
+
+/**********************************************************
+ *
+ * tftp_rx
+ *
+ * Event handler for the RX state
+ *
+ **********************************************************/
+static CURLcode tftp_rx(tftp_state_data_t *state, tftp_event_t event)
+{
+  ssize_t sbytes;
+  int rblock;
+  struct Curl_easy *data = state->conn->data;
+
+  switch(event) {
+
+  case TFTP_EVENT_DATA:
+    /* Is this the block we expect? */
+    rblock = getrpacketblock(&state->rpacket);
+    if(NEXT_BLOCKNUM(state->block) == rblock) {
+      /* This is the expected block.  Reset counters and ACK it. */
+      state->retries = 0;
+    }
+    else if(state->block == rblock) {
+      /* This is the last recently received block again. Log it and ACK it
+         again. */
+      infof(data, "Received last DATA packet block %d again.\n", rblock);
+    }
+    else {
+      /* totally unexpected, just log it */
+      infof(data,
+            "Received unexpected DATA packet block %d, expecting block %d\n",
+            rblock, NEXT_BLOCKNUM(state->block));
+      break;
+    }
+
+    /* ACK this block. */
+    state->block = (unsigned short)rblock;
+    setpacketevent(&state->spacket, TFTP_EVENT_ACK);
+    setpacketblock(&state->spacket, state->block);
+    sbytes = sendto(state->sockfd, (void *)state->spacket.data,
+                    4, SEND_4TH_ARG,
+                    (struct sockaddr *)&state->remote_addr,
+                    state->remote_addrlen);
+    if(sbytes < 0) {
+      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+      return CURLE_SEND_ERROR;
+    }
+
+    /* Check if completed (That is, a less than full packet is received) */
+    if(state->rbytes < (ssize_t)state->blksize+4) {
+      state->state = TFTP_STATE_FIN;
+    }
+    else {
+      state->state = TFTP_STATE_RX;
+    }
+    time(&state->rx_time);
+    break;
+
+  case TFTP_EVENT_OACK:
+    /* ACK option acknowledgement so we can move on to data */
+    state->block = 0;
+    state->retries = 0;
+    setpacketevent(&state->spacket, TFTP_EVENT_ACK);
+    setpacketblock(&state->spacket, state->block);
+    sbytes = sendto(state->sockfd, (void *)state->spacket.data,
+                    4, SEND_4TH_ARG,
+                    (struct sockaddr *)&state->remote_addr,
+                    state->remote_addrlen);
+    if(sbytes < 0) {
+      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+      return CURLE_SEND_ERROR;
+    }
+
+    /* we're ready to RX data */
+    state->state = TFTP_STATE_RX;
+    time(&state->rx_time);
+    break;
+
+  case TFTP_EVENT_TIMEOUT:
+    /* Increment the retry count and fail if over the limit */
+    state->retries++;
+    infof(data,
+          "Timeout waiting for block %d ACK.  Retries = %d\n",
+          NEXT_BLOCKNUM(state->block), state->retries);
+    if(state->retries > state->retry_max) {
+      state->error = TFTP_ERR_TIMEOUT;
+      state->state = TFTP_STATE_FIN;
+    }
+    else {
+      /* Resend the previous ACK */
+      sbytes = sendto(state->sockfd, (void *)state->spacket.data,
+                      4, SEND_4TH_ARG,
+                      (struct sockaddr *)&state->remote_addr,
+                      state->remote_addrlen);
+      if(sbytes<0) {
+        failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+        return CURLE_SEND_ERROR;
+      }
+    }
+    break;
+
+  case TFTP_EVENT_ERROR:
+    setpacketevent(&state->spacket, TFTP_EVENT_ERROR);
+    setpacketblock(&state->spacket, state->block);
+    (void)sendto(state->sockfd, (void *)state->spacket.data,
+                 4, SEND_4TH_ARG,
+                 (struct sockaddr *)&state->remote_addr,
+                 state->remote_addrlen);
+    /* don't bother with the return code, but if the socket is still up we
+     * should be a good TFTP client and let the server know we're done */
+    state->state = TFTP_STATE_FIN;
+    break;
+
+  default:
+    failf(data, "%s", "tftp_rx: internal error");
+    return CURLE_TFTP_ILLEGAL; /* not really the perfect return code for
+                                  this */
+  }
+  return CURLE_OK;
+}
+
+/**********************************************************
+ *
+ * tftp_tx
+ *
+ * Event handler for the TX state
+ *
+ **********************************************************/
+static CURLcode tftp_tx(tftp_state_data_t *state, tftp_event_t event)
+{
+  struct Curl_easy *data = state->conn->data;
+  ssize_t sbytes;
+  int rblock;
+  CURLcode result = CURLE_OK;
+  struct SingleRequest *k = &data->req;
+
+  switch(event) {
+
+  case TFTP_EVENT_ACK:
+  case TFTP_EVENT_OACK:
+    if(event == TFTP_EVENT_ACK) {
+      /* Ack the packet */
+      rblock = getrpacketblock(&state->rpacket);
+
+      if(rblock != state->block &&
+         /* There's a bug in tftpd-hpa that causes it to send us an ack for
+          * 65535 when the block number wraps to 0. So when we're expecting
+          * 0, also accept 65535. See
+          * http://syslinux.zytor.com/archives/2010-September/015253.html
+          * */
+         !(state->block == 0 && rblock == 65535)) {
+        /* This isn't the expected block.  Log it and up the retry counter */
+        infof(data, "Received ACK for block %d, expecting %d\n",
+              rblock, state->block);
+        state->retries++;
+        /* Bail out if over the maximum */
+        if(state->retries>state->retry_max) {
+          failf(data, "tftp_tx: giving up waiting for block %d ack",
+                state->block);
+          result = CURLE_SEND_ERROR;
+        }
+        else {
+          /* Re-send the data packet */
+          sbytes = sendto(state->sockfd, (void *)state->spacket.data,
+                          4+state->sbytes, SEND_4TH_ARG,
+                          (struct sockaddr *)&state->remote_addr,
+                          state->remote_addrlen);
+          /* Check all sbytes were sent */
+          if(sbytes<0) {
+            failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+            result = CURLE_SEND_ERROR;
+          }
+        }
+
+        return result;
+      }
+      /* This is the expected packet.  Reset the counters and send the next
+         block */
+      time(&state->rx_time);
+      state->block++;
+    }
+    else
+      state->block = 1; /* first data block is 1 when using OACK */
+
+    state->retries = 0;
+    setpacketevent(&state->spacket, TFTP_EVENT_DATA);
+    setpacketblock(&state->spacket, state->block);
+    if(state->block > 1 && state->sbytes < (int)state->blksize) {
+      state->state = TFTP_STATE_FIN;
+      return CURLE_OK;
+    }
+
+    result = Curl_fillreadbuffer(state->conn, state->blksize, &state->sbytes);
+    if(result)
+      return result;
+
+    sbytes = sendto(state->sockfd, (void *) state->spacket.data,
+                    4 + state->sbytes, SEND_4TH_ARG,
+                    (struct sockaddr *)&state->remote_addr,
+                    state->remote_addrlen);
+    /* Check all sbytes were sent */
+    if(sbytes<0) {
+      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+      return CURLE_SEND_ERROR;
+    }
+    /* Update the progress meter */
+    k->writebytecount += state->sbytes;
+    Curl_pgrsSetUploadCounter(data, k->writebytecount);
+    break;
+
+  case TFTP_EVENT_TIMEOUT:
+    /* Increment the retry counter and log the timeout */
+    state->retries++;
+    infof(data, "Timeout waiting for block %d ACK. "
+          " Retries = %d\n", NEXT_BLOCKNUM(state->block), state->retries);
+    /* Decide if we've had enough */
+    if(state->retries > state->retry_max) {
+      state->error = TFTP_ERR_TIMEOUT;
+      state->state = TFTP_STATE_FIN;
+    }
+    else {
+      /* Re-send the data packet */
+      sbytes = sendto(state->sockfd, (void *)state->spacket.data,
+                      4+state->sbytes, SEND_4TH_ARG,
+                      (struct sockaddr *)&state->remote_addr,
+                      state->remote_addrlen);
+      /* Check all sbytes were sent */
+      if(sbytes<0) {
+        failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+        return CURLE_SEND_ERROR;
+      }
+      /* since this was a re-send, we remain at the still byte position */
+      Curl_pgrsSetUploadCounter(data, k->writebytecount);
+    }
+    break;
+
+  case TFTP_EVENT_ERROR:
+    state->state = TFTP_STATE_FIN;
+    setpacketevent(&state->spacket, TFTP_EVENT_ERROR);
+    setpacketblock(&state->spacket, state->block);
+    (void)sendto(state->sockfd, (void *)state->spacket.data, 4, SEND_4TH_ARG,
+                 (struct sockaddr *)&state->remote_addr,
+                 state->remote_addrlen);
+    /* don't bother with the return code, but if the socket is still up we
+     * should be a good TFTP client and let the server know we're done */
+    state->state = TFTP_STATE_FIN;
+    break;
+
+  default:
+    failf(data, "tftp_tx: internal error, event: %i", (int)(event));
+    break;
+  }
+
+  return result;
+}
+
+/**********************************************************
+ *
+ * tftp_translate_code
+ *
+ * Translate internal error codes to CURL error codes
+ *
+ **********************************************************/
+static CURLcode tftp_translate_code(tftp_error_t error)
+{
+  CURLcode result = CURLE_OK;
+
+  if(error != TFTP_ERR_NONE) {
+    switch(error) {
+    case TFTP_ERR_NOTFOUND:
+      result = CURLE_TFTP_NOTFOUND;
+      break;
+    case TFTP_ERR_PERM:
+      result = CURLE_TFTP_PERM;
+      break;
+    case TFTP_ERR_DISKFULL:
+      result = CURLE_REMOTE_DISK_FULL;
+      break;
+    case TFTP_ERR_UNDEF:
+    case TFTP_ERR_ILLEGAL:
+      result = CURLE_TFTP_ILLEGAL;
+      break;
+    case TFTP_ERR_UNKNOWNID:
+      result = CURLE_TFTP_UNKNOWNID;
+      break;
+    case TFTP_ERR_EXISTS:
+      result = CURLE_REMOTE_FILE_EXISTS;
+      break;
+    case TFTP_ERR_NOSUCHUSER:
+      result = CURLE_TFTP_NOSUCHUSER;
+      break;
+    case TFTP_ERR_TIMEOUT:
+      result = CURLE_OPERATION_TIMEDOUT;
+      break;
+    case TFTP_ERR_NORESPONSE:
+      result = CURLE_COULDNT_CONNECT;
+      break;
+    default:
+      result = CURLE_ABORTED_BY_CALLBACK;
+      break;
+    }
+  }
+  else
+    result = CURLE_OK;
+
+  return result;
+}
+
+/**********************************************************
+ *
+ * tftp_state_machine
+ *
+ * The tftp state machine event dispatcher
+ *
+ **********************************************************/
+static CURLcode tftp_state_machine(tftp_state_data_t *state,
+                                   tftp_event_t event)
+{
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data = state->conn->data;
+
+  switch(state->state) {
+  case TFTP_STATE_START:
+    DEBUGF(infof(data, "TFTP_STATE_START\n"));
+    result = tftp_send_first(state, event);
+    break;
+  case TFTP_STATE_RX:
+    DEBUGF(infof(data, "TFTP_STATE_RX\n"));
+    result = tftp_rx(state, event);
+    break;
+  case TFTP_STATE_TX:
+    DEBUGF(infof(data, "TFTP_STATE_TX\n"));
+    result = tftp_tx(state, event);
+    break;
+  case TFTP_STATE_FIN:
+    infof(data, "%s\n", "TFTP finished");
+    break;
+  default:
+    DEBUGF(infof(data, "STATE: %d\n", state->state));
+    failf(data, "%s", "Internal state machine error");
+    result = CURLE_TFTP_ILLEGAL;
+    break;
+  }
+
+  return result;
+}
+
+/**********************************************************
+ *
+ * tftp_disconnect
+ *
+ * The disconnect callback
+ *
+ **********************************************************/
+static CURLcode tftp_disconnect(struct connectdata *conn, bool dead_connection)
+{
+  tftp_state_data_t *state = conn->proto.tftpc;
+  (void) dead_connection;
+
+  /* done, free dynamically allocated pkt buffers */
+  if(state) {
+    Curl_safefree(state->rpacket.data);
+    Curl_safefree(state->spacket.data);
+    free(state);
+  }
+
+  return CURLE_OK;
+}
+
+/**********************************************************
+ *
+ * tftp_connect
+ *
+ * The connect callback
+ *
+ **********************************************************/
+static CURLcode tftp_connect(struct connectdata *conn, bool *done)
+{
+  tftp_state_data_t *state;
+  int blksize, rc;
+
+  blksize = TFTP_BLKSIZE_DEFAULT;
+
+  state = conn->proto.tftpc = calloc(1, sizeof(tftp_state_data_t));
+  if(!state)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* alloc pkt buffers based on specified blksize */
+  if(conn->data->set.tftp_blksize) {
+    blksize = (int)conn->data->set.tftp_blksize;
+    if(blksize > TFTP_BLKSIZE_MAX || blksize < TFTP_BLKSIZE_MIN)
+      return CURLE_TFTP_ILLEGAL;
+  }
+
+  if(!state->rpacket.data) {
+    state->rpacket.data = calloc(1, blksize + 2 + 2);
+
+    if(!state->rpacket.data)
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  if(!state->spacket.data) {
+    state->spacket.data = calloc(1, blksize + 2 + 2);
+
+    if(!state->spacket.data)
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  /* we don't keep TFTP connections up basically because there's none or very
+   * little gain for UDP */
+  connclose(conn, "TFTP");
+
+  state->conn = conn;
+  state->sockfd = state->conn->sock[FIRSTSOCKET];
+  state->state = TFTP_STATE_START;
+  state->error = TFTP_ERR_NONE;
+  state->blksize = TFTP_BLKSIZE_DEFAULT;
+  state->requested_blksize = blksize;
+
+  ((struct sockaddr *)&state->local_addr)->sa_family =
+    (unsigned short)(conn->ip_addr->ai_family);
+
+  tftp_set_timeouts(state);
+
+  if(!conn->bits.bound) {
+    /* If not already bound, bind to any interface, random UDP port. If it is
+     * reused or a custom local port was desired, this has already been done!
+     *
+     * We once used the size of the local_addr struct as the third argument
+     * for bind() to better work with IPv6 or whatever size the struct could
+     * have, but we learned that at least Tru64, AIX and IRIX *requires* the
+     * size of that argument to match the exact size of a 'sockaddr_in' struct
+     * when running IPv4-only.
+     *
+     * Therefore we use the size from the address we connected to, which we
+     * assume uses the same IP version and thus hopefully this works for both
+     * IPv4 and IPv6...
+     */
+    rc = bind(state->sockfd, (struct sockaddr *)&state->local_addr,
+              conn->ip_addr->ai_addrlen);
+    if(rc) {
+      failf(conn->data, "bind() failed; %s",
+            Curl_strerror(conn, SOCKERRNO));
+      return CURLE_COULDNT_CONNECT;
+    }
+    conn->bits.bound = TRUE;
+  }
+
+  Curl_pgrsStartNow(conn->data);
+
+  *done = TRUE;
+
+  return CURLE_OK;
+}
+
+/**********************************************************
+ *
+ * tftp_done
+ *
+ * The done callback
+ *
+ **********************************************************/
+static CURLcode tftp_done(struct connectdata *conn, CURLcode status,
+                          bool premature)
+{
+  CURLcode result = CURLE_OK;
+  tftp_state_data_t *state = (tftp_state_data_t *)conn->proto.tftpc;
+
+  (void)status; /* unused */
+  (void)premature; /* not used */
+
+  if(Curl_pgrsDone(conn))
+    return CURLE_ABORTED_BY_CALLBACK;
+
+  /* If we have encountered an error */
+  if(state)
+    result = tftp_translate_code(state->error);
+
+  return result;
+}
+
+/**********************************************************
+ *
+ * tftp_getsock
+ *
+ * The getsock callback
+ *
+ **********************************************************/
+static int tftp_getsock(struct connectdata *conn, curl_socket_t *socks,
+                        int numsocks)
+{
+  if(!numsocks)
+    return GETSOCK_BLANK;
+
+  socks[0] = conn->sock[FIRSTSOCKET];
+
+  return GETSOCK_READSOCK(0);
+}
+
+/**********************************************************
+ *
+ * tftp_receive_packet
+ *
+ * Called once select fires and data is ready on the socket
+ *
+ **********************************************************/
+static CURLcode tftp_receive_packet(struct connectdata *conn)
+{
+  struct Curl_sockaddr_storage fromaddr;
+  curl_socklen_t        fromlen;
+  CURLcode              result = CURLE_OK;
+  struct Curl_easy  *data = conn->data;
+  tftp_state_data_t     *state = (tftp_state_data_t *)conn->proto.tftpc;
+  struct SingleRequest  *k = &data->req;
+
+  /* Receive the packet */
+  fromlen = sizeof(fromaddr);
+  state->rbytes = (int)recvfrom(state->sockfd,
+                                (void *)state->rpacket.data,
+                                state->blksize+4,
+                                0,
+                                (struct sockaddr *)&fromaddr,
+                                &fromlen);
+  if(state->remote_addrlen==0) {
+    memcpy(&state->remote_addr, &fromaddr, fromlen);
+    state->remote_addrlen = fromlen;
+  }
+
+  /* Sanity check packet length */
+  if(state->rbytes < 4) {
+    failf(data, "Received too short packet");
+    /* Not a timeout, but how best to handle it? */
+    state->event = TFTP_EVENT_TIMEOUT;
+  }
+  else {
+    /* The event is given by the TFTP packet time */
+    state->event = (tftp_event_t)getrpacketevent(&state->rpacket);
+
+    switch(state->event) {
+    case TFTP_EVENT_DATA:
+      /* Don't pass to the client empty or retransmitted packets */
+      if(state->rbytes > 4 &&
+         (NEXT_BLOCKNUM(state->block) == getrpacketblock(&state->rpacket))) {
+        result = Curl_client_write(conn, CLIENTWRITE_BODY,
+                                   (char *)state->rpacket.data+4,
+                                   state->rbytes-4);
+        if(result) {
+          tftp_state_machine(state, TFTP_EVENT_ERROR);
+          return result;
+        }
+        k->bytecount += state->rbytes-4;
+        Curl_pgrsSetDownloadCounter(data, (curl_off_t) k->bytecount);
+      }
+      break;
+    case TFTP_EVENT_ERROR:
+      state->error = (tftp_error_t)getrpacketblock(&state->rpacket);
+      infof(data, "%s\n", (const char *)state->rpacket.data+4);
+      break;
+    case TFTP_EVENT_ACK:
+      break;
+    case TFTP_EVENT_OACK:
+      result = tftp_parse_option_ack(state,
+                                     (const char *)state->rpacket.data+2,
+                                     state->rbytes-2);
+      if(result)
+        return result;
+      break;
+    case TFTP_EVENT_RRQ:
+    case TFTP_EVENT_WRQ:
+    default:
+      failf(data, "%s", "Internal error: Unexpected packet");
+      break;
+    }
+
+    /* Update the progress meter */
+    if(Curl_pgrsUpdate(conn)) {
+      tftp_state_machine(state, TFTP_EVENT_ERROR);
+      return CURLE_ABORTED_BY_CALLBACK;
+    }
+  }
+  return result;
+}
+
+/**********************************************************
+ *
+ * tftp_state_timeout
+ *
+ * Check if timeouts have been reached
+ *
+ **********************************************************/
+static long tftp_state_timeout(struct connectdata *conn, tftp_event_t *event)
+{
+  time_t                current;
+  tftp_state_data_t     *state = (tftp_state_data_t *)conn->proto.tftpc;
+
+  if(event)
+    *event = TFTP_EVENT_NONE;
+
+  time(&current);
+  if(current > state->max_time) {
+    DEBUGF(infof(conn->data, "timeout: %ld > %ld\n",
+                 (long)current, (long)state->max_time));
+    state->error = TFTP_ERR_TIMEOUT;
+    state->state = TFTP_STATE_FIN;
+    return 0;
+  }
+  else if(current > state->rx_time+state->retry_time) {
+    if(event)
+      *event = TFTP_EVENT_TIMEOUT;
+    time(&state->rx_time); /* update even though we received nothing */
+  }
+
+  /* there's a typecast below here since 'time_t' may in fact be larger than
+     'long', but we estimate that a 'long' will still be able to hold number
+     of seconds even if "only" 32 bit */
+  return (long)(state->max_time - current);
+}
+
+/**********************************************************
+ *
+ * tftp_multi_statemach
+ *
+ * Handle single RX socket event and return
+ *
+ **********************************************************/
+static CURLcode tftp_multi_statemach(struct connectdata *conn, bool *done)
+{
+  int                   rc;
+  tftp_event_t          event;
+  CURLcode              result = CURLE_OK;
+  struct Curl_easy  *data = conn->data;
+  tftp_state_data_t     *state = (tftp_state_data_t *)conn->proto.tftpc;
+  long                  timeout_ms = tftp_state_timeout(conn, &event);
+
+  *done = FALSE;
+
+  if(timeout_ms <= 0) {
+    failf(data, "TFTP response timeout");
+    return CURLE_OPERATION_TIMEDOUT;
+  }
+  else if(event != TFTP_EVENT_NONE) {
+    result = tftp_state_machine(state, event);
+    if(result)
+      return result;
+    *done = (state->state == TFTP_STATE_FIN) ? TRUE : FALSE;
+    if(*done)
+      /* Tell curl we're done */
+      Curl_setup_transfer(conn, -1, -1, FALSE, NULL, -1, NULL);
+  }
+  else {
+    /* no timeouts to handle, check our socket */
+    rc = Curl_socket_ready(state->sockfd, CURL_SOCKET_BAD, 0);
+
+    if(rc == -1) {
+      /* bail out */
+      int error = SOCKERRNO;
+      failf(data, "%s", Curl_strerror(conn, error));
+      state->event = TFTP_EVENT_ERROR;
+    }
+    else if(rc != 0) {
+      result = tftp_receive_packet(conn);
+      if(result)
+        return result;
+      result = tftp_state_machine(state, state->event);
+      if(result)
+        return result;
+      *done = (state->state == TFTP_STATE_FIN) ? TRUE : FALSE;
+      if(*done)
+        /* Tell curl we're done */
+        Curl_setup_transfer(conn, -1, -1, FALSE, NULL, -1, NULL);
+    }
+    /* if rc == 0, then select() timed out */
+  }
+
+  return result;
+}
+
+/**********************************************************
+ *
+ * tftp_doing
+ *
+ * Called from multi.c while DOing
+ *
+ **********************************************************/
+static CURLcode tftp_doing(struct connectdata *conn, bool *dophase_done)
+{
+  CURLcode result;
+  result = tftp_multi_statemach(conn, dophase_done);
+
+  if(*dophase_done) {
+    DEBUGF(infof(conn->data, "DO phase is complete\n"));
+  }
+  else if(!result) {
+    /* The multi code doesn't have this logic for the DOING state so we
+       provide it for TFTP since it may do the entire transfer in this
+       state. */
+    if(Curl_pgrsUpdate(conn))
+      result = CURLE_ABORTED_BY_CALLBACK;
+    else
+      result = Curl_speedcheck(conn->data, Curl_tvnow());
+  }
+  return result;
+}
+
+/**********************************************************
+ *
+ * tftp_peform
+ *
+ * Entry point for transfer from tftp_do, sarts state mach
+ *
+ **********************************************************/
+static CURLcode tftp_perform(struct connectdata *conn, bool *dophase_done)
+{
+  CURLcode              result = CURLE_OK;
+  tftp_state_data_t     *state = (tftp_state_data_t *)conn->proto.tftpc;
+
+  *dophase_done = FALSE;
+
+  result = tftp_state_machine(state, TFTP_EVENT_INIT);
+
+  if((state->state == TFTP_STATE_FIN) || result)
+    return result;
+
+  tftp_multi_statemach(conn, dophase_done);
+
+  if(*dophase_done)
+    DEBUGF(infof(conn->data, "DO phase is complete\n"));
+
+  return result;
+}
+
+
+/**********************************************************
+ *
+ * tftp_do
+ *
+ * The do callback
+ *
+ * This callback initiates the TFTP transfer
+ *
+ **********************************************************/
+
+static CURLcode tftp_do(struct connectdata *conn, bool *done)
+{
+  tftp_state_data_t *state;
+  CURLcode result;
+
+  *done = FALSE;
+
+  if(!conn->proto.tftpc) {
+    result = tftp_connect(conn, done);
+    if(result)
+      return result;
+  }
+
+  state = (tftp_state_data_t *)conn->proto.tftpc;
+  if(!state)
+    return CURLE_BAD_CALLING_ORDER;
+
+  result = tftp_perform(conn, done);
+
+  /* If tftp_perform() returned an error, use that for return code. If it
+     was OK, see if tftp_translate_code() has an error. */
+  if(!result)
+    /* If we have encountered an internal tftp error, translate it. */
+    result = tftp_translate_code(state->error);
+
+  return result;
+}
+
+static CURLcode tftp_setup_connection(struct connectdata * conn)
+{
+  struct Curl_easy *data = conn->data;
+  char * type;
+  char command;
+
+  conn->socktype = SOCK_DGRAM;   /* UDP datagram based */
+
+  /* TFTP URLs support an extension like ";mode=<typecode>" that
+   * we'll try to get now! */
+  type = strstr(data->state.path, ";mode=");
+
+  if(!type)
+    type = strstr(conn->host.rawalloc, ";mode=");
+
+  if(type) {
+    *type = 0;                   /* it was in the middle of the hostname */
+    command = Curl_raw_toupper(type[6]);
+
+    switch (command) {
+    case 'A': /* ASCII mode */
+    case 'N': /* NETASCII mode */
+      data->set.prefer_ascii = TRUE;
+      break;
+
+    case 'O': /* octet mode */
+    case 'I': /* binary mode */
+    default:
+      /* switch off ASCII */
+      data->set.prefer_ascii = FALSE;
+      break;
+    }
+  }
+
+  return CURLE_OK;
+}
 #endif
-#ifdef S_IFBLK
-			  ||((st->st_mode & S_IFMT) == S_IFBLK &&
-			      archive_entry_filetype(entry) == AE_IFBLK)
-#endif
-			  ||((st->st_mode & S_IFMT) == S_IFDIR &&
-			      archive_entry_filetype(entry) == AE_IFDIR)
-#ifdef S_IFIFO
-			  ||((st->st_mode & S_IFMT) == S_IFIFO &&
-			      archive_entry_filetype(entry) == AE_IFIFO)
-#endif
-			) {
-				/* Types match. */
-			} else {
-				/* Types don't match; bail out gracefully. */
-				if (mtree->fd >= 0)
-					close(mtree->fd);
-				mtree->fd = -1;
-				if (parsed_kws & MTREE_HAS_OPTIONAL) {
-					/* It's not an error for an optional
-					 * entry to not match disk. */
-					*use_next = 1;
-				} else if (r == ARCHIVE_OK) {
-					archive_set_error(&a->archive,
-					    ARCHIVE_ERRNO_MISC,
-					    "mtree specification has different"
-					    " type for %s",
-					    archive_entry_pathname(entry));
-					r = ARCHIVE_WARN;
-				}
-				return (r);
-			}
-		}
-
-		/*
-		 * If there is a contents file on disk, pick some of the
-		 * metadata from that file.  For most of these, we only
-		 * set it from the contents if it wasn't already parsed
-		 * from the specification.
-		 */
-		if (st != NULL) {
-			if (((parsed_kws & MTREE_HAS_DEVICE) == 0 ||
-				(parsed_kws & MTREE_HAS_NOCHANGE) != 0) &&
-				(archive_entry_filetype(entry) == AE_IFCHR ||
-				 archive_entry_filetype(entry) == AE_IFBLK))
-				archive_entry_set_rdev(entry, st->st_rdev);
-			if ((parsed_kws & (MTREE_HAS_GID | MTREE_HAS_GNAME))
-				== 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_gid(entry, st->st_gid);
-			if ((parsed_kws & (MTREE_HAS_UID | MTREE_HAS_UNAME))
-				== 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_uid(entry, st->st_uid);
-			if ((parsed_kws & MTREE_HAS_MTIME) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0) {
-#if HAVE_STRUCT_STAT_ST_MTIMESPEC_TV_NSEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtimespec.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIM_TV_NSEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtim.tv_nsec);
-#elif HAVE_STRUCT_STAT_ST_MTIME_N
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtime_n);
-#elif HAVE_STRUCT_STAT_ST_UMTIME
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_umtime*1000);
-#elif HAVE_STRUCT_STAT_ST_MTIME_USEC
-				archive_entry_set_mtime(entry, st->st_mtime,
-						st->st_mtime_usec*1000);
-#else
-				archive_entry_set_mtime(entry, st->st_mtime, 0);
-#endif
-			}
-			if ((parsed_kws & MTREE_HAS_NLINK) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_nlink(entry, st->st_nlink);
-			if ((parsed_kws & MTREE_HAS_PERM) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_perm(entry, st->st_mode);
-			if ((parsed_kws & MTREE_HAS_SIZE) == 0 ||
-			    (parsed_kws & MTREE_HAS_NOCHANGE) != 0)
-				archive_entry_set_size(entry, st->st_size);
-			archive_entry_set_ino(entry, st->st_ino);
-			archive_entry_set_dev(entry, st->st_dev);
-
-			archive_entry_linkify(mtree->resolver, &entry,
-				&sparse_entry);
-		} else if (parsed_kws & MTREE_HAS_OPTIONAL) {
-			/*
-			 * Couldn't open the entry, stat it or the on-disk type
-			 * didn't match.  If this entry is optional, just
-			 * ignore it and read the next header entry.
-			 */
-			*use_next = 1;
-			return ARCHIVE_OK;
-		}
-	}
-
-	mtree->cur_size = archive_entry_size(entry);
-	mtree->offset = 0;
-
-	return r;
-}
-
-/*
- * Each line contains a sequence of keywords.
- */
-static int
-parse_line(struct archive_read *a, struct archive_entry *entry,
-    struct mtree *mtree, struct mtree_entry *mp, int *parsed_kws)
-{
-	struct mtree_option *iter;
-	int r = ARCHIVE_OK, r1;
-
-	for (iter = mp->options; iter != NULL; iter = iter->next) {
-		r1 = parse_keyword(a, mtree, entry, iter, parsed_kws);
-		if (r1 < r)
-			r = r1;
-	}
-	if (r == ARCHIVE_OK && (*parsed_kws & MTREE_HAS_TYPE) == 0) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Missing type keyword in mtree specification");
-		return (ARCHIVE_WARN);
-	}
-	return (r);
-}
-
-/*
- * Device entries have one of the following forms:
- *  - raw dev_t
- *  - format,major,minor[,subdevice]
- * When parsing succeeded, `pdev' will contain the appropriate dev_t value.
- */
-
-/* strsep() is not in C90, but strcspn() is. */
-/* Taken from http://unixpapa.com/incnote/string.html */
-static char *
-la_strsep(char **sp, char *sep)
-{
-	char *p, *s;
-	if (sp == NULL || *sp == NULL || **sp == '\0')
-		return(NULL);
-	s = *sp;
-	p = s + strcspn(s, sep);
-	if (*p != '\0')
-		*p++ = '\0';
-	*sp = p;
-	return(s);
-}
-
-static int
-parse_device(dev_t *pdev, struct archive *a, char *val)
-{
-#define MAX_PACK_ARGS 3
-	unsigned long numbers[MAX_PACK_ARGS];
-	char *p, *dev;
-	int argc;
-	pack_t *pack;
-	dev_t result;
-	const char *error = NULL;
-
-	memset(pdev, 0, sizeof(*pdev));
-	if ((dev = strchr(val, ',')) != NULL) {
-		/*
-		 * Device's major/minor are given in a specified format.
-		 * Decode and pack it accordingly.
-		 */
-		*dev++ = '\0';
-		if ((pack = pack_find(val)) == NULL) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Unknown format `%s'", val);
-			return ARCHIVE_WARN;
-		}
-		argc = 0;
-		while ((p = la_strsep(&dev, ",")) != NULL) {
-			if (*p == '\0') {
-				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Missing number");
-				return ARCHIVE_WARN;
-			}
-			numbers[argc++] = (unsigned long)mtree_atol(&p);
-			if (argc > MAX_PACK_ARGS) {
-				archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Too many arguments");
-				return ARCHIVE_WARN;
-			}
-		}
-		if (argc < 2) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Not enough arguments");
-			return ARCHIVE_WARN;
-		}
-		result = (*pack)(argc, numbers, &error);
-		if (error != NULL) {
-			archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "%s", error);
-			return ARCHIVE_WARN;
-		}
-	} else {
-		/* file system raw value. */
-		result = (dev_t)mtree_atol(&val);
-	}
-	*pdev = result;
-	return ARCHIVE_OK;
-#undef MAX_PACK_ARGS
-}
-
-/*
- * Parse a single keyword and its value.
- */
-static int
-parse_keyword(struct archive_read *a, struct mtree *mtree,
-    struct archive_entry *entry, struct mtree_option *opt, int *parsed_kws)
-{
-	char *val, *key;
-
-	key = opt->value;
-
-	if (*key == '\0')
-		return (ARCHIVE_OK);
-
-	if (strcmp(key, "nochange") == 0) {
-		*parsed_kws |= MTREE_HAS_NOCHANGE;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "optional") == 0) {
-		*parsed_kws |= MTREE_HAS_OPTIONAL;
-		return (ARCHIVE_OK);
-	}
-	if (strcmp(key, "ignore") == 0) {
-		/*
-		 * The mtree processing is not recursive, so
-		 * recursion will only happen for explicitly listed
-		 * entries.
-		 */
-		return (ARCHIVE_OK);
-	}
-
-	val = strchr(key, '=');
-	if (val == NULL) {
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Malformed attribute \"%s\" (%d)", key, key[0]);
-		return (ARCHIVE_WARN);
-	}
-
-	*val = '\0';
-	++val;
-
-	switch (key[0]) {
-	case 'c':
-		if (strcmp(key, "content") == 0
-		    || strcmp(key, "contents") == 0) {
-			parse_escapes(val, NULL);
-			archive_strcpy(&mtree->contents_name, val);
-			break;
-		}
-		if (strcmp(key, "cksum") == 0)
-			break;
-	case 'd':
-		if (strcmp(key, "device") == 0) {
-			/* stat(2) st_rdev field, e.g. the major/minor IDs
-			 * of a char/block special file */
-			int r;
-			dev_t dev;
-
-			*parsed_kws |= MTREE_HAS_DEVICE;
-			r = parse_device(&dev, &a->archive, val);
-			if (r == ARCHIVE_OK)
-				archive_entry_set_rdev(entry, dev);
-			return r;
-		}
-	case 'f':
-		if (strcmp(key, "flags") == 0) {
-			*parsed_kws |= MTREE_HAS_FFLAGS;
-			archive_entry_copy_fflags_text(entry, val);
-			break;
-		}
-	case 'g':
-		if (strcmp(key, "gid") == 0) {
-			*parsed_kws |= MTREE_HAS_GID;
-			archive_entry_set_gid(entry, mtree_atol10(&val));
-			break;
-		}
-		if (strcmp(key, "gname") == 0) {
-			*parsed_kws |= MTREE_HAS_GNAME;
-			archive_entry_copy_gname(entry, val);
-			break;
-		}
-	case 'i':
-		if (strcmp(key, "inode") == 0) {
-			archive_entry_set_ino(entry, mtree_atol10(&val));
-			break;
-		}
-	case 'l':
-		if (strcmp(key, "link") == 0) {
-			archive_entry_copy_symlink(entry, val);
-			break;
-		}
-	case 'm':
-		if (strcmp(key, "md5") == 0 || strcmp(key, "md5digest") == 0)
-			break;
-		if (strcmp(key, "mode") == 0) {
-			if (val[0] >= '0' && val[0] <= '9') {
-				*parsed_kws |= MTREE_HAS_PERM;
-				archive_entry_set_perm(entry,
-				    (mode_t)mtree_atol8(&val));
-			} else {
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Symbolic mode \"%s\" unsupported", val);
-				return ARCHIVE_WARN;
-			}
-			break;
-		}
-	case 'n':
-		if (strcmp(key, "nlink") == 0) {
-			*parsed_kws |= MTREE_HAS_NLINK;
-			archive_entry_set_nlink(entry,
-				(unsigned int)mtree_atol10(&val));
-			break;
-		}
-	case 'r':
-		if (strcmp(key, "resdevice") == 0) {
-			/* stat(2) st_dev field, e.g. the device ID where the
-			 * inode resides */
-			int r;
-			dev_t dev;
-
-			r = parse_device(&dev, &a->archive, val);
-			if (r == ARCHIVE_OK)
-				archive_entry_set_dev(entry, dev);
-			return r;
-		}
-		if (strcmp(key, "rmd160") == 0 ||
-		    strcmp(key, "rmd160digest") == 0)
-			break;
-	case 's':
-		if (strcmp(key, "sha1") == 0 || strcmp(key, "sha1digest") == 0)
-			break;
-		if (strcmp(key, "sha256") == 0 ||
-		    strcmp(key, "sha256digest") == 0)
-			break;
-		if (strcmp(key, "sha384") == 0 ||
-		    strcmp(key, "sha384digest") == 0)
-			break;
-		if (strcmp(key, "sha512") == 0 ||
-		    strcmp(key, "sha512digest") == 0)
-			break;
-		if (strcmp(key, "size") == 0) {
-			archive_entry_set_size(entry, mtree_atol10(&val));
-			break;
-		}
-	case 't':
-		if (strcmp(key, "tags") == 0) {
-			/*
-			 * Comma delimited list of tags.
-			 * Ignore the tags for now, but the interface
-			 * should be extended to allow inclusion/exclusion.
-			 */
-			break;
-		}
-		if (strcmp(key, "time") == 0) {
-			int64_t m;
-			int64_t my_time_t_max = get_time_t_max();
-			int64_t my_time_t_min = get_time_t_min();
-			long ns;
-
-			*parsed_kws |= MTREE_HAS_MTIME;
-			m = mtree_atol10(&val);
-			/* Replicate an old mtree bug:
-			 * 123456789.1 represents 123456789
-			 * seconds and 1 nanosecond. */
-			if (*val == '.') {
-				++val;
-				ns = (long)mtree_atol10(&val);
-			} else
-				ns = 0;
-			if (m > my_time_t_max)
-				m = my_time_t_max;
-			else if (m < my_time_t_min)
-				m = my_time_t_min;
-			archive_entry_set_mtime(entry, (time_t)m, ns);
-			break;
-		}
-		if (strcmp(key, "type") == 0) {
-			switch (val[0]) {
-			case 'b':
-				if (strcmp(val, "block") == 0) {
-					archive_entry_set_filetype(entry, AE_IFBLK);
-					break;
-				}
-			case 'c':
-				if (strcmp(val, "char") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFCHR);
-					break;
-				}
-			case 'd':
-				if (strcmp(val, "dir") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFDIR);
-					break;
-				}
-			case 'f':
-				if (strcmp(val, "fifo") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFIFO);
-					break;
-				}
-				if (strcmp(val, "file") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFREG);
-					break;
-				}
-			case 'l':
-				if (strcmp(val, "link") == 0) {
-					archive_entry_set_filetype(entry,
-						AE_IFLNK);
-					break;
-				}
-			default:
-				archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_FILE_FORMAT,
-				    "Unrecognized file type \"%s\"; "
-				    "assuming \"file\"", val);
-				archive_entry_set_filetype(entry, AE_IFREG);
-				return (ARCHIVE_WARN);
-			}
-			*parsed_kws |= MTREE_HAS_TYPE;
-			break;
-		}
-	case 'u':
-		if (strcmp(key, "uid") == 0) {
-			*parsed_kws |= MTREE_HAS_UID;
-			archive_entry_set_uid(entry, mtree_atol10(&val));
-			break;
-		}
-		if (strcmp(key, "uname") == 0) {
-			*parsed_kws |= MTREE_HAS_UNAME;
-			archive_entry_copy_uname(entry, val);
-			break;
-		}
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-		    "Unrecognized key %s=%s", key, val);
-		return (ARCHIVE_WARN);
-	}
-	return (ARCHIVE_OK);
-}
-
-static int
-read_data(struct archive_read *a, const void **buff, size_t *size,
-    int64_t *offset)
-{
-	size_t bytes_to_read;
-	ssize_t bytes_read;
-	struct mtree *mtree;
-
-	mtree = (struct mtree *)(a->format->data);
-	if (mtree->fd < 0) {
-		*buff = NULL;
-		*offset = 0;
-		*size = 0;
-		return (ARCHIVE_EOF);
-	}
-	if (mtree->buff == NULL) {
-		mtree->buffsize = 64 * 1024;
-		mtree->buff = malloc(mtree->buffsize);
-		if (mtree->buff == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate memory");
-			return (ARCHIVE_FATAL);
-		}
-	}
-
-	*buff = mtree->buff;
-	*offset = mtree->offset;
-	if ((int64_t)mtree->buffsize > mtree->cur_size - mtree->offset)
-		bytes_to_read = (size_t)(mtree->cur_size - mtree->offset);
-	else
-		bytes_to_read = mtree->buffsize;
-	bytes_read = read(mtree->fd, mtree->buff, bytes_to_read);
-	if (bytes_read < 0) {
-		archive_set_error(&a->archive, errno, "Can't read");
-		return (ARCHIVE_WARN);
-	}
-	if (bytes_read == 0) {
-		*size = 0;
-		return (ARCHIVE_EOF);
-	}
-	mtree->offset += bytes_read;
-	*size = bytes_read;
-	return (ARCHIVE_OK);
-}
-
-/* Skip does nothing except possibly close the contents file. */
-static int
-skip(struct archive_read *a)
-{
-	struct mtree *mtree;
-
-	mtree = (struct mtree *)(a->format->data);
-	if (mtree->fd >= 0) {
-		close(mtree->fd);
-		mtree->fd = -1;
-	}
-	return (ARCHIVE_OK);
-}
-
-/*
- * Since parsing backslash sequences always makes strings shorter,
- * we can always do this conversion in-place.
- */
-static void
-parse_escapes(char *src, struct mtree_entry *mentry)
-{
-	char *dest = src;
-	char c;
-
-	if (mentry != NULL && strcmp(src, ".") == 0)
-		mentry->full = 1;
-
-	while (*src != '\0') {
-		c = *src++;
-		if (c == '/' && mentry != NULL)
-			mentry->full = 1;
-		if (c == '\\') {
-			switch (src[0]) {
-			case '0':
-				if (src[1] < '0' || src[1] > '7') {
-					c = 0;
-					++src;
-					break;
-				}
-				/* FALLTHROUGH */
-			case '1':
-			case '2':
-			case '3':
-				if (src[1] >= '0' && src[1] <= '7' &&
-				    src[2] >= '0' && src[2] <= '7') {
-					c = (src[0] - '0') << 6;
-					c |= (src[1] - '0') << 3;
-					c |= (src[2] - '0');
-					src += 3;
-				}
-				break;
-			case 'a':
-				c = '\a';
-				++src;
-				break;
-			case 'b':
-				c = '\b';
-				++src;
-				break;
-			case 'f':
-				c = '\f';
-				++src;
-				break;
-			case 'n':
-				c = '\n';
-				++src;
-				break;
-			case 'r':
-				c = '\r';
-				++src;
-				break;
-			case 's':
-				c = ' ';
-				++src;
-				break;
-			case 't':
-				c = '\t';
-				++src;
-				break;
-			case 'v':
-				c = '\v';
-				++src;
-				break;
-			case '\\':
-				c = '\\';
-				++src;
-				break;
-			}
-		}
-		*dest++ = c;
-	}
-	*dest = '\0';
-}
-
-/*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
- */
-static int64_t
-mtree_atol8(char **p)
-{
-	int64_t	l, limit, last_digit_limit;
-	int digit, base;
-
-	base = 8;
-	limit = INT64_MAX / base;
-	last_digit_limit = INT64_MAX % base;
-
-	l = 0;
-	digit = **p - '0';
-	while (digit >= 0 && digit < base) {
-		if (l>limit || (l == limit && digit > last_digit_limit)) {
-			l = INT64_MAX; /* Truncate on overflow. */
-			break;
-		}
-		l = (l * base) + digit;
-		digit = *++(*p) - '0';
-	}
-	return (l);
-}
-
-/*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
- */
-static int64_t
-mtree_atol10(char **p)
-{
-	int64_t l, limit, last_digit_limit;
-	int base, digit, sign;
-
-	base = 10;
-
-	if (**p == '-') {
-		sign = -1;
-		limit = ((uint64_t)(INT64_MAX) + 1) / base;
-		last_digit_limit = ((uint64_t)(INT64_MAX) + 1) % base;
-		++(*p);
-	} else {
-		sign = 1;
-		limit = INT64_MAX / base;
-		last_digit_limit = INT64_MAX % base;
-	}
-
-	l = 0;
-	digit = **p - '0';
-	while (digit >= 0 && digit < base) {
-		if (l > limit || (l == limit && digit > last_digit_limit))
-			return (sign < 0) ? INT64_MIN : INT64_MAX;
-		l = (l * base) + digit;
-		digit = *++(*p) - '0';
-	}
-	return (sign < 0) ? -l : l;
-}
-
-/* Parse a hex digit. */
-static int
-parsehex(char c)
-{
-	if (c >= '0' && c <= '9')
-		return c - '0';
-	else if (c >= 'a' && c <= 'f')
-		return c - 'a';
-	else if (c >= 'A' && c <= 'F')
-		return c - 'A';
-	else
-		return -1;
-}
-
-/*
- * Note that this implementation does not (and should not!) obey
- * locale settings; you cannot simply substitute strtol here, since
- * it does obey locale.
- */
-static int64_t
-mtree_atol16(char **p)
-{
-	int64_t l, limit, last_digit_limit;
-	int base, digit, sign;
-
-	base = 16;
-
-	if (**p == '-') {
-		sign = -1;
-		limit = ((uint64_t)(INT64_MAX) + 1) / base;
-		last_digit_limit = ((uint64_t)(INT64_MAX) + 1) % base;
-		++(*p);
-	} else {
-		sign = 1;
-		limit = INT64_MAX / base;
-		last_digit_limit = INT64_MAX % base;
-	}
-
-	l = 0;
-	digit = parsehex(**p);
-	while (digit >= 0 && digit < base) {
-		if (l > limit || (l == limit && digit > last_digit_limit))
-			return (sign < 0) ? INT64_MIN : INT64_MAX;
-		l = (l * base) + digit;
-		digit = parsehex(*++(*p));
-	}
-	return (sign < 0) ? -l : l;
-}
-
-static int64_t
-mtree_atol(char **p)
-{
-	if (**p != '0')
-		return mtree_atol10(p);
-	if ((*p)[1] == 'x' || (*p)[1] == 'X') {
-		*p += 2;
-		return mtree_atol16(p);
-	}
-	return mtree_atol8(p);
-}
-
-/*
- * Returns length of line (including trailing newline)
- * or negative on error.  'start' argument is updated to
- * point to first character of line.
- */
-static ssize_t
-readline(struct archive_read *a, struct mtree *mtree, char **start,
-    ssize_t limit)
-{
-	ssize_t bytes_read;
-	ssize_t total_size = 0;
-	ssize_t find_off = 0;
-	const void *t;
-	void *nl;
-	char *u;
-
-	/* Accumulate line in a line buffer. */
-	for (;;) {
-		/* Read some more. */
-		t = __archive_read_ahead(a, 1, &bytes_read);
-		if (t == NULL)
-			return (0);
-		if (bytes_read < 0)
-			return (ARCHIVE_FATAL);
-		nl = memchr(t, '\n', bytes_read);
-		/* If we found '\n', trim the read to end exactly there. */
-		if (nl != NULL) {
-			bytes_read = ((const char *)nl) - ((const char *)t) + 1;
-		}
-		if (total_size + bytes_read + 1 > limit) {
-			archive_set_error(&a->archive,
-			    ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Line too long");
-			return (ARCHIVE_FATAL);
-		}
-		if (archive_string_ensure(&mtree->line,
-			total_size + bytes_read + 1) == NULL) {
-			archive_set_error(&a->archive, ENOMEM,
-			    "Can't allocate working buffer");
-			return (ARCHIVE_FATAL);
-		}
-		/* Append new bytes to string. */
-		memcpy(mtree->line.s + total_size, t, bytes_read);
-		__archive_read_consume(a, bytes_read);
-		total_size += bytes_read;
-		mtree->line.s[total_size] = '\0';
-
-		for (u = mtree->line.s + find_off; *u; ++u) {
-			if (u[0] == '\n') {
-				/* Ends with unescaped newline. */
-				*start = mtree->line.s;
-				return total_size;
-			} else if (u[0] == '#') {
-				/* Ends with comment sequence #...\n */
-				if (nl == NULL) {
-					/* But we've not found the \n yet */
-					break;
-				}
-			} else if (u[0] == '\\') {
-				if (u[1] == '\n') {
-					/* Trim escaped newline. */
-					total_size -= 2;
-					mtree->line.s[total_size] = '\0';
-					break;
-				} else if (u[1] != '\0') {
-					/* Skip the two-char escape sequence */
-					++u;
-				}
-			}
-		}
-		find_off = u - mtree->line.s;
-	}
-}

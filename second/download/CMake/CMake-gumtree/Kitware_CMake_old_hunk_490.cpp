@@ -1,16 +1,9 @@
-
-  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
-
-  error = Curl_base64_encode(data,
-                             data->state.buffer, strlen(data->state.buffer),
-                             &authorization, &size);
-  if(error)
-    return error;
-
-  if(!authorization)
-    return CURLE_REMOTE_ACCESS_DENIED;
-
-  Curl_safefree(*userp);
-  *userp = aprintf("%sAuthorization: Basic %s\r\n",
-                   proxy?"Proxy-":"",
-                   authorization);
+		/* We're done with the regular data; get the filename and
+		 * extra data. */
+		__archive_read_consume(a, 46);
+		if ((p = __archive_read_ahead(a, filename_length + extra_length, NULL))
+		    == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Truncated ZIP file header");
+			return ARCHIVE_FATAL;
+		}

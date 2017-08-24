@@ -1,0 +1,1 @@
+((uintptr_t) w1->loop > (uintptr_t) w2->loop) return 1;

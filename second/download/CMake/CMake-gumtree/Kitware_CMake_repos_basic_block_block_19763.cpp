@@ -1,0 +1,1 @@
+return (uint64_t) info.totalram * info.mem_unit;

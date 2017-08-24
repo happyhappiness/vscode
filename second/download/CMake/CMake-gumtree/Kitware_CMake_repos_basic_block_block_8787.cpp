@@ -1,0 +1,1 @@
+insert_entry(res, *e)

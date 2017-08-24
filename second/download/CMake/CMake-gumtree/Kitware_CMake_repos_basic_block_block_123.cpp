@@ -1,0 +1,1 @@
+form->cols = maximum_col_in_field

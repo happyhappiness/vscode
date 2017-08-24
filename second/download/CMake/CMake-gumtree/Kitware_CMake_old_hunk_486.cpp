@@ -1,22 +1,14 @@
- */
-CURL *curl_easy_init(void)
-{
-  CURLcode res;
-  struct SessionHandle *data;
+		zip->end_of_entry = 1;
 
-  /* Make sure we inited the global SSL stuff */
-  if(!initialized) {
-    res = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if(res) {
-      /* something in the global init failed, return nothing */
-      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      return NULL;
-    }
-  }
+	/* Set up a more descriptive format name. */
+	snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));
+	a->archive.archive_format_name = zip->format_name;
 
-  /* We use curl_open() with undefined URL so far */
-  res = Curl_open(&data);
-  if(res != CURLE_OK) {
-    DEBUGF(fprintf(stderr, "Error: Curl_open failed\n"));
-    return NULL;
-  }
+	return (ret);
+}
+
+/*
+ * Read "uncompressed" data.  There are three cases:
+ *  1) We know the size of the data.  This is always true for the

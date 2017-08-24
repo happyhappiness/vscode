@@ -1,0 +1,1 @@
+infof(data, "%s\n", cp2)

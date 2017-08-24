@@ -1,0 +1,3 @@
+{
+			mode &= ~ S_ISGID;
+		}

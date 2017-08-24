@@ -1,7 +1,13 @@
-    case STATUS_NO_MEMORY:
-    default:
-      cp->ExitException = kwsysProcess_Exception_Other;
-      _snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE, "Exit code 0x%x\n", code);
-      break;
-    }
-}
+    if (useOldLinkLibs)
+      {
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",
+              targetName.c_str());
+      }
+    else
+      {
+      fprintf(fout, "target_link_libraries(%s %s)\n",
+              targetName.c_str(),
+              libsToLink.c_str());
+      }
+    fclose(fout);

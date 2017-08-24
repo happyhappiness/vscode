@@ -1,13 +1,15 @@
-      << covLogFilename << std::endl);
-    return false;
+    if(((httpreq == HTTPREQ_GET) || (httpreq == HTTPREQ_HEAD)) &&
+       !Curl_checkheaders(conn, "Range:")) {
+      /* if a line like this was already allocated, free the previous one */
+      free(conn->allocptr.rangeline);
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);
     }
-  return true;
-}
+    else if((httpreq != HTTPREQ_GET) &&
+            !Curl_checkheaders(conn, "Content-Range:")) {
 
-//----------------------------------------------------------------------
-void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
-  int logFileCount)
-{
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
+      /* if a line like this was already allocated, free the previous one */
+      free(conn->allocptr.rangeline);
+
+      if(data->set.set_resume_from < 0) {
+        /* Upload resume was asked for, but we don't know the size of the

@@ -1,0 +1,1 @@
+boot_time = utmp_buf->ut_time

@@ -1,0 +1,1 @@
+RETURN(E_NO_ROOM)

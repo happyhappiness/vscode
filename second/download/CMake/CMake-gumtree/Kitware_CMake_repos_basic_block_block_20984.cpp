@@ -1,0 +1,1 @@
+rwlock->state_.num_readers_++

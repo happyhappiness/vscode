@@ -1,0 +1,1 @@
+archive_entry_set_hardlink(entry, file->hardlink.s)

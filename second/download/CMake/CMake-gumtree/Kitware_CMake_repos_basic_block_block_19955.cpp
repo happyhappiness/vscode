@@ -1,0 +1,4 @@
+{
+      err = -errno;
+      return err;
+    }

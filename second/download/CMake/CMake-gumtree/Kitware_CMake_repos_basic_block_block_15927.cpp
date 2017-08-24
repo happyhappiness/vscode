@@ -1,0 +1,1 @@
+close(iso9660->temp_fd)

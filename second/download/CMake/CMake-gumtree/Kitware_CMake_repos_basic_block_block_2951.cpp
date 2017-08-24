@@ -1,0 +1,1 @@
+VPrintf1 ( "%6d unresolved strings\n", nNotDone )

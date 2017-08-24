@@ -1,7 +1,7 @@
-			return (ARCHIVE_WARN);
-		}
-		/* Check computed CRC against header */
-		if (zip->entry->crc32 != zip->entry_crc32
-		    && !zip->ignore_crc32) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "ZIP bad CRC: 0x%lx should be 0x%lx",
+	 * We don't have lz4 library, and execute external lz4 program
+	 * instead.
+	 */
+	data->pdata = __archive_write_program_allocate();
+	if (data->pdata == NULL) {
+		free(data);
+		archive_set_error(&a->archive, ENOMEM, "Out of memory");

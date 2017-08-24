@@ -1,0 +1,2 @@
+(err == KERN_RESOURCE_SHORTAGE)
+    return -ENOMEM;

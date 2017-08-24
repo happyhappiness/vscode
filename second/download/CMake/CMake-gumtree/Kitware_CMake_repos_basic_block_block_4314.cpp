@@ -1,0 +1,3 @@
+{
+    digest = &data->state.proxydigest;
+  }

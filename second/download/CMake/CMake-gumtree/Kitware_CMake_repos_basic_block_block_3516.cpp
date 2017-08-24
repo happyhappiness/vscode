@@ -1,0 +1,1 @@
+(uc == 1) s->inUse[i * 16 + j] = True

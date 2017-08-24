@@ -1,0 +1,1 @@
+iso9660->volume_space_size += PADDING_BLOCK

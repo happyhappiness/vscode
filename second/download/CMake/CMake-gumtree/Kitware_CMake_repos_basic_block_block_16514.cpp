@@ -1,0 +1,1 @@
+set_num_721(&p[2], iso9660->el_torito.boot_load_seg)

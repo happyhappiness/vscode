@@ -1,0 +1,1 @@
+__archive_read_seek(a, 0, SEEK_SET)

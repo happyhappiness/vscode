@@ -1,7 +1,7 @@
-  char buffer[1024];
-  sprintf(buffer, "%d", static_cast<int>(length));
+    }
+  strftime(tmp, sizeof(tmp), fmt, localtime(&tim));
+  fprintf(out, " %s ", tmp);
+  fprintf(out, "%s", cm_archive_entry_pathname(entry).c_str());
 
-  this->Makefile->AddDefinition(variableName, buffer);
-  return true;
-}
-
+  /* Extra information for links. */
+  if (archive_entry_hardlink(entry)) /* Hard link */

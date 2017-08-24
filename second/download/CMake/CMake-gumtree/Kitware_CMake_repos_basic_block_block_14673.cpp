@@ -1,0 +1,1 @@
+data->compression_level = 6
