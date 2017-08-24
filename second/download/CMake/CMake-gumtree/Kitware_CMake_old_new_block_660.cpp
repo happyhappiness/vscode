@@ -1,2 +1,4 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                 conn->ip_addr_str)
+{
+      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
+              exception);
+      }

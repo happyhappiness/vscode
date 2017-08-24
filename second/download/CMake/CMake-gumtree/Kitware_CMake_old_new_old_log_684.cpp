@@ -1,0 +1,1 @@
+fprintf(stderr, "Entering state %d\n", yystate);

@@ -1,46 +1,57 @@
-static CURLcode sasl_create_cram_md5_message(struct SessionHandle *data,
-                                             const char *chlg,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             char **outptr, size_t *outlen)
+static ssize_t
+lzma_filter_read(struct archive_read_filter *self, const void **p)
 {
-  CURLcode result = CURLE_OK;
-  size_t chlglen = 0;
-  HMAC_context *ctxt;
-  unsigned char digest[MD5_DIGEST_LEN];
-  char *response;
+	struct private_data *state;
+	size_t decompressed;
+	ssize_t avail_in, ret;
 
-  if(chlg)
-    chlglen = strlen(chlg);
+	state = (struct private_data *)self->data;
 
-  /* Compute the digest using the password as the key */
-  ctxt = Curl_HMAC_init(Curl_HMAC_MD5,
-                        (const unsigned char *) passwdp,
-                        curlx_uztoui(strlen(passwdp)));
-  if(!ctxt)
-    return CURLE_OUT_OF_MEMORY;
+	/* Empty our output buffer. */
+	state->stream.next_out = state->out_block;
+	state->stream.avail_out = state->out_block_size;
 
-  /* Update the digest with the given challenge */
-  if(chlglen > 0)
-    Curl_HMAC_update(ctxt, (const unsigned char *) chlg,
-                     curlx_uztoui(chlglen));
+	/* Try to fill the output buffer. */
+	while (state->stream.avail_out > 0 && !state->eof) {
+		state->stream.next_in = (unsigned char *)(uintptr_t)
+		    __archive_read_filter_ahead(self->upstream, 1, &avail_in);
+		if (state->stream.next_in == NULL && avail_in < 0) {
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "truncated lzma input");
+			return (ARCHIVE_FATAL);
+		}
+		state->stream.avail_in = avail_in;
 
-  /* Finalise the digest */
-  Curl_HMAC_final(ctxt, digest);
+		/* Decompress as much as we can in one pass. */
+		ret = lzmadec_decode(&(state->stream), avail_in == 0);
+		switch (ret) {
+		case LZMADEC_STREAM_END: /* Found end of stream. */
+			state->eof = 1;
+			/* FALL THROUGH */
+		case LZMADEC_OK: /* Decompressor made some progress. */
+			__archive_read_filter_consume(self->upstream,
+			    avail_in - state->stream.avail_in);
+			break;
+		case LZMADEC_BUF_ERROR: /* Insufficient input data? */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Insufficient compressed data");
+			return (ARCHIVE_FATAL);
+		default:
+			/* Return an error. */
+			archive_set_error(&self->archive->archive,
+			    ARCHIVE_ERRNO_MISC,
+			    "Lzma decompression failed");
+			return (ARCHIVE_FATAL);
+		}
+	}
 
-  /* Generate the response */
-  response = aprintf(
-      "%s %02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
-           userp, digest[0], digest[1], digest[2], digest[3], digest[4],
-           digest[5], digest[6], digest[7], digest[8], digest[9], digest[10],
-           digest[11], digest[12], digest[13], digest[14], digest[15]);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the response */
-  result = Curl_base64_encode(data, response, 0, outptr, outlen);
-
-  free(response);
-
-  return result;
+	decompressed = state->stream.next_out - state->out_block;
+	state->total_out += decompressed;
+	if (decompressed == 0)
+		*p = NULL;
+	else
+		*p = state->out_block;
+	return (decompressed);
 }

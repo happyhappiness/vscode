@@ -1,2 +1,2 @@
-snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
-               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+archive_set_error(&a->archive, errno,
+		    "Failed to get first ACL entry");

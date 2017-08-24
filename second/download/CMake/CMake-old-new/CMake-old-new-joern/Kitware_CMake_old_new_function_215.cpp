@@ -1,46 +1,20 @@
-int
-__archive_write_program_open(struct archive_write_filter *f,
-    struct archive_write_program_data *data, const char *cmd)
+static CURLcode sasl_create_xoauth2_message(struct SessionHandle *data,
+                                            const char *user,
+                                            const char *bearer,
+                                            char **outptr, size_t *outlen)
 {
-	pid_t child;
-	int ret;
+  CURLcode result = CURLE_OK;
+  char *xoauth = NULL;
 
-	ret = __archive_write_open_filter(f->next_filter);
-	if (ret != ARCHIVE_OK)
-		return (ret);
+  /* Generate the message */
+  xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
+  if(!xoauth)
+    return CURLE_OUT_OF_MEMORY;
 
-	if (data->child_buf == NULL) {
-		data->child_buf_len = 65536;
-		data->child_buf_avail = 0;
-		data->child_buf = malloc(data->child_buf_len);
+  /* Base64 encode the reply */
+  result = Curl_base64_encode(data, xoauth, strlen(xoauth), outptr, outlen);
 
-		if (data->child_buf == NULL) {
-			archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate compression buffer");
-			return (ARCHIVE_FATAL);
-		}
-	}
+  free(xoauth);
 
-	child = __archive_create_child(cmd, &data->child_stdin,
-		    &data->child_stdout);
-	if (child == -1) {
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
-	if (data->child == NULL) {
-		close(data->child_stdin);
-		data->child_stdin = -1;
-		close(data->child_stdout);
-		data->child_stdout = -1;
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
-#else
-	data->child = child;
-#endif
-	return (ARCHIVE_OK);
+  return result;
 }

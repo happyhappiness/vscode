@@ -1,31 +1,32 @@
 {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
+  // Create a fake output that forces the rule to run.
+  char* output = new char[(strlen(this->Makefile->GetCurrentBinaryDirectory())
+                           + target.GetName().size() + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetCurrentBinaryDirectory(),
+          target.GetName().c_str(), count);
+  const char* comment = origCommand.GetComment();
+  if(!comment && origCommand.GetOutputs().empty())
+    {
+    comment = "<hack>";
+    }
 
-      fprintf(fout, " %08X", pSymbolTable->Value);
+  // Add the rule with the given dependencies and commands.
+  std::string no_main_dependency = "";
+  if(cmSourceFile* outsf =
+     this->Makefile->AddCustomCommandToOutput(
+       output, depends, no_main_dependency,
+       origCommand.GetCommandLines(), comment,
+       origCommand.GetWorkingDirectory().c_str()))
+    {
+    cmGeneratorTarget* gt = this->GlobalGenerator->GetGeneratorTarget(&target);
+    gt->AddSource(outsf->GetFullPath());
+    }
 
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
+  // Replace the dependencies with the output of this rule so that the
+  // next rule added will run after this one.
+  depends.clear();
+  depends.push_back(output);
 
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
-#endif
-
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+  // Free the fake output name.
+  delete [] output;
+}

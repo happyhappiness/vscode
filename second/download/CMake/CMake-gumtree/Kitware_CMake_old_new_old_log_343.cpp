@@ -1,1 +1,2 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name);
+fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
+      cSymbols);

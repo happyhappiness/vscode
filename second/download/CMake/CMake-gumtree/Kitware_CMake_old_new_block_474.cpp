@@ -1,1 +1,6 @@
-snprintf((char *)&dest[i*2], 3, "%02x", source[i])
+{
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't CreateFileW");
+				return (ARCHIVE_FAILED);
+			}

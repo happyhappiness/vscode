@@ -1,0 +1,1 @@
+YYFPRINTF (stderr, "Stack now");

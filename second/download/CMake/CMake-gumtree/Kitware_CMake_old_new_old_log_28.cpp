@@ -1,2 +1,3 @@
-snprintf(buf, sizeof(data->state.buffer),
-               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symbolic mode \"%s\" unsupported", val);

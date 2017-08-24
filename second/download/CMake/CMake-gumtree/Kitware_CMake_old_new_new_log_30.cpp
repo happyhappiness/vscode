@@ -1,1 +1,2 @@
-snprintf(buf, len, "%ld%s", conn->port, hostname);
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not chdir ", path);

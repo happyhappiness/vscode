@@ -1,0 +1,1 @@
+fprintf(fout, "LINK_DIRECTORIES(${LINK_DIRECTORIES})\n");

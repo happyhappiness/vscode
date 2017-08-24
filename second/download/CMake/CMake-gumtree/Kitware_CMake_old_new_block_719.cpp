@@ -1,4 +1,21 @@
 {
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
-               }
+              case cmsysProcess_Exception_Fault:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::SEGFAULT;
+                break;
+              case cmsysProcess_Exception_Illegal:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::ILLEGAL;
+                break;
+              case cmsysProcess_Exception_Interrupt:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::INTERRUPT;
+                break;
+              case cmsysProcess_Exception_Numerical:
+                fprintf(stderr,"SegFault");
+                cres.m_Status = cmCTest::NUMERICAL;
+                break;
+              default:
+                fprintf(stderr,"Other");
+                cres.m_Status = cmCTest::OTHER_FAULT;
+                }

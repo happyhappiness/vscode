@@ -1,3 +1,2 @@
-fsobj_error(a_eno, a_estr,
-						    ARCHIVE_ERRNO_MISC,
-						    "Path contains ", "'..'");
+snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

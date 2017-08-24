@@ -1,162 +1,159 @@
-static int
-decompress(struct archive_read *a, const void **buff, size_t *outbytes,
-    const void *b, size_t *used)
+CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
+                                             const char *chlg64,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             const char *service,
+                                             char **outptr, size_t *outlen)
 {
-	struct xar *xar;
-	void *outbuff;
-	size_t avail_in, avail_out;
-	int r;
+  CURLcode result = CURLE_OK;
+  size_t i;
+  MD5_context *ctxt;
+  char *response = NULL;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
+  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
+  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
+  char nonce[64];
+  char realm[128];
+  char algorithm[64];
+  char qop_options[64];
+  int qop_values;
+  char cnonce[33];
+  unsigned int entropy[4];
+  char nonceCount[] = "00000001";
+  char method[]     = "AUTHENTICATE";
+  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
+  char *spn         = NULL;
 
-	xar = (struct xar *)(a->format->data);
-	avail_in = *used;
-	outbuff = (void *)(uintptr_t)*buff;
-	if (outbuff == NULL) {
-		if (xar->outbuff == NULL) {
-			xar->outbuff = malloc(OUTBUFF_SIZE);
-			if (xar->outbuff == NULL) {
-				archive_set_error(&a->archive, ENOMEM,
-				    "Couldn't allocate memory for out buffer");
-				return (ARCHIVE_FATAL);
-			}
-		}
-		outbuff = xar->outbuff;
-		*buff = outbuff;
-		avail_out = OUTBUFF_SIZE;
-	} else
-		avail_out = *outbytes;
-	switch (xar->rd_encoding) {
-	case GZIP:
-		xar->stream.next_in = (Bytef *)(uintptr_t)b;
-		xar->stream.avail_in = avail_in;
-		xar->stream.next_out = (unsigned char *)outbuff;
-		xar->stream.avail_out = avail_out;
-		r = inflate(&(xar->stream), 0);
-		switch (r) {
-		case Z_OK: /* Decompressor made some progress.*/
-		case Z_STREAM_END: /* Found end of stream. */
-			break;
-		default:
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "File decompression failed (%d)", r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->stream.avail_in;
-		*outbytes = avail_out - xar->stream.avail_out;
-		break;
-#if defined(HAVE_BZLIB_H) && defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-		xar->bzstream.next_in = (char *)(uintptr_t)b;
-		xar->bzstream.avail_in = avail_in;
-		xar->bzstream.next_out = (char *)outbuff;
-		xar->bzstream.avail_out = avail_out;
-		r = BZ2_bzDecompress(&(xar->bzstream));
-		switch (r) {
-		case BZ_STREAM_END: /* Found end of stream. */
-			switch (BZ2_bzDecompressEnd(&(xar->bzstream))) {
-			case BZ_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->bzstream_valid = 0;
-			/* FALLTHROUGH */
-		case BZ_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "bzip decompression failed");
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->bzstream.avail_in;
-		*outbytes = avail_out - xar->bzstream.avail_out;
-		break;
-#endif
-#if defined(HAVE_LZMA_H) && defined(HAVE_LIBLZMA)
-	case LZMA:
-	case XZ:
-		xar->lzstream.next_in = b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzma_code(&(xar->lzstream), LZMA_RUN);
-		switch (r) {
-		case LZMA_STREAM_END: /* Found end of stream. */
-			lzma_end(&(xar->lzstream));
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMA_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "%s decompression failed(%d)",
-			    (xar->entry_encoding == XZ)?"xz":"lzma",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#elif defined(HAVE_LZMADEC_H) && defined(HAVE_LIBLZMADEC)
-	case LZMA:
-		xar->lzstream.next_in = (unsigned char *)(uintptr_t)b;
-		xar->lzstream.avail_in = avail_in;
-		xar->lzstream.next_out = (unsigned char *)outbuff;
-		xar->lzstream.avail_out = avail_out;
-		r = lzmadec_decode(&(xar->lzstream), 0);
-		switch (r) {
-		case LZMADEC_STREAM_END: /* Found end of stream. */
-			switch (lzmadec_end(&(xar->lzstream))) {
-			case LZMADEC_OK:
-				break;
-			default:
-				archive_set_error(&(a->archive),
-				    ARCHIVE_ERRNO_MISC,
-				    "Failed to clean up lzmadec decompressor");
-				return (ARCHIVE_FATAL);
-			}
-			xar->lzstream_valid = 0;
-			/* FALLTHROUGH */
-		case LZMADEC_OK: /* Decompressor made some progress. */
-			break;
-		default:
-			archive_set_error(&(a->archive),
-			    ARCHIVE_ERRNO_MISC,
-			    "lzmadec decompression failed(%d)",
-			    r);
-			return (ARCHIVE_FATAL);
-		}
-		*used = avail_in - xar->lzstream.avail_in;
-		*outbytes = avail_out - xar->lzstream.avail_out;
-		break;
-#endif
-#if !defined(HAVE_BZLIB_H) || !defined(BZ_CONFIG_ERROR)
-	case BZIP2:
-#endif
-#if !defined(HAVE_LZMA_H) || !defined(HAVE_LIBLZMA)
-#if !defined(HAVE_LZMADEC_H) || !defined(HAVE_LIBLZMADEC)
-	case LZMA:
-#endif
-	case XZ:
-#endif
-	case NONE:
-	default:
-		if (outbuff == xar->outbuff) {
-			*buff = b;
-			*used = avail_in;
-			*outbytes = avail_in;
-		} else {
-			if (avail_out > avail_in)
-				avail_out = avail_in;
-			memcpy(outbuff, b, avail_out);
-			*used = avail_out;
-			*outbytes = avail_out;
-		}
-		break;
-	}
-	return (ARCHIVE_OK);
+  /* Decode the challenge message */
+  result = auth_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
+                                          realm, sizeof(realm),
+                                          algorithm, sizeof(algorithm),
+                                          qop_options, sizeof(qop_options));
+  if(result)
+    return result;
+
+  /* We only support md5 sessions */
+  if(strcmp(algorithm, "md5-sess") != 0)
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Get the qop-values from the qop-options */
+  result = auth_digest_get_qop_values(qop_options, &qop_values);
+  if(result)
+    return result;
+
+  /* We only support auth quality-of-protection */
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Generate 16 bytes of random data */
+  result = Curl_rand(data, &entropy[0], 4);
+  if(result)
+    return result;
+
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
+
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) userp,
+                  curlx_uztoui(strlen(userp)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) realm,
+                  curlx_uztoui(strlen(realm)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
+                  curlx_uztoui(strlen(passwdp)));
+  Curl_MD5_final(ctxt, digest);
+
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_final(ctxt, digest);
+
+  /* Convert calculated 16 octet hex into 32 bytes string */
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate our SPN */
+  spn = Curl_auth_build_spn(service, realm, NULL);
+  if(!spn)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Calculate H(A2) */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) method,
+                  curlx_uztoui(strlen(method)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) spn,
+                  curlx_uztoui(strlen(spn)));
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Now calculate the response hash */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
+                  curlx_uztoui(strlen(nonceCount)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) qop,
+                  curlx_uztoui(strlen(qop)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate the response */
+  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);
+  free(spn);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
+
+  free(response);
+
+  return result;
 }

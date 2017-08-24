@@ -1,1 +1,2 @@
-snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);
+archive_set_error(&a->archive, errno,
+				    "Invalid NFSv4 ACL entry type");

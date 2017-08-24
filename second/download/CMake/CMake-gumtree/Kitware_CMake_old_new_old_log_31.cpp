@@ -1,2 +1,3 @@
-snprintf(buf, sizeof(data->state.buffer),
-             "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", expected_size);
+fsobj_error(a_eno, a_estr, errno,
+					    "Could not remove symlink %s",
+					    path);

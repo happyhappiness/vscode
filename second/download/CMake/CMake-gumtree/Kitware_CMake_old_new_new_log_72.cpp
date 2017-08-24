@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, errno,
-			    "Can't change dir to read extended attributes");
+f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
+           "%s:%s", user, pwd);

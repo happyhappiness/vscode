@@ -1,209 +1,305 @@
-CURLcode Curl_sasl_create_digest_http_message(struct SessionHandle *data,
-                                              const char *userp,
-                                              const char *passwdp,
-                                              const unsigned char *request,
-                                              const unsigned char *uripath,
-                                              struct digestdata *digest,
-                                              char **outptr, size_t *outlen)
+static void
+process_extra(const char *p, size_t extra_length, struct zip_entry* zip_entry)
 {
-  CURLcode result;
-  unsigned char md5buf[16]; /* 16 bytes/128 bits */
-  unsigned char request_digest[33];
-  unsigned char *md5this;
-  unsigned char ha1[33];/* 32 digits and 1 zero byte */
-  unsigned char ha2[33];/* 32 digits and 1 zero byte */
-  char cnoncebuf[33];
-  char *cnonce = NULL;
-  size_t cnonce_sz = 0;
-  char *userp_quoted;
-  char *response = NULL;
-  char *tmp = NULL;
+	unsigned offset = 0;
 
-  if(!digest->nc)
-    digest->nc = 1;
+	while (offset < extra_length - 4) {
+		unsigned short headerid = archive_le16dec(p + offset);
+		unsigned short datasize = archive_le16dec(p + offset + 2);
 
-  if(!digest->cnonce) {
-    snprintf(cnoncebuf, sizeof(cnoncebuf), "%08x%08x%08x%08x",
-             Curl_rand(data), Curl_rand(data),
-             Curl_rand(data), Curl_rand(data));
+		offset += 4;
+		if (offset + datasize > extra_length) {
+			break;
+		}
+#ifdef DEBUG
+		fprintf(stderr, "Header id 0x%04x, length %d\n",
+		    headerid, datasize);
+#endif
+		switch (headerid) {
+		case 0x0001:
+			/* Zip64 extended information extra field. */
+			zip_entry->flags |= LA_USED_ZIP64;
+			if (zip_entry->uncompressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->uncompressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			if (zip_entry->compressed_size == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->compressed_size =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			if (zip_entry->local_header_offset == 0xffffffff) {
+				if (datasize < 8)
+					break;
+				zip_entry->local_header_offset =
+				    archive_le64dec(p + offset);
+				offset += 8;
+				datasize -= 8;
+			}
+			/* archive_le32dec(p + offset) gives disk
+			 * on which file starts, but we don't handle
+			 * multi-volume Zip files. */
+			break;
+#ifdef DEBUG
+		case 0x0017:
+		{
+			/* Strong encryption field. */
+			if (archive_le16dec(p + offset) == 2) {
+				unsigned algId =
+					archive_le16dec(p + offset + 2);
+				unsigned bitLen =
+					archive_le16dec(p + offset + 4);
+				int	 flags =
+					archive_le16dec(p + offset + 6);
+				fprintf(stderr, "algId=0x%04x, bitLen=%u, "
+				    "flgas=%d\n", algId, bitLen,flags);
+			}
+			break;
+		}
+#endif
+		case 0x5455:
+		{
+			/* Extended time field "UT". */
+			int flags = p[offset];
+			offset++;
+			datasize--;
+			/* Flag bits indicate which dates are present. */
+			if (flags & 0x01)
+			{
+#ifdef DEBUG
+				fprintf(stderr, "mtime: %lld -> %d\n",
+				    (long long)zip_entry->mtime,
+				    archive_le32dec(p + offset));
+#endif
+				if (datasize < 4)
+					break;
+				zip_entry->mtime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x02)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->atime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			if (flags & 0x04)
+			{
+				if (datasize < 4)
+					break;
+				zip_entry->ctime = archive_le32dec(p + offset);
+				offset += 4;
+				datasize -= 4;
+			}
+			break;
+		}
+		case 0x5855:
+		{
+			/* Info-ZIP Unix Extra Field (old version) "UX". */
+			if (datasize >= 8) {
+				zip_entry->atime = archive_le32dec(p + offset);
+				zip_entry->mtime =
+				    archive_le32dec(p + offset + 4);
+			}
+			if (datasize >= 12) {
+				zip_entry->uid =
+				    archive_le16dec(p + offset + 8);
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 10);
+			}
+			break;
+		}
+		case 0x6c78:
+		{
+			/* Experimental 'xl' field */
+			/*
+			 * Introduced Dec 2013 to provide a way to
+			 * include external file attributes (and other
+			 * fields that ordinarily appear only in
+			 * central directory) in local file header.
+			 * This provides file type and permission
+			 * information necessary to support full
+			 * streaming extraction.  Currently being
+			 * discussed with other Zip developers
+			 * ... subject to change.
+			 *
+			 * Format:
+			 *  The field starts with a bitmap that specifies
+			 *  which additional fields are included.  The
+			 *  bitmap is variable length and can be extended in
+			 *  the future.
+			 *
+			 *  n bytes - feature bitmap: first byte has low-order
+			 *    7 bits.  If high-order bit is set, a subsequent
+			 *    byte holds the next 7 bits, etc.
+			 *
+			 *  if bitmap & 1, 2 byte "version made by"
+			 *  if bitmap & 2, 2 byte "internal file attributes"
+			 *  if bitmap & 4, 4 byte "external file attributes"
+			 *  if bitmap & 8, 2 byte comment length + n byte comment
+			 */
+			int bitmap, bitmap_last;
 
-    result = Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf),
-                                &cnonce, &cnonce_sz);
-    if(result)
-      return result;
+			if (datasize < 1)
+				break;
+			bitmap_last = bitmap = 0xff & p[offset];
+			offset += 1;
+			datasize -= 1;
 
-    digest->cnonce = cnonce;
-  }
+			/* We only support first 7 bits of bitmap; skip rest. */
+			while ((bitmap_last & 0x80) != 0
+			    && datasize >= 1) {
+				bitmap_last = p[offset];
+				offset += 1;
+				datasize -= 1;
+			}
 
-  /*
-    if the algorithm is "MD5" or unspecified (which then defaults to MD5):
+			if (bitmap & 1) {
+				/* 2 byte "version made by" */
+				if (datasize < 2)
+					break;
+				zip_entry->system
+				    = archive_le16dec(p + offset) >> 8;
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 2) {
+				/* 2 byte "internal file attributes" */
+				uint32_t internal_attributes;
+				if (datasize < 2)
+					break;
+				internal_attributes
+				    = archive_le16dec(p + offset);
+				/* Not used by libarchive at present. */
+				(void)internal_attributes; /* UNUSED */
+				offset += 2;
+				datasize -= 2;
+			}
+			if (bitmap & 4) {
+				/* 4 byte "external file attributes" */
+				uint32_t external_attributes;
+				if (datasize < 4)
+					break;
+				external_attributes
+				    = archive_le32dec(p + offset);
+				if (zip_entry->system == 3) {
+					zip_entry->mode
+					    = external_attributes >> 16;
+				} else if (zip_entry->system == 0) {
+					// Interpret MSDOS directory bit
+					if (0x10 == (external_attributes & 0x10)) {
+						zip_entry->mode = AE_IFDIR | 0775;
+					} else {
+						zip_entry->mode = AE_IFREG | 0664;
+					}
+					if (0x01 == (external_attributes & 0x01)) {
+						// Read-only bit; strip write permissions
+						zip_entry->mode &= 0555;
+					}
+				} else {
+					zip_entry->mode = 0;
+				}
+				offset += 4;
+				datasize -= 4;
+			}
+			if (bitmap & 8) {
+				/* 2 byte comment length + comment */
+				uint32_t comment_length;
+				if (datasize < 2)
+					break;
+				comment_length
+				    = archive_le16dec(p + offset);
+				offset += 2;
+				datasize -= 2;
 
-    A1 = unq(username-value) ":" unq(realm-value) ":" passwd
+				if (datasize < comment_length)
+					break;
+				/* Comment is not supported by libarchive */
+				offset += comment_length;
+				datasize -= comment_length;
+			}
+			break;
+		}
+		case 0x7855:
+			/* Info-ZIP Unix Extra Field (type 2) "Ux". */
+#ifdef DEBUG
+			fprintf(stderr, "uid %d gid %d\n",
+			    archive_le16dec(p + offset),
+			    archive_le16dec(p + offset + 2));
+#endif
+			if (datasize >= 2)
+				zip_entry->uid = archive_le16dec(p + offset);
+			if (datasize >= 4)
+				zip_entry->gid =
+				    archive_le16dec(p + offset + 2);
+			break;
+		case 0x7875:
+		{
+			/* Info-Zip Unix Extra Field (type 3) "ux". */
+			int uidsize = 0, gidsize = 0;
 
-    if the algorithm is "MD5-sess" then:
-
-    A1 = H( unq(username-value) ":" unq(realm-value) ":" passwd )
-         ":" unq(nonce-value) ":" unq(cnonce-value)
-  */
-
-  md5this = (unsigned char *)
-    aprintf("%s:%s:%s", userp, digest->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha1);
-
-  if(digest->algo == CURLDIGESTALGO_MD5SESS) {
-    /* nonce and cnonce are OUTSIDE the hash */
-    tmp = aprintf("%s:%s:%s", ha1, digest->nonce, digest->cnonce);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
-    Curl_md5it(md5buf, (unsigned char *)tmp);
-    free(tmp);
-    sasl_digest_md5_to_ascii(md5buf, ha1);
-  }
-
-  /*
-    If the "qop" directive's value is "auth" or is unspecified, then A2 is:
-
-      A2       = Method ":" digest-uri-value
-
-          If the "qop" value is "auth-int", then A2 is:
-
-      A2       = Method ":" digest-uri-value ":" H(entity-body)
-
-    (The "Method" value is the HTTP request method as specified in section
-    5.1.1 of RFC 2616)
-  */
-
-  md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
-
-  if(digest->qop && Curl_raw_equal(digest->qop, "auth-int")) {
-    /* We don't support auth-int for PUT or POST at the moment.
-       TODO: replace md5 of empty string with entity-body for PUT/POST */
-    unsigned char *md5this2 = (unsigned char *)
-      aprintf("%s:%s", md5this, "d41d8cd98f00b204e9800998ecf8427e");
-    free(md5this);
-    md5this = md5this2;
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, ha2);
-
-  if(digest->qop) {
-    md5this = (unsigned char *)aprintf("%s:%s:%08x:%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       digest->nc,
-                                       digest->cnonce,
-                                       digest->qop,
-                                       ha2);
-  }
-  else {
-    md5this = (unsigned char *)aprintf("%s:%s:%s",
-                                       ha1,
-                                       digest->nonce,
-                                       ha2);
-  }
-
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-
-  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
-  Curl_md5it(md5buf, md5this);
-  free(md5this);
-  sasl_digest_md5_to_ascii(md5buf, request_digest);
-
-  /* for test case 64 (snooped from a Mozilla 1.3a request)
-
-    Authorization: Digest username="testuser", realm="testrealm", \
-    nonce="1053604145", uri="/64", response="c55f7f30d83d774a3d2dcacf725abaca"
-
-    Digest parameters are all quoted strings.  Username which is provided by
-    the user will need double quotes and backslashes within it escaped.  For
-    the other fields, this shouldn't be an issue.  realm, nonce, and opaque
-    are copied as is from the server, escapes and all.  cnonce is generated
-    with web-safe characters.  uri is already percent encoded.  nc is 8 hex
-    characters.  algorithm and qop with standard values only contain web-safe
-    chracters.
-  */
-  userp_quoted = sasl_digest_string_quoted(userp);
-  if(!userp_quoted)
-    return CURLE_OUT_OF_MEMORY;
-
-  if(digest->qop) {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "cnonce=\"%s\", "
-                       "nc=%08x, "
-                       "qop=%s, "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       digest->cnonce,
-                       digest->nc,
-                       digest->qop,
-                       request_digest);
-
-    if(Curl_raw_equal(digest->qop, "auth"))
-      digest->nc++; /* The nc (from RFC) has to be a 8 hex digit number 0
-                       padded which tells to the server how many times you are
-                       using the same nonce in the qop=auth mode */
-  }
-  else {
-    response = aprintf("username=\"%s\", "
-                       "realm=\"%s\", "
-                       "nonce=\"%s\", "
-                       "uri=\"%s\", "
-                       "response=\"%s\"",
-                       userp_quoted,
-                       digest->realm,
-                       digest->nonce,
-                       uripath,
-                       request_digest);
-  }
-  free(userp_quoted);
-  if(!response)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Add the optional fields */
-  if(digest->opaque) {
-    /* Append the opaque */
-    tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  if(digest->algorithm) {
-    /* Append the algorithm */
-    tmp = aprintf("%s, algorithm=\"%s\"", response, digest->algorithm);
-    free(response);
-    if(!tmp)
-      return CURLE_OUT_OF_MEMORY;
-
-    response = tmp;
-  }
-
-  /* Return the output */
-  *outptr = response;
-  *outlen = strlen(response);
-
-  return CURLE_OK;
+			/* TODO: support arbitrary uidsize/gidsize. */
+			if (datasize >= 1 && p[offset] == 1) {/* version=1 */
+				if (datasize >= 4) {
+					/* get a uid size. */
+					uidsize = 0xff & (int)p[offset+1];
+					if (uidsize == 2)
+						zip_entry->uid =
+						    archive_le16dec(
+						        p + offset + 2);
+					else if (uidsize == 4 && datasize >= 6)
+						zip_entry->uid =
+						    archive_le32dec(
+						        p + offset + 2);
+				}
+				if (datasize >= (2 + uidsize + 3)) {
+					/* get a gid size. */
+					gidsize = 0xff & (int)p[offset+2+uidsize];
+					if (gidsize == 2)
+						zip_entry->gid =
+						    archive_le16dec(
+						        p+offset+2+uidsize+1);
+					else if (gidsize == 4 &&
+					    datasize >= (2 + uidsize + 5))
+						zip_entry->gid =
+						    archive_le32dec(
+						        p+offset+2+uidsize+1);
+				}
+			}
+			break;
+		}
+		case 0x9901:
+			/* WinZIp AES extra data field. */
+			if (p[offset + 2] == 'A' && p[offset + 3] == 'E') {
+				/* Vendor version. */
+				zip_entry->aes_extra.vendor =
+				    archive_le16dec(p + offset);
+				/* AES encryption strength. */
+				zip_entry->aes_extra.strength = p[offset + 4];
+				/* Actual compression method. */
+				zip_entry->aes_extra.compression =
+				    p[offset + 5];
+			}
+			break;
+		default:
+			break;
+		}
+		offset += datasize;
+	}
+#ifdef DEBUG
+	if (offset != extra_length)
+	{
+		fprintf(stderr,
+		    "Extra data field contents do not match reported size!\n");
+	}
+#endif
 }

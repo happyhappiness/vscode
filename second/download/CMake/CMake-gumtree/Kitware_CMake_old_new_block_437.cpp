@@ -1,6 +1,7 @@
 {
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Unacceptable dictionary dize for lzip: %d",
-			    dict_size);
-			return (ARCHIVE_FATAL);
-		}
+				archive_set_error(&a->archive,
+				    GetLastError(),
+				    "Can't GetFileInformationByHandle");
+				CloseHandle(h);
+				return (ARCHIVE_FAILED);
+			}

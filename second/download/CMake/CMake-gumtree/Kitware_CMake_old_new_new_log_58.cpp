@@ -1,3 +1,3 @@
-archive_set_error(
-			&a->archive, ARCHIVE_ERRNO_MISC,
-			"Invalid record version");
+snprintf(timebuf, sizeof(timebuf),
+                 "%04d%02d%02d %02d:%02d:%02d GMT",
+                 year, month, day, hour, minute, second);

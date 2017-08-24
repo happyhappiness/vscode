@@ -1,8 +1,8 @@
 {
-			archive_set_error(&a->archive, EINVAL,
-			    "Can't find long filename for entry");
-			archive_entry_copy_pathname(entry, filename);
-			/* Parse the time, owner, mode, size fields. */
-			ar_parse_common_header(ar, entry, h);
-			return (ARCHIVE_WARN);
-		}
+      fprintf(fout, "ADD_DEFINITIONS( ");
+      for (size_t i = 0; i < compileDefs.size(); ++i)
+        {
+        fprintf(fout,"%s ",compileDefs[i].c_str());
+        }
+      fprintf(fout, ")\n");
+      }

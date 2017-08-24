@@ -1,5 +1,4 @@
 {
-        snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
-      len += status_string.length;
-    }
+          tmp = tmp.substr(0, pos);
+          fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());
+          }

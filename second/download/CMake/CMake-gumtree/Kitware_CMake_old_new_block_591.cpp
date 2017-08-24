@@ -1,6 +1,5 @@
 {
-			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
-			    "Unacceptable dictionary dize for lzip: %d",
-			    dict_size);
-			return (ARCHIVE_FATAL);
-		}
+  char * temp = new char[32];
+  sprintf(temp,"%d",this->ChipID.Type);
+  return temp;
+}

@@ -1,6 +1,6 @@
 {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName().c_str(), ni->IsStrong()? "strong" : "weak");
-      }
+        archive_set_error(&a->archive, EILSEQ,
+            "Can't translate pathname '%s' to UTF-8", path);
+        ret = ARCHIVE_WARN;
+        hdrcharset = "BINARY";
+    }

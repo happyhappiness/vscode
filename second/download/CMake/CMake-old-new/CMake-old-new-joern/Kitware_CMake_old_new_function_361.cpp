@@ -1,21 +1,40 @@
-void
-cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+unsigned long Directory::GetNumberOfFilesInDirectory(const char* name)
 {
-  fprintf(stderr, "The %s target dependency graph is:\n", name);
-  int n = static_cast<int>(graph.size());
-  for(int depender_index = 0; depender_index < n; ++depender_index)
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' )
     {
-    EdgeList const& nl = graph[depender_index];
-    cmTarget const* depender = this->Targets[depender_index];
-    fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
-    for(EdgeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
-      {
-      int dependee_index = *ni;
-      cmTarget const* dependee = this->Targets[dependee_index];
-      fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
-      }
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
     }
-  fprintf(stderr, "\n");
+  else
+    {
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }
+  struct _wfinddata_t data;      // data of current file
+
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
+    }
+
+  // Loop through names
+  unsigned long count = 0;
+  do
+    {
+    count++;
+    }
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  _findclose(srchHandle);
+  return count;
 }

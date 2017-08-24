@@ -1,4 +1,3 @@
 {
-      fprintf(stderr, "File is an executable.  I don't dump those.\n");
-      return;
-   }
+        sprintf(tz, " +%04ld", author.TimeZone);
+        }

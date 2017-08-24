@@ -1,2 +1,4 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost),
-               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3])
+{
+      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
+              value);
+      }

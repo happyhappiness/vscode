@@ -1,1 +1,1 @@
-fprintf(stderr, "  target [%s]\n", lei->Target->GetName().c_str());
+fprintf(stderr, "Couldn't open file '%s' with CreateFile()\n", filename);

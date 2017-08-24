@@ -1,13 +1,30 @@
 {
-      Curl_safefree(*allocuserpwd);
-      *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
-                              proxy ? "Proxy-" : "",
-                              base64);
-      free(base64);
-      if(!*allocuserpwd)
-        return CURLE_OUT_OF_MEMORY;
-      DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
+    if (strcmp(dent->d_name, ".") == 0 ||
+        strcmp(dent->d_name, "..") == 0)
+      continue;
 
-      ntlm->state = NTLMSTATE_TYPE3; /* we send a type-3 */
-      authp->done = TRUE;
+    snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);
+    if (savedir)
+      snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);
+
+#ifndef WIN32
+    if (lstat(realpath, &s) != 0)
+      return -1;
+#else
+    if (stat(realpath, &s) != 0)
+      return -1;
+#endif
+    if (S_ISDIR(s.st_mode))
+    {
+      if (tar_append_tree(t, realpath,
+              (savedir ? savepath : NULL)) != 0)
+        return -1;
+      continue;
     }
+
+    if (tar_append_file(t, realpath,
+            (savedir ? savepath : NULL)) != 0)
+      return -1;
+  }

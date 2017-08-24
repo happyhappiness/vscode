@@ -1,7 +1,8 @@
 {
-      /* if a line like this was already allocated, free the previous one */
-      if(conn->allocptr.rangeline)
-        free(conn->allocptr.rangeline);
-      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
-                                         data->state.range);
-    }
+			archive_set_error(&a->archive, EINVAL,
+			    "Can't find long filename for entry");
+			archive_entry_copy_pathname(entry, filename);
+			/* Parse the time, owner, mode, size fields. */
+			ar_parse_common_header(ar, entry, h);
+			return (ARCHIVE_WARN);
+		}

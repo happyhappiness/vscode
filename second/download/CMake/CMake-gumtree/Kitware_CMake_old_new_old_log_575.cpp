@@ -1,0 +1,1 @@
+sprintf(buffer, "&lt;%d&gt;", (int)ch);

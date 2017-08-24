@@ -1,102 +1,160 @@
-void DumpExternalsObjects() {
-    unsigned i;
-    PSTR stringTable;
-    std::string symbol;
-    DWORD SectChar;
-    /*
-     * The string table apparently starts right after the symbol table
-     */
-    stringTable = (PSTR)&this->SymbolTable[this->SymbolCount];
-    SymbolTableType* pSymbolTable = this->SymbolTable;
-    for ( i=0; i < this->SymbolCount; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 &&
-          ( pSymbolTable->Type == 0x20 || pSymbolTable->Type == 0x0)) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            /*
-            *    The name of the Function entry points
-            */
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)pSymbolTable->N.ShortName, 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
+CURLcode Curl_sasl_create_digest_md5_message(struct SessionHandle *data,
+                                             const char *chlg64,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             const char *service,
+                                             char **outptr, size_t *outlen)
+{
+  CURLcode result = CURLE_OK;
+  size_t i;
+  MD5_context *ctxt;
+  char *response = NULL;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
+  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
+  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
+  char nonce[64];
+  char realm[128];
+  char algorithm[64];
+  char qop_options[64];
+  int qop_values;
+  char cnonce[33];
+  unsigned int entropy[4];
+  char nonceCount[] = "00000001";
+  char method[]     = "AUTHENTICATE";
+  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
+  char *spn         = NULL;
 
-            // clear out any leading spaces
-            while (isspace(symbol[0])) symbol.erase(0,1);
-            // if it starts with _ and has an @ then it is a __cdecl
-            // so remove the @ stuff for the export
-            if(symbol[0] == '_') {
-               std::string::size_type posAt = symbol.find('@');
-               if (posAt != std::string::npos) {
-                  symbol.erase(posAt);
-               }
-            }
-            // For 64 bit builds we don't need to remove _
-            if(!this->Is64Bit)
-              {
-              if (symbol[0] == '_')
-                {
-                symbol.erase(0,1);
-                }
-              }
-            if (this->ImportFlag) {
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
-            }
-            /*
-            Check whether it is "Scalar deleting destructor" and
-            "Vector deleting destructor"
-            */
-            const char *scalarPrefix = "??_G";
-            const char *vectorPrefix = "??_E";
-            // original code had a check for
-            // symbol.find("real@") == std::string::npos)
-            // but if this disallows memmber functions with the name real
-            // if scalarPrefix and vectorPrefix are not found then print
-            // the symbol
-            if (symbol.compare(0, 4, scalarPrefix) &&
-                symbol.compare(0, 4, vectorPrefix) )
-            {
-               SectChar =
-                 this->
-                 SectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
-               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());
-               } else {
-                  if ( pSymbolTable->Type  ||
-                       !(SectChar & IMAGE_SCN_MEM_READ)) {
-                     fprintf(this->FileOut, "\t%s\n", symbol.c_str());
-                  } else {
-                     // printf(" strange symbol: %s \n",symbol.c_str());
-                  }
-               }
-            }
-         }
-      }
-      else if (pSymbolTable->SectionNumber == IMAGE_SYM_UNDEFINED &&
-               !pSymbolTable->Type && 0) {
-         /*
-         *    The IMPORT global variable entry points
-         */
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!this->ImportFlag) {
-               this->ImportFlag = true;
-               fprintf(this->FileOut,"IMPORTS \n");
-            }
-            fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
+  /* Decode the challange message */
+  result = sasl_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
+                                          realm, sizeof(realm),
+                                          algorithm, sizeof(algorithm),
+                                          qop_options, sizeof(qop_options));
+  if(result)
+    return result;
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-    }
+  /* We only support md5 sessions */
+  if(strcmp(algorithm, "md5-sess") != 0)
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Get the qop-values from the qop-options */
+  result = sasl_digest_get_qop_values(qop_options, &qop_values);
+  if(result)
+    return result;
+
+  /* We only support auth quality-of-protection */
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
+
+  /* Generate 16 bytes of random data */
+  entropy[0] = Curl_rand(data);
+  entropy[1] = Curl_rand(data);
+  entropy[2] = Curl_rand(data);
+  entropy[3] = Curl_rand(data);
+
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
+
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) userp,
+                  curlx_uztoui(strlen(userp)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) realm,
+                  curlx_uztoui(strlen(realm)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
+                  curlx_uztoui(strlen(passwdp)));
+  Curl_MD5_final(ctxt, digest);
+
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
+
+  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_final(ctxt, digest);
+
+  /* Convert calculated 16 octet hex into 32 bytes string */
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate our SPN */
+  spn = Curl_sasl_build_spn(service, realm);
+  if(!spn)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Calculate H(A2) */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
   }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) method,
+                  curlx_uztoui(strlen(method)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) spn,
+                  curlx_uztoui(strlen(spn)));
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Now calculate the response hash */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
+                  curlx_uztoui(strlen(nonceCount)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) qop,
+                  curlx_uztoui(strlen(qop)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate the response */
+  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);
+  free(spn);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
+
+  free(response);
+
+  return result;
+}

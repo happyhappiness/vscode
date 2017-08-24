@@ -1,4 +1,2 @@
-the project that
- * took on from here is named 'Trio' and you find more details on the trio web
- * page at https://daniel.haxx.se/projects/trio/
- */;
+fsobj_error(a_eno, a_estr, ARCHIVE_ERRNO_MISC,
+			    "Path is ", "absolute");

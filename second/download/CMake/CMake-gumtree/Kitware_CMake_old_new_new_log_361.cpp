@@ -1,1 +1,1 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name.c_str());
+sprintf(buf, "%s/*", name.c_str());

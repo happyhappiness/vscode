@@ -1,5 +1,1 @@
-{
-			archive_set_error(&a->archive, EINVAL,
-			    "More than one string tables exist");
-			return (ARCHIVE_WARN);
-		}
+YY_FATAL_ERROR( "flex scanner push-back overflow" )

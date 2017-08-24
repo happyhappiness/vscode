@@ -1,5 +1,2 @@
-{
-			archive_set_error(&(a->archive), errno,
-			    "Faild : %s", archive_error_string(a->matching));
-			return (r);
-		}
+archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute")

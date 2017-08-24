@@ -1,16 +1,25 @@
 {
-      str << kwsys_ios::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
-        {
-        case CommandLineArguments::NO_ARGUMENT: break;
-        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
-        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
-        case CommandLineArguments::MULTI_ARGUMENT:  strcat(argument, " opt opt ..."); break;
-        }
-      char buffer[80];
-      sprintf(buffer, format, argument);
-      str << buffer;
-      }
+	struct archive_read *a = (struct archive_read *)_a;
+	struct archive_read_filter_bidder *bidder;
+
+	archive_check_magic(_a, ARCHIVE_READ_MAGIC,
+	    ARCHIVE_STATE_NEW, "archive_read_support_filter_lzma");
+
+	if (__archive_read_get_bidder(a, &bidder) != ARCHIVE_OK)
+		return (ARCHIVE_FATAL);
+
+	bidder->data = NULL;
+	bidder->bid = lzma_bidder_bid;
+	bidder->init = lzma_bidder_init;
+	bidder->options = NULL;
+	bidder->free = NULL;
+#if HAVE_LZMA_H && HAVE_LIBLZMA
+	return (ARCHIVE_OK);
+#elif HAVE_LZMADEC_H && HAVE_LIBLZMADEC
+	return (ARCHIVE_OK);
+#else
+	archive_set_error(_a, ARCHIVE_ERRNO_MISC,
+	    "Using external unlzma program for lzma decompression");
+	return (ARCHIVE_WARN);
+#endif
+}

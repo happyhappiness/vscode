@@ -1,1 +1,1 @@
-fprintf(stderr, "The %s target dependency graph is:\n", name);
+fprintf(fout, "\t%s\n", symbol.c_str()+1);

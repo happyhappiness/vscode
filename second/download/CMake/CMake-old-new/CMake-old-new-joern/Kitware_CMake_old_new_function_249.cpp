@@ -1,75 +1,119 @@
-ssize_t
-archive_read_data(struct archive *_a, void *buff, size_t s)
+static CURLcode tftp_send_first(tftp_state_data_t *state, tftp_event_t event)
 {
-	struct archive_read *a = (struct archive_read *)_a;
-	char	*dest;
-	const void *read_buf;
-	size_t	 bytes_read;
-	size_t	 len;
-	int	 r;
+  size_t sbytes;
+  ssize_t senddata;
+  const char *mode = "octet";
+  char *filename;
+  char buf[64];
+  struct SessionHandle *data = state->conn->data;
+  CURLcode result = CURLE_OK;
 
-	bytes_read = 0;
-	dest = (char *)buff;
+  /* Set ascii mode if -B flag was used */
+  if(data->set.prefer_ascii)
+    mode = "netascii";
 
-	while (s > 0) {
-		if (a->read_data_remaining == 0) {
-			read_buf = a->read_data_block;
-			a->read_data_is_posix_read = 1;
-			a->read_data_requested = s;
-			r = _archive_read_data_block(&a->archive, &read_buf,
-			    &a->read_data_remaining, &a->read_data_offset);
-			a->read_data_block = read_buf;
-			if (r == ARCHIVE_EOF)
-				return (bytes_read);
-			/*
-			 * Error codes are all negative, so the status
-			 * return here cannot be confused with a valid
-			 * byte count.  (ARCHIVE_OK is zero.)
-			 */
-			if (r < ARCHIVE_OK)
-				return (r);
-		}
+  switch(event) {
 
-		if (a->read_data_offset < a->read_data_output_offset) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
-			    "Encountered out-of-order sparse blocks");
-			return (ARCHIVE_RETRY);
-		}
+  case TFTP_EVENT_INIT:    /* Send the first packet out */
+  case TFTP_EVENT_TIMEOUT: /* Resend the first packet out */
+    /* Increment the retry counter, quit if over the limit */
+    state->retries++;
+    if(state->retries>state->retry_max) {
+      state->error = TFTP_ERR_NORESPONSE;
+      state->state = TFTP_STATE_FIN;
+      return result;
+    }
 
-		/* Compute the amount of zero padding needed. */
-		if (a->read_data_output_offset + (int64_t)s <
-		    a->read_data_offset) {
-			len = s;
-		} else if (a->read_data_output_offset <
-		    a->read_data_offset) {
-			len = (size_t)(a->read_data_offset -
-			    a->read_data_output_offset);
-		} else
-			len = 0;
+    if(data->set.upload) {
+      /* If we are uploading, send an WRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_WRQ);
+      state->conn->data->req.upload_fromhere =
+        (char *)state->spacket.data+4;
+      if(data->state.infilesize != -1)
+        Curl_pgrsSetUploadSize(data, data->state.infilesize);
+    }
+    else {
+      /* If we are downloading, send an RRQ */
+      setpacketevent(&state->spacket, TFTP_EVENT_RRQ);
+    }
+    /* As RFC3617 describes the separator slash is not actually part of the
+       file name so we skip the always-present first letter of the path
+       string. */
+    filename = curl_easy_unescape(data, &state->conn->data->state.path[1], 0,
+                                  NULL);
+    if(!filename)
+      return CURLE_OUT_OF_MEMORY;
 
-		/* Add zeroes. */
-		memset(dest, 0, len);
-		s -= len;
-		a->read_data_output_offset += len;
-		dest += len;
-		bytes_read += len;
+    snprintf((char *)state->spacket.data+2,
+             state->blksize,
+             "%s%c%s%c", filename, '\0',  mode, '\0');
+    sbytes = 4 + strlen(filename) + strlen(mode);
 
-		/* Copy data if there is any space left. */
-		if (s > 0) {
-			len = a->read_data_remaining;
-			if (len > s)
-				len = s;
-			memcpy(dest, a->read_data_block, len);
-			s -= len;
-			a->read_data_block += len;
-			a->read_data_remaining -= len;
-			a->read_data_output_offset += len;
-			a->read_data_offset += len;
-			dest += len;
-			bytes_read += len;
-		}
-	}
-	a->read_data_is_posix_read = 0;
-	a->read_data_requested = 0;
-	return (bytes_read);
+    /* add tsize option */
+    if(data->set.upload && (data->state.infilesize != -1))
+      snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
+               data->state.infilesize);
+    else
+      strcpy(buf, "0"); /* the destination is large enough */
+
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_TSIZE);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf);
+    /* add blksize option */
+    snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_BLKSIZE);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf );
+
+    /* add timeout option */
+    snprintf( buf, sizeof(buf), "%d", state->retry_time);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes,
+                              TFTP_OPTION_INTERVAL);
+    sbytes += tftp_option_add(state, sbytes,
+                              (char *)state->spacket.data+sbytes, buf );
+
+    /* the typecase for the 3rd argument is mostly for systems that do
+       not have a size_t argument, like older unixes that want an 'int' */
+    senddata = sendto(state->sockfd, (void *)state->spacket.data,
+                      (SEND_TYPE_ARG3)sbytes, 0,
+                      state->conn->ip_addr->ai_addr,
+                      state->conn->ip_addr->ai_addrlen);
+    if(senddata != (ssize_t)sbytes) {
+      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
+    }
+    free(filename);
+    break;
+
+  case TFTP_EVENT_OACK:
+    if(data->set.upload) {
+      result = tftp_connect_for_tx(state, event);
+    }
+    else {
+      result = tftp_connect_for_rx(state, event);
+    }
+    break;
+
+  case TFTP_EVENT_ACK: /* Connected for transmit */
+    result = tftp_connect_for_tx(state, event);
+    break;
+
+  case TFTP_EVENT_DATA: /* Connected for receive */
+    result = tftp_connect_for_rx(state, event);
+    break;
+
+  case TFTP_EVENT_ERROR:
+    state->state = TFTP_STATE_FIN;
+    break;
+
+  default:
+    failf(state->conn->data, "tftp_send_first: internal error");
+    break;
+  }
+
+  return result;
 }

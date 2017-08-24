@@ -1,18 +1,25 @@
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output on stdout before sleep.\n");
-  fprintf(stderr, "Output on stderr before sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  /* Sleep for 1 second.  */
-#if defined(_WIN32)
-  Sleep(1000);
-#else
-  sleep(1);
-#endif
-  fprintf(stdout, "Output on stdout after sleep.\n");
-  fprintf(stderr, "Output on stderr after sleep.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return 0;
+
+  // strip duplicates
+  sort(incs.begin(), incs.end());
+  incs.erase(unique(incs.begin(), incs.end()), incs.end());
+
+  FILE* out = fopen(dfile.c_str(), "wb");
+
+  // FIXME should this be fatal or not? delete obj? delete d?
+  if (!out)
+    return;
+
+  fprintf(out, "%s: \\\n", objfile.c_str());
+  for (vector<string>::iterator i(incs.begin()); i != incs.end(); ++i) {
+    string tmp = *i;
+    doEscape(tmp, "\\", "\\\\");
+    doEscape(tmp, " ", "\\ ");
+    //doEscape(tmp, "(", "("); // TODO ninja cant read ( and )
+    //doEscape(tmp, ")", ")");
+    fprintf(out, "%s \\\n", tmp.c_str());
+  }
+
+  fprintf(out, "\n");
+  fclose(out);
 }

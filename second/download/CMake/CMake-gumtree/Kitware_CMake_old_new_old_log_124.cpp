@@ -1,1 +1,2 @@
-len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
+archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");

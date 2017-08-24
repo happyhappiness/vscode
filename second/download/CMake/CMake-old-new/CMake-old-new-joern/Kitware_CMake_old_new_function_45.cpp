@@ -1,68 +1,36 @@
-static int
-lzma_bidder_init(struct archive_read_filter *self)
+static CURLcode ftp_state_size_resp(struct connectdata *conn,
+                                    int ftpcode,
+                                    ftpstate instate)
 {
-	static const size_t out_block_size = 64 * 1024;
-	void *out_block;
-	struct private_data *state;
-	ssize_t ret, avail_in;
+  CURLcode result = CURLE_OK;
+  struct Curl_easy *data=conn->data;
+  curl_off_t filesize;
+  char *buf = data->state.buffer;
 
-	self->code = ARCHIVE_FILTER_LZMA;
-	self->name = "lzma";
+  /* get the size from the ascii string: */
+  filesize = (ftpcode == 213)?curlx_strtoofft(buf+4, NULL, 0):-1;
 
-	state = (struct private_data *)calloc(sizeof(*state), 1);
-	out_block = (unsigned char *)malloc(out_block_size);
-	if (state == NULL || out_block == NULL) {
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Can't allocate data for lzma decompression");
-		free(out_block);
-		free(state);
-		return (ARCHIVE_FATAL);
-	}
+  if(instate == FTP_SIZE) {
+#ifdef CURL_FTP_HTTPSTYLE_HEAD
+    if(-1 != filesize) {
+      snprintf(buf, CURL_BUFSIZE(data->set.buffer_size),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);
+      result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
+      if(result)
+        return result;
+    }
+#endif
+    Curl_pgrsSetDownloadSize(data, filesize);
+    result = ftp_state_rest(conn);
+  }
+  else if(instate == FTP_RETR_SIZE) {
+    Curl_pgrsSetDownloadSize(data, filesize);
+    result = ftp_state_retr(conn, filesize);
+  }
+  else if(instate == FTP_STOR_SIZE) {
+    data->state.resume_from = filesize;
+    result = ftp_state_ul_setup(conn, TRUE);
+  }
 
-	self->data = state;
-	state->out_block_size = out_block_size;
-	state->out_block = out_block;
-	self->read = lzma_filter_read;
-	self->skip = NULL; /* not supported */
-	self->close = lzma_filter_close;
-
-	/* Prime the lzma library with 18 bytes of input. */
-	state->stream.next_in = (unsigned char *)(uintptr_t)
-	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
-	if (state->stream.next_in == NULL)
-		return (ARCHIVE_FATAL);
-	state->stream.avail_in = avail_in;
-	state->stream.next_out = state->out_block;
-	state->stream.avail_out = state->out_block_size;
-
-	/* Initialize compression library. */
-	ret = lzmadec_init(&(state->stream));
-	__archive_read_filter_consume(self->upstream,
-	    avail_in - state->stream.avail_in);
-	if (ret == LZMADEC_OK)
-		return (ARCHIVE_OK);
-
-	/* Library setup failed: Clean up. */
-	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
-	    "Internal error initializing lzma library");
-
-	/* Override the error message if we know what really went wrong. */
-	switch (ret) {
-	case LZMADEC_HEADER_ERROR:
-		archive_set_error(&self->archive->archive,
-		    ARCHIVE_ERRNO_MISC,
-		    "Internal error initializing compression library: "
-		    "invalid header");
-		break;
-	case LZMADEC_MEM_ERROR:
-		archive_set_error(&self->archive->archive, ENOMEM,
-		    "Internal error initializing compression library: "
-		    "out of memory");
-		break;
-	}
-
-	free(state->out_block);
-	free(state);
-	self->data = NULL;
-	return (ARCHIVE_FATAL);
+  return result;
 }

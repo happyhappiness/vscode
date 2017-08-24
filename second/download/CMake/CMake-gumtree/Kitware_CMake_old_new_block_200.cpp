@@ -1,4 +1,1 @@
-{
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])

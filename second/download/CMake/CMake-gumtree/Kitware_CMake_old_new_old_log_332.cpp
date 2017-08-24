@@ -1,2 +1,1 @@
-fprintf(fout,
-              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+snprintf(buf, sizeof(buf), "%s", prefix);

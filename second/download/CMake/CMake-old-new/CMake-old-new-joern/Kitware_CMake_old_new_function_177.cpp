@@ -1,119 +1,160 @@
-static CURLcode tftp_send_first(tftp_state_data_t *state, tftp_event_t event)
+CURLcode Curl_sasl_create_digest_md5_message(struct SessionHandle *data,
+                                             const char *chlg64,
+                                             const char *userp,
+                                             const char *passwdp,
+                                             const char *service,
+                                             char **outptr, size_t *outlen)
 {
-  size_t sbytes;
-  ssize_t senddata;
-  const char *mode = "octet";
-  char *filename;
-  char buf[64];
-  struct SessionHandle *data = state->conn->data;
   CURLcode result = CURLE_OK;
+  size_t i;
+  MD5_context *ctxt;
+  char *response = NULL;
+  unsigned char digest[MD5_DIGEST_LEN];
+  char HA1_hex[2 * MD5_DIGEST_LEN + 1];
+  char HA2_hex[2 * MD5_DIGEST_LEN + 1];
+  char resp_hash_hex[2 * MD5_DIGEST_LEN + 1];
+  char nonce[64];
+  char realm[128];
+  char algorithm[64];
+  char qop_options[64];
+  int qop_values;
+  char cnonce[33];
+  unsigned int entropy[4];
+  char nonceCount[] = "00000001";
+  char method[]     = "AUTHENTICATE";
+  char qop[]        = DIGEST_QOP_VALUE_STRING_AUTH;
+  char *spn         = NULL;
 
-  /* Set ascii mode if -B flag was used */
-  if(data->set.prefer_ascii)
-    mode = "netascii";
+  /* Decode the challange message */
+  result = sasl_decode_digest_md5_message(chlg64, nonce, sizeof(nonce),
+                                          realm, sizeof(realm),
+                                          algorithm, sizeof(algorithm),
+                                          qop_options, sizeof(qop_options));
+  if(result)
+    return result;
 
-  switch(event) {
+  /* We only support md5 sessions */
+  if(strcmp(algorithm, "md5-sess") != 0)
+    return CURLE_BAD_CONTENT_ENCODING;
 
-  case TFTP_EVENT_INIT:    /* Send the first packet out */
-  case TFTP_EVENT_TIMEOUT: /* Resend the first packet out */
-    /* Increment the retry counter, quit if over the limit */
-    state->retries++;
-    if(state->retries>state->retry_max) {
-      state->error = TFTP_ERR_NORESPONSE;
-      state->state = TFTP_STATE_FIN;
-      return result;
-    }
+  /* Get the qop-values from the qop-options */
+  result = sasl_digest_get_qop_values(qop_options, &qop_values);
+  if(result)
+    return result;
 
-    if(data->set.upload) {
-      /* If we are uploading, send an WRQ */
-      setpacketevent(&state->spacket, TFTP_EVENT_WRQ);
-      state->conn->data->req.upload_fromhere =
-        (char *)state->spacket.data+4;
-      if(data->state.infilesize != -1)
-        Curl_pgrsSetUploadSize(data, data->state.infilesize);
-    }
-    else {
-      /* If we are downloading, send an RRQ */
-      setpacketevent(&state->spacket, TFTP_EVENT_RRQ);
-    }
-    /* As RFC3617 describes the separator slash is not actually part of the
-       file name so we skip the always-present first letter of the path
-       string. */
-    filename = curl_easy_unescape(data, &state->conn->data->state.path[1], 0,
-                                  NULL);
-    if(!filename)
-      return CURLE_OUT_OF_MEMORY;
+  /* We only support auth quality-of-protection */
+  if(!(qop_values & DIGEST_QOP_VALUE_AUTH))
+    return CURLE_BAD_CONTENT_ENCODING;
 
-    snprintf((char *)state->spacket.data+2,
-             state->blksize,
-             "%s%c%s%c", filename, '\0',  mode, '\0');
-    sbytes = 4 + strlen(filename) + strlen(mode);
+  /* Generate 16 bytes of random data */
+  entropy[0] = Curl_rand(data);
+  entropy[1] = Curl_rand(data);
+  entropy[2] = Curl_rand(data);
+  entropy[3] = Curl_rand(data);
 
-    /* add tsize option */
-    if(data->set.upload && (data->state.infilesize != -1))
-      snprintf(buf, sizeof(buf), "%" CURL_FORMAT_CURL_OFF_T,
-               data->state.infilesize);
-    else
-      strcpy(buf, "0"); /* the destination is large enough */
+  /* Convert the random data into a 32 byte hex string */
+  snprintf(cnonce, sizeof(cnonce), "%08x%08x%08x%08x",
+           entropy[0], entropy[1], entropy[2], entropy[3]);
 
-    sbytes += tftp_option_add(state, sbytes,
-                              (char *)state->spacket.data+sbytes,
-                              TFTP_OPTION_TSIZE);
-    sbytes += tftp_option_add(state, sbytes,
-                              (char *)state->spacket.data+sbytes, buf);
-    /* add blksize option */
-    snprintf( buf, sizeof(buf), "%d", state->requested_blksize );
-    sbytes += tftp_option_add(state, sbytes,
-                              (char *)state->spacket.data+sbytes,
-                              TFTP_OPTION_BLKSIZE);
-    sbytes += tftp_option_add(state, sbytes,
-                              (char *)state->spacket.data+sbytes, buf );
+  /* So far so good, now calculate A1 and H(A1) according to RFC 2831 */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
 
-    /* add timeout option */
-    snprintf( buf, sizeof(buf), "%d", state->retry_time);
-    sbytes += tftp_option_add(state, sbytes,
-                              (char *)state->spacket.data+sbytes,
-                              TFTP_OPTION_INTERVAL);
-    sbytes += tftp_option_add(state, sbytes,
-                              (char *)state->spacket.data+sbytes, buf );
+  Curl_MD5_update(ctxt, (const unsigned char *) userp,
+                  curlx_uztoui(strlen(userp)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) realm,
+                  curlx_uztoui(strlen(realm)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) passwdp,
+                  curlx_uztoui(strlen(passwdp)));
+  Curl_MD5_final(ctxt, digest);
 
-    /* the typecase for the 3rd argument is mostly for systems that do
-       not have a size_t argument, like older unixes that want an 'int' */
-    senddata = sendto(state->sockfd, (void *)state->spacket.data,
-                      (SEND_TYPE_ARG3)sbytes, 0,
-                      state->conn->ip_addr->ai_addr,
-                      state->conn->ip_addr->ai_addrlen);
-    if(senddata != (ssize_t)sbytes) {
-      failf(data, "%s", Curl_strerror(state->conn, SOCKERRNO));
-    }
-    free(filename);
-    break;
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt)
+    return CURLE_OUT_OF_MEMORY;
 
-  case TFTP_EVENT_OACK:
-    if(data->set.upload) {
-      result = tftp_connect_for_tx(state, event);
-    }
-    else {
-      result = tftp_connect_for_rx(state, event);
-    }
-    break;
+  Curl_MD5_update(ctxt, (const unsigned char *) digest, MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_final(ctxt, digest);
 
-  case TFTP_EVENT_ACK: /* Connected for transmit */
-    result = tftp_connect_for_tx(state, event);
-    break;
+  /* Convert calculated 16 octet hex into 32 bytes string */
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i]);
 
-  case TFTP_EVENT_DATA: /* Connected for receive */
-    result = tftp_connect_for_rx(state, event);
-    break;
+  /* Generate our SPN */
+  spn = Curl_sasl_build_spn(service, realm);
+  if(!spn)
+    return CURLE_OUT_OF_MEMORY;
 
-  case TFTP_EVENT_ERROR:
-    state->state = TFTP_STATE_FIN;
-    break;
+  /* Calculate H(A2) */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
 
-  default:
-    failf(state->conn->data, "tftp_send_first: internal error");
-    break;
+    return CURLE_OUT_OF_MEMORY;
   }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) method,
+                  curlx_uztoui(strlen(method)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) spn,
+                  curlx_uztoui(strlen(spn)));
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&HA2_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Now calculate the response hash */
+  ctxt = Curl_MD5_init(Curl_DIGEST_MD5);
+  if(!ctxt) {
+    free(spn);
+
+    return CURLE_OUT_OF_MEMORY;
+  }
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA1_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) nonce,
+                  curlx_uztoui(strlen(nonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) nonceCount,
+                  curlx_uztoui(strlen(nonceCount)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) cnonce,
+                  curlx_uztoui(strlen(cnonce)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+  Curl_MD5_update(ctxt, (const unsigned char *) qop,
+                  curlx_uztoui(strlen(qop)));
+  Curl_MD5_update(ctxt, (const unsigned char *) ":", 1);
+
+  Curl_MD5_update(ctxt, (const unsigned char *) HA2_hex, 2 * MD5_DIGEST_LEN);
+  Curl_MD5_final(ctxt, digest);
+
+  for(i = 0; i < MD5_DIGEST_LEN; i++)
+    snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+
+  /* Generate the response */
+  response = aprintf("username=\"%s\",realm=\"%s\",nonce=\"%s\","
+                     "cnonce=\"%s\",nc=\"%s\",digest-uri=\"%s\",response=%s,"
+                     "qop=%s",
+                     userp, realm, nonce,
+                     cnonce, nonceCount, spn, resp_hash_hex, qop);
+  free(spn);
+  if(!response)
+    return CURLE_OUT_OF_MEMORY;
+
+  /* Base64 encode the response */
+  result = Curl_base64_encode(data, response, 0, outptr, outlen);
+
+  free(response);
 
   return result;
 }

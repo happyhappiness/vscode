@@ -1,2 +1,1 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+fprintf(stderr, "target [%s] links to:\n", this->Target->GetName());

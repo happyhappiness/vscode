@@ -1,1 +1,1 @@
-fprintf(stderr, "No current working directory.\n");
+fprintf(stderr, "The %s target dependency graph is:\n", name);

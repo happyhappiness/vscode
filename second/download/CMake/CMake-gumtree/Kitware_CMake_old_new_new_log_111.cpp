@@ -1,1 +1,3 @@
-YY_FATAL_ERROR( "cmCommandArgument_yyset_lineno called with no buffer" );
+fsobj_error(a_eno, a_estr, 0,
+					    "Cannot extract through "
+					    "symlink %s", path);

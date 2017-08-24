@@ -1,1 +1,2 @@
-ftpc->newhost = aprintf("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+archive_set_error(f->archive, EIO,
+			    "Can't write to program: %s", data->program_name);

@@ -1,1 +1,1 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);

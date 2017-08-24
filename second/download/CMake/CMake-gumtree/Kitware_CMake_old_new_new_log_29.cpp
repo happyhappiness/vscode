@@ -1,2 +1,1 @@
-f(data->state.buffer, CURL_BUFSIZE(data->set.buffer_size),
-           "%s:%s", user, pwd);
+archive_string_sprintf(a_estr, "%s%s", errstr, path);

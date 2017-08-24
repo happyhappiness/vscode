@@ -1,1 +1,5 @@
-snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str)
+{
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}

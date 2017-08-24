@@ -1,3 +1,2 @@
-archive_set_error(&a->archive, errno,
-					    "Could not remove symlink %s",
-					    a->name);
+_snprintf(cp->ExitExceptionString, KWSYSPE_PIPE_BUFFER_SIZE,
+                "Exit code 0x%x\n", code);

@@ -1,16 +1,7 @@
 {
-  CURLcode result = CURLE_OK;
-  char *xoauth = NULL;
-
-  /* Generate the message */
-  xoauth = aprintf("user=%s\1auth=Bearer %s\1\1", user, bearer);
-  if(!xoauth)
-    return CURLE_OUT_OF_MEMORY;
-
-  /* Base64 encode the reply */
-  result = Curl_base64_encode(data, xoauth, strlen(xoauth), outptr, outlen);
-
-  free(xoauth);
-
-  return result;
-}
+					archive_set_error(&a->archive, errno,
+					    "Could not remove symlink %s",
+					    a->name);
+					pn[0] = c;
+					return (ARCHIVE_FAILED);
+				}

@@ -1,4 +1,5 @@
 {
-    snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);
-    putenv(buf);
-  }
+			archive_set_error(&a->archive, errno,
+				    "Couldn't change dir");
+				return (ARCHIVE_FAILED);
+		}

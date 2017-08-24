@@ -1,1 +1,2 @@
-fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
+archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Encrypted file is unsupported");

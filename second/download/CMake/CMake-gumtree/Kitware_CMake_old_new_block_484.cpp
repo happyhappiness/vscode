@@ -1,12 +1,8 @@
 {
-      format_ptr = get_netscape_format(co);
-      if(format_ptr == NULL) {
-        fprintf(out, "#\n# Fatal libcurl error\n");
-        if(!use_stdout)
-          fclose(out);
-        return 1;
-      }
-      fprintf(out, "%s\n", format_ptr);
-      free(format_ptr);
-      co=co->next;
-    }
+	(void)self; /* UNUSED */
+	(void)cmd; /* UNUSED */
+
+	archive_set_error(&self->archive->archive, -1,
+	    "External compression programs not supported on this platform");
+	return (ARCHIVE_FATAL);
+}

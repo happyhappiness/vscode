@@ -1,14 +1,13 @@
 {
-	case 01000000:
-		/* POSIX.1e ACL */
+	case LZMADEC_HEADER_ERROR:
+		archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header");
 		break;
-	case 03000000:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Solaris NFSv4 ACLs not supported");
-		return (ARCHIVE_WARN);
-	default:
-		archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-		    "Malformed Solaris ACL attribute (unsupported type %o)",
-		    (int)type);
-		return (ARCHIVE_WARN);
+	case LZMADEC_MEM_ERROR:
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");
+		break;
 	}

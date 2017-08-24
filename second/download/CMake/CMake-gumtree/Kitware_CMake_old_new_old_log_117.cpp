@@ -1,1 +1,2 @@
-vsnprintf(s, sizeof(s), fmt, ap);
+archive_set_error(&a->archive, errno,
+				    "Couldn't access %s", path);

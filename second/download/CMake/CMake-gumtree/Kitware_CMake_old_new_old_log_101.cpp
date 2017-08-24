@@ -1,2 +1,3 @@
-fprintf(stderr,
-		    "Extra data field contents do not match reported size!\n");
+archive_set_error(
+			&a->archive, ARCHIVE_ERRNO_MISC,
+			"Unsupported record version");

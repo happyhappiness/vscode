@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, 0,
-		    "Write request too large");
+the project that
+ * took on from here is named 'Trio' and you find more details on the trio web
+ * page at http://daniel.haxx.se/trio/
+ */;

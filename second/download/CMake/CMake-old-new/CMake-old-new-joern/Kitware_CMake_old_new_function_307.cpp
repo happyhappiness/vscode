@@ -1,39 +1,83 @@
-void
-DumpExternals(PIMAGE_SYMBOL pSymbolTable, FILE *fout, unsigned cSymbols)
+void cmGlobalGenerator::Configure()
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string symbol;
+  this->FirstTimeProgress = 0.0f;
+  this->ClearGeneratorMembers();
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+  // start with this directory
+  cmLocalGenerator *lg = this->MakeLocalGenerator();
+  this->LocalGenerators.push_back(lg);
 
-   for ( i=0; i < cSymbols; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 && pSymbolTable->Type == 0x20) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)(pSymbolTable->N.ShortName), 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
-            std::string::size_type posAt = symbol.find('@');
-            if (posAt != std::string::npos) symbol.erase(posAt);
-#ifndef _MSC_VER
-            fprintf(fout, "\t%s\n", symbol.c_str());
-#else
-            fprintf(fout, "\t%s\n", symbol.c_str()+1);
-#endif
-         }
+  // set the Start directories
+  lg->GetMakefile()->SetCurrentSourceDirectory
+    (this->CMakeInstance->GetHomeDirectory());
+  lg->GetMakefile()->SetCurrentBinaryDirectory
+    (this->CMakeInstance->GetHomeOutputDirectory());
+
+  this->BinaryDirectories.insert(
+      this->CMakeInstance->GetHomeOutputDirectory());
+
+  // now do it
+  lg->GetMakefile()->Configure();
+  lg->GetMakefile()->EnforceDirectoryLevelRules();
+
+  // update the cache entry for the number of local generators, this is used
+  // for progress
+  char num[100];
+  sprintf(num,"%d",static_cast<int>(this->LocalGenerators.size()));
+  this->GetCMakeInstance()->AddCacheEntry
+    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
+     "number of local generators", cmState::INTERNAL);
+
+  // check for link libraries and include directories containing "NOTFOUND"
+  // and for infinite loops
+  this->CheckLocalGenerators();
+
+  // at this point this->LocalGenerators has been filled,
+  // so create the map from project name to vector of local generators
+  this->FillProjectMap();
+
+  if ( this->CMakeInstance->GetWorkingMode() == cmake::NORMAL_MODE)
+    {
+    std::ostringstream msg;
+    if(cmSystemTools::GetErrorOccuredFlag())
+      {
+      msg << "Configuring incomplete, errors occurred!";
+      const char* logs[] = {"CMakeOutput.log", "CMakeError.log", 0};
+      for(const char** log = logs; *log; ++log)
+        {
+        std::string f = this->CMakeInstance->GetHomeOutputDirectory();
+        f += this->CMakeInstance->GetCMakeFilesDirectory();
+        f += "/";
+        f += *log;
+        if(cmSystemTools::FileExists(f.c_str()))
+          {
+          msg << "\nSee also \"" << f << "\".";
+          }
+        }
       }
+    else
+      {
+      msg << "Configuring done";
+      }
+    this->CMakeInstance->UpdateProgress(msg.str().c_str(), -1);
+    }
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+  unsigned int i;
+
+  // Put a copy of each global target in every directory.
+  cmTargets globalTargets;
+  this->CreateDefaultGlobalTargets(&globalTargets);
+
+  for (i = 0; i < this->LocalGenerators.size(); ++i)
+    {
+    cmMakefile* mf = this->LocalGenerators[i]->GetMakefile();
+    cmTargets* targets = &(mf->GetTargets());
+    cmTargets::iterator tit;
+    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
+      {
+      (*targets)[tit->first] = tit->second;
+      (*targets)[tit->first].SetMakefile(mf);
+      }
+    }
+
 }

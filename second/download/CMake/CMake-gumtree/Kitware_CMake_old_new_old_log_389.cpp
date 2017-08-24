@@ -1,1 +1,1 @@
-sprintf(win9x, "%s%s", tempDir, fwdName);
+fprintf(fout, "add_executable(%s", targetName);

@@ -1,5 +1,1 @@
-{
-      /* something in the global init failed, return nothing */
-      DEBUGF(fprintf(stderr, "Error: curl_global_init failed\n"));
-      return NULL;
-    }
+yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner)

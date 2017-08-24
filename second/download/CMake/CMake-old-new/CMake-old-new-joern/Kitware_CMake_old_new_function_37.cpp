@@ -1,81 +1,59 @@
 int
-setup_xattrs(struct archive_read_disk *a,
-    struct archive_entry *entry, int *fd)
+set_xattrs(struct archive_write_disk *a)
 {
-	char buff[512];
-	char *list, *p;
-	ssize_t list_size;
-	const char *path;
-	int namespace = EXTATTR_NAMESPACE_USER;
+	struct archive_entry *entry = a->entry;
+	static int warning_done = 0;
+	int ret = ARCHIVE_OK;
+	int i = archive_entry_xattr_reset(entry);
 
-	path = archive_entry_sourcepath(entry);
-	if (path == NULL)
-		path = archive_entry_pathname(entry);
-
-	if (*fd < 0 && a->tree != NULL) {
-		if (a->follow_symlinks ||
-		    archive_entry_filetype(entry) != AE_IFLNK)
-			*fd = a->open_on_current_dir(a->tree, path,
-				O_RDONLY | O_NONBLOCK);
-		if (*fd < 0) {
-			if (a->tree_enter_working_dir(a->tree) != 0) {
-				archive_set_error(&a->archive, errno,
-				    "Couldn't access %s", path);
-				return (ARCHIVE_FAILED);
+	while (i--) {
+		const char *name;
+		const void *value;
+		size_t size;
+		archive_entry_xattr_next(entry, &name, &value, &size);
+		if (name != NULL &&
+				strncmp(name, "xfsroot.", 8) != 0 &&
+				strncmp(name, "system.", 7) != 0) {
+			int e;
+#if HAVE_FSETXATTR
+			if (a->fd >= 0)
+				e = fsetxattr(a->fd, name, value, size, 0);
+			else
+#elif HAVE_FSETEA
+			if (a->fd >= 0)
+				e = fsetea(a->fd, name, value, size, 0);
+			else
+#endif
+			{
+#if HAVE_LSETXATTR
+				e = lsetxattr(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#elif HAVE_LSETEA
+				e = lsetea(archive_entry_pathname(entry),
+				    name, value, size, 0);
+#endif
 			}
+			if (e == -1) {
+				if (errno == ENOTSUP || errno == ENOSYS) {
+					if (!warning_done) {
+						warning_done = 1;
+						archive_set_error(&a->archive,
+						    errno,
+						    "Cannot restore extended "
+						    "attributes on this file "
+						    "system");
+					}
+				} else
+					archive_set_error(&a->archive, errno,
+					    "Failed to set extended attribute");
+				ret = ARCHIVE_WARN;
+			}
+		} else {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Invalid extended attribute encountered");
+			ret = ARCHIVE_WARN;
 		}
 	}
-
-	if (*fd >= 0)
-		list_size = extattr_list_fd(*fd, namespace, NULL, 0);
-	else if (!a->follow_symlinks)
-		list_size = extattr_list_link(path, namespace, NULL, 0);
-	else
-		list_size = extattr_list_file(path, namespace, NULL, 0);
-
-	if (list_size == -1 && errno == EOPNOTSUPP)
-		return (ARCHIVE_OK);
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't list extended attributes");
-		return (ARCHIVE_WARN);
-	}
-
-	if (list_size == 0)
-		return (ARCHIVE_OK);
-
-	if ((list = malloc(list_size)) == NULL) {
-		archive_set_error(&a->archive, errno, "Out of memory");
-		return (ARCHIVE_FATAL);
-	}
-
-	if (*fd >= 0)
-		list_size = extattr_list_fd(*fd, namespace, list, list_size);
-	else if (!a->follow_symlinks)
-		list_size = extattr_list_link(path, namespace, list, list_size);
-	else
-		list_size = extattr_list_file(path, namespace, list, list_size);
-
-	if (list_size == -1) {
-		archive_set_error(&a->archive, errno,
-			"Couldn't retrieve extended attributes");
-		free(list);
-		return (ARCHIVE_WARN);
-	}
-
-	p = list;
-	while ((p - list) < list_size) {
-		size_t len = 255 & (int)*p;
-		char *name;
-
-		strcpy(buff, "user.");
-		name = buff + strlen(buff);
-		memcpy(name, p + 1, len);
-		name[len] = '\0';
-		setup_xattr(a, entry, namespace, name, buff, *fd);
-		p += 1 + len;
-	}
-
-	free(list);
-	return (ARCHIVE_OK);
+	return (ret);
 }

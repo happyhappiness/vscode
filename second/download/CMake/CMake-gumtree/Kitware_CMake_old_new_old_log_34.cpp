@@ -1,1 +1,3 @@
-f(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+fsobj_error(a_eno, a_estr,
+						    errno,
+						    "Could not chdir %s", path);

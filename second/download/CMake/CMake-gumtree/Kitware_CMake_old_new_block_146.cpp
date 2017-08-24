@@ -1,4 +1,5 @@
 {
-    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
-    return CURLE_FAILED_INIT;
-  }
+					archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);
+				}

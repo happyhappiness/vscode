@@ -1,2 +1,2 @@
-archive_set_error(&a->archive, 0,
-		    "Write request too large");
+archive_set_error(f->archive, EIO,
+			    "Can't write to filter");

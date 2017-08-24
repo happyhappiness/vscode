@@ -1,1 +1,1 @@
-tmp = aprintf("%s, opaque=\"%s\"", response, digest->opaque);
+aprintf("%s/%s", service, host);

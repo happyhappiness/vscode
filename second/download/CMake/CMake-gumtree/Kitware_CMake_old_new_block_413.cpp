@@ -1,5 +1,4 @@
 {
-		archive_set_error(&a->archive, 0,
-		    "Write request too large");
-		return (ARCHIVE_WARN);
-	}
+        // print the progress
+        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+        }

@@ -1,103 +1,68 @@
-char *curl_version(void)
+static int
+lzma_bidder_init(struct archive_read_filter *self)
 {
-  static bool initialized;
-  static char version[200];
-  char *ptr = version;
-  size_t len;
-  size_t left = sizeof(version);
+	static const size_t out_block_size = 64 * 1024;
+	void *out_block;
+	struct private_data *state;
+	ssize_t ret, avail_in;
 
-  if(initialized)
-    return version;
+	self->code = ARCHIVE_FILTER_LZMA;
+	self->name = "lzma";
 
-  strcpy(ptr, LIBCURL_NAME "/" LIBCURL_VERSION);
-  len = strlen(ptr);
-  left -= len;
-  ptr += len;
+	state = (struct private_data *)calloc(sizeof(*state), 1);
+	out_block = (unsigned char *)malloc(out_block_size);
+	if (state == NULL || out_block == NULL) {
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Can't allocate data for lzma decompression");
+		free(out_block);
+		free(state);
+		return (ARCHIVE_FATAL);
+	}
 
-  if(left > 1) {
-    len = Curl_ssl_version(ptr + 1, left - 1);
+	self->data = state;
+	state->out_block_size = out_block_size;
+	state->out_block = out_block;
+	self->read = lzma_filter_read;
+	self->skip = NULL; /* not supported */
+	self->close = lzma_filter_close;
 
-    if(len > 0) {
-      *ptr = ' ';
-      left -= ++len;
-      ptr += len;
-    }
-  }
+	/* Prime the lzma library with 18 bytes of input. */
+	state->stream.next_in = (unsigned char *)(uintptr_t)
+	    __archive_read_filter_ahead(self->upstream, 18, &avail_in);
+	if (state->stream.next_in == NULL)
+		return (ARCHIVE_FATAL);
+	state->stream.avail_in = avail_in;
+	state->stream.next_out = state->out_block;
+	state->stream.avail_out = state->out_block_size;
 
-#ifdef HAVE_LIBZ
-  len = snprintf(ptr, left, " zlib/%s", zlibVersion());
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_ARES
-  /* this function is only present in c-ares, not in the original ares */
-  len = snprintf(ptr, left, " c-ares/%s", ares_version(NULL));
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBIDN
-  if(stringprep_check_version(LIBIDN_REQUIRED_VERSION)) {
-    len = snprintf(ptr, left, " libidn/%s", stringprep_check_version(NULL));
-    left -= len;
-    ptr += len;
-  }
-#endif
-#ifdef USE_LIBPSL
-  len = snprintf(ptr, left, " libpsl/%s", psl_get_version());
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_WIN32_IDN
-  len = snprintf(ptr, left, " WinIDN");
-  left -= len;
-  ptr += len;
-#endif
-#if defined(HAVE_ICONV) && defined(CURL_DOES_CONVERSIONS)
-#ifdef _LIBICONV_VERSION
-  len = snprintf(ptr, left, " iconv/%d.%d",
-                 _LIBICONV_VERSION >> 8, _LIBICONV_VERSION & 255);
-#else
-  /* version unknown */
-  len = snprintf(ptr, left, " iconv");
-#endif /* _LIBICONV_VERSION */
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBSSH2
-  len = snprintf(ptr, left, " libssh2/%s", CURL_LIBSSH2_VERSION);
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_NGHTTP2
-  len = Curl_http2_ver(ptr, left);
-  left -= len;
-  ptr += len;
-#endif
-#ifdef USE_LIBRTMP
-  {
-    char suff[2];
-    if(RTMP_LIB_VERSION & 0xff) {
-      suff[0] = (RTMP_LIB_VERSION & 0xff) + 'a' - 1;
-      suff[1] = '\0';
-    }
-    else
-      suff[0] = '\0';
+	/* Initialize compression library. */
+	ret = lzmadec_init(&(state->stream));
+	__archive_read_filter_consume(self->upstream,
+	    avail_in - state->stream.avail_in);
+	if (ret == LZMADEC_OK)
+		return (ARCHIVE_OK);
 
-    snprintf(ptr, left, " librtmp/%d.%d%s",
-             RTMP_LIB_VERSION >> 16, (RTMP_LIB_VERSION >> 8) & 0xff,
-             suff);
-/*
-  If another lib version is added below this one, this code would
-  also have to do:
+	/* Library setup failed: Clean up. */
+	archive_set_error(&self->archive->archive, ARCHIVE_ERRNO_MISC,
+	    "Internal error initializing lzma library");
 
-    len = what snprintf() returned
+	/* Override the error message if we know what really went wrong. */
+	switch (ret) {
+	case LZMADEC_HEADER_ERROR:
+		archive_set_error(&self->archive->archive,
+		    ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "invalid header");
+		break;
+	case LZMADEC_MEM_ERROR:
+		archive_set_error(&self->archive->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "out of memory");
+		break;
+	}
 
-    left -= len;
-    ptr += len;
-*/
-  }
-#endif
-
-  initialized = true;
-  return version;
+	free(state->out_block);
+	free(state);
+	self->data = NULL;
+	return (ARCHIVE_FATAL);
 }

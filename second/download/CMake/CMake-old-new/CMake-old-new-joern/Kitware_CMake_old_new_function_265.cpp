@@ -1,190 +1,279 @@
-static CURLcode ftp_state_pasv_resp(struct connectdata *conn,
-                                    int ftpcode)
+static int
+zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
+    struct zip *zip)
 {
-  struct ftp_conn *ftpc = &conn->proto.ftpc;
-  CURLcode result;
-  struct SessionHandle *data=conn->data;
-  struct Curl_dns_entry *addr=NULL;
-  int rc;
-  unsigned short connectport; /* the local port connect() should use! */
-  char *str=&data->state.buffer[4];  /* start on the first letter */
+	const char *p;
+	const void *h;
+	const wchar_t *wp;
+	const char *cp;
+	size_t len, filename_length, extra_length;
+	struct archive_string_conv *sconv;
+	struct zip_entry *zip_entry = zip->entry;
+	struct zip_entry zip_entry_central_dir;
+	int ret = ARCHIVE_OK;
+	char version;
 
-  if((ftpc->count1 == 0) &&
-     (ftpcode == 229)) {
-    /* positive EPSV response */
-    char *ptr = strchr(str, '(');
-    if(ptr) {
-      unsigned int num;
-      char separator[4];
-      ptr++;
-      if(5  == sscanf(ptr, "%c%c%c%u%c",
-                      &separator[0],
-                      &separator[1],
-                      &separator[2],
-                      &num,
-                      &separator[3])) {
-        const char sep1 = separator[0];
-        int i;
+	/* Save a copy of the original for consistency checks. */
+	zip_entry_central_dir = *zip_entry;
 
-        /* The four separators should be identical, or else this is an oddly
-           formatted reply and we bail out immediately. */
-        for(i=1; i<4; i++) {
-          if(separator[i] != sep1) {
-            ptr=NULL; /* set to NULL to signal error */
-            break;
-          }
-        }
-        if(num > 0xffff) {
-          failf(data, "Illegal port number in EPSV reply");
-          return CURLE_FTP_WEIRD_PASV_REPLY;
-        }
-        if(ptr) {
-          ftpc->newport = (unsigned short)(num & 0xffff);
+	zip->decompress_init = 0;
+	zip->end_of_entry = 0;
+	zip->entry_uncompressed_bytes_read = 0;
+	zip->entry_compressed_bytes_read = 0;
+	zip->entry_crc32 = zip->crc32func(0, NULL, 0);
 
-          if(conn->bits.tunnel_proxy ||
-             conn->proxytype == CURLPROXY_SOCKS5 ||
-             conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-             conn->proxytype == CURLPROXY_SOCKS4 ||
-             conn->proxytype == CURLPROXY_SOCKS4A)
-            /* proxy tunnel -> use other host info because ip_addr_str is the
-               proxy address not the ftp host */
-            snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                     conn->host.name);
-          else
-            /* use the same IP we are already connected to */
-            snprintf(ftpc->newhost, NEWHOST_BUFSIZE, "%s", conn->ip_addr_str);
-        }
-      }
-      else
-        ptr=NULL;
-    }
-    if(!ptr) {
-      failf(data, "Weirdly formatted EPSV reply");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
-    }
-  }
-  else if((ftpc->count1 == 1) &&
-          (ftpcode == 227)) {
-    /* positive PASV response */
-    int ip[4];
-    int port[2];
+	/* Setup default conversion. */
+	if (zip->sconv == NULL && !zip->init_default_conversion) {
+		zip->sconv_default =
+		    archive_string_default_conversion_for_read(&(a->archive));
+		zip->init_default_conversion = 1;
+	}
 
-    /*
-     * Scan for a sequence of six comma-separated numbers and use them as
-     * IP+port indicators.
-     *
-     * Found reply-strings include:
-     * "227 Entering Passive Mode (127,0,0,1,4,51)"
-     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-     * "227 Entering passive mode. 127,0,0,1,4,51"
-     */
-    while(*str) {
-      if(6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-                      &ip[0], &ip[1], &ip[2], &ip[3],
-                      &port[0], &port[1]))
-        break;
-      str++;
-    }
+	if ((p = __archive_read_ahead(a, 30, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
 
-    if(!*str) {
-      failf(data, "Couldn't interpret the 227-response");
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
+	if (memcmp(p, "PK\003\004", 4) != 0) {
+		archive_set_error(&a->archive, -1, "Damaged Zip archive");
+		return ARCHIVE_FATAL;
+	}
+	version = p[4];
+	zip_entry->system = p[5];
+	zip_entry->zip_flags = archive_le16dec(p + 6);
+	if (zip_entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		zip->has_encrypted_entries = 1;
+		archive_entry_set_is_data_encrypted(entry, 1);
+		if (zip_entry->zip_flags & ZIP_CENTRAL_DIRECTORY_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_ENCRYPTED &&
+			zip_entry->zip_flags & ZIP_STRONG_ENCRYPTED) {
+			archive_entry_set_is_metadata_encrypted(entry, 1);
+			return ARCHIVE_FATAL;
+		}
+	}
+	zip->init_decryption = (zip_entry->zip_flags & ZIP_ENCRYPTED);
+	zip_entry->compression = (char)archive_le16dec(p + 8);
+	zip_entry->mtime = zip_time(p + 10);
+	zip_entry->crc32 = archive_le32dec(p + 14);
+	if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+		zip_entry->decdat = p[11];
+	else
+		zip_entry->decdat = p[17];
+	zip_entry->compressed_size = archive_le32dec(p + 18);
+	zip_entry->uncompressed_size = archive_le32dec(p + 22);
+	filename_length = archive_le16dec(p + 26);
+	extra_length = archive_le16dec(p + 28);
 
-    /* we got OK from server */
-    if(data->set.ftp_skip_ip) {
-      /* told to ignore the remotely given IP but instead use the one we used
-         for the control connection */
-      infof(data, "Skips %d.%d.%d.%d for data connection, uses %s instead\n",
-            ip[0], ip[1], ip[2], ip[3],
-            conn->ip_addr_str);
-      if(conn->bits.tunnel_proxy ||
-         conn->proxytype == CURLPROXY_SOCKS5 ||
-         conn->proxytype == CURLPROXY_SOCKS5_HOSTNAME ||
-         conn->proxytype == CURLPROXY_SOCKS4 ||
-         conn->proxytype == CURLPROXY_SOCKS4A)
-        /* proxy tunnel -> use other host info because ip_addr_str is the
-           proxy address not the ftp host */
-        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name);
-      else
-        snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s",
-                 conn->ip_addr_str);
-    }
-    else
-      snprintf(ftpc->newhost, sizeof(ftpc->newhost),
-               "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    ftpc->newport = (unsigned short)(((port[0]<<8) + port[1]) & 0xffff);
-  }
-  else if(ftpc->count1 == 0) {
-    /* EPSV failed, move on to PASV */
-    return ftp_epsv_disable(conn);
-  }
-  else {
-    failf(data, "Bad PASV/EPSV response: %03d", ftpcode);
-    return CURLE_FTP_WEIRD_PASV_REPLY;
-  }
+	__archive_read_consume(a, 30);
 
-  if(conn->bits.proxy) {
-    /*
-     * This connection uses a proxy and we need to connect to the proxy again
-     * here. We don't want to rely on a former host lookup that might've
-     * expired now, instead we remake the lookup here and now!
-     */
-    rc = Curl_resolv(conn, conn->proxy.name, (int)conn->port, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING, ignores the return code but 'addr' will be NULL in
-         case of failure */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
+	/* Read the filename. */
+	if ((h = __archive_read_ahead(a, filename_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
+	if (zip_entry->zip_flags & ZIP_UTF8_NAME) {
+		/* The filename is stored to be UTF-8. */
+		if (zip->sconv_utf8 == NULL) {
+			zip->sconv_utf8 =
+			    archive_string_conversion_from_charset(
+				&a->archive, "UTF-8", 1);
+			if (zip->sconv_utf8 == NULL)
+				return (ARCHIVE_FATAL);
+		}
+		sconv = zip->sconv_utf8;
+	} else if (zip->sconv != NULL)
+		sconv = zip->sconv;
+	else
+		sconv = zip->sconv_default;
 
-    connectport =
-      (unsigned short)conn->port; /* we connect to the proxy's port */
+	if (archive_entry_copy_pathname_l(entry,
+	    h, filename_length, sconv) != 0) {
+		if (errno == ENOMEM) {
+			archive_set_error(&a->archive, ENOMEM,
+			    "Can't allocate memory for Pathname");
+			return (ARCHIVE_FATAL);
+		}
+		archive_set_error(&a->archive,
+		    ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Pathname cannot be converted "
+		    "from %s to current locale.",
+		    archive_string_conversion_charset_name(sconv));
+		ret = ARCHIVE_WARN;
+	}
+	__archive_read_consume(a, filename_length);
 
-    if(!addr) {
-      failf(data, "Can't resolve proxy host %s:%hu",
-            conn->proxy.name, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-  }
-  else {
-    /* normal, direct, ftp connection */
-    rc = Curl_resolv(conn, ftpc->newhost, ftpc->newport, &addr);
-    if(rc == CURLRESOLV_PENDING)
-      /* BLOCKING */
-      (void)Curl_resolver_wait_resolv(conn, &addr);
+	/* Work around a bug in Info-Zip: When reading from a pipe, it
+	 * stats the pipe instead of synthesizing a file entry. */
+	if ((zip_entry->mode & AE_IFMT) == AE_IFIFO) {
+		zip_entry->mode &= ~ AE_IFMT;
+		zip_entry->mode |= AE_IFREG;
+	}
 
-    connectport = ftpc->newport; /* we connect to the remote port */
+	if ((zip_entry->mode & AE_IFMT) == 0) {
+		/* Especially in streaming mode, we can end up
+		   here without having seen proper mode information.
+		   Guess from the filename. */
+		wp = archive_entry_pathname_w(entry);
+		if (wp != NULL) {
+			len = wcslen(wp);
+			if (len > 0 && wp[len - 1] == L'/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		} else {
+			cp = archive_entry_pathname(entry);
+			len = (cp != NULL)?strlen(cp):0;
+			if (len > 0 && cp[len - 1] == '/')
+				zip_entry->mode |= AE_IFDIR;
+			else
+				zip_entry->mode |= AE_IFREG;
+		}
+		if (zip_entry->mode == AE_IFDIR) {
+			zip_entry->mode |= 0775;
+		} else if (zip_entry->mode == AE_IFREG) {
+			zip_entry->mode |= 0664;
+		}
+	}
 
-    if(!addr) {
-      failf(data, "Can't resolve new host %s:%hu", ftpc->newhost, connectport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-  }
+	/* Read the extra data. */
+	if ((h = __archive_read_ahead(a, extra_length, NULL)) == NULL) {
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Truncated ZIP file header");
+		return (ARCHIVE_FATAL);
+	}
 
-  conn->bits.tcpconnect[SECONDARYSOCKET] = FALSE;
-  result = Curl_connecthost(conn, addr);
+	process_extra(h, extra_length, zip_entry);
+	__archive_read_consume(a, extra_length);
 
-  Curl_resolv_unlock(data, addr); /* we're done using this address */
+	if (zip_entry->flags & LA_FROM_CENTRAL_DIRECTORY) {
+		/* If this came from the central dir, it's size info
+		 * is definitive, so ignore the length-at-end flag. */
+		zip_entry->zip_flags &= ~ZIP_LENGTH_AT_END;
+		/* If local header is missing a value, use the one from
+		   the central directory.  If both have it, warn about
+		   mismatches. */
+		if (zip_entry->crc32 == 0) {
+			zip_entry->crc32 = zip_entry_central_dir.crc32;
+		} else if (!zip->ignore_crc32
+		    && zip_entry->crc32 != zip_entry_central_dir.crc32) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent CRC32 values");
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->compressed_size == 0) {
+			zip_entry->compressed_size
+			    = zip_entry_central_dir.compressed_size;
+		} else if (zip_entry->compressed_size
+		    != zip_entry_central_dir.compressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent compressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.compressed_size,
+			    (intmax_t)zip_entry->compressed_size);
+			ret = ARCHIVE_WARN;
+		}
+		if (zip_entry->uncompressed_size == 0) {
+			zip_entry->uncompressed_size
+			    = zip_entry_central_dir.uncompressed_size;
+		} else if (zip_entry->uncompressed_size
+		    != zip_entry_central_dir.uncompressed_size) {
+			archive_set_error(&a->archive,
+			    ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Inconsistent uncompressed size: "
+			    "%jd in central directory, %jd in local header",
+			    (intmax_t)zip_entry_central_dir.uncompressed_size,
+			    (intmax_t)zip_entry->uncompressed_size);
+			ret = ARCHIVE_WARN;
+		}
+	}
 
-  if(result) {
-    if(ftpc->count1 == 0 && ftpcode == 229)
-      return ftp_epsv_disable(conn);
+	/* Populate some additional entry fields: */
+	archive_entry_set_mode(entry, zip_entry->mode);
+	archive_entry_set_uid(entry, zip_entry->uid);
+	archive_entry_set_gid(entry, zip_entry->gid);
+	archive_entry_set_mtime(entry, zip_entry->mtime, 0);
+	archive_entry_set_ctime(entry, zip_entry->ctime, 0);
+	archive_entry_set_atime(entry, zip_entry->atime, 0);
 
-    return result;
-  }
+	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
+		size_t linkname_length;
 
+		if (zip_entry->compressed_size > 64 * 1024) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Zip file with oversized link entry");
+			return ARCHIVE_FATAL;
+		}
 
-  /*
-   * When this is used from the multi interface, this might've returned with
-   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
-   * connect to connect.
-   */
+		linkname_length = (size_t)zip_entry->compressed_size;
 
-  if(data->set.verbose)
-    /* this just dumps information about this second connection */
-    ftp_pasv_verbose(conn, conn->ip_addr, ftpc->newhost, connectport);
+		archive_entry_set_size(entry, 0);
+		p = __archive_read_ahead(a, linkname_length, NULL);
+		if (p == NULL) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Truncated Zip file");
+			return ARCHIVE_FATAL;
+		}
 
-  conn->bits.do_more = TRUE;
-  state(conn, FTP_STOP); /* this phase is completed */
+		sconv = zip->sconv;
+		if (sconv == NULL && (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			sconv = zip->sconv_utf8;
+		if (sconv == NULL)
+			sconv = zip->sconv_default;
+		if (archive_entry_copy_symlink_l(entry, p, linkname_length,
+		    sconv) != 0) {
+			if (errno != ENOMEM && sconv == zip->sconv_utf8 &&
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME))
+			    archive_entry_copy_symlink_l(entry, p,
+				linkname_length, NULL);
+			if (errno == ENOMEM) {
+				archive_set_error(&a->archive, ENOMEM,
+				    "Can't allocate memory for Symlink");
+				return (ARCHIVE_FATAL);
+			}
+			/*
+			 * Since there is no character-set regulation for
+			 * symlink name, do not report the conversion error
+			 * in an automatic conversion.
+			 */
+			if (sconv != zip->sconv_utf8 ||
+			    (zip->entry->zip_flags & ZIP_UTF8_NAME) == 0) {
+				archive_set_error(&a->archive,
+				    ARCHIVE_ERRNO_FILE_FORMAT,
+				    "Symlink cannot be converted "
+				    "from %s to current locale.",
+				    archive_string_conversion_charset_name(
+					sconv));
+				ret = ARCHIVE_WARN;
+			}
+		}
+		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
 
-  return result;
+		if (__archive_read_consume(a, linkname_length) < 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Read error skipping symlink target name");
+			return ARCHIVE_FATAL;
+		}
+	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    || zip_entry->uncompressed_size > 0) {
+		/* Set the size only if it's meaningful. */
+		archive_entry_set_size(entry, zip_entry->uncompressed_size);
+	}
+	zip->entry_bytes_remaining = zip_entry->compressed_size;
+
+	/* If there's no body, force read_data() to return EOF immediately. */
+	if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+	    && zip->entry_bytes_remaining < 1)
+		zip->end_of_entry = 1;
+
+	/* Set up a more descriptive format name. */
+	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
+	    version / 10, version % 10,
+	    compression_name(zip->entry->compression));
+	a->archive.archive_format_name = zip->format_name.s;
+
+	return (ret);
 }

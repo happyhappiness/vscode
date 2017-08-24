@@ -1,2 +1,3 @@
-snprintf(service.value, service.length+1, "%s@%s",
-             serviceptr, conn->proxy.name);
+archive_set_error(&a->archive, 0,
+					    "Removing symlink %s",
+					    a->name);

@@ -1,2 +1,3 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName());
+fprintf(fout,
+      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
+      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");

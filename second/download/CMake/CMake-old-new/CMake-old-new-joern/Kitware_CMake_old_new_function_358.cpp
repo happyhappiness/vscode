@@ -1,60 +1,49 @@
-std::vector<cmComputeLinkDepends::LinkEntry> const&
-cmComputeLinkDepends::Compute()
+bool Directory::Load(const char* name)
 {
-  // Follow the link dependencies of the target to be linked.
-  this->AddDirectLinkEntries();
-
-  // Complete the breadth-first search of dependencies.
-  while(!this->BFSQueue.empty())
+  this->Clear();
+#if _MSC_VER < 1300
+  long srchHandle;
+#else
+  intptr_t srchHandle;
+#endif
+  char* buf;
+  size_t n = strlen(name);
+  if ( name[n - 1] == '/' || name[n - 1] == '\\' )
     {
-    // Get the next entry.
-    BFSEntry qe = this->BFSQueue.front();
-    this->BFSQueue.pop();
+    buf = new char[n + 1 + 1];
+    sprintf(buf, "%s*", name);
+    }
+  else
+    {
+    // Make sure the slashes in the wildcard suffix are consistent with the
+    // rest of the path
+    buf = new char[n + 2 + 1];
+    if ( strchr(name, '\\') )
+      {
+      sprintf(buf, "%s\\*", name);
+      }
+    else
+      {
+      sprintf(buf, "%s/*", name);
+      }
+    }
+  struct _wfinddata_t data;      // data of current file
 
-    // Follow the entry's dependencies.
-    this->FollowLinkEntry(qe);
+  // Now put them into the file array
+  srchHandle = _wfindfirst((wchar_t*)Encoding::ToWide(buf).c_str(), &data);
+  delete [] buf;
+
+  if ( srchHandle == -1 )
+    {
+    return 0;
     }
 
-  // Complete the search of shared library dependencies.
-  while(!this->SharedDepQueue.empty())
+  // Loop through names
+  do
     {
-    // Handle the next entry.
-    this->HandleSharedDependency(this->SharedDepQueue.front());
-    this->SharedDepQueue.pop();
+    this->Internal->Files.push_back(Encoding::ToNarrow(data.name));
     }
-
-  // Infer dependencies of targets for which they were not known.
-  this->InferDependencies();
-
-  // Cleanup the constraint graph.
-  this->CleanConstraintGraph();
-
-  // Display the constraint graph.
-  if(this->DebugMode)
-    {
-    fprintf(stderr,
-            "---------------------------------------"
-            "---------------------------------------\n");
-    fprintf(stderr, "Link dependency analysis for target %s, config %s\n",
-            this->Target->GetName(), this->Config?this->Config:"noconfig");
-    this->DisplayConstraintGraph();
-    }
-
-  // Compute the final ordering.
-  this->OrderLinkEntires();
-
-  // Compute the final set of link entries.
-  for(std::vector<int>::const_iterator li = this->FinalLinkOrder.begin();
-      li != this->FinalLinkOrder.end(); ++li)
-    {
-    this->FinalLinkEntries.push_back(this->EntryList[*li]);
-    }
-
-  // Display the final set.
-  if(this->DebugMode)
-    {
-    this->DisplayFinalEntries();
-    }
-
-  return this->FinalLinkEntries;
+  while ( _wfindnext(srchHandle, &data) != -1 );
+  this->Internal->Path = name;
+  return _findclose(srchHandle) != -1;
 }

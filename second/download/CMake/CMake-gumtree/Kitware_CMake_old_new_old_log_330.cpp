@@ -1,2 +1,1 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);

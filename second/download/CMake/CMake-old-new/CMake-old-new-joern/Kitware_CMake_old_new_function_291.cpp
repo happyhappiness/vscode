@@ -1,47 +1,68 @@
-void kwsysProcessCleanup(kwsysProcess* cp, int error)
+static int
+archive_compressor_xz_init_stream(struct archive_write_filter *f,
+    struct private_data *data)
 {
-  int i;
-  /* If this is an error case, report the error.  */
-  if(error)
-    {
-    /* Construct an error message if one has not been provided already.  */
-    if(cp->ErrorMessage[0] == 0)
-      {
-      /* Format the error message.  */
-      DWORD original = GetLastError();
-      wchar_t err_msg[KWSYSPE_PIPE_BUFFER_SIZE];
-      DWORD length = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
-                                   FORMAT_MESSAGE_IGNORE_INSERTS, 0, original,
-                                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                                   err_msg, KWSYSPE_PIPE_BUFFER_SIZE, 0);
-      WideCharToMultiByte(CP_UTF8, 0, err_msg, -1, cp->ErrorMessage,
-                          KWSYSPE_PIPE_BUFFER_SIZE, NULL, NULL);
-      if(length < 1)
-        {
-        /* FormatMessage failed.  Use a default message.  */
-        _snprintf(cp->ErrorMessage, KWSYSPE_PIPE_BUFFER_SIZE,
-                  "Process execution failed with error 0x%X.  "
-                  "FormatMessage failed with error 0x%X",
-                  original, GetLastError());
-        }
-      }
+	static const lzma_stream lzma_stream_init_data = LZMA_STREAM_INIT;
+	int ret;
 
-    /* Remove trailing period and newline, if any.  */
-    kwsysProcessCleanErrorMessage(cp);
+	data->stream = lzma_stream_init_data;
+	data->stream.next_out = data->compressed;
+	data->stream.avail_out = data->compressed_buffer_size;
+	if (f->code == ARCHIVE_FILTER_XZ)
+		ret = lzma_stream_encoder(&(data->stream),
+		    data->lzmafilters, LZMA_CHECK_CRC64);
+	else if (f->code == ARCHIVE_FILTER_LZMA)
+		ret = lzma_alone_encoder(&(data->stream), &data->lzma_opt);
+	else {	/* ARCHIVE_FILTER_LZIP */
+		int dict_size = data->lzma_opt.dict_size;
+		int ds, log2dic, wedges;
 
-    /* Set the error state.  */
-    cp->State = kwsysProcess_State_Error;
+		/* Calculate a coded dictionary size */
+		if (dict_size < (1 << 12) || dict_size > (1 << 27)) {
+			archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+			    "Unacceptable dictionary dize for lzip: %d",
+			    dict_size);
+			return (ARCHIVE_FATAL);
+		}
+		for (log2dic = 27; log2dic >= 12; log2dic--) {
+			if (dict_size & (1 << log2dic))
+				break;
+		}
+		if (dict_size > (1 << log2dic)) {
+			log2dic++;
+			wedges =
+			    ((1 << log2dic) - dict_size) / (1 << (log2dic - 4));
+		} else
+			wedges = 0;
+		ds = ((wedges << 5) & 0xe0) | (log2dic & 0x1f);
 
-    /* Cleanup any processes already started in a suspended state.  */
-    if(cp->ProcessInformation)
-      {
-      for(i=0; i < cp->NumberOfCommands; ++i)
-        {
-        if(cp->ProcessInformation[i].hProcess)
-          {
-          TerminateProcess(cp->ProcessInformation[i].hProcess, 255);
-          WaitForSingleObject(cp->ProcessInformation[i].hProcess, INFINITE);
-          }
-        }
-      for(i=0; i < cp->NumberOfCommands; ++i)
-        {
+		data->crc32 = 0;
+		/* Make a header */
+		data->compressed[0] = 0x4C;
+		data->compressed[1] = 0x5A;
+		data->compressed[2] = 0x49;
+		data->compressed[3] = 0x50;
+		data->compressed[4] = 1;/* Version */
+		data->compressed[5] = (unsigned char)ds;
+		data->stream.next_out += 6;
+		data->stream.avail_out -= 6;
+
+		ret = lzma_raw_encoder(&(data->stream), data->lzmafilters);
+	}
+	if (ret == LZMA_OK)
+		return (ARCHIVE_OK);
+
+	switch (ret) {
+	case LZMA_MEM_ERROR:
+		archive_set_error(f->archive, ENOMEM,
+		    "Internal error initializing compression library: "
+		    "Cannot allocate memory");
+		break;
+	default:
+		archive_set_error(f->archive, ARCHIVE_ERRNO_MISC,
+		    "Internal error initializing compression library: "
+		    "It's a bug in liblzma");
+		break;
+	}
+	return (ARCHIVE_FATAL);
+}

@@ -1,0 +1,1 @@
+conn->allocptr.host = aprintf("Host: %s\r\n", host);

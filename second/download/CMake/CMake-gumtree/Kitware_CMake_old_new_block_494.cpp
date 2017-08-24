@@ -1,4 +1,5 @@
 {
-      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
-      return CURLE_FAILED_INIT;
-    }
+        archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+                          "RAR volume support unavailable.");
+        return (ARCHIVE_FATAL);
+      }

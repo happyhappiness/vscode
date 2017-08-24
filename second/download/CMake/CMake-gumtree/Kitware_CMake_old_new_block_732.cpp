@@ -1,5 +1,4 @@
-#if 0
-      DumpExeFile( dosHeader );
-#else
-      fprintf(stderr, "File is an executable.  I don't dump those.\n");
-      return;
+{
+    printf("Error, could not open file %s\n", CMAKE_DUMP_FILE);
+    return -1;
+    }

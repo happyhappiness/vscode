@@ -1,1 +1,1 @@
-md5this = (unsigned char *)aprintf("%s:%s", request, uripath);
+snprintf(buf, sizeof(buf), "CHARSET=cp%u", cp);

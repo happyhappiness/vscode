@@ -1,2 +1,4 @@
-archive_set_error(&a->archive, 0,
-		    "Too much data: Truncating file at %ju bytes", (uintmax_t)a->filesize);
+the project that
+ * took on from here is named 'Trio' and you find more details on the trio web
+ * page at https://daniel.haxx.se/projects/trio/
+ */;

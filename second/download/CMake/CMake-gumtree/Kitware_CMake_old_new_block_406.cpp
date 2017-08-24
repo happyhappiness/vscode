@@ -1,5 +1,4 @@
 {
-    archive_set_error(&a->archive, ENOMEM,
-                      "Unable to allocate memory for node data.");
-    return (ARCHIVE_FATAL);
-  }
+      fprintf(fout,
+              "target_link_libraries(%s ${LINK_LIBRARIES})\n",targetName);
+      }

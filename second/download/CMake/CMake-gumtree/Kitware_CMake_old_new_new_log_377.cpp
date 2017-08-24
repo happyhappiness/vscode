@@ -1,2 +1,2 @@
-fprintf(stderr, "target %d is [%s]\n",
-            depender_index, depender->GetName().c_str());
+archive_set_error(a, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Unknown format `%s'", val);

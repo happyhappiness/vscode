@@ -1,1 +1,2 @@
-snprintf(ftpc->newhost, sizeof(ftpc->newhost), "%s", conn->host.name);
+archive_set_error(f->archive, EINVAL,
+		    "Can't initialise filter");

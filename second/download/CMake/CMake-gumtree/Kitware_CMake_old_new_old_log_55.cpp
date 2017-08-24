@@ -1,3 +1,1 @@
-archive_set_error(&a->archive,
-				    ARCHIVE_ERRNO_MISC,
-				    "Parse error: SCHILY.acl.access");
+snprintf(data->set.errorbuffer, CURL_ERROR_SIZE, "%s", data->state.buffer);

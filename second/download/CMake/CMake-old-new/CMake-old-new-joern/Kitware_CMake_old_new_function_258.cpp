@@ -52,9 +52,14 @@ zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
 			return ARCHIVE_FATAL;
 		}
 	}
+	zip->init_decryption = (zip_entry->zip_flags & ZIP_ENCRYPTED);
 	zip_entry->compression = (char)archive_le16dec(p + 8);
 	zip_entry->mtime = zip_time(p + 10);
 	zip_entry->crc32 = archive_le32dec(p + 14);
+	if (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
+		zip_entry->decdat = p[11];
+	else
+		zip_entry->decdat = p[17];
 	zip_entry->compressed_size = archive_le32dec(p + 18);
 	zip_entry->uncompressed_size = archive_le32dec(p + 22);
 	filename_length = archive_le16dec(p + 26);
@@ -195,18 +200,21 @@ zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
 	archive_entry_set_atime(entry, zip_entry->atime, 0);
 
 	if ((zip->entry->mode & AE_IFMT) == AE_IFLNK) {
-		size_t linkname_length = zip_entry->compressed_size;
+		size_t linkname_length;
+
+		if (zip_entry->compressed_size > 64 * 1024) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Zip file with oversized link entry");
+			return ARCHIVE_FATAL;
+		}
+
+		linkname_length = (size_t)zip_entry->compressed_size;
 
 		archive_entry_set_size(entry, 0);
 		p = __archive_read_ahead(a, linkname_length, NULL);
 		if (p == NULL) {
 			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
 			    "Truncated Zip file");
-			return ARCHIVE_FATAL;
-		}
-		if (__archive_read_consume(a, linkname_length) < 0) {
-			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Read error skipping symlink target name");
 			return ARCHIVE_FATAL;
 		}
 
@@ -243,6 +251,12 @@ zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
 			}
 		}
 		zip_entry->uncompressed_size = zip_entry->compressed_size = 0;
+
+		if (__archive_read_consume(a, linkname_length) < 0) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "Read error skipping symlink target name");
+			return ARCHIVE_FATAL;
+		}
 	} else if (0 == (zip_entry->zip_flags & ZIP_LENGTH_AT_END)
 	    || zip_entry->uncompressed_size > 0) {
 		/* Set the size only if it's meaningful. */
@@ -256,10 +270,10 @@ zip_read_local_file_header(struct archive_read *a, struct archive_entry *entry,
 		zip->end_of_entry = 1;
 
 	/* Set up a more descriptive format name. */
-	snprintf(zip->format_name, sizeof(zip->format_name), "ZIP %d.%d (%s)",
+	archive_string_sprintf(&zip->format_name, "ZIP %d.%d (%s)",
 	    version / 10, version % 10,
 	    compression_name(zip->entry->compression));
-	a->archive.archive_format_name = zip->format_name;
+	a->archive.archive_format_name = zip->format_name.s;
 
 	return (ret);
 }

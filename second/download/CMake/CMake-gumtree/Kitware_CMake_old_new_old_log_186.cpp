@@ -1,1 +1,10 @@
-snprintf(&resp_hash_hex[2 * i], 3, "%02x", digest[i]);
+response = aprintf("username=\"%s\", "
+                       "realm=\"%s\", "
+                       "nonce=\"%s\", "
+                       "uri=\"%s\", "
+                       "response=\"%s\"",
+                       userp_quoted,
+                       digest->realm,
+                       digest->nonce,
+                       uripath,
+                       request_digest);

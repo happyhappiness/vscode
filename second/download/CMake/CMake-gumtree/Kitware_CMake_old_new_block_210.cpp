@@ -1,1 +1,6 @@
-yy_fatal_error( "cmListFileLexer_yyset_lineno called with no buffer" , yyscanner)
+{
+    md5this = (unsigned char *)aprintf("%s:%s:%s",
+                                       ha1,
+                                       digest->nonce,
+                                       ha2);
+  }

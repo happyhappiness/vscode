@@ -1,2 +1,2 @@
-fprintf(stderr, "  depends on target %d [%s] (%s)\n", dependee_index,
-              dependee->GetName(), ni->IsStrong()? "strong" : "weak");
+archive_set_error(&a->archive, ENOMEM,
+		    "Can't allocate zip header data");

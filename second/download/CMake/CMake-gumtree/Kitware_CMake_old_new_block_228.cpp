@@ -1,4 +1,1 @@
-{
-               this->ImportFlag = false;
-               fprintf(this->FileOut,"EXPORTS \n");
-            }
+snprintf(&HA1_hex[2 * i], 3, "%02x", digest[i])

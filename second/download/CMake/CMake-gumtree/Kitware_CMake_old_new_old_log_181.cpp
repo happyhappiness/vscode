@@ -1,1 +1,1 @@
-aprintf("%s/%s", service, host);
+md5this = (unsigned char *)aprintf("%s:%s", request, uripath);

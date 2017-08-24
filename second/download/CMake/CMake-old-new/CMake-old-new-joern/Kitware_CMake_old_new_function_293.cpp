@@ -1,100 +1,75 @@
-void
-DumpExternalsObjects(PIMAGE_SYMBOL pSymbolTable,
-                     PIMAGE_SECTION_HEADER pSectionHeaders,
-                     FILE *fout, DWORD_PTR cSymbols)
+ssize_t
+archive_read_data(struct archive *_a, void *buff, size_t s)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string symbol;
-   DWORD SectChar;
-   static int fImportFlag = -1;  /*  The status is nor defined yet */
+	struct archive_read *a = (struct archive_read *)_a;
+	char	*dest;
+	const void *read_buf;
+	size_t	 bytes_read;
+	size_t	 len;
+	int	 r;
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+	bytes_read = 0;
+	dest = (char *)buff;
 
-   for ( i=0; i < cSymbols; i++ ) {
-      if (pSymbolTable->SectionNumber > 0 &&
-          ( pSymbolTable->Type == 0x20 || pSymbolTable->Type == 0x0)) {
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            /*
-            *    The name of the Function entry points
-            */
-            if (pSymbolTable->N.Name.Short != 0) {
-               symbol = "";
-               symbol.insert(0, (const char *)pSymbolTable->N.ShortName, 8);
-            } else {
-               symbol = stringTable + pSymbolTable->N.Name.Long;
-            }
+	while (s > 0) {
+		if (a->read_data_remaining == 0) {
+			read_buf = a->read_data_block;
+			a->read_data_is_posix_read = 1;
+			a->read_data_requested = s;
+			r = _archive_read_data_block(&a->archive, &read_buf,
+			    &a->read_data_remaining, &a->read_data_offset);
+			a->read_data_block = read_buf;
+			if (r == ARCHIVE_EOF)
+				return (bytes_read);
+			/*
+			 * Error codes are all negative, so the status
+			 * return here cannot be confused with a valid
+			 * byte count.  (ARCHIVE_OK is zero.)
+			 */
+			if (r < ARCHIVE_OK)
+				return (r);
+		}
 
-            // clear out any leading spaces
-            while (isspace(symbol[0])) symbol.erase(0,1);
-            // if it starts with _ and has an @ then it is a __cdecl
-            // so remove the @ stuff for the export
-            if(symbol[0] == '_') {
-               std::string::size_type posAt = symbol.find('@');
-               if (posAt != std::string::npos) {
-                  symbol.erase(posAt);
-               }
-            }
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (fImportFlag) {
-               fImportFlag = 0;
-               fprintf(fout,"EXPORTS \n");
-            }
-            /*
-            Check whether it is "Scalar deleting destructor" and
-            "Vector deleting destructor"
-            */
-            const char *scalarPrefix = "??_G";
-            const char *vectorPrefix = "??_E";
-            // original code had a check for
-            // symbol.find("real@") == std::string::npos)
-            // but if this disallows memmber functions with the name real
-            // if scalarPrefix and vectorPrefix are not found then print
-            // the symbol
-            if (symbol.compare(0, 4, scalarPrefix) &&
-                symbol.compare(0, 4, vectorPrefix) )
-            {
-               SectChar =
-                pSectionHeaders[pSymbolTable->SectionNumber-1].Characteristics;
-               if (!pSymbolTable->Type  && (SectChar & IMAGE_SCN_MEM_WRITE)) {
-                  // Read only (i.e. constants) must be excluded
-                  fprintf(fout, "\t%s \t DATA\n", symbol.c_str());
-               } else {
-                  if ( pSymbolTable->Type  ||
-                       !(SectChar & IMAGE_SCN_MEM_READ)) {
-                     fprintf(fout, "\t%s\n", symbol.c_str());
-                  } else {
-                     // printf(" strange symbol: %s \n",symbol.c_str());
-                  }
-               }
-            }
-         }
-      }
-      else if (pSymbolTable->SectionNumber == IMAGE_SYM_UNDEFINED &&
-               !pSymbolTable->Type && 0) {
-         /*
-         *    The IMPORT global variable entry points
-         */
-         if (pSymbolTable->StorageClass == IMAGE_SYM_CLASS_EXTERNAL) {
-            symbol = stringTable + pSymbolTable->N.Name.Long;
-            while (isspace(symbol[0]))  symbol.erase(0,1);
-            if (symbol[0] == '_') symbol.erase(0,1);
-            if (!fImportFlag) {
-               fImportFlag = 1;
-               fprintf(fout,"IMPORTS \n");
-            }
-            fprintf(fout, "\t%s DATA \n", symbol.c_str()+1);
-         }
-      }
+		if (a->read_data_offset < a->read_data_output_offset) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+			    "Encountered out-of-order sparse blocks");
+			return (ARCHIVE_RETRY);
+		}
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+		/* Compute the amount of zero padding needed. */
+		if (a->read_data_output_offset + (int64_t)s <
+		    a->read_data_offset) {
+			len = s;
+		} else if (a->read_data_output_offset <
+		    a->read_data_offset) {
+			len = (size_t)(a->read_data_offset -
+			    a->read_data_output_offset);
+		} else
+			len = 0;
+
+		/* Add zeroes. */
+		memset(dest, 0, len);
+		s -= len;
+		a->read_data_output_offset += len;
+		dest += len;
+		bytes_read += len;
+
+		/* Copy data if there is any space left. */
+		if (s > 0) {
+			len = a->read_data_remaining;
+			if (len > s)
+				len = s;
+			memcpy(dest, a->read_data_block, len);
+			s -= len;
+			a->read_data_block += len;
+			a->read_data_remaining -= len;
+			a->read_data_output_offset += len;
+			a->read_data_offset += len;
+			dest += len;
+			bytes_read += len;
+		}
+	}
+	a->read_data_is_posix_read = 0;
+	a->read_data_requested = 0;
+	return (bytes_read);
 }

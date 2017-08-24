@@ -1,53 +1,94 @@
-void
-DumpSymbolTable(PIMAGE_SYMBOL pSymbolTable, PIMAGE_SECTION_HEADER pSectionHeaders, FILE *fout, unsigned cSymbols)
+static int
+archive_read_format_zip_read_data(struct archive_read *a,
+    const void **buff, size_t *size, int64_t *offset)
 {
-   unsigned i;
-   PSTR stringTable;
-   std::string sectionName;
-   std::string sectionCharacter;
-   int iSectNum;
+	int r;
+	struct zip *zip = (struct zip *)(a->format->data);
 
-   fprintf(fout, "Symbol Table - %X entries  (* = auxillary symbol)\n",
-      cSymbols);
+	if (zip->has_encrypted_entries == ARCHIVE_READ_FORMAT_ENCRYPTION_DONT_KNOW) {
+		zip->has_encrypted_entries = 0;
+	}
 
-   fprintf(fout,
-      "Indx Name                 Value    Section    cAux  Type    Storage  Character\n"
-      "---- -------------------- -------- ---------- ----- ------- -------- ---------\n");
+	*offset = zip->entry_uncompressed_bytes_read;
+	*size = 0;
+	*buff = NULL;
 
-   /*
-   * The string table apparently starts right after the symbol table
-   */
-   stringTable = (PSTR)&pSymbolTable[cSymbols];
+	/* If we hit end-of-entry last time, return ARCHIVE_EOF. */
+	if (zip->end_of_entry)
+		return (ARCHIVE_EOF);
 
-   for ( i=0; i < cSymbols; i++ ) {
-      fprintf(fout, "%04X ", i);
-      if ( pSymbolTable->N.Name.Short != 0 )
-         fprintf(fout, "%-20.8s", pSymbolTable->N.ShortName);
-      else
-         fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long);
+	/* Return EOF immediately if this is a non-regular file. */
+	if (AE_IFREG != (zip->entry->mode & AE_IFMT))
+		return (ARCHIVE_EOF);
 
-      fprintf(fout, " %08X", pSymbolTable->Value);
+	if (zip->entry->zip_flags & (ZIP_ENCRYPTED | ZIP_STRONG_ENCRYPTED)) {
+		zip->has_encrypted_entries = 1;
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Encrypted file is unsupported");
+		return (ARCHIVE_FAILED);
+	}
 
-      iSectNum = pSymbolTable->SectionNumber;
-      GetSectionName(pSymbolTable, sectionName);
-      fprintf(fout, " sect:%s aux:%X type:%02X st:%s",
-         sectionName.c_str(),
-         pSymbolTable->NumberOfAuxSymbols,
-         pSymbolTable->Type,
-         GetSZStorageClass(pSymbolTable->StorageClass) );
+	__archive_read_consume(a, zip->unconsumed);
+	zip->unconsumed = 0;
 
-      GetSectionCharacteristics(pSectionHeaders,iSectNum,sectionCharacter);
-      fprintf(fout," hc: %s \n",sectionCharacter.c_str());
-#if 0
-      if ( pSymbolTable->NumberOfAuxSymbols )
-         DumpAuxSymbols(pSymbolTable);
+	switch(zip->entry->compression) {
+	case 0:  /* No compression. */
+		r =  zip_read_data_none(a, buff, size, offset);
+		break;
+#ifdef HAVE_ZLIB_H
+	case 8: /* Deflate compression. */
+		r =  zip_read_data_deflate(a, buff, size, offset);
+		break;
 #endif
+	default: /* Unsupported compression. */
+		/* Return a warning. */
+		archive_set_error(&a->archive, ARCHIVE_ERRNO_FILE_FORMAT,
+		    "Unsupported ZIP compression method (%s)",
+		    compression_name(zip->entry->compression));
+		/* We can't decompress this entry, but we will
+		 * be able to skip() it and try the next entry. */
+		return (ARCHIVE_FAILED);
+		break;
+	}
+	if (r != ARCHIVE_OK)
+		return (r);
+	/* Update checksum */
+	if (*size)
+		zip->entry_crc32 = zip->crc32func(zip->entry_crc32, *buff,
+		    (unsigned)*size);
+	/* If we hit the end, swallow any end-of-data marker. */
+	if (zip->end_of_entry) {
+		/* Check file size, CRC against these values. */
+		if (zip->entry->compressed_size !=
+		    zip->entry_compressed_bytes_read) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP compressed data is wrong size "
+			    "(read %jd, expected %jd)",
+			    (intmax_t)zip->entry_compressed_bytes_read,
+			    (intmax_t)zip->entry->compressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Size field only stores the lower 32 bits of the actual
+		 * size. */
+		if ((zip->entry->uncompressed_size & UINT32_MAX)
+		    != (zip->entry_uncompressed_bytes_read & UINT32_MAX)) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP uncompressed data is wrong size "
+			    "(read %jd, expected %jd)\n",
+			    (intmax_t)zip->entry_uncompressed_bytes_read,
+			    (intmax_t)zip->entry->uncompressed_size);
+			return (ARCHIVE_WARN);
+		}
+		/* Check computed CRC against header */
+		if (zip->entry->crc32 != zip->entry_crc32
+		    && !zip->ignore_crc32) {
+			archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
+			    "ZIP bad CRC: 0x%lx should be 0x%lx",
+			    (unsigned long)zip->entry_crc32,
+			    (unsigned long)zip->entry->crc32);
+			return (ARCHIVE_WARN);
+		}
+	}
 
-      /*
-      * Take into account any aux symbols
-      */
-      i += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable += pSymbolTable->NumberOfAuxSymbols;
-      pSymbolTable++;
-   }
+	return (ARCHIVE_OK);
 }

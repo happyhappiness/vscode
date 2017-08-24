@@ -1,8 +1,6 @@
 {
-          host = aprintf("Host: %s\r\n", hostheader);
-          if(!host) {
-            free(hostheader);
-            free(req_buffer);
-            return CURLE_OUT_OF_MEMORY;
+          sprintf(tgtName, "node%d", cnt++);
+          targetDeps[libName] = 2;
+          targetNamesNodes[libName] = tgtName;
+          //str << "    \"" << tgtName << "\" [ label=\"" << libName <<  "\" shape=\"ellipse\"];" << std::endl;
           }
-        }

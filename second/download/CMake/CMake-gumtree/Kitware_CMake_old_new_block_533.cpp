@@ -1,15 +1,13 @@
 {
-  (void)argc; (void)argv;
-  fprintf(stdout, "Output before sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output before sleep on stderr from timeout test.\n");
-  fflush(stdout);
-  fflush(stderr);
-#if defined(_WIN32)
-  Sleep(15000);
-#else
-  sleep(15);
-#endif
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
-  return 0;
-}
+      /* Allocate a buffer to hold the forwarding executable path.  */
+      size_t tdlen = strlen(tempDir);
+      win9x = (char*)malloc(tdlen + strlen(fwdName) + 2);
+      if(!win9x)
+        {
+        kwsysProcess_Delete(cp);
+        return 0;
+        }
+
+      /* Construct the full path to the forwarding executable.  */
+      sprintf(win9x, "%s%s", tempDir, fwdName);
+      }

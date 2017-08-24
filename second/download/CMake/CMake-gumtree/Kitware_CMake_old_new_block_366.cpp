@@ -1,5 +1,4 @@
 {
-      fprintf(fout, "target_link_libraries(%s %s)\n",
-              targetName,
-              libsToLink.c_str());
-      }
+    buf = new char[n + 2 + 1];
+    sprintf(buf, "%s/*", name);
+    }

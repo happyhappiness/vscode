@@ -1,46 +1,63 @@
-int
-__archive_write_program_open(struct archive_write_filter *f,
-    struct archive_write_program_data *data, const char *cmd)
+CURLcode curl_global_init(long flags)
 {
-	pid_t child;
-	int ret;
+  if(initialized++)
+    return CURLE_OK;
 
-	ret = __archive_write_open_filter(f->next_filter);
-	if (ret != ARCHIVE_OK)
-		return (ret);
-
-	if (data->child_buf == NULL) {
-		data->child_buf_len = 65536;
-		data->child_buf_avail = 0;
-		data->child_buf = malloc(data->child_buf_len);
-
-		if (data->child_buf == NULL) {
-			archive_set_error(f->archive, ENOMEM,
-			    "Can't allocate compression buffer");
-			return (ARCHIVE_FATAL);
-		}
-	}
-
-	child = __archive_create_child(cmd, &data->child_stdin,
-		    &data->child_stdout);
-	if (child == -1) {
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
-#if defined(_WIN32) && !defined(__CYGWIN__)
-	data->child = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, child);
-	if (data->child == NULL) {
-		close(data->child_stdin);
-		data->child_stdin = -1;
-		close(data->child_stdout);
-		data->child_stdout = -1;
-		archive_set_error(f->archive, EINVAL,
-		    "Can't initialise filter");
-		return (ARCHIVE_FATAL);
-	}
-#else
-	data->child = child;
+  /* Setup the default memory functions here (again) */
+  Curl_cmalloc = (curl_malloc_callback)malloc;
+  Curl_cfree = (curl_free_callback)free;
+  Curl_crealloc = (curl_realloc_callback)realloc;
+  Curl_cstrdup = (curl_strdup_callback)system_strdup;
+  Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(WIN32) && defined(UNICODE)
+  Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
 #endif
-	return (ARCHIVE_OK);
+
+  if(flags & CURL_GLOBAL_SSL)
+    if(!Curl_ssl_init()) {
+      DEBUGF(fprintf(stderr, "Error: Curl_ssl_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+  if(flags & CURL_GLOBAL_WIN32)
+    if(win32_init()) {
+      DEBUGF(fprintf(stderr, "Error: win32_init failed\n"));
+      return CURLE_FAILED_INIT;
+    }
+
+#ifdef __AMIGA__
+  if(!Curl_amiga_init()) {
+    DEBUGF(fprintf(stderr, "Error: Curl_amiga_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+#ifdef NETWARE
+  if(netware_init()) {
+    DEBUGF(fprintf(stderr, "Warning: LONG namespace not available\n"));
+  }
+#endif
+
+#ifdef USE_LIBIDN
+  idna_init();
+#endif
+
+  if(Curl_resolver_global_init()) {
+    DEBUGF(fprintf(stderr, "Error: resolver_global_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+
+#if defined(USE_LIBSSH2) && defined(HAVE_LIBSSH2_INIT)
+  if(libssh2_init(0)) {
+    DEBUGF(fprintf(stderr, "Error: libssh2_init failed\n"));
+    return CURLE_FAILED_INIT;
+  }
+#endif
+
+  if(flags & CURL_GLOBAL_ACK_EINTR)
+    Curl_ack_eintr = 1;
+
+  init_flags  = flags;
+
+  return CURLE_OK;
 }

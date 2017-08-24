@@ -1,1 +1,4 @@
-fprintf(fout, "%-20s", stringTable + pSymbolTable->N.Name.Long)
+{
+    fprintf(stderr, "No current working directory.\n");
+    abort();
+    }

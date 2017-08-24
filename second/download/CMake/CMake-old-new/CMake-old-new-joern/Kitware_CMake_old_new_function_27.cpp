@@ -1,103 +1,121 @@
-static CURLcode ftp_state_mdtm_resp(struct connectdata *conn,
-                                    int ftpcode)
+static int
+setup_sparse(struct archive_read_disk *a,
+    struct archive_entry *entry, int *fd)
 {
-  CURLcode result = CURLE_OK;
-  struct Curl_easy *data=conn->data;
-  struct FTP *ftp = data->req.protop;
-  struct ftp_conn *ftpc = &conn->proto.ftpc;
+	int64_t size;
+	off_t initial_off;
+	off_t off_s, off_e;
+	int exit_sts = ARCHIVE_OK;
+	int check_fully_sparse = 0;
 
-  switch(ftpcode) {
-  case 213:
-    {
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      char *buf = data->state.buffer;
-      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        /* using the good old yacc/bison yuck */
-        snprintf(buf, sizeof(conn->data->state.buffer),
-                 "%04d%02d%02d %02d:%02d:%02d GMT",
-                 year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        data->info.filetime = (long)curl_getdate(buf, &secs);
-      }
+	if (archive_entry_filetype(entry) != AE_IFREG
+	    || archive_entry_size(entry) <= 0
+	    || archive_entry_hardlink(entry) != NULL)
+		return (ARCHIVE_OK);
 
-#ifdef CURL_FTP_HTTPSTYLE_HEAD
-      /* If we asked for a time of the file and we actually got one as well,
-         we "emulate" a HTTP-style header in our output. */
+	/* Does filesystem support the reporting of hole ? */
+	if (*fd < 0 && a->tree != NULL) {
+		const char *path;
 
-      if(data->set.opt_no_body &&
-         ftpc->file &&
-         data->set.get_filetime &&
-         (data->info.filetime>=0) ) {
-        time_t filetime = (time_t)data->info.filetime;
-        struct tm buffer;
-        const struct tm *tm = &buffer;
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+		*fd = a->open_on_current_dir(a->tree, path,
+				O_RDONLY | O_NONBLOCK);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+	}
 
-        result = Curl_gmtime(filetime, &buffer);
-        if(result)
-          return result;
-
-        /* format: "Tue, 15 Nov 1994 12:45:26" */
-        snprintf(buf, BUFSIZE-1,
-                 "Last-Modified: %s, %02d %s %4d %02d:%02d:%02d GMT\r\n",
-                 Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
-                 tm->tm_mday,
-                 Curl_month[tm->tm_mon],
-                 tm->tm_year + 1900,
-                 tm->tm_hour,
-                 tm->tm_min,
-                 tm->tm_sec);
-        result = Curl_client_write(conn, CLIENTWRITE_BOTH, buf, 0);
-        if(result)
-          return result;
-      } /* end of a ridiculous amount of conditionals */
+	if (*fd >= 0) {
+#ifdef _PC_MIN_HOLE_SIZE
+		if (fpathconf(*fd, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
 #endif
-    }
-    break;
-  default:
-    infof(data, "unsupported MDTM reply format\n");
-    break;
-  case 550: /* "No such file or directory" */
-    failf(data, "Given file does not exist");
-    result = CURLE_FTP_COULDNT_RETR_FILE;
-    break;
-  }
+		initial_off = lseek(*fd, 0, SEEK_CUR);
+		if (initial_off != 0)
+			lseek(*fd, 0, SEEK_SET);
+	} else {
+		const char *path;
 
-  if(data->set.timecondition) {
-    if((data->info.filetime > 0) && (data->set.timevalue > 0)) {
-      switch(data->set.timecondition) {
-      case CURL_TIMECOND_IFMODSINCE:
-      default:
-        if(data->info.filetime <= data->set.timevalue) {
-          infof(data, "The requested document is not new enough\n");
-          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
-          data->info.timecond = TRUE;
-          state(conn, FTP_STOP);
-          return CURLE_OK;
-        }
-        break;
-      case CURL_TIMECOND_IFUNMODSINCE:
-        if(data->info.filetime > data->set.timevalue) {
-          infof(data, "The requested document is not old enough\n");
-          ftp->transfer = FTPTRANSFER_NONE; /* mark to not transfer data */
-          data->info.timecond = TRUE;
-          state(conn, FTP_STOP);
-          return CURLE_OK;
-        }
-        break;
-      } /* switch */
-    }
-    else {
-      infof(data, "Skipping time comparison\n");
-    }
-  }
+		path = archive_entry_sourcepath(entry);
+		if (path == NULL)
+			path = archive_entry_pathname(entry);
+			
+#ifdef _PC_MIN_HOLE_SIZE
+		if (pathconf(path, _PC_MIN_HOLE_SIZE) <= 0)
+			return (ARCHIVE_OK);
+#endif
+		*fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+		if (*fd < 0) {
+			archive_set_error(&a->archive, errno,
+			    "Can't open `%s'", path);
+			return (ARCHIVE_FAILED);
+		}
+		__archive_ensure_cloexec_flag(*fd);
+		initial_off = 0;
+	}
 
-  if(!result)
-    result = ftp_state_type(conn);
+#ifndef _PC_MIN_HOLE_SIZE
+	/* Check if the underlying filesystem supports seek hole */
+	off_s = lseek(*fd, 0, SEEK_HOLE);
+	if (off_s < 0)
+#if defined(HAVE_LINUX_FIEMAP_H)
+		return setup_sparse_fiemap(a, entry, fd);
+#else
+		goto exit_setup_sparse;
+#endif
+	else if (off_s > 0)
+		lseek(*fd, 0, SEEK_SET);
+#endif
 
-  return result;
+	off_s = 0;
+	size = archive_entry_size(entry);
+	while (off_s < size) {
+		off_s = lseek(*fd, off_s, SEEK_DATA);
+		if (off_s == (off_t)-1) {
+			if (errno == ENXIO) {
+				/* no more hole */
+				if (archive_entry_sparse_count(entry) == 0) {
+					/* Potentially a fully-sparse file. */
+					check_fully_sparse = 1;
+				}
+				break;
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_HOLE) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		off_e = lseek(*fd, off_s, SEEK_HOLE);
+		if (off_e == (off_t)-1) {
+			if (errno == ENXIO) {
+				off_e = lseek(*fd, 0, SEEK_END);
+				if (off_e != (off_t)-1)
+					break;/* no more data */
+			}
+			archive_set_error(&a->archive, errno,
+			    "lseek(SEEK_DATA) failed");
+			exit_sts = ARCHIVE_FAILED;
+			goto exit_setup_sparse;
+		}
+		if (off_s == 0 && off_e == size)
+			break;/* This is not sparse. */
+		archive_entry_sparse_add_entry(entry, off_s,
+			off_e - off_s);
+		off_s = off_e;
+	}
+
+	if (check_fully_sparse) {
+		if (lseek(*fd, 0, SEEK_HOLE) == 0 &&
+			lseek(*fd, 0, SEEK_END) == size) {
+			/* Fully sparse file; insert a zero-length "data" entry */
+			archive_entry_sparse_add_entry(entry, 0, 0);
+		}
+	}
+exit_setup_sparse:
+	lseek(*fd, initial_off, SEEK_SET);
+	return (exit_sts);
 }

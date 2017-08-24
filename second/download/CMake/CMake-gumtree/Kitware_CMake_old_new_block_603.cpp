@@ -1,16 +1,25 @@
 {
-      str << kwsys_ios::endl;
-      char argument[100];
-      sprintf(argument, "%s", sit->c_str());
-      switch ( this->Internals->Callbacks[*sit].ArgumentType )
-        {
-        case CommandLineArguments::NO_ARGUMENT: break;
-        case CommandLineArguments::CONCAT_ARGUMENT: strcat(argument, "opt"); break;
-        case CommandLineArguments::SPACE_ARGUMENT:  strcat(argument, " opt"); break;
-        case CommandLineArguments::EQUAL_ARGUMENT:  strcat(argument, "=opt"); break;
-        case CommandLineArguments::MULTI_ARGUMENT:  strcat(argument, " opt opt ..."); break;
-        }
-      char buffer[80];
-      sprintf(buffer, format, argument);
-      str << buffer;
-      }
+  Curl_addrinfo *ai;
+  struct hostent *h;
+  struct in_addr *addrentry;
+  struct namebuf buffer;
+  struct namebuf *buf = &buffer;
+
+  h = &buf->hostentry;
+  h->h_addr_list = &buf->h_addr_list[0];
+  addrentry = &buf->addrentry;
+  addrentry->s_addr = num;
+  h->h_addr_list[0] = (char*)addrentry;
+  h->h_addr_list[1] = NULL;
+  h->h_addrtype = AF_INET;
+  h->h_length = sizeof(*addrentry);
+  h->h_name = &buf->h_name[0];
+  h->h_aliases = NULL;
+
+  /* Now store the dotted version of the address */
+  snprintf((char*)(h->h_name), 16, "%s", hostname);
+
+  ai = Curl_he2ai(h, port);
+
+  return ai;
+}

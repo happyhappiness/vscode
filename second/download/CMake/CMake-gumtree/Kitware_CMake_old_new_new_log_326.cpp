@@ -1,1 +1,2 @@
-fprintf(stderr, "target [%s] links to:\n", this->Target->GetName().c_str());
+conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n",
+                                         data->state.range);

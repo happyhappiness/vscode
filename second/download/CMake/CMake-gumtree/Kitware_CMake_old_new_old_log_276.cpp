@@ -1,2 +1,1 @@
-snprintf(buf + len, sizeof(buf) - len,
-                 ": %s", (char*) status_string.value);
+fprintf(this->FileOut, "\t%s DATA \n", symbol.c_str()+1);

@@ -1,1 +1,2 @@
-acl_type = ARCHIVE_ENTRY_ACL_TYPE_ACCESS;
+snprintf(clbuf, sizeof(clbuf),
+               "Content-Length: %" CURL_FORMAT_CURL_OFF_T "\r\n", filesize);

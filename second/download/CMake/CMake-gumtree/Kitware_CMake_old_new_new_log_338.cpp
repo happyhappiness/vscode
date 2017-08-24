@@ -1,2 +1,1 @@
-archive_set_error(&a->archive, ARCHIVE_ERRNO_MISC,
-			    "Archives > 4GB require Zip64 extensions");
+fprintf(this->FileOut, "\t%s \t DATA\n", symbol.c_str());

@@ -1,5 +1,5 @@
 {
-				archive_set_error(&a->archive, errno,
-						"Can't open %s", path);
-				r = ARCHIVE_WARN;
-			}
+    char buf[64];
+    sprintf(buf, "%u", this->VersionMinor);
+    this->Makefile->AddDefinition("PACKAGE_FIND_VERSION_MINOR", buf);
+    }
