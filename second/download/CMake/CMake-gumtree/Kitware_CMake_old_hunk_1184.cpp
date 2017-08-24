@@ -1,7 +1,8 @@
-  buf[sizeof(buf)-1] = 0;
+    {
+    return 0;
+    }
+  //printf("Do some parsing: %s\n", str);
 
-  if (mkdirhier(dirname(buf)) == -1)
-    return -1;
-
-#ifdef DEBUG
-  printf("  ==> extracting: %s (block device %ld,%ld)\n",
+  this->Verbose = verb;
+  this->InputBuffer = str;
+  this->InputBufferPos = 0;

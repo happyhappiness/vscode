@@ -1,8 +1,8 @@
 
-        /* lineno is only valid if an input buffer exists. */
+        /* column is only valid if an input buffer exists. */
         if (! YY_CURRENT_BUFFER )
-           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);
+           yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);
 
-    yylineno = line_number;
+    yycolumn = column_no;
 }
 

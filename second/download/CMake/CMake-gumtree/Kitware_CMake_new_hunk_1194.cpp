@@ -1,19 +1,13 @@
-#endif
 
-  filename = (realname ? realname : th_get_pathname(t));
-
-  /* Make a copy of the string because dirname and mkdirhier may modify the
-   * string */
-  strncpy(buf, filename, sizeof(buf)-1);
-  buf[sizeof(buf)-1] = 0;
-
-  if (mkdirhier(dirname(buf)) == -1)
-    return -1;
-
-  if (unlink(filename) == -1 && errno != ENOENT)
+  if (cw)
     {
-    return -1;
+    sprintf(firstLine, "Page %d of %d", cw->GetPage(), this->NumberOfPages);
+    curses_move(0,65-strlen(firstLine)-1);
+    printw(firstLine);
     }
+//    }
 
-#ifdef DEBUG
-  printf("  ==> extracting: %s (symlink to %s)\n",
+  pos_form_cursor(this->Form);
+  
+}
+

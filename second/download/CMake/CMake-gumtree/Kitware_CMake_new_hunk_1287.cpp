@@ -1,13 +1,9 @@
-      percent = 99;
-      }
-    fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
-      percent, int(failed.size()), total);
-
-    if (failed.size()) 
-      {
-      std::cerr << "\nThe following tests FAILED:\n";
-      for(cmCTest::tm_VectorOfStrings::iterator j = failed.begin();
-        j != failed.end(); ++j)
-        {   
-        std::cerr << "\t" << *j << "\n";
+        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
+          {
+          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
+          cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3) << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " (" << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
+          //fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
+          //  this->GetTestStatus(ftit->m_Status));
+          }
         }
+

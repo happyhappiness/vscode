@@ -1,9 +1,7 @@
-    fprintf(stderr, "Invalid test number %d.\n", n);
-    return 1;
-    }
-  
-  if(n >= 0 && n <= 7)
-    {
-    int states[7] =
-    {
-      kwsysProcess_State_Exited,
+      {
+      sprintf(firstLine,  "Press [c] to configure                                   ");
+      }
+    if (m_AdvancedMode)
+      {
+      sprintf(thirdLine,  "Press [t] to toggle advanced mode (Currently On)");
+      }

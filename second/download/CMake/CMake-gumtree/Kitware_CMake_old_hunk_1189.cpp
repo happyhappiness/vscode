@@ -1,6 +1,22 @@
-  char *filename;
-  char buf[TAR_MAXPATHLEN];
-  int i;
+//----------------------------------------------------------------------------
+Glob::Glob()
+{
+  m_Internals = new GlobInternals;
+  m_Recurse = false;
+}
 
-#ifdef DEBUG
-  printf("==> tar_extract_all(TAR *t, \"%s\")\n",
+//----------------------------------------------------------------------------
+Glob::~Glob()
+{
+  delete m_Internals;
+}
+
+//----------------------------------------------------------------------------
+void Glob::Escape(int ch, char* buffer)
+{
+  if (! (
+      'a' <= ch && ch <= 'z' || 
+      'A' <= ch && ch <= 'Z' || 
+      '0' <= ch && ch <= '9') )
+    {
+    sprintf(buffer, "\\%c", ch);

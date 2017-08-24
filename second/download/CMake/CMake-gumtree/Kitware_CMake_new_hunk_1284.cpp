@@ -1,8 +1,11 @@
-  std::string extra_update_opts;
-  if ( m_TestModel == cmCTest::NIGHTLY )
+{
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename << std::endl);
+  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
+      covLogFilename, covLogFile, true))
     {
-    struct tm* t = ::GetNightlyTime(m_DartConfiguration["NightlyStartTime"],
-      m_TomorrowTag);
-    char current_time[1024];
-    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d UTC",
-      t->tm_year + 1900,
+    cmCTestLog(m_CTest, ERROR, "Cannot open log file: " << covLogFilename << std::endl);
+    return false;
+    }
+  std::string local_start_time = m_CTest->CurrentTime();

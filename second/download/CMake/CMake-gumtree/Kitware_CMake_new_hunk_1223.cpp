@@ -1,13 +1,8 @@
-  m_CTest->EndXML(ostr);
-  char covLogFilename[1024];
-  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Close file: " << covLogFilename << std::endl);
-  ostr.close();
+
+        /* lineno is only valid if an input buffer exists. */
+        if (! YY_CURRENT_BUFFER )
+           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);
+
+    yylineno = line_number;
 }
 
-//----------------------------------------------------------------------
-bool cmCTestCoverageHandler::ShouldIDoCoverage(const char* file, const char* srcDir,
-  const char* binDir)
-{
-  std::string fSrcDir = cmSystemTools::CollapseFullPath(srcDir);
-  std::string fBinDir = cmSystemTools::CollapseFullPath(binDir);

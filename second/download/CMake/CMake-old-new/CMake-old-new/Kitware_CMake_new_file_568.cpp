@@ -1,183 +1,258 @@
-/*
-**  Copyright 1998-2003 University of Illinois Board of Trustees
-**  Copyright 1998-2003 Mark D. Roth
-**  All rights reserved.
-**
-**  wrapper.c - libtar high-level wrapper code
-**
-**  Mark D. Roth <roth@uiuc.edu>
-**  Campus Information Technologies and Educational Services
-**  University of Illinois at Urbana-Champaign
-*/
+/*=========================================================================
 
-#include <libtarint/internal.h>
+  Program:   CMake - Cross-Platform Makefile Generator
+  Module:    $RCSfile$
+  Language:  C++
+  Date:      $Date$
+  Version:   $Revision$
 
-#include <stdio.h>
-#include <libtar/compat.h>
-#if defined(_WIN32) && !defined(__CYGWIN__)
-#include <libtarint/filesystem.h>
-#else
-#include <sys/param.h>
-#include <dirent.h>
-#endif
-#include <errno.h>
+  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
 
-#ifdef HAVE_FNMATCH_H
-#include <fnmatch.h>
-#endif
+     This software is distributed WITHOUT ANY WARRANTY; without even 
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+     PURPOSE.  See the above copyright notices for more information.
 
-#ifdef STDC_HEADERS
-# include <string.h>
-#endif
+=========================================================================*/
+#include "cmVTKWrapPythonCommand.h"
 
-
-int
-tar_extract_glob(TAR *t, char *globname, char *prefix)
+// cmVTKWrapPythonCommand
+bool cmVTKWrapPythonCommand::InitialPass(std::vector<std::string> const&
+                                         argsIn)
 {
-  char *filename;
-  char buf[TAR_MAXPATHLEN];
-  int i;
-
-  while ((i = th_read(t)) == 0)
-  {
-    filename = th_get_pathname(t);
-    if (fnmatch(globname, filename, FNM_PATHNAME | FNM_PERIOD))
+  if(argsIn.size() < 3 )
     {
-      if (TH_ISREG(t) && tar_skip_regfile(t))
-        return -1;
-      continue;
+    this->SetError("called with incorrect number of arguments");
+    return false;
     }
-    if (t->options & TAR_VERBOSE)
-      th_print_long_ls(t);
-    if (prefix != NULL)
-      snprintf(buf, sizeof(buf), "%s/%s", prefix, filename);
-    else
-      strlcpy(buf, filename, sizeof(buf));
-    if (tar_extract_file(t, filename) != 0)
-      return -1;
-  }
+  std::vector<std::string> args;
+  this->Makefile->ExpandSourceListArguments(argsIn, args, 2);
 
-  return (i == 1 ? 0 : -1);
+  // Now check and see if the value has been stored in the cache
+  // already, if so use that value and don't look for the program
+  if(!this->Makefile->IsOn("VTK_WRAP_PYTHON"))
+    {
+    return true;
+    }
+
+  
+  // what is the current source dir
+  std::string cdir = this->Makefile->GetCurrentDirectory();
+
+  // keep the library name
+  this->LibraryName = args[0];
+  this->SourceList = args[1];
+  std::string sourceListValue;
+  // was the list already populated
+  const char *def = this->Makefile->GetDefinition(this->SourceList.c_str());  
+  if (def)
+    {
+    sourceListValue = def;
+    sourceListValue += ";";
+    }
+
+  // Create the init file 
+  std::string res = this->LibraryName;
+  res += "Init.cxx";
+
+  // add the init file
+  std::string initName = this->LibraryName;
+  initName += "Init";
+  sourceListValue += initName + ".cxx";
+
+  // get the list of classes for this library
+  for(std::vector<std::string>::iterator j = (args.begin() + 2);
+      j != args.end(); ++j)
+    {   
+    cmSourceFile *curr = this->Makefile->GetSource(j->c_str());
+    
+    // if we should wrap the class
+    if (!curr || !curr->GetPropertyAsBool("WRAP_EXCLUDE"))
+      {
+      cmSourceFile file;
+      if (curr)
+        {
+        file.SetProperty("ABSTRACT",curr->GetProperty("ABSTRACT"));
+        }
+      std::string srcName = cmSystemTools::GetFilenameWithoutExtension(*j);
+      std::string newName = srcName + "Python";
+      file.SetName(newName.c_str(), 
+                   this->Makefile->GetCurrentOutputDirectory(),
+                   "cxx",false);
+      std::string hname = cdir + "/" + srcName + ".h";
+      this->WrapHeaders.push_back(hname);
+      // add starting depends
+      file.GetDepends().push_back(hname);
+      this->WrapClasses.push_back(file);
+      sourceListValue += ";";
+      sourceListValue += newName + ".cxx";
+      }
+    }
+  
+  cmSourceFile cfile;
+  cfile.SetProperty("ABSTRACT","0");
+  this->CreateInitFile(res);
+  cfile.SetName(initName.c_str(), this->Makefile->GetCurrentOutputDirectory(),
+                "cxx",false);
+  this->Makefile->AddSource(cfile);
+  this->Makefile->AddDefinition(this->SourceList.c_str(),
+                                sourceListValue.c_str());
+  return true;
+}
+
+void cmVTKWrapPythonCommand::FinalPass() 
+{
+  // first we add the rules for all the .h to Python.cxx files
+  size_t lastClass = this->WrapClasses.size();
+  std::vector<std::string> depends;
+  const char* wpython = 
+    this->Makefile->GetRequiredDefinition("VTK_WRAP_PYTHON_EXE");
+  const char* hints = this->Makefile->GetDefinition("VTK_WRAP_HINTS");
+
+  // wrap all the .h files
+  depends.push_back(wpython);
+  if(hints)
+    {
+    depends.push_back(hints);
+    }
+  for(size_t classNum = 0; classNum < lastClass; classNum++)
+    {
+    this->Makefile->AddSource(this->WrapClasses[classNum]);
+    std::string res = this->Makefile->GetCurrentOutputDirectory();
+    res += "/";
+    res += this->WrapClasses[classNum].GetSourceName() + ".cxx";
+    cmCustomCommandLine commandLine;
+    commandLine.push_back(wpython);
+    commandLine.push_back(this->WrapHeaders[classNum]);
+    if(hints)
+      {
+      commandLine.push_back(hints);
+      }
+    commandLine.push_back((this->WrapClasses[classNum].
+                           GetPropertyAsBool("ABSTRACT") ? "0" : "1"));
+    commandLine.push_back(res);
+
+    cmCustomCommandLines commandLines;
+    commandLines.push_back(commandLine);
+    std::vector<std::string> outputs;
+    outputs.push_back(res);
+    const char* no_comment = 0;
+    this->Makefile->AddCustomCommandOldStyle(this->LibraryName.c_str(),
+                                         outputs,
+                                         depends,
+                                         this->WrapHeaders[classNum].c_str(),
+                                         commandLines,
+                                         no_comment);
+    }
+}
+
+bool cmVTKWrapPythonCommand::CreateInitFile(std::string& res) 
+{
+  std::vector<std::string> classes;
+  size_t lastClass = this->WrapHeaders.size();
+  size_t classNum;
+  for(classNum = 0; classNum < lastClass; classNum++)
+    {
+    std::string cls = this->WrapHeaders[classNum];
+    cls = cls.substr(0,cls.size()-2);
+    std::string::size_type pos = cls.rfind('/');    
+    if(pos != std::string::npos)
+      {
+      cls = cls.substr(pos+1);
+      }
+    classes.push_back(cls);
+    }
+  
+  // open the init file
+  std::string outFileName = 
+    this->Makefile->GetCurrentOutputDirectory();
+  outFileName += "/" + res;
+  
+  return this->WriteInit(this->LibraryName.c_str(), outFileName, classes);
 }
 
 
-int
-tar_extract_all(TAR *t, char *prefix)
+/* warning this code is also in getclasses.cxx under pcmaker */
+bool cmVTKWrapPythonCommand::WriteInit(const char *kitName, 
+                                       std::string& outFileName,
+                                       std::vector<std::string>& classes)
 {
-  char *filename;
-  char buf[TAR_MAXPATHLEN];
-  int i;
-
-#ifdef DEBUG
-  printf("==> tar_extract_all(TAR *t, \"%s\")\n",
-         (prefix ? prefix : "(null)"));
-#endif
-
-  while ((i = th_read(t)) == 0)
-  {
-#ifdef DEBUG
-    puts("    tar_extract_all(): calling th_get_pathname()");
-#endif
-    filename = th_get_pathname(t);
-    if (t->options & TAR_VERBOSE)
-      th_print_long_ls(t);
-    if (prefix != NULL)
-      snprintf(buf, sizeof(buf), "%s/%s", prefix, filename);
-    else
-      strlcpy(buf, filename, sizeof(buf));
-#ifdef DEBUG
-    printf("    tar_extract_all(): calling tar_extract_file(t, "
-           "\"%s\")\n", buf);
-#endif
-    if (tar_extract_file(t, buf) != 0)
-      return -1;
-  }
-
-  return (i == 1 ? 0 : -1);
-}
-
-
-int
-tar_append_tree(TAR *t, char *realdir, char *savedir)
-{
-  char realpath[TAR_MAXPATHLEN];
-  char savepath[TAR_MAXPATHLEN];
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  struct dirent *dent;
-  DIR *dp;
-#else  
-  kwDirEntry * dent;
-  kwDirectory *dp;
-#endif  
-  struct stat s;
-
-#ifdef DEBUG
-  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
-         t, realdir, (savedir ? savedir : "[NULL]"));
-#endif
-
-  if (tar_append_file(t, realdir, savedir) != 0)
-    return -1;
-
-#ifdef DEBUG
-  puts("    tar_append_tree(): done with tar_append_file()...");
-#endif
-
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  dp = kwOpenDir(realdir);
-#else
-  dp = opendir(realdir);
-#endif
-
-  if (dp == NULL)
-  {
-    if (errno == ENOTDIR)
-      return 0;
-    return -1;
-  }
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  while ((dent = kwReadDir(dp)) != NULL)
-#else
-  while ((dent = readdir(dp)) != NULL)
-#endif
-  {
-    if (strcmp(dent->d_name, ".") == 0 ||
-        strcmp(dent->d_name, "..") == 0)
-      continue;
-
-    snprintf(realpath, TAR_MAXPATHLEN, "%s/%s", realdir,
-       dent->d_name);
-    if (savedir)
-      snprintf(savepath, TAR_MAXPATHLEN, "%s/%s", savedir,
-         dent->d_name);
-
-#ifndef WIN32
-    if (lstat(realpath, &s) != 0)
-      return -1;
-#else
-    if (stat(realpath, &s) != 0)
-      return -1;
-#endif
-    if (S_ISDIR(s.st_mode))
+  unsigned int i;
+  
+  std::string tempOutputFile = outFileName + ".tmp";
+  FILE *fout = fopen(tempOutputFile.c_str(),"w");
+  if (!fout)
     {
-      if (tar_append_tree(t, realpath,
-              (savedir ? savepath : NULL)) != 0)
-        return -1;
-      continue;
+    cmSystemTools::ReportLastSystemError("cmVTKWrapPythonCommand error:");
+    return false;
+    }
+  
+  fprintf(fout,"// Generated by cmVTKWrapPythonCommand in CMake\n\n");
+  fprintf(fout,"#include <string.h>\n");
+  fprintf(fout,"#include \"Python.h\"\n\n");
+  fprintf(fout,"// Handle compiler warning messages, etc.\n"
+          "#if defined( _MSC_VER ) && !defined(VTK_DISPLAY_WIN32_WARNINGS)\n"
+          "#pragma warning ( disable : 4706 )\n"
+          "#endif // Windows Warnings \n\n");
+
+  for (i = 0; i < classes.size(); i++)
+    {
+#ifdef _WIN32
+    fprintf(fout, "extern  \"C\" {__declspec( dllexport) "
+            "PyObject *PyVTKClass_%sNew(char *); }\n", classes[i].c_str());
+#else
+    fprintf(fout,"extern  \"C\" {PyObject *PyVTKClass_%sNew(char *); }\n",
+            classes[i].c_str());
+#endif
     }
 
-    if (tar_append_file(t, realpath,
-            (savedir ? savepath : NULL)) != 0)
-      return -1;
-  }
-
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  kwCloseDir(dp);
+  fprintf(fout,"\nstatic PyMethodDef Py%s_ClassMethods[] = {\n",
+          kitName);
+  fprintf(fout,"{NULL, NULL, 0, NULL}};\n\n");
+  
+#ifdef _WIN32
+  fprintf(fout,"extern  \"C\" {__declspec( dllexport) void init%s();}\n\n",
+          kitName);
+  fprintf(fout,"void init%s()\n{\n",kitName);
 #else
-  closedir(dp);
+  fprintf(fout,"extern  \"C\" {void initlib%s();}\n\n",kitName);
+  fprintf(fout,"void initlib%s()\n{\n",kitName);
 #endif
+  
 
-  return 0;
+  /* module init function */
+  fprintf(fout,"  PyObject *m, *d, *c;\n\n");
+#ifdef _WIN32
+  fprintf(fout,"  static char modulename[] = \"%s\";\n",kitName);
+#else
+  fprintf(fout,"  static char modulename[] = \"lib%s\";\n",kitName);
+#endif
+  fprintf(fout,"  m = Py_InitModule(modulename, Py%s_ClassMethods);\n",
+          kitName);
+  
+  fprintf(fout,"  d = PyModule_GetDict(m);\n");
+  fprintf(fout,"  if (!d) Py_FatalError"
+          "(\"can't get dictionary for module %s!\");\n\n", kitName);
+
+  for (i = 0; i < classes.size(); i++)
+    {
+    fprintf(fout,"  if ((c = PyVTKClass_%sNew(modulename)))\n",
+            classes[i].c_str());
+    fprintf(fout,"    if (-1 == PyDict_SetItemString(d, \"%s\", c))\n",
+            classes[i].c_str());
+    fprintf(fout,
+            "      Py_FatalError(\"can't add class %s to dictionary!\");\n\n",
+            classes[i].c_str());
+    }
+  fprintf(fout,"}\n\n");
+  fclose(fout);
+  
+  
+  // copy the file if different
+  cmSystemTools::CopyFileIfDifferent(tempOutputFile.c_str(),
+                                     outFileName.c_str());
+  cmSystemTools::RemoveFile(tempOutputFile.c_str());
+  return true;
 }
 
 

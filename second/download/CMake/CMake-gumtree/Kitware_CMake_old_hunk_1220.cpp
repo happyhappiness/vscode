@@ -1,7 +1,9 @@
-void cmCommandArgumentParserHelper::Error(const char* str)
-{
-  unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
-  fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
-  int cc;
-  std::cerr << "String: [";
-  for ( cc = 0; cc < 30 && *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
+  for (i = 0; i < classes.size(); i++)
+    {
+#ifdef _WIN32
+    fprintf(fout,"extern  \"C\" {__declspec( dllexport) PyObject *PyVTKClass_%sNew(char *); }\n",classes[i].c_str());
+#else
+    fprintf(fout,"extern  \"C\" {PyObject *PyVTKClass_%sNew(char *); }\n",classes[i].c_str());
+#endif
+    }
+

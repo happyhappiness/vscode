@@ -1,7 +1,21 @@
-    fprintf(stderr,"*** Failed LOADED COMMAND Final Pass\n");
-    }
-}
-static void CCONV Destructor(void *inf) 
-{
-  cmLoadedCommandInfo *info = (cmLoadedCommandInfo *)inf;
-  /* get our client data from initial pass */
+#  define YYFPRINTF fprintf
+# endif
+
+# define YYDPRINTF(Args)                        \
+do {                                            \
+  if (yydebug)                                  \
+    YYFPRINTF Args;                             \
+} while (0)
+
+# define YY_SYMBOL_PRINT(Title, Type, Value, Location)          \
+do {                                                            \
+  if (yydebug)                                                  \
+    {                                                           \
+      YYFPRINTF (stderr, "%s ", Title);                         \
+      yysymprint (stderr,                                       \
+                  Type, Value); \
+      YYFPRINTF (stderr, "\n");                                 \
+    }                                                           \
+} while (0)
+
+/*------------------------------------------------------------------.

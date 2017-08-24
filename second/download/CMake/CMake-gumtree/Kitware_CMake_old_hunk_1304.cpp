@@ -1,15 +1,9 @@
-                cres.m_Status = cmCTest::SEGFAULT;
-                break;
-              case cmsysProcess_Exception_Illegal:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::ILLEGAL;
-                break;
-              case cmsysProcess_Exception_Interrupt:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::INTERRUPT;
-                break;
-              case cmsysProcess_Exception_Numerical:
-                fprintf(stderr,"SegFault");
-                cres.m_Status = cmCTest::NUMERICAL;
-                break;
-              default:
+                /* They forgot to leave room for the EOB's. */
+                return 0;
+
+        b = (YY_BUFFER_STATE) yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
+        if ( ! b )
+                YY_FATAL_ERROR( "out of dynamic memory in yy_scan_buffer()" );
+
+        b->yy_buf_size = size - 2;      /* "- 2" to take care of EOB's */
+        b->yy_buf_pos = b->yy_ch_buf = base;

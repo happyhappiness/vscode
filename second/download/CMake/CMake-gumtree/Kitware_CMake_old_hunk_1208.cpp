@@ -1,45 +1,41 @@
+    }
+  if ( !res )
+    {
+    m_CacheManager->AddCacheEntry("CMAKE_HOME_DIRECTORY",
+      this->GetHomeDirectory(),
+      "Start directory with the top level CMakeLists.txt file for this "
+      "project",
+      cmCacheManager::INTERNAL);
+    }
 
+  // set the default BACKWARDS compatibility to the current version
+  if(!m_CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+    {
+    char ver[256];
+    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
+            cmMakefile::GetMinorVersion());
+    this->m_CacheManager->AddCacheEntry
+      ("CMAKE_BACKWARDS_COMPATIBILITY",ver,
+       "For backwards compatibility, what version of CMake commands and "
+       "syntax should this version of CMake allow.",
+       cmCacheManager::STRING);
+    }
 
-    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, std::endl << (m_MemCheck?"MemCheck":"Test") << " command: " << testCommand << std::endl);
-    if ( olog )
+  // no generator specified on the command line
+  if(!m_GlobalGenerator)
+    {
+    const char* genName = m_CacheManager->GetCacheValue("CMAKE_GENERATOR");
+    if(genName)
       {
-      *olog << cnt << "/" << tmsize 
-        << " Test: " << testname.c_str() << std::endl;
-      *olog << "Command: ";
-      std::vector<cmStdString>::size_type ll;
-      for ( ll = 0; ll < arguments.size()-1; ll ++ )
-        {
-        *olog << "\"" << arguments[ll] << "\" ";
-        }
-      *olog 
-        << std::endl 
-        << "Directory: " << it->m_Directory << std::endl 
-        << "\"" << testname.c_str() << "\" start time: " 
-        << m_CTest->CurrentTime() << std::endl
-        << "Output:" << std::endl 
-        << "----------------------------------------------------------"
-        << std::endl;
+      m_GlobalGenerator = this->CreateGlobalGenerator(genName);
       }
-    int res = 0;
-    double clock_start, clock_finish;
-    clock_start = cmSystemTools::GetTime();
-
-    if ( !m_CTest->GetShowOnly() )
+    if(m_GlobalGenerator)
       {
-      res = m_CTest->RunTest(arguments, &output, &retVal, olog);
+      // set the global flag for unix style paths on cmSystemTools as
+      // soon as the generator is set.  This allows gmake to be used
+      // on windows.
+      cmSystemTools::SetForceUnixPaths(
+        m_GlobalGenerator->GetForceUnixPaths());
       }
-
-    clock_finish = cmSystemTools::GetTime();
-
-    if ( olog )
+    else
       {
-      double ttime = clock_finish - clock_start;
-      int hours = static_cast<int>(ttime / (60 * 60));
-      int minutes = static_cast<int>(ttime / 60) % 60;
-      int seconds = static_cast<int>(ttime) % 60;
-      char buffer[100];
-      sprintf(buffer, "%02d:%02d:%02d", hours, minutes, seconds);
-      *olog 
-        << "----------------------------------------------------------"
-        << std::endl
-        << "\"" << testname.c_str() << "\" end time: " 

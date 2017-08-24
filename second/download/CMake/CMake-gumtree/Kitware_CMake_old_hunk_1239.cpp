@@ -1,10 +1,14 @@
-      Realpath(pwd, pwd_path);
-      if(cwd == pwd_path && strcmp(cwd, pwd) != 0)
-        {
-#if defined(__HP_aCC)
-        fprintf(stderr, "cwd=[%s]\npwd=[%s]\npwd_path=[%s]\n",
-                cwd, pwd, pwd_path.c_str());
-#endif
-        // The current working directory is a logical path.  Split
-        // both the logical and physical paths into their components.
-        kwsys_stl::vector<kwsys_stl::string> cwd_components;
+  return 0;
+}
+
+int test5(int argc, const char* argv[])
+{
+  int r;
+  const char* cmd[4];
+  (void)argc;
+  cmd[0] = argv[0];
+  cmd[1] = "run";
+  cmd[2] = "4";
+  cmd[3] = 0;
+  fprintf(stdout, "Output on stdout before recursive test.\n");
+  fprintf(stderr, "Output on stderr before recursive test.\n");

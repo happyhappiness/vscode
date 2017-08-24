@@ -1,19 +1,16 @@
-    {
-    if(exception != kwsysProcess_GetExitException(kp))
       {
-      fprintf(stderr, "Mismatch in exit exception.  Should have been %d.\n",
-              exception);
+      percent = 99;
       }
-    if(value != kwsysProcess_GetExitValue(kp))
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl << static_cast<int>(percent + .5) << "% tests passed, "
+      << failed.size() << " tests failed out of " << total << std::endl);
+    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+    //  percent, int(failed.size()), total);
+
+    if (failed.size()) 
       {
-      fprintf(stderr, "Mismatch in exit value.  Should have been %d.\n",
-              value);
-      }
-    }
-  
-  if(kwsysProcess_GetState(kp) != state)
-    {
-    fprintf(stderr, "Mismatch in state.  Should have been %d.\n", state);
-    result = 1;
-    }
-  
+      cmGeneratedFileStream ofs;
+
+      cmCTestLog(m_CTest, ERROR_MESSAGE, std::endl << "The following tests FAILED:" << std::endl);
+      this->StartLogFile("TestsFailed", ofs);
+
+      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;

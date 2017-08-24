@@ -1,7 +1,7 @@
-        {
-        std::string tmp = (*d)->m_FullPath;
-        std::string::size_type pos = tmp.rfind('.');
-        if(pos != std::string::npos && (tmp.substr(pos) != ".h"))
-          {
-          tmp = tmp.substr(0, pos);
-          fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());
+  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
+  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp, ClientData arg);\n");
+
+  for (i = 0; i < this->Commands.size(); i++)
+    {
+    fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+            capcommands[i].c_str());

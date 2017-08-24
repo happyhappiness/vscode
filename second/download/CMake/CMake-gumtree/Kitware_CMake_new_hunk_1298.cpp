@@ -1,11 +1,7 @@
-        kwsysProcess_Delete(cp);
-        return 0;
-        }
+    xmlrpc_env env;
+    xmlrpc_value *result;
+    char *state_name;
+    int cc;
 
-      /* Construct the full path to the forwarding executable.  */
-      sprintf(win9x, "%s%s", tempDir, fwdName);
-      }
-
-    /* If we found a place to put the forwarding executable, try to
-       write it. */
-    if(win9x)
+    if (argc-1 > 0) {
+        fprintf(stderr, "No arguments");

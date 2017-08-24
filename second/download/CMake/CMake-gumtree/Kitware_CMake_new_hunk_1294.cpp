@@ -1,8 +1,7 @@
-
-    /* Construct the executable name from the process id and kwsysProcess
-       instance.  This should be unique.  */
-    sprintf(fwdName, KWSYS_NAMESPACE_STRING "pew9xfwd_%u_%p.exe",
-            GetCurrentProcessId(), cp);
-
-    /* If we have a temp directory, use it.  */
-    if(length > 0 && length <= _MAX_PATH)
+  fflush(stdout);
+  fflush(stderr);
+  r = runChild(cmd, kwsysProcess_State_Exception,
+               kwsysProcess_Exception_Fault, 1, 1, 1, 0, 15);
+  fprintf(stdout, "Output on stdout after recursive test.\n");
+  fprintf(stderr, "Output on stderr after recursive test.\n");
+  fflush(stdout);

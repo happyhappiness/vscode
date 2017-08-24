@@ -1,32 +1,49 @@
-  int base64Len;
-  unsigned char *data;
-  int dataLen;
-  int i, j;
+  char *filename;
+  char buf[TAR_MAXPATHLEN];
+  int i;
+  char *pathname = 0;
 
-  base64 = (char *)suck(&base64Len);
-  data = (unsigned char *)malloc(base64Len * 3/4 + 8);
-  dataLen = Curl_base64_decode(base64, data);
+  while ((i = th_read(t)) == 0)
+  {
+    pathname = th_get_pathname(t);
+    filename = pathname;
 
-  fprintf(stderr, "%d\n", dataLen);
+    if (fnmatch(globname, filename, FNM_PATHNAME | FNM_PERIOD))
+    {
+      if (pathname)
+        {
+        free(pathname);
+        pathname = 0;
+        }
 
-  for(i=0; i < dataLen; i+=0x10) {
-    printf("0x%02x: ", i);
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%02x ", data[i+j]);
-      else
-        printf("   ");
+      if (TH_ISREG(t) && tar_skip_regfile(t))
+        return -1;
+      continue;
+    }
 
-    printf(" | ");
+    if (t->options & TAR_VERBOSE)
+      th_print_long_ls(t);
 
-    for(j=0; j < 0x10; j++)
-      if((j+i) < dataLen)
-        printf("%c", isgraph(data[i+j])?data[i+j]:'.');
-      else
-        break;
-    puts("");
+    if (prefix != NULL)
+      snprintf(buf, sizeof(buf), "%s/%s", prefix, filename);
+    else
+      strlcpy(buf, filename, sizeof(buf));
+
+    if (tar_extract_file(t, filename) != 0)
+      {
+      if (pathname)
+        {
+        free(pathname);
+        pathname = 0;
+        }
+      return -1;
+      }
+
+    if (pathname)
+      {
+      free(pathname);
+      pathname = 0;
+      }
   }
 
-  free(base64); free(data);
-  return 0;
-}
+  return (i == 1 ? 0 : -1);

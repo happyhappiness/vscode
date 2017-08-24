@@ -1,89 +1,75 @@
-@@ -39,24 +39,49 @@ tar_extract_glob(TAR *t, char *globname, char *prefix)
-   char *filename;
-   char buf[TAR_MAXPATHLEN];
-   int i;
-+  char *pathname = 0;
- 
-   while ((i = th_read(t)) == 0)
-   {
--    filename = th_get_pathname(t);
-+    pathname = th_get_pathname(t);
-+    filename = pathname;
+@@ -996,16 +996,19 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+       std::string dirName = args[2];
+       dirName += "/Progress";
+       cmSystemTools::RemoveADirectory(dirName.c_str());
+-      cmSystemTools::MakeDirectory(dirName.c_str());
+-      // write the count into the directory
+-      std::string fName = dirName;
+-      fName += "/count.txt";
+-      FILE *progFile = fopen(fName.c_str(),"w");
+-      if (progFile)
++      int count = atoi(args[3].c_str());
++      if (count)
+         {
+-        int count = atoi(args[3].c_str());
+-        fprintf(progFile,"%i\n",count);
+-        fclose(progFile);
++        cmSystemTools::MakeDirectory(dirName.c_str());
++        // write the count into the directory
++        std::string fName = dirName;
++        fName += "/count.txt";
++        FILE *progFile = fopen(fName.c_str(),"w");
++        if (progFile)
++          {
++          fprintf(progFile,"%i\n",count);
++          fclose(progFile);
++          }
+         }
+       return 0;
+       }
+@@ -1017,6 +1020,21 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+       dirName += "/Progress";
+       std::string fName;
+       FILE *progFile;
 +
-     if (fnmatch(globname, filename, FNM_PATHNAME | FNM_PERIOD))
-     {
-+      if (pathname)
++      // read the count
++      fName = dirName;
++      fName += "/count.txt";
++      progFile = fopen(fName.c_str(),"r");
++      int count = 0;
++      if (!progFile)
 +        {
-+        free(pathname);
-+        pathname = 0;
++        return 0;
 +        }
-+
-       if (TH_ISREG(t) && tar_skip_regfile(t))
-         return -1;
-       continue;
-     }
-+
-     if (t->options & TAR_VERBOSE)
-       th_print_long_ls(t);
-+
-     if (prefix != NULL)
-       snprintf(buf, sizeof(buf), "%s/%s", prefix, filename);
-     else
-       strlcpy(buf, filename, sizeof(buf));
-+
-     if (tar_extract_file(t, filename) != 0)
-+      {
-+      if (pathname)
++      else
 +        {
-+        free(pathname);
-+        pathname = 0;
++        fscanf(progFile,"%i",&count);
++        fclose(progFile);
 +        }
-       return -1;
-+      }
-+
-+    if (pathname)
-+      {
-+      free(pathname);
-+      pathname = 0;
-+      }
-   }
- 
-   return (i == 1 ? 0 : -1);
-@@ -69,6 +94,7 @@ tar_extract_all(TAR *t, char *prefix)
-   char *filename;
-   char buf[TAR_MAXPATHLEN];
-   int i;
-+  char *pathname = 0;
- 
- #ifdef DEBUG
-   printf("==> tar_extract_all(TAR *t, \"%s\")\n",
-@@ -80,17 +106,28 @@ tar_extract_all(TAR *t, char *prefix)
- #ifdef DEBUG
-     puts("    tar_extract_all(): calling th_get_pathname()");
- #endif
--    filename = th_get_pathname(t);
-+
-+    pathname = th_get_pathname(t);
-+    filename = pathname;
-+
-     if (t->options & TAR_VERBOSE)
-       th_print_long_ls(t);
-     if (prefix != NULL)
-       snprintf(buf, sizeof(buf), "%s/%s", prefix, filename);
-     else
-       strlcpy(buf, filename, sizeof(buf));
-+
-+    if (pathname)
-+      {
-+      free(pathname);
-+      pathname = 0;
-+      }
-+
- #ifdef DEBUG
-     printf("    tar_extract_all(): calling tar_extract_file(t, "
-            "\"%s\")\n", buf);
- #endif
-+
-     if (tar_extract_file(t, buf) != 0)
-       return -1;
-   }
+       unsigned int i;
+       for (i = 3; i < args.size(); ++i)
+         {
+@@ -1032,20 +1050,10 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+         }
+       int fileNum = static_cast<int>
+         (cmsys::Directory::GetNumberOfFilesInDirectory(dirName.c_str()));
+-      // read the count
+-      fName = dirName;
+-      fName += "/count.txt";
+-      progFile = fopen(fName.c_str(),"r");
+-      if (progFile)
++      if (count > 0)
+         {
+-        int count = 0;
+-        fscanf(progFile,"%i",&count);
+-        if (count > 0)
+-          {
+-          // print the progress
+-          fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+-          }
+-        fclose(progFile);
++        // print the progress
++        fprintf(stdout,"[%3i%%] ",((fileNum-3)*100)/count);
+         }
+       return 0;
+       }

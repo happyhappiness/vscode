@@ -1,47 +1,13 @@
-//----------------------------------------------------------------------
-std::string cmCTest::MakeXMLSafe(const std::string& str)
+void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
+  int logFileCount)
 {
-  std::vector<char> result;
-  result.reserve(500);
-  const char* pos = str.c_str();
-  for ( ;*pos; ++pos)
-    {
-    char ch = *pos;
-    if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 && ch != '\r' )
-      {
-      char buffer[33];
-      sprintf(buffer, "&lt;%d&gt;", (int)ch);
-      //sprintf(buffer, "&#x%0x;", (unsigned int)ch);
-      result.insert(result.end(), buffer, buffer+strlen(buffer));
-      }
-    else
-      {
-      const char* const encodedChars[] = {
-        "&amp;",
-        "&lt;",
-        "&gt;"
-      };
-      switch ( ch )
-        {
-        case '&':
-          result.insert(result.end(), encodedChars[0], encodedChars[0]+5);
-          break;
-        case '<':
-          result.insert(result.end(), encodedChars[1], encodedChars[1]+4);
-          break;
-        case '>':
-          result.insert(result.end(), encodedChars[2], encodedChars[2]+4);
-          break;
-        case '\n':
-          result.push_back('\n');
-          break;
-        case '\r': break; // Ignore \r
-        default:
-          result.push_back(ch);
-        }
-      }
-    }
-  return std::string(&*result.begin(), result.size());
+  std::string local_end_time = this->CTest->CurrentTime();
+  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
+    << "</CoverageLog>" << std::endl;
+  this->CTest->EndXML(ostr);
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
+    << covLogFilename << std::endl);
+  ostr.Close();
 }
-
-//----------------------------------------------------------------------

@@ -1,669 +1,630 @@
-/*=========================================================================
+/*
+**  Copyright 1998-2003 University of Illinois Board of Trustees
+**  Copyright 1998-2003 Mark D. Roth
+**  All rights reserved.
+**
+**  extract.c - libtar code to extract a file from a tar archive
+**
+**  Mark D. Roth <roth@uiuc.edu>
+**  Campus Information Technologies and Educational Services
+**  University of Illinois at Urbana-Champaign
+*/
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
+#include <libtarint/internal.h>
 
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+#include <stdio.h>
+#include <libtar/compat.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <errno.h>
 
-     This software is distributed WITHOUT ANY WARRANTY; without even 
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-     PURPOSE.  See the above copyright notices for more information.
-
-=========================================================================*/
-
-#include "cmCTestScriptHandler.h"
-
-#include "cmCTest.h"
-#include "cmake.h"
-#include "cmMakefile.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-
-//#include <cmsys/RegularExpression.hxx>
-#include <cmsys/Process.h>
-
-// used for sleep
-#ifdef _WIN32
-#include "windows.h"
+#if defined(_WIN32) && !defined(__CYGWIN__)
+# ifdef _MSC_VER
+#  include <sys/utime.h>
+# else
+#  include <utime.h>
+# endif
+# include <io.h>
+# include <direct.h>
+#else
+# include <utime.h>
+# include <sys/param.h>
 #endif
 
-#include <stdlib.h> 
-#include <time.h>
-#include <math.h>
-#include <float.h>
+#ifdef STDC_HEADERS
+# include <stdlib.h>
+# include <string.h>
+#endif
 
-// needed for sleep
-#if !defined(_WIN32)
+#ifdef HAVE_UNISTD_H
 # include <unistd.h>
 #endif
 
-#define CTEST_INITIAL_CMAKE_OUTPUT_FILE_NAME "CTestInitialCMakeOutput.log"
-
-//----------------------------------------------------------------------
-cmCTestScriptHandler::cmCTestScriptHandler()
-{
-  m_Verbose = false; 
-  m_Backup = false; 
-  m_Makefile = 0;
-  m_LocalGenerator = 0;
-  m_CMake = 0;
-  m_GlobalGenerator = 0;
-  
-  // the *60 is becuase the settings are in minutes but GetTime is seconds
-  m_MinimumInterval = 30*60;
-}
-
-
-//----------------------------------------------------------------------
-cmCTestScriptHandler::~cmCTestScriptHandler()
-{
-  // local generator owns the makefile
-  m_Makefile = 0;
-  if (m_LocalGenerator)
-    {
-    delete m_LocalGenerator;
-    }
-  m_LocalGenerator = 0;
-  if (m_GlobalGenerator)
-    {
-    delete m_GlobalGenerator;
-    }
-  m_GlobalGenerator = 0;
-  if (m_CMake)
-    {
-    delete m_CMake;
-    }
-  m_CMake = 0;
-}
-
-
-//----------------------------------------------------------------------
-// just adds an argument to the vector
-void cmCTestScriptHandler::AddConfigurationScript(const char *script)
-{
-  m_ConfigurationScripts.push_back(script);
-}
-
-
-//----------------------------------------------------------------------
-// the generic entry point for handling scripts, this routine will run all
-// the scripts provides a -S arguments
-int cmCTestScriptHandler::RunConfigurationScript()
-{
-  int res = 0;
-  std::vector<cmStdString>::iterator it;
-  for ( it = m_ConfigurationScripts.begin();
-        it != m_ConfigurationScripts.end();
-        it ++ )
-    {
-    // for each script run it
-    res += this->RunConfigurationScript(
-      cmSystemTools::CollapseFullPath(it->c_str()));
-    }
-  return res;
-}
-
-
-//----------------------------------------------------------------------
-// this sets up some variables for thew script to use, creates the required
-// cmake instance and generators, and then reads in the script
-int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
-{
-  // if the argument has a , in it then it needs to be broken into the fist
-  // argument (which is the script) and the second argument which will be
-  // passed into the scripts as S_ARG
-  std::string script = total_script_arg;
-  std::string script_arg;
-  if (total_script_arg.find(",") != std::string::npos)
-    {
-    script = total_script_arg.substr(0,total_script_arg.find(","));
-    script_arg = total_script_arg.substr(total_script_arg.find(",")+1);
-    }
-  
-  // make sure the file exists
-  if (!cmSystemTools::FileExists(script.c_str()))
-    {
-    cmSystemTools::Error("Cannot find file: ", script.c_str());
-    return 1;
-    }
-
-  // create a cmake instance to read the configuration script
-  // read in the list file to fill the cache
-  if (m_CMake)
-    {
-    delete m_CMake;
-    delete m_GlobalGenerator;
-    delete m_LocalGenerator;
-    }
-  m_CMake = new cmake;
-  m_GlobalGenerator = new cmGlobalGenerator;
-  m_GlobalGenerator->SetCMakeInstance(m_CMake);
-
-  m_LocalGenerator = m_GlobalGenerator->CreateLocalGenerator();
-  m_LocalGenerator->SetGlobalGenerator(m_GlobalGenerator);
-  
-  // set a variable with the path to the current script
-  m_LocalGenerator->GetMakefile()->AddDefinition("CTEST_SCRIPT_DIRECTORY",
-                                   cmSystemTools::GetFilenamePath(
-                                     script).c_str());
-  m_LocalGenerator->GetMakefile()->AddDefinition("CTEST_SCRIPT_NAME",
-                                   cmSystemTools::GetFilenameName(
-                                     script).c_str());
-  // add the script arg if defined
-  if (script_arg.size())
-    {
-    m_LocalGenerator->GetMakefile()->AddDefinition(
-      "CTEST_SCRIPT_ARG", script_arg.c_str());
-    }
-  
-  // finally read in the script
-  if (!m_LocalGenerator->GetMakefile()->ReadListFile(0, script.c_str()))
-    {
-    return 2;
-    }
-  
-  return 0;
-}
-
-
-//----------------------------------------------------------------------
-// extract variabels from the script to set ivars
-int cmCTestScriptHandler::ExtractVariables()
-{
-  // get some info that should be set
-  m_Makefile = m_LocalGenerator->GetMakefile();
-
-  m_SourceDir = m_Makefile->GetSafeDefinition("CTEST_SOURCE_DIRECTORY");
-  m_BinaryDir = m_Makefile->GetSafeDefinition("CTEST_BINARY_DIRECTORY");
-  m_CTestCmd  = m_Makefile->GetSafeDefinition("CTEST_COMMAND");
-  m_Backup    = m_Makefile->IsOn("CTEST_BACKUP_AND_RESTORE");
-
-  // in order to backup and restore we also must have the cvs root
-  m_CVSCheckOut = m_Makefile->GetSafeDefinition("CTEST_CVS_CHECKOUT");
-  if (m_Backup && m_CVSCheckOut.empty())
-    {
-    cmSystemTools::Error(
-      "Backup was requested without specifying CTEST_CVS_CHECKOUT.");    
-    return 3;
-    }
-  
-  // make sure the required info is here
-  if (this->m_SourceDir.empty() || 
-      this->m_BinaryDir.empty() || 
-      this->m_CTestCmd.empty())
-    {
-    std::string message = "CTEST_SOURCE_DIRECTORY = ";
-    message += (!m_SourceDir.empty()) ? m_SourceDir.c_str() : "(Null)";
-    message += "\nCTEST_BINARY_DIRECTORY = ";
-    message += (!m_BinaryDir.empty()) ? m_BinaryDir.c_str() : "(Null)";
-    message += "\nCTEST_COMMAND = ";
-    message += (!m_CTestCmd.empty()) ? m_CTestCmd.c_str() : "(Null)";
-    cmSystemTools::Error(
-      "Some required settings in the configuration file were missing:\n",
-      message.c_str());
-    return 4;
-    }
-  
-  // if the dashboard root isn't specified then we can compute it from the
-  // m_SourceDir
-  if (m_Makefile->GetDefinition("CTEST_DASHBOARD_ROOT"))
-    {
-    m_CTestRoot = m_Makefile->GetDefinition("CTEST_DASHBOARD_ROOT");
-    }
-  else
-    {
-    m_CTestRoot = cmSystemTools::GetFilenamePath(m_SourceDir).c_str();
-    }
-
-  // the script may override the minimum continuous interval
-  if (m_Makefile->GetDefinition("CTEST_CONTINUOUS_MINIMUM_INTERVAL"))
-    {
-    m_MinimumInterval = 60*
-      atof(m_Makefile->GetDefinition("CTEST_CONTINUOUS_MINIMUM_INTERVAL"));
-    }
-  
-  m_CVSCmd = m_Makefile->GetSafeDefinition("CTEST_CVS_COMMAND");
-  
-  return 0;
-}
-
-//----------------------------------------------------------------------
-void cmCTestScriptHandler::LocalSleep(unsigned int secondsToWait)
-{
-#if defined(_WIN32)
-        Sleep(1000*secondsToWait);
-#else
-        sleep(secondsToWait);
+#ifdef HAVE_SYS_MKDEV_H
+# include <sys/mkdev.h>
 #endif
-}
 
-//----------------------------------------------------------------------
-// run a specific script
-int cmCTestScriptHandler::RunConfigurationScript(
-  const std::string& total_script_arg)
+
+struct linkname
 {
-  int result;
-  
-  // read in the script
-  result = this->ReadInScript(total_script_arg);
-  if (result)
-    {
-    return result;
-    }
-  
-  // no popup widows
-  cmSystemTools::SetRunCommandHideConsole(true);
-  
-  // extract the vars from the cache and store in ivars
-  result = this->ExtractVariables();
-  if (result)
-    {
-    return result;
-    }
-  
-  // set any environment variables
-  const char *ctestEnv = m_Makefile->GetDefinition("CTEST_ENVIRONMENT");
-  if (ctestEnv)
-    {
-    std::vector<std::string> envArgs;
-    cmSystemTools::ExpandListArgument(ctestEnv,envArgs);
-    // for each variable/argument do a putenv
-    for (unsigned i = 0; i < envArgs.size(); ++i)
-      {
-      cmSystemTools::PutEnv(envArgs[i].c_str());
-      }
-    }
+  char ln_save[TAR_MAXPATHLEN];
+  char ln_real[TAR_MAXPATHLEN];
+};
+typedef struct linkname linkname_t;
 
-  // now that we have done most of the error checking finally run the
-  // dashboard, we may be asked to repeatedly run this dashboard, such as
-  // for a continuous, do we ned to run it more than once?
-  if (m_Makefile->GetDefinition("CTEST_CONTINUOUS_DURATION"))
-    {
-    double ending_time  = cmSystemTools::GetTime() + 
-      60.0*atof(m_Makefile->GetDefinition("CTEST_CONTINUOUS_DURATION"));
-    if (m_Makefile->IsOn("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY_ONCE"))
-      {
-      m_Makefile->AddDefinition("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY","1");
-      }
-    do
-      {
-      double interval = cmSystemTools::GetTime();
-      result = this->RunConfigurationDashboard();
-      interval = cmSystemTools::GetTime() - interval;
-      if (interval < m_MinimumInterval)
-        {
-        this->LocalSleep(
-          static_cast<unsigned int>(m_MinimumInterval - interval));
-        }
-      if (m_Makefile->IsOn("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY_ONCE"))
-        {
-        m_Makefile->AddDefinition("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY",
-                                  "0");
-        }
-      }
-    while (cmSystemTools::GetTime() < ending_time);
-    }
-  // otherwise just run it once
-  else
-    {
-    result = this->RunConfigurationDashboard();
-    }
 
-  return result;
-}
-
-//----------------------------------------------------------------------
-int cmCTestScriptHandler::CheckOutSourceDir()
+static int
+tar_set_file_perms(TAR *t, char *realname)
 {
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res; 
+  mode_t mode;
+  uid_t uid;
+  gid_t gid;
+  struct utimbuf ut;
+  char *filename;
 
-  if (!cmSystemTools::FileExists(m_SourceDir.c_str()) && 
-      !m_CVSCheckOut.empty())
+  filename = (realname ? realname : th_get_pathname(t));
+  mode = th_get_mode(t);
+  uid = th_get_uid(t);
+  gid = th_get_gid(t);
+  ut.modtime = ut.actime = th_get_mtime(t);
+
+  /* change owner/group */
+#ifndef WIN32
+  if (geteuid() == 0)
+#ifdef HAVE_LCHOWN
+    if (lchown(filename, uid, gid) == -1)
     {
-    // we must now checkout the src dir
-    output = "";
-    if ( m_Verbose )
-      {
-      std::cerr << "Run cvs: " << m_CVSCheckOut << std::endl;
-      }
-    res = cmSystemTools::RunSingleCommand(m_CVSCheckOut.c_str(), &output, 
-                                          &retVal, m_CTestRoot.c_str(),
-                                          m_Verbose, 0 /*m_TimeOut*/);
-    if (!res || retVal != 0)
-      {
-      cmSystemTools::Error("Unable to perform cvs checkout:\n", 
-                           output.c_str());    
-      return 6;
-      }
-    }
-  return 0;
-}
-
-//----------------------------------------------------------------------
-int cmCTestScriptHandler::BackupDirectories()
-{
-  int retVal;
-
-  // compute the backup names
-  m_BackupSourceDir = m_SourceDir;
-  m_BackupSourceDir += "_CMakeBackup";
-  m_BackupBinaryDir = m_BinaryDir;
-  m_BackupBinaryDir += "_CMakeBackup";
-  
-  // backup the binary and src directories if requested
-  if (m_Backup)
+# ifdef DEBUG
+      fprintf(stderr, "lchown(\"%s\", %d, %d): %s\n",
+        filename, uid, gid, strerror(errno));
+# endif
+#else /* ! HAVE_LCHOWN */
+    if (!TH_ISSYM(t) && chown(filename, uid, gid) == -1)
     {
-    // if for some reason those directories exist then first delete them
-    if (cmSystemTools::FileExists(m_BackupSourceDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(m_BackupSourceDir.c_str());
-      }
-    if (cmSystemTools::FileExists(m_BackupBinaryDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(m_BackupBinaryDir.c_str());
-      }
-    
-    // first rename the src and binary directories 
-    rename(m_SourceDir.c_str(), m_BackupSourceDir.c_str());
-    rename(m_BinaryDir.c_str(), m_BackupBinaryDir.c_str());
-    
-    // we must now checkout the src dir
-    retVal = this->CheckOutSourceDir();
-    if (retVal)
-      {
-      this->RestoreBackupDirectories();
-      return retVal;
-      }
+# ifdef DEBUG
+      fprintf(stderr, "chown(\"%s\", %d, %d): %s\n",
+        filename, uid, gid, strerror(errno));
+# endif
+#endif /* HAVE_LCHOWN */
+      return -1;
     }
+
+  /* change access/modification time */
+  if (!TH_ISSYM(t) && utime(filename, &ut) == -1)
+  {
+#ifdef DEBUG
+    perror("utime()");
+#endif
+    return -1;
+  }
+  /* change permissions */
+  if (!TH_ISSYM(t) && chmod(filename, mode) == -1)
+  {
+#ifdef DEBUG
+    perror("chmod()");
+#endif
+    return -1;
+  }
+
+#else /* WIN32 */
+  (void)filename;
+  (void)gid;
+  (void)uid;
+  (void)mode;
+#endif /* WIN32 */
 
   return 0;
 }
 
 
-//----------------------------------------------------------------------
-int cmCTestScriptHandler::PerformExtraUpdates()
+/* switchboard */
+int
+tar_extract_file(TAR *t, char *realname)
 {
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res; 
-
-  // do an initial cvs update as required
-  command = m_CVSCmd;
-  char updateVar[40];
   int i;
-  for (i = 1; i < 10; ++i)
+  linkname_t *lnp;
+
+  if (t->options & TAR_NOOVERWRITE)
+  {
+    struct stat s;
+
+#ifdef WIN32
+    if (stat(realname, &s) == 0 || errno != ENOENT)
+#else
+    if (lstat(realname, &s) == 0 || errno != ENOENT)
+#endif
     {
-    sprintf(updateVar,"CTEST_EXTRA_UPDATES_%i",i);
-    const char *updateVal = m_Makefile->GetDefinition(updateVar);
-    if (updateVal)
-      {
-      if (m_CVSCmd.empty())
-        {
-        cmSystemTools::Error(updateVar, " specified without specifying CTEST_CVS_COMMAND.");
-        this->RestoreBackupDirectories();
-        return 12;
-        }
-      std::vector<std::string> cvsArgs;
-      cmSystemTools::ExpandListArgument(updateVal,cvsArgs);
-      if (cvsArgs.size() == 2)
-        {
-        std::string fullCommand = command;
-        fullCommand += " update ";
-        fullCommand += cvsArgs[1];
-        output = "";
-        retVal = 0;
-        if ( m_Verbose )
-          {
-          std::cerr << "Run CVS: " << fullCommand.c_str() << std::endl;
-          }
-        res = cmSystemTools::RunSingleCommand(fullCommand.c_str(), &output, 
-          &retVal, cvsArgs[0].c_str(),
-          m_Verbose, 0 /*m_TimeOut*/);
-        if (!res || retVal != 0)
-          {
-          cmSystemTools::Error("Unable to perform extra cvs updates:\n", 
-            output.c_str());
-          this->RestoreBackupDirectories();
-          return 8;
-          }
-        }
-      }
+      errno = EEXIST;
+      return -1;
     }
+  }
+
+  if (TH_ISDIR(t))
+  {
+    i = tar_extract_dir(t, realname);
+    if (i == 1)
+      i = 0;
+  }
+#ifndef _WIN32
+  else if (TH_ISLNK(t))
+    i = tar_extract_hardlink(t, realname);
+  else if (TH_ISSYM(t))
+    i = tar_extract_symlink(t, realname);
+  else if (TH_ISCHR(t))
+    i = tar_extract_chardev(t, realname);
+  else if (TH_ISBLK(t))
+    i = tar_extract_blockdev(t, realname);
+  else if (TH_ISFIFO(t))
+    i = tar_extract_fifo(t, realname);
+#endif
+  else /* if (TH_ISREG(t)) */
+    i = tar_extract_regfile(t, realname);
+
+  if (i != 0)
+    return i;
+
+  i = tar_set_file_perms(t, realname);
+  if (i != 0)
+    return i;
+
+  lnp = (linkname_t *)calloc(1, sizeof(linkname_t));
+  if (lnp == NULL)
+    return -1;
+  strlcpy(lnp->ln_save, th_get_pathname(t), sizeof(lnp->ln_save));
+  strlcpy(lnp->ln_real, realname, sizeof(lnp->ln_real));
+#ifdef DEBUG
+  printf("tar_extract_file(): calling libtar_hash_add(): key=\"%s\", "
+         "value=\"%s\"\n", th_get_pathname(t), realname);
+#endif
+  if (libtar_hash_add(t->h, lnp) != 0)
+    return -1;
+
   return 0;
 }
 
 
-//----------------------------------------------------------------------
-// run a single dashboard entry
-int cmCTestScriptHandler::RunConfigurationDashboard()
+/* extract regular file */
+int
+tar_extract_regfile(TAR *t, char *realname)
 {
-  // local variables
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res; 
+  mode_t mode;
+  size_t size;
+  uid_t uid;
+  gid_t gid;
+  int fdout;
+  int i, k;
+  char buf[T_BLOCKSIZE];
+  char *filename;
 
-  // make sure the src directory is there, if it isn't then we might be able
-  // to check it out from cvs
-  retVal = this->CheckOutSourceDir();
-  if (retVal)
+#ifdef DEBUG
+  printf("==> tar_extract_regfile(t=0x%lx, realname=\"%s\")\n", t,
+         realname);
+#endif
+
+  if (!TH_ISREG(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+
+  filename = (realname ? realname : th_get_pathname(t));
+  mode = th_get_mode(t);
+  size = th_get_size(t);
+  uid = th_get_uid(t);
+  gid = th_get_gid(t);
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
     {
-    return retVal;
+    return -1;
     }
 
-  // backup the dirs if requested
-  retVal = this->BackupDirectories();
-  if (retVal)
+#ifdef DEBUG
+  printf("  ==> extracting: %s (mode %04o, uid %d, gid %d, %d bytes)\n",
+         filename, mode, uid, gid, size);
+#endif
+  fdout = open(filename, O_WRONLY | O_CREAT | O_TRUNC
+#ifdef O_BINARY
+         | O_BINARY
+#endif
+        , 0666);
+  if (fdout == -1)
+  {
+#ifdef DEBUG
+    perror("open()");
+#endif
+    return -1;
+  }
+
+#if 0
+  /* change the owner.  (will only work if run as root) */
+  if (fchown(fdout, uid, gid) == -1 && errno != EPERM)
+  {
+#ifdef DEBUG
+    perror("fchown()");
+#endif
+    return -1;
+  }
+
+  /* make sure the mode isn't inheritted from a file we're overwriting */
+  if (fchmod(fdout, mode & 07777) == -1)
+  {
+#ifdef DEBUG
+    perror("fchmod()");
+#endif
+    return -1;
+  }
+#endif
+
+  /* extract the file */
+  for (i = size; i > 0; i -= T_BLOCKSIZE)
+  {
+    k = tar_block_read(t, buf);
+    if (k != T_BLOCKSIZE)
     {
-    return retVal;
+      if (k != -1)
+        errno = EINVAL;
+      return -1;
     }
-  
-  // clear the binary directory?
-  if (m_Makefile->IsOn("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY"))
+
+    /* write block to output file */
+    if (write(fdout, buf,
+        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
+      return -1;
+  }
+
+  /* close output file */
+  if (close(fdout) == -1)
+    return -1;
+
+#ifdef DEBUG
+  printf("### done extracting %s\n", filename);
+#endif
+
+  (void)filename;
+  (void)gid;
+  (void)uid;
+  (void)mode;
+
+  return 0;
+}
+
+
+/* skip regfile */
+int
+tar_skip_regfile(TAR *t)
+{
+  int i, k;
+  size_t size;
+  char buf[T_BLOCKSIZE];
+
+  if (!TH_ISREG(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+
+  size = th_get_size(t);
+  for (i = size; i > 0; i -= T_BLOCKSIZE)
+  {
+    k = tar_block_read(t, buf);
+    if (k != T_BLOCKSIZE)
     {
-    // try to avoid deleting directories that we shouldn't
-    std::string check = m_BinaryDir;
-    check += "/CMakeCache.txt";
-    if (cmSystemTools::FileExists(check.c_str()))
+      if (k != -1)
+        errno = EINVAL;
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+
+/* hardlink */
+int
+tar_extract_hardlink(TAR * t, char *realname)
+{
+  char *filename;
+  char *linktgt;
+  linkname_t *lnp;
+  libtar_hashptr_t hp;
+  char buf[T_BLOCKSIZE];
+
+  if (!TH_ISLNK(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+
+  filename = (realname ? realname : th_get_pathname(t));
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
+    return -1;
+  libtar_hashptr_reset(&hp);
+  if (libtar_hash_getkey(t->h, &hp, th_get_linkname(t),
+             (libtar_matchfunc_t)libtar_str_match) != 0)
+  {
+    lnp = (linkname_t *)libtar_hashptr_data(&hp);
+    linktgt = lnp->ln_real;
+  }
+  else
+    linktgt = th_get_linkname(t);
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (link to %s)\n", filename, linktgt);
+#endif
+#ifndef WIN32
+  if (link(linktgt, filename) == -1)
+#else
+  (void)linktgt;
+#endif
+  {
+#ifdef DEBUG
+    perror("link()");
+#endif
+    return -1;
+  }
+
+  return 0;
+}
+
+
+/* symlink */
+int
+tar_extract_symlink(TAR *t, char *realname)
+{
+  char *filename;
+  char buf[T_BLOCKSIZE];
+
+#ifndef _WIN32
+  if (!TH_ISSYM(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+#endif
+
+  filename = (realname ? realname : th_get_pathname(t));
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
+    return -1;
+
+  if (unlink(filename) == -1 && errno != ENOENT)
+    {
+    return -1;
+    }
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (symlink to %s)\n",
+         filename, th_get_linkname(t));
+#endif
+#ifndef WIN32
+  if (symlink(th_get_linkname(t), filename) == -1)
+#endif
+  {
+#ifdef DEBUG
+    perror("symlink()");
+#endif
+    return -1;
+  }
+
+  return 0;
+}
+
+
+/* character device */
+int
+tar_extract_chardev(TAR *t, char *realname)
+{
+  mode_t mode;
+  unsigned long devmaj, devmin;
+  char *filename;
+  char buf[T_BLOCKSIZE];
+
+#ifndef _WIN32
+  if (!TH_ISCHR(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+#endif
+  filename = (realname ? realname : th_get_pathname(t));
+  mode = th_get_mode(t);
+  devmaj = th_get_devmajor(t);
+  devmin = th_get_devminor(t);
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
+    return -1;
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (character device %ld,%ld)\n",
+         filename, devmaj, devmin);
+#endif
+#ifndef WIN32
+  if (mknod(filename, mode | S_IFCHR,
+      compat_makedev(devmaj, devmin)) == -1)
+#else
+  (void)devmin;
+  (void)devmaj;
+  (void)mode;
+#endif
+  {
+#ifdef DEBUG
+    perror("mknod()");
+#endif
+    return -1;
+  }
+
+  return 0;
+}
+
+
+/* block device */
+int
+tar_extract_blockdev(TAR *t, char *realname)
+{
+  mode_t mode;
+  unsigned long devmaj, devmin;
+  char *filename;
+  char buf[T_BLOCKSIZE];
+
+  if (!TH_ISBLK(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+
+  filename = (realname ? realname : th_get_pathname(t));
+  mode = th_get_mode(t);
+  devmaj = th_get_devmajor(t);
+  devmin = th_get_devminor(t);
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
+    return -1;
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (block device %ld,%ld)\n",
+         filename, devmaj, devmin);
+#endif
+#ifndef WIN32
+  if (mknod(filename, mode | S_IFBLK,
+      compat_makedev(devmaj, devmin)) == -1)
+#else
+  (void)devmin;
+  (void)devmaj;
+  (void)mode;
+#endif
+  {
+#ifdef DEBUG
+    perror("mknod()");
+#endif
+    return -1;
+  }
+
+  return 0;
+}
+
+
+/* directory */
+int
+tar_extract_dir(TAR *t, char *realname)
+{
+  mode_t mode;
+  char *filename;
+  char buf[T_BLOCKSIZE];
+
+  if (!TH_ISDIR(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
+
+  filename = (realname ? realname : th_get_pathname(t));
+  mode = th_get_mode(t);
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
+    return -1;
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (mode %04o, directory)\n", filename,
+         mode);
+#endif
+#ifdef WIN32
+  if (mkdir(filename) == -1)
+#else
+  if (mkdir(filename, mode) == -1)
+#endif
+  {
+#ifdef __BORLANDC__
+  /* There is a bug in the Borland Run time library which makes MKDIR
+     return EACCES when it should return EEXIST
+     if it is some other error besides directory exists
+     then return false */
+    if ( errno == EACCES) 
+    {
+      errno = EEXIST;
+    }
+#endif      
+    if (errno == EEXIST)
+    {
+      if (chmod(filename, mode) == -1)
       {
-      cmSystemTools::RemoveADirectory(m_BinaryDir.c_str());
+#ifdef DEBUG
+        perror("chmod()");
+#endif
+        return -1;
       }
-    }
-  
-  // make sure the binary directory exists if it isn't the srcdir
-  if (!cmSystemTools::FileExists(m_BinaryDir.c_str()) && 
-      m_SourceDir != m_BinaryDir)
-    {
-    if (!cmSystemTools::MakeDirectory(m_BinaryDir.c_str()))
-      {
-      cmSystemTools::Error("Unable to create the binary directory:\n", 
-                           m_BinaryDir.c_str());    
-      this->RestoreBackupDirectories();
-      return 7;
-      }
-    }
-
-  // if the binary directory and the source directory are the same,
-  // and we are starting with an empty binary directory, then that means
-  // we must check out the source tree
-  if (m_Makefile->IsOn("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY") &&
-      m_SourceDir == m_BinaryDir)
-    {
-    // make sure we have the required info
-    if (m_CVSCheckOut.empty())
-      {
-      cmSystemTools::Error("You have specified the source and binary directories to be the same (an in source build). You have also specified that the binary directory is to be erased. This means that the source will have to be checked out from CVS. But you have not specified CTEST_CVS_CHECKOUT");    
-      return 8;
-      }
-    
-    // we must now checkout the src dir
-    retVal = this->CheckOutSourceDir();
-    if (retVal)
-      {
-      this->RestoreBackupDirectories();
-      return retVal;
-      }
-    }
-  
-  // backup the dirs if requested
-  retVal = this->PerformExtraUpdates();
-  if (retVal)
-    {
-    return retVal;
-    }
-
-  // put the initial cache into the bin dir
-  if (m_Makefile->GetDefinition("CTEST_INITIAL_CACHE"))
-    {
-    const char *initCache = m_Makefile->GetDefinition("CTEST_INITIAL_CACHE");
-    std::string cacheFile = m_BinaryDir;
-    cacheFile += "/CMakeCache.txt";
-    std::ofstream fout(cacheFile.c_str());
-    if(!fout)
-      {
-      this->RestoreBackupDirectories();
-      return 9;
-      }
-
-    fout.write(initCache, strlen(initCache));
-
-    // Make sure the operating system has finished writing the file
-    // before closing it.  This will ensure the file is finished before
-    // the check below.
-    fout.flush();
-    fout.close();
-    }
-
-  // do an initial cmake to setup the DartConfig file
-  const char *cmakeCmd = m_Makefile->GetDefinition("CTEST_CMAKE_COMMAND");
-  int cmakeFailed = 0;
-  std::string cmakeFailedOuput;
-  if (cmakeCmd)
-    {
-    command = cmakeCmd;
-    command += " \"";
-    command += m_SourceDir;
-    output = "";
-    command += "\"";
-    retVal = 0;
-    if ( m_Verbose )
-      {
-      std::cerr << "Run cmake command: " << command.c_str() << std::endl;
-      }
-    res = cmSystemTools::RunSingleCommand(command.c_str(), &output, 
-      &retVal, m_BinaryDir.c_str(),
-      m_Verbose, 0 /*m_TimeOut*/);
-
-    const char* cmakeOutputFileName =
-      m_Makefile->GetDefinition("CTEST_CMAKE_OUTPUT_FILE_NAME");
-    if ( cmakeOutputFileName )
-      {
-      std::string cmakeOutputFile = cmakeOutputFileName;
-      if ( !cmSystemTools::FileIsFullPath(cmakeOutputFile.c_str()) )
-        {
-        cmakeOutputFile = m_BinaryDir + "/" + cmakeOutputFile;
-        }
-
-      if ( m_Verbose )
-        {
-        std::cerr << "Write CMake output to file: " << cmakeOutputFile.c_str()
-          << std::endl;
-        }
-      std::ofstream fout(cmakeOutputFile.c_str());
-      if ( fout )
-        {
-        fout << output.c_str();
-        }
       else
-        {
-        cmSystemTools::Error("Cannot open CMake output file: ",
-          cmakeOutputFile.c_str(), " for writing");
-        }
-      }
-    if (!res || retVal != 0)
       {
-      // even if this fails continue to the next step
-      cmakeFailed = 1;
-      cmakeFailedOuput = output;
+#ifdef DEBUG
+        puts("  *** using existing directory");
+#endif
+        return 1;
       }
     }
-
-  // run ctest, it may be more than one command in here
-  std::vector<std::string> ctestCommands;
-  cmSystemTools::ExpandListArgument(m_CTestCmd,ctestCommands);
-  // for each variable/argument do a putenv
-  for (unsigned i = 0; i < ctestCommands.size(); ++i)
+    else
     {
-    command = ctestCommands[i];
-    output = "";
-    retVal = 0;
-    if ( m_Verbose )
-      {
-      std::cerr << "Run ctest command: " << command.c_str() << std::endl;
-      }
-    res = cmSystemTools::RunSingleCommand(command.c_str(), &output, 
-                                          &retVal, m_BinaryDir.c_str(),
-                                          m_Verbose, 0 /*m_TimeOut*/);
-    
-    // did something critical fail in ctest
-    if (!res || cmakeFailed ||
-        retVal & cmCTest::BUILD_ERRORS)
-      {
-      this->RestoreBackupDirectories();
-      if (cmakeFailed)
-        {
-        cmSystemTools::Error("Unable to run cmake:\n", 
-                             cmakeFailedOuput.c_str());    
-        return 10;
-        }
-      cmSystemTools::Error("Unable to run ctest:\n", output.c_str());    
-      if (!res)
-        {
-        return 11;
-        }
-      return retVal * 100;
-      }
+#ifdef DEBUG
+      perror("mkdir()");
+#endif
+      return -1;
     }
-  
-  // if all was succesful, delete the backup dirs to free up disk space
-  if (m_Backup)
-    {
-    cmSystemTools::RemoveADirectory(m_BackupSourceDir.c_str());
-    cmSystemTools::RemoveADirectory(m_BackupBinaryDir.c_str());
-    }
+  }
 
-  return 0;  
+  return 0;
 }
 
 
-//-------------------------------------------------------------------------
-void cmCTestScriptHandler::RestoreBackupDirectories()
+/* FIFO */
+int
+tar_extract_fifo(TAR *t, char *realname)
 {
-  // if we backed up the dirs and the build failed, then restore
-  // the backed up dirs
-  if (m_Backup)
-    {
-    // if for some reason those directories exist then first delete them
-    if (cmSystemTools::FileExists(m_SourceDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(m_SourceDir.c_str());
-      }
-    if (cmSystemTools::FileExists(m_BinaryDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(m_BinaryDir.c_str());
-      }
-    // rename the src and binary directories 
-    rename(m_BackupSourceDir.c_str(), m_SourceDir.c_str());
-    rename(m_BackupBinaryDir.c_str(), m_BinaryDir.c_str());
-    }
-}
+  mode_t mode;
+  char *filename;
+  char buf[T_BLOCKSIZE];
 
+  if (!TH_ISFIFO(t))
+  {
+    errno = EINVAL;
+    return -1;
+  }
 
+  filename = (realname ? realname : th_get_pathname(t));
+  mode = th_get_mode(t);
+
+  /* Make a copy of the string because dirname and mkdirhier may modify the
+   * string */
+  strncpy(buf, filename, sizeof(buf)-1);
+  buf[sizeof(buf)-1] = 0;
+
+  if (mkdirhier(dirname(buf)) == -1)
+    return -1;

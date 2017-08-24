@@ -1,7 +1,28 @@
-      {
-      percent = 99;
-      }
-    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl
-      << static_cast<int>(percent + .5) << "% tests passed, "
-      << failed.size() << " tests failed out of " << total << std::endl);
-    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+    }
+}
+
+#if defined(DEBUG)
+static void prratio(FILE *stream, long int num, long int den)
+{
+  register int q;      /* Doesn't need to be long */
+
+  if(num > 214748L)
+    {    /* 2147483647/10000 */
+    q = num / (den / 10000L);
+    }
+  else
+    {
+    q = 10000L * num / den;    /* Long calculations, though */
+    }
+  if (q < 0)
+    {
+    putc('-', stream);
+    q = -q;
+    }
+  fprintf(stream, "%d.%02d%%", q / 100, q % 100);
+}
+#endif
+
+/*-
+ * Output the given code.
+ * Inputs:

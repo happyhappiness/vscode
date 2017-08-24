@@ -1,917 +1,894 @@
-@@ -19,529 +19,452 @@
+@@ -9,8 +9,8 @@
+   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
  
- #include "cmCTest.h"
- #include "cmake.h"
-+#include "cmSystemTools.h"
-+#include "cmGlob.h"
+-     This software is distributed WITHOUT ANY WARRANTY; without even 
+-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
++     This software is distributed WITHOUT ANY WARRANTY; without even
++     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+      PURPOSE.  See the above copyright notices for more information.
+ 
+ =========================================================================*/
+@@ -42,7 +42,7 @@
+ #include <cmsys/RegularExpression.hxx>
  #include <cmsys/Process.h>
-+#include <cmsys/RegularExpression.hxx>
  
- #include <stdlib.h> 
+-#include <stdlib.h> 
++#include <stdlib.h>
  #include <math.h>
  #include <float.h>
  
- #define SAFEDIV(x,y) (((y)!=0)?((x)/(y)):(0))
+@@ -52,7 +52,7 @@
+ #define DEBUGERR std::cerr << __LINE__ << " "; std::cerr
  
--
  //----------------------------------------------------------------------
- cmCTestCoverageHandler::cmCTestCoverageHandler()
+-struct tm* cmCTest::GetNightlyTime(std::string str, 
++struct tm* cmCTest::GetNightlyTime(std::string str,
+                                    bool tomorrowtag)
  {
-   m_Verbose = false; 
-   m_CTest = 0;
+   struct tm* lctime;
+@@ -81,7 +81,8 @@ struct tm* cmCTest::GetNightlyTime(std::string str,
+     // time of the current open dashboard
+     ntime -= dayLength;
+     cmCTestLog(this, DEBUG, "Pick yesterday" << std::endl);
+-    cmCTestLog(this, DEBUG, "   Future time, subtract day: " << ntime << std::endl);
++    cmCTestLog(this, DEBUG, "   Future time, subtract day: " << ntime
++      << std::endl);
+     }
+   while ( tctime > (ntime + dayLength) )
+     {
+@@ -145,7 +146,8 @@ std::string cmCTest::MakeXMLSafe(const std::string& str)
+   for ( ;*pos; ++pos)
+     {
+     char ch = *pos;
+-    if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 && ch != '\r' )
++    if ( (ch > 126 || ch < 32) && ch != 9  &&
++      ch != 10 && ch != 13 && ch != '\r' )
+       {
+       char buffer[33];
+       sprintf(buffer, "&lt;%d&gt;", (int)ch);
+@@ -198,7 +200,7 @@ std::string cmCTest::MakeURLSafe(const std::string& str)
+            ch == '&' ||
+            ch == '%' ||
+            ch == '+' ||
+-           ch == '=' || 
++           ch == '=' ||
+            ch == '@'
+           ) && ch != 9 )
+       {
+@@ -214,8 +216,8 @@ std::string cmCTest::MakeURLSafe(const std::string& str)
  }
  
--
  //----------------------------------------------------------------------
--//clearly it would be nice if this were broken up into a few smaller
--//functions and commented...
--int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
-+bool cmCTestCoverageHandler::StartLogFile(std::ofstream& covLogFile, int logFileCount)
+-cmCTest::cmCTest() 
+-{ 
++cmCTest::cmCTest()
++{
+   m_SubmitIndex            = 0;
+   m_ForceNewCTestProcess   = false;
+   m_TomorrowTag            = false;
+@@ -237,7 +239,7 @@ cmCTest::cmCTest()
+   m_SuppressUpdatingCTestConfiguration = false;
+   m_DartVersion            = 1;
+ 
+-  int cc; 
++  int cc;
+   for ( cc=0; cc < cmCTest::LAST_TEST; cc ++ )
+     {
+     m_Tests[cc] = 0;
+@@ -265,8 +267,8 @@ cmCTest::cmCTest()
+ }
+ 
+ //----------------------------------------------------------------------
+-cmCTest::~cmCTest() 
+-{ 
++cmCTest::~cmCTest()
++{
+   cmCTest::t_TestingHandlers::iterator it;
+   for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
+     {
+@@ -277,14 +279,15 @@ cmCTest::~cmCTest()
+ }
+ 
+ //----------------------------------------------------------------------
+-int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
++int cmCTest::Initialize(const char* binary_dir, bool new_tag,
++  bool verbose_tag)
  {
--  m_CTest = ctest_inst;
--
--  std::cout << "Performing coverage" << std::endl;
--  double elapsed_time_start = cmSystemTools::GetTime();
--  cmCTest::tm_VectorOfStrings files;
--  cmCTest::tm_VectorOfStrings cfiles;
--  cmCTest::tm_VectorOfStrings cdirs;
--  bool done = false;
--  std::string::size_type cc;
--  std::string glob;
--  std::map<std::string, std::string> allsourcefiles;
--  std::map<std::string, std::string> allbinaryfiles;
--
--  std::string start_time = m_CTest->CurrentTime();
--
--  // Find all source files.
--  std::string sourceDirectory = m_CTest->GetDartConfiguration("SourceDirectory");
--  if ( sourceDirectory.size() == 0 )
-+  char covLogFilename[1024];
-+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-+  std::cout << "Open file: " << covLogFilename << std::endl;
-+  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-+      covLogFilename, covLogFile))
+   cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+   if(!m_InteractiveDebugMode)
      {
--    std::cerr << "Cannot find SourceDirectory key in the DartConfiguration.tcl" << std::endl;
--    return 1;
-+    std::cerr << "Cannot open log file: " << covLogFilename << std::endl;
-+    return false;
-     }
-+  std::string local_start_time = m_CTest->CurrentTime();
-+  covLogFile << "<CoverageLog>" << std::endl
-+    << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
-+  return true;
-+}
- 
--  std::string coverageCommand = m_CTest->GetDartConfiguration("CoverageCommand");
--  if ( coverageCommand.size() == 0 )
--    {
--    std::cerr << "Coverage command not defined in DartConfiguration.tcl" << std::endl;
--    return 1;
--    }
--  cdirs.push_back(sourceDirectory);
--  while ( !done ) 
-+//----------------------------------------------------------------------
-+void cmCTestCoverageHandler::StopLogFile(std::ofstream& ostr, int logFileCount)
-+{
-+  std::string local_end_time = m_CTest->CurrentTime();
-+  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
-+    << "</CoverageLog>" << std::endl;
-+  char covLogFilename[1024];
-+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-+  std::cout << "Close file: " << covLogFilename << std::endl;
-+  ostr.close();
-+}
-+
-+//----------------------------------------------------------------------
-+bool cmCTestCoverageHandler::ShouldIDoCoverage(const char* file, const char* srcDir,
-+  const char* binDir, bool verbose)
-+{
-+  std::string fSrcDir = cmSystemTools::CollapseFullPath(srcDir);
-+  std::string fBinDir = cmSystemTools::CollapseFullPath(binDir);
-+  std::string fFile = cmSystemTools::CollapseFullPath(file);
-+  bool sourceSubDir = cmSystemTools::IsSubDirectory(fFile.c_str(), fSrcDir.c_str());
-+  bool buildSubDir = cmSystemTools::IsSubDirectory(fFile.c_str(), fBinDir.c_str());
-+  // Always check parent directory of the file.
-+  std::string fileDir = cmSystemTools::GetFilenamePath(fFile.c_str());
-+  std::string checkDir;
-+
-+  // We also need to check the binary/source directory pair.
-+  if ( sourceSubDir && buildSubDir )
-     {
--    if ( cdirs.size() <= 0 )
-+    if ( fSrcDir.size() > fBinDir.size() )
-       {
--      break;
-+      checkDir = fSrcDir;
-       }
--    glob = cdirs[cdirs.size()-1] + "/*";
--    //std::cout << "Glob: " << glob << std::endl;
--    cdirs.pop_back();
--    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
--      {
--      for ( cc = 0; cc < cfiles.size(); cc ++ )
--        {
--        allsourcefiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
--        }
--      }
--    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
-+    else
-       {
--      for ( cc = 0; cc < cfiles.size(); cc ++ )
--        {
--        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
--          {
--          cdirs.push_back(cfiles[cc]);
--          }
--        }
-+      checkDir = fBinDir;
-       }
-     }
--
--  // find all binary files
--  cdirs.push_back(cmSystemTools::GetCurrentWorkingDirectory());
--  while ( !done ) 
-+  else if ( sourceSubDir )
-     {
--    if ( cdirs.size() <= 0 )
--      {
--      break;
--      }
--    glob = cdirs[cdirs.size()-1] + "/*";
--    //std::cout << "Glob: " << glob << std::endl;
--    cdirs.pop_back();
--    if ( cmSystemTools::SimpleGlob(glob, cfiles, 1) )
--      {
--      for ( cc = 0; cc < cfiles.size(); cc ++ )
--        {
--        allbinaryfiles[cmSystemTools::GetFilenameName(cfiles[cc])] = cfiles[cc];
--        }
--      }
--    if ( cmSystemTools::SimpleGlob(glob, cfiles, -1) )
--      {
--      for ( cc = 0; cc < cfiles.size(); cc ++ )
--        {
--        if ( cfiles[cc] != "." && cfiles[cc] != ".." )
--          {
--          cdirs.push_back(cfiles[cc]);
--          }
--        }
--      }
-+    checkDir = fSrcDir;
-     }
--
--  std::map<std::string, std::string>::iterator sit;
--  for ( sit = allbinaryfiles.begin(); sit != allbinaryfiles.end(); sit ++ )
-+  else if ( buildSubDir )
-     {
--    const std::string& fname = sit->second;
--    //std::cout << "File: " << fname << std::endl;
--    if ( strcmp(fname.substr(fname.size()-3, 3).c_str(), ".da") == 0 )
--      {
--      files.push_back(fname);
--      }
-+    checkDir = fBinDir;
+     this->BlockTestErrorDiagnostics();
      }
 -  
--  if ( files.size() == 0 )
-+  std::string ndc
-+    = cmSystemTools::FileExistsInParentDirectories(".NoDartCoverage",
-+      fFile.c_str(), checkDir.c_str());
-+  if ( ndc.size() )
++
+   m_BinaryDir = binary_dir;
+   cmSystemTools::ConvertToUnixSlashes(m_BinaryDir);
+ 
+@@ -296,8 +299,8 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
+   cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+     cmCTestLog(this, OUTPUT,
+       "   Site: " << this->GetCTestConfiguration("Site") << std::endl
+-      << "   Build name: " << this->GetCTestConfiguration("BuildName") << std::endl
+-      );
++      << "   Build name: " << this->GetCTestConfiguration("BuildName")
++      << std::endl);
+     cmCTestLog(this, DEBUG, "Produce XML is on" << std::endl);
+     if ( this->GetCTestConfiguration("NightlyStartTime").empty() )
+       {
+@@ -309,7 +312,8 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
+ 
+   if ( !this->ReadCustomConfigurationFileTree(m_BinaryDir.c_str()) )
      {
--    std::cerr << "Cannot find any coverage information files (.da)" << std::endl;
--    return 1;
-+    if ( verbose )
-+      {
-+      std::cout << "Found: " << ndc.c_str() << " so skip coverage of " << file << std::endl;
-+      }
-+    return false;
+-    cmCTestLog(this, DEBUG, "Cannot find custom configuration file tree" << std::endl);
++    cmCTestLog(this, DEBUG, "Cannot find custom configuration file tree"
++      << std::endl);
+     return 0;
      }
  
--  std::ofstream log; 
--  if (!m_CTest->OpenOutputFile("Temporary", "Coverage.log", log))
-+  // By now checkDir should be set to parent directory of the file.
-+  // Get the relative path to the file an apply it to the opposite directory.
-+  // If it is the same as fileDir, then ignore, otherwise check.
-+  std::string relPath = cmSystemTools::RelativePath(checkDir.c_str(),
-+    fFile.c_str());
-+  if ( checkDir == fSrcDir )
-     {
--    std::cerr << "Cannot open log file" << std::endl;
--    return 1;
-+    checkDir = fBinDir;
+@@ -320,17 +324,17 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
+       {
+       if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
+         {
+-        cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir << " is in the place of the testing directory"
+-                  << std::endl);
++        cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
++          << " is in the place of the testing directory" << std::endl);
+         return 0;
+         }
+       }
+     else
+       {
+       if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
+         {
+-        cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory " << testingDir
+-                  << std::endl);
++        cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory "
++          << testingDir << std::endl);
+         return 0;
+         }
+       }
+@@ -361,20 +365,24 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
+       std::string tagmode;
+       if ( cmSystemTools::GetLineFromStream(tfin, tagmode) )
+         {
+-        if ( tagmode.size() > 4 && !( m_Tests[cmCTest::START_TEST] || m_Tests[ALL_TEST] ))
++        if ( tagmode.size() > 4 && !( m_Tests[cmCTest::START_TEST] ||
++            m_Tests[ALL_TEST] ))
+           {
+           m_TestModel = cmCTest::GetTestModelFromString(tagmode.c_str());
+           }
+         }
+       tfin.close();
+       }
+-    if ( tag.size() == 0 || new_tag || m_Tests[cmCTest::START_TEST] || m_Tests[ALL_TEST])
++    if ( tag.size() == 0 || new_tag || m_Tests[cmCTest::START_TEST] ||
++      m_Tests[ALL_TEST])
+       {
+-      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString() << std::endl);
++      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
++        << std::endl);
+       cmCTestLog(this, DEBUG, "TestModel: " << m_TestModel << std::endl);
+       if ( m_TestModel == cmCTest::NIGHTLY )
+         {
+-        lctime = this->GetNightlyTime(this->GetCTestConfiguration("NightlyStartTime"), m_TomorrowTag);
++        lctime = this->GetNightlyTime(
++          this->GetCTestConfiguration("NightlyStartTime"), m_TomorrowTag);
+         }
+       char datestring[100];
+       sprintf(datestring, "%04d%02d%02d-%02d%02d",
+@@ -393,7 +401,7 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
+       ofs.close();
+       if ( verbose_tag )
+         {
+-        cmCTestLog(this, OUTPUT, "Create new tag: " << tag << " - " 
++        cmCTestLog(this, OUTPUT, "Create new tag: " << tag << " - "
+           << this->GetTestModelString() << std::endl);
+         }
+       }
+@@ -410,7 +418,8 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
+     return true;
      }
--  log.close();
--  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), "Coverage.xml", log))
-+  else
-     {
--    std::cerr << "Cannot open log file" << std::endl;
--    return 1;
-+    checkDir = fSrcDir;
-     }
-+  fFile = checkDir + "/" + relPath;
-+  fFile = cmSystemTools::GetFilenamePath(fFile.c_str());
  
--  std::string opath = m_CTest->GetToplevelPath() + "/Testing/Temporary/Coverage";
--  cmSystemTools::MakeDirectory(opath.c_str());
--  cfiles.clear();
--  cmCTest::tm_VectorOfStrings ncfiles;
--  cmCTest::tm_VectorOfStrings missing_files;
--
--  for ( cc = 0; cc < files.size(); cc ++ )
-+  if ( fileDir == fFile )
+-  std::string src_dir = this->GetCTestConfiguration("SourceDirectory").c_str();
++  std::string src_dir
++    = this->GetCTestConfiguration("SourceDirectory").c_str();
+   std::string bld_dir = this->GetCTestConfiguration("BuildDirectory").c_str();
+   m_DartVersion = 1;
+   m_SubmitFiles.clear();
+@@ -421,8 +430,9 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
+   cmSystemTools::ConvertToUnixSlashes(fname);
+   if ( cmSystemTools::FileExists(fname.c_str()) )
      {
--    std::string currPath = cmSystemTools::GetFilenamePath(files[cc]);
--    std::string command = coverageCommand + " -o \"" + currPath + "\" -l \"" + files[cc] + "\"";
--    std::string output;
--    int retVal = 0;
--    if ( m_Verbose )
--      {
--      std::cerr << "Run gcov on " << files[cc] << " in directory: " << currPath.c_str() << std::endl;
--      }
--    //std::cout << "   --- Run [" << command << "]" << std::endl;
--    bool res = true;
--    if ( !m_CTest->GetShowOnly() )
--      {
--      res = cmSystemTools::RunSingleCommand(command.c_str(), &output, 
--        &retVal, currPath.c_str(),
--        m_Verbose, 0 /*m_TimeOut*/);
--      }
--    if ( res && retVal == 0 )
--      {
--      //std::cout << " - done" << std::endl;
--      glob = currPath + "/*";
--      if ( !cmSystemTools::SimpleGlob(glob, ncfiles, 1) )
--        {
--        std::cerr << "Cannot found any coverage files" << std::endl;
--        return 1;
--        }
--      cfiles.insert(cfiles.end(), ncfiles.begin(), ncfiles.end());
--      std::vector<cmStdString> gcovlines;
--      cmSystemTools::Split(output.c_str(), gcovlines);
--      std::vector<cmStdString>::iterator git;
--      const char* message = "Could not open source file";
--      for ( git = gcovlines.begin(); git != gcovlines.end(); ++git )
--        {
--        if ( strncmp(git->c_str(), message, strlen(message) ) == 0 )
--          {
--          std::cerr << "Problem: " << git->c_str() << std::endl;
--          missing_files.push_back(git->c_str() + strlen(message));
--          }
--        }
--      }
--    else
--      {
--      std::cerr << "Run gcov on " << files[cc] << std::flush;
--      std::cerr << " [" << command << "]" << std::endl;
--      std::cerr << " - fail" << std::endl;
--      }
-+    // This is in-source build, so we trust the previous check.
-+    return true;
+-    cmCTestLog(this, OUTPUT, "   Reading ctest configuration file: " << fname.c_str() << std::endl);
+-    bool readit = mf->ReadListFile(mf->GetCurrentListFile(), 
++    cmCTestLog(this, OUTPUT, "   Reading ctest configuration file: "
++      << fname.c_str() << std::endl);
++    bool readit = mf->ReadListFile(mf->GetCurrentListFile(),
+       fname.c_str() );
+     if(!readit)
+       {
+@@ -434,24 +444,30 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
      }
+   else if ( !first )
+     {
+-    cmCTestLog(this, WARNING, "Cannot locate CTest configuration: " << fname.c_str() << std::endl);
++    cmCTestLog(this, WARNING, "Cannot locate CTest configuration: "
++      << fname.c_str() << std::endl);
+     }
+   else
+     {
+-    cmCTestLog(this, HANDLER_OUTPUT, "   Cannot locate CTest configuration: " << fname.c_str() << std::endl
++    cmCTestLog(this, HANDLER_OUTPUT, "   Cannot locate CTest configuration: "
++      << fname.c_str() << std::endl
+       << "   Delay the initialization of CTest" << std::endl);
+     }
+ 
+-  this->SetCTestConfigurationFromCMakeVariable(mf, "NightlyStartTime", "CTEST_NIGHTLY_START_TIME");
++  this->SetCTestConfigurationFromCMakeVariable(mf, "NightlyStartTime",
++    "CTEST_NIGHTLY_START_TIME");
+   this->SetCTestConfigurationFromCMakeVariable(mf, "Site", "CTEST_SITE");
+-  this->SetCTestConfigurationFromCMakeVariable(mf, "BuildName", "CTEST_BUILD_NAME");
++  this->SetCTestConfigurationFromCMakeVariable(mf, "BuildName",
++    "CTEST_BUILD_NAME");
+   const char* dartVersion = mf->GetDefinition("CTEST_DART_SERVER_VERSION");
+   if ( dartVersion )
+     {
+     m_DartVersion = atoi(dartVersion);
+     if ( m_DartVersion < 0 )
+       {
+-      cmCTestLog(this, ERROR_MESSAGE, "Invalid Dart server version: " << dartVersion << ". Please specify the version number." << std::endl);
++      cmCTestLog(this, ERROR_MESSAGE, "Invalid Dart server version: "
++        << dartVersion << ". Please specify the version number."
++        << std::endl);
+       return false;
+       }
+     }
+@@ -464,7 +480,8 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
+       }
+     return false;
+     }
+-  cmCTestLog(this, OUTPUT, "   Use " << this->GetTestModelString() << " tag: " << this->GetCurrentTag() << std::endl);
++  cmCTestLog(this, OUTPUT, "   Use " << this->GetTestModelString()
++    << " tag: " << this->GetCurrentTag() << std::endl);
+   return true;
+ }
+ 
+@@ -490,7 +507,8 @@ bool cmCTest::UpdateCTestConfiguration()
+     // No need to exit if we are not producing XML
+     if ( m_ProduceXML )
+       {
+-      cmCTestLog(this, ERROR_MESSAGE, "Cannot find file: " << fileName.c_str() << std::endl);
++      cmCTestLog(this, ERROR_MESSAGE, "Cannot find file: " << fileName.c_str()
++        << std::endl);
+       return false;
+       }
+     }
+@@ -532,15 +550,17 @@ bool cmCTest::UpdateCTestConfiguration()
+         continue;
+         }
+       std::string key = line.substr(0, cpos);
+-      std::string value = cmCTest::CleanString(line.substr(cpos+1, line.npos));
++      std::string value
++        = cmCTest::CleanString(line.substr(cpos+1, line.npos));
+       m_CTestConfiguration[key] = value;
+       }
+     fin.close();
+     }
+   m_TimeOut = atoi(this->GetCTestConfiguration("TimeOut").c_str());
+   if ( m_ProduceXML )
+     {
+-    m_CompressXMLFiles = cmSystemTools::IsOn(this->GetCTestConfiguration("CompressSubmission").c_str());
++    m_CompressXMLFiles = cmSystemTools::IsOn(
++      this->GetCTestConfiguration("CompressSubmission").c_str());
+     }
+   return true;
+ }
+@@ -551,7 +571,7 @@ void cmCTest::BlockTestErrorDiagnostics()
+   cmSystemTools::PutEnv("DART_TEST_FROM_DART=1");
+   cmSystemTools::PutEnv("DASHBOARD_TEST_FROM_CTEST=" CMake_VERSION);
+ #if defined(_WIN32)
+-  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX); 
++  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+ #endif
+ }
+ 
+@@ -609,7 +629,8 @@ bool cmCTest::SetTest(const char* ttype, bool report)
+     {
+     if ( report )
+       {
+-      cmCTestLog(this, ERROR_MESSAGE, "Don't know about test \"" << ttype << "\" yet..." << std::endl);
++      cmCTestLog(this, ERROR_MESSAGE, "Don't know about test \"" << ttype
++        << "\" yet..." << std::endl);
+       }
+     return false;
+     }
+@@ -622,7 +643,7 @@ void cmCTest::Finalize()
+ }
+ 
+ //----------------------------------------------------------------------
+-bool cmCTest::OpenOutputFile(const std::string& path, 
++bool cmCTest::OpenOutputFile(const std::string& path,
+                      const std::string& name, cmGeneratedFileStream& stream,
+                      bool compress)
+ {
+@@ -635,7 +656,7 @@ bool cmCTest::OpenOutputFile(const std::string& path,
+     {
+     if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
+       {
+-      cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir 
++      cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
+                 << " is in the place of the testing directory"
+                 << std::endl);
+       return false;
+@@ -654,7 +675,8 @@ bool cmCTest::OpenOutputFile(const std::string& path,
+   stream.Open(filename.c_str());
+   if( !stream )
+     {
+-    cmCTestLog(this, ERROR_MESSAGE, "Problem opening file: " << filename << std::endl);
++    cmCTestLog(this, ERROR_MESSAGE, "Problem opening file: " << filename
++      << std::endl);
+     return false;
+     }
+   if ( compress )
+@@ -730,7 +752,7 @@ int cmCTest::ExecuteHandler(const char* shandler)
+     return -1;
+     }
+   handler->Initialize();
+-  return handler->ProcessHandler(); 
++  return handler->ProcessHandler();
+ }
+ 
+ //----------------------------------------------------------------------
+@@ -754,8 +776,9 @@ int cmCTest::ProcessTests()
+   if ( m_Tests[UPDATE_TEST] || m_Tests[ALL_TEST] )
+     {
+     cmCTestGenericHandler* uphandler = this->GetHandler("update");
+-    uphandler->SetOption("SourceDirectory", this->GetCTestConfiguration("SourceDirectory").c_str());
+-    update_count = uphandler->ProcessHandler(); 
++    uphandler->SetOption("SourceDirectory",
++      this->GetCTestConfiguration("SourceDirectory").c_str());
++    update_count = uphandler->ProcessHandler();
+     if ( update_count < 0 )
+       {
+       res |= cmCTest::UPDATE_ERRORS;
+@@ -847,7 +870,8 @@ int cmCTest::ProcessTests()
+     }
+   if ( res != 0 )
+     {
+-    cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest" << std::endl);
++    cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest"
++      << std::endl);
+     }
+   return res;
+ }
+@@ -921,7 +945,7 @@ int cmCTest::RunMakeCommand(const char* command, std::string* output,
+     cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, " \"" << *ait << "\"");
+     }
+   cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, std::endl);
 -  
--  files.clear();
--  std::map<std::string, cmCTest::tm_VectorOfStrings > sourcefiles;
--  for ( cc = 0; cc < cfiles.size(); cc ++ )
 +
-+  ndc = cmSystemTools::FileExistsInParentDirectories(".NoDartCoverage",
-+    fFile.c_str(), checkDir.c_str());
-+  if ( ndc.size() )
+   // Now create process object
+   cmsysProcess* cp = cmsysProcess_New();
+   cmsysProcess_SetCommand(cp, &*argv.begin());
+@@ -981,22 +1005,25 @@ int cmCTest::RunMakeCommand(const char* command, std::string* output,
+   if(result == cmsysProcess_State_Exited)
      {
--    std::string& fname = cfiles[cc];
--    //    std::cout << "File: " << fname << std::endl;
--    if ( strcmp(fname.substr(fname.size()-5, 5).c_str(), ".gcov") == 0 )
-+    if ( verbose )
-       {
--      files.push_back(fname);
--      std::string::size_type pos = fname.find(".da.");
--      std::string::size_type pos2 = fname.find(".da##");
--      if(pos2 != fname.npos)
--        {
--        pos = pos2+1;
--        }
--      if ( pos != fname.npos )
--        {
--        pos += 4;
--        std::string::size_type epos = fname.size() - pos - strlen(".gcov");
--        std::string nf = fname.substr(pos, epos);
--        //std::cout << "Substring: " << nf << std::endl;
--        if ( allsourcefiles.find(nf) != allsourcefiles.end() || 
--             allbinaryfiles.find(nf) != allbinaryfiles.end() )
--          {
--          cmCTest::tm_VectorOfStrings &cvec = sourcefiles[nf];
--          cvec.push_back(fname);
--          }
--        }
-+      std::cout << "Found: " << ndc.c_str() << " so skip coverage of: " << file << std::endl;
-       }
-+    return false;
+     *retVal = cmsysProcess_GetExitValue(cp);
+-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Command exited with the value: " << *retVal << std::endl);
++    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Command exited with the value: "
++      << *retVal << std::endl);
      }
--  // for ( cc = 0; cc < files.size(); cc ++ )
--  //     {
--  //     std::cout << "File: " << files[cc] << std::endl;
--  //     }
--  if ( missing_files.size() > 0 )
-+  // Ok, nothing in source tree, nothing in binary tree
-+  return true;
-+}
-+
-+//----------------------------------------------------------------------
-+//clearly it would be nice if this were broken up into a few smaller
-+//functions and commented...
-+int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
-+{
-+  m_CTest = ctest_inst;
-+
-+  int error = 0;
-+
-+  std::string sourceDir = m_CTest->GetDartConfiguration("SourceDirectory");
-+  std::string binaryDir = m_CTest->GetDartConfiguration("BuildDirectory");
-+  std::string gcovCommand = m_CTest->GetDartConfiguration("CoverageCommand");
-+
-+  cmSystemTools::ConvertToUnixSlashes(sourceDir);
-+  cmSystemTools::ConvertToUnixSlashes(binaryDir);
-+
-+  std::string asfGlob = sourceDir + "/*";
-+  std::string abfGlob = binaryDir + "/*";
-+  std::string daGlob = binaryDir + "/*.da";
-+  std::string gcovOutputRex = "[0-9]+\\.[0-9]+% of [0-9]+ (source |)lines executed in file (.*)$";
-+  std::string gcovOutputRex2 = "^Creating (.*\\.gcov)\\.";
-+
-+  std::cout << "Performing coverage" << std::endl;
-+  double elapsed_time_start = cmSystemTools::GetTime();
-+
-+  std::string coverage_start_time = m_CTest->CurrentTime();
-+
-+  std::string testingDir = m_CTest->GetToplevelPath() + "/Testing";
-+  std::string tempDir = testingDir + "/CoverageInfo";
-+  std::string currentDirectory = cmSystemTools::GetCurrentWorkingDirectory();
-+  cmSystemTools::MakeDirectory(tempDir.c_str());
-+  cmSystemTools::ChangeDirectory(tempDir.c_str());
-+
-+  cmGlob gl;
-+  gl.RecurseOn();
-+  gl.FindFiles(daGlob);
-+  std::vector<std::string> files = gl.GetFiles();
-+  std::vector<std::string>::iterator it;
-+
-+  if ( files.size() == 0 )
+   else if(result == cmsysProcess_State_Exception)
      {
--    std::cout << "---------------------------------------------------------------" << std::endl;
--    std::cout << "The following files were missing:" << std::endl;
--    for ( cc = 0; cc < missing_files.size(); cc ++ )
--      {
--      std::cout << "File: " << missing_files[cc] << std::endl;
--      }
--    std::cout << "---------------------------------------------------------------" << std::endl;
-+    std::cerr << " Cannot find any coverage files." << std::endl;
-+    // No coverage files is a valid thing, so the exit code is 0
-+    return 0;
+     *retVal = cmsysProcess_GetExitException(cp);
+-    cmCTestLog(this, WARNING, "There was an exception: " << *retVal << std::endl);
++    cmCTestLog(this, WARNING, "There was an exception: " << *retVal
++      << std::endl);
      }
- 
--  std::map<std::string, cmCTest::tm_VectorOfStrings >::iterator it;
--  cmCTestCoverageHandler::tm_CoverageMap coverageresults;
-+  // Regular expressions for output of gcov
-+  cmsys::RegularExpression re(gcovOutputRex.c_str());
-+  cmsys::RegularExpression re2(gcovOutputRex2.c_str());
- 
--  m_CTest->StartXML(log);
--  log << "<Coverage>\n"
--      << "\t<StartDateTime>" << start_time << "</StartDateTime>" << std::endl;
-+  typedef std::vector<int> singleFileCoverageVector;
-+  typedef std::map<std::string, singleFileCoverageVector> totalCoverageMap;
- 
--  int total_tested = 0;
--  int total_untested = 0;
-+  totalCoverageMap totalCoverage;
- 
--  for ( it = sourcefiles.begin(); it != sourcefiles.end(); it ++ )
-+  std::string cfile = "";
-+  for ( it = files.begin(); it != files.end(); ++ it )
+   else if(result == cmsysProcess_State_Expired)
      {
--    //std::cerr << "Source file: " << it->first << std::endl;
--    cmCTest::tm_VectorOfStrings &gfiles = it->second;
--
--    for ( cc = 0; cc < gfiles.size(); cc ++ )
-+    std::string fileDir = cmSystemTools::GetFilenamePath(it->c_str());
-+    std::string command = "\"" + gcovCommand + "\" -l -o \"" + fileDir + "\" \"" + *it + "\"";
-+    if ( m_Verbose )
-       {
--      int do_coverage = 1;
--      std::string coverage_dir = cmSystemTools::GetFilenamePath(gfiles[cc].c_str());
--      std::string builDir = m_CTest->GetDartConfiguration("BuildDirectory");
--      do
--        {
--        std::string coverage_file = coverage_dir + "/.NoDartCoverage";
--        if ( cmSystemTools::FileExists(coverage_file.c_str()) )
--          {
--          do_coverage = 0;
--          break;
--          }
--        // is there a parent directory we can check
--        std::string::size_type pos = coverage_dir.rfind('/');
--        // if we could not find the directory return 0
--        if(pos == std::string::npos)
--          {
--          break;
--          }
--        coverage_dir = coverage_dir.substr(0, pos);
--        }
--      while (coverage_dir.size() >= builDir.size());
--      if ( !do_coverage )
--        {
--        continue;
--        }
--      //std::cout << "\t" << gfiles[cc] << std::endl;
--      std::ifstream ifile(gfiles[cc].c_str());
--      if ( !ifile )
--        {
--        std::cerr << "Cannot open file: " << gfiles[cc].c_str() << std::endl;
--        }
--
--      ifile.seekg (0, std::ios::end);
--      int length = ifile.tellg();
--      ifile.seekg (0, std::ios::beg);
--      char *buffer = new char [ length + 1 ];
--      ifile.read(buffer, length);
--      buffer [length] = 0;
--      //std::cout << "Read: " << buffer << std::endl;
--      std::vector<cmStdString> lines;
--      cmSystemTools::Split(buffer, lines);
--      delete [] buffer;
--      cmCTestCoverageHandler::cmCTestCoverage& cov = coverageresults[it->first];
--      std::vector<int>& covlines = cov.m_Lines; 
--      if ( cov.m_FullPath == "" )
-+      std::cout << command.c_str() << std::endl;
-+      }
-+    std::string output = "";
-+    int retVal = 0;
-+    int res = cmSystemTools::RunSingleCommand(command.c_str(), &output, 
-+      &retVal, tempDir.c_str(),
-+      false, 0 /*m_TimeOut*/);
-+    if ( ! res )
-+      {
-+      std::cerr << "Problem running coverage on file: " << it->c_str() << std::endl;
-+      error ++;
-+      continue;
-+      }
-+    if ( retVal != 0 )
-+      {
-+      std::cerr << "Coverage command returned: " << retVal << " while processing: " << it->c_str() << std::endl;
-+      }
-+    std::vector<cmStdString> lines;
-+    std::vector<cmStdString>::iterator line;
-+    cmSystemTools::Split(output.c_str(), lines);
-+    for ( line = lines.begin(); line != lines.end(); ++line)
-+      {
-+      if ( re.find(line->c_str()) )
-         {
--        covlines.insert(covlines.begin(), lines.size(), -1);
--        if ( allsourcefiles.find(it->first) != allsourcefiles.end() )
-+        cfile = "";
-+        std::string file = re.match(2);
-+        // Is it in the source dir?
-+        if ( file.size() > sourceDir.size() &&
-+          file.substr(0, sourceDir.size()) == sourceDir &&
-+          file[sourceDir.size()] == '/' )
-           {
--          cov.m_FullPath = allsourcefiles[it->first];
--          }
--        else if ( allbinaryfiles.find(it->first) != allbinaryfiles.end() )
--          {
--          cov.m_FullPath = allbinaryfiles[it->first];
--          }
--        cov.m_AbsolutePath = cov.m_FullPath;
--        std::string src_dir = m_CTest->GetDartConfiguration("SourceDirectory");
--        if ( src_dir[src_dir.size()-1] != '/' )
--          {
--          src_dir = src_dir + "/";
-+          if ( m_Verbose )
-+            {
-+            std::cout << "   produced s: " << file << std::endl;
-+            }
-+          cfile = file;
-           }
--        std::string::size_type spos = cov.m_FullPath.find(src_dir);
--        if ( spos == 0 )
-+        // Binary dir?
-+        if ( file.size() > binaryDir.size() &&
-+          file.substr(0, binaryDir.size()) == binaryDir &&
-+          file[binaryDir.size()] == '/' )
-           {
--          cov.m_FullPath = std::string("./") + cov.m_FullPath.substr(src_dir.size());
-+          if ( m_Verbose )
-+            {
-+            std::cout << "   produce b: " << file << std::endl;
-+            }
-+          cfile = file;
-           }
--        else
-+        if ( cfile.empty() )
-           {
--          //std::cerr << "Compare -- " << cov.m_FullPath << std::endl;
--          //std::cerr << "        -- " << src_dir << std::endl;
--          cov.m_Show = false;
--          continue;
-+          std::cerr << "Something went wrong" << std::endl;
-+          std::cerr << "File: [" << file << "]" << std::endl;
-+          std::cerr << "s: [" << file.substr(0, sourceDir.size()) << "]" << std::endl;
-+          std::cerr << "b: [" << file.substr(0, binaryDir.size()) << "]" << std::endl;
-           }
--        cov.m_Show = true;
-         }
--      std::string::size_type kk;
--      //      std::cerr << "number of lines " << lines.size() << "\n";
--      for ( kk = 0; kk < lines.size(); kk ++ )
-+      else if ( re2.find(line->c_str() ) )
-         {
--        std::string& line = lines[kk];
--        //std::cerr << line << "\n";
--        std::string sub1 = line.substr(0, strlen("    #####"));
--        std::string sub2 = line.substr(0, strlen("      ######"));
--        int count = atoi(sub2.c_str());
--        if ( sub1.compare("    #####") == 0 ||
--             sub2.compare("      ######") == 0 )
-+        std::string fname = re2.match(1);
-+        if ( cfile.size() )
-           {
--          if ( covlines[kk] == -1 )
-+          singleFileCoverageVector* vec = &totalCoverage[cfile];
-+          if ( m_Verbose )
-             {
--            covlines[kk] = 0;
-+            std::cout << "   in file: " << fname << std::endl;
-             }
--          cov.m_UnTested ++;
--          //std::cout << "Untested - ";
--          }
--        else if ( count > 0 )
--          {
--          if ( covlines[kk] == -1 )
-+          singleFileCoverageVector cov;
-+          std::ifstream ifile(fname.c_str());
-+          if ( ! ifile )
-+            {
-+            std::cerr << "Cannot open file: " << fname << std::endl;
-+            }
-+          else
-             {
--            covlines[kk] = 0;
-+            long cnt = -1;
-+            std::string nl;
-+            while ( cmSystemTools::GetLineFromStream(ifile, nl) )
-+              {
-+              cnt ++;
-+              if ( vec->size() <= static_cast<singleFileCoverageVector::size_type>(cnt) )
-+                {
-+                vec->push_back(-1);
-+                }
-+
-+              //TODO: Handle gcov 3.0 non-coverage lines
-+
-+              // Skip empty lines
-+              if ( !nl.size() )
-+                {
-+                continue;
-+                }
-+
-+              // Skip unused lines
-+              if ( nl[0] == '\t' || nl.size() < 12 )
-+                {
-+                continue;
-+                }
-+
-+              std::string prefix = nl.substr(0, 12);
-+              int cov = atoi(prefix.c_str());
-+              (*vec)[cnt] += cov;
-+              }
-             }
--          cov.m_Tested ++;
--          covlines[kk] ++;
--          //std::cout << "Tested[" << count << "] - ";
-           }
--
--        //std::cout << line << std::endl;
-+        }
-+      else
-+        {
-+        std::cerr << "Unknown line: " << line->c_str() << std::endl;
-+        error ++;
-         }
-       }
-     }
- 
--  //std::cerr << "Finalizing" << std::endl;
--  cmCTestCoverageHandler::tm_CoverageMap::iterator cit;
--  int ccount = 0;
--  std::ofstream cfileoutput; 
--  int cfileoutputcount = 0;
--  char cfileoutputname[100];
--  std::string local_start_time = m_CTest->CurrentTime();
--  std::string local_end_time;
--  for ( cit = coverageresults.begin(); cit != coverageresults.end(); cit ++ )
-+  std::ofstream covSumFile;
-+  std::ofstream covLogFile;
-+
-+  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
-+      "Coverage.xml", covSumFile))
-     {
--    cmCTestCoverageHandler::cmCTestCoverage &cov = cit->second;
--    if ( !cov.m_Show )
--      {
--      continue;
--      }
-+    std::cerr << "Cannot open coverage summary file: Coverage.xml" << std::endl;
-+    return 1;
+     cmCTestLog(this, WARNING, "There was a timeout" << std::endl);
+-    } 
 +    }
-+
-+  m_CTest->StartXML(covSumFile);
-+  // Produce output xml files
+   else if(result == cmsysProcess_State_Error)
+     {
+     *output += "\n*** ERROR executing: ";
+     *output += cmsysProcess_GetErrorString(cp);
+-    cmCTestLog(this, ERROR_MESSAGE, "There was an error: " << cmsysProcess_GetErrorString(cp) << std::endl);
++    cmCTestLog(this, ERROR_MESSAGE, "There was an error: "
++      << cmsysProcess_GetErrorString(cp) << std::endl);
+     }
  
--    // Check if we should ignore the directory, if we find a NoDartCoverage
--    // file in it or any of its parents
--    int do_coverage = 1;
--    std::string coverage_dir = cmSystemTools::GetFilenamePath(cov.m_AbsolutePath.c_str());
--    do
-+  covSumFile << "<Coverage>" << std::endl
-+    << "\t<StartDateTime>" << coverage_start_time << "</StartDateTime>" << std::endl;
-+  int logFileCount = 0;
-+  if ( !this->StartLogFile(covLogFile, logFileCount) )
-+    {
-+    return 1;
-+    }
-+  totalCoverageMap::iterator fileIterator;
-+  int cnt = 0;
-+  long total_tested = 0;
-+  long total_untested = 0;
-+  std::string fullSourceDir = sourceDir + "/";
-+  std::string fullBinaryDir = binaryDir + "/";
-+  for ( fileIterator = totalCoverage.begin();
-+    fileIterator != totalCoverage.end();
-+    ++fileIterator )
-+    {
-+    if ( cnt == 100 )
-       {
--      std::string coverage_file = coverage_dir + "/.NoDartCoverage";
--      if ( cmSystemTools::FileExists(coverage_file.c_str()) )
-+      cnt = 0;
-+      this->StopLogFile(covLogFile, logFileCount);
-+      logFileCount ++;
-+      if ( !this->StartLogFile(covLogFile, logFileCount) )
-         {
--        do_coverage = 0;
--        break;
--        }
--      // is there a parent directory we can check
--      std::string::size_type pos = coverage_dir.rfind('/');
--      // if we could not find the directory return 0
--      if(pos == std::string::npos)
--        {
--        break;
-+        return 1;
-         }
--      coverage_dir = coverage_dir.substr(0, pos);
-+      }
-+    const std::string fullFileName = fileIterator->first;
-+    const std::string fileName = cmSystemTools::GetFilenameName(fullFileName.c_str());
-+    std::string fullFilePath = cmSystemTools::GetFilenamePath(fullFileName.c_str());
-+    if ( m_Verbose )
-+      {
-+      std::cerr << "Process file: " << fullFileName << std::endl;
-+      }
-+
-+    cmSystemTools::ConvertToUnixSlashes(fullFilePath);
+   cmsysProcess_Delete(cp);
+@@ -1010,11 +1037,11 @@ int cmCTest::RunMakeCommand(const char* command, std::string* output,
+ //######################################################################
  
-+    if ( !cmSystemTools::FileExists(fullFileName.c_str()) )
-+      {
-+      std::cerr << "Cannot find file: " << fullFileName.c_str() << std::endl;
-+      continue;
+ //----------------------------------------------------------------------
+-int cmCTest::RunTest(std::vector<const char*> argv, 
++int cmCTest::RunTest(std::vector<const char*> argv,
+                      std::string* output, int *retVal,
+                      std::ostream* log)
+ {
+-  if(cmSystemTools::SameFile(argv[0], m_CTestSelf.c_str()) && 
++  if(cmSystemTools::SameFile(argv[0], m_CTestSelf.c_str()) &&
+      !m_ForceNewCTestProcess)
+     {
+     cmCTest inst;
+@@ -1033,15 +1060,16 @@ int cmCTest::RunTest(std::vector<const char*> argv,
+       *log << "* Run internal CTest" << std::endl;
        }
--    while (coverage_dir.size() >= sourceDirectory.size());
- 
--    if (!do_coverage)
-+    bool shouldIDoCoverage
-+      = this->ShouldIDoCoverage(fullFileName.c_str(),
-+        sourceDir.c_str(), binaryDir.c_str(), m_Verbose);
-+    if ( !shouldIDoCoverage )
-       {
-       if ( m_Verbose )
-         {
--        std::cout << "Ignore file: " << cov.m_FullPath.c_str() << std::endl;
-+        std::cerr << ".NoDartCoverage found, so skip coverage check for: "
-+          << fullFileName.c_str()
-+          << std::endl;
-         }
-       continue;
-       }
+     std::string oldpath = cmSystemTools::GetCurrentWorkingDirectory();
 -    
--    if ( ccount == 100 )
 +
-+    const singleFileCoverageVector& fcov = fileIterator->second;
-+    covLogFile << "\t<File Name=\""
-+      << m_CTest->MakeXMLSafe(fileName.c_str())
-+      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(fileIterator->first) << "\">" << std::endl
-+      << "\t\t<Report>" << std::endl;
+     *retVal = inst.Run(args, output);
+     if ( *log )
+       {
+       *log << output->c_str();
+       }
+     cmSystemTools::ChangeDirectory(oldpath.c_str());
+-    
+-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Internal cmCTest object used to run test." << std::endl
 +
-+    std::ifstream ifs(fullFileName.c_str());
-+    if ( !ifs)
-       {
--      local_end_time = m_CTest->CurrentTime();
--      cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
--        << "</CoverageLog>" << std::endl;
--      m_CTest->EndXML(cfileoutput);
--      cfileoutput.close();
--      std::cout << "Close file: " << cfileoutputname << std::endl;
--      ccount = 0;
-+      std::cerr << "Cannot open source file: " << fullFileName.c_str() << std::endl;
-+      error ++;
-+      continue;
-       }
--    if ( ccount == 0 )
-+
-+    int tested = 0;
-+    int untested = 0;
-+
-+    singleFileCoverageVector::size_type cc;
-+    std::string line;
-+    for ( cc= 0; cc < fcov.size(); cc ++ )
-       {
--      sprintf(cfileoutputname, "CoverageLog-%d.xml", cfileoutputcount++);
--      std::cout << "Open file: " << cfileoutputname << std::endl;
--      if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
--                                   cfileoutputname, cfileoutput))
-+      if ( !cmSystemTools::GetLineFromStream(ifs, line) )
-         {
--        std::cerr << "Cannot open log file: " << cfileoutputname << std::endl;
--        return 1;
-+        std::cerr << "Problem reading source file: " << fullFileName.c_str() << " line:" << cc << std::endl;
-+        error ++;
-+        break;
-         }
--      local_start_time = m_CTest->CurrentTime();
--      m_CTest->StartXML(cfileoutput);
--      cfileoutput << "<CoverageLog>\n"
--        << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
--      }
--
--    //std::cerr << "Final process of Source file: " << cit->first << std::endl;
--    cov.m_UnTested = 0;
--    cov.m_Tested = 0;
--    for ( cc = 0; cc < cov.m_Lines.size(); cc ++ )
--      {
--      if ( cov.m_Lines[cc] == 0 )
-+      covLogFile << "\t\t<Line Number=\"" << cc << "\" Count=\"" << fcov[cc] << "\">"
-+        << m_CTest->MakeXMLSafe(line.c_str()) << "</Line>" << std::endl;
-+      if ( fcov[cc] == 0 )
-         {
--        cov.m_UnTested ++;
-+        untested ++;
-         }
--      else if ( cov.m_Lines[cc] > 0 )
-+      else if ( fcov[cc] > 0 )
-         {
--        cov.m_Tested ++;
-+        tested ++;
-         }
-       }
--
--    std::ifstream ifile(cov.m_AbsolutePath.c_str());
--    if ( !ifile )
-+    if ( cmSystemTools::GetLineFromStream(ifs, line) )
-       {
--      std::cerr << "Cannot open file: " << cov.m_FullPath.c_str() << std::endl;
-+      std::cerr << "Looks like there are more lines in the file: " << line << std::endl;
-       }
--    ifile.seekg (0, std::ios::end);
--    int length = ifile.tellg();
--    ifile.seekg (0, std::ios::beg);
--    char *buffer = new char [ length + 1 ];
--    ifile.read(buffer, length);
--    buffer [length] = 0;
--    //std::cout << "Read: " << buffer << std::endl;
--    std::vector<cmStdString> lines;
--    cmSystemTools::Split(buffer, lines);
--    delete [] buffer;
--
--    cfileoutput << "\t<File Name=\"" << cit->first << "\" FullPath=\""
--      << cov.m_FullPath << "\">\n"
--      << "\t\t<Report>" << std::endl;
--    for ( cc = 0; cc < lines.size(); cc ++ )
--      {
--      cfileoutput << "\t\t<Line Number=\"" 
--        << static_cast<int>(cc) << "\" Count=\""
--        << cov.m_Lines[cc] << "\">"
--        << cmCTest::MakeXMLSafe(lines[cc]) << "</Line>" << std::endl;
--      }
--    cfileoutput << "\t\t</Report>\n"
--      << "\t</File>" << std::endl;
--
--
--    total_tested += cov.m_Tested;
--    total_untested += cov.m_UnTested;
-     float cper = 0;
-     float cmet = 0;
--    if ( total_tested + total_untested > 0 && (cov.m_Tested + cov.m_UnTested) > 0)
-+    if ( tested + untested > 0 )
-       {
--      cper = (100 * SAFEDIV(static_cast<float>(cov.m_Tested),
--        static_cast<float>(cov.m_Tested + cov.m_UnTested)));
--      cmet = ( SAFEDIV(static_cast<float>(cov.m_Tested + 10),
--        static_cast<float>(cov.m_Tested + cov.m_UnTested + 10)));
-+      cper = (100 * SAFEDIV(static_cast<float>(tested),
-+          static_cast<float>(tested + untested)));
-+      cmet = ( SAFEDIV(static_cast<float>(tested + 10),
-+          static_cast<float>(tested + untested + 10)));
-       }
--
--    log << "\t<File Name=\"" << cit->first << "\" FullPath=\"" << cov.m_FullPath
-+    total_tested += tested;
-+    total_untested += untested;
-+    covLogFile << "\t\t</Report>" << std::endl
-+      << "\t</File>" << std::endl;
-+    covSumFile << "\t<File Name=\"" << m_CTest->MakeXMLSafe(fileName)
-+      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(fullFileName)
-       << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
--      << "\t\t<LOCTested>" << cov.m_Tested << "</LOCTested>\n"
--      << "\t\t<LOCUnTested>" << cov.m_UnTested << "</LOCUnTested>\n"
-+      << "\t\t<LOCTested>" << tested << "</LOCTested>\n"
-+      << "\t\t<LOCUnTested>" << untested << "</LOCUnTested>\n"
-       << "\t\t<PercentCoverage>";
--    log.setf(std::ios::fixed, std::ios::floatfield);
--    log.precision(2);
--    log << (cper) << "</PercentCoverage>\n"
-+    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
-+    covSumFile.precision(2);
-+    covSumFile << (cper) << "</PercentCoverage>\n"
-       << "\t\t<CoverageMetric>";
--    log.setf(std::ios::fixed, std::ios::floatfield);
--    log.precision(2);
--    log << (cmet) << "</CoverageMetric>\n"
-+    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
-+    covSumFile.precision(2);
-+    covSumFile << (cmet) << "</CoverageMetric>\n"
-       << "\t</File>" << std::endl;
--    ccount ++;
--    }
--  
--  if ( ccount > 0 )
--    {
--    local_end_time = m_CTest->CurrentTime();
--    cfileoutput << "\t<EndDateTime>" << local_end_time << "</EndDateTime>\n"
--                << "</CoverageLog>" << std::endl;
--    m_CTest->EndXML(cfileoutput);
--    cfileoutput.close();
-+    cnt ++;
++    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
++      "Internal cmCTest object used to run test." << std::endl
+       <<  *output << std::endl);
+     return cmsysProcess_State_Exited;
      }
-+  this->StopLogFile(covLogFile, logFileCount);
+@@ -1081,7 +1109,8 @@ int cmCTest::RunTest(std::vector<const char*> argv,
+     {
+     output->append(&*tempOutput.begin(), tempOutput.size());
+     }
+-  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "-- Process completed" << std::endl);
++  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "-- Process completed"
++    << std::endl);
  
-   int total_lines = total_tested + total_untested;
-   float percent_coverage = 100 * SAFEDIV(static_cast<float>(total_tested),
-@@ -553,29 +476,30 @@ int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
+   int result = cmsysProcess_GetState(cp);
  
-   std::string end_time = m_CTest->CurrentTime();
+@@ -1095,14 +1124,16 @@ int cmCTest::RunTest(std::vector<const char*> argv,
+     std::string outerr = "\n*** Exception executing: ";
+     outerr += cmsysProcess_GetExceptionString(cp);
+     *output += outerr;
+-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl << std::flush);
++    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
++      << std::flush);
+     }
+   else if(result == cmsysProcess_State_Error)
+     {
+     std::string outerr = "\n*** ERROR executing: ";
+     outerr += cmsysProcess_GetErrorString(cp);
+     *output += outerr;
+-    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl << std::flush);
++    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
++      << std::flush);
+     }
+   cmsysProcess_Delete(cp);
  
--  log << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
--      << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
--      << "\t<LOC>" << total_lines << "</LOC>\n"
--      << "\t<PercentCoverage>";
--  log.setf(std::ios::fixed, std::ios::floatfield);
--  log.precision(2);
--  log << (percent_coverage)<< "</PercentCoverage>\n"
--      << "\t<EndDateTime>" << end_time << "</EndDateTime>\n";
--  log << "<ElapsedMinutes>" << 
-+  covSumFile << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
-+    << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
-+    << "\t<LOC>" << total_lines << "</LOC>\n"
-+    << "\t<PercentCoverage>";
-+  covSumFile.setf(std::ios::fixed, std::ios::floatfield);
-+  covSumFile.precision(2);
-+  covSumFile << (percent_coverage)<< "</PercentCoverage>\n"
-+    << "\t<EndDateTime>" << end_time << "</EndDateTime>\n";
-+  covSumFile << "<ElapsedMinutes>" << 
-     static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0
--      << "</ElapsedMinutes>"
--      << "</Coverage>" << std::endl;
--  m_CTest->EndXML(log);
-+    << "</ElapsedMinutes>"
-+    << "</Coverage>" << std::endl;
-+  m_CTest->EndXML(covSumFile);
- 
-   std::cout << "\tCovered LOC:         " << total_tested << std::endl
--            << "\tNot covered LOC:     " << total_untested << std::endl
--            << "\tTotal LOC:           " << total_lines << std::endl
--            << "\tPercentage Coverage: ";
-+    << "\tNot covered LOC:     " << total_untested << std::endl
-+    << "\tTotal LOC:           " << total_lines << std::endl
-+    << "\tPercentage Coverage: ";
- 
-   std::cout.setf(std::ios::fixed, std::ios::floatfield);
-   std::cout.precision(2);
-   std::cout << (percent_coverage) << "%" << std::endl;
- 
-+  cmSystemTools::ChangeDirectory(currentDirectory.c_str());
- 
--  return 1;
-+  return error;
+@@ -1128,13 +1159,17 @@ void cmCTest::EndXML(std::ostream& ostr)
  }
+ 
+ //----------------------------------------------------------------------
+-int cmCTest::GenerateCTestNotesOutput(std::ostream& os, const cmCTest::tm_VectorOfStrings& files)
++int cmCTest::GenerateCTestNotesOutput(std::ostream& os,
++  const cmCTest::tm_VectorOfStrings& files)
+ {
+   cmCTest::tm_VectorOfStrings::const_iterator it;
+   os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+-    << "<?xml-stylesheet type=\"text/xsl\" href=\"Dart/Source/Server/XSL/Build.xsl <file:///Dart/Source/Server/XSL/Build.xsl> \"?>\n"
+-    << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName") << "\" BuildStamp=\"" 
+-    << m_CurrentTag << "-" << this->GetTestModelString() << "\" Name=\"" 
++    << "<?xml-stylesheet type=\"text/xsl\" "
++    "href=\"Dart/Source/Server/XSL/Build.xsl "
++    "<file:///Dart/Source/Server/XSL/Build.xsl> \"?>\n"
++    << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName")
++    << "\" BuildStamp=\""
++    << m_CurrentTag << "-" << this->GetTestModelString() << "\" Name=\""
+     << this->GetCTestConfiguration("Site") << "\" Generator=\"ctest"
+     << cmVersion::GetCMakeVersion()
+     << "\">\n"
+@@ -1160,7 +1195,8 @@ int cmCTest::GenerateCTestNotesOutput(std::ostream& os, const cmCTest::tm_Vector
+     else
+       {
+       os << "Problem reading file: " << it->c_str() << std::endl;
+-      cmCTestLog(this, ERROR_MESSAGE, "Problem reading file: " << it->c_str() << " while creating notes" << std::endl);
++      cmCTestLog(this, ERROR_MESSAGE, "Problem reading file: " << it->c_str()
++        << " while creating notes" << std::endl);
+       }
+     os << "</Text>\n"
+       << "</Note>" << std::endl;
+@@ -1215,7 +1251,8 @@ bool cmCTest::SubmitExtraFiles(const std::vector<cmStdString> &files)
+     {
+     if ( !cmSystemTools::FileExists(it->c_str()) )
+       {
+-      cmCTestLog(this, ERROR_MESSAGE, "Cannot find extra file: " << it->c_str() << " to submit."
++      cmCTestLog(this, ERROR_MESSAGE, "Cannot find extra file: "
++        << it->c_str() << " to submit."
+         << std::endl;);
+       return false;
+       }
+@@ -1246,7 +1283,8 @@ bool cmCTest::SubmitExtraFiles(const char* cfiles)
+ }
+ 
+ //----------------------------------------------------------------------
+-bool cmCTest::CheckArgument(const std::string& arg, const char* varg1, const char* varg2)
++bool cmCTest::CheckArgument(const std::string& arg, const char* varg1,
++  const char* varg2)
+ {
+   if ( varg1 && arg == varg1 || varg2 && arg == varg2 )
+     {
+@@ -1271,7 +1309,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+       this->m_CTestConfigFile= args[i];
+       }
+ 
+-    if(this->CheckArgument(arg, "-C", "--build-config") && i < args.size() - 1)
++    if(this->CheckArgument(arg, "-C", "--build-config") &&
++      i < args.size() - 1)
+       {
+       i++;
+       this->m_ConfigType = args[i];
+@@ -1309,7 +1348,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+       {
+       this->m_RunConfigurationScript = true;
+       i++;
+-      cmCTestScriptHandler* ch = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
++      cmCTestScriptHandler* ch
++        = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
+       ch->AddConfigurationScript(args[i].c_str());
+       }
+ 
+@@ -1327,7 +1367,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+       {
+       m_ForceNewCTestProcess = true;
+       }
+-    if(this->CheckArgument(arg, "--interactive-debug-mode") && i < args.size() - 1 )
++    if(this->CheckArgument(arg, "--interactive-debug-mode") &&
++      i < args.size() - 1 )
+       {
+       i++;
+       m_InteractiveDebugMode = cmSystemTools::IsOn(args[i].c_str());
+@@ -1417,7 +1458,7 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+         {
+         this->SetTestModel(cmCTest::CONTINUOUS);
+         this->SetTest("Update");
+-        }  
++        }
+       else if ( targ == "ContinuousConfigure" )
+         {
+         this->SetTestModel(cmCTest::CONTINUOUS);
+@@ -1525,29 +1566,38 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+       else
+         {
+         performSomeTest = false;
+-        cmCTestLog(this, ERROR_MESSAGE, "CTest -D called with incorrect option: " << targ << std::endl);
++        cmCTestLog(this, ERROR_MESSAGE,
++          "CTest -D called with incorrect option: " << targ << std::endl);
+         cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
+           << "  " << ctestExec << " -D Continuous" << std::endl
+-          << "  " << ctestExec << " -D Continuous(Start|Update|Configure|Build)" << std::endl
+-          << "  " << ctestExec << " -D Continuous(Test|Coverage|MemCheck|Submit)" << std::endl
++          << "  " << ctestExec
++          << " -D Continuous(Start|Update|Configure|Build)" << std::endl
++          << "  " << ctestExec
++          << " -D Continuous(Test|Coverage|MemCheck|Submit)" << std::endl
+           << "  " << ctestExec << " -D Experimental" << std::endl
+-          << "  " << ctestExec << " -D Experimental(Start|Update|Configure|Build)" << std::endl
+-          << "  " << ctestExec << " -D Experimental(Test|Coverage|MemCheck|Submit)" << std::endl
++          << "  " << ctestExec
++          << " -D Experimental(Start|Update|Configure|Build)" << std::endl
++          << "  " << ctestExec
++          << " -D Experimental(Test|Coverage|MemCheck|Submit)" << std::endl
+           << "  " << ctestExec << " -D Nightly" << std::endl
+-          << "  " << ctestExec << " -D Nightly(Start|Update|Configure|Build)" << std::endl
+-          << "  " << ctestExec << " -D Nightly(Test|Coverage|MemCheck|Submit)" << std::endl
++          << "  " << ctestExec
++          << " -D Nightly(Start|Update|Configure|Build)" << std::endl
++          << "  " << ctestExec
++          << " -D Nightly(Test|Coverage|MemCheck|Submit)" << std::endl
+           << "  " << ctestExec << " -D NightlyMemoryCheck" << std::endl);
+         }
+       }
+ 
+-    if(this->CheckArgument(arg, "-T", "--test-action") && (i < args.size() -1) )
++    if(this->CheckArgument(arg, "-T", "--test-action") &&
++      (i < args.size() -1) )
+       {
+       this->m_ProduceXML = true;
+       i++;
+       if ( !this->SetTest(args[i].c_str(), false) )
+         {
+         performSomeTest = false;
+-        cmCTestLog(this, ERROR_MESSAGE, "CTest -T called with incorrect option: "
++        cmCTestLog(this, ERROR_MESSAGE,
++          "CTest -T called with incorrect option: "
+           << args[i].c_str() << std::endl);
+         cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
+           << "  " << ctestExec << " -T all" << std::endl
+@@ -1563,7 +1613,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+         }
+       }
+ 
+-    if(this->CheckArgument(arg, "-M", "--test-model") && (i < args.size() -1) )
++    if(this->CheckArgument(arg, "-M", "--test-model") &&
++      (i < args.size() -1) )
+       {
+       i++;
+       std::string const& str = args[i];
+@@ -1582,33 +1633,40 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+       else
+         {
+         performSomeTest = false;
+-        cmCTestLog(this, ERROR_MESSAGE, "CTest -M called with incorrect option: " << str.c_str() << std::endl);
++        cmCTestLog(this, ERROR_MESSAGE,
++          "CTest -M called with incorrect option: " << str.c_str()
++          << std::endl);
+         cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
+           << "  " << ctestExec << " -M Continuous" << std::endl
+           << "  " << ctestExec << " -M Experimental" << std::endl
+           << "  " << ctestExec << " -M Nightly" << std::endl);
+         }
+       }
+ 
+-    if(this->CheckArgument(arg, "-I", "--tests-information") && i < args.size() - 1)
++    if(this->CheckArgument(arg, "-I", "--tests-information") &&
++      i < args.size() - 1)
+       {
+       i++;
+-      this->GetHandler("test")->SetOption("TestsToRunInformation", args[i].c_str());
+-      }                                                       
++      this->GetHandler("test")->SetOption("TestsToRunInformation",
++        args[i].c_str());
++      }
+     if(this->CheckArgument(arg, "-U", "--union"))
+-      {                                                       
++      {
+       this->GetHandler("test")->SetOption("UseUnion", "true");
+-      }                                                       
+-    if(this->CheckArgument(arg, "-R", "--tests-regex") && i < args.size() - 1)          
+-      {                                                       
+-      i++;                                                    
+-      this->GetHandler("test")->SetOption("IncludeRegularExpression", args[i].c_str());
+-      }                                                       
+-
+-    if(this->CheckArgument(arg, "-E", "--exclude-regex") && i < args.size() - 1)          
+-      {                                                       
++      }
++    if(this->CheckArgument(arg, "-R", "--tests-regex") && i < args.size() - 1)
++      {
++      i++;
++      this->GetHandler("test")->SetOption("IncludeRegularExpression",
++        args[i].c_str());
++      }
++
++    if(this->CheckArgument(arg, "-E", "--exclude-regex") &&
++      i < args.size() - 1)
++      {
+       i++;
+-      this->GetHandler("test")->SetOption("ExcludeRegularExpression", args[i].c_str());
++      this->GetHandler("test")->SetOption("ExcludeRegularExpression",
++        args[i].c_str());
+       }
+ 
+     if(this->CheckArgument(arg, "--overwrite") && i < args.size() - 1)
+@@ -1639,11 +1697,14 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+       cmakeAndTest = true;
+       }
+     cmCTest::t_TestingHandlers::iterator it;
+-    for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
++    for ( it = m_TestingHandlers.begin();
++      it != m_TestingHandlers.end();
++      ++ it )
+       {
+       if ( !it->second->ProcessCommandLineArguments(arg, i, args) )
+         {
+-        cmCTestLog(this, ERROR_MESSAGE, "Problem parsing command line arguments within a handler");
++        cmCTestLog(this, ERROR_MESSAGE,
++          "Problem parsing command line arguments within a handler");
+         return 0;
+         }
+       }
+@@ -1660,7 +1721,7 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+   if(cmakeAndTest)
+     {
+     m_Verbose = true;
+-    cmCTestBuildAndTestHandler* handler = 
++    cmCTestBuildAndTestHandler* handler =
+       static_cast<cmCTestBuildAndTestHandler*>(this->GetHandler("buildtest"));
+     int retv = handler->ProcessHandler();
+     *output = handler->GetOutput();
+@@ -1681,7 +1742,9 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+         cmCTestLog(this, OUTPUT, "* Extra verbosity turned on" << std::endl);
+         }
+       cmCTest::t_TestingHandlers::iterator it;
+-      for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
++      for ( it = m_TestingHandlers.begin();
++        it != m_TestingHandlers.end();
++        ++ it )
+         {
+         it->second->SetVerbose(this->m_ExtraVerbose);
+         it->second->SetSubmitIndex(m_SubmitIndex);
+@@ -1694,17 +1757,21 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
+       m_ExtraVerbose = m_Verbose;
+       m_Verbose = true;
+       cmCTest::t_TestingHandlers::iterator it;
+-      for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
++      for ( it = m_TestingHandlers.begin();
++        it != m_TestingHandlers.end();
++        ++ it )
+         {
+         it->second->SetVerbose(this->m_Verbose);
+         it->second->SetSubmitIndex(m_SubmitIndex);
+         }
+       cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+-      if ( !this->Initialize(cmSystemTools::GetCurrentWorkingDirectory().c_str()) )
++      if ( !this->Initialize(
++          cmSystemTools::GetCurrentWorkingDirectory().c_str()) )
+         {
+         cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
+         res = 12;
+-        cmCTestLog(this, ERROR_MESSAGE, "Problem initializing the dashboard." << std::endl);
++        cmCTestLog(this, ERROR_MESSAGE, "Problem initializing the dashboard."
++          << std::endl);
+         }
+       else
+         {
+@@ -1817,11 +1884,13 @@ int cmCTest::ReadCustomConfigurationFileTree(const char* dir)
+   for ( fileIt = files.begin(); fileIt != files.end();
+     ++ fileIt )
+     {
+-    cmCTestLog(this, DEBUG, "* Read custom CTest configuration file: " << fileIt->c_str() << std::endl);
++    cmCTestLog(this, DEBUG, "* Read custom CTest configuration file: "
++      << fileIt->c_str() << std::endl);
+     if ( !lg->GetMakefile()->ReadListFile(0, fileIt->c_str()) ||
+       cmSystemTools::GetErrorOccuredFlag() )
+       {
+-      cmCTestLog(this, ERROR_MESSAGE, "Problem reading custom configuration: " << fileIt->c_str() << std::endl);
++      cmCTestLog(this, ERROR_MESSAGE, "Problem reading custom configuration: "
++        << fileIt->c_str() << std::endl);
+       }
+     }
+ 
+@@ -1830,12 +1899,13 @@ int cmCTest::ReadCustomConfigurationFileTree(const char* dir)
+     {
+     it->second->PopulateCustomVectors(mf);
+     }
+-  
++
+   return 1;
+ }
+ 
+ //----------------------------------------------------------------------
+-void cmCTest::PopulateCustomVector(cmMakefile* mf, const char* def, tm_VectorOfStrings& vec)
++void cmCTest::PopulateCustomVector(cmMakefile* mf, const char* def,
++  tm_VectorOfStrings& vec)
+ {
+   if ( !def)
+     {
+@@ -1874,7 +1944,8 @@ void cmCTest::PopulateCustomInteger(cmMakefile* mf, const char* def, int& val)
+ //----------------------------------------------------------------------
+ std::string cmCTest::GetShortPathToFile(const char* cfname)
+ {
+-  const std::string& sourceDir = this->GetCTestConfiguration("SourceDirectory");
++  const std::string& sourceDir
++    = this->GetCTestConfiguration("SourceDirectory");
+   const std::string& buildDir = this->GetCTestConfiguration("BuildDirectory");
+   std::string fname = cmSystemTools::CollapseFullPath(cfname);
+ 
+@@ -1928,7 +1999,8 @@ std::string cmCTest::GetShortPathToFile(const char* cfname)
+ //----------------------------------------------------------------------
+ std::string cmCTest::GetCTestConfiguration(const char *name)
+ {
+-  if ( m_CTestConfigurationOverwrites.find(name) != m_CTestConfigurationOverwrites.end() )
++  if ( m_CTestConfigurationOverwrites.find(name) !=
++    m_CTestConfigurationOverwrites.end() )
+     {
+     return m_CTestConfigurationOverwrites[name];
+     }
+@@ -1956,7 +2028,7 @@ void cmCTest::SetCTestConfiguration(const char *name, const char* value)
+   m_CTestConfiguration[name] = value;
+ }
+ 
+-  
++
+ //----------------------------------------------------------------------
+ std::string cmCTest::GetCurrentTag()
+ {
+@@ -2007,7 +2079,8 @@ void cmCTest::AddCTestConfigurationOverwrite(const char* encstr)
+   if ( epos == overStr.npos )
+     {
+     cmCTestLog(this, ERROR_MESSAGE,
+-      "CTest configuration overwrite specified in the wrong format." << std::endl
++      "CTest configuration overwrite specified in the wrong format."
++      << std::endl
+       << "Valid format is: --overwrite key=value" << std::endl
+       << "The specified was: --overwrite " << overStr.c_str() << std::endl);
+     return;
+@@ -2018,7 +2091,8 @@ void cmCTest::AddCTestConfigurationOverwrite(const char* encstr)
+ }
+ 
+ //----------------------------------------------------------------------
+-bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf, const char* dconfig, const char* cmake_var)
++bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf,
++  const char* dconfig, const char* cmake_var)
+ {
+   const char* ctvar;
+   ctvar = mf->GetDefinition(cmake_var);
+@@ -2031,10 +2105,10 @@ bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf, const char*
+ }
+ 
+ bool cmCTest::RunCommand(
+-  const char* command, 
++  const char* command,
+   std::string* stdOut,
+   std::string* stdErr,
+-  int *retVal, 
++  int *retVal,
+   const char* dir,
+   double timeout)
+ {
+@@ -2044,7 +2118,7 @@ bool cmCTest::RunCommand(
+     {
+     return false;
+     }
+-  
++
+   std::vector<const char*> argv;
+   for(std::vector<cmStdString>::const_iterator a = args.begin();
+       a != args.end(); ++a)
+@@ -2065,7 +2139,7 @@ bool cmCTest::RunCommand(
+     }
+   cmsysProcess_SetTimeout(cp, timeout);
+   cmsysProcess_Execute(cp);
+-  
++
+   std::vector<char> tempOutput;
+   std::vector<char> tempError;
+   char* data;
+@@ -2086,16 +2160,17 @@ bool cmCTest::RunCommand(
+     default:
+       done = true;
+       }
+-    if ( (res == cmsysProcess_Pipe_STDOUT || res == cmsysProcess_Pipe_STDERR) && m_ExtraVerbose )
++    if ( (res == cmsysProcess_Pipe_STDOUT ||
++        res == cmsysProcess_Pipe_STDERR) && m_ExtraVerbose )
+       {
+       cmSystemTools::Stdout(data, length);
+       }
+     }
+-  
++
+   cmsysProcess_WaitForExit(cp, 0);
+   stdOut->append(&*tempOutput.begin(), tempOutput.size());
+   stdErr->append(&*tempError.begin(), tempError.size());
+-  
++
+   bool result = true;
+   if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exited)
+     {
+@@ -2132,7 +2207,7 @@ bool cmCTest::RunCommand(
+     stdErr->append(error_str, strlen(error_str));
+     result = false;
+     }
+-  
++
+   cmsysProcess_Delete(cp);
+   return result;
+ }
+@@ -2152,7 +2227,7 @@ void cmCTest::SetOutputLogFileName(const char* name)
+ }
+ 
+ //----------------------------------------------------------------------
+-static const char* cmCTestStringLogType[] = 
++static const char* cmCTestStringLogType[] =
+ {
+   "DEBUG",
+   "OUTPUT",
+@@ -2187,7 +2262,8 @@ void cmCTest::Log(int logType, const char* file, int line, const char* msg)
+     {
+     bool display = true;
+     if ( logType == cmCTest::DEBUG && !m_Debug ) { display = false; }
+-    if ( logType == cmCTest::HANDLER_VERBOSE_OUTPUT && !m_Debug && !m_ExtraVerbose ) { display = false; }
++    if ( logType == cmCTest::HANDLER_VERBOSE_OUTPUT && !m_Debug &&
++      !m_ExtraVerbose ) { display = false; }
+     if ( display )
+       {
+       cmCTestLogOutputFileLine(*m_OutputLogFile);

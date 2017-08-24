@@ -9,1107 +9,834 @@
   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
 
-     This software is distributed WITHOUT ANY WARRANTY; without even 
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#include "cmGlobalGenerator.h"
-#include "cmLocalVisualStudio6Generator.h"
-#include "cmMakefile.h"
-#include "cmSystemTools.h"
-#include "cmSourceFile.h"
-#include "cmCacheManager.h"
-#include "cmake.h"
 
+#include "cmCTestCoverageHandler.h"
+
+#include "cmCTest.h"
+#include "cmake.h"
+#include "cmSystemTools.h"
+#include "cmGeneratedFileStream.h"
+#include "cmGlob.h"
+#include <cmsys/Process.h>
 #include <cmsys/RegularExpression.hxx>
 
-cmLocalVisualStudio6Generator::cmLocalVisualStudio6Generator()
+#include <stdlib.h>
+#include <math.h>
+#include <float.h>
+
+#define SAFEDIV(x,y) (((y)!=0)?((x)/(y)):(0))
+
+//----------------------------------------------------------------------
+cmCTestCoverageHandler::cmCTestCoverageHandler()
 {
 }
 
-cmLocalVisualStudio6Generator::~cmLocalVisualStudio6Generator()
+//----------------------------------------------------------------------
+void cmCTestCoverageHandler::Initialize()
 {
+  this->Superclass::Initialize();
+  m_CustomCoverageExclude.empty();
 }
 
-
-void cmLocalVisualStudio6Generator::Generate()
-{ 
-  std::set<cmStdString> lang;
-  lang.insert("C");
-  lang.insert("CXX");
-  this->CreateCustomTargetsAndCommands(lang);
-  this->OutputDSPFile();
-}
-
-void cmLocalVisualStudio6Generator::OutputDSPFile()
-{ 
-  // If not an in source build, then create the output directory
-  if(strcmp(m_Makefile->GetStartOutputDirectory(),
-            m_Makefile->GetHomeDirectory()) != 0)
+//----------------------------------------------------------------------
+bool cmCTestCoverageHandler::StartCoverageLogFile(
+  cmGeneratedFileStream& covLogFile, int logFileCount)
+{
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d", logFileCount);
+  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename
+    << std::endl);
+  if (!this->StartResultingXML(covLogFilename, covLogFile) )
     {
-    if(!cmSystemTools::MakeDirectory(m_Makefile->GetStartOutputDirectory()))
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open log file: "
+      << covLogFilename << std::endl);
+    return false;
+    }
+  std::string local_start_time = m_CTest->CurrentTime();
+  m_CTest->StartXML(covLogFile);
+  covLogFile << "<CoverageLog>" << std::endl
+    << "\t<StartDateTime>" << local_start_time << "</StartDateTime>"
+    << std::endl;
+  return true;
+}
+
+//----------------------------------------------------------------------
+void cmCTestCoverageHandler::EndCoverageLogFile(cmGeneratedFileStream& ostr,
+  int logFileCount)
+{
+  std::string local_end_time = m_CTest->CurrentTime();
+  ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
+    << "</CoverageLog>" << std::endl;
+  m_CTest->EndXML(ostr);
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Close file: "
+    << covLogFilename << std::endl);
+  ostr.Close();
+}
+
+//----------------------------------------------------------------------
+bool cmCTestCoverageHandler::ShouldIDoCoverage(const char* file,
+  const char* srcDir,
+  const char* binDir)
+{
+  std::vector<cmsys::RegularExpression>::iterator sit;
+  for ( sit = m_CustomCoverageExcludeRegex.begin();
+    sit != m_CustomCoverageExcludeRegex.end(); ++ sit )
+    {
+    if ( sit->find(file) )
       {
-      cmSystemTools::Error("Error creating directory ",
-                           m_Makefile->GetStartOutputDirectory());
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "  File " << file
+        << " is excluded in CTestCustom.ctest" << std::endl;);
+      return false;
       }
     }
 
-  // Setup /I and /LIBPATH options for the resulting DSP file
-  std::vector<std::string>& includes = m_Makefile->GetIncludeDirectories();
-  std::vector<std::string>::iterator i;
-  for(i = includes.begin(); i != includes.end(); ++i)
-    {
-    m_IncludeOptions +=  " /I ";
-    std::string tmp = this->ConvertToOptionallyRelativeOutputPath(i->c_str());
+  std::string fSrcDir = cmSystemTools::CollapseFullPath(srcDir);
+  std::string fBinDir = cmSystemTools::CollapseFullPath(binDir);
+  std::string fFile = cmSystemTools::CollapseFullPath(file);
+  bool sourceSubDir = cmSystemTools::IsSubDirectory(fFile.c_str(),
+    fSrcDir.c_str());
+  bool buildSubDir = cmSystemTools::IsSubDirectory(fFile.c_str(),
+    fBinDir.c_str());
+  // Always check parent directory of the file.
+  std::string fileDir = cmSystemTools::GetFilenamePath(fFile.c_str());
+  std::string checkDir;
 
-    // quote if not already quoted
-    if (tmp[0] != '"')
+  // We also need to check the binary/source directory pair.
+  if ( sourceSubDir && buildSubDir )
+    {
+    if ( fSrcDir.size() > fBinDir.size() )
       {
-      m_IncludeOptions += "\"";
-      m_IncludeOptions += tmp;
-      m_IncludeOptions += "\"";
+      checkDir = fSrcDir;
       }
     else
       {
-      m_IncludeOptions += tmp;
+      checkDir = fBinDir;
       }
     }
-  
-  // Create the DSP or set of DSP's for libraries and executables
-
-  // clear project names
-  m_CreatedProjectNames.clear();
-
-  // build any targets
-  cmTargets &tgts = m_Makefile->GetTargets();
-  for(cmTargets::iterator l = tgts.begin(); 
-      l != tgts.end(); l++)
+  else if ( sourceSubDir )
     {
-    switch(l->second.GetType())
-      {
-      case cmTarget::STATIC_LIBRARY:
-        this->SetBuildType(STATIC_LIBRARY, l->first.c_str(), l->second);
-        break;
-      case cmTarget::SHARED_LIBRARY:
-      case cmTarget::MODULE_LIBRARY:
-        this->SetBuildType(DLL, l->first.c_str(), l->second);
-        break;
-      case cmTarget::EXECUTABLE:
-        this->SetBuildType(EXECUTABLE,l->first.c_str(), l->second);
-        break;
-      case cmTarget::UTILITY:
-        this->SetBuildType(UTILITY, l->first.c_str(), l->second);
-        break;
-      case cmTarget::INSTALL_FILES:
-        break;
-      case cmTarget::INSTALL_PROGRAMS:
-        break;
-      default:
-        cmSystemTools::Error("Bad target type", l->first.c_str());
-        break;
-      }
-    // INCLUDE_EXTERNAL_MSPROJECT command only affects the workspace
-    // so don't build a projectfile for it
-    if ((l->second.GetType() != cmTarget::INSTALL_FILES)
-        && (l->second.GetType() != cmTarget::INSTALL_PROGRAMS)
-        && (strncmp(l->first.c_str(), "INCLUDE_EXTERNAL_MSPROJECT", 26) != 0))
-      {
-      // check to see if the dsp is going into a sub-directory
-      std::string::size_type pos = l->first.rfind('/');
-      if(pos != std::string::npos)
-        {
-        std::string dir = m_Makefile->GetStartOutputDirectory();
-        dir += "/";
-        dir += l->first.substr(0, pos);
-        if(!cmSystemTools::MakeDirectory(dir.c_str()))
-          {
-          cmSystemTools::Error("Error creating directory ", dir.c_str());
-          }
-        }
-      this->CreateSingleDSP(l->first.c_str(),l->second);
-      }
+    checkDir = fSrcDir;
     }
+  else if ( buildSubDir )
+    {
+    checkDir = fBinDir;
+    }
+  std::string ndc
+    = cmSystemTools::FileExistsInParentDirectories(".NoDartCoverage",
+      fFile.c_str(), checkDir.c_str());
+  if ( ndc.size() )
+    {
+    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Found: " << ndc.c_str()
+      << " so skip coverage of " << file << std::endl);
+    return false;
+    }
+
+  // By now checkDir should be set to parent directory of the file.
+  // Get the relative path to the file an apply it to the opposite directory.
+  // If it is the same as fileDir, then ignore, otherwise check.
+  std::string relPath = cmSystemTools::RelativePath(checkDir.c_str(),
+    fFile.c_str());
+  if ( checkDir == fSrcDir )
+    {
+    checkDir = fBinDir;
+    }
+  else
+    {
+    checkDir = fSrcDir;
+    }
+  fFile = checkDir + "/" + relPath;
+  fFile = cmSystemTools::GetFilenamePath(fFile.c_str());
+
+  if ( fileDir == fFile )
+    {
+    // This is in-source build, so we trust the previous check.
+    return true;
+    }
+
+  ndc = cmSystemTools::FileExistsInParentDirectories(".NoDartCoverage",
+    fFile.c_str(), checkDir.c_str());
+  if ( ndc.size() )
+    {
+    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Found: " << ndc.c_str()
+      << " so skip coverage of: " << file << std::endl);
+    return false;
+    }
+  // Ok, nothing in source tree, nothing in binary tree
+  return true;
 }
 
-void cmLocalVisualStudio6Generator::CreateSingleDSP(const char *lname, cmTarget &target)
+//----------------------------------------------------------------------
+//clearly it would be nice if this were broken up into a few smaller
+//functions and commented...
+int cmCTestCoverageHandler::ProcessHandler()
 {
-  // add to the list of projects
-  std::string pname = lname;
-  m_CreatedProjectNames.push_back(pname);
-  // create the dsp.cmake file
-  std::string fname;
-  fname = m_Makefile->GetStartOutputDirectory();
-  fname += "/";
-  fname += lname;
-  fname += ".dsp";
-  // save the name of the real dsp file
-  std::string realDSP = fname;
-  fname += ".cmake";
-  std::ofstream fout(fname.c_str());
-  if(!fout)
+  int error = 0;
+
+  std::string sourceDir = m_CTest->GetCTestConfiguration("SourceDirectory");
+  std::string binaryDir = m_CTest->GetCTestConfiguration("BuildDirectory");
+  std::string gcovCommand = m_CTest->GetCTestConfiguration("CoverageCommand");
+
+  cmGeneratedFileStream ofs;
+  double elapsed_time_start = cmSystemTools::GetTime();
+  if ( !this->StartLogFile("Coverage", ofs) )
     {
-    cmSystemTools::Error("Error Writing ", fname.c_str());
-    cmSystemTools::ReportLastSystemError("");
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot create LastCoverage.log file"
+      << std::endl);
     }
-  this->WriteDSPFile(fout,lname,target);
-  fout.close();
-  // if the dsp file has changed, then write it.
-  cmSystemTools::CopyFileIfDifferent(fname.c_str(), realDSP.c_str());
-}
+
+  ofs << "Performing coverage: " << elapsed_time_start << std::endl;
+
+  cmSystemTools::ConvertToUnixSlashes(sourceDir);
+  cmSystemTools::ConvertToUnixSlashes(binaryDir);
+
+  std::string asfGlob = sourceDir + "/*";
+  std::string abfGlob = binaryDir + "/*";
 
 
-void cmLocalVisualStudio6Generator::AddDSPBuildRule()
-{
-  std::string dspname = *(m_CreatedProjectNames.end()-1);
-  dspname += ".dsp.cmake";
-  const char* dsprule = m_Makefile->GetRequiredDefinition("CMAKE_COMMAND");
-  cmCustomCommandLine commandLine;
-  commandLine.push_back(dsprule);
-  std::string makefileIn = m_Makefile->GetStartDirectory();
-  makefileIn += "/";
-  makefileIn += "CMakeLists.txt";
-  std::string args;
-  args = "-H";
-  args +=
-    this->ConvertToRelativeOutputPath(m_Makefile->GetHomeDirectory());
-  commandLine.push_back(args);
-  args = "-B";
-  args += 
-    this->ConvertToRelativeOutputPath(m_Makefile->GetHomeOutputDirectory());
-  commandLine.push_back(args);
+  // Style 1
+  std::string st1gcovOutputRex1
+    = "[0-9]+\\.[0-9]+% of [0-9]+ (source |)lines executed in file (.*)$";
+  std::string st1gcovOutputRex2 = "^Creating (.*\\.gcov)\\.";
+  cmsys::RegularExpression st1re1(st1gcovOutputRex1.c_str());
+  cmsys::RegularExpression st1re2(st1gcovOutputRex2.c_str());
 
-  std::string configFile = 
-    m_Makefile->GetRequiredDefinition("CMAKE_ROOT");
-  configFile += "/Templates/CMakeWindowsSystemConfig.cmake";
-  std::vector<std::string> listFiles = m_Makefile->GetListFiles();
-  bool found = false;
-  for(std::vector<std::string>::iterator i = listFiles.begin();
-      i != listFiles.end(); ++i)
+
+  // Style 2
+  std::string st2gcovOutputRex1 = "^File *[`'](.*)'$";
+  std::string st2gcovOutputRex2
+    = "Lines executed: *[0-9]+\\.[0-9]+% of [0-9]+$";
+  std::string st2gcovOutputRex3 = "^(.*):creating [`'](.*\\.gcov)'";
+  std::string st2gcovOutputRex4 = "^(.*):unexpected EOF *$";
+  std::string st2gcovOutputRex5 = "^(.*):cannot open source file*$";
+  std::string st2gcovOutputRex6
+    = "^(.*):source file is newer than graph file `(.*)'$";
+  cmsys::RegularExpression st2re1(st2gcovOutputRex1.c_str());
+  cmsys::RegularExpression st2re2(st2gcovOutputRex2.c_str());
+  cmsys::RegularExpression st2re3(st2gcovOutputRex3.c_str());
+  cmsys::RegularExpression st2re4(st2gcovOutputRex4.c_str());
+  cmsys::RegularExpression st2re5(st2gcovOutputRex5.c_str());
+  cmsys::RegularExpression st2re6(st2gcovOutputRex6.c_str());
+
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "Performing coverage" << std::endl);
+
+  std::string coverage_start_time = m_CTest->CurrentTime();
+
+  std::string testingDir = m_CTest->GetBinaryDir() + "/Testing";
+  std::string tempDir = testingDir + "/CoverageInfo";
+  std::string currentDirectory = cmSystemTools::GetCurrentWorkingDirectory();
+  cmSystemTools::MakeDirectory(tempDir.c_str());
+  cmSystemTools::ChangeDirectory(tempDir.c_str());
+
+  cmGlob gl;
+  gl.RecurseOn();
+  std::string daGlob = binaryDir + "/*.da";
+  gl.FindFiles(daGlob);
+  std::vector<std::string> files = gl.GetFiles();
+  daGlob = binaryDir + "/*.gcda";
+  gl.FindFiles(daGlob);
+  std::vector<std::string>& moreFiles = gl.GetFiles();
+  files.insert(files.end(), moreFiles.begin(), moreFiles.end());
+  std::vector<std::string>::iterator it;
+
+  if ( files.size() == 0 )
     {
-    if(*i == configFile)
+    cmCTestLog(m_CTest, ERROR_MESSAGE, " Cannot find any coverage files."
+      << std::endl);
+    // No coverage files is a valid thing, so the exit code is 0
+    return 0;
+    }
+
+  m_CustomCoverageExcludeRegex.empty();
+  std::vector<cmStdString>::iterator rexIt;
+  for ( rexIt = m_CustomCoverageExclude.begin();
+    rexIt != m_CustomCoverageExclude.end();
+    ++ rexIt )
+    {
+    m_CustomCoverageExcludeRegex.push_back(
+      cmsys::RegularExpression(rexIt->c_str()));
+    }
+
+  typedef std::vector<int> singleFileCoverageVector;
+  typedef std::map<std::string, singleFileCoverageVector> totalCoverageMap;
+
+  totalCoverageMap totalCoverage;
+
+  int gcovStyle = 0;
+
+  std::set<std::string> missingFiles;
+
+  std::string actualSourceFile = "";
+  cmCTestLog(m_CTest, HANDLER_OUTPUT,
+    "   Processing coverage (each . represents one file):" << std::endl);
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
+  int file_count = 0;
+  for ( it = files.begin(); it != files.end(); ++ it )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "." << std::flush);
+    std::string fileDir = cmSystemTools::GetFilenamePath(it->c_str());
+    std::string command = "\"" + gcovCommand + "\" -l -o \"" + fileDir
+      + "\" \"" + *it + "\"";
+    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, command.c_str() << std::endl);
+    std::string output = "";
+    std::string errors = "";
+    int retVal = 0;
+    ofs << "* Run coverage for: " << fileDir.c_str() << std::endl;
+    ofs << "  Command: " << command.c_str() << std::endl;
+    int res = m_CTest->RunCommand(command.c_str(), &output, &errors,
+      &retVal, tempDir.c_str(), 0 /*m_TimeOut*/);
+
+    ofs << "  Output: " << output.c_str() << std::endl;
+    ofs << "  Errors: " << errors.c_str() << std::endl;
+    if ( ! res )
       {
-      found  = true;
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem running coverage on file: "
+        << it->c_str() << std::endl);
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "Command produced error: " << errors
+        << std::endl);
+      error ++;
+      continue;
       }
-    }
-  if(!found)
-    {
-    listFiles.push_back(configFile);
-    }
-
-  cmCustomCommandLines commandLines;
-  commandLines.push_back(commandLine);
-  const char* no_comment = 0;
-  m_Makefile->AddCustomCommandToOutput(dspname.c_str(), listFiles, makefileIn.c_str(),
-                                       commandLines, no_comment, true);
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPFile(std::ostream& fout, 
-                                 const char *libName,
-                                 cmTarget &target)
-{
-  // if we should add regen rule then...
-  const char *suppRegenRule = 
-    m_Makefile->GetDefinition("CMAKE_SUPPRESS_REGENERATION");
-  if (!cmSystemTools::IsOn(suppRegenRule))
-    {
-    this->AddDSPBuildRule();
-    }
-
-  // for utility targets need custom command since post build doesn't
-  // do anything (Visual Studio 7 seems to do this correctly without 
-  // the hack)
-  if (target.GetType() == cmTarget::UTILITY && 
-      target.GetPostBuildCommands().size())
-    {
-    int count = 1;
-    for (std::vector<cmCustomCommand>::const_iterator cr = 
-           target.GetPostBuildCommands().begin(); 
-         cr != target.GetPostBuildCommands().end(); ++cr)
+    if ( retVal != 0 )
       {
-      char *output = new char [
-        strlen(m_Makefile->GetStartOutputDirectory()) + 
-        strlen(libName) + 30];
-      sprintf(output,"%s/%s_force_%i",
-              m_Makefile->GetStartOutputDirectory(),
-              libName, count);
-      const char* no_main_dependency = 0;
-      const char* no_comment = 0;
-      m_Makefile->AddCustomCommandToOutput(output,
-                                           cr->GetDepends(),
-                                           no_main_dependency,
-                                           cr->GetCommandLines(),
-                                           no_comment);
-      cmSourceFile* outsf = 
-        m_Makefile->GetSourceFileWithOutput(output);
-      target.GetSourceFiles().push_back(outsf);
-      count++;
-      delete [] output;
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "Coverage command returned: "
+        << retVal << " while processing: " << it->c_str() << std::endl);
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "Command produced error: " << error
+        << std::endl);
       }
-    }
-  
-  // trace the visual studio dependencies
-  std::string name = libName;
-  name += ".dsp.cmake";
-  target.TraceVSDependencies(name, m_Makefile);
+    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
+      "--------------------------------------------------------------"
+      << std::endl
+      << output << std::endl
+      << "--------------------------------------------------------------"
+      << std::endl);
+    std::vector<cmStdString> lines;
+    std::vector<cmStdString>::iterator line;
 
-  // We may be modifying the source groups temporarily, so make a copy.
-  std::vector<cmSourceGroup> sourceGroups = m_Makefile->GetSourceGroups();
-  
-  // get the classes from the source lists then add them to the groups
-  std::vector<cmSourceFile*> & classes = target.GetSourceFiles();
 
-  // now all of the source files have been properly assigned to the target
-  // now stick them into source groups using the reg expressions
-  for(std::vector<cmSourceFile*>::iterator i = classes.begin(); 
-      i != classes.end(); i++)
-    {
-    // Add the file to the list of sources.
-    std::string source = (*i)->GetFullPath();
-    cmSourceGroup& sourceGroup = m_Makefile->FindSourceGroup(source.c_str(),
-                                                             sourceGroups);
-    sourceGroup.AssignSource(*i);
-    // while we are at it, if it is a .rule file then for visual studio 6 we
-    // must generate it
-    if ((*i)->GetSourceExtension() == "rule")
+    // Globals for storing current source file and current gcov file;
+    cmSystemTools::Split(output.c_str(), lines);
+    for ( line = lines.begin(); line != lines.end(); ++line)
       {
-      if(!cmSystemTools::FileExists(source.c_str()))
+      std::string sourceFile;
+      std::string gcovFile;
+      cmCTestLog(m_CTest, DEBUG, "Line: [" << line->c_str() << "]"
+        << std::endl);
+      if ( line->size() == 0 )
         {
-        cmSystemTools::ReplaceString(source, "$(IntDir)/", "");
-#if defined(_WIN32) || defined(__CYGWIN__)
-        std::ofstream fout(source.c_str(), 
-                           std::ios::binary | std::ios::out | std::ios::trunc);
-#else
-        std::ofstream fout(source.c_str(), 
-                           std::ios::out | std::ios::trunc);
-#endif
-        if(fout)
+        // Ignore empty line; probably style 2
+        }
+      else if ( st1re1.find(line->c_str()) )
+        {
+        if ( gcovStyle != 0 )
           {
-          fout.write("# generated from CMake",22);
-          fout.flush();
-          fout.close();
-          }
-        }
-      }
-    }
-  
-  // Write the DSP file's header.
-  this->WriteDSPHeader(fout, libName, target, sourceGroups);
-  
-
-  // Loop through every source group.
-  for(std::vector<cmSourceGroup>::const_iterator sg = sourceGroups.begin();
-      sg != sourceGroups.end(); ++sg)
-    {
-    const std::vector<const cmSourceFile *> &sourceFiles = 
-      sg->GetSourceFiles();
-    // If the group is empty, don't write it at all.
-    if(sourceFiles.empty())
-      { 
-      continue; 
-      }
-    
-    // If the group has a name, write the header.
-    std::string name = sg->GetName();
-    if(name != "")
-      {
-      this->WriteDSPBeginGroup(fout, name.c_str(), "");
-      }
-    
-    // Loop through each source in the source group.
-    for(std::vector<const cmSourceFile *>::const_iterator sf =
-          sourceFiles.begin(); sf != sourceFiles.end(); ++sf)
-      {
-      std::string source = (*sf)->GetFullPath();
-      const cmCustomCommand *command = 
-        (*sf)->GetCustomCommand();
-      std::string compileFlags;
-      std::vector<std::string> depends;
-      const char* cflags = (*sf)->GetProperty("COMPILE_FLAGS");
-      if(cflags)
-        {
-        compileFlags = cflags;
-        }
-      const char* lang = 
-        m_GlobalGenerator->GetLanguageFromExtension((*sf)->GetSourceExtension().c_str());
-      if(lang && strcmp(lang, "CXX") == 0)
-        {
-        // force a C++ file type
-        compileFlags += " /TP ";
-        }
-      
-      // Check for extra object-file dependencies.
-      const char* dependsValue = (*sf)->GetProperty("OBJECT_DEPENDS");
-      if(dependsValue)
-        {
-        cmSystemTools::ExpandListArgument(dependsValue, depends);
-        }
-      if (source != libName || target.GetType() == cmTarget::UTILITY)
-        {
-        fout << "# Begin Source File\n\n";
-        
-        // Tell MS-Dev what the source is.  If the compiler knows how to
-        // build it, then it will.
-        fout << "SOURCE=" << 
-          this->ConvertToOptionallyRelativeOutputPath(source.c_str()) << "\n\n";
-        if(!depends.empty())
-          {
-          // Write out the dependencies for the rule.
-          fout << "USERDEP__HACK=";
-          for(std::vector<std::string>::const_iterator d = depends.begin();
-              d != depends.end(); ++d)
-            { 
-            fout << "\\\n\t" << 
-              this->ConvertToOptionallyRelativeOutputPath(d->c_str());
+          if ( gcovStyle != 1 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
             }
-          fout << "\n";
+          gcovStyle = 1;
           }
-        if (command)
-          {
-          std::string script =
-            this->ConstructScript(command->GetCommandLines(), "\\\n\t");
-          const char* comment = command->GetComment();
-          const char* flags = compileFlags.size() ? compileFlags.c_str(): 0;
-          this->WriteCustomRule(fout, source.c_str(), script.c_str(), 
-                                (*comment?comment:"Custom Rule"),
-                                command->GetDepends(), 
-                                command->GetOutput(), flags);
-          }
-        else if(compileFlags.size())
-          {
-          for(std::vector<std::string>::iterator i
-                = m_Configurations.begin(); i != m_Configurations.end(); ++i)
-            { 
-            if (i == m_Configurations.begin())
-              {
-              fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-              }
-            else 
-              {
-              fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-              }
-            fout << "\n# ADD CPP " << compileFlags << "\n\n";
-            } 
-          fout << "!ENDIF\n\n";
-          }
-        fout << "# End Source File\n";
+
+        actualSourceFile = "";
+        sourceFile = st1re1.match(2);
         }
-      }
-    
-    // If the group has a name, write the footer.
-    if(name != "")
-      {
-      this->WriteDSPEndGroup(fout);
-      }
-    }  
-
-  // Write the DSP file's footer.
-  this->WriteDSPFooter(fout);
-}
-
-
-void cmLocalVisualStudio6Generator::WriteCustomRule(std::ostream& fout,
-                                  const char* source,
-                                  const char* command,
-                                  const char* comment,
-                                  const std::vector<std::string>& depends,
-                                  const char *output,
-                                  const char* flags
-                                  )
-{
-  std::vector<std::string>::iterator i;
-  for(i = m_Configurations.begin(); i != m_Configurations.end(); ++i)
-    {
-    if (i == m_Configurations.begin())
-      {
-      fout << "!IF  \"$(CFG)\" == " << i->c_str() << std::endl;
-      }
-    else 
-      {
-      fout << "!ELSEIF  \"$(CFG)\" == " << i->c_str() << std::endl;
-      }
-    if(flags)
-      {
-      fout << "\n# ADD CPP " << flags << "\n\n";
-      }
-    // Write out the dependencies for the rule.
-    fout << "USERDEP__HACK=";
-    for(std::vector<std::string>::const_iterator d = depends.begin();
-        d != depends.end(); ++d)
-      {
-      std::string dep = cmSystemTools::GetFilenameName(*d);
-      if (cmSystemTools::GetFilenameLastExtension(dep) == ".exe")
+      else if ( st1re2.find(line->c_str() ) )
         {
-        dep = cmSystemTools::GetFilenameWithoutLastExtension(dep);
-        }
-      std::string libPath = dep + "_CMAKE_PATH";
-      const char* cacheValue = m_Makefile->GetDefinition(libPath.c_str());
-      if (cacheValue && *cacheValue)
-        {
-        std::string exePath = "";
-        if (m_Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH"))
+        if ( gcovStyle != 0 )
           {
-          exePath = m_Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH");
+          if ( gcovStyle != 1 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
+            }
+          gcovStyle = 1;
           }
-        if(exePath.size())
+
+        gcovFile = st1re2.match(1);
+        }
+      else if ( st2re1.find(line->c_str() ) )
+        {
+        if ( gcovStyle != 0 )
           {
-          libPath = exePath;
+          if ( gcovStyle != 2 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
+            }
+          gcovStyle = 2;
+          }
+
+        actualSourceFile = "";
+        sourceFile = st2re1.match(1);
+        }
+      else if ( st2re2.find(line->c_str() ) )
+        {
+        if ( gcovStyle != 0 )
+          {
+          if ( gcovStyle != 2 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
+            }
+          gcovStyle = 2;
+          }
+        }
+      else if ( st2re3.find(line->c_str() ) )
+        {
+        if ( gcovStyle != 0 )
+          {
+          if ( gcovStyle != 2 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
+            }
+          gcovStyle = 2;
+          }
+
+        gcovFile = st2re3.match(2);
+        }
+      else if ( st2re4.find(line->c_str() ) )
+        {
+        if ( gcovStyle != 0 )
+          {
+          if ( gcovStyle != 2 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
+            }
+          gcovStyle = 2;
+          }
+
+        cmCTestLog(m_CTest, WARNING, "Warning: " << st2re4.match(1)
+          << " had unexpected EOF" << std::endl);
+        }
+      else if ( st2re5.find(line->c_str() ) )
+        {
+        if ( gcovStyle != 0 )
+          {
+          if ( gcovStyle != 2 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
+            }
+          gcovStyle = 2;
+          }
+
+        cmCTestLog(m_CTest, WARNING, "Warning: Cannot open file: "
+          << st2re5.match(1) << std::endl);
+        }
+      else if ( st2re6.find(line->c_str() ) )
+        {
+        if ( gcovStyle != 0 )
+          {
+          if ( gcovStyle != 2 )
+            {
+            cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown gcov output style"
+              << std::endl);
+            error ++;
+            break;
+            }
+          gcovStyle = 2;
+          }
+
+        cmCTestLog(m_CTest, WARNING, "Warning: File: " << st2re6.match(1)
+          << " is newer than " << st2re6.match(2) << std::endl);
+        }
+      else
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "Unknown line: [" << line->c_str()
+          << "]" << std::endl);
+        error ++;
+        //abort();
+        }
+      if ( !gcovFile.empty() && actualSourceFile.size() )
+        {
+        singleFileCoverageVector* vec = &totalCoverage[actualSourceFile];
+        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   in file: "
+          << gcovFile << std::endl);
+        std::ifstream ifile(gcovFile.c_str());
+        if ( ! ifile )
+          {
+          cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open file: "
+            << gcovFile << std::endl);
           }
         else
           {
-          libPath = cacheValue;
+          long cnt = -1;
+          std::string nl;
+          while ( cmSystemTools::GetLineFromStream(ifile, nl) )
+            {
+            cnt ++;
+
+            //TODO: Handle gcov 3.0 non-coverage lines
+
+            // Skip empty lines
+            if ( !nl.size() )
+              {
+              continue;
+              }
+
+            // Skip unused lines
+            if ( nl.size() < 12 )
+              {
+              continue;
+              }
+
+            // Read the coverage count from the beginning of the gcov output
+            // line
+            std::string prefix = nl.substr(0, 12);
+            int cov = atoi(prefix.c_str());
+            // Read the line number starting at the 10th character of the gcov
+            // output line
+            std::string lineNumber = nl.substr(10, 5);
+            int lineIdx = atoi(lineNumber.c_str())-1;
+            if ( lineIdx >= 0 )
+              {
+              while ( vec->size() <=
+                static_cast<singleFileCoverageVector::size_type>(lineIdx) )
+                {
+                vec->push_back(-1);
+                }
+              // Initially all entries are -1 (not used). If we get coverage
+              // information, increment it to 0 first.
+              if ( (*vec)[lineIdx] < 0 )
+                {
+                if ( cov > 0 || prefix.find("#") != prefix.npos )
+                  {
+                  (*vec)[lineIdx] = 0;
+                  }
+                }
+              (*vec)[lineIdx] += cov;
+              }
+            }
           }
-        libPath += "/";
-        libPath += "$(INTDIR)/";
-        libPath += dep;
-        libPath += ".exe";
-        fout << "\\\n\t" << 
-          this->ConvertToOptionallyRelativeOutputPath(libPath.c_str());
+        actualSourceFile = "";
         }
-      else
+      if ( !sourceFile.empty() && actualSourceFile.empty() )
         {
-        fout << "\\\n\t" << 
-          this->ConvertToOptionallyRelativeOutputPath(d->c_str());
+        gcovFile = "";
+        // Is it in the source dir?
+        if ( sourceFile.size() > sourceDir.size() &&
+          sourceFile.substr(0, sourceDir.size()) == sourceDir &&
+          sourceFile[sourceDir.size()] == '/' )
+          {
+          cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   produced s: "
+            << sourceFile.c_str() << std::endl);
+          ofs << "  produced in source dir: " << sourceFile.c_str()
+            << std::endl;
+          actualSourceFile
+            = cmSystemTools::CollapseFullPath(sourceFile.c_str());
+          }
+        // Binary dir?
+        if ( sourceFile.size() > binaryDir.size() &&
+          sourceFile.substr(0, binaryDir.size()) == binaryDir &&
+          sourceFile[binaryDir.size()] == '/' )
+          {
+          cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "   produced b: "
+            << sourceFile.c_str() << std::endl);
+          ofs << "  produced in binary dir: " << sourceFile.c_str()
+            << std::endl;
+          actualSourceFile
+            = cmSystemTools::CollapseFullPath(sourceFile.c_str());
+          }
+        if ( actualSourceFile.empty() )
+          {
+          if ( missingFiles.find(actualSourceFile) == missingFiles.end() )
+            {
+            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Something went wrong"
+              << std::endl);
+            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "File: ["
+              << sourceFile.c_str() << "]" << std::endl);
+            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "s: ["
+              << sourceFile.substr(0, sourceDir.size()) << "]" << std::endl);
+            cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "b: ["
+              << sourceFile.substr(0, binaryDir.size()) << "]" << std::endl);
+            ofs << "  Something went wrong. Cannot find: "
+              << sourceFile.c_str()
+              << " in source dir: " << sourceDir.c_str()
+              << " or binary dir: " << binaryDir.c_str() << std::endl;
+            missingFiles.insert(actualSourceFile);
+            }
+          }
         }
       }
-    fout << "\n";
-
-    fout << "# PROP Ignore_Default_Tool 1\n";
-    fout << "# Begin Custom Build - Building " << comment 
-         << " $(InputPath)\n\n";
-    if(output == 0)
+    file_count ++;
+    if ( file_count % 50 == 0 )
       {
-      fout << source << "_force :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-      fout << command << "\n\n";
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, " processed: " << file_count
+        << " out of " << files.size() << std::endl);
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
       }
-    
-    // Write a rule for every output generated by this command.
-    fout << this->ConvertToOptionallyRelativeOutputPath(output)
-         << " :  \"$(SOURCE)\" \"$(INTDIR)\" \"$(OUTDIR)\"\n\t";
-    fout << command << "\n\n";
-    fout << "# End Custom Build\n\n";
     }
-  
-  fout << "!ENDIF\n\n";
+
+  cmGeneratedFileStream covSumFile;
+  cmGeneratedFileStream covLogFile;
+
+  if (!this->StartResultingXML("Coverage", covSumFile))
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open coverage summary file."
+      << std::endl);
+
+    return -1;
+    }
+
+  m_CTest->StartXML(covSumFile);
+  // Produce output xml files
+
+  covSumFile << "<Coverage>" << std::endl
+    << "\t<StartDateTime>" << coverage_start_time << "</StartDateTime>"
+    << std::endl;
+  int logFileCount = 0;
+  if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
+    {
+    return -1;
+    }
+  totalCoverageMap::iterator fileIterator;
+  int cnt = 0;
+  long total_tested = 0;
+  long total_untested = 0;
+  //std::string fullSourceDir = sourceDir + "/";
+  //std::string fullBinaryDir = binaryDir + "/";
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
+  cmCTestLog(m_CTest, HANDLER_OUTPUT,
+    "   Acumulating results (each . represents one file):" << std::endl);
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
+
+  std::vector<std::string> errorsWhileAccumulating;
+
+  file_count = 0;
+  for ( fileIterator = totalCoverage.begin();
+    fileIterator != totalCoverage.end();
+    ++fileIterator )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "." << std::flush);
+    file_count ++;
+    if ( file_count % 50 == 0 )
+      {
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, " processed: " << file_count
+        << " out of "
+        << totalCoverage.size() << std::endl);
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "    ");
+      }
+    if ( cnt % 100 == 0 )
+      {
+      this->EndCoverageLogFile(covLogFile, logFileCount);
+      logFileCount ++;
+      if ( !this->StartCoverageLogFile(covLogFile, logFileCount) )
+        {
+        return -1;
+        }
+      }
+    const std::string fullFileName = fileIterator->first;
+    const std::string fileName
+      = cmSystemTools::GetFilenameName(fullFileName.c_str());
+    std::string fullFilePath
+      = cmSystemTools::GetFilenamePath(fullFileName.c_str());
+    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Process file: "
+      << fullFileName << std::endl);
+
+    cmSystemTools::ConvertToUnixSlashes(fullFilePath);
+
+    if ( !cmSystemTools::FileExists(fullFileName.c_str()) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot find file: "
+        << fullFileName.c_str() << std::endl);
+      continue;
+      }
+
+    bool shouldIDoCoverage
+      = this->ShouldIDoCoverage(fullFileName.c_str(),
+        sourceDir.c_str(), binaryDir.c_str());
+    if ( !shouldIDoCoverage )
+      {
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
+        ".NoDartCoverage found, so skip coverage check for: "
+        << fullFileName.c_str()
+        << std::endl);
+      continue;
+      }
+
+    const singleFileCoverageVector& fcov = fileIterator->second;
+    covLogFile << "\t<File Name=\""
+      << m_CTest->MakeXMLSafe(fileName.c_str())
+      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(m_CTest->GetShortPathToFile(
+          fileIterator->first.c_str())) << "\">" << std::endl
+      << "\t\t<Report>" << std::endl;
+
+    std::ifstream ifs(fullFileName.c_str());
+    if ( !ifs)
+      {
+      cmOStringStream ostr;
+      ostr <<  "Cannot open source file: " << fullFileName.c_str();
+      errorsWhileAccumulating.push_back(ostr.str());
+      error ++;
+      continue;
+      }
+
+    int tested = 0;
+    int untested = 0;
+
+    singleFileCoverageVector::size_type cc;
+    std::string line;
+    for ( cc= 0; cc < fcov.size(); cc ++ )
+      {
+      if ( !cmSystemTools::GetLineFromStream(ifs, line) )
+        {
+        cmOStringStream ostr;
+        ostr << "Problem reading source file: " << fullFileName.c_str()
+          << " line:" << cc;
+        errorsWhileAccumulating.push_back(ostr.str());
+        error ++;
+        break;
+        }
+      covLogFile << "\t\t<Line Number=\"" << cc << "\" Count=\"" << fcov[cc]
+        << "\">"
+        << m_CTest->MakeXMLSafe(line.c_str()) << "</Line>" << std::endl;
+      if ( fcov[cc] == 0 )
+        {
+        untested ++;
+        }
+      else if ( fcov[cc] > 0 )
+        {
+        tested ++;
+        }
+      }
+    if ( cmSystemTools::GetLineFromStream(ifs, line) )
+      {
+      cmOStringStream ostr;
+      ostr <<  "Looks like there are more lines in the file: " << line;
+      errorsWhileAccumulating.push_back(ostr.str());
+      }
+    float cper = 0;
+    float cmet = 0;
+    if ( tested + untested > 0 )
+      {
+      cper = (100 * SAFEDIV(static_cast<float>(tested),
+          static_cast<float>(tested + untested)));
+      cmet = ( SAFEDIV(static_cast<float>(tested + 10),
+          static_cast<float>(tested + untested + 10)));
+      }
+    total_tested += tested;
+    total_untested += untested;
+    covLogFile << "\t\t</Report>" << std::endl
+      << "\t</File>" << std::endl;
+    covSumFile << "\t<File Name=\"" << m_CTest->MakeXMLSafe(fileName)
+      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(
+        m_CTest->GetShortPathToFile(fullFileName.c_str()))
+      << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
+      << "\t\t<LOCTested>" << tested << "</LOCTested>\n"
+      << "\t\t<LOCUnTested>" << untested << "</LOCUnTested>\n"
+      << "\t\t<PercentCoverage>";
+    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
+    covSumFile.precision(2);
+    covSumFile << (cper) << "</PercentCoverage>\n"
+      << "\t\t<CoverageMetric>";
+    covSumFile.setf(std::ios::fixed, std::ios::floatfield);
+    covSumFile.precision(2);
+    covSumFile << (cmet) << "</CoverageMetric>\n"
+      << "\t</File>" << std::endl;
+    cnt ++;
+    }
+  this->EndCoverageLogFile(covLogFile, logFileCount);
+
+  if ( errorsWhileAccumulating.size() > 0 )
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, std::endl);
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Error(s) while acumulating results:"
+      << std::endl);
+    std::vector<std::string>::iterator erIt;
+    for ( erIt = errorsWhileAccumulating.begin();
+      erIt != errorsWhileAccumulating.end();
+      ++ erIt )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "  " << erIt->c_str() << std::endl);
+      }
+    }
+
+  int total_lines = total_tested + total_untested;
+  float percent_coverage = 100 * SAFEDIV(static_cast<float>(total_tested),
+    static_cast<float>(total_lines));
+  if ( total_lines == 0 )
+    {
+    percent_coverage = 0;
+    }
+
+  std::string end_time = m_CTest->CurrentTime();
+
+  covSumFile << "\t<LOCTested>" << total_tested << "</LOCTested>\n"
+    << "\t<LOCUntested>" << total_untested << "</LOCUntested>\n"
+    << "\t<LOC>" << total_lines << "</LOC>\n"
+    << "\t<PercentCoverage>";
+  covSumFile.setf(std::ios::fixed, std::ios::floatfield);
+  covSumFile.precision(2);
+  covSumFile << (percent_coverage)<< "</PercentCoverage>\n"
+    << "\t<EndDateTime>" << end_time << "</EndDateTime>\n";
+  covSumFile << "<ElapsedMinutes>" <<
+    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0
+    << "</ElapsedMinutes>"
+    << "</Coverage>" << std::endl;
+  m_CTest->EndXML(covSumFile);
+
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "\tCovered LOC:         "
+    << total_tested << std::endl
+    << "\tNot covered LOC:     " << total_untested << std::endl
+    << "\tTotal LOC:           " << total_lines << std::endl
+    << "\tPercentage Coverage: "
+    << std::setiosflags(std::ios::fixed)
+    << std::setprecision(2)
+    << (percent_coverage) << "%" << std::endl);
+
+  ofs << "\tCovered LOC:         " << total_tested << std::endl
+    << "\tNot covered LOC:     " << total_untested << std::endl
+    << "\tTotal LOC:           " << total_lines << std::endl
+    << "\tPercentage Coverage: "
+    << std::setiosflags(std::ios::fixed)
+    << std::setprecision(2)
+    << (percent_coverage) << "%" << std::endl;
+
+  cmSystemTools::ChangeDirectory(currentDirectory.c_str());
+
+  if ( error )
+    {
+    return -1;
+    }
+  return 0;
 }
 
-
-void cmLocalVisualStudio6Generator::WriteDSPBeginGroup(std::ostream& fout, 
-                                        const char* group,
-                                        const char* filter)
+//----------------------------------------------------------------------
+void cmCTestCoverageHandler::PopulateCustomVectors(cmMakefile *mf)
 {
-  fout << "# Begin Group \"" << group << "\"\n"
-    "# PROP Default_Filter \"" << filter << "\"\n";
-}
-
-
-void cmLocalVisualStudio6Generator::WriteDSPEndGroup(std::ostream& fout)
-{
-  fout << "# End Group\n";
-}
-
-
-
-
-void cmLocalVisualStudio6Generator::SetBuildType(BuildType b,
-                                                 const char* libName,
-                                                 const cmTarget& target)
-{
-  std::string root= m_Makefile->GetRequiredDefinition("CMAKE_ROOT");
-  const char *def= m_Makefile->GetDefinition( "MSPROJECT_TEMPLATE_DIRECTORY");
-
-  if( def)
+  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
+    " Add coverage exclude regular expressions." << std::endl);
+  cmCTest::PopulateCustomVector(mf, "CTEST_CUSTOM_COVERAGE_EXCLUDE",
+                                m_CustomCoverageExclude);
+  std::vector<cmStdString>::iterator it;
+  for ( it = m_CustomCoverageExclude.begin();
+    it != m_CustomCoverageExclude.end();
+    ++ it )
     {
-    root = def;
-    }
-  else
-    {
-    root += "/Templates";
-    }
-  
-  switch(b)
-    {
-    case STATIC_LIBRARY:
-      m_DSPHeaderTemplate = root;
-      m_DSPHeaderTemplate += "/staticLibHeader.dsptemplate";
-      m_DSPFooterTemplate = root;
-      m_DSPFooterTemplate += "/staticLibFooter.dsptemplate";
-      break;
-    case DLL:
-      m_DSPHeaderTemplate =  root;
-      m_DSPHeaderTemplate += "/DLLHeader.dsptemplate";
-      m_DSPFooterTemplate =  root;
-      m_DSPFooterTemplate += "/DLLFooter.dsptemplate";
-      break;
-    case EXECUTABLE:
-      if ( target.GetPropertyAsBool("WIN32_EXECUTABLE") )
-        {
-        m_DSPHeaderTemplate = root;
-        m_DSPHeaderTemplate += "/EXEWinHeader.dsptemplate";
-        m_DSPFooterTemplate = root;
-        m_DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      else
-        {
-        m_DSPHeaderTemplate = root;
-        m_DSPHeaderTemplate += "/EXEHeader.dsptemplate";
-        m_DSPFooterTemplate = root;
-        m_DSPFooterTemplate += "/EXEFooter.dsptemplate";
-        }
-      break;
-    case UTILITY:
-      m_DSPHeaderTemplate = root;
-      m_DSPHeaderTemplate += "/UtilityHeader.dsptemplate";
-      m_DSPFooterTemplate = root;
-      m_DSPFooterTemplate += "/UtilityFooter.dsptemplate";
-      break;
-    }
-
-  // once the build type is set, determine what configurations are
-  // possible
-  std::ifstream fin(m_DSPHeaderTemplate.c_str());
-
-  cmsys::RegularExpression reg("# Name ");
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", m_DSPHeaderTemplate.c_str());
-    }
-
-  // reset m_Configurations
-  m_Configurations.erase(m_Configurations.begin(), m_Configurations.end());
-  // now add all the configurations possible
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME",libName);
-    if (reg.find(line))
-      {
-      m_Configurations.push_back(line.substr(reg.end()));
-      }
-    }
-}
-
-// look for custom rules on a target and collect them together
-std::string 
-cmLocalVisualStudio6Generator::CreateTargetRules(const cmTarget &target, 
-                                                 const char * /* libName */)
-{
-  std::string customRuleCode = "";
-
-  if (target.GetType() >= cmTarget::UTILITY)
-    {
-    return customRuleCode;
-    }
-
-  // are there any rules?
-  if (target.GetPreBuildCommands().size() + 
-      target.GetPreLinkCommands().size() + 
-      target.GetPostBuildCommands().size() == 0)
-    {
-    return customRuleCode;
-    }
-    
-  customRuleCode = "# Begin Special Build Tool\n";
-
-  // Write the pre-build and pre-link together (VS6 does not support
-  // both).  Make sure no continuation character is put on the last
-  // line.
-  int prelink_total = (static_cast<int>(target.GetPreBuildCommands().size())+
-                       static_cast<int>(target.GetPreLinkCommands().size()));
-  int prelink_count = 0;
-  if(prelink_total > 0)
-    {
-    // header stuff
-    customRuleCode += "PreLink_Cmds=";
-    }
-  const char* prelink_newline = "\\\n\t";
-  for (std::vector<cmCustomCommand>::const_iterator cr =
-         target.GetPreBuildCommands().begin();
-       cr != target.GetPreBuildCommands().end(); ++cr)
-    {
-    if(++prelink_count == prelink_total)
-      {
-      prelink_newline = "";
-      }
-    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
-                                            prelink_newline);
-    }
-  for (std::vector<cmCustomCommand>::const_iterator cr =
-         target.GetPreLinkCommands().begin();
-       cr != target.GetPreLinkCommands().end(); ++cr)
-    {
-    if(++prelink_count == prelink_total)
-      {
-      prelink_newline = "";
-      }
-    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
-                                            prelink_newline);
-    }
-  if(prelink_total > 0)
-    {
-    customRuleCode += "\n";
-    }
-
-  // Write the post-build rules.  Make sure no continuation character
-  // is put on the last line.
-  int postbuild_total = static_cast<int>(target.GetPostBuildCommands().size());
-  int postbuild_count = 0;
-  const char* postbuild_newline = "\\\n\t";
-  if(postbuild_total > 0)
-    {
-    customRuleCode += "PostBuild_Cmds=";
-    }
-  for (std::vector<cmCustomCommand>::const_iterator cr =
-         target.GetPostBuildCommands().begin();
-       cr != target.GetPostBuildCommands().end(); ++cr)
-    {
-    if(++postbuild_count == postbuild_total)
-      {
-      postbuild_newline = "";
-      }
-    customRuleCode += this->ConstructScript(cr->GetCommandLines(),
-                                            postbuild_newline);
-    }
-  if(postbuild_total > 0)
-    {
-    customRuleCode += "\n";
-    }
-
-  customRuleCode += "# End Special Build Tool\n";
-  return customRuleCode;
-}
-
-
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
-}
-
-  
-void cmLocalVisualStudio6Generator::WriteDSPHeader(std::ostream& fout, const char *libName,
-                                   const cmTarget &target, 
-                                 std::vector<cmSourceGroup> &)
-{
-  std::set<std::string> pathEmitted;
-  
-  // determine the link directories
-  std::string libOptions;
-  std::string libDebugOptions;
-  std::string libOptimizedOptions;
-
-  std::string libMultiLineOptions;
-  std::string libMultiLineOptionsForDebug;
-  std::string libMultiLineDebugOptions;
-  std::string libMultiLineOptimizedOptions;
-
-  // suppoirt override in output directory
-  std::string libPath = "";
-  if (m_Makefile->GetDefinition("LIBRARY_OUTPUT_PATH"))
-    {
-    libPath = m_Makefile->GetDefinition("LIBRARY_OUTPUT_PATH");
-    }
-  std::string exePath = "";
-  if (m_Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH"))
-    {
-    exePath = m_Makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH");
-    }
-  if(libPath.size())
-    {
-    // make sure there is a trailing slash
-    if(libPath[libPath.size()-1] != '/')
-      {
-      libPath += "/";
-      }
-    std::string lpath = 
-      this->ConvertToOptionallyRelativeOutputPath(libPath.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = libPath + "$(INTDIR)";
-    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  if(exePath.size())
-    {
-    // make sure there is a trailing slash
-    if(exePath[exePath.size()-1] != '/')
-      {
-      exePath += "/";
-      }
-    std::string lpath = 
-      this->ConvertToOptionallyRelativeOutputPath(exePath.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = exePath + "$(INTDIR)";
-    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  std::vector<std::string>::const_iterator i;
-  const std::vector<std::string>& libdirs = target.GetLinkDirectories();
-  for(i = libdirs.begin(); i != libdirs.end(); ++i)
-    {
-    std::string path = *i;
-    if(path[path.size()-1] != '/')
-      {
-      path += "/";
-      }
-    std::string lpath = 
-      this->ConvertToOptionallyRelativeOutputPath(path.c_str());
-    if(lpath.size() == 0)
-      {
-      lpath = ".";
-      }
-    std::string lpathIntDir = path + "$(INTDIR)";
-    lpathIntDir =  this->ConvertToOptionallyRelativeOutputPath(lpathIntDir.c_str());
-    if(pathEmitted.insert(lpath).second)
-      {
-      libOptions += " /LIBPATH:";
-      libOptions += lpathIntDir;
-      libOptions += " ";
-      libOptions += " /LIBPATH:";
-      libOptions += lpath;
-      libOptions += " ";
-      
-      libMultiLineOptions += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptions += lpathIntDir;
-      libMultiLineOptions += " ";
-      libMultiLineOptions += " /LIBPATH:";
-      libMultiLineOptions += lpath;
-      libMultiLineOptions += " \n";
-      libMultiLineOptionsForDebug += "# ADD LINK32 /LIBPATH:";
-      libMultiLineOptionsForDebug += lpathIntDir;
-      libMultiLineOptionsForDebug += " ";
-      libMultiLineOptionsForDebug += " /LIBPATH:";
-      libMultiLineOptionsForDebug += lpath;
-      libMultiLineOptionsForDebug += " \n";
-      }
-    }
-  
-  // find link libraries
-  const cmTarget::LinkLibraries& libs = target.GetLinkLibraries();
-  cmTarget::LinkLibraries::const_iterator j;
-  for(j = libs.begin(); j != libs.end(); ++j)
-    {
-    // add libraries to executables and dlls (but never include
-    // a library in a library, bad recursion)
-    if ((target.GetType() != cmTarget::SHARED_LIBRARY
-         && target.GetType() != cmTarget::STATIC_LIBRARY 
-         && target.GetType() != cmTarget::MODULE_LIBRARY) || 
-        (target.GetType()==cmTarget::SHARED_LIBRARY && libName != j->first) ||
-        (target.GetType()==cmTarget::MODULE_LIBRARY && libName != j->first))
-      {
-      std::string lib = j->first;
-      std::string libDebug = j->first;
-      std::string libPath = j->first + "_CMAKE_PATH";
-      const char* cacheValue
-        = m_GlobalGenerator->GetCMakeInstance()->GetCacheDefinition(
-          libPath.c_str());
-      if ( cacheValue && *cacheValue && m_Makefile->GetDefinition("CMAKE_DEBUG_POSTFIX") )
-        { 
-        libDebug += m_Makefile->GetDefinition("CMAKE_DEBUG_POSTFIX");
-        }
-      if(j->first.find(".lib") == std::string::npos)
-        {
-        lib += ".lib";
-        libDebug += ".lib";
-        }
-      lib = this->ConvertToOptionallyRelativeOutputPath(lib.c_str());
-      libDebug = this->ConvertToOptionallyRelativeOutputPath(libDebug.c_str());
-      
-      if (j->second == cmTarget::GENERAL)
-        {
-        libOptions += " ";
-        libOptions += lib;
-        
-        libMultiLineOptions += "# ADD LINK32 ";
-        libMultiLineOptions +=  lib;
-        libMultiLineOptions += "\n";
-        libMultiLineOptionsForDebug += "# ADD LINK32 ";
-        libMultiLineOptionsForDebug +=  libDebug;
-        libMultiLineOptionsForDebug += "\n";
-        }
-      if (j->second == cmTarget::DEBUG)
-        {
-        libDebugOptions += " ";
-        libDebugOptions += lib;
-
-        libMultiLineDebugOptions += "# ADD LINK32 ";
-        libMultiLineDebugOptions += libDebug;
-        libMultiLineDebugOptions += "\n";
-        }
-      if (j->second == cmTarget::OPTIMIZED)
-        {
-        libOptimizedOptions += " ";
-        libOptimizedOptions += lib;
-
-        libMultiLineOptimizedOptions += "# ADD LINK32 ";
-        libMultiLineOptimizedOptions += lib;
-        libMultiLineOptimizedOptions += "\n";
-        }      
-      }
-    }
-  std::string extraLinkOptions;
-  if(target.GetType() == cmTarget::EXECUTABLE)
-    {
-    extraLinkOptions = m_Makefile->GetRequiredDefinition("CMAKE_EXE_LINKER_FLAGS");
-    }
-  if(target.GetType() == cmTarget::SHARED_LIBRARY)
-    {
-    extraLinkOptions = m_Makefile->GetRequiredDefinition("CMAKE_SHARED_LINKER_FLAGS");
-    }
-  if(target.GetType() == cmTarget::MODULE_LIBRARY)
-    {
-    extraLinkOptions = m_Makefile->GetRequiredDefinition("CMAKE_MODULE_LINKER_FLAGS");
-    }
-
-  if(extraLinkOptions.size())
-    {
-    libOptions += " ";
-    libOptions += extraLinkOptions;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  extraLinkOptions;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  extraLinkOptions;
-    libMultiLineOptionsForDebug += " \n";
-    }
-  if(const char* stdLibs =  m_Makefile->GetDefinition("CMAKE_STANDARD_LIBRARIES"))
-    {
-    libOptions += " ";
-    libOptions += stdLibs;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  stdLibs;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  stdLibs;
-    libMultiLineOptionsForDebug += " \n";
-    }
-  if(const char* targetLinkFlags = target.GetProperty("LINK_FLAGS"))
-    {
-    libOptions += " ";
-    libOptions += targetLinkFlags;
-    libOptions += " ";
-    libMultiLineOptions += "# ADD LINK32 ";
-    libMultiLineOptions +=  targetLinkFlags;
-    libMultiLineOptions += " \n";
-    libMultiLineOptionsForDebug += "# ADD LINK32 ";
-    libMultiLineOptionsForDebug +=  targetLinkFlags;
-    libMultiLineOptionsForDebug += " \n";
-    }
-
-  
-  // are there any custom rules on the target itself
-  // only if the target is a lib or exe
-  std::string customRuleCode = this->CreateTargetRules(target, libName);
-
-  std::ifstream fin(m_DSPHeaderTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ", m_DSPHeaderTemplate.c_str());
-    }
-  std::string staticLibOptions;
-  if(target.GetType() == cmTarget::STATIC_LIBRARY )
-    { 
-    if(const char* libflags = target.GetProperty("STATIC_LIBRARY_FLAGS"))
-      {
-      staticLibOptions = libflags;
-      }
-    }
-  std::string exportSymbol;
-  if (const char* custom_export_name = target.GetProperty("DEFINE_SYMBOL"))
-    {
-    exportSymbol = custom_export_name;
-    }
-  else
-    {
-    std::string in = libName;
-    in += "_EXPORTS";
-    exportSymbol = cmSystemTools::MakeCindentifier(in.c_str());
-    }
-
-
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    const char* mfcFlag = m_Makefile->GetDefinition("CMAKE_MFC_FLAG");
-    if(!mfcFlag)
-      {
-      mfcFlag = "0";
-      }
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME_EXPORTS",
-                                 exportSymbol.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CUSTOM_RULE_CODE",
-                                 customRuleCode.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_MFC_FLAG",
-                                 mfcFlag);
-    if(target.GetType() == cmTarget::STATIC_LIBRARY )
-      {
-      cmSystemTools::ReplaceString(line, "CM_STATIC_LIB_ARGS",
-                                   staticLibOptions.c_str());
-      } 
-    if(m_Makefile->IsOn("CMAKE_VERBOSE_MAKEFILE"))
-      {
-      cmSystemTools::ReplaceString(line, "/nologo", "");
-      }
-    
-    cmSystemTools::ReplaceString(line, "CM_LIBRARIES",
-                                 libOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_DEBUG_LIBRARIES",
-                                 libDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_OPTIMIZED_LIBRARIES",
-                                 libOptimizedOptions.c_str());
-
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES_FOR_DEBUG",
-                                 libMultiLineOptionsForDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_LIBRARIES",
-                                 libMultiLineOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_DEBUG_LIBRARIES",
-                                 libMultiLineDebugOptions.c_str());
-    cmSystemTools::ReplaceString(line, "CM_MULTILINE_OPTIMIZED_LIBRARIES",
-                                 libMultiLineOptimizedOptions.c_str());
-
-    cmSystemTools::ReplaceString(line, "BUILD_INCLUDES",
-                                 m_IncludeOptions.c_str());
-    cmSystemTools::ReplaceString(line, "OUTPUT_LIBNAME",libName);
-    // because LIBRARY_OUTPUT_PATH and EXECUTABLE_OUTPUT_PATH 
-    // are already quoted in the template file,
-    // we need to remove the quotes here, we still need
-    // to convert to output path for unix to win32 conversion
-    cmSystemTools::ReplaceString(line, "LIBRARY_OUTPUT_PATH",
-                                 removeQuotes(
-                                   this->ConvertToOptionallyRelativeOutputPath(libPath.c_str())).c_str());
-    cmSystemTools::ReplaceString(line, "EXECUTABLE_OUTPUT_PATH",
-                                 removeQuotes(
-                                   this->ConvertToOptionallyRelativeOutputPath(exePath.c_str())).c_str());
-    cmSystemTools::ReplaceString(line, 
-                                 "EXTRA_DEFINES", 
-                                 m_Makefile->GetDefineFlags());
-    const char* debugPostfix
-      = m_Makefile->GetDefinition("CMAKE_DEBUG_POSTFIX");
-    cmSystemTools::ReplaceString(line, "DEBUG_POSTFIX", 
-      debugPostfix?debugPostfix:"");
-    // store flags for each configuration
-    std::string flags = " ";
-    std::string flagsRelease = " ";
-    std::string flagsMinSize = " ";
-    std::string flagsDebug = " ";
-    std::string flagsDebugRel = " ";
-    if(target.GetType() >= cmTarget::EXECUTABLE && 
-       target.GetType() <= cmTarget::MODULE_LIBRARY)
-      {
-      const char* linkLanguage = target.GetLinkerLanguage(this->GetGlobalGenerator());
-      if(!linkLanguage)
-        {
-        cmSystemTools::Error("CMake can not determine linker language for target:",
-                             target.GetName());
-        return;
-        }
-      // if CXX is on and the target contains cxx code then add the cxx flags
-      std::string baseFlagVar = "CMAKE_";
-      baseFlagVar += linkLanguage;
-      baseFlagVar += "_FLAGS";
-      flags = m_Makefile->GetRequiredDefinition(baseFlagVar.c_str());
-      
-      std::string flagVar = baseFlagVar + "_RELEASE";
-      flagsRelease = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsRelease += " -DCMAKE_INTDIR=\\\"Release\\\" ";
-      
-      flagVar = baseFlagVar + "_MINSIZEREL";
-      flagsMinSize = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsMinSize += " -DCMAKE_INTDIR=\\\"MinSizeRel\\\" ";
-      
-      flagVar = baseFlagVar + "_DEBUG";
-      flagsDebug = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsDebug += " -DCMAKE_INTDIR=\\\"Debug\\\" ";
-      
-      flagVar = baseFlagVar + "_RELWITHDEBINFO";
-      flagsDebugRel = m_Makefile->GetRequiredDefinition(flagVar.c_str());
-      flagsDebugRel += " -DCMAKE_INTDIR=\\\"RelWithDebInfo\\\" ";
-      }
-    
-    // if unicode is not found, then add -D_MBCS
-    std::string defs = m_Makefile->GetDefineFlags();
-    if(flags.find("D_UNICODE") == flags.npos &&
-       defs.find("D_UNICODE") == flags.npos) 
-      {
-      flags += " /D \"_MBCS\"";
-      }
-    
-    // The template files have CXX FLAGS in them, that need to be replaced.
-    // There are not separate CXX and C template files, so we use the same
-    // variable names.   The previous code sets up flags* variables to contain
-    // the correct C or CXX flags
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_MINSIZEREL", flagsMinSize.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_DEBUG", flagsDebug.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELWITHDEBINFO", flagsDebugRel.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS_RELEASE", flagsRelease.c_str());
-    cmSystemTools::ReplaceString(line, "CMAKE_CXX_FLAGS", flags.c_str());
-    fout << line.c_str() << std::endl;
-    }
-}
-
-void cmLocalVisualStudio6Generator::WriteDSPFooter(std::ostream& fout)
-{  
-  std::ifstream fin(m_DSPFooterTemplate.c_str());
-  if(!fin)
-    {
-    cmSystemTools::Error("Error Reading ",
-                         m_DSPFooterTemplate.c_str());
-    }
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
-    {
-    fout << line << std::endl;
+    cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, " Add coverage exclude: "
+      << it->c_str() << std::endl);
     }
 }

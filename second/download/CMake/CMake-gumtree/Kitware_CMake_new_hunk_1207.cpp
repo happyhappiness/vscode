@@ -1,32 +1,7 @@
-    return (res != 0);
+                 "                    (ClientData *)NULL, NULL);\n\n");
     }
-#endif
-  if ( m_RegistryType == Registry::FILE_REGISTRY )
+  
+  for (i = 0; i < this->Commands.size(); i++)
     {
-    kwsys_stl::string key = this->CreateKey( skey );
-    if ( key.empty() )
-      {
-      return 0;
-      }
-    this->EntriesMap[key] = this->EncodeValue(value);
-    return 1;
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
     }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-kwsys_stl::string RegistryHelper::CreateKey( const char *key )
-{
-  if ( !m_SubKeySpecified || m_SubKey.empty() || !key )
-    {
-    return "";
-    }
-  kwsys_ios::ostringstream ostr;
-  ostr << this->EncodeKey(this->m_SubKey.c_str()) << "\\" << this->EncodeKey(key);
-  return ostr.str();
-}
-
-//----------------------------------------------------------------------------
-void RegistryHelper::SetSubKey(const char* sk)
-{
-  if ( !sk )

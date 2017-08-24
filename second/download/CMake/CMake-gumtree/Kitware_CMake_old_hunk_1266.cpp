@@ -1,9 +1,10 @@
-      }
-    }
+        strcmp(dent->d_name, "..") == 0)
+      continue;
 
-  // Create format for that string
-  char format[80];
-  sprintf(format, "%%%ds", static_cast<unsigned int>(maxlen));
+    snprintf(realpath, MAXPATHLEN, "%s/%s", realdir,
+       dent->d_name);
+    if (savedir)
+      snprintf(savepath, MAXPATHLEN, "%s/%s", savedir,
+         dent->d_name);
 
-
-  // Print help for each option
+#ifndef WIN32

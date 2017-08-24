@@ -1,14 +1,18 @@
-{
-  char realpath[TAR_MAXPATHLEN];
-  char savepath[TAR_MAXPATHLEN];
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  struct dirent *dent;
-  DIR *dp;
-#else  
-  kwDirEntry * dent;
-  kwDirectory *dp;
-#endif  
-  struct stat s;
 
-#ifdef DEBUG
-  printf("==> tar_append_tree(0x%lx, \"%s\", \"%s\")\n",
+  FORM* form = fm->GetForm();
+  // 10 == enter
+  if (!m_InEdit && ( key != 10 && key != KEY_ENTER ) )
+    {
+    return false;
+    }
+
+  m_OriginalString=0;
+  m_Done = false;
+
+  char debugMessage[128];
+
+  // <Enter> is used to change edit mode (like <Esc> in vi).
+  while(!m_Done)
+    {
+    sprintf(debugMessage, "String widget handling input, key: %d", key);
+    cmCursesForm::LogMessage(debugMessage);

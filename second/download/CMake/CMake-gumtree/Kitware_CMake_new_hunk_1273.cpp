@@ -1,27 +1,16 @@
+  return 0;
+}
 
-    if ( m_ShowOnly )
-      {
-      std::cerr.width(3);
-      std::cerr.setf(std::ios_base::right);
-      std::cerr << cnt << "/";
-      std::cerr.width(3);
-      std::cerr << tmsize << " Testing ";
-      std::string outname = testname;
-      outname.resize(30, ' ');
-      std::cerr << outname.c_str() << "\n";
-     }
-    else
-      {
-      std::cerr.width(3);
-      std::cerr << cnt << "/";
-      std::cerr.width(3);
-      std::cerr << tmsize << " Testing ";
-      std::string outname = testname;
-      outname.resize(30, ' ');
-      std::cerr << outname.c_str();
-      std::cerr.flush();
-      }
-    
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
+int runChild2(kwsysProcess* kp,
+              const char* cmd[], int state, int exception, int value,
+              int share, int output, int delay, double timeout,
+              int poll)
+{
+  int result = 0;
+  char* data = 0;
+  int length = 0;
+  double userTimeout = 0;
+  double* pUserTimeout = 0;
+  kwsysProcess_SetCommand(kp, cmd);
+  if(timeout >= 0)
+    {

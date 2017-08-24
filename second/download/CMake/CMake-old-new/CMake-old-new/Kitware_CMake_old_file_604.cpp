@@ -1,2212 +1,958 @@
-/***************************************************************************
- *                                  _   _ ____  _     
- *  Project                     ___| | | |  _ \| |    
- *                             / __| | | | |_) | |    
- *                            | (__| |_| |  _ <| |___ 
- *                             \___|\___/|_| \_\_____|
- *
- * Copyright (C) 1998 - 2002, Daniel Stenberg, <daniel@haxx.se>, et al.
- *
- * This software is licensed as described in the file COPYING, which
- * you should have received as part of this distribution. The terms
- * are also available at http://curl.haxx.se/docs/copyright.html.
- * 
- * You may opt to use, copy, modify, merge, publish, distribute and/or sell
- * copies of the Software, and permit persons to whom the Software is
- * furnished to do so, under the terms of the COPYING file.
- *
- * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
- * KIND, either express or implied.
- *
- * $Id$
- ***************************************************************************/
+/*=========================================================================
 
-#include "setup.h"
+  Program:   CMake - Cross-Platform Makefile Generator
+  Module:    $RCSfile$
+  Language:  C++
+  Date:      $Date$
+  Version:   $Revision$
 
-#ifndef CURL_DISABLE_FTP
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <ctype.h>
-#include <errno.h>
+  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
 
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#ifdef HAVE_SYS_SELECT_H
-#include <sys/select.h>
+     This software is distributed WITHOUT ANY WARRANTY; without even 
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+
+#include "cmCTestUpdateHandler.h"
+
+#include "cmCTest.h"
+#include "cmake.h"
+#include "cmMakefile.h"
+#include "cmLocalGenerator.h"
+#include "cmGlobalGenerator.h"
+#include "cmVersion.h"
+#include "cmGeneratedFileStream.h"
+#include "cmXMLParser.h"
+
+//#include <cmsys/RegularExpression.hxx>
+#include <cmsys/Process.h>
+
+// used for sleep
+#ifdef _WIN32
+#include "windows.h"
 #endif
 
-#if defined(WIN32) && !defined(__GNUC__) || defined(__MINGW32__)
-#include <winsock.h>
-#else /* some kind of unix */
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
-#include <sys/types.h>
-#ifdef HAVE_NETINET_IN_H
-#include <netinet/in.h>
-#endif
-#ifdef HAVE_ARPA_INET_H
-#include <arpa/inet.h>
-#endif
-#include <sys/utsname.h>
-#ifdef HAVE_NETDB_H
-#include <netdb.h>
-#endif
-#ifdef  VMS
-#include <in.h>
-#include <inet.h>
-#endif
-#endif
+#include <stdlib.h> 
+#include <math.h>
+#include <float.h>
 
-#if defined(WIN32) && defined(__GNUC__) || defined(__MINGW32__)
-#include <errno.h>
-#endif
-
-#include <curl/curl.h>
-#include "urldata.h"
-#include "sendf.h"
-
-#include "if2ip.h"
-#include "hostip.h"
-#include "progress.h"
-#include "transfer.h"
-#include "escape.h"
-#include "http.h" /* for HTTP proxy tunnel stuff */
-#include "ftp.h"
-
-#ifdef KRB4
-#include "security.h"
-#include "krb4.h"
-#endif
-
-#include "strequal.h"
-#include "ssluse.h"
-#include "connect.h"
-
-#if defined(HAVE_INET_NTOA_R) && !defined(HAVE_INET_NTOA_R_DECL)
-#include "inet_ntoa_r.h"
-#endif
-
-#define _MPRINTF_REPLACE /* use our functions only */
-#include <curl/mprintf.h>
-
-/* The last #include file should be: */
-#ifdef MALLOCDEBUG
-#include "memdebug.h"
-#endif
-
-/* Local API functions */
-static CURLcode ftp_sendquote(struct connectdata *conn, struct curl_slist *quote);
-static CURLcode ftp_cwd(struct connectdata *conn, char *path);
-
-/* easy-to-use macro: */
-#define FTPSENDF(x,y,z) if((result = Curl_ftpsendf(x,y,z))) return result
-
-/***********************************************************************
- *
- * AllowServerConnect()
- *
- * When we've issue the PORT command, we have told the server to connect
- * to us. This function will sit and wait here until the server has
- * connected.
- *
- */
-static CURLcode AllowServerConnect(struct SessionHandle *data,
-                                   struct connectdata *conn,
-                                   int sock)
+//----------------------------------------------------------------------
+static const char* cmCTestUpdateHandlerUpdateStrings[] =
 {
-  fd_set rdset;
-  struct timeval dt;
-  
-  FD_ZERO(&rdset);
+  "Unknown",
+  "CVS",
+  "SVN"
+};
 
-  FD_SET(sock, &rdset);
-
-  /* we give the server 10 seconds to connect to us */
-  dt.tv_sec = 10;
-  dt.tv_usec = 0;
-
-  switch (select(sock+1, &rdset, NULL, NULL, &dt)) {
-  case -1: /* error */
-    /* let's die here */
-    failf(data, "Error while waiting for server connect");
-    return CURLE_FTP_PORT_FAILED;
-  case 0:  /* timeout */
-    /* let's die here */
-    failf(data, "Timeout while waiting for server connect");
-    return CURLE_FTP_PORT_FAILED;
-  default:
-    /* we have received data here */
+static const char* cmCTestUpdateHandlerUpdateToString(int type)
+{
+  if ( type < cmCTestUpdateHandler::e_UNKNOWN || type >= cmCTestUpdateHandler::e_LAST )
     {
-      int s;
-#ifdef __hpux     
-      int size = sizeof(struct sockaddr_in);
-#else 
-      socklen_t size = sizeof(struct sockaddr_in);
-#endif
-      struct sockaddr_in add;
-
-      getsockname(sock, (struct sockaddr *) &add, &size);
-      s=(int)accept(sock, (struct sockaddr *) &add, &size);
-
-      sclose(sock); /* close the first socket */
-
-      if (-1 == s) {
-        /* DIE! */
-        failf(data, "Error accept()ing server connect");
-        return CURLE_FTP_PORT_FAILED;
-      }
-      infof(data, "Connection accepted from server\n");
-
-      conn->secondarysocket = s;
+    return cmCTestUpdateHandlerUpdateStrings[cmCTestUpdateHandler::e_UNKNOWN];
     }
-    break;
-  }
-  return CURLE_OK;
+  return cmCTestUpdateHandlerUpdateStrings[type];
 }
 
-
-/* --- parse FTP server responses --- */
-
-/*
- * Curl_GetFTPResponse() is supposed to be invoked after each command sent to
- * a remote FTP server. This function will wait and read all lines of the
- * response and extract the relevant return code for the invoking function.
- */
-
-CURLcode Curl_GetFTPResponse(int *nreadp, /* return number of bytes read */
-                             struct connectdata *conn,
-                             int *ftpcode) /* return the ftp-code */
+//----------------------------------------------------------------------
+//**********************************************************************
+class cmCTestUpdateHandlerSVNXMLParser : public cmXMLParser
 {
-  /* Brand new implementation.
-   * We cannot read just one byte per read() and then go back to select()
-   * as it seems that the OpenSSL read() stuff doesn't grok that properly.
-   *
-   * Alas, read as much as possible, split up into lines, use the ending
-   * line in a response or continue reading.  */
-
-  int sockfd = conn->firstsocket;
-  int perline; /* count bytes per line */
-  bool keepon=TRUE;
-  ssize_t gotbytes;
-  char *ptr;
-  int timeout;              /* timeout in seconds */
-  struct timeval interval;
-  fd_set rkeepfd;
-  fd_set readfd;
-  struct SessionHandle *data = conn->data;
-  char *line_start;
-  int code=0; /* default ftp "error code" to return */
-  char *buf = data->state.buffer;
-  CURLcode result = CURLE_OK;
-  struct FTP *ftp = conn->proto.ftp;
-  struct timeval now = Curl_tvnow();
-
-  if (ftpcode)
-    *ftpcode = 0; /* 0 for errors */
-
-  FD_ZERO (&readfd);            /* clear it */
-  FD_SET (sockfd, &readfd);     /* read socket */
-
-  /* get this in a backup variable to be able to restore it on each lap in the
-     select() loop */
-  rkeepfd = readfd;
-
-  ptr=buf;
-  line_start = buf;
-
-  *nreadp=0;
-  perline=0;
-  keepon=TRUE;
-
-  while((*nreadp<BUFSIZE) && (keepon && !result)) {
-    /* check and reset timeout value every lap */
-    if(data->set.timeout)
-      /* if timeout is requested, find out how much remaining time we have */
-      timeout = data->set.timeout - /* timeout time */
-        Curl_tvdiff(Curl_tvnow(), conn->now)/1000; /* spent time */
-    else
-      /* Even without a requested timeout, we only wait response_time
-         seconds for the full response to arrive before we bail out */
-      timeout = ftp->response_time -
-        Curl_tvdiff(Curl_tvnow(), now)/1000; /* spent time */
-
-    if(timeout <=0 ) {
-      failf(data, "Transfer aborted due to timeout");
-      return CURLE_OPERATION_TIMEDOUT; /* already too little time */
-    }
-
-    if(!ftp->cache) {
-      readfd = rkeepfd;            /* set every lap */
-      interval.tv_sec = timeout;
-      interval.tv_usec = 0;
-
-      switch (select (sockfd+1, &readfd, NULL, NULL, &interval)) {
-      case -1: /* select() error, stop reading */
-        result = CURLE_RECV_ERROR;
-        failf(data, "Transfer aborted due to select() error: %d", errno);
-        break;
-      case 0: /* timeout */
-        result = CURLE_OPERATION_TIMEDOUT;
-        failf(data, "Transfer aborted due to timeout");
-        break;
-      default:
-        break;
-      }
-    }
-    if(CURLE_OK == result) {
-      /*
-       * This code previously didn't use the kerberos sec_read() code
-       * to read, but when we use Curl_read() it may do so. Do confirm
-       * that this is still ok and then remove this comment!
-       */
-      if(ftp->cache) {
-        /* we had data in the "cache", copy that instead of doing an actual
-           read */
-        memcpy(ptr, ftp->cache, ftp->cache_size);
-        gotbytes = (int)ftp->cache_size;
-        free(ftp->cache);    /* free the cache */
-        ftp->cache = NULL;   /* clear the pointer */
-        ftp->cache_size = 0; /* zero the size just in case */
-      }
-      else {
-        int res = Curl_read(conn, sockfd, ptr, BUFSIZE-*nreadp, &gotbytes);
-        if(res < 0)
-          /* EWOULDBLOCK */
-          continue; /* go looping again */
-
-        if(CURLE_OK != res)
-          keepon = FALSE;
-      }
-
-      if(!keepon)
-        ;
-      else if(gotbytes <= 0) {
-        keepon = FALSE;
-        result = CURLE_RECV_ERROR;
-        failf(data, "Connection aborted");
-      }
-      else {
-        /* we got a whole chunk of data, which can be anything from one
-         * byte to a set of lines and possible just a piece of the last
-         * line */
-        int i;
-
-        *nreadp += gotbytes;
-        for(i = 0; i < gotbytes; ptr++, i++) {
-          perline++;
-          if(*ptr=='\n') {
-            /* a newline is CRLF in ftp-talk, so the CR is ignored as
-               the line isn't really terminated until the LF comes */
-            CURLcode result;
-
-            /* output debug output if that is requested */
-            if(data->set.verbose)
-              Curl_debug(data, CURLINFO_HEADER_IN, line_start, perline);
-
-            /*
-             * We pass all response-lines to the callback function registered
-             * for "headers". The response lines can be seen as a kind of
-             * headers.
-             */
-            result = Curl_client_write(data, CLIENTWRITE_HEADER,
-                                       line_start, perline);
-            if(result)
-              return result;
-                                       
-#define lastline(line) (isdigit((int)line[0]) && isdigit((int)line[1]) && \
-                        isdigit((int)line[2]) && (' ' == line[3]))
-
-            if(perline>3 && lastline(line_start)) {
-              /* This is the end of the last line, copy the last
-               * line to the start of the buffer and zero terminate,
-               * for old times sake (and krb4)! */
-              char *meow;
-              int n;
-              for(meow=line_start, n=0; meow<ptr; meow++, n++)
-                buf[n] = *meow;
-              *meow=0; /* zero terminate */
-              keepon=FALSE;
-              line_start = ptr+1; /* advance pointer */
-              i++; /* skip this before getting out */
-              break;
-            }
-            perline=0; /* line starts over here */
-            line_start = ptr+1;
-          }
-        }
-        if(!keepon && (i != gotbytes)) {
-          /* We found the end of the response lines, but we didn't parse the
-             full chunk of data we have read from the server. We therefore
-             need to store the rest of the data to be checked on the next
-             invoke as it may actually contain another end of response
-             already!  Cleverly figured out by Eric Lavigne in December
-             2001. */
-          ftp->cache_size = gotbytes - i;
-          ftp->cache = (char *)malloc(ftp->cache_size);
-          if(ftp->cache)
-            memcpy(ftp->cache, line_start, ftp->cache_size);
-          else
-            return CURLE_OUT_OF_MEMORY; /**BANG**/
-        }
-      } /* there was data */
-    } /* if(no error) */
-  } /* while there's buffer left and loop is requested */
-
-  if(!result)
-    code = atoi(buf);
-
-#ifdef KRB4
-  /* handle the security-oriented responses 6xx ***/
-  /* FIXME: some errorchecking perhaps... ***/
-  switch(code) {
-  case 631:
-    Curl_sec_read_msg(conn, buf, prot_safe);
-    break;
-  case 632:
-    Curl_sec_read_msg(conn, buf, prot_private);
-    break;
-  case 633:
-    Curl_sec_read_msg(conn, buf, prot_confidential);
-    break;
-  default:
-    /* normal ftp stuff we pass through! */
-    break;
-  }
-#endif
-
-  if(ftpcode)
-    *ftpcode=code; /* return the initial number like this */
-
-  return result;
-}
-
-/*
- * Curl_ftp_connect() should do everything that is to be considered a part of
- * the connection phase.
- */
-CURLcode Curl_ftp_connect(struct connectdata *conn)
-{
-  /* this is FTP and no proxy */
-  int nread;
-  struct SessionHandle *data=conn->data;
-  char *buf = data->state.buffer; /* this is our buffer */
-  struct FTP *ftp;
-  CURLcode result;
-  int ftpcode;
-
-  ftp = (struct FTP *)malloc(sizeof(struct FTP));
-  if(!ftp)
-    return CURLE_OUT_OF_MEMORY;
-
-  memset(ftp, 0, sizeof(struct FTP));
-  conn->proto.ftp = ftp;
-
-  /* We always support persistant connections on ftp */
-  conn->bits.close = FALSE;
-
-  /* get some initial data into the ftp struct */
-  ftp->bytecountp = &conn->bytecount;
-
-  /* no need to duplicate them, the data struct won't change */
-  ftp->user = data->state.user;
-  ftp->passwd = data->state.passwd;
-  ftp->response_time = 3600; /* set default response time-out */
-
-  if (data->set.tunnel_thru_httpproxy) {
-    /* We want "seamless" FTP operations through HTTP proxy tunnel */
-    result = Curl_ConnectHTTPProxyTunnel(conn, conn->firstsocket,
-                                         conn->hostname, conn->remote_port);
-    if(CURLE_OK != result)
-      return result;
-  }
-
-  if(conn->protocol & PROT_FTPS) {
-    /* FTPS is simply ftp with SSL for the control channel */
-    /* now, perform the SSL initialization for this socket */
-    result = Curl_SSLConnect(conn);
-    if(result)
-      return result;
-  }
-
-
-  /* The first thing we do is wait for the "220*" line: */
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
-
-  if(ftpcode != 220) {
-    failf(data, "This doesn't seem like a nice ftp-server response");
-    return CURLE_FTP_WEIRD_SERVER_REPLY;
-  }
-
-#ifdef KRB4
-  /* if not anonymous login, try a secure login */
-  if(data->set.krb4) {
-
-    /* request data protection level (default is 'clear') */
-    Curl_sec_request_prot(conn, "private");
-
-    /* We set private first as default, in case the line below fails to
-       set a valid level */
-    Curl_sec_request_prot(conn, data->set.krb4_level);
-
-    if(Curl_sec_login(conn) != 0)
-      infof(data, "Logging in with password in cleartext!\n");
-    else
-      infof(data, "Authentication successful\n");
-  }
-#endif
-  
-  /* send USER */
-  FTPSENDF(conn, "USER %s", ftp->user);
-
-  /* wait for feedback */
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
-
-  if(ftpcode == 530) {
-    /* 530 User ... access denied
-       (the server denies to log the specified user) */
-    failf(data, "Access denied: %s", &buf[4]);
-    return CURLE_FTP_ACCESS_DENIED;
-  }
-  else if(ftpcode == 331) {
-    /* 331 Password required for ...
-       (the server requires to send the user's password too) */
-    FTPSENDF(conn, "PASS %s", ftp->passwd);
-    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-    if(result)
-      return result;
-
-    if(ftpcode == 530) {
-      /* 530 Login incorrect.
-         (the username and/or the password are incorrect) */
-      failf(data, "the username and/or the password are incorrect");
-      return CURLE_FTP_USER_PASSWORD_INCORRECT;
-    }
-    else if(ftpcode == 230) {
-      /* 230 User ... logged in.
-         (user successfully logged in) */
-        
-      infof(data, "We have successfully logged in\n");
-    }
-    else {
-      failf(data, "Odd return code after PASS");
-      return CURLE_FTP_WEIRD_PASS_REPLY;
-    }
-  }
-  else if(buf[0] == '2') {
-    /* 230 User ... logged in.
-       (the user logged in without password) */
-    infof(data, "We have successfully logged in\n");
-#ifdef KRB4
-        /* we are logged in (with Kerberos)
-         * now set the requested protection level
-         */
-    if(conn->sec_complete)
-      Curl_sec_set_protection_level(conn);
-
-    /* we may need to issue a KAUTH here to have access to the files
-     * do it if user supplied a password
-     */
-    if(data->state.passwd && *data->state.passwd) {
-      result = Curl_krb_kauth(conn);
-      if(result)
-        return result;
-    }
-#endif
-  }
-  else {
-    failf(data, "Odd return code after USER");
-    return CURLE_FTP_WEIRD_USER_REPLY;
-  }
-
-  /* send PWD to discover our entry point */
-  FTPSENDF(conn, "PWD", NULL);
-
-  /* wait for feedback */
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
-
-  if(ftpcode == 257) {
-    char *dir = (char *)malloc(nread+1);
-    char *store=dir;
-    char *ptr=&buf[4]; /* start on the first letter */
-    
-    /* Reply format is like
-       257<space>"<directory-name>"<space><commentary> and the RFC959 says
-
-       The directory name can contain any character; embedded double-quotes
-       should be escaped by double-quotes (the "quote-doubling" convention).
-    */
-    if(dir && ('\"' == *ptr)) {
-      /* it started good */
-      ptr++;
-      while(ptr && *ptr) {
-        if('\"' == *ptr) {
-          if('\"' == ptr[1]) {
-            /* "quote-doubling" */
-            *store = ptr[1];
-            ptr++;
-          }
-          else {
-            /* end of path */
-            *store = '\0'; /* zero terminate */
-            break; /* get out of this loop */
-          }
-        }
-        else
-          *store = *ptr;
-        store++;
-        ptr++;
-      }
-      ftp->entrypath =dir; /* remember this */
-      infof(data, "Entry path is '%s'\n", ftp->entrypath);
-    }
-    else {
-      /* couldn't get the path */
-      free(dir);
-      infof(data, "Failed to figure out path\n");
-    }
-
-  }
-  else {
-    /* We couldn't read the PWD response! */
-  }
-
-  return CURLE_OK;
-}
-
-/***********************************************************************
- *
- * Curl_ftp_done()
- *
- * The DONE function. This does what needs to be done after a single DO has
- * performed.
- *
- * Input argument is already checked for validity.
- */
-CURLcode Curl_ftp_done(struct connectdata *conn)
-{
-  struct SessionHandle *data = conn->data;
-  struct FTP *ftp = conn->proto.ftp;
-  int nread;
-  int ftpcode;
-  CURLcode result=CURLE_OK;
-
-  if(data->set.upload) {
-    if((-1 != data->set.infilesize) &&
-       (data->set.infilesize != *ftp->bytecountp) &&
-       !data->set.crlf) {
-      failf(data, "Uploaded unaligned file size (%d out of %d bytes)",
-            *ftp->bytecountp, data->set.infilesize);
-      return CURLE_PARTIAL_FILE;
-    }
-  }
-  else {
-    if((-1 != conn->size) && (conn->size != *ftp->bytecountp) &&
-       (conn->maxdownload != *ftp->bytecountp)) {
-      failf(data, "Received only partial file: %d bytes", *ftp->bytecountp);
-      return CURLE_PARTIAL_FILE;
-    }
-    else if(!ftp->dont_check &&
-            !*ftp->bytecountp &&
-            (conn->size>0)) {
-      /* We consider this an error, but there's no true FTP error received
-         why we need to continue to "read out" the server response too.
-         We don't want to leave a "waiting" server reply if we'll get told
-         to make a second request on this same connection! */
-      failf(data, "No data was received!");
-      result = CURLE_FTP_COULDNT_RETR_FILE;
-    }
-  }
-
-#ifdef KRB4
-  Curl_sec_fflush_fd(conn, conn->secondarysocket);
-#endif
-  /* shut down the socket to inform the server we're done */
-  sclose(conn->secondarysocket);
-  conn->secondarysocket = -1;
-
-  if(!ftp->no_transfer) {
-    /* Let's see what the server says about the transfer we just performed,
-       but lower the timeout as sometimes this connection has died while 
-       the data has been transfered. This happens when doing through NATs
-       etc that abandon old silent connections.
-    */
-    ftp->response_time = 60; /* give it only a minute for now */
-
-    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-
-    ftp->response_time = 3600; /* set this back to one hour waits */
-  
-    if(!nread && (CURLE_OPERATION_TIMEDOUT == result)) {
-      failf(data, "control connection looks dead");
-      return result;
-    }
-
-    if(result)
-      return result;
-
-    if(!ftp->dont_check) {
-      /* 226 Transfer complete, 250 Requested file action okay, completed. */
-      if((ftpcode != 226) && (ftpcode != 250)) {
-        failf(data, "server did not report OK, got %d", ftpcode);
-        return CURLE_FTP_WRITE_ERROR;
-      }
-    }
-  }
-
-  /* clear these for next connection */
-  ftp->no_transfer = FALSE;
-  ftp->dont_check = FALSE; 
-
-  /* Send any post-transfer QUOTE strings? */
-  if(!result && data->set.postquote)
-    result = ftp_sendquote(conn, data->set.postquote);
-
-  return result;
-}
-
-/***********************************************************************
- *
- * ftp_sendquote()
- *
- * Where a 'quote' means a list of custom commands to send to the server.
- * The quote list is passed as an argument.
- */
-
-static 
-CURLcode ftp_sendquote(struct connectdata *conn, struct curl_slist *quote)
-{
-  struct curl_slist *item;
-  int nread;
-  int ftpcode;
-  CURLcode result;
-
-  item = quote;
-  while (item) {
-    if (item->data) {
-      FTPSENDF(conn, "%s", item->data);
-
-      result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-      if (result)
-        return result;
-
-      if (ftpcode >= 400) {
-        failf(conn->data, "QUOT string not accepted: %s", item->data);
-        return CURLE_FTP_QUOTE_ERROR;
-      }
-    }
-
-    item = item->next;
-  }
-
-  return CURLE_OK;
-}
-
-/***********************************************************************
- *
- * ftp_cwd()
- *
- * Send 'CWD' to the remote server to Change Working Directory.
- * It is the ftp version of the unix 'cd' command.
- */
-static 
-CURLcode ftp_cwd(struct connectdata *conn, char *path)
-{
-  int nread;
-  int     ftpcode;
-  CURLcode result;
-  
-  FTPSENDF(conn, "CWD %s", path);
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if (result)
-    return result;
-
-  if (ftpcode != 250) {
-    failf(conn->data, "Couldn't cd to %s", path);
-    return CURLE_FTP_ACCESS_DENIED;
-  }
-
-  return CURLE_OK;
-}
-
-/***********************************************************************
- *
- * ftp_getfiletime()
- *
- * Get the timestamp of the given file.
- */
-static
-CURLcode ftp_getfiletime(struct connectdata *conn, char *file)
-{
-  CURLcode result=CURLE_OK;
-  int ftpcode; /* for ftp status */
-  int nread;
-  char *buf = conn->data->state.buffer;
-
-  /* we have requested to get the modified-time of the file, this is yet
-     again a grey area as the MDTM is not kosher RFC959 */
-  FTPSENDF(conn, "MDTM %s", file);
-
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
-
-  switch(ftpcode) {
-  case 213:
+public:
+  struct t_CommitLog
     {
-      /* we got a time. Format should be: "YYYYMMDDHHMMSS[.sss]" where the
-         last .sss part is optional and means fractions of a second */
-      int year, month, day, hour, minute, second;
-      if(6 == sscanf(buf+4, "%04d%02d%02d%02d%02d%02d",
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        sprintf(buf, "%04d%02d%02d %02d:%02d:%02d",
-                year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        conn->data->info.filetime = curl_getdate(buf, &secs);
+    int m_Revision;
+    std::string m_Author;
+    std::string m_Date;
+    std::string m_Message;
+    };
+  cmCTestUpdateHandlerSVNXMLParser(cmCTestUpdateHandler* up)
+    : cmXMLParser(), m_UpdateHandler(up), m_MinRevision(-1), m_MaxRevision(-1)
+    {
+    }
+
+  int Parse(const char* str)
+    {
+    m_MinRevision = -1;
+    m_MaxRevision = -1;
+    int res = this->cmXMLParser::Parse(str);
+    if ( m_MinRevision == -1 || m_MaxRevision == -1 )
+      {
+      return 0;
+      }
+    return res;
+    }
+
+  typedef std::vector<t_CommitLog> t_VectorOfCommits;
+
+  t_VectorOfCommits* GetCommits() { return &m_Commits; }
+  int GetMinRevision() { return m_MinRevision; }
+  int GetMaxRevision() { return m_MaxRevision; }
+
+protected:
+  void StartElement(const char* name, const char** atts)
+    {
+    if ( strcmp(name, "logentry") == 0 )
+      {
+      m_CommitLog = t_CommitLog();
+      const char* rev = this->FindAttribute(atts, "revision");
+      if ( rev)
+        {
+        m_CommitLog.m_Revision = atoi(rev);
+        if ( m_MinRevision < 0 || m_MinRevision > m_CommitLog.m_Revision )
+          {
+          m_MinRevision = m_CommitLog.m_Revision;
+          }
+        if ( m_MaxRevision < 0 || m_MaxRevision < m_CommitLog.m_Revision )
+          {
+          m_MaxRevision = m_CommitLog.m_Revision;
+          }
+        }
+      }
+    m_CharacterData.erase(m_CharacterData.begin(), m_CharacterData.end());
+    }
+  void EndElement(const char* name)
+    {
+    if ( strcmp(name, "logentry") == 0 )
+      {
+      cmCTestLog(m_UpdateHandler->GetCTestInstance(), HANDLER_VERBOSE_OUTPUT, "\tRevision: " << m_CommitLog.m_Revision<< std::endl
+        << "\tAuthor:   " << m_CommitLog.m_Author.c_str() << std::endl
+        << "\tDate:     " << m_CommitLog.m_Date.c_str() << std::endl
+        << "\tMessage:  " << m_CommitLog.m_Message.c_str() << std::endl);
+      m_Commits.push_back(m_CommitLog);
+      }
+    else if ( strcmp(name, "author") == 0 )
+      {
+      m_CommitLog.m_Author.assign(&(*(m_CharacterData.begin())), m_CharacterData.size());
+      }
+    else if ( strcmp(name, "date") == 0 )
+      {
+      m_CommitLog.m_Date.assign(&(*(m_CharacterData.begin())), m_CharacterData.size());
+      }
+    else if ( strcmp(name, "msg") == 0 )
+      {
+      m_CommitLog.m_Message.assign(&(*(m_CharacterData.begin())), m_CharacterData.size());
+      }
+    m_CharacterData.erase(m_CharacterData.begin(), m_CharacterData.end());
+    }
+  void CharacterDataHandler(const char* data, int length)
+    {
+    m_CharacterData.insert(m_CharacterData.end(), data, data+length);
+    }
+  const char* FindAttribute( const char** atts, const char* attribute )
+    {
+    if ( !atts || !attribute )
+      {
+      return 0;
+      }
+    const char **atr = atts;
+    while ( *atr && **atr && **(atr+1) )
+      {
+      if ( strcmp(*atr, attribute) == 0 )
+        {
+        return *(atr+1);
+        }
+      atr+=2;
+      }
+    return 0;
+    }
+
+private:
+  std::vector<char> m_CharacterData;
+  cmCTestUpdateHandler* m_UpdateHandler;
+  t_CommitLog m_CommitLog;
+
+  t_VectorOfCommits m_Commits;
+  int m_MinRevision;
+  int m_MaxRevision;
+};
+//**********************************************************************
+//----------------------------------------------------------------------
+
+//----------------------------------------------------------------------
+cmCTestUpdateHandler::cmCTestUpdateHandler()
+{
+}
+
+//----------------------------------------------------------------------
+void cmCTestUpdateHandler::Initialize()
+{
+  this->Superclass::Initialize();
+}
+
+//----------------------------------------------------------------------
+int cmCTestUpdateHandler::DetermineType(const char* cmd, const char* type)
+{
+  cmCTestLog(m_CTest, DEBUG, "Determine update type from command: " << cmd << " and type: " << type << std::endl);
+  if ( type && *type )
+    {
+    cmCTestLog(m_CTest, DEBUG, "Type specified: " << type << std::endl);
+    std::string stype = cmSystemTools::LowerCase(type);
+    if ( stype.find("cvs") != std::string::npos )
+      {
+      return cmCTestUpdateHandler::e_CVS;
+      }
+    if ( stype.find("svn") != std::string::npos )
+      {
+      return cmCTestUpdateHandler::e_SVN;
       }
     }
-    break;
-  default:
-    infof(conn->data, "unsupported MDTM reply format\n");
-    break;
-  case 550: /* "No such file or directory" */
-    failf(conn->data, "Given file does not exist");
-    result = CURLE_FTP_COULDNT_RETR_FILE;
-    break;
-  }
-  return  result;
-}
-
-/***********************************************************************
- *
- * ftp_transfertype()
- *
- * Set transfer type. We only deal with ASCII or BINARY so this function
- * sets one of them.
- */
-static CURLcode ftp_transfertype(struct connectdata *conn,
-                                  bool ascii)
-{
-  struct SessionHandle *data = conn->data;
-  int ftpcode;
-  int nread;
-  CURLcode result;
-
-  FTPSENDF(conn, "TYPE %s", ascii?"A":"I");
-
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
-  
-  if(ftpcode != 200) {
-    failf(data, "Couldn't set %s mode",
-          ascii?"ASCII":"binary");
-    return ascii? CURLE_FTP_COULDNT_SET_ASCII:CURLE_FTP_COULDNT_SET_BINARY;
-  }
-
-  return CURLE_OK;
-}
-
-/***********************************************************************
- *
- * ftp_getsize()
- *
- * Returns the file size (in bytes) of the given remote file.
- */
-
-static
-CURLcode ftp_getsize(struct connectdata *conn, char *file,
-                      ssize_t *size)
-{
-  struct SessionHandle *data = conn->data;
-  int ftpcode;
-  int nread;
-  char *buf=data->state.buffer;
-  CURLcode result;
-
-  FTPSENDF(conn, "SIZE %s", file);
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
-
-  if(ftpcode == 213) {
-    /* get the size from the ascii string: */
-    *size = atoi(buf+4);
-  }
   else
-    return CURLE_FTP_COULDNT_GET_SIZE;
-
-  return CURLE_OK;
+    {
+    cmCTestLog(m_CTest, DEBUG, "Type not specified, check command: " << cmd << std::endl);
+    std::string stype = cmSystemTools::LowerCase(cmd);
+    if ( stype.find("cvs") != std::string::npos )
+      {
+      return cmCTestUpdateHandler::e_CVS;
+      }
+    if ( stype.find("svn") != std::string::npos )
+      {
+      return cmCTestUpdateHandler::e_SVN;
+      }
+    }
+  std::string sourceDirectory = this->GetOption("SourceDirectory");
+  cmCTestLog(m_CTest, DEBUG, "Check directory: " << sourceDirectory.c_str() << std::endl);
+  sourceDirectory += "/.svn";
+  if ( cmSystemTools::FileExists(sourceDirectory.c_str()) )
+    {
+    return cmCTestUpdateHandler::e_SVN;
+    }
+  sourceDirectory = this->GetOption("SourceDirectory");
+  sourceDirectory += "/CVS";
+  if ( cmSystemTools::FileExists(sourceDirectory.c_str()) )
+    {
+    return cmCTestUpdateHandler::e_CVS;
+    }
+  return cmCTestUpdateHandler::e_UNKNOWN;
 }
 
-/***************************************************************************
- *
- * ftp_pasv_verbose()
- *
- * This function only outputs some informationals about this second connection
- * when we've issued a PASV command before and thus we have connected to a
- * possibly new IP address.
- *
- */
-static void
-ftp_pasv_verbose(struct connectdata *conn,
-                 Curl_ipconnect *addr,
-                 char *newhost, /* ascii version */
-                 int port)
+//----------------------------------------------------------------------
+//clearly it would be nice if this were broken up into a few smaller
+//functions and commented...
+int cmCTestUpdateHandler::ProcessHandler()
 {
-#ifndef ENABLE_IPV6
-  /*****************************************************************
-   *
-   * IPv4-only code section
-   */
+  int count = 0;
+  int updateType = e_CVS;
+  std::string::size_type cc, kk;
+  bool updateProducedError = false;
+  std::string goutput;
+  std::string errors;
 
-  struct in_addr in;
-  struct hostent * answer;
+  std::string checkoutErrorMessages;
+  int retVal = 0;
 
-#ifdef HAVE_INET_NTOA_R
-  char ntoa_buf[64];
-#endif
-  /* The array size trick below is to make this a large chunk of memory
-     suitably 8-byte aligned on 64-bit platforms. This was thoughtfully
-     suggested by Philip Gladstone. */
-  long bigbuf[9000 / sizeof(long)];
-
-#if defined(HAVE_INET_ADDR)
-  in_addr_t address;
-# if defined(HAVE_GETHOSTBYADDR_R)
-  int h_errnop;
-# endif
-  char *hostent_buf = (char *)bigbuf; /* get a char * to the buffer */
-  (void)hostent_buf;
-  address = inet_addr(newhost);
-# ifdef HAVE_GETHOSTBYADDR_R
-
-#  ifdef HAVE_GETHOSTBYADDR_R_5
-  /* AIX, Digital Unix (OSF1, Tru64) style:
-     extern int gethostbyaddr_r(char *addr, size_t len, int type,
-     struct hostent *htent, struct hostent_data *ht_data); */
-
-  /* Fred Noz helped me try this out, now it at least compiles! */
-
-  /* Bjorn Reese (November 28 2001):
-     The Tru64 man page on gethostbyaddr_r() says that
-     the hostent struct must be filled with zeroes before the call to
-     gethostbyaddr_r(). 
-
-     ... as must be struct hostent_data Craig Markwardt 19 Sep 2002. */
-
-  memset(hostent_buf, 0, sizeof(struct hostent)+sizeof(struct hostent_data));
-
-  if(gethostbyaddr_r((char *) &address,
-                     sizeof(address), AF_INET,
-                     (struct hostent *)hostent_buf,
-                     (struct hostent_data *)(hostent_buf + sizeof(*answer))))
-    answer=NULL;
-  else
-    answer=(struct hostent *)hostent_buf;
-                           
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_7
-  /* Solaris and IRIX */
-  answer = gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                           (struct hostent *)bigbuf,
-                           hostent_buf + sizeof(*answer),
-                           sizeof(bigbuf) - sizeof(*answer),
-                           &h_errnop);
-#  endif
-#  ifdef HAVE_GETHOSTBYADDR_R_8
-  /* Linux style */
-  if(gethostbyaddr_r((char *) &address, sizeof(address), AF_INET,
-                     (struct hostent *)hostent_buf,
-                     hostent_buf + sizeof(*answer),
-                     sizeof(bigbuf) - sizeof(*answer),
-                     &answer,
-                     &h_errnop))
-    answer=NULL; /* error */
-#  endif
-        
-# else
-  answer = gethostbyaddr((char *) &address, sizeof(address), AF_INET);
-# endif
-#else
-  answer = NULL;
-#endif
-  (void) memcpy(&in.s_addr, addr, sizeof (Curl_ipconnect));
-  infof(conn->data, "Connecting to %s (%s) port %u\n",
-        answer?answer->h_name:newhost,
-#if defined(HAVE_INET_NTOA_R)
-        inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf)),
-#else
-        inet_ntoa(in),
-#endif
-        port);
-
-#else
-  /*****************************************************************
-   *
-   * IPv6-only code section
-   */
-  char hbuf[NI_MAXHOST]; /* ~1KB */
-  char nbuf[NI_MAXHOST]; /* ~1KB */
-  char sbuf[NI_MAXSERV]; /* around 32 */
-#ifdef NI_WITHSCOPEID
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV | NI_WITHSCOPEID;
-#else
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV;
-#endif
-  port = 0; /* unused, prevent warning */
-  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
-                  nbuf, sizeof(nbuf), sbuf, sizeof(sbuf), niflags)) {
-    snprintf(nbuf, sizeof(nbuf), "?");
-    snprintf(sbuf, sizeof(sbuf), "?");
-  }
-        
-  if (getnameinfo(addr->ai_addr, addr->ai_addrlen,
-                  hbuf, sizeof(hbuf), NULL, 0, 0)) {
-    infof(conn->data, "Connecting to %s (%s) port %s\n", nbuf, newhost, sbuf);
-  }
-  else {
-    infof(conn->data, "Connecting to %s (%s) port %s\n", hbuf, nbuf, sbuf);
-  }
-#endif
-}
-
-/***********************************************************************
- *
- * ftp_use_port()
- *
- * Send the proper PORT command. PORT is the ftp client's way of telling the
- * server that *WE* open a port that we listen on an awaits the server to
- * connect to. This is the opposite of PASV.
- */
-
-static
-CURLcode ftp_use_port(struct connectdata *conn)
-{
-  struct SessionHandle *data=conn->data;
-  int portsock=-1;
-  int nread;
-  int ftpcode; /* receive FTP response codes in this */
-  CURLcode result;
-
-#ifdef ENABLE_IPV6
-  /******************************************************************
-   *
-   * Here's a piece of IPv6-specific code coming up
-   *
-   */
-
-  struct addrinfo hints, *res, *ai;
-  struct sockaddr_storage ss;
-  socklen_t sslen;
-  char hbuf[NI_MAXHOST];
-
-  struct sockaddr *sa=(struct sockaddr *)&ss;
-#ifdef NI_WITHSCOPEID
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV | NI_WITHSCOPEID;
-#else
-  const int niflags = NI_NUMERICHOST | NI_NUMERICSERV;
-#endif
-  unsigned char *ap;
-  unsigned char *pp;
-  char portmsgbuf[4096], tmp[4096];
-
-  const char *mode[] = { "EPRT", "LPRT", "PORT", NULL };
-  char **modep;
-
-  /*
-   * we should use Curl_if2ip?  given pickiness of recent ftpd,
-   * I believe we should use the same address as the control connection.
-   */
-  sslen = sizeof(ss);
-  if (getsockname(conn->firstsocket, (struct sockaddr *)&ss, &sslen) < 0)
-    return CURLE_FTP_PORT_FAILED;
-  
-  if (getnameinfo((struct sockaddr *)&ss, sslen, hbuf, sizeof(hbuf), NULL, 0,
-                  niflags))
-    return CURLE_FTP_PORT_FAILED;
-
-  memset(&hints, 0, sizeof(hints));
-  hints.ai_family = sa->sa_family;
-  /*hints.ai_family = ss.ss_family;
-    this way can be used if sockaddr_storage is properly defined, as glibc 
-    2.1.X doesn't do*/
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;
-
-  if (getaddrinfo(hbuf, (char *)"0", &hints, &res))
-    return CURLE_FTP_PORT_FAILED;
-  
-  portsock = -1;
-  for (ai = res; ai; ai = ai->ai_next) {
-    portsock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-    if (portsock < 0)
-      continue;
-
-    if (bind(portsock, ai->ai_addr, ai->ai_addrlen) < 0) {
-      sclose(portsock);
-      portsock = -1;
-      continue;
-    }
-      
-    if (listen(portsock, 1) < 0) {
-      sclose(portsock);
-      portsock = -1;
-      continue;
-    }
-    
-    break;
-  }
-  freeaddrinfo(res);
-  if (portsock < 0) {
-    failf(data, "%s", strerror(errno));
-    return CURLE_FTP_PORT_FAILED;
-  }
-
-  sslen = sizeof(ss);
-  if (getsockname(portsock, sa, &sslen) < 0) {
-    failf(data, "%s", strerror(errno));
-    return CURLE_FTP_PORT_FAILED;
-  }
-
-  for (modep = (char **)mode; modep && *modep; modep++) {
-    int lprtaf, eprtaf;
-    int alen=0, plen=0;
-    
-    switch (sa->sa_family) {
-    case AF_INET:
-      ap = (unsigned char *)&((struct sockaddr_in *)&ss)->sin_addr;
-      alen = sizeof(((struct sockaddr_in *)&ss)->sin_addr);
-      pp = (unsigned char *)&((struct sockaddr_in *)&ss)->sin_port;
-      plen = sizeof(((struct sockaddr_in *)&ss)->sin_port);
-      lprtaf = 4;
-      eprtaf = 1;
-      break;
-    case AF_INET6:
-      ap = (unsigned char *)&((struct sockaddr_in6 *)&ss)->sin6_addr;
-      alen = sizeof(((struct sockaddr_in6 *)&ss)->sin6_addr);
-      pp = (unsigned char *)&((struct sockaddr_in6 *)&ss)->sin6_port;
-      plen = sizeof(((struct sockaddr_in6 *)&ss)->sin6_port);
-      lprtaf = 6;
-      eprtaf = 2;
-      break;
-    default:
-      ap = pp = NULL;
-      lprtaf = eprtaf = -1;
-      break;
+  // Get source dir
+  const char* sourceDirectory = this->GetOption("SourceDirectory");
+  if ( !sourceDirectory )
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot find SourceDirectory  key in the DartConfiguration.tcl" << std::endl);
+    return -1;
     }
 
-    if (strcmp(*modep, "EPRT") == 0) {
-      if (eprtaf < 0)
-        continue;
-      if (getnameinfo((struct sockaddr *)&ss, sslen,
-                      portmsgbuf, sizeof(portmsgbuf), tmp, sizeof(tmp), niflags))
-        continue;
+  cmGeneratedFileStream ofs;
+  if ( !m_CTest->GetShowOnly() )
+    {
+    this->StartLogFile("Update", ofs);
+    }
 
-      /* do not transmit IPv6 scope identifier to the wire */
-      if (sa->sa_family == AF_INET6) {
-        char *q = strchr(portmsgbuf, '%');
-          if (q)
-            *q = '\0';
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "Updating the repository" << std::endl);
+
+  const char* initialCheckoutCommand = this->GetOption("InitialCheckout");
+  if ( initialCheckoutCommand )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   First perform the initil checkout: " << initialCheckoutCommand << std::endl);
+    cmStdString parent = cmSystemTools::GetParentDirectory(sourceDirectory);
+    if ( parent.empty() )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE,
+        "Something went wrong when trying to determine the parent directory of " << sourceDirectory << std::endl);
+      return -1;
       }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Perform checkout in directory: " << parent.c_str() << std::endl);
+    if ( !cmSystemTools::MakeDirectory(parent.c_str()) )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE,
+        "Cannot create parent directory: " << parent.c_str() << " of the source directory: " << sourceDirectory << std::endl);
+      return -1;
+      }
+    ofs << "* Run initial checkout" << std::endl;
+    ofs << "  Command: " << initialCheckoutCommand << std::endl;
+    cmCTestLog(m_CTest, DEBUG, "   Before: " << initialCheckoutCommand << std::endl);
+    bool retic = m_CTest->RunCommand(initialCheckoutCommand, &goutput, &errors, &retVal, parent.c_str(), 0 /* Timeout */);
+    cmCTestLog(m_CTest, DEBUG, "   After: " << initialCheckoutCommand << std::endl);
+    ofs << "  Output: " << goutput.c_str() << std::endl;
+    ofs << "  Errors: " << errors.c_str() << std::endl;
+    if ( !retic || retVal )
+      {
+      cmOStringStream ostr;
+      ostr << "Problem running initial checkout Output [" << goutput << "] Errors [" << errors << "]";
+      cmCTestLog(m_CTest, ERROR_MESSAGE, ostr.str().c_str() << std::endl);
+      checkoutErrorMessages += ostr.str();
+      updateProducedError = true;
+      }
+    m_CTest->InitializeFromCommand(m_Command);
+    }
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Updating the repository: " << sourceDirectory << std::endl);
 
-      result = Curl_ftpsendf(conn, "%s |%d|%s|%s|", *modep, eprtaf,
-                             portmsgbuf, tmp);
-      if(result)
-        return result;
-    } else if (strcmp(*modep, "LPRT") == 0 ||
-               strcmp(*modep, "PORT") == 0) {
-      int i;
-      
-      if (strcmp(*modep, "LPRT") == 0 && lprtaf < 0)
-        continue;
-      if (strcmp(*modep, "PORT") == 0 && sa->sa_family != AF_INET)
-        continue;
-
-      portmsgbuf[0] = '\0';
-      if (strcmp(*modep, "LPRT") == 0) {
-        snprintf(tmp, sizeof(tmp), "%d,%d", lprtaf, alen);
-        if (strlcat(portmsgbuf, tmp, sizeof(portmsgbuf)) >=
-            sizeof(portmsgbuf)) {
-          continue;
+  // Get update command
+  std::string updateCommand = m_CTest->GetCTestConfiguration("UpdateCommand");
+  if ( updateCommand.empty() )
+    {
+    updateCommand = m_CTest->GetCTestConfiguration("CVSCommand");
+    if ( updateCommand.empty() )
+      {
+      updateCommand = m_CTest->GetCTestConfiguration("SVNCommand");
+      if ( updateCommand.empty() )
+        {
+        cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot find CVSCommand, SVNCommand, or UpdateCommand key in the DartConfiguration.tcl" << std::endl);
+        return -1;
         }
-      }
-
-      for (i = 0; i < alen; i++) {
-        if (portmsgbuf[0])
-          snprintf(tmp, sizeof(tmp), ",%u", ap[i]);
-        else
-          snprintf(tmp, sizeof(tmp), "%u", ap[i]);
-        
-        if (strlcat(portmsgbuf, tmp, sizeof(portmsgbuf)) >=
-            sizeof(portmsgbuf)) {
-          continue;
-        }
-      }
-      
-      if (strcmp(*modep, "LPRT") == 0) {
-        snprintf(tmp, sizeof(tmp), ",%d", plen);
-        
-        if (strlcat(portmsgbuf, tmp, sizeof(portmsgbuf)) >= sizeof(portmsgbuf))
-          continue;
-      }
-
-      for (i = 0; i < plen; i++) {
-        snprintf(tmp, sizeof(tmp), ",%u", pp[i]);
-        
-        if (strlcat(portmsgbuf, tmp, sizeof(portmsgbuf)) >=
-            sizeof(portmsgbuf)) {
-          continue;
-        }
-      }
-      
-      result = Curl_ftpsendf(conn, "%s %s", *modep, portmsgbuf);
-      if(result)
-        return result;
-    }
-    
-    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-    if(result)
-      return result;
-    
-    if (ftpcode != 200) {
-      failf(data, "Server does not grok %s", *modep);
-      continue;
-    }
-    else
-      break;
-  }
-  
-  if (!*modep) {
-    sclose(portsock);
-    return CURLE_FTP_PORT_FAILED;
-  }
-  /* we set the secondary socket variable to this for now, it
-     is only so that the cleanup function will close it in case
-     we fail before the true secondary stuff is made */
-  conn->secondarysocket = portsock;
-  
-#else
-  /******************************************************************
-   *
-   * Here's a piece of IPv4-specific code coming up
-   *
-   */
-  struct sockaddr_in sa;
-  struct Curl_dns_entry *h=NULL;
-  unsigned short porttouse;
-  char myhost[256] = "";
-  bool sa_filled_in = FALSE;
-
-  if(data->set.ftpport) {
-    if(Curl_if2ip(data->set.ftpport, myhost, sizeof(myhost))) {
-      h = Curl_resolv(data, myhost, 0);
-    }
-    else {
-      size_t len = strlen(data->set.ftpport);
-      if(len>1)
-        h = Curl_resolv(data, data->set.ftpport, 0);
-      if(h)
-        strcpy(myhost, data->set.ftpport); /* buffer overflow risk */
-    }
-  }
-  if(! *myhost) {
-    /* pick a suitable default here */
-
-#ifdef __hpux     
-    int sslen;
-#else 
-    socklen_t sslen;
-#endif
-    
-    sslen = sizeof(sa);
-    if (getsockname(conn->firstsocket, (struct sockaddr *)&sa, &sslen) < 0) {
-      failf(data, "getsockname() failed");
-      return CURLE_FTP_PORT_FAILED;
-    }
-
-    sa_filled_in = TRUE; /* the sa struct is filled in */
-  }
-
-  if(h)
-    /* when we return from here, we can forget about this */
-    Curl_resolv_unlock(h);
-
-  if ( h || sa_filled_in) {
-    if( (portsock = (int)socket(AF_INET, SOCK_STREAM, 0)) >= 0 ) {
-      int size;
-      
-      /* we set the secondary socket variable to this for now, it
-         is only so that the cleanup function will close it in case
-         we fail before the true secondary stuff is made */
-      conn->secondarysocket = portsock;
-
-      if(!sa_filled_in) {
-        memset((char *)&sa, 0, sizeof(sa));
-        memcpy((char *)&sa.sin_addr,
-               h->addr->h_addr,
-               h->addr->h_length);
-        sa.sin_family = AF_INET;
-        sa.sin_addr.s_addr = INADDR_ANY;
-      }
-
-      sa.sin_port = 0;
-      size = sizeof(sa);
-      
-      if(bind(portsock, (struct sockaddr *)&sa, size) >= 0) {
-        /* we succeeded to bind */
-        struct sockaddr_in add;
-#ifdef __hpux     
-        int socksize = sizeof(add);
-#else 
-        socklen_t socksize = sizeof(add);
-#endif
-
-        if(getsockname(portsock, (struct sockaddr *) &add,
-                       &socksize)<0) {
-          failf(data, "getsockname() failed");
-          return CURLE_FTP_PORT_FAILED;
-        }
-        porttouse = ntohs(add.sin_port);
-        
-        if ( listen(portsock, 1) < 0 ) {
-          failf(data, "listen(2) failed on socket");
-          return CURLE_FTP_PORT_FAILED;
-        }
-      }
-      else {
-        failf(data, "bind(2) failed on socket");
-        return CURLE_FTP_PORT_FAILED;
-      }
-    }
-    else {
-      failf(data, "socket(2) failed (%s)");
-      return CURLE_FTP_PORT_FAILED;
-    }
-  }
-  else {
-    failf(data, "could't find my own IP address (%s)", myhost);
-    return CURLE_FTP_PORT_FAILED;
-  }
-  {
-#ifdef HAVE_INET_NTOA_R
-    char ntoa_buf[64];
-#endif
-    struct in_addr in;
-    unsigned short ip[5];
-    (void) memcpy(&in.s_addr,
-                  h?*h->addr->h_addr_list:(char *)&sa.sin_addr.s_addr,
-                  sizeof (in.s_addr));
-
-#ifdef HAVE_INET_NTOA_R
-    /* ignore the return code from inet_ntoa_r() as it is int or
-       char * depending on system */
-    inet_ntoa_r(in, ntoa_buf, sizeof(ntoa_buf));
-    sscanf( ntoa_buf, "%hu.%hu.%hu.%hu",
-            &ip[0], &ip[1], &ip[2], &ip[3]);
-#else
-    sscanf( inet_ntoa(in), "%hu.%hu.%hu.%hu",
-            &ip[0], &ip[1], &ip[2], &ip[3]);
-#endif
-    infof(data, "Telling server to connect to %d.%d.%d.%d:%d\n",
-          ip[0], ip[1], ip[2], ip[3], porttouse);
-  
-    result=Curl_ftpsendf(conn, "PORT %d,%d,%d,%d,%d,%d",
-                         ip[0], ip[1], ip[2], ip[3],
-                         porttouse >> 8,
-                         porttouse & 255);
-    if(result)
-      return result;
-  }
-
-  result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-  if(result)
-    return result;
-
-  if(ftpcode != 200) {
-    failf(data, "Server does not grok PORT, try without it!");
-    return CURLE_FTP_PORT_FAILED;
-  }
-#endif /* end of ipv4-specific code */
-
-  return CURLE_OK;
-}
-
-/***********************************************************************
- *
- * ftp_use_pasv()
- *
- * Send the PASV command. PASV is the ftp client's way of asking the server to
- * open a second port that we can connect to (for the data transfer). This is
- * the opposite of PORT.
- */
-
-static
-CURLcode ftp_use_pasv(struct connectdata *conn,
-                      bool *connected)
-{
-  struct SessionHandle *data = conn->data;
-  int nread;
-  char *buf = data->state.buffer; /* this is our buffer */
-  int ftpcode; /* receive FTP response codes in this */
-  CURLcode result;
-  struct Curl_dns_entry *addr=NULL;
-  Curl_ipconnect *conninfo;
-
-  /*
-    Here's the excecutive summary on what to do:
-
-    PASV is RFC959, expect:
-    227 Entering Passive Mode (a1,a2,a3,a4,p1,p2)
-
-    LPSV is RFC1639, expect:
-    228 Entering Long Passive Mode (4,4,a1,a2,a3,a4,2,p1,p2)
-
-    EPSV is RFC2428, expect:
-    229 Entering Extended Passive Mode (|||port|)
-
-  */
-
-#if 1
-  const char *mode[] = { "EPSV", "PASV", NULL };
-  int results[] = { 229, 227, 0 };
-#else
-#if 0
-  char *mode[] = { "EPSV", "LPSV", "PASV", NULL };
-  int results[] = { 229, 228, 227, 0 };
-#else
-  const char *mode[] = { "PASV", NULL };
-  int results[] = { 227, 0 };
-#endif
-#endif
-  int modeoff;
-  unsigned short connectport; /* the local port connect() should use! */
-  unsigned short newport=0; /* remote port, not necessary the local one */
-  
-  /* newhost must be able to hold a full IP-style address in ASCII, which
-     in the IPv6 case means 5*8-1 = 39 letters */
-  char newhost[48];
-  char *newhostp=NULL;
-  
-  for (modeoff = (data->set.ftp_use_epsv?0:1);
-       mode[modeoff]; modeoff++) {
-    result = Curl_ftpsendf(conn, "%s", mode[modeoff]);
-    if(result)
-      return result;
-    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-    if(result)
-      return result;
-    if (ftpcode == results[modeoff])
-      break;
-  }
-
-  if (!mode[modeoff]) {
-    failf(data, "Odd return code after PASV");
-    return CURLE_FTP_WEIRD_PASV_REPLY;
-  }
-  else if (227 == results[modeoff]) {
-    int ip[4];
-    int port[2];
-    char *str=buf;
-
-    /*
-     * New 227-parser June 3rd 1999.
-     * It now scans for a sequence of six comma-separated numbers and
-     * will take them as IP+port indicators.
-     *
-     * Found reply-strings include:
-     * "227 Entering Passive Mode (127,0,0,1,4,51)"
-     * "227 Data transfer will passively listen to 127,0,0,1,4,51"
-     * "227 Entering passive mode. 127,0,0,1,4,51"
-     */
-      
-    while(*str) {
-      if (6 == sscanf(str, "%d,%d,%d,%d,%d,%d",
-                      &ip[0], &ip[1], &ip[2], &ip[3],
-                      &port[0], &port[1]))
-        break;
-      str++;
-    }
-
-    if(!*str) {
-      failf(data, "Couldn't interpret this 227-reply: %s", buf);
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
-
-    sprintf(newhost, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    newhostp = newhost;
-    newport = (unsigned short)((port[0]<<8) + port[1]);
-  }
-#if 1
-  else if (229 == results[modeoff]) {
-    char *ptr = strchr(buf, '(');
-    if(ptr) {
-      unsigned int num;
-      char separator[4];
-      ptr++;
-      if(5  == sscanf(ptr, "%c%c%c%u%c",
-                      &separator[0],
-                      &separator[1],
-                      &separator[2],
-                      &num,
-                      &separator[3])) {
-        /* the four separators should be identical */
-        newport = (unsigned short)num;
-
-        /* we should use the same host we already are connected to */
-        newhostp = conn->name;
-      }                      
       else
-        ptr=NULL;
-    }
-    if(!ptr) {
-      failf(data, "Weirdly formatted EPSV reply");
-      return CURLE_FTP_WEIRD_PASV_REPLY;
-    }
-  }
-#endif
-  else
-    return CURLE_FTP_CANT_RECONNECT;
-
-  if(data->change.proxy) {
-    /*
-     * This is a tunnel through a http proxy and we need to connect to the
-     * proxy again here.
-     *
-     * We don't want to rely on a former host lookup that might've expired
-     * now, instead we remake the lookup here and now!
-     */
-    addr = Curl_resolv(data, conn->proxyhost, conn->port);
-    connectport =
-      (unsigned short)conn->port; /* we connect to the proxy's port */    
-
-  }
-  else {
-    /* normal, direct, ftp connection */
-    addr = Curl_resolv(data, newhostp, newport);
-    if(!addr) {
-      failf(data, "Can't resolve new host %s:%d", newhostp, newport);
-      return CURLE_FTP_CANT_GET_HOST;
-    }
-    connectport = newport; /* we connect to the remote port */
-  }
-    
-  result = Curl_connecthost(conn,
-                            addr,
-                            connectport,
-                            &conn->secondarysocket,
-                            &conninfo,
-                            connected);
-
-  Curl_resolv_unlock(addr); /* we're done using this address */
-
-  /*
-   * When this is used from the multi interface, this might've returned with
-   * the 'connected' set to FALSE and thus we are now awaiting a non-blocking
-   * connect to connect and we should not be "hanging" here waiting.
-   */
-  
-  if((CURLE_OK == result) &&       
-     data->set.verbose)
-    /* this just dumps information about this second connection */
-    ftp_pasv_verbose(conn, conninfo, newhostp, connectport);
-  
-  if(CURLE_OK != result)
-    return result;
-
-  if (data->set.tunnel_thru_httpproxy) {
-    /* We want "seamless" FTP operations through HTTP proxy tunnel */
-    result = Curl_ConnectHTTPProxyTunnel(conn, conn->secondarysocket,
-                                         newhostp, newport);
-    if(CURLE_OK != result)
-      return result;
-  }
-
-  return CURLE_OK;
-}
-
-/*
- * Curl_ftp_nextconnect()
- *
- * This function shall be called when the second FTP connection has been
- * established and is confirmed connected.
- */
-
-CURLcode Curl_ftp_nextconnect(struct connectdata *conn)
-{
-  struct SessionHandle *data=conn->data;
-  char *buf = data->state.buffer; /* this is our buffer */
-  CURLcode result;
-  int nread;
-  int ftpcode; /* for ftp status */
-
-  /* the ftp struct is already inited in Curl_ftp_connect() */
-  struct FTP *ftp = conn->proto.ftp;
-  long *bytecountp = ftp->bytecountp;
-
-  if(data->set.upload) {
-
-    /* Set type to binary (unless specified ASCII) */
-    result = ftp_transfertype(conn, data->set.ftp_ascii);
-    if(result)
-      return result;
-
-    /* Send any PREQUOTE strings after transfer type is set? (Wesley Laxton)*/
-    if(data->set.prequote) {
-      if ((result = ftp_sendquote(conn, data->set.prequote)) != CURLE_OK)
-        return result;
-    }
-
-    if(conn->resume_from) {
-      /* we're about to continue the uploading of a file */
-      /* 1. get already existing file's size. We use the SIZE
-         command for this which may not exist in the server!
-         The SIZE command is not in RFC959. */
-
-      /* 2. This used to set REST. But since we can do append, we
-         don't another ftp command. We just skip the source file
-         offset and then we APPEND the rest on the file instead */
-
-      /* 3. pass file-size number of bytes in the source file */
-      /* 4. lower the infilesize counter */
-      /* => transfer as usual */
-
-      if(conn->resume_from < 0 ) {
-        /* we could've got a specified offset from the command line,
-           but now we know we didn't */
-        ssize_t gottensize;
-
-        if(CURLE_OK != ftp_getsize(conn, ftp->file, &gottensize)) {
-          failf(data, "Couldn't get remote file size");
-          return CURLE_FTP_COULDNT_GET_SIZE;
-        }
-        conn->resume_from = gottensize;
-      }
-
-      if(conn->resume_from) {
-        /* do we still game? */
-        int passed=0;
-        /* enable append instead */
-        data->set.ftp_append = 1;
-
-        /* Now, let's read off the proper amount of bytes from the
-           input. If we knew it was a proper file we could've just
-           fseek()ed but we only have a stream here */
-        do {
-          size_t readthisamountnow = (conn->resume_from - passed);
-          size_t actuallyread;
-
-          if(readthisamountnow > BUFSIZE)
-            readthisamountnow = BUFSIZE;
-
-          actuallyread = 
-            conn->fread(data->state.buffer, 1, readthisamountnow,
-                        conn->fread_in);
-
-          passed += (int)actuallyread;
-          if(actuallyread != readthisamountnow) {
-            failf(data, "Could only read %d bytes from the input", passed);
-            return CURLE_FTP_COULDNT_USE_REST;
-          }
-        }
-        while(passed != conn->resume_from);
-
-        /* now, decrease the size of the read */
-        if(data->set.infilesize>0) {
-          data->set.infilesize -= conn->resume_from;
-
-          if(data->set.infilesize <= 0) {
-            infof(data, "File already completely uploaded\n");
-
-            /* no data to transfer */
-            result=Curl_Transfer(conn, -1, -1, FALSE, NULL, -1, NULL);
-            
-            /* Set no_transfer so that we won't get any error in
-             * Curl_ftp_done() because we didn't transfer anything! */
-            ftp->no_transfer = TRUE; 
-
-            return CURLE_OK;
-          }
-        }
-        /* we've passed, proceed as normal */
-      }
-    }
-
-    /* Send everything on data->state.in to the socket */
-    if(data->set.ftp_append) {
-      /* we append onto the file instead of rewriting it */
-      FTPSENDF(conn, "APPE %s", ftp->file);
-    }
-    else {
-      FTPSENDF(conn, "STOR %s", ftp->file);
-    }
-
-    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-    if(result)
-      return result;
-
-    if(ftpcode>=400) {
-      failf(data, "Failed FTP upload:%s", buf+3);
-      /* oops, we never close the sockets! */
-      return CURLE_FTP_COULDNT_STOR_FILE;
-    }
-
-    if(data->set.ftp_use_port) {
-      /* PORT means we are now awaiting the server to connect to us. */
-      result = AllowServerConnect(data, conn, conn->secondarysocket);
-      if( result )
-        return result;
-    }
-
-    *bytecountp=0;
-
-    /* When we know we're uploading a specified file, we can get the file
-       size prior to the actual upload. */
-
-    Curl_pgrsSetUploadSize(data, data->set.infilesize);
-
-    result = Curl_Transfer(conn, -1, -1, FALSE, NULL, /* no download */
-                      conn->secondarysocket, bytecountp);
-    if(result)
-      return result;
-      
-  }
-  else if(!data->set.no_body) {
-    /* Retrieve file or directory */
-    bool dirlist=FALSE;
-    long downloadsize=-1;
-
-    if(conn->bits.use_range && conn->range) {
-      long from, to;
-      int totalsize=-1;
-      char *ptr;
-      char *ptr2;
-
-      from=strtol(conn->range, &ptr, 0);
-      while(ptr && *ptr && (isspace((int)*ptr) || (*ptr=='-')))
-        ptr++;
-      to=strtol(ptr, &ptr2, 0);
-      if(ptr == ptr2) {
-        /* we didn't get any digit */
-        to=-1;
-      }
-      if((-1 == to) && (from>=0)) {
-        /* X - */
-        conn->resume_from = from;
-        infof(data, "FTP RANGE %d to end of file\n", from);
-      }
-      else if(from < 0) {
-        /* -Y */
-        totalsize = -from;
-        conn->maxdownload = -from;
-        conn->resume_from = from;
-        infof(data, "FTP RANGE the last %d bytes\n", totalsize);
-      }
-      else {
-        /* X-Y */
-        totalsize = to-from;
-        conn->maxdownload = totalsize+1; /* include the last mentioned byte */
-        conn->resume_from = from;
-        infof(data, "FTP RANGE from %d getting %d bytes\n", from,
-              conn->maxdownload);
-      }
-      infof(data, "range-download from %d to %d, totally %d bytes\n",
-            from, to, totalsize);
-      ftp->dont_check = TRUE; /* dont check for successful transfer */
-    }
-
-    if((data->set.ftp_list_only) || !ftp->file) {
-      /* The specified path ends with a slash, and therefore we think this
-         is a directory that is requested, use LIST. But before that we
-         need to set ASCII transfer mode. */
-      dirlist = TRUE;
-
-      /* Set type to ASCII */
-      result = ftp_transfertype(conn, TRUE /* ASCII enforced */);
-      if(result)
-        return result;
-
-      /* if this output is to be machine-parsed, the NLST command will be
-         better used since the LIST command output is not specified or
-         standard in any way */
-
-      FTPSENDF(conn, "%s",
-            data->set.customrequest?data->set.customrequest:
-            (data->set.ftp_list_only?"NLST":"LIST"));
-    }
-    else {
-      ssize_t foundsize;
-
-      /* Set type to binary (unless specified ASCII) */
-      result = ftp_transfertype(conn, data->set.ftp_ascii);
-      if(result)
-        return result;
-
-      /* Send any PREQUOTE strings after transfer type is set? (Wesley Laxton)*/
-      if(data->set.prequote) {
-        if ((result = ftp_sendquote(conn, data->set.prequote)) != CURLE_OK)
-          return result;
-      }
-
-      /* Attempt to get the size, it'll be useful in some cases: for resumed
-         downloads and when talking to servers that don't give away the size
-         in the RETR response line. */
-      result = ftp_getsize(conn, ftp->file, &foundsize);
-      if(CURLE_OK == result)
-        downloadsize = foundsize;
-
-      if(conn->resume_from) {
-
-        /* Daniel: (August 4, 1999)
-         *
-         * We start with trying to use the SIZE command to figure out the size
-         * of the file we're gonna get. If we can get the size, this is by far
-         * the best way to know if we're trying to resume beyond the EOF.
-         *
-         * Daniel, November 28, 2001. We *always* get the size on downloads
-         * now, so it is done before this even when not doing resumes. I saved
-         * the comment above for nostalgical reasons! ;-)
-         */
-        if(CURLE_OK != result) {
-          infof(data, "ftp server doesn't support SIZE\n");
-          /* We couldn't get the size and therefore we can't know if there
-             really is a part of the file left to get, although the server
-             will just close the connection when we start the connection so it
-             won't cause us any harm, just not make us exit as nicely. */
-        }
-        else {
-          /* We got a file size report, so we check that there actually is a
-             part of the file left to get, or else we go home.  */
-          if(conn->resume_from< 0) {
-            /* We're supposed to download the last abs(from) bytes */
-            if(foundsize < -conn->resume_from) {
-              failf(data, "Offset (%d) was beyond file size (%d)",
-                    conn->resume_from, foundsize);
-              return CURLE_FTP_BAD_DOWNLOAD_RESUME;
-            }
-            /* convert to size to download */
-            downloadsize = -conn->resume_from;
-            /* download from where? */
-            conn->resume_from = foundsize - downloadsize;
-          }
-          else {
-            if(foundsize < conn->resume_from) {
-              failf(data, "Offset (%d) was beyond file size (%d)",
-                    conn->resume_from, foundsize);
-              return CURLE_FTP_BAD_DOWNLOAD_RESUME;
-            }
-            /* Now store the number of bytes we are expected to download */
-            downloadsize = foundsize-conn->resume_from;
-          }
-        }
-
-        if (downloadsize == 0) {
-          /* no data to transfer */
-          result=Curl_Transfer(conn, -1, -1, FALSE, NULL, -1, NULL);
-          infof(data, "File already completely downloaded\n");
-
-          /* Set no_transfer so that we won't get any error in Curl_ftp_done()
-           * because we didn't transfer the any file */
-          ftp->no_transfer = TRUE;
-          return CURLE_OK;
-        }
-        
-        /* Set resume file transfer offset */
-        infof(data, "Instructs server to resume from offset %d\n",
-              conn->resume_from);
-
-        FTPSENDF(conn, "REST %d", conn->resume_from);
-
-        result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-        if(result)
-          return result;
-
-        if(ftpcode != 350) {
-          failf(data, "Couldn't use REST: %s", buf+4);
-          return CURLE_FTP_COULDNT_USE_REST;
+        {
+        updateType = e_SVN;
         }
       }
-
-      FTPSENDF(conn, "RETR %s", ftp->file);
-    }
-
-    result = Curl_GetFTPResponse(&nread, conn, &ftpcode);
-    if(result)
-      return result;
-
-    if((ftpcode == 150) || (ftpcode == 125)) {
-
-      /*
-        A;
-        150 Opening BINARY mode data connection for /etc/passwd (2241
-        bytes).  (ok, the file is being transfered)
-        
-        B:
-        150 Opening ASCII mode data connection for /bin/ls 
-
-        C:
-        150 ASCII data connection for /bin/ls (137.167.104.91,37445) (0 bytes).
-
-        D:
-        150 Opening ASCII mode data connection for /linux/fisk/kpanelrc (0.0.0.0,0) (545 bytes).
-          
-        E:
-        125 Data connection already open; Transfer starting. */
-
-      int size=-1; /* default unknown size */
-
-      if(!dirlist &&
-         !data->set.ftp_ascii &&
-         (-1 == downloadsize)) {
-        /*
-         * It seems directory listings either don't show the size or very
-         * often uses size 0 anyway. ASCII transfers may very well turn out
-         * that the transfered amount of data is not the same as this line
-         * tells, why using this number in those cases only confuses us.
-         *
-         * Example D above makes this parsing a little tricky */
-        char *bytes;
-        bytes=strstr(buf, " bytes");
-        if(bytes--) {
-          int index=(int)(bytes-buf);
-          /* this is a hint there is size information in there! ;-) */
-          while(--index) {
-            /* scan for the parenthesis and break there */
-            if('(' == *bytes)
-              break;
-            /* if only skip digits, or else we're in deep trouble */
-            if(!isdigit((int)*bytes)) {
-              bytes=NULL;
-              break;
-            }
-            /* one more estep backwards */
-            bytes--;
-          }
-          /* only if we have nothing but digits: */
-          if(bytes++) {
-            /* get the number! */
-            size = atoi(bytes);
-          }
-            
-        }
-      }
-      else if(downloadsize > -1)
-        size = downloadsize;
-
-      if(data->set.ftp_use_port) {
-        result = AllowServerConnect(data, conn, conn->secondarysocket);
-        if( result )
-          return result;
-      }
-
-      infof(data, "Getting file with size: %d\n", size);
-
-      /* FTP download: */
-      result=Curl_Transfer(conn, conn->secondarysocket, size, FALSE,
-                           bytecountp,
-                           -1, NULL); /* no upload here */
-      if(result)
-        return result;
-    }
-    else {
-      failf(data, "%s", buf+4);
-      return CURLE_FTP_COULDNT_RETR_FILE;
-    }
-        
-  }
-  /* end of transfer */
-
-  return CURLE_OK;
-}
-
-/***********************************************************************
- *
- * ftp_perform()
- *
- * This is the actual DO function for FTP. Get a file/directory according to
- * the options previously setup.
- */
-
-static
-CURLcode ftp_perform(struct connectdata *conn,
-                     bool *connected)  /* for the TCP connect status after
-                                          PASV / PORT */
-{
-  /* this is FTP and no proxy */
-  CURLcode result=CURLE_OK;
-  struct SessionHandle *data=conn->data;
-  char *buf = data->state.buffer; /* this is our buffer */
-
-  /* the ftp struct is already inited in Curl_ftp_connect() */
-  struct FTP *ftp = conn->proto.ftp;
-
-  /* Send any QUOTE strings? */
-  if(data->set.quote) {
-    if ((result = ftp_sendquote(conn, data->set.quote)) != CURLE_OK)
-      return result;
-  }
-    
-  /* This is a re-used connection. Since we change directory to where the
-     transfer is taking place, we must now get back to the original dir
-     where we ended up after login: */
-  if (conn->bits.reuse && ftp->entrypath) {
-    if ((result = ftp_cwd(conn, ftp->entrypath)) != CURLE_OK)
-      return result;
-  }
-
-  /* change directory first! */
-  if(ftp->dir && ftp->dir[0]) {
-    if ((result = ftp_cwd(conn, ftp->dir)) != CURLE_OK)
-        return result;
-  }
-
-  /* Requested time of file? */
-  if(data->set.get_filetime && ftp->file) {
-    result = ftp_getfiletime(conn, ftp->file);
-    if(result)
-      return result;
-  }
-
-  /* If we have selected NOBODY and HEADER, it means that we only want file
-     information. Which in FTP can't be much more than the file size and
-     date. */
-  if(data->set.no_body && data->set.include_header && ftp->file) {
-    /* The SIZE command is _not_ RFC 959 specified, and therefor many servers
-       may not support it! It is however the only way we have to get a file's
-       size! */
-    ssize_t filesize;
-
-    ftp->no_transfer = TRUE; /* this means no actual transfer is made */
-    
-    /* Some servers return different sizes for different modes, and thus we
-       must set the proper type before we check the size */
-    result = ftp_transfertype(conn, data->set.ftp_ascii);
-    if(result)
-      return result;
-
-    /* failing to get size is not a serious error */
-    result = ftp_getsize(conn, ftp->file, &filesize);
-
-    if(CURLE_OK == result) {
-      sprintf(buf, "Content-Length: %d\r\n", filesize);
-      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
-    }
-
-    /* If we asked for a time of the file and we actually got one as
-       well, we "emulate" a HTTP-style header in our output. */
-
-#ifdef HAVE_STRFTIME
-    if(data->set.get_filetime && (data->info.filetime>=0) ) {
-      struct tm *tm;
-#ifdef HAVE_LOCALTIME_R
-      struct tm buffer;
-      tm = (struct tm *)localtime_r((time_t*)&data->info.filetime, &buffer);
-#else
-      tm = localtime((time_t *)&data->info.filetime);
-#endif
-      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
-      strftime(buf, BUFSIZE-1, "Last-Modified: %a, %d %b %Y %H:%M:%S %Z\r\n",
-               tm);
-      result = Curl_client_write(data, CLIENTWRITE_BOTH, buf, 0);
-      if(result)
-        return result;
-    }
-#endif
-
-    return CURLE_OK;
-  }
-
-  if(data->set.no_body)
-    /* doesn't really transfer any data */
-    ftp->no_transfer = TRUE;
-  /* Get us a second connection up and connected */
-  else if(data->set.ftp_use_port) {
-    /* We have chosen to use the PORT command */
-    result = ftp_use_port(conn);
-    if(CURLE_OK == result) {
-      /* we have the data connection ready */
-      infof(data, "Ordered connect of the data stream with PORT!\n");
-      *connected = TRUE; /* mark us "still connected" */
-    }
-  }
-  else {
-    /* We have chosen (this is default) to use the PASV command */
-    result = ftp_use_pasv(conn, connected);
-    if(connected)
-      infof(data, "Connected the data stream with PASV!\n");
-  }
-  
-  return result;
-}
-
-/***********************************************************************
- *
- * Curl_ftp()
- *
- * This function is registered as 'curl_do' function. It decodes the path
- * parts etc as a wrapper to the actual DO function (ftp_perform).
- *
- * The input argument is already checked for validity.
- */
-CURLcode Curl_ftp(struct connectdata *conn)
-{
-  CURLcode retcode;
-  bool connected;
-
-  struct SessionHandle *data = conn->data;
-  struct FTP *ftp;
-  int dirlength=0; /* 0 forces strlen() */
-
-  /* the ftp struct is already inited in ftp_connect() */
-  ftp = conn->proto.ftp;
-
-  /* We split the path into dir and file parts *before* we URLdecode
-     it */
-  ftp->file = strrchr(conn->ppath, '/');
-  if(ftp->file) {
-    if(ftp->file != conn->ppath)
-      /* don't count the traling slash */
-      dirlength=(int)(ftp->file-conn->ppath); 
-
-    ftp->file++; /* point to the first letter in the file name part or
-                    remain NULL */
-  }
-  else {
-    ftp->file = conn->ppath; /* there's only a file part */
-  }
-
-  if(*ftp->file) {
-    ftp->file = curl_unescape(ftp->file, 0);
-    if(NULL == ftp->file) {
-      failf(data, "no memory");
-      return CURLE_OUT_OF_MEMORY;
-    }
-  }
-  else
-    ftp->file=NULL; /* instead of point to a zero byte, we make it a NULL
-                       pointer */
-
-  ftp->urlpath = conn->ppath;
-  if(dirlength) {
-    ftp->dir = curl_unescape(ftp->urlpath, dirlength);
-    if(NULL == ftp->dir) {
-      if(ftp->file)
-        free(ftp->file);
-      failf(data, "no memory");
-      return CURLE_OUT_OF_MEMORY; /* failure */
-    }
-  }
-  else
-    ftp->dir = NULL;
-
-  retcode = ftp_perform(conn, &connected);
-
-  if(CURLE_OK == retcode) {
-    if(connected)
-      retcode = Curl_ftp_nextconnect(conn);
     else
-      /* since we didn't connect now, we want do_more to get called */
-      conn->bits.do_more = TRUE;
-  }
-
-  return retcode;
-}
-
-/***********************************************************************
- *
- * Curl_ftpsendf()
- *
- * Sends the formated string as a ftp command to a ftp server
- *
- * NOTE: we build the command in a fixed-length buffer, which sets length
- * restrictions on the command!
- */
-CURLcode Curl_ftpsendf(struct connectdata *conn,
-                       const char *fmt, ...)
-{
-  ssize_t bytes_written;
-  char s[256];
-  ssize_t write_len;
-  char *sptr=s;
-  CURLcode res = CURLE_OK;
-
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(s, 250, fmt, ap);
-  va_end(ap);
-  
-  strcat(s, "\r\n"); /* append a trailing CRLF */
-
-  bytes_written=0;
-  write_len = (int)strlen(s);
-
-  do {
-    res = Curl_write(conn, conn->firstsocket, sptr, write_len,
-                     &bytes_written);
-
-    if(CURLE_OK != res)
-      break;
-
-    if(conn->data->set.verbose)
-      Curl_debug(conn->data, CURLINFO_HEADER_OUT, sptr, bytes_written);
-
-    if(bytes_written != write_len) {
-      write_len -= bytes_written;
-      sptr += bytes_written;
+      {
+      updateType = e_CVS;
+      }
     }
-    else
+  else
+    {
+    updateType = this->DetermineType(updateCommand.c_str(), m_CTest->GetCTestConfiguration("UpdateType").c_str());
+    }
+
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Use " << cmCTestUpdateHandlerUpdateToString(updateType) << " repository type" << std::endl;);
+
+  // And update options
+  std::string updateOptions = m_CTest->GetCTestConfiguration("UpdateOptions");
+  if ( updateOptions.empty() )
+    {
+    switch (updateType)
+      {
+    case cmCTestUpdateHandler::e_CVS:
+      updateOptions = m_CTest->GetCTestConfiguration("CVSUpdateOptions");
+      if ( updateOptions.empty() )
+        {
+        updateOptions = "-dP";
+        }
       break;
-  } while(1);
+    case cmCTestUpdateHandler::e_SVN:
+      updateOptions = m_CTest->GetCTestConfiguration("SVNUpdateOptions");
+      break;
+      }
+    }
 
-  return res;
+  // Get update time
+  std::string extra_update_opts;
+  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
+    {
+    struct tm* t = m_CTest->GetNightlyTime(m_CTest->GetCTestConfiguration("NightlyStartTime"),
+      m_CTest->GetTomorrowTag());
+    char current_time[1024];
+    sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
+      t->tm_year + 1900,
+      t->tm_mon + 1,
+      t->tm_mday,
+      t->tm_hour,
+      t->tm_min,
+      t->tm_sec);
+    std::string today_update_date = current_time;
+
+    // TODO: SVN
+    switch ( updateType )
+      {
+    case cmCTestUpdateHandler::e_CVS:
+      extra_update_opts += "-D \"" + today_update_date +" UTC\"";
+      break;
+    case cmCTestUpdateHandler::e_SVN:
+      extra_update_opts += "-r \"{" + today_update_date +" +0000}\"";
+      break;
+      }
+    }
+
+  updateCommand = "\"" + updateCommand + "\"";
+
+  // First, check what the current state of repository is
+  std::string command = "";
+  switch( updateType )
+    {
+  case cmCTestUpdateHandler::e_CVS:
+    // TODO: CVS - for now just leave empty
+    break;
+  case cmCTestUpdateHandler::e_SVN:
+    command = updateCommand + " info";
+    break;
+    }
+
+  // CVS variables
+  // SVN variables
+  int svn_current_revision = 0;
+  int svn_latest_revision = 0;
+  int svn_use_status = 0;
+
+  bool res = true;
+
+
+  //
+  // Get initial repository information if that is possible. With subversion, this will check the current revision.
+  //
+  if ( !command.empty() )
+    {
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "* Get repository information: " << command.c_str() << std::endl);
+    if ( !m_CTest->GetShowOnly() )
+      {
+      ofs << "* Get repository information" << std::endl;
+      ofs << "  Command: " << command.c_str() << std::endl;
+      res = m_CTest->RunCommand(command.c_str(), &goutput, &errors,
+        &retVal, sourceDirectory, 0 /*m_TimeOut*/);
+
+      ofs << "  Output: " << goutput.c_str() << std::endl;
+      ofs << "  Errors: " << errors.c_str() << std::endl;
+      if ( ofs )
+        {
+        ofs << "--- Update information ---" << std::endl;
+        ofs << goutput << std::endl;
+        }
+      switch ( updateType )
+        {
+      case cmCTestUpdateHandler::e_CVS:
+        // TODO: CVS - for now just leave empty
+        break;
+      case cmCTestUpdateHandler::e_SVN:
+          {
+          cmsys::RegularExpression current_revision_regex("Revision: ([0-9]+)");
+          if ( current_revision_regex.find(goutput.c_str()) )
+            {
+            std::string currentRevisionString = current_revision_regex.match(1);
+            svn_current_revision = atoi(currentRevisionString.c_str());
+            cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Old revision of repository is: " << svn_current_revision << std::endl);
+            }
+          }
+        break;
+        }
+      }
+    else
+      {
+      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Update with command: " << command << std::endl);
+      }
+    }
+
+
+  //
+  // Now update repository and remember what files were updated
+  // 
+  cmGeneratedFileStream os; 
+  if ( !this->StartResultingXML("Update", os) )
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open log file" << std::endl);
+    }
+  std::string start_time = m_CTest->CurrentTime();
+  double elapsed_time_start = cmSystemTools::GetTime();
+
+  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "* Update repository: " << command.c_str() << std::endl);
+  if ( !m_CTest->GetShowOnly() )
+    {
+    command = "";
+    switch( updateType )
+      {
+    case cmCTestUpdateHandler::e_CVS:
+      command = updateCommand + " -z3 update " + updateOptions +
+        " " + extra_update_opts;
+      ofs << "* Update repository: " << std::endl;
+      ofs << "  Command: " << command.c_str() << std::endl;
+      res = m_CTest->RunCommand(command.c_str(), &goutput, &errors,
+        &retVal, sourceDirectory, 0 /*m_TimeOut*/);
+      ofs << "  Output: " << goutput.c_str() << std::endl;
+      ofs << "  Errors: " << errors.c_str() << std::endl;
+      break;
+    case cmCTestUpdateHandler::e_SVN:
+        {
+        std::string partialOutput;
+        command = updateCommand + " update " + updateOptions +
+          " " + extra_update_opts;
+        ofs << "* Update repository: " << std::endl;
+        ofs << "  Command: " << command.c_str() << std::endl;
+        bool res1 = m_CTest->RunCommand(command.c_str(), &partialOutput, &errors,
+          &retVal, sourceDirectory, 0 /*m_TimeOut*/);
+        ofs << "  Output: " << partialOutput.c_str() << std::endl;
+        ofs << "  Errors: " << errors.c_str() << std::endl;
+        goutput = partialOutput;
+        command = updateCommand + " status";
+        ofs << "* Status repository: " << std::endl;
+        ofs << "  Command: " << command.c_str() << std::endl;
+        res = m_CTest->RunCommand(command.c_str(), &partialOutput, &errors,
+          &retVal, sourceDirectory, 0 /*m_TimeOut*/);
+        ofs << "  Output: " << partialOutput.c_str() << std::endl;
+        ofs << "  Errors: " << errors.c_str() << std::endl;
+        goutput += partialOutput;
+        res = res && res1;
+        ofs << "  Total output of update: " << goutput.c_str() << std::endl;
+        }
+      }
+    if ( ofs )
+      {
+      ofs << "--- Update repository ---" << std::endl;
+      ofs << goutput << std::endl;; 
+      }
+    }
+  if ( !res || retVal )
+    {
+    updateProducedError = true;
+    checkoutErrorMessages += " " + goutput;
+    }
+
+  os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+    << "<Update mode=\"Client\" Generator=\"ctest-"
+    << cmVersion::GetCMakeVersion() << "\">\n"
+    << "\t<Site>" << m_CTest->GetCTestConfiguration("Site") << "</Site>\n"
+    << "\t<BuildName>" << m_CTest->GetCTestConfiguration("BuildName")
+    << "</BuildName>\n"
+    << "\t<BuildStamp>" << m_CTest->GetCurrentTag() << "-"
+    << m_CTest->GetTestModelString() << "</BuildStamp>" << std::endl;
+  os << "\t<StartDateTime>" << start_time << "</StartDateTime>\n"
+    << "\t<UpdateCommand>" << m_CTest->MakeXMLSafe(command)
+    << "</UpdateCommand>\n"
+    << "\t<UpdateType>" << m_CTest->MakeXMLSafe(cmCTestUpdateHandlerUpdateToString(updateType))
+    << "</UpdateType>\n";
+
+  // Even though it failed, we may have some useful information. Try to continue...
+  std::vector<cmStdString> lines;
+  cmSystemTools::Split(goutput.c_str(), lines);
+  std::vector<cmStdString> errLines;
+  cmSystemTools::Split(errors.c_str(), errLines);
+  lines.insert(lines.end(), errLines.begin(), errLines.end());
+
+  // CVS style regular expressions
+  cmsys::RegularExpression cvs_date_author_regex("^date: +([^;]+); +author: +([^;]+); +state: +[^;]+;");
+  cmsys::RegularExpression cvs_revision_regex("^revision +([^ ]*) *$");
+  cmsys::RegularExpression cvs_end_of_file_regex("^=============================================================================$");
+  cmsys::RegularExpression cvs_end_of_comment_regex("^----------------------------$");
+
+  // Subversion style regular expressions
+  cmsys::RegularExpression svn_status_line_regex("^ *([0-9]+)  *([0-9]+)  *([^ ]+)  *([^ ][^\t\r\n]*)[ \t\r\n]*$");
+  cmsys::RegularExpression svn_latest_revision_regex("(Updated to|At) revision ([0-9]+)\\.");
+
+  cmsys::RegularExpression file_removed_line("cvs update: `(.*)' is no longer in the repository");
+  cmsys::RegularExpression file_update_line("([A-Z])  *(.*)");
+  std::string current_path = "<no-path>";
+  bool first_file = true;
+
+  cmCTestUpdateHandler::AuthorsToUpdatesMap authors_files_map;
+  int num_updated = 0;
+  int num_modified = 0;
+  int num_conflicting = 0;
+  // In subversion, get the latest revision
+  if ( updateType == cmCTestUpdateHandler::e_SVN )
+    {
+    for ( cc= 0 ; cc < lines.size(); cc ++ )
+      {
+      const char* line = lines[cc].c_str();
+      if ( svn_latest_revision_regex.find(line) )
+        {
+        svn_latest_revision = atoi(svn_latest_revision_regex.match(2).c_str());
+        }
+      }
+    if ( svn_latest_revision <= 0 )
+      {
+      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem determining the current revision of the repository from output:" << std::endl << goutput.c_str() << std::endl);
+      }
+    else
+      {
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Current revision of repository is: " << svn_latest_revision << std::endl);
+      }
+    }
+
+  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Gathering version information (each . represents one updated file):" << std::endl);
+  int file_count = 0;
+  std::string removed_line;
+  for ( cc= 0 ; cc < lines.size(); cc ++ )
+    {
+    const char* line = lines[cc].c_str();
+    if ( file_removed_line.find(line) )
+      {
+      removed_line = "D " + file_removed_line.match(1);
+      line = removed_line.c_str();
+      }
+    if ( file_update_line.find(line) )
+      {
+      if ( file_count == 0 )
+        {
+        cmCTestLog(m_CTest, HANDLER_OUTPUT, "    " << std::flush);
+        }
+      cmCTestLog(m_CTest, HANDLER_OUTPUT, "." << std::flush);
+      std::string upChar = file_update_line.match(1);
+      std::string upFile = file_update_line.match(2);
+      char mod = upChar[0];
+      bool modifiedOrConflict = false;
+      if ( mod == 'X')
+        {
+        continue;
+        }
+      if ( mod != 'M' && mod != 'C' && mod != 'G' )
+        {
+        count ++;
+        modifiedOrConflict = true;
+        }
+      const char* file = upFile.c_str();
+      cmCTestLog(m_CTest, DEBUG, "Line" << cc << ": " << mod << " - " << file << std::endl);
+
+      std::string output;
+      if ( modifiedOrConflict )
+        {
+        std::string logcommand;
+        switch ( updateType )
+          {
+        case cmCTestUpdateHandler::e_CVS:
+          logcommand = updateCommand + " -z3 log -N \"" + file + "\"";
+          break;
+        case cmCTestUpdateHandler::e_SVN:
+          if ( svn_latest_revision > 0 && svn_latest_revision > svn_current_revision )
+            {
+            cmOStringStream logCommandStream;
+            logCommandStream << updateCommand << " log -r " << svn_current_revision << ":" << svn_latest_revision
+              << " --xml \"" << file << "\"";
+            logcommand = logCommandStream.str();
+            }
+          else
+            {
+            logcommand = updateCommand + " status  --verbose \"" + file + "\"";
+            svn_use_status = 1;
+            }
+          break;
+          }
+        cmCTestLog(m_CTest, DEBUG, "Do log: " << logcommand << std::endl);
+        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "* Get file update information: " << logcommand.c_str() << std::endl);
+        ofs << "* Get log information for file: " << file << std::endl;
+        ofs << "  Command: " << logcommand.c_str() << std::endl;
+        res = m_CTest->RunCommand(logcommand.c_str(), &output, &errors,
+          &retVal, sourceDirectory, 0 /*m_TimeOut*/);
+        ofs << "  Output: " << output.c_str() << std::endl;
+        ofs << "  Errors: " << errors.c_str() << std::endl;
+        if ( ofs )
+          {
+          ofs << output << std::endl;
+          }
+        }
+      if ( res && retVal == 0)
+        {
+        cmCTestLog(m_CTest, DEBUG, output << std::endl);
+        std::string::size_type sline = 0;
+        std::string srevision1 = "Unknown";
+        std::string sdate1     = "Unknown";
+        std::string sauthor1   = "Unknown";
+        std::string semail1    = "Unknown";
+        std::string comment1   = "";
+        std::string srevision2 = "Unknown";
+        std::string sdate2     = "Unknown";
+        std::string sauthor2   = "Unknown";
+        std::string comment2   = "";
+        std::string semail2    = "Unknown";
+        if ( updateType == cmCTestUpdateHandler::e_CVS )
+          {
+          bool have_first = false;
+          bool have_second = false;
+          std::vector<cmStdString> ulines;
+          cmSystemTools::Split(output.c_str(), ulines);
+          for ( kk = 0; kk < ulines.size(); kk ++ )
+            {
+            const char* clp = ulines[kk].c_str();
+            if ( !have_second && !sline && cvs_revision_regex.find(clp) )
+              {
+              if ( !have_first )
+                {
+                srevision1 = cvs_revision_regex.match(1);
+                }
+              else
+                {
+                srevision2 = cvs_revision_regex.match(1);
+                }
+              }
+            else if ( !have_second && !sline && cvs_date_author_regex.find(clp) )
+              {
+              sline = kk + 1;
+              if ( !have_first )
+                {
+                sdate1 = cvs_date_author_regex.match(1);
+                sauthor1 = cvs_date_author_regex.match(2);
+                }
+              else
+                {
+                sdate2 = cvs_date_author_regex.match(1);
+                sauthor2 = cvs_date_author_regex.match(2);
+                }
+              }
+            else if ( sline && cvs_end_of_comment_regex.find(clp) || cvs_end_of_file_regex.find(clp))
+              {
+              if ( !have_first )
+                {
+                have_first = true;
+                }
+              else if ( !have_second )
+                {
+                have_second = true;
+                }
+              sline = 0;
+              }
+            else if ( sline )
+              {
+              if ( !have_first )
+                {
+                comment1 += clp;
+                comment1 += "\n";
+                }
+              else
+                {
+                comment2 += clp;
+                comment2 += "\n";
+                }
+              }
+            }
+          }
+        else if ( updateType == cmCTestUpdateHandler::e_SVN )
+          {
+          if ( svn_use_status )
+            {
+            cmOStringStream str;
+            str << svn_current_revision;
+            srevision1 = str.str();
+            if (!svn_status_line_regex.find(output))
+              {
+              cmCTestLog(m_CTest, ERROR_MESSAGE, "Bad output from SVN status command: " << output << std::endl);
+              }
+            else if ( svn_status_line_regex.match(4) != file )
+              {
+              cmCTestLog(m_CTest, ERROR_MESSAGE, "Bad output from SVN status command. The file name returned: \"" << svn_status_line_regex.match(4) << "\" was different than the file specified: \"" << file << "\"" << std::endl);
+              }
+            else
+              {
+              srevision1 = svn_status_line_regex.match(2);
+              int latest_revision = atoi(svn_status_line_regex.match(2).c_str());
+              if ( svn_current_revision < latest_revision )
+                {
+                srevision2 = str.str();
+                }
+              sauthor1 = svn_status_line_regex.match(3);
+              }
+            }
+          else
+            {
+            cmCTestUpdateHandlerSVNXMLParser parser(this);
+            if ( parser.Parse(output.c_str()) )
+              {
+              int minrev = parser.GetMinRevision();
+              int maxrev = parser.GetMaxRevision();
+              cmCTestUpdateHandlerSVNXMLParser::t_VectorOfCommits::iterator it;
+              for ( it = parser.GetCommits()->begin(); 
+                it != parser.GetCommits()->end(); 
+                ++ it )
+                {
+                if ( it->m_Revision == maxrev )
+                  {
+                  cmOStringStream mRevStream;
+                  mRevStream << maxrev;
+                  srevision1 = mRevStream.str();
+                  sauthor1 = it->m_Author;
+                  comment1 = it->m_Message;
+                  sdate1 = it->m_Date;
+                  }
+                else if ( it->m_Revision == minrev )
+                  {
+                  cmOStringStream mRevStream;
+                  mRevStream << minrev;
+                  srevision2 = mRevStream.str();
+                  sauthor2 = it->m_Author;
+                  comment2 = it->m_Message;       
+                  sdate2 = it->m_Date;
+                  }
+                }
+              }
+            }
+          }
+        if ( mod == 'M' )
+          {
+          comment1 = "Locally modified file\n";
+          sauthor1 = "Local User";
+          }
+        if ( mod == 'D' )
+          {
+          comment1 += " - Removed file\n";
+          }
+        if ( mod == 'C' )
+          {
+          comment1 = "Conflict while updating\n";
+          sauthor1 = "Local User";
+          }
+        std::string path = cmSystemTools::GetFilenamePath(file);
+        std::string fname = cmSystemTools::GetFilenameName(file);
+        if ( path != current_path )
+          {
+          if ( !first_file )
+            {
+            os << "\t</Directory>" << std::endl;
+            }
+          else
+            {
+            first_file = false;
+            }
+          os << "\t<Directory>\n"
+            << "\t\t<Name>" << path << "</Name>" << std::endl;
+          }
+        if ( mod == 'C' )
+          {
+          num_conflicting ++;
+          os << "\t<Conflicting>" << std::endl;
+          }
+        else if ( mod == 'G' )
+          {
+          num_conflicting ++;
+          os << "\t<Conflicting>" << std::endl;
+          }
+        else if ( mod == 'M' )
+          {
+          num_modified ++;
+          os << "\t<Modified>" << std::endl;
+          }
+        else
+          {
+          num_updated ++;
+          os << "\t<Updated>" << std::endl;
+          }
+        if ( srevision2 == "Unknown" )
+          {
+          srevision2 = srevision1;
+          }
+        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "File: " << path.c_str() << " / " << fname.c_str() << " was updated by "
+          << sauthor1.c_str() << " to revision: " << srevision1.c_str()
+          << " from revision: " << srevision2.c_str() << std::endl);
+        os << "\t\t<File Directory=\"" << cmCTest::MakeXMLSafe(path) << "\">" << cmCTest::MakeXMLSafe(fname)
+          << "</File>\n"
+          << "\t\t<Directory>" << cmCTest::MakeXMLSafe(path) << "</Directory>\n"
+          << "\t\t<FullName>" << cmCTest::MakeXMLSafe(file) << "</FullName>\n"
+          << "\t\t<CheckinDate>" << cmCTest::MakeXMLSafe(sdate1) << "</CheckinDate>\n"
+          << "\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor1) << "</Author>\n"
+          << "\t\t<Email>" << cmCTest::MakeXMLSafe(semail1) << "</Email>\n"
+          << "\t\t<Log>" << cmCTest::MakeXMLSafe(comment1) << "</Log>\n"
+          << "\t\t<Revision>" << srevision1 << "</Revision>\n"
+          << "\t\t<PriorRevision>" << srevision2 << "</PriorRevision>"
+          << std::endl;
+        if ( srevision2 != srevision1 )
+          {
+          os
+            << "\t\t<Revisions>\n"
+            << "\t\t\t<Revision>" << srevision1 << "</Revision>\n"
+            << "\t\t\t<PreviousRevision>" << srevision2 << "</PreviousRevision>\n"
+            << "\t\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor1) << "</Author>\n"
+            << "\t\t\t<Date>" << cmCTest::MakeXMLSafe(sdate1) << "</Date>\n"
+            << "\t\t\t<Comment>" << cmCTest::MakeXMLSafe(comment1) << "</Comment>\n"
+            << "\t\t\t<Email>" << cmCTest::MakeXMLSafe(semail1) << "</Email>\n"
+            << "\t\t</Revisions>\n"
+            << "\t\t<Revisions>\n"
+            << "\t\t\t<Revision>" << srevision2 << "</Revision>\n"
+            << "\t\t\t<PreviousRevision>" << srevision2 << "</PreviousRevision>\n"
+            << "\t\t\t<Author>" << cmCTest::MakeXMLSafe(sauthor2) << "</Author>\n"
+            << "\t\t\t<Date>" << cmCTest::MakeXMLSafe(sdate2) << "</Date>\n"
+            << "\t\t\t<Comment>" << cmCTest::MakeXMLSafe(comment2) << "</Comment>\n"
+            << "\t\t\t<Email>" << cmCTest::MakeXMLSafe(semail2) << "</Email>\n"
+            << "\t\t</Revisions>" << std::endl;
+          }
+        if ( mod == 'C' )
+          {
+          os << "\t</Conflicting>" << std::endl;
+          }
+        else if ( mod == 'G' )
+          {
+          os << "\t</Conflicting>" << std::endl;
+          }
+        else if ( mod == 'M' )
+          {
+          os << "\t</Modified>" << std::endl;
+          }
+        else
+          {
+          os << "\t</Updated>" << std::endl;
+          }
+        cmCTestUpdateHandler::UpdateFiles *u = &authors_files_map[sauthor1];
+        cmCTestUpdateHandler::StringPair p;
+        p.first = path;
+        p.second = fname;
+        u->push_back(p);
+
+        current_path = path;
+        }
+      file_count ++;
+      }
+    }
+  if ( file_count )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
+    }
+  if ( num_updated )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_updated << " updated files" << std::endl);
+    }
+  if ( num_modified )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_modified << " locally modified files" 
+      << std::endl);
+    }
+  if ( num_conflicting )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_conflicting << " conflicting files" 
+      << std::endl);
+    }
+  if ( num_modified == 0 && num_conflicting == 0 && num_updated == 0 )
+    {
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Project is up-to-date" << std::endl);
+    }
+  if ( !first_file )
+    {
+    os << "\t</Directory>" << std::endl;
+    }
+
+  cmCTestUpdateHandler::AuthorsToUpdatesMap::iterator it;
+  for ( it = authors_files_map.begin();
+    it != authors_files_map.end();
+    it ++ )
+    {
+    os << "\t<Author>\n"
+      << "\t\t<Name>" << it->first << "</Name>" << std::endl;
+    cmCTestUpdateHandler::UpdateFiles *u = &(it->second);
+    for ( cc = 0; cc < u->size(); cc ++ )
+      {
+      os << "\t\t<File Directory=\"" << (*u)[cc].first << "\">"
+        << (*u)[cc].second << "</File>" << std::endl;
+      }
+    os << "\t</Author>" << std::endl;
+    }
+
+  cmCTestLog(m_CTest, DEBUG, "End" << std::endl);
+  std::string end_time = m_CTest->CurrentTime();
+  os << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
+    << "<ElapsedMinutes>" << 
+    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0 
+    << "</ElapsedMinutes>\n"
+    << "\t<UpdateReturnStatus>";
+  if ( num_modified > 0 || num_conflicting > 0 )
+    {
+    os << "Update error: There are modified or conflicting files in the repository";
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "   There are modified or conflicting files in the repository" << std::endl);
+    }
+  if ( updateProducedError )
+    {
+    os << "Update error: ";
+    os << m_CTest->MakeXMLSafe(checkoutErrorMessages);
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "   Update with command: " << command << " failed" << std::endl);
+    }
+  os << "</UpdateReturnStatus>" << std::endl;
+  os << "</Update>" << std::endl;
+
+  if (! res || retVal )
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Error(s) when updating the project" << std::endl);
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Output: " << goutput << std::endl);
+    return -1;
+    }
+  return count;
 }
-
-/***********************************************************************
- *
- * Curl_ftp_disconnect()
- *
- * Disconnect from an FTP server. Cleanup protocol-specific per-connection
- * resources
- */
-CURLcode Curl_ftp_disconnect(struct connectdata *conn)
-{
-  struct FTP *ftp= conn->proto.ftp;
-
-  /* The FTP session may or may not have been allocated/setup at this point! */
-  if(ftp) {
-    if(ftp->entrypath)
-      free(ftp->entrypath);
-    if(ftp->cache)
-      free(ftp->cache);
-    if(ftp->file)
-      free(ftp->file);
-    if(ftp->dir)
-      free(ftp->dir);
-
-    ftp->file = ftp->dir = NULL; /* zero */
-  }
-  return CURLE_OK;
-}
-
-/*
- * local variables:
- * eval: (load-file "../curl-mode.el")
- * end:
- * vim600: fdm=marker
- * vim: et sw=2 ts=2 sts=2 tw=78
- */
-
-#endif /* CURL_DISABLE_FTP */

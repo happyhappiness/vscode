@@ -1,67 +1,81 @@
-@@ -50,17 +50,19 @@ bool cmCTestCoverageHandler::StartLogFile(std::ofstream& covLogFile, int logFile
-     return false;
-     }
-   std::string local_start_time = m_CTest->CurrentTime();
-+  m_CTest->StartXML(covLogFile);
-   covLogFile << "<CoverageLog>" << std::endl
-     << "\t<StartDateTime>" << local_start_time << "</StartDateTime>" << std::endl;
-   return true;
+@@ -9,8 +9,8 @@
+   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+ 
+-     This software is distributed WITHOUT ANY WARRANTY; without even 
+-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
++     This software is distributed WITHOUT ANY WARRANTY; without even
++     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+      PURPOSE.  See the above copyright notices for more information.
+ 
+ =========================================================================*/
+@@ -23,8 +23,9 @@ cmakewizard::cmakewizard()
+   m_ShowAdvanced = false;
  }
  
- //----------------------------------------------------------------------
--void cmCTestCoverageHandler::StopLogFile(std::ofstream& ostr, int logFileCount)
-+void cmCTestCoverageHandler::EndLogFile(std::ofstream& ostr, int logFileCount)
+-  
+-void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
++
++void cmakewizard::AskUser(const char* key,
++  cmCacheManager::CacheIterator& iter)
  {
-   std::string local_end_time = m_CTest->CurrentTime();
-   ostr << "\t<EndDateTime>" << local_end_time << "</EndDateTime>" << std::endl
-     << "</CoverageLog>" << std::endl;
-+  m_CTest->EndXML(ostr);
-   char covLogFilename[1024];
-   sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
-   std::cout << "Close file: " << covLogFilename << std::endl;
-@@ -276,7 +278,6 @@ int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
-             {
-             std::cout << "   in file: " << fname << std::endl;
-             }
--          singleFileCoverageVector cov;
-           std::ifstream ifile(fname.c_str());
-           if ( ! ifile )
-             {
-@@ -356,7 +357,7 @@ int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
-     if ( cnt == 100 )
+   printf("Variable Name: %s\n", key);
+   const char* helpstring = iter.GetProperty("HELPSTRING");
+@@ -34,7 +35,7 @@ void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
+   char buffer[4096];
+   buffer[0] = 0;
+   fgets(buffer, sizeof(buffer)-1, stdin);
+-          
++
+   if(strlen(buffer) > 0)
+     {
+     std::string sbuffer = buffer;
+@@ -44,7 +45,7 @@ void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
        {
-       cnt = 0;
--      this->StopLogFile(covLogFile, logFileCount);
-+      this->EndLogFile(covLogFile, logFileCount);
-       logFileCount ++;
-       if ( !this->StartLogFile(covLogFile, logFileCount) )
+       value = sbuffer.substr(0, pos+1);
+       }
+-    
++
+     if ( value.size() > 0 )
+       {
+       if(iter.GetType() == cmCacheManager::PATH ||
+@@ -67,7 +68,7 @@ void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
+ 
+ bool cmakewizard::AskAdvanced()
+ {
+-  printf("Would you like to see advanced options? [No]:");  
++  printf("Would you like to see advanced options? [No]:");
+   char buffer[4096];
+   buffer[0] = 0;
+   fgets(buffer, sizeof(buffer)-1, stdin);
+@@ -105,7 +106,8 @@ int cmakewizard::RunWizard(std::vector<std::string> const& args)
+     {
+     asked = false;
+     // run cmake
+-    this->ShowMessage("Please wait while cmake processes CMakeLists.txt files....\n");
++    this->ShowMessage(
++      "Please wait while cmake processes CMakeLists.txt files....\n");
+ 
+     make.Configure();
+     this->ShowMessage("\n");
+@@ -115,9 +117,9 @@ int cmakewizard::RunWizard(std::vector<std::string> const& args)
+     cmCacheManager::CacheIterator i = cachem->NewIterator();
+     // iterate over all entries in the cache
+     for(;!i.IsAtEnd(); i.Next())
+-      { 
++      {
+       std::string key = i.GetName();
+-      if( i.GetType() == cmCacheManager::INTERNAL || 
++      if( i.GetType() == cmCacheManager::INTERNAL ||
+           i.GetType() == cmCacheManager::STATIC ||
+           i.GetType() == cmCacheManager::UNINITIALIZED )
          {
-@@ -396,7 +397,8 @@ int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
-     const singleFileCoverageVector& fcov = fileIterator->second;
-     covLogFile << "\t<File Name=\""
-       << m_CTest->MakeXMLSafe(fileName.c_str())
--      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(fileIterator->first) << "\">" << std::endl
-+      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(m_CTest->GetShortPathToFile(
-+          fileIterator->first.c_str())) << "\">" << std::endl
-       << "\t\t<Report>" << std::endl;
- 
-     std::ifstream ifs(fullFileName.c_str());
-@@ -449,7 +451,8 @@ int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
-     covLogFile << "\t\t</Report>" << std::endl
-       << "\t</File>" << std::endl;
-     covSumFile << "\t<File Name=\"" << m_CTest->MakeXMLSafe(fileName)
--      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(fullFileName)
-+      << "\" FullPath=\"" << m_CTest->MakeXMLSafe(
-+        m_CTest->GetShortPathToFile(fullFileName.c_str()))
-       << "\" Covered=\"" << (cmet>0?"true":"false") << "\">\n"
-       << "\t\t<LOCTested>" << tested << "</LOCTested>\n"
-       << "\t\t<LOCUnTested>" << untested << "</LOCUnTested>\n"
-@@ -464,7 +467,7 @@ int cmCTestCoverageHandler::CoverageDirectory(cmCTest *ctest_inst)
-       << "\t</File>" << std::endl;
-     cnt ++;
-     }
--  this->StopLogFile(covLogFile, logFileCount);
-+  this->EndLogFile(covLogFile, logFileCount);
- 
-   int total_lines = total_tested + total_untested;
-   float percent_coverage = 100 * SAFEDIV(static_cast<float>(total_tested),
+@@ -136,7 +138,7 @@ int cmakewizard::RunWizard(std::vector<std::string> const& args)
+           }
+         }
+       else
+-        {    
++        {
+         if(m_ShowAdvanced || !i.GetPropertyAsBool("ADVANCED"))
+           {
+           this->AskUser(key.c_str(), i);

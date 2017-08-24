@@ -1,39 +1,49 @@
-@@ -10,9 +10,8 @@ typedef struct
-   char** Argv;
- } cmVTKWrapTclData;
- 
--
- /* do almost everything in the initial pass */
--static int InitialPass(void *inf, void *mf, int argc, char *argv[])
-+static int CCONV InitialPass(void *inf, void *mf, int argc, char *argv[])
- {
-   char* file;
-   char* str;
-@@ -134,7 +133,7 @@ static int InitialPass(void *inf, void *mf, int argc, char *argv[])
-   return 1;
- }
- 
--static void FinalPass(void *inf, void *mf) 
-+static void  CCONV FinalPass(void *inf, void *mf) 
- {
-   cmLoadedCommandInfo *info = (cmLoadedCommandInfo *)inf;
-   /* get our client data from initial pass */
-@@ -146,8 +145,7 @@ static void FinalPass(void *inf, void *mf)
-     fprintf(stderr,"*** Failed LOADED COMMAND Final Pass\n");
-     }
- }
--
--static void Destructor(void *inf) 
-+static void CCONV Destructor(void *inf) 
- {
-   cmLoadedCommandInfo *info = (cmLoadedCommandInfo *)inf;
-   /* get our client data from initial pass */
-@@ -157,7 +155,7 @@ static void Destructor(void *inf)
- }
- 
- #ifdef MUCHO_MUDSLIDE
--void CM_PLUGIN_EXPORT CMAKE_TEST_COMMANDInit(cmLoadedCommandInfo *info)
-+void CM_PLUGIN_EXPORT CCONV CMAKE_TEST_COMMANDInit(cmLoadedCommandInfo *info)
- {
-   info->InitialPass = InitialPass;
-   info->FinalPass = FinalPass;
+@@ -267,19 +267,17 @@ void cmOrderLinkDirectories::PrepareLinkTargets()
+   for(std::vector<cmStdString>::iterator i = originalLinkItems.begin();
+       i != originalLinkItems.end(); ++i)
+     {
+-    // separate the library name from libfoo.a or foo.a
+-    if(this->ExtractStaticLibraryName.find(*i))
+-      {
+-#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+-      fprintf(stderr, "static regex matched [%s] [%s] [%s]\n",
+-              this->ExtractStaticLibraryName.match(1).c_str(),
+-              this->ExtractStaticLibraryName.match(2).c_str(),
+-              this->ExtractStaticLibraryName.match(3).c_str());
+-#endif
+-      this->SetCurrentLinkType(LinkStatic);
+-      this->LinkItems.push_back(this->ExtractStaticLibraryName.match(2));
+-      }
+-    else if(this->ExtractSharedLibraryName.find(*i))
++    // Parse out the prefix, base, and suffix components of the
++    // library name.  If the name matches that of a shared or static
++    // library then set the link type accordingly.
++    //
++    // Search for shared library names first because some platforms
++    // have shared libraries with names that match the static library
++    // pattern.  For example cygwin and msys use the convention
++    // libfoo.dll.a for import libraries and libfoo.a for static
++    // libraries.  On AIX a library with the name libfoo.a can be
++    // shared!
++    if(this->ExtractSharedLibraryName.find(*i))
+       {
+ #ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
+       fprintf(stderr, "shared regex matched [%s] [%s] [%s]\n",
+@@ -290,6 +288,17 @@ void cmOrderLinkDirectories::PrepareLinkTargets()
+       this->SetCurrentLinkType(LinkShared);
+       this->LinkItems.push_back(this->ExtractSharedLibraryName.match(2));
+       }
++    else if(this->ExtractStaticLibraryName.find(*i))
++      {
++#ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG
++      fprintf(stderr, "static regex matched [%s] [%s] [%s]\n",
++              this->ExtractStaticLibraryName.match(1).c_str(),
++              this->ExtractStaticLibraryName.match(2).c_str(),
++              this->ExtractStaticLibraryName.match(3).c_str());
++#endif
++      this->SetCurrentLinkType(LinkStatic);
++      this->LinkItems.push_back(this->ExtractStaticLibraryName.match(2));
++      }
+     else if(this->ExtractAnyLibraryName.find(*i))
+       {
+ #ifdef CM_ORDER_LINK_DIRECTORIES_DEBUG

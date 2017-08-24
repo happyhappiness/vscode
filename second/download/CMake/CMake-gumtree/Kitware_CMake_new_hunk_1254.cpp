@@ -1,13 +1,14 @@
- */
-static void
-ftp_pasv_verbose(struct connectdata *conn,
-                 Curl_addrinfo *ai,
-                 char *newhost, /* ascii version */
-                 int port)
-{
-  char buf[256];
-  Curl_printable_address(ai, buf, sizeof(buf));
-  infof(conn->data, "Connecting to %s (%s) port %d\n", newhost, buf, port);
-}
-
-/***********************************************************************
+    {
+    n = atoi(argv[1]);
+    }
+  else if(argc == 3 && strcmp(argv[1], "run") == 0)
+    {
+    n = atoi(argv[2]);
+    }
+  /* Check arguments.  */
+  if(n >= 1 && n <= 7 && argc == 3)
+    {
+    /* This is the child process for a requested test number.  */
+    switch (n)
+      {
+      case 1: return test1(argc, argv);

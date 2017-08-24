@@ -1,9 +1,8 @@
-  fflush(stdout);
-  fflush(stderr);
-#if defined(_WIN32)
-  Sleep(15000);
-#else
-  sleep(15);
-#endif
-  fprintf(stdout, "Output after sleep on stdout from timeout test.\n");
-  fprintf(stderr, "Output after sleep on stderr from timeout test.\n");
+  for ( ;*pos; ++pos)
+    {
+    char ch = *pos;
+    if ( (ch > 126 || ch < 32) && ch != 9  &&
+      ch != 10 && ch != 13 && ch != '\r' )
+      {
+      char buffer[33];
+      sprintf(buffer, "&lt;%d&gt;", (int)ch);

@@ -1,7 +1,9 @@
-    xmlrpc_env env;
-    xmlrpc_value *result;
-    char *state_name;
-    int cc;
+        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
+          {
+          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
+          cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3)
+            << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " ("
+            << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
+          }
+        }
 
-    if (argc-1 > 0) {
-        fprintf(stderr, "No arguments");

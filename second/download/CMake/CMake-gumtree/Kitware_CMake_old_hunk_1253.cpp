@@ -1,8 +1,8 @@
-                     &year, &month, &day, &hour, &minute, &second)) {
-        /* we have a time, reformat it */
-        time_t secs=time(NULL);
-        sprintf(buf, "%04d%02d%02d %02d:%02d:%02d",
-                year, month, day, hour, minute, second);
-        /* now, convert this into a time() value: */
-        conn->data->info.filetime = curl_getdate(buf, &secs);
-      }
+    fprintf(stderr,"*** Failed LOADED COMMAND Final Pass\n");
+    }
+}
+
+static void Destructor(void *inf) 
+{
+  cmLoadedCommandInfo *info = (cmLoadedCommandInfo *)inf;
+  /* get our client data from initial pass */

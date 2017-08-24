@@ -14,234 +14,421 @@
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#include "cmOutputRequiredFilesCommand.h"
-#include "cmMakeDepend.h"
+#include "cmDependsJavaParserHelper.h"
 
-class cmLBDepend : public cmMakeDepend
-{
-  /**
-   * Compute the depend information for this class.
-   */
-  virtual void DependWalk(cmDependInformation* info);
-};
+#include "cmSystemTools.h"
+#include "cmDependsJavaLexer.h"
 
-void cmLBDepend::DependWalk(cmDependInformation* info)
+int cmDependsJava_yyparse( yyscan_t yyscanner );
+
+cmDependsJavaParserHelper::cmDependsJavaParserHelper()
 {
-  m_Verbose = true;
-  std::ifstream fin(info->m_FullPath.c_str());
-  if(!fin)
+  this->CurrentDepth = 0;
+
+  this->UnionsAvailable = 0;
+  this->LastClassId = 0;
+
+  CurrentClass tl;
+  tl.Name = "*";
+  this->ClassStack.push_back(tl);
+}
+
+
+cmDependsJavaParserHelper::~cmDependsJavaParserHelper()
+{
+  this->CleanupParser();
+}
+
+void cmDependsJavaParserHelper::CurrentClass
+::AddFileNamesForPrinting(std::vector<cmStdString> *files, 
+                          const char* prefix, const char* sep)
+{
+  cmStdString rname = "";
+  if ( prefix )
     {
-    cmSystemTools::Error("error can not open ", info->m_FullPath.c_str());
+    rname += prefix;
+    rname += sep;
+    }
+  rname += this->Name;
+  files->push_back(rname);
+  std::vector<CurrentClass>::iterator it;
+  for ( it = this->NestedClasses.begin();
+    it != this->NestedClasses.end();
+    ++ it )
+    {
+    it->AddFileNamesForPrinting(files, rname.c_str(), sep);
+    }
+}
+
+void cmDependsJavaParserHelper::DeallocateParserType(char** pt)
+{
+  if (!pt)
+    {
     return;
     }
-  
-  std::string line;
-  while(cmSystemTools::GetLineFromStream(fin, line))
+  if (!*pt)
     {
-    if(!strncmp(line.c_str(), "#include", 8))
+    return;
+    }
+  *pt = 0;
+  this->UnionsAvailable --;
+}
+
+void cmDependsJavaParserHelper::AddClassFound(const char* sclass)
+{
+  if( ! sclass )
+    {
+    return;
+    }
+  std::vector<cmStdString>::iterator it;
+  for ( it = this->ClassesFound.begin();
+    it != this->ClassesFound.end();
+    it ++ )
+    {
+    if ( *it == sclass )
       {
-      // if it is an include line then create a string class
-      std::string currentline = line;
-      size_t qstart = currentline.find('\"', 8);
-      size_t qend;
-      // if a quote is not found look for a <
-      if(qstart == std::string::npos)
+      return;
+      }
+    }
+  this->ClassesFound.push_back(sclass);
+}
+
+void cmDependsJavaParserHelper::AddPackagesImport(const char* sclass)
+{
+  std::vector<cmStdString>::iterator it;
+  for ( it = this->PackagesImport.begin();
+    it != this->PackagesImport.end();
+    it ++ )
+    {
+    if ( *it == sclass )
+      {
+      return;
+      }
+    }
+  this->PackagesImport.push_back(sclass);
+}
+
+void cmDependsJavaParserHelper::SafePrintMissing(const char* str, 
+                                                 int line, int cnt)
+{
+  if ( str )
+    {
+    std::cout << line << " String " << cnt << " exists: ";
+    unsigned int cc;
+    for ( cc = 0; cc < strlen(str); cc ++ )
+      {
+      unsigned char ch = str[cc];
+      if ( ch >= 32 && ch <= 126 )
         {
-        qstart = currentline.find('<', 8);
-        // if a < is not found then move on
-        if(qstart == std::string::npos)
-          {
-          cmSystemTools::Error("unknown include directive ", 
-                               currentline.c_str() );
-          continue;
-          }
-        else
-          {
-          qend = currentline.find('>', qstart+1);
-          }
+        std::cout << (char)ch;
         }
       else
         {
-        qend = currentline.find('\"', qstart+1);
-        }
-      // extract the file being included
-      std::string includeFile = currentline.substr(qstart+1, qend - qstart-1);
-      // see if the include matches the regular expression
-      if(!m_IncludeFileRegularExpression.find(includeFile))
-        {
-        if(m_Verbose)
-          {
-          std::string message = "Skipping ";
-          message += includeFile;
-          message += " for file ";
-          message += info->m_FullPath.c_str();
-          cmSystemTools::Error(message.c_str(), 0);
-          }
-        continue;
-        }
-      
-      // Add this file and all its dependencies.
-      this->AddDependency(info, includeFile.c_str());
-      /// add the cxx file if it exists
-      std::string cxxFile = includeFile;
-      std::string::size_type pos = cxxFile.rfind('.');
-      if(pos != std::string::npos)
-        {
-        std::string root = cxxFile.substr(0, pos);
-        cxxFile = root + ".cxx";
-        bool found = false;
-        // try jumping to .cxx .cpp and .c in order
-        if(cmSystemTools::FileExists(cxxFile.c_str()))
-          {
-          found = true;
-          }
-        for(std::vector<std::string>::iterator i = 
-              m_IncludeDirectories.begin();
-            i != m_IncludeDirectories.end(); ++i)
-          {
-          std::string path = *i;
-          path = path + "/";
-          path = path + cxxFile;
-          if(cmSystemTools::FileExists(path.c_str()))
-            {
-            found = true;
-            }
-          }
-        if (!found)
-          {
-          cxxFile = root + ".cpp";
-          if(cmSystemTools::FileExists(cxxFile.c_str()))
-            {
-            found = true;
-            }
-          for(std::vector<std::string>::iterator i = 
-                m_IncludeDirectories.begin();
-              i != m_IncludeDirectories.end(); ++i)
-            {
-            std::string path = *i;
-            path = path + "/";
-            path = path + cxxFile;
-            if(cmSystemTools::FileExists(path.c_str()))
-              {
-              found = true;
-              }
-            }
-          }
-        if (!found)
-          {
-          cxxFile = root + ".c";
-          if(cmSystemTools::FileExists(cxxFile.c_str()))
-            {
-            found = true;
-            }
-          for(std::vector<std::string>::iterator i = 
-                m_IncludeDirectories.begin();
-              i != m_IncludeDirectories.end(); ++i)
-            {
-            std::string path = *i;
-            path = path + "/";
-            path = path + cxxFile;
-            if(cmSystemTools::FileExists(path.c_str()))
-              {
-              found = true;
-              }
-            }
-          }
-        if (!found)
-          {
-          cxxFile = root + ".txx";
-          if(cmSystemTools::FileExists(cxxFile.c_str()))
-            {
-            found = true;
-            }
-          for(std::vector<std::string>::iterator i = 
-                m_IncludeDirectories.begin();
-              i != m_IncludeDirectories.end(); ++i)
-            {
-            std::string path = *i;
-            path = path + "/";
-            path = path + cxxFile;
-            if(cmSystemTools::FileExists(path.c_str()))
-              {
-              found = true;
-              }
-            }
-          }
-        if (found)
-          {
-          this->AddDependency(info, cxxFile.c_str());
-          }
+        std::cout << "<" << (int)ch << ">";
+        break;
         }
       }
+    std::cout << "- " << strlen(str) << std::endl;
+    }
+}
+void cmDependsJavaParserHelper::Print(const char* place, const char* str)
+{
+  if ( this->Verbose )
+    {
+    std::cout << "[" << place << "=" << str << "]" << std::endl;
     }
 }
 
-// cmOutputRequiredFilesCommand
-bool cmOutputRequiredFilesCommand::InitialPass(std::vector<std::string> const& args)
+void cmDependsJavaParserHelper::CombineUnions(char** out, 
+                                              const char* in1, char** in2,
+                                              const char* sep)
 {
-  if(args.size() != 2 )
+  size_t len = 1;
+  if ( in1 )
     {
-    this->SetError("called with incorrect number of arguments");
-    return false;
+    len += strlen(in1);
     }
-
-  // store the arg for final pass
-  m_File = args[0];
-  m_OutputFile = args[1];
-  
-  return true;
+  if ( *in2 )
+    {
+    len += strlen(*in2);
+    }
+  if ( sep )
+    {
+    len += strlen(sep);
+    }
+  *out = new char [ len ];
+  *out[0] = 0;
+  if ( in1 )
+    {
+    strcat(*out, in1);
+    }
+  if ( sep )
+    {
+    strcat(*out, sep);
+    }
+  if ( *in2 )
+    {
+    strcat(*out, *in2);
+    }
+  if ( *in2 )
+    {
+    this->DeallocateParserType(in2);
+    }
+  this->UnionsAvailable ++;
 }
 
-void cmOutputRequiredFilesCommand::
-ListDependencies(cmDependInformation const *info,
-                 FILE *fout,
-                 std::set<cmDependInformation const*> *visited)
+void cmDependsJavaParserHelper
+::CheckEmpty(int line, int cnt, cmDependsJavaParserHelper::ParserType* pt)
 {
-  // add info to the visited set
-  visited->insert(info);
-  // now recurse with info's dependencies
-  for(cmDependInformation::DependencySet::const_iterator d = 
-        info->m_DependencySet.begin();
-      d != info->m_DependencySet.end(); ++d)
+  int cc;
+  int kk = -cnt + 1;
+  for ( cc = 1; cc <= cnt; cc ++)
     {
-    if (visited->find(*d) == visited->end())
+    cmDependsJavaParserHelper::ParserType* cpt = pt + kk;
+    this->SafePrintMissing(cpt->str, line, cc);
+    kk ++;
+    }
+}
+
+void cmDependsJavaParserHelper
+::PrepareElement(cmDependsJavaParserHelper::ParserType* me)
+{
+  // Inititalize self
+  me->str = 0;
+}
+
+void cmDependsJavaParserHelper
+::AllocateParserType(cmDependsJavaParserHelper::ParserType* pt, 
+                     const char* str, int len)
+{
+  pt->str = 0;
+  if ( len == 0 )
+    {
+    len = (int)strlen(str);
+    }
+  if ( len == 0 )
+    {
+    return;
+    }
+  this->UnionsAvailable ++;
+  pt->str = new char[ len + 1 ];
+  strncpy(pt->str, str, len);
+  pt->str[len] = 0;
+  this->Allocates.push_back(pt->str);
+}
+
+void cmDependsJavaParserHelper::StartClass(const char* cls)
+{
+  CurrentClass cl;
+  cl.Name = cls;
+  this->ClassStack.push_back(cl);
+
+  this->CurrentDepth ++;
+}
+
+void cmDependsJavaParserHelper::EndClass()
+{
+  CurrentClass* parent = 0;
+  CurrentClass* current = 0;
+  if ( this->ClassStack.size() > 0 )
+    {
+    current = &(*(this->ClassStack.end() - 1));
+    if ( this->ClassStack.size() > 1 )
       {
-      if(info->m_FullPath != "")
-        {
-        std::string tmp = (*d)->m_FullPath;
-        std::string::size_type pos = tmp.rfind('.');
-        if(pos != std::string::npos && (tmp.substr(pos) != ".h"))
-          {
-          tmp = tmp.substr(0, pos);
-          fprintf(fout,"%s\n",(*d)->m_FullPath.c_str());
-          }
-        }
-      this->ListDependencies(*d,fout,visited);
+      parent = &(*(this->ClassStack.end() - 2));
       }
     }
+  if ( current == 0 )
+    {
+    std::cerr << "Error when parsing. Current class is null" << std::endl;
+    abort();
+    }
+  if ( parent == 0 )
+    {
+    std::cerr << "Error when parsing. Parent class is null" << std::endl;
+    abort();
+    }
+  this->CurrentDepth --;
+  parent->NestedClasses.push_back(*current);
+  this->ClassStack.erase(this->ClassStack.end()-1, this->ClassStack.end());
 }
 
-void cmOutputRequiredFilesCommand::FinalPass()
+void cmDependsJavaParserHelper::PrintClasses()
 {
-  
-  cmTargets &tgts = m_Makefile->GetTargets();
-  for (cmTargets::iterator l = tgts.begin(); l != tgts.end(); l++)
+  if ( this->ClassStack.size() == 0 )
     {
-    l->second.GenerateSourceFilesFromSourceLists(*m_Makefile);
+    std::cerr << "Error when parsing. No classes on class stack" << std::endl;
+    abort();
     }
-
-  // compute the list of files
-  cmLBDepend md;
-  md.SetMakefile(m_Makefile);
-  md.AddSearchPath(m_Makefile->GetStartDirectory());
-  // find the depends for a file
-  const cmDependInformation *info = md.FindDependencies(m_File.c_str());
-  if (info)
+  std::vector<cmStdString> files = this->GetFilesProduced();
+  std::vector<cmStdString>::iterator sit;
+  for ( sit = files.begin();
+    sit != files.end();
+    ++ sit )
     {
-    // write them out
-    FILE *fout = fopen(m_OutputFile.c_str(),"w");
-    std::set<cmDependInformation const*> visited;
-    this->ListDependencies(info,fout, &visited);
-    fclose(fout);
+    std::cout << "  " << sit->c_str() << ".class" << std::endl;
     }
 }
+
+std::vector<cmStdString> cmDependsJavaParserHelper::GetFilesProduced()
+{
+  std::vector<cmStdString> files;
+  CurrentClass* toplevel = &(*(this->ClassStack.begin()));
+  std::vector<CurrentClass>::iterator it;
+  for ( it = toplevel->NestedClasses.begin(); 
+    it != toplevel->NestedClasses.end();
+    ++ it )
+    {
+    it->AddFileNamesForPrinting(&files, 0, "$");
+    }
+  return files;
+}
+
+int cmDependsJavaParserHelper::ParseString(const char* str, int verb)
+{
+  if ( !str)
+    {
+    return 0;
+    }
+  this->Verbose = verb;
+  this->InputBuffer = str;
+  this->InputBufferPos = 0;
+  this->CurrentLine = 0;
+  
+
+  yyscan_t yyscanner;
+  cmDependsJava_yylex_init(&yyscanner);
+  cmDependsJava_yyset_extra(this, yyscanner);
+  int res = cmDependsJava_yyparse(yyscanner);
+  cmDependsJava_yylex_destroy(yyscanner);
+  if ( res != 0 )
+    {
+    std::cout << "JP_Parse returned: " << res << std::endl;
+    return 0;
+    }
+
+  if ( verb )
+    {
+    if ( this->CurrentPackage.size() > 0 )
+      {
+      std::cout << "Current package is: " << 
+        this->CurrentPackage.c_str() << std::endl;
+      }
+    std::cout << "Imports packages:";
+    if ( this->PackagesImport.size() > 0 )
+      {
+      std::vector<cmStdString>::iterator it;
+      for ( it = this->PackagesImport.begin();
+        it != this->PackagesImport.end();
+        ++ it )
+        {
+        std::cout << " " << it->c_str();
+        }
+      }
+    std::cout << std::endl;
+    std::cout << "Depends on:";
+    if ( this->ClassesFound.size() > 0 )
+      {
+      std::vector<cmStdString>::iterator it;
+      for ( it = this->ClassesFound.begin();
+        it != this->ClassesFound.end();
+        ++ it )
+        {
+        std::cout << " " << it->c_str();
+        }
+      }
+    std::cout << std::endl;
+    std::cout << "Generated files:" << std::endl;
+    this->PrintClasses();
+    if ( this->UnionsAvailable != 0 )
+      {
+      std::cout << "There are still " << 
+        this->UnionsAvailable << " unions available" << std::endl;
+      }
+    }
+  this->CleanupParser();
+  return 1;
+}
+
+void cmDependsJavaParserHelper::CleanupParser()
+{
+  std::vector<char*>::iterator it;
+  for ( it = this->Allocates.begin(); 
+    it != this->Allocates.end();
+    ++ it )
+    {
+    delete [] *it;
+    }
+  this->Allocates.erase(this->Allocates.begin(), 
+    this->Allocates.end());
+}
+
+int cmDependsJavaParserHelper::LexInput(char* buf, int maxlen)
+{
+  if ( maxlen < 1 )
+    {
+    return 0;
+    }
+  if ( this->InputBufferPos < this->InputBuffer.size() )
+    {
+    buf[0] = this->InputBuffer[ this->InputBufferPos++ ];
+    if ( buf[0] == '\n' )
+      {
+      this->CurrentLine ++;
+      }
+    return(1);
+    }
+  else
+    {
+    buf[0] = '\n';
+    return( 0 );
+    }
+}
+void cmDependsJavaParserHelper::Error(const char* str)
+{
+  unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
+  fprintf(stderr, "JPError: %s (%lu / Line: %d)\n", 
+          str, pos, this->CurrentLine);
+  int cc;
+  std::cerr << "String: [";
+  for ( cc = 0; 
+        cc < 30 && *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
+        cc ++ )
+    {
+    std::cerr << *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
+    }
+  std::cerr << "]" << std::endl;
+}
+
+void cmDependsJavaParserHelper::UpdateCombine(const char* str1, 
+                                              const char* str2)
+{
+  if ( this->CurrentCombine == "" && str1 != 0)
+    {
+    this->CurrentCombine = str1;
+    }
+  this->CurrentCombine += ".";
+  this->CurrentCombine += str2;
+}
+
+int cmDependsJavaParserHelper::ParseFile(const char* file)
+{
+  if ( !cmSystemTools::FileExists(file))
+    {
+    return 0;
+    }
+  std::ifstream ifs(file);
+  if ( !ifs )
+    {
+    return 0;
+    }
+
+  cmStdString fullfile = "";
+  cmStdString line;
+  while ( cmSystemTools::GetLineFromStream(ifs, line) )
+    {
+    fullfile += line + "\n";
+    }
+  return this->ParseString(fullfile.c_str(), 0);
+}
+

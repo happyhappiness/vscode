@@ -1,9 +1,14 @@
-        if ( ftit->m_Status != cmCTestTestHandler::COMPLETED )
-          {
-          ofs << ftit->m_TestCount << ":" << ftit->m_Name << std::endl;
-          cmCTestLog(m_CTest, HANDLER_OUTPUT, "\t" << std::setw(3) << ftit->m_TestCount << " - " << ftit->m_Name.c_str() << " (" << this->GetTestStatus(ftit->m_Status) << ")" << std::endl);
-          //fprintf(stderr, "\t%3d - %s (%s)\n", ftit->m_TestCount, ftit->m_Name.c_str(),
-          //  this->GetTestStatus(ftit->m_Status));
-          }
+        fprintf(progFile,"%i\n",count);
+        fclose(progFile);
         }
+#endif
+      return 0;
+      }
 
+    // Command to report progress for a build
+    else if (args[1] == "cmake_progress_report" && args.size() >= 4)
+      {
+#if defined(CMAKE_BUILD_WITH_CMAKE)
+      std::string dirName = args[2];
+      dirName += "/Progress";
+      std::string fName;

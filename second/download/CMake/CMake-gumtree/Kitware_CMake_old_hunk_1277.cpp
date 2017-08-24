@@ -1,17 +1,16 @@
-  fflush(stdout);
-  fflush(stderr);
-  r = runChild(cmd, kwsysProcess_State_Exception,
-               kwsysProcess_Exception_Fault, 1, 1, 2);
-  fprintf(stdout, "Output on stdout after recursive test.\n");
-  fprintf(stderr, "Output on stderr after recursive test.\n");
-  fflush(stdout);
-  fflush(stderr);
-  return r;
+//----------------------------------------------------------------------
+void cmCTestCoverageHandler::Initialize()
+{
 }
 
-
-int runChild(const char* cmd[], int state, int exception, int value,
-             int share, double timeout)
+//----------------------------------------------------------------------
+bool cmCTestCoverageHandler::StartLogFile(cmGeneratedFileStream& covLogFile, int logFileCount)
 {
-  int result = 0;
-  char* data = 0;
+  char covLogFilename[1024];
+  sprintf(covLogFilename, "CoverageLog-%d.xml", logFileCount);
+  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "Open file: " << covLogFilename << std::endl);
+  if (!m_CTest->OpenOutputFile(m_CTest->GetCurrentTag(), 
+      covLogFilename, covLogFile, true))
+    {
+    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open log file: " << covLogFilename << std::endl);
+    return false;

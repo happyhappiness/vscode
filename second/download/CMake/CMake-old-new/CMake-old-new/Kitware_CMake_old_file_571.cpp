@@ -1,788 +1,307 @@
 /*=========================================================================
 
-  Program:   KWSys - Kitware System Library
+  Program:   CMake - Cross-Platform Makefile Generator
   Module:    $RCSfile$
+  Language:  C++
+  Date:      $Date$
+  Version:   $Revision$
 
-  Copyright (c) Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.kitware.com/Copyright.htm for details.
+  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
 
-     This software is distributed WITHOUT ANY WARRANTY; without even
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     This software is distributed WITHOUT ANY WARRANTY; without even 
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#include "kwsysPrivate.h"
-#include KWSYS_HEADER(Registry.hxx)
+#include "cmCommandArgumentParserHelper.h"
 
-#include KWSYS_HEADER(Configure.hxx)
-#include KWSYS_HEADER(ios/iostream)
-#include KWSYS_HEADER(stl/string)
-#include KWSYS_HEADER(stl/map)
-#include KWSYS_HEADER(ios/iostream)
-#include KWSYS_HEADER(ios/fstream)
-#include KWSYS_HEADER(ios/sstream)
+#include "cmSystemTools.h"
+#include "cmCommandArgumentLexer.h"
 
-#include <ctype.h> // for isspace
-#include <stdio.h>
+#include "cmMakefile.h"
 
-#ifdef _WIN32
-# include <windows.h>
-#endif
-
-
-namespace KWSYS_NAMESPACE
+int cmCommandArgument_yyparse( yyscan_t yyscanner );
+//
+cmCommandArgumentParserHelper::cmCommandArgumentParserHelper()
 {
-class RegistryHelper {
-public:
-  RegistryHelper(Registry::RegistryType registryType);
-  virtual ~RegistryHelper();
+  this->FileLine = -1;
+  this->FileName = 0;
 
-  // Read a value from the registry.
-  virtual bool ReadValue(const char *key, char *value);
+  this->EmptyVariable[0] = 0;
+  strcpy(this->DCURLYVariable, "${");
+  strcpy(this->RCURLYVariable, "}");
+  strcpy(this->ATVariable,     "@");
+  strcpy(this->DOLLARVariable, "$");
+  strcpy(this->LCURLYVariable, "{");
+  strcpy(this->BSLASHVariable, "\\");
 
-  // Delete a key from the registry.
-  virtual bool DeleteKey(const char *key);
-
-  // Delete a value from a given key.
-  virtual bool DeleteValue(const char *key);
-
-  // Set value in a given key.
-  virtual bool SetValue(const char *key, 
-    const char *value);
-
-  // Open the registry at toplevel/subkey.
-  virtual bool Open(const char *toplevel, const char *subkey, 
-    int readonly);
-
-  // Close the registry. 
-  virtual bool Close();
-
-  // Set the value of changed
-  void SetChanged(bool b) { m_Changed = b; }
-  void SetTopLevel(const char* tl);
-  const char* GetTopLevel() { return m_TopLevel.c_str(); }
-
-  //! Read from local or global scope. On Windows this mean from local machine
-  // or local user. On unix this will read from $HOME/.Projectrc or 
-  // /etc/Project
-  void SetGlobalScope(bool b);
-  bool GetGlobalScope();
-
-protected:
-  bool m_Changed;
-  kwsys_stl::string m_TopLevel;  
-  bool m_GlobalScope;
-
-#ifdef _WIN32
-  HKEY HKey;
-#endif
-  // Strip trailing and ending spaces.
-  char *Strip(char *str);
-  void SetSubKey(const char* sk);
-  char *CreateKey(const char *key);
-
-  typedef kwsys_stl::map<kwsys_stl::string, kwsys_stl::string> StringToStringMap;
-  StringToStringMap EntriesMap;
-  kwsys_stl::string m_SubKey;
-  bool m_Empty;
-  bool m_SubKeySpecified;
-
-  Registry::RegistryType m_RegistryType;
-};
-
-//----------------------------------------------------------------------------
-#define Registry_BUFFER_SIZE 8192
-
-//----------------------------------------------------------------------------
-Registry::Registry(Registry::RegistryType registryType)
-{
-  m_Opened      = false;
-  m_Locked      = false;
-  this->Helper = 0;
-  this->Helper = new RegistryHelper(registryType);
+  this->NoEscapeMode = false;
 }
 
-//----------------------------------------------------------------------------
-Registry::~Registry()
+
+cmCommandArgumentParserHelper::~cmCommandArgumentParserHelper()
 {
-  if ( m_Opened )
+  this->CleanupParser();
+}
+
+void cmCommandArgumentParserHelper::SetLineFile(long line, const char* file)
+{
+  this->FileLine = line;
+  this->FileName = file;
+}
+
+char* cmCommandArgumentParserHelper::AddString(const char* str)
+{
+  if ( !str || !*str )
     {
-    kwsys_ios::cerr << "Registry::Close should be "
-                  "called here. The registry is not closed."
-                  << kwsys_ios::endl;
+    return this->EmptyVariable;
     }
-  delete this->Helper;
+  char* stVal = new char[strlen(str)+1];
+  strcpy(stVal, str);
+  this->Variables.push_back(stVal);
+  return stVal;
 }
 
-//----------------------------------------------------------------------------
-void Registry::SetGlobalScope(bool b)
+char* cmCommandArgumentParserHelper::ExpandSpecialVariable(const char* key, const char* var)
 {
-  this->Helper->SetGlobalScope(b);
-}
-
-//----------------------------------------------------------------------------
-bool Registry::GetGlobalScope()
-{
-  return this->Helper->GetGlobalScope();
-}
-
-//----------------------------------------------------------------------------
-bool Registry::Open(const char *toplevel,
-  const char *subkey, int readonly)
-{
-  bool res = false;
-  if ( m_Locked )
+  if ( !key )
     {
-    return 0;
+    return this->ExpandVariable(var);
     }
-  if ( m_Opened )
+  if ( strcmp(key, "ENV") == 0 )
     {
-    if ( !this->Close() )
+    char *ptr = getenv(var);
+    if (ptr)
       {
-      return false;
-      }
-    }
-  if ( !toplevel || !*toplevel )
-    {
-    kwsys_ios::cerr << "Registry::Opened() Toplevel not defined" << kwsys_ios::endl;
-    return false;
-    }
-
-  if ( isspace(toplevel[0]) || 
-       isspace(toplevel[strlen(toplevel)-1]) )
-    {
-    kwsys_ios::cerr << "Toplevel has to start with letter or number and end"
-      " with one" << kwsys_ios::endl;
-    return 0;
-    }
-
-  res = this->Helper->Open(toplevel, subkey, readonly);
-  if ( readonly != Registry::READONLY )
-    {
-    m_Locked = true;
-    }
-  
-  if ( res )
-    {
-    m_Opened = true;
-    this->Helper->SetTopLevel(toplevel);
-    }
-  return res;
-}
-
-//----------------------------------------------------------------------------
-bool Registry::Close()
-{
-  bool res = false;
-  if ( m_Opened )
-    {
-    res = this->Helper->Close();
-    }
-
-  if ( res )
-    {
-    m_Opened = false;
-    m_Locked = false;
-    this->Helper->SetChanged(false);
-    }
-  return res;
-}
-
-//----------------------------------------------------------------------------
-bool Registry::ReadValue(const char *subkey, 
-  const char *key, 
-  char *value)
-{  
-  *value = 0;
-  bool res = true;
-  bool open = false;  
-  if ( ! value )
-    {
-    return false;
-    }
-  if ( !m_Opened )
-    {
-    if ( !this->Open(this->GetTopLevel(), subkey, 
-        Registry::READONLY) )
-      {
-      return false;
-      }
-    open = true;
-    }
-  res = this->Helper->ReadValue(key, value);
-
-  if ( open )
-    {
-    if ( !this->Close() )
-      {
-      res = false;
-      }
-    }
-  return res;
-}
-
-//----------------------------------------------------------------------------
-bool Registry::DeleteKey(const char *subkey, const char *key)
-{
-  bool res = true;
-  bool open = false;
-  if ( !m_Opened )
-    {
-    if ( !this->Open(this->GetTopLevel(), subkey, 
-        Registry::READWRITE) )
-      {
-      return false;
-      }
-    open = true;
-    }
-
-  res = this->Helper->DeleteKey(key);
-  if ( res )
-    {
-    this->Helper->SetChanged(true);
-    }
-
-  if ( open )
-    {
-    if ( !this->Close() )
-      {
-      res = false;
-      }
-    }
-  return res;
-}
-
-//----------------------------------------------------------------------------
-bool Registry::DeleteValue(const char *subkey, const char *key)
-{
-  bool res = true;
-  bool open = false;
-  if ( !m_Opened )
-    {
-    if ( !this->Open(this->GetTopLevel(), subkey, 
-        Registry::READWRITE) )
-      {
-      return false;
-      }
-    open = true;
-    }
-
-  res = this->Helper->DeleteValue(key);
-  if ( res )
-    {
-    this->Helper->SetChanged(true);
-    }
-
-  if ( open )
-    {
-    if ( !this->Close() )
-      {
-      res = false;
-      }
-    }
-  return res;
-}
-
-//----------------------------------------------------------------------------
-bool Registry::SetValue(const char *subkey, const char *key, 
-  const char *value)
-{
-  bool res = true;
-  bool open = false;
-  if ( !m_Opened )
-    {
-    if ( !this->Open(this->GetTopLevel(), subkey, 
-        Registry::READWRITE) )
-      {
-      return false;
-      }
-    open = true;
-    }
-
-  res = this->Helper->SetValue( key, value );
-  if ( res )
-    {
-    this->Helper->SetChanged(true);
-    }
-
-  if ( open )
-    {
-    if ( !this->Close() )
-      {
-      res = false;
-      }
-    }
-  return res;
-}
-
-//----------------------------------------------------------------------------
-const char* Registry::GetTopLevel()
-{
-  return this->Helper->GetTopLevel();
-}
-
-//----------------------------------------------------------------------------
-void Registry::SetTopLevel(const char* tl)
-{
-  this->Helper->SetTopLevel(tl);
-}
-
-//----------------------------------------------------------------------------
-void RegistryHelper::SetTopLevel(const char* tl)
-{
-  if ( tl )
-    {
-    m_TopLevel = tl;
-    }
-  else
-    {
-    m_TopLevel = "";
-    }
-}
-
-//----------------------------------------------------------------------------
-RegistryHelper::RegistryHelper(Registry::RegistryType registryType)
-{
-  m_Changed = false;
-  m_TopLevel    = "";
-  m_SubKey  = "";
-  m_SubKeySpecified = false;
-  m_Empty       = true;
-  m_GlobalScope = false;
-  m_RegistryType = registryType;
-}
-
-//----------------------------------------------------------------------------
-RegistryHelper::~RegistryHelper()
-{
-}
-
-
-//----------------------------------------------------------------------------
-bool RegistryHelper::Open(const char *toplevel, const char *subkey,
-  int readonly)
-{  
-#ifdef _WIN32
-  if ( m_RegistryType == Registry::WIN32_REGISTRY)
-    {
-    HKEY scope = HKEY_CURRENT_USER;
-    if ( this->GetGlobalScope() )
-      {
-      scope = HKEY_LOCAL_MACHINE;
-      }
-    int res = 0;
-    kwsys_ios::ostringstream str;
-    DWORD dwDummy;
-    str << "Software\\Kitware\\" << toplevel << "\\" << subkey;
-    if ( readonly == Registry::READONLY )
-      {
-      res = ( RegOpenKeyEx(scope, str.str().c_str(), 
-          0, KEY_READ, &this->HKey) == ERROR_SUCCESS );
-      }
-    else
-      {
-      res = ( RegCreateKeyEx(scope, str.str().c_str(),
-          0, "", REG_OPTION_NON_VOLATILE, KEY_READ|KEY_WRITE, 
-          NULL, &this->HKey, &dwDummy) == ERROR_SUCCESS );    
-      }
-    return (res != 0);
-    }
-#endif
-  if ( m_RegistryType == Registry::UNIX_REGISTRY )
-    {
-    bool res = false;
-    int cc;
-    kwsys_ios::ostringstream str;
-    if ( !getenv("HOME") )
-      {
-      return false; 
-      }
-    str << getenv("HOME") << "/." << toplevel << "rc";
-    if ( readonly == Registry::READWRITE )
-      {
-      kwsys_ios::ofstream ofs( str.str().c_str(), kwsys_ios::ios::out|kwsys_ios::ios::app );
-      if ( ofs.fail() )
+      if (this->EscapeQuotes)
         {
-        return false;
-        }
-      ofs.close();
-      }
-
-    kwsys_ios::ifstream *ifs = new kwsys_ios::ifstream(str.str().c_str(), kwsys_ios::ios::in
-#ifndef KWSYS_IOS_USE_ANSI
-      | kwsys_ios::ios::nocreate
-#endif
-      );
-    if ( !ifs )
-      {
-      return false;
-      }
-    if ( ifs->fail())
-      {
-      delete ifs;
-      return false;
-      }
-
-    res = true;
-    char buffer[Registry_BUFFER_SIZE];
-    while( !ifs->fail() )
-      {
-      int found = 0;
-      ifs->getline(buffer, Registry_BUFFER_SIZE);
-      if ( ifs->fail() || ifs->eof() )
-        {
-        break;
-        }
-      char *line = this->Strip(buffer);
-      if ( *line == '#'  || *line == 0 )
-        {
-        // Comment
-        continue;
-        }   
-      int linelen = static_cast<int>(strlen(line));
-      for ( cc = 0; cc < linelen; cc++ )
-        {
-        if ( line[cc] == '=' )
-          {
-          char *key = new char[ cc+1 ];
-          strncpy( key, line, cc );
-          key[cc] = 0;
-          char *value = line + cc + 1;
-          char *nkey = this->Strip(key);
-          char *nvalue = this->Strip(value);
-          this->EntriesMap[nkey] = nvalue;
-          m_Empty = 0;
-          delete [] key;
-          found = 1;      
-          break;
-          }
-        }
-      }
-    ifs->close();
-    this->SetSubKey( subkey );
-    delete ifs;
-    return res;
-    }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool RegistryHelper::Close()
-{
-#ifdef _WIN32
-  if ( m_RegistryType == Registry::WIN32_REGISTRY)
-    {
-    int res;
-    res = ( RegCloseKey(this->HKey) == ERROR_SUCCESS );    
-    return (res != 0);
-    }
-#endif
-  if ( m_RegistryType == Registry::UNIX_REGISTRY )
-    {
-    if ( !m_Changed )
-      {
-      this->EntriesMap.erase(
-        this->EntriesMap.begin(),
-        this->EntriesMap.end());
-      m_Empty = 1;
-      this->SetSubKey(0);
-      return true;
-      }
-
-    kwsys_ios::ostringstream str;
-    if ( !getenv("HOME") )
-      {
-      return false;
-      }
-    str << getenv("HOME") << "/." << this->GetTopLevel() << "rc";
-    kwsys_ios::ofstream *ofs = new kwsys_ios::ofstream(str.str().c_str(), kwsys_ios::ios::out);
-    if ( !ofs )
-      {
-      return false;
-      }
-    if ( ofs->fail())
-      {
-      delete ofs;
-      return false;
-      }
-    *ofs << "# This file is automatically generated by the application" << kwsys_ios::endl
-      << "# If you change any lines or add new lines, note that all" << kwsys_ios::endl
-      << "# coments and empty lines will be deleted. Every line has" << kwsys_ios::endl
-      << "# to be in format: " << kwsys_ios::endl
-      << "# key = value" << kwsys_ios::endl
-      << "#" << kwsys_ios::endl;
-
-    if ( !this->EntriesMap.empty() )
-      {
-      RegistryHelper::StringToStringMap::iterator it;
-      for ( it = this->EntriesMap.begin();
-        it != this->EntriesMap.end();
-        ++ it )
-        {
-        *ofs << it->first.c_str() << " = " << it->second.c_str()<< kwsys_ios::endl;
-        }
-      }
-    this->EntriesMap.erase(
-      this->EntriesMap.begin(),
-      this->EntriesMap.end());
-    ofs->close();
-    delete ofs;
-    this->SetSubKey(0);
-    m_Empty = 1;
-    return true;
-    }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool RegistryHelper::ReadValue(const char *skey, char *value)
-
-{
-#ifdef _WIN32
-  if ( m_RegistryType == Registry::WIN32_REGISTRY)
-    {
-    int res = 1;
-    DWORD dwType, dwSize;  
-    dwType = REG_SZ;
-    dwSize = Registry_BUFFER_SIZE;
-    res = ( RegQueryValueEx(this->HKey, skey, NULL, &dwType, 
-        (BYTE *)value, &dwSize) == ERROR_SUCCESS );
-    return (res != 0);
-    }
-#endif
-  if ( m_RegistryType == Registry::UNIX_REGISTRY )
-    {
-    bool res = false;
-    char *key = this->CreateKey( skey );
-    if ( !key )
-      {
-      return false;
-      }
-    RegistryHelper::StringToStringMap::iterator it
-      = this->EntriesMap.find(key);
-    if ( it != this->EntriesMap.end() )
-      {
-      strcpy(value, it->second.c_str());
-      res = true;
-      }
-    delete [] key;
-    return res;
-    }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool RegistryHelper::DeleteKey(const char* key)
-{
-#ifdef _WIN32
-  if ( m_RegistryType == Registry::WIN32_REGISTRY)
-    {
-    int res = 1;
-    res = ( RegDeleteKey( this->HKey, key ) == ERROR_SUCCESS );
-    return (res != 0);
-    }
-#endif
-  if ( m_RegistryType == Registry::UNIX_REGISTRY )
-    {
-    (void)key;
-    bool res = false;
-    return res;
-    }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool RegistryHelper::DeleteValue(const char *skey)
-{
-#ifdef _WIN32
-  if ( m_RegistryType == Registry::WIN32_REGISTRY)
-    {
-    int res = 1;
-    res = ( RegDeleteValue( this->HKey, skey ) == ERROR_SUCCESS );
-    return (res != 0);
-    }
-#endif
-  if ( m_RegistryType == Registry::UNIX_REGISTRY )
-    {
-    char *key = this->CreateKey( skey );
-    if ( !key )
-      {
-      return false;
-      }
-    this->EntriesMap.erase(key);
-    delete [] key;
-    return true;
-    }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-bool RegistryHelper::SetValue(const char *skey, const char *value)
-{
-#ifdef _WIN32
-  if ( m_RegistryType == Registry::WIN32_REGISTRY)
-    {
-    int res = 1;
-    DWORD len = (DWORD)(value ? strlen(value) : 0);
-    res = ( RegSetValueEx(this->HKey, skey, 0, REG_SZ, 
-        (CONST BYTE *)(const char *)value, 
-        len+1) == ERROR_SUCCESS );
-    return (res != 0);
-    }
-#endif
-  if ( m_RegistryType == Registry::UNIX_REGISTRY )
-    {
-    char *key = this->CreateKey( skey );
-    if ( !key )
-      {
-      return 0;
-      }
-    this->EntriesMap[key] = value;
-    delete [] key;
-    return 1;
-    }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-char *RegistryHelper::CreateKey( const char *key )
-{
-  char *newkey;
-  if ( !m_SubKeySpecified || m_SubKey.empty() || !key )
-    {
-    return 0;
-    }
-  int len = strlen(this->m_SubKey.c_str()) + strlen(key) + 1;
-  newkey = new char[ len+1 ] ;
-  ::sprintf(newkey, "%s\\%s", this->m_SubKey.c_str(), key);
-  return newkey;
-}
-
-void RegistryHelper::SetSubKey(const char* sk)
-{
-  if ( !sk )
-    {
-    m_SubKey = "";
-    m_SubKeySpecified = false;
-    }
-  else
-    {
-    m_SubKey = sk;
-    m_SubKeySpecified = true;
-    }
-}
-
-//----------------------------------------------------------------------------
-char *RegistryHelper::Strip(char *str)
-{
-  int cc;
-  int len;
-  char *nstr;
-  if ( !str )
-    {
-    return NULL;
-    }  
-  len = strlen(str);
-  nstr = str;
-  for( cc=0; cc<len; cc++ )
-    {
-    if ( !isspace( *nstr ) )
-      {
-      break;
-      }
-    nstr ++;
-    }
-  for( cc=(strlen(nstr)-1); cc>=0; cc-- )
-    {
-    if ( !isspace( nstr[cc] ) )
-      {
-      nstr[cc+1] = 0;
-      break;
-      }
-    }
-  return nstr;
-}
-
-//----------------------------------------------------------------------------
-void RegistryHelper::SetGlobalScope(bool b)
-{
-  m_GlobalScope = b;
-}
-
-//----------------------------------------------------------------------------
-bool RegistryHelper::GetGlobalScope()
-{
-  return m_GlobalScope;
-}
-
-//----------------------------------------------------------------------------
-kwsys_stl::string RegistryHelper::EncodeKey(const char* str)
-{
-  kwsys_ios::ostringstream ostr;
-  while ( *str )
-    {
-    switch ( *str )
-      {
-    case '%': case '=': case '\n': case '\r': case '\t': case ' ':
-      char buffer[4];
-      sprintf(buffer, "%%%02X", *str);
-      ostr << buffer;
-      break;
-    default:
-      ostr << *str;
-      }
-    str ++;
-    }
-  return ostr.str();
-}
-
-//----------------------------------------------------------------------------
-kwsys_stl::string RegistryHelper::EncodeValue(const char* str)
-{
-  kwsys_ios::ostringstream ostr;
-  while ( *str )
-    {
-    switch ( *str )
-      {
-    case '%': case '=': case '\n': case '\r': case '\t': 
-      char buffer[4];
-      sprintf(buffer, "%%%02X", *str);
-      ostr << buffer;
-      break;
-    default:
-      ostr << *str;
-      }
-    str ++;
-    }
-  return ostr.str();
-}
-
-//----------------------------------------------------------------------------
-kwsys_stl::string RegistryHelper::DecodeValue(const char* str)
-{
-  kwsys_ios::ostringstream ostr;
-  while ( *str )
-    {
-    int val;
-    switch ( *str )
-      {
-    case '%':
-      if ( *(str+1) && *(str+2) && sscanf(str+1, "%x", &val) == 1 )
-        {
-        ostr << (char)val;
-        str += 2;
+        return this->AddString(cmSystemTools::EscapeQuotes(ptr).c_str());
         }
       else
         {
-        ostr << *str;
+        return ptr;
         }
-      break;
-    default:
-      ostr << *str;
       }
-    str ++;
+    return this->EmptyVariable;
     }
-  return ostr.str();
+  cmSystemTools::Error("Key ", key, " is not used yet. For now only $ENV{..} is allowed");
+  return 0;
 }
 
-} // namespace KWSYS_NAMESPACE
+char* cmCommandArgumentParserHelper::ExpandVariable(const char* var)
+{
+  if(!var)
+    {
+    return 0;
+    }
+  if(this->FileName && strcmp(var, "CMAKE_CURRENT_LIST_FILE") == 0)
+    {
+    return this->AddString(this->FileName);
+    }
+  else if(this->FileLine >= 0 && strcmp(var, "CMAKE_CURRENT_LIST_LINE") == 0)
+    {
+    cmOStringStream ostr;
+    ostr << this->FileLine;
+    return this->AddString(ostr.str().c_str());
+    } 
+  const char* value = this->Makefile->GetDefinition(var);
+  if (this->EscapeQuotes && value)
+    {
+    return this->AddString(cmSystemTools::EscapeQuotes(value).c_str());
+    }
+  return this->AddString(value);
+}
+
+char* cmCommandArgumentParserHelper::CombineUnions(char* in1, char* in2)
+{
+  if ( !in1 )
+    {
+    return in2;
+    }
+  else if ( !in2 )
+    {
+    return in1;
+    }
+  size_t len = strlen(in1) + strlen(in2) + 1;
+  char* out = new char [ len ];
+  strcpy(out, in1);
+  strcat(out, in2);
+  this->Variables.push_back(out);
+  return out;
+}
+
+void cmCommandArgumentParserHelper::AllocateParserType(cmCommandArgumentParserHelper::ParserType* pt, 
+  const char* str, int len)
+{
+  pt->str = 0;
+  if ( len == 0 )
+    {
+    len = (int)strlen(str);
+    }
+  if ( len == 0 )
+    {
+    return;
+    }
+  pt->str = new char[ len + 1 ];
+  strncpy(pt->str, str, len);
+  pt->str[len] = 0;
+  this->Variables.push_back(pt->str);
+  // std::cout << (void*) pt->str << " " << pt->str << " JPAllocateParserType" << std::endl;
+}
+
+bool cmCommandArgumentParserHelper::HandleEscapeSymbol(cmCommandArgumentParserHelper::ParserType* pt, char symbol)
+{
+  if ( this->NoEscapeMode )
+    {
+    char buffer[3];
+    buffer[0] = '\\';
+    buffer[1] = symbol;
+    buffer[2] = 0;
+    this->AllocateParserType(pt, buffer, 2);
+    return true;
+    }
+  switch ( symbol )
+    {
+  case '\\':
+  case '"':
+  case ' ':
+  case '#':
+  case '(':
+  case ')':
+  case '$':
+  case '^':
+    this->AllocateParserType(pt, &symbol, 1);
+    break;
+  case ';':
+    this->AllocateParserType(pt, "\\;", 2);
+    break;
+  case 't':
+    this->AllocateParserType(pt, "\t", 1);
+    break;
+  case 'n':
+    this->AllocateParserType(pt, "\n", 1);
+    break;
+  case 'r':
+    this->AllocateParserType(pt, "\r", 1);
+    break;
+  case '0':
+    this->AllocateParserType(pt, "\0", 1);
+    break;
+  default:
+    char buffer[2];
+    buffer[0] = symbol;
+    buffer[1] = 0;
+    cmSystemTools::Error("Invalid escape sequence \\", buffer);
+    return false;
+    }
+  return true;
+}
+
+int cmCommandArgumentParserHelper::ParseString(const char* str, int verb)
+{
+  if ( !str)
+    {
+    return 0;
+    }
+  //printf("Do some parsing: %s\n", str);
+
+  this->Verbose = verb;
+  this->InputBuffer = str;
+  this->InputBufferPos = 0;
+  this->CurrentLine = 0;
+  
+  this->Result = "";
+
+  yyscan_t yyscanner;
+  cmCommandArgument_yylex_init(&yyscanner);
+  cmCommandArgument_yyset_extra(this, yyscanner);
+  int res = cmCommandArgument_yyparse(yyscanner);
+  cmCommandArgument_yylex_destroy(yyscanner);
+  if ( res != 0 )
+    {
+    //str << "CAL_Parser returned: " << res << std::endl;
+    //std::cerr << "When parsing: [" << str << "]" << std::endl;
+    return 0;
+    }
+
+  this->CleanupParser();
+
+  if ( Verbose )
+    {
+    std::cerr << "Expanding [" << str << "] produced: [" << this->Result.c_str() << "]" << std::endl;
+    }
+  return 1;
+}
+
+void cmCommandArgumentParserHelper::CleanupParser()
+{
+  std::vector<char*>::iterator sit;
+  for ( sit = this->Variables.begin();
+    sit != this->Variables.end();
+    ++ sit )
+    {
+    delete [] *sit;
+    }
+  this->Variables.erase(this->Variables.begin(), this->Variables.end());
+}
+
+int cmCommandArgumentParserHelper::LexInput(char* buf, int maxlen)
+{
+  //std::cout << "JPLexInput ";
+  //std::cout.write(buf, maxlen);
+  //std::cout << std::endl;
+  if ( maxlen < 1 )
+    {
+    return 0;
+    }
+  if ( this->InputBufferPos < this->InputBuffer.size() )
+    {
+    buf[0] = this->InputBuffer[ this->InputBufferPos++ ];
+    if ( buf[0] == '\n' )
+      {
+      this->CurrentLine ++;
+      }
+    return(1);
+    }
+  else
+    {
+    buf[0] = '\n';
+    return( 0 );
+    }
+}
+
+void cmCommandArgumentParserHelper::Error(const char* str)
+{
+  unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
+  //fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
+  cmOStringStream ostr;
+  ostr << str << " (" << pos << ")";
+  /*
+  int cc;
+  std::cerr << "String: [";
+  for ( cc = 0; cc < 30 && *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
+    cc ++ )
+    {
+    std::cerr << *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
+    }
+  std::cerr << "]" << std::endl;
+  */
+  this->ErrorString = ostr.str();
+}
+
+void cmCommandArgumentParserHelper::SetMakefile(const cmMakefile* mf)
+{
+  this->Makefile = mf;
+}
+
+void cmCommandArgumentParserHelper::SetResult(const char* value)
+{
+  if ( !value )
+    {
+    this->Result = "";
+    return;
+    }
+  this->Result = value;
+}
+

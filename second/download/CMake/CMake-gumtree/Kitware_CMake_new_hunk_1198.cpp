@@ -1,26 +1,24 @@
-#endif
-
-  uid = th_get_uid(t);
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  pw = getpwuid(uid);
-  if (pw != NULL)
-    strlcpy(username, pw->pw_name, sizeof(username));
-  else
-#endif
-    snprintf(username, sizeof(username), "%d", (int)uid);
-  gid = th_get_gid(t);
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  gr = getgrgid(gid);
-  if (gr != NULL)
-    strlcpy(groupname, gr->gr_name, sizeof(groupname));
-  else
-#endif
-    snprintf(groupname, sizeof(groupname), "%d", (int)gid);
-    
-  strmode(th_get_mode(t), modestring);
-  printf("%.10s %-8.8s %-8.8s ", modestring, username, groupname);
-
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  if (TH_ISCHR(t) || TH_ISBLK(t))
-    printf(" %3d, %3d ", th_get_devmajor(t), th_get_devminor(t));
-  else
+      std::string tagmode;
+      if ( cmSystemTools::GetLineFromStream(tfin, tagmode) )
+        {
+        if ( tagmode.size() > 4 && !( this->Tests[cmCTest::START_TEST] ||
+            this->Tests[ALL_TEST] ))
+          {
+          this->TestModel = cmCTest::GetTestModelFromString(tagmode.c_str());
+          }
+        }
+      tfin.close();
+      }
+    if ( tag.size() == 0 || new_tag || this->Tests[cmCTest::START_TEST] ||
+      this->Tests[ALL_TEST])
+      {
+      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
+        << std::endl);
+      cmCTestLog(this, DEBUG, "TestModel: " << this->TestModel << std::endl);
+      if ( this->TestModel == cmCTest::NIGHTLY )
+        {
+        lctime = this->GetNightlyTime(
+          this->GetCTestConfiguration("NightlyStartTime"), this->TomorrowTag);
+        }
+      char datestring[100];
+      sprintf(datestring, "%04d%02d%02d-%02d%02d",

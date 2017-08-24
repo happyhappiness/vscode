@@ -1,32 +1,31 @@
-@@ -64,11 +64,13 @@ int
- tar_append_file(TAR *t, char *realname, char *savename)
- {
-   struct stat s;
--  int i;
-   libtar_hashptr_t hp;
-   tar_dev_t *td = NULL;
-   tar_ino_t *ti = NULL;
-+#if !defined(_WIN32) || defined(__CYGWIN__)
-+  int i;
-   char path[TAR_MAXPATHLEN];
+@@ -977,6 +977,7 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+     // Command to start progress for a build
+     else if (args[1] == "cmake_progress_start" && args.size() == 4)
+       {
++#if defined(CMAKE_BUILD_WITH_CMAKE)
+       // bascially remove the directory
+       std::string dirName = args[2];
+       dirName += "/Progress";
+@@ -992,12 +993,14 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+         fprintf(progFile,"%i\n",count);
+         fclose(progFile);
+         }
 +#endif
+       return 0;
+       }
  
- #ifdef DEBUG
-   printf("==> tar_append_file(TAR=0x%lx (\"%s\"), realname=\"%s\", "
-@@ -151,7 +153,7 @@ tar_append_file(TAR *t, char *realname, char *savename)
-     libtar_hash_add(td->td_h, ti);
-   }
- 
--#ifndef WIN32
-+#if !defined(_WIN32) || defined(__CYGWIN__)
-   /* check if it's a symlink */
-   if (TH_ISSYM(t))
-   {
-@@ -172,6 +174,7 @@ tar_append_file(TAR *t, char *realname, char *savename)
-     th_set_link(t, path);
-   }
- #endif
-+
-   /* print file info */
-   if (t->options & TAR_VERBOSE)
-     th_print_long_ls(t);
+     // Command to report progress for a build
+     else if (args[1] == "cmake_progress_report" && args.size() >= 4)
+       {
++#if defined(CMAKE_BUILD_WITH_CMAKE)
+       std::string dirName = args[2];
+       dirName += "/Progress";
+       std::string fName;
+@@ -1033,6 +1036,7 @@ int cmake::ExecuteCMakeCommand(std::vector<std::string>& args)
+           }
+         fclose(progFile);
+         }
++#endif
+       return 0;
+       }
+     

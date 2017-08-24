@@ -1,34 +1,37 @@
-    {
-      if (k != -1)
-        errno = EINVAL;
-      if (pathname)
-        {
-        free(pathname);
-        }
-      return -1;
+    fprintf(fout,"extern Tcl_HashTable vtkCommandLookup;\n");
     }
+  fprintf(fout,"extern void vtkTclDeleteObjectFromHash(void *);\n");  
+  fprintf(fout,"extern void vtkTclListInstances(Tcl_Interp *interp,"
+          "ClientData arg);\n");
 
-    /* write block to output file */
-    if (write(fdout, buf,
-        ((i > T_BLOCKSIZE) ? T_BLOCKSIZE : i)) == -1)
-      {
-      if (pathname)
-        {
-        free(pathname);
-        }
-      return -1;
-      }
-  }
-
-  /* close output file */
-  if (close(fdout) == -1)
+  for (i = 0; i < this->Commands.size(); i++)
     {
-    if (pathname)
-      {
-      free(pathname);
-      }
-    return -1;
+    fprintf(fout,
+            "\nextern \"C\" {int VTK_EXPORT %s_Init(Tcl_Interp *interp);}\n",
+            capcommands[i].c_str());
     }
+  
+  fprintf(fout,"\n\nextern \"C\" {int VTK_EXPORT "
+          "%s_SafeInit(Tcl_Interp *interp);}\n", kitName);
+  fprintf(fout,"\nextern \"C\" {int VTK_EXPORT %s_Init"
+          "(Tcl_Interp *interp);}\n", kitName);
+  
+  /* create an extern ref to the generic delete function */
+  fprintf(fout,"\nextern void vtkTclGenericDeleteObject(ClientData cd);\n");
 
-#ifdef DEBUG
-  printf("### done extracting %s\n", filename);
+  if (!strcmp(kitName,"Vtkcommontcl"))
+    {
+    fprintf(fout,"extern \"C\"\n{\nvoid "
+            "vtkCommonDeleteAssocData(ClientData cd)\n");
+    fprintf(fout,"  {\n");
+    fprintf(fout,"  vtkTclInterpStruct *tis = "
+            "static_cast<vtkTclInterpStruct*>(cd);\n");
+    fprintf(fout,"  delete tis;\n  }\n}\n");
+    }
+    
+  /* the main declaration */
+  fprintf(fout,
+          "\n\nint VTK_EXPORT %s_SafeInit(Tcl_Interp *interp)\n{\n",kitName);
+  fprintf(fout,"  return %s_Init(interp);\n}\n",kitName);
+  
+  fprintf(fout,"\n\nint VTK_EXPORT %s_Init(Tcl_Interp *interp)\n{\n",

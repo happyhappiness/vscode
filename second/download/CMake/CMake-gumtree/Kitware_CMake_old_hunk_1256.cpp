@@ -1,11 +1,11 @@
-      return CURLE_FTP_WEIRD_227_FORMAT;
-    }
+#endif
 
-    sprintf(newhost, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-    newhostp = newhost;
-    newport = (unsigned short)((port[0]<<8) + port[1]);
-  }
-#if 1
-  else if (229 == results[modeoff]) {
-    char *ptr = strchr(buf, '(');
-    if(ptr) {
+  filename = (realname ? realname : th_get_pathname(t));
+  if (mkdirhier(dirname(filename)) == -1)
+    return -1;
+
+  if (unlink(filename) == -1 && errno != ENOENT)
+    return -1;
+
+#ifdef DEBUG
+  printf("  ==> extracting: %s (symlink to %s)\n",

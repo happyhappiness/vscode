@@ -1,26 +1,12 @@
-int main(int argc, char **argv, char **envp)
-{
-  char *base64;
-  size_t base64Len;
-  unsigned char *data;
-  int dataLen;
-
-  data = (unsigned char *)suck(&dataLen);
-  base64Len = Curl_base64_encode(data, dataLen, &base64);
-
-  fprintf(stderr, "%d\n", base64Len);
-  fprintf(stdout, "%s",   base64);
-
-  free(base64); free(data);
-  return 0;
-}
+         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
 #endif
 
-#ifdef TEST_DECODE
-/* decoding test harness. Read in a base64 string from stdin and write out the
- * length returned by Curl_base64_decode, followed by the decoded data itself
- *
- * gcc -DTEST_DECODE base64.c -o base64 mprintf.o memdebug.o
- */
-#include <stdio.h>
+  pathname = th_get_pathname(t);
+  if (pathname)
+    {
+    printf(" %s", pathname);
+    free(pathname);
+    }
 
+#if !defined(_WIN32) || defined(__CYGWIN__)
+  if (TH_ISSYM(t) || TH_ISLNK(t))

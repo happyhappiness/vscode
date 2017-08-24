@@ -1,7 +1,14 @@
-         mtm->tm_mday, mtm->tm_hour, mtm->tm_min, mtm->tm_year + 1900);
-#endif
+                           strlen(target.GetName()) + 30)];
+  sprintf(output,"%s/%s_force_%i", this->Makefile->GetStartOutputDirectory(),
+          target.GetName(), count);
 
-  printf(" %s", th_get_pathname(t));
+  // Add the rule with the given dependencies and commands.
+  const char* no_main_dependency = 0;
+  this->Makefile->AddCustomCommandToOutput(output,
+                                       depends,
+                                       no_main_dependency,
+                                       origCommand.GetCommandLines(),
+                                       origCommand.GetComment(),
+                                       origCommand.GetWorkingDirectory());
 
-#if !defined(_WIN32) || defined(__CYGWIN__)
-  if (TH_ISSYM(t) || TH_ISLNK(t))
+  // Replace the dependencies with the output of this rule so that the

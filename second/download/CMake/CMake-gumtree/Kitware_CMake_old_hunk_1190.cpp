@@ -1,8 +1,27 @@
-    fprintf(stderr,"*** Failed LOADED COMMAND Final Pass\n");
-    }
-}
+#  define YYFPRINTF fprintf
+# endif
 
-static void Destructor(void *inf) 
-{
-  cmLoadedCommandInfo *info = (cmLoadedCommandInfo *)inf;
-  /* get our client data from initial pass */
+# define YYDPRINTF(Args)      \
+do {            \
+  if (yydebug)          \
+    YYFPRINTF Args;        \
+} while (0)
+
+# define YYDSYMPRINT(Args)      \
+do {            \
+  if (yydebug)          \
+    yysymprint Args;        \
+} while (0)
+
+# define YYDSYMPRINTF(Title, Token, Value, Location)    \
+do {                \
+  if (yydebug)              \
+    {                \
+      YYFPRINTF (stderr, "%s ", Title);        \
+      yysymprint (stderr,           \
+                  Token, Value);  \
+      YYFPRINTF (stderr, "\n");          \
+    }                \
+} while (0)
+
+/*------------------------------------------------------------------.

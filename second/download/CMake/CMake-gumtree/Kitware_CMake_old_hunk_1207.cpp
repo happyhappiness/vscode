@@ -1,34 +1,7 @@
-    return (res != 0);
+                 "                    (ClientData *)NULL, NULL);\n\n");
     }
-#endif
-  if ( m_RegistryType == Registry::UNIX_REGISTRY )
+  
+  for (i = 0; i < m_Commands.size(); i++)
     {
-    char *key = this->CreateKey( skey );
-    if ( !key )
-      {
-      return 0;
-      }
-    this->EntriesMap[key] = value;
-    delete [] key;
-    return 1;
+    fprintf(fout,"  %s_Init(interp);\n", capcommands[i].c_str());
     }
-  return false;
-}
-
-//----------------------------------------------------------------------------
-char *RegistryHelper::CreateKey( const char *key )
-{
-  char *newkey;
-  if ( !m_SubKeySpecified || m_SubKey.empty() || !key )
-    {
-    return 0;
-    }
-  int len = strlen(this->m_SubKey.c_str()) + strlen(key) + 1;
-  newkey = new char[ len+1 ] ;
-  ::sprintf(newkey, "%s\\%s", this->m_SubKey.c_str(), key);
-  return newkey;
-}
-
-void RegistryHelper::SetSubKey(const char* sk)
-{
-  if ( !sk )

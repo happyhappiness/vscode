@@ -1,7 +1,7 @@
-    n = atoi(argv[2]);
-    }
-  /* Check arguments.  */
-  if(n < 1 || n > 6 || (argc == 3 && strcmp(argv[1], "run") != 0))
+  for ( ;*pos; ++pos)
     {
-    fprintf(stdout, "Usage: %s <test number>\n", argv[0]);
-    return 1;
+    char ch = *pos;
+    if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 && ch != '\r' )
+      {
+      char buffer[33];
+      sprintf(buffer, "&lt;%d&gt;", (int)ch);

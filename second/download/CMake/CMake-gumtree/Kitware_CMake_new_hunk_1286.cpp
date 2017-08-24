@@ -1,25 +1,16 @@
-            fprintf(stderr,"***Exception: ");
-            switch ( retVal )
-              {
-            case cmsysProcess_Exception_Fault:
-              fprintf(stderr,"SegFault");
-              cres.m_Status = cmCTest::SEGFAULT;
-              break;
-            case cmsysProcess_Exception_Illegal:
-              fprintf(stderr,"Illegal");
-              cres.m_Status = cmCTest::ILLEGAL;
-              break;
-            case cmsysProcess_Exception_Interrupt:
-              fprintf(stderr,"Interrupt");
-              cres.m_Status = cmCTest::INTERRUPT;
-              break;
-            case cmsysProcess_Exception_Numerical:
-              fprintf(stderr,"Numerical");
-              cres.m_Status = cmCTest::NUMERICAL;
-              break;
-            default:
-              fprintf(stderr,"Other");
-              cres.m_Status = cmCTest::OTHER_FAULT;
-              }
-            fprintf(stderr,"\n");
-            }
+      {
+      percent = 99;
+      }
+    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl << std::setprecision(0) << percent << "% tests passed, "
+      << failed.size() << " tests failed out of " << total << std::endl);
+    //fprintf(stderr,"\n%.0f%% tests passed, %i tests failed out of %i\n",
+    //  percent, int(failed.size()), total);
+
+    if (failed.size()) 
+      {
+      cmGeneratedFileStream ofs;
+
+      cmCTestLog(m_CTest, ERROR, std::endl << "The following tests FAILED:" << std::endl);
+      m_CTest->OpenOutputFile("Temporary", "LastTestsFailed.log", ofs);
+
+      std::vector<cmCTestTestHandler::cmCTestTestResult>::iterator ftit;

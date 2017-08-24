@@ -1,13 +1,22 @@
+  return 0;
+}
 
-    if ( m_ShowOnly )
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s\n", cnt, (int)tmsize, testname.c_str());
-      }
-    else
-      {
-      fprintf(stderr,"%3d/%3d Testing %-30s ", cnt, (int)tmsize, testname.c_str());
-      fflush(stderr);
-      }
-    //std::cerr << "Testing " << args[0] << " ... ";
-    // find the test executable
-    std::string actualCommand = this->FindTheExecutable(args[1].Value.c_str());
+int runChild(const char* cmd[], int state, int exception, int value,
+             int share, int output, int delay, double timeout,
+             int poll)
+{
+  int result = 0;
+  char* data = 0;
+  int length = 0;
+  double userTimeout = 0;
+  double* pUserTimeout = 0;
+  kwsysProcess* kp = kwsysProcess_New();
+  if(!kp)
+    {
+    fprintf(stderr, "kwsysProcess_New returned NULL!\n");
+    return 1;
+    }
+  
+  kwsysProcess_SetCommand(kp, cmd);
+  if(timeout >= 0)
+    {

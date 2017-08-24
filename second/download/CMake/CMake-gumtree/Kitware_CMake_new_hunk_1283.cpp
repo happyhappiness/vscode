@@ -1,8 +1,7 @@
-      //std::cout << "TestModel: " << m_TestModel << std::endl;
-      if ( m_TestModel == cmCTest::NIGHTLY )
-        {
-        lctime = ::GetNightlyTime(m_DartConfiguration["NightlyStartTime"],
-          m_TomorrowTag);
-        }
-      char datestring[100];
-      sprintf(datestring, "%04d%02d%02d-%02d%02d",
+void cmCommandArgumentParserHelper::Error(const char* str)
+{
+  unsigned long pos = static_cast<unsigned long>(this->InputBufferPos);
+  fprintf(stderr, "Argument Parser Error: %s (%lu / Line: %d)\n", str, pos, this->CurrentLine);
+  int cc;
+  std::cerr << "String: [";
+  for ( cc = 0; cc < 30 && *(this->InputBuffer.c_str() + this->InputBufferPos + cc);
