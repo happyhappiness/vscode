@@ -1,2285 +1,2422 @@
-/*=========================================================================
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2007, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ * $Id$
+ ***************************************************************************/
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
+#include "setup.h"
 
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
-
-     This software is distributed WITHOUT ANY WARRANTY; without even
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-     PURPOSE.  See the above copyright notices for more information.
-
-=========================================================================*/
-#include "cmake.h"
-#include "time.h"
-#include "cmCacheManager.h"
-#include "cmMakefile.h"
-#include "cmLocalGenerator.h"
-#include "cmCommands.h"
-#include "cmCommand.h"
-#include "cmFileTimeComparison.h"
-#include "cmGeneratedFileStream.h"
-
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-# include "cmDependsFortran.h" // For -E cmake_copy_f90_mod callback.
-# include "cmVariableWatch.h"
-# include "cmVersion.h"
+#ifndef CURL_DISABLE_HTTP
+/* -- WIN32 approved -- */
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <ctype.h>
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_STAT_H
+#include <sys/stat.h>
 #endif
 
-// only build kdevelop generator on non-windows platforms
-// when not bootstrapping cmake
-#if !defined(_WIN32)
-# if defined(CMAKE_BUILD_WITH_CMAKE)
-#   define CMAKE_USE_KDEVELOP
-# endif
-#endif
-
-#if defined(__MINGW32__) && !defined(CMAKE_BUILD_WITH_CMAKE)
-# define CMAKE_BOOT_MINGW
-#endif
-
-// include the generator
-#if defined(_WIN32) && !defined(__CYGWIN__)
-#  if !defined(CMAKE_BOOT_MINGW)
-#    include "cmGlobalVisualStudio6Generator.h"
-#    include "cmGlobalVisualStudio7Generator.h"
-#    include "cmGlobalVisualStudio71Generator.h"
-#    include "cmGlobalVisualStudio8Generator.h"
-#    include "cmGlobalBorlandMakefileGenerator.h"
-#    include "cmGlobalNMakeMakefileGenerator.h"
-#    include "cmGlobalWatcomWMakeGenerator.h"
-#  endif
-#  include "cmGlobalMSYSMakefileGenerator.h"
-#  include "cmGlobalMinGWMakefileGenerator.h"
-#  include "cmWin32ProcessExecution.h"
+#ifdef WIN32
+#include <time.h>
+#include <io.h>
 #else
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
 #endif
-#include "cmGlobalUnixMakefileGenerator3.h"
-
-#ifdef CMAKE_USE_KDEVELOP
-# include "cmGlobalKdevelopGenerator.h"
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
 #endif
-
-#include <stdlib.h> // required for atoi
-
-#ifdef __APPLE__
-#  include "cmGlobalXCodeGenerator.h"
-#  define CMAKE_USE_XCODE 1
-#  include <sys/types.h>
-#  include <sys/time.h>
-#  include <sys/resource.h>
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
 #endif
 
-#include <sys/stat.h> // struct stat
+#ifdef HAVE_TIME_H
+#ifdef TIME_WITH_SYS_TIME
+#include <time.h>
+#endif
+#endif
 
-#include <memory> // auto_ptr
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#include <netdb.h>
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_NET_IF_H
+#include <net/if.h>
+#endif
+#include <sys/ioctl.h>
+#include <signal.h>
 
-void cmNeedBackwardsCompatibility(const std::string& variable,
-                                  int access_type, void* )
+#ifdef HAVE_SYS_PARAM_H
+#include <sys/param.h>
+#endif
+
+#endif
+
+#include "urldata.h"
+#include <curl/curl.h>
+#include "transfer.h"
+#include "sendf.h"
+#include "easyif.h" /* for Curl_convert_... prototypes */
+#include "formdata.h"
+#include "progress.h"
+#include "base64.h"
+#include "cookie.h"
+#include "strequal.h"
+#include "sslgen.h"
+#include "http_digest.h"
+#include "http_ntlm.h"
+#include "http_negotiate.h"
+#include "url.h"
+#include "share.h"
+#include "hostip.h"
+#include "http.h"
+#include "memory.h"
+#include "select.h"
+#include "parsedate.h" /* for the week day and month names */
+#include "strtoofft.h"
+#include "multiif.h"
+
+#define _MPRINTF_REPLACE /* use our functions only */
+#include <curl/mprintf.h>
+
+/* The last #include file should be: */
+#include "memdebug.h"
+
+/*
+ * checkheaders() checks the linked list of custom HTTP headers for a
+ * particular header (prefix).
+ *
+ * Returns a pointer to the first matching header or NULL if none matched.
+ */
+static char *checkheaders(struct SessionHandle *data, const char *thisheader)
 {
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  if (access_type == cmVariableWatch::UNKNOWN_VARIABLE_READ_ACCESS)
-    {
-    std::string message = "An attempt was made to access a variable: ";
-    message += variable;
-    message +=
-      " that has not been defined. Some variables were always defined "
-      "by CMake in versions prior to 1.6. To fix this you might need to set "
-      "the cache value of CMAKE_BACKWARDS_COMPATIBILITY to 1.4 or less. If "
-      "you are writing a CMakeList file, (or have already set "
-      "CMAKE_BACKWARDS_COMPATABILITY to 1.4 or less) then you probably need "
-      "to include a CMake module to test for the feature this variable "
-      "defines.";
-    cmSystemTools::Error(message.c_str());
-    }
-#else
-  (void)variable;
-  (void)access_type;
-#endif
+  struct curl_slist *head;
+  size_t thislen = strlen(thisheader);
+
+  for(head = data->set.headers; head; head=head->next) {
+    if(strnequal(head->data, thisheader, thislen))
+      return head->data;
+  }
+  return NULL;
 }
 
-cmake::cmake()
+/*
+ * Curl_output_basic() sets up an Authorization: header (or the proxy version)
+ * for HTTP Basic authentication.
+ *
+ * Returns CURLcode.
+ */
+static CURLcode Curl_output_basic(struct connectdata *conn, bool proxy)
 {
-  m_DebugTryCompile = false;
-  m_ClearBuildSystem = false;
-  m_FileComparison = new cmFileTimeComparison;
+  char *authorization;
+  struct SessionHandle *data=conn->data;
+  char **userp;
+  char *user;
+  char *pwd;
 
-#ifdef __APPLE__
-  struct rlimit rlp;
-  if(!getrlimit(RLIMIT_STACK, &rlp))
-    {
-    if(rlp.rlim_cur != rlp.rlim_max)
-      {
-        rlp.rlim_cur = rlp.rlim_max;
-         setrlimit(RLIMIT_STACK, &rlp);
+  if(proxy) {
+    userp = &conn->allocptr.proxyuserpwd;
+    user = conn->proxyuser;
+    pwd = conn->proxypasswd;
+  }
+  else {
+    userp = &conn->allocptr.userpwd;
+    user = conn->user;
+    pwd = conn->passwd;
+  }
+
+  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+  if(Curl_base64_encode(data, data->state.buffer,
+                        strlen(data->state.buffer),
+                        &authorization) > 0) {
+    if(*userp)
+      free(*userp);
+    *userp = aprintf( "%sAuthorization: Basic %s\r\n",
+                      proxy?"Proxy-":"",
+                      authorization);
+    free(authorization);
+  }
+  else
+    return CURLE_OUT_OF_MEMORY;
+  return CURLE_OK;
+}
+
+/* pickoneauth() selects the most favourable authentication method from the
+ * ones available and the ones we want.
+ *
+ * return TRUE if one was picked
+ */
+static bool pickoneauth(struct auth *pick)
+{
+  bool picked;
+  /* only deal with authentication we want */
+  long avail = pick->avail & pick->want;
+  picked = TRUE;
+
+  /* The order of these checks is highly relevant, as this will be the order
+     of preference in case of the existance of multiple accepted types. */
+  if(avail & CURLAUTH_GSSNEGOTIATE)
+    pick->picked = CURLAUTH_GSSNEGOTIATE;
+  else if(avail & CURLAUTH_DIGEST)
+    pick->picked = CURLAUTH_DIGEST;
+  else if(avail & CURLAUTH_NTLM)
+    pick->picked = CURLAUTH_NTLM;
+  else if(avail & CURLAUTH_BASIC)
+    pick->picked = CURLAUTH_BASIC;
+  else {
+    pick->picked = CURLAUTH_PICKNONE; /* we select to use nothing */
+    picked = FALSE;
+  }
+  pick->avail = CURLAUTH_NONE; /* clear it here */
+
+  return picked;
+}
+
+/*
+ * perhapsrewind()
+ *
+ * If we are doing POST or PUT {
+ *   If we have more data to send {
+ *     If we are doing NTLM {
+ *       Keep sending since we must not disconnect
+ *     }
+ *     else {
+ *       If there is more than just a little data left to send, close
+ *       the current connection by force.
+ *     }
+ *   }
+ *   If we have sent any data {
+ *     If we don't have track of all the data {
+ *       call app to tell it to rewind
+ *     }
+ *     else {
+ *       rewind internally so that the operation can restart fine
+ *     }
+ *   }
+ * }
+ */
+static CURLcode perhapsrewind(struct connectdata *conn)
+{
+  struct SessionHandle *data = conn->data;
+  struct HTTP *http = data->reqdata.proto.http;
+  struct Curl_transfer_keeper *k = &data->reqdata.keep;
+  curl_off_t bytessent;
+  curl_off_t expectsend = -1; /* default is unknown */
+
+  if(!http)
+    /* If this is still NULL, we have not reach very far and we can
+       safely skip this rewinding stuff */
+    return CURLE_OK;
+
+  bytessent = http->writebytecount;
+
+  if(conn->bits.authneg)
+    /* This is a state where we are known to be negotiating and we don't send
+       any data then. */
+    expectsend = 0;
+  else {
+    /* figure out how much data we are expected to send */
+    switch(data->set.httpreq) {
+    case HTTPREQ_POST:
+      if(data->set.postfieldsize != -1)
+        expectsend = data->set.postfieldsize;
+      break;
+    case HTTPREQ_PUT:
+      if(data->set.infilesize != -1)
+        expectsend = data->set.infilesize;
+      break;
+    case HTTPREQ_POST_FORM:
+      expectsend = http->postsize;
+      break;
+    default:
+      break;
+    }
+  }
+
+  conn->bits.rewindaftersend = FALSE; /* default */
+
+  if((expectsend == -1) || (expectsend > bytessent)) {
+    /* There is still data left to send */
+    if((data->state.authproxy.picked == CURLAUTH_NTLM) ||
+       (data->state.authhost.picked == CURLAUTH_NTLM)) {
+      if(((expectsend - bytessent) < 2000) ||
+         (conn->ntlm.state != NTLMSTATE_NONE)) {
+        /* The NTLM-negotiation has started *OR* there is just a little (<2K)
+           data left to send, keep on sending. */
+
+        /* rewind data when completely done sending! */
+        if(!conn->bits.authneg)
+          conn->bits.rewindaftersend = TRUE;
+
+        return CURLE_OK;
       }
-    }
-#endif
+      if(conn->bits.close)
+        /* this is already marked to get closed */
+        return CURLE_OK;
 
-  // If MAKEFLAGS are given in the environment, remove the environment
-  // variable.  This will prevent try-compile from succeeding when it
-  // should fail (if "-i" is an option).  We cannot simply test
-  // whether "-i" is given and remove it because some make programs
-  // encode the MAKEFLAGS variable in a strange way.
-  if(getenv("MAKEFLAGS"))
-    {
-    cmSystemTools::PutEnv("MAKEFLAGS=");
+      infof(data, "NTLM send, close instead of sending %" FORMAT_OFF_T
+            " bytes\n", (curl_off_t)(expectsend - bytessent));
     }
 
-  m_Verbose = false;
-  m_InTryCompile = false;
-  m_CacheManager = new cmCacheManager;
-  m_GlobalGenerator = 0;
-  m_ProgressCallback = 0;
-  m_ProgressCallbackClientData = 0;
-  m_ScriptMode = false;
+    /* This is not NTLM or NTLM with many bytes left to send: close
+     */
+    conn->bits.close = TRUE;
+    k->size = 0; /* don't download any more than 0 bytes */
+  }
 
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  m_VariableWatch = new cmVariableWatch;
-  m_VariableWatch->AddWatch("CMAKE_WORDS_BIGENDIAN",
-                            cmNeedBackwardsCompatibility);
-  m_VariableWatch->AddWatch("CMAKE_SIZEOF_INT",
-                            cmNeedBackwardsCompatibility);
-  m_VariableWatch->AddWatch("CMAKE_X_LIBS",
-                            cmNeedBackwardsCompatibility);
-#endif
+  if(bytessent)
+    return Curl_readrewind(conn);
 
-  this->AddDefaultGenerators();
-  this->AddDefaultCommands();
-
-  // Make sure we can capture the build tool output.
-  cmSystemTools::EnableVSConsoleOutput();
+  return CURLE_OK;
 }
 
-cmake::~cmake()
+/*
+ * Curl_http_auth_act() gets called when a all HTTP headers have been received
+ * and it checks what authentication methods that are available and decides
+ * which one (if any) to use. It will set 'newurl' if an auth metod was
+ * picked.
+ */
+
+CURLcode Curl_http_auth_act(struct connectdata *conn)
 {
-  delete m_CacheManager;
-  if (m_GlobalGenerator)
-    {
-    delete m_GlobalGenerator;
-    m_GlobalGenerator = 0;
+  struct SessionHandle *data = conn->data;
+  bool pickhost = FALSE;
+  bool pickproxy = FALSE;
+  CURLcode code = CURLE_OK;
+
+  if(100 == data->reqdata.keep.httpcode)
+    /* this is a transient response code, ignore */
+    return CURLE_OK;
+
+  if(data->state.authproblem)
+    return data->set.http_fail_on_error?CURLE_HTTP_RETURNED_ERROR:CURLE_OK;
+
+  if(conn->bits.user_passwd &&
+     ((data->reqdata.keep.httpcode == 401) ||
+      (conn->bits.authneg && data->reqdata.keep.httpcode < 300))) {
+    pickhost = pickoneauth(&data->state.authhost);
+    if(!pickhost)
+      data->state.authproblem = TRUE;
+  }
+  if(conn->bits.proxy_user_passwd &&
+     ((data->reqdata.keep.httpcode == 407) ||
+      (conn->bits.authneg && data->reqdata.keep.httpcode < 300))) {
+    pickproxy = pickoneauth(&data->state.authproxy);
+    if(!pickproxy)
+      data->state.authproblem = TRUE;
+  }
+
+  if(pickhost || pickproxy) {
+    data->reqdata.newurl = strdup(data->change.url); /* clone URL */
+
+    if((data->set.httpreq != HTTPREQ_GET) &&
+       (data->set.httpreq != HTTPREQ_HEAD) &&
+       !conn->bits.rewindaftersend) {
+      code = perhapsrewind(conn);
+      if(code)
+        return code;
     }
-  for(RegisteredCommandsMap::iterator j = m_Commands.begin();
-      j != m_Commands.end(); ++j)
-    {
-    delete (*j).second;
+  }
+
+  else if((data->reqdata.keep.httpcode < 300) &&
+          (!data->state.authhost.done) &&
+          conn->bits.authneg) {
+    /* no (known) authentication available,
+       authentication is not "done" yet and
+       no authentication seems to be required and
+       we didn't try HEAD or GET */
+    if((data->set.httpreq != HTTPREQ_GET) &&
+       (data->set.httpreq != HTTPREQ_HEAD)) {
+      data->reqdata.newurl = strdup(data->change.url); /* clone URL */
+      data->state.authhost.done = TRUE;
     }
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  delete m_VariableWatch;
-#endif
-  delete m_FileComparison;
+  }
+  if (Curl_http_should_fail(conn)) {
+    failf (data, "The requested URL returned error: %d",
+           data->reqdata.keep.httpcode);
+    code = CURLE_HTTP_RETURNED_ERROR;
+  }
+
+  return code;
 }
 
-void cmake::CleanupCommandsAndMacros()
+/**
+ * Curl_http_output_auth() setups the authentication headers for the
+ * host/proxy and the correct authentication
+ * method. conn->data->state.authdone is set to TRUE when authentication is
+ * done.
+ *
+ * @param conn all information about the current connection
+ * @param request pointer to the request keyword
+ * @param path pointer to the requested path
+ * @param proxytunnel boolean if this is the request setting up a "proxy
+ * tunnel"
+ *
+ * @returns CURLcode
+ */
+static CURLcode
+Curl_http_output_auth(struct connectdata *conn,
+                      char *request,
+                      char *path,
+                      bool proxytunnel) /* TRUE if this is the request setting
+                                           up the proxy tunnel */
 {
-  std::vector<cmCommand*> commands;
-  for(RegisteredCommandsMap::iterator j = m_Commands.begin();
-      j != m_Commands.end(); ++j)
-    {
-    if ( !j->second->IsA("cmMacroHelperCommand") )
-      {
-      commands.push_back(j->second);
-      }
+  CURLcode result = CURLE_OK;
+  struct SessionHandle *data = conn->data;
+  char *auth=NULL;
+  struct auth *authhost;
+  struct auth *authproxy;
+
+  curlassert(data);
+
+  authhost = &data->state.authhost;
+  authproxy = &data->state.authproxy;
+
+  if((conn->bits.httpproxy && conn->bits.proxy_user_passwd) ||
+     conn->bits.user_passwd)
+    /* continue please */ ;
+  else {
+    authhost->done = TRUE;
+    authproxy->done = TRUE;
+    return CURLE_OK; /* no authentication with no user or password */
+  }
+
+  if(authhost->want && !authhost->picked)
+    /* The app has selected one or more methods, but none has been picked
+       so far by a server round-trip. Then we set the picked one to the
+       want one, and if this is one single bit it'll be used instantly. */
+    authhost->picked = authhost->want;
+
+  if(authproxy->want && !authproxy->picked)
+    /* The app has selected one or more methods, but none has been picked so
+       far by a proxy round-trip. Then we set the picked one to the want one,
+       and if this is one single bit it'll be used instantly. */
+    authproxy->picked = authproxy->want;
+
+  /* Send proxy authentication header if needed */
+  if (conn->bits.httpproxy &&
+      (conn->bits.tunnel_proxy == proxytunnel)) {
+#ifdef USE_NTLM
+    if(authproxy->picked == CURLAUTH_NTLM) {
+      auth=(char *)"NTLM";
+      result = Curl_output_ntlm(conn, TRUE);
+      if(result)
+        return result;
+    }
     else
-      {
-      delete j->second;
+#endif
+      if(authproxy->picked == CURLAUTH_BASIC) {
+        /* Basic */
+        if(conn->bits.proxy_user_passwd &&
+           !checkheaders(data, "Proxy-authorization:")) {
+          auth=(char *)"Basic";
+          result = Curl_output_basic(conn, TRUE);
+          if(result)
+            return result;
+        }
+        /* NOTE: Curl_output_basic() should set 'done' TRUE, as the other auth
+           functions work that way */
+        authproxy->done = TRUE;
       }
-    }
-  m_Commands.erase(m_Commands.begin(), m_Commands.end());
-  std::vector<cmCommand*>::iterator it;
-  for ( it = commands.begin(); it != commands.end();
-    ++ it )
-    {
-    m_Commands[cmSystemTools::LowerCase((*it)->GetName())] = *it;
-    }
-}
-
-bool cmake::CommandExists(const char* name) const
-{
-  std::string sName = cmSystemTools::LowerCase(name);
-  return (m_Commands.find(sName) != m_Commands.end());
-}
-
-cmCommand *cmake::GetCommand(const char *name)
-{
-  cmCommand* rm = 0;
-  std::string sName = cmSystemTools::LowerCase(name);
-  RegisteredCommandsMap::iterator pos = m_Commands.find(sName);
-  if (pos != m_Commands.end())
-    {
-    rm = (*pos).second;
-    }
-  return rm;
-}
-
-void cmake::RenameCommand(const char*oldName, const char* newName)
-{
-  // if the command already exists, free the old one
-  std::string sOldName = cmSystemTools::LowerCase(oldName);
-  std::string sNewName = cmSystemTools::LowerCase(newName);
-  RegisteredCommandsMap::iterator pos = m_Commands.find(sOldName);
-  if ( pos == m_Commands.end() )
-    {
-    return;
-    }
-  cmCommand* cmd = pos->second;
-
-  pos = m_Commands.find(sNewName);
-  if (pos != m_Commands.end())
-    {
-    delete pos->second;
-    m_Commands.erase(pos);
-    }
-  m_Commands.insert(RegisteredCommandsMap::value_type(sNewName, cmd));
-  pos = m_Commands.find(sOldName);
-  m_Commands.erase(pos);
-}
-
-void cmake::AddCommand(cmCommand* wg)
-{
-  std::string name = cmSystemTools::LowerCase(wg->GetName());
-  // if the command already exists, free the old one
-  RegisteredCommandsMap::iterator pos = m_Commands.find(name);
-  if (pos != m_Commands.end())
-    {
-    delete pos->second;
-    m_Commands.erase(pos);
-    }
-  m_Commands.insert( RegisteredCommandsMap::value_type(name, wg));
-}
-
-// Parse the args
-bool cmake::SetCacheArgs(const std::vector<std::string>& args)
-{
-  for(unsigned int i=1; i < args.size(); ++i)
-    {
-    std::string arg = args[i];
-    if(arg.find("-D",0) == 0)
-      {
-      std::string entry = arg.substr(2);
-      if(entry.size() == 0)
-        {
-        entry = args[++i];
-        }
-      std::string var, value;
-      cmCacheManager::CacheEntryType type = cmCacheManager::UNINITIALIZED;
-      if(cmCacheManager::ParseEntry(entry.c_str(), var, value, type) ||
-        cmCacheManager::ParseEntry(entry.c_str(), var, value))
-        {
-        this->m_CacheManager->AddCacheEntry(var.c_str(), value.c_str(),
-          "No help, variable specified on the command line.",
-          type);
-        }
+#ifndef CURL_DISABLE_CRYPTO_AUTH
+      else if(authproxy->picked == CURLAUTH_DIGEST) {
+        auth=(char *)"Digest";
+        result = Curl_output_digest(conn,
+                                    TRUE, /* proxy */
+                                    (unsigned char *)request,
+                                    (unsigned char *)path);
+        if(result)
+          return result;
+      }
+#endif
+      if(auth) {
+        infof(data, "Proxy auth using %s with user '%s'\n",
+              auth, conn->proxyuser?conn->proxyuser:"");
+        authproxy->multi = (bool)(!authproxy->done);
+      }
       else
-        {
-        std::cerr << "Parse error in command line argument: " << arg << "\n"
-                  << "Should be: VAR:type=value\n";
-        cmSystemTools::Error("No cmake scrpt provided.");
-        return false;
-        }
-      }
-    else if(arg.find("-C",0) == 0)
-      {
-      std::string path = arg.substr(2);
-      if ( path.size() == 0 )
-        {
-        path = args[++i];
-        }
-      std::cerr << "loading initial cache file " << path.c_str() << "\n";
-      this->ReadListFile(path.c_str());
-      }
-    else if(arg.find("-P",0) == 0)
-      {
-      i++;
-      std::string path = args[i];
-      if ( path.size() == 0 )
-        {
-        cmSystemTools::Error("No cmake script provided.");
-        return false;
-        }
-      std::cerr << "Running cmake script file " << path.c_str() << "\n";
-      this->ReadListFile(path.c_str());
-      }
-    }
-  return true;
-}
-
-void cmake::ReadListFile(const char *path)
-{
-  // if a generator was not yet created, temporarily create one
-  cmGlobalGenerator *gg = this->GetGlobalGenerator();
-  bool created = false;
-
-  // if a generator was not specified use a generic one
-  if (!gg)
-    {
-    gg = new cmGlobalGenerator;
-    gg->SetCMakeInstance(this);
-    created = true;
-    }
-
-  // read in the list file to fill the cache
-  if(path)
-    {
-    std::auto_ptr<cmLocalGenerator> lg(gg->CreateLocalGenerator());
-    lg->SetGlobalGenerator(gg);
-    lg->GetMakefile()->SetHomeOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    lg->GetMakefile()->SetStartOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    lg->GetMakefile()->SetHomeDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    lg->GetMakefile()->SetStartDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    if (!lg->GetMakefile()->ReadListFile(0, path))
-      {
-      std::cerr << "Error processing file:" << path << "\n";
-      }
-    }
-
-  // free generic one if generated
-  if (created)
-    {
-    delete gg;
-    }
-}
-
-// Parse the args
-void cmake::SetArgs(const std::vector<std::string>& args)
-{
-  bool directoriesSet = false;
-  for(unsigned int i=1; i < args.size(); ++i)
-    {
-    std::string arg = args[i];
-    if(arg.find("-H",0) == 0)
-      {
-      directoriesSet = true;
-      std::string path = arg.substr(2);
-      path = cmSystemTools::CollapseFullPath(path.c_str());
-      cmSystemTools::ConvertToUnixSlashes(path);
-      this->SetHomeDirectory(path.c_str());
-      }
-    else if(arg.find("-S",0) == 0)
-      {
-      // There is no local generate anymore.  Ignore -S option.
-      }
-    else if(arg.find("-O",0) == 0)
-      {
-      // There is no local generate anymore.  Ignore -O option.
-      }
-    else if(arg.find("-B",0) == 0)
-      {
-      directoriesSet = true;
-      std::string path = arg.substr(2);
-      path = cmSystemTools::CollapseFullPath(path.c_str());
-      cmSystemTools::ConvertToUnixSlashes(path);
-      this->SetHomeOutputDirectory(path.c_str());
-      }
-    else if((i < args.size()-1) && (arg.find("--check-build-system",0) == 0))
-      {
-      m_CheckBuildSystem = args[++i];
-      m_ClearBuildSystem = (atoi(args[++i].c_str()) > 0);
-      }
-    else if(arg.find("-V",0) == 0)
-      {
-        m_Verbose = true;
-      }
-    else if(arg.find("-D",0) == 0)
-      {
-      // skip for now
-      }
-    else if(arg.find("-C",0) == 0)
-      {
-      // skip for now
-      }
-    else if(arg.find("-P",0) == 0)
-      {
-      // skip for now
-      i++;
-      }
-    else if(arg.find("--graphviz=",0) == 0)
-      {
-      std::string path = arg.substr(strlen("--graphviz="));
-      path = cmSystemTools::CollapseFullPath(path.c_str());
-      cmSystemTools::ConvertToUnixSlashes(path);
-      m_GraphVizFile = path;
-      if ( m_GraphVizFile.empty() )
-        {
-        cmSystemTools::Error("No file specified for --graphviz");
-        }
-      }
-    else if(arg.find("--debug-trycompile",0) == 0)
-      {
-      std::cout << "debug trycompile on\n";
-      this->DebugTryCompileOn();
-      }
-    else if(arg.find("-G",0) == 0)
-      {
-      std::string value = arg.substr(2);
-      if(value.size() == 0)
-        {
-        value = args[++i];
-        }
-      cmGlobalGenerator* gen =
-        this->CreateGlobalGenerator(value.c_str());
-      if(!gen)
-        {
-        cmSystemTools::Error("Could not create named generator ",
-                             value.c_str());
-        }
-      else
-        {
-        this->SetGlobalGenerator(gen);
-        }
-      }
-    // no option assume it is the path to the source
-    else
-      {
-      directoriesSet = true;
-      this->SetDirectoriesFromFile(arg.c_str());
-      }
-    }
-  if(!directoriesSet)
-    {
-    this->SetHomeOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    this->SetStartOutputDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    this->SetHomeDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    this->SetStartDirectory
-      (cmSystemTools::GetCurrentWorkingDirectory().c_str());
-    }
-
-  this->SetStartDirectory(this->GetHomeDirectory());
-  this->SetStartOutputDirectory(this->GetHomeOutputDirectory());
-}
-
-//----------------------------------------------------------------------------
-void cmake::SetDirectoriesFromFile(const char* arg)
-{
-  // Check if the argument refers to a CMakeCache.txt or
-  // CMakeLists.txt file.
-  std::string listPath;
-  std::string cachePath;
-  bool argIsFile = false;
-  if(cmSystemTools::FileIsDirectory(arg))
-    {
-    std::string path = cmSystemTools::CollapseFullPath(arg);
-    cmSystemTools::ConvertToUnixSlashes(path);
-    std::string cacheFile = path;
-    cacheFile += "/CMakeCache.txt";
-    std::string listFile = path;
-    listFile += "/CMakeLists.txt";
-    if(cmSystemTools::FileExists(cacheFile.c_str()))
-      {
-      cachePath = path;
-      }
-    if(cmSystemTools::FileExists(listFile.c_str()))
-      {
-      listPath = path;
-      }
-    }
-  else if(cmSystemTools::FileExists(arg))
-    {
-    argIsFile = true;
-    std::string fullPath = cmSystemTools::CollapseFullPath(arg);
-    std::string name = cmSystemTools::GetFilenameName(fullPath.c_str());
-    name = cmSystemTools::LowerCase(name);
-    if(name == "cmakecache.txt")
-      {
-      cachePath = cmSystemTools::GetFilenamePath(fullPath.c_str());
-      }
-    else if(name == "cmakelists.txt")
-      {
-      listPath = cmSystemTools::GetFilenamePath(fullPath.c_str());
-      }
+        authproxy->multi = FALSE;
     }
   else
+    /* we have no proxy so let's pretend we're done authenticating
+       with it */
+    authproxy->done = TRUE;
+
+  /* To prevent the user+password to get sent to other than the original
+     host due to a location-follow, we do some weirdo checks here */
+  if(!data->state.this_is_a_follow ||
+     conn->bits.netrc ||
+     !data->state.first_host ||
+     curl_strequal(data->state.first_host, conn->host.name) ||
+     data->set.http_disable_hostname_check_before_authentication) {
+
+    /* Send web authentication header if needed */
     {
-    // Specified file or directory does not exist.  Try to set things
-    // up to produce a meaningful error message.
-    std::string fullPath = cmSystemTools::CollapseFullPath(arg);
-    std::string name = cmSystemTools::GetFilenameName(fullPath.c_str());
-    name = cmSystemTools::LowerCase(name);
-    if(name == "cmakecache.txt" || name == "cmakelists.txt")
-      {
-      argIsFile = true;
-      listPath = cmSystemTools::GetFilenamePath(fullPath.c_str());
+      auth = NULL;
+#ifdef HAVE_GSSAPI
+      if((authhost->picked == CURLAUTH_GSSNEGOTIATE) &&
+         data->state.negotiate.context &&
+         !GSS_ERROR(data->state.negotiate.status)) {
+        auth=(char *)"GSS-Negotiate";
+        result = Curl_output_negotiate(conn);
+        if (result)
+          return result;
+        authhost->done = TRUE;
       }
+      else
+#endif
+#ifdef USE_NTLM
+      if(authhost->picked == CURLAUTH_NTLM) {
+        auth=(char *)"NTLM";
+        result = Curl_output_ntlm(conn, FALSE);
+        if(result)
+          return result;
+      }
+      else
+#endif
+      {
+#ifndef CURL_DISABLE_CRYPTO_AUTH
+        if(authhost->picked == CURLAUTH_DIGEST) {
+          auth=(char *)"Digest";
+          result = Curl_output_digest(conn,
+                                      FALSE, /* not a proxy */
+                                      (unsigned char *)request,
+                                      (unsigned char *)path);
+          if(result)
+            return result;
+        } else
+#endif
+        if(authhost->picked == CURLAUTH_BASIC) {
+          if(conn->bits.user_passwd &&
+             !checkheaders(data, "Authorization:")) {
+            auth=(char *)"Basic";
+            result = Curl_output_basic(conn, FALSE);
+            if(result)
+              return result;
+          }
+          /* basic is always ready */
+          authhost->done = TRUE;
+        }
+      }
+      if(auth) {
+        infof(data, "Server auth using %s with user '%s'\n",
+              auth, conn->user);
+
+        authhost->multi = (bool)(!authhost->done);
+      }
+      else
+        authhost->multi = FALSE;
+    }
+  }
+  else
+    authhost->done = TRUE;
+
+  return result;
+}
+
+
+/*
+ * Curl_http_input_auth() deals with Proxy-Authenticate: and WWW-Authenticate:
+ * headers. They are dealt with both in the transfer.c main loop and in the
+ * proxy CONNECT loop.
+ */
+
+CURLcode Curl_http_input_auth(struct connectdata *conn,
+                              int httpcode,
+                              char *header) /* the first non-space */
+{
+  /*
+   * This resource requires authentication
+   */
+  struct SessionHandle *data = conn->data;
+
+  long *availp;
+  char *start;
+  struct auth *authp;
+
+  if (httpcode == 407) {
+    start = header+strlen("Proxy-authenticate:");
+    availp = &data->info.proxyauthavail;
+    authp = &data->state.authproxy;
+  }
+  else {
+    start = header+strlen("WWW-Authenticate:");
+    availp = &data->info.httpauthavail;
+    authp = &data->state.authhost;
+  }
+
+  /* pass all white spaces */
+  while(*start && ISSPACE(*start))
+    start++;
+
+  /*
+   * Here we check if we want the specific single authentication (using ==) and
+   * if we do, we initiate usage of it.
+   *
+   * If the provided authentication is wanted as one out of several accepted
+   * types (using &), we OR this authentication type to the authavail
+   * variable.
+   */
+
+#ifdef HAVE_GSSAPI
+  if (checkprefix("GSS-Negotiate", start) ||
+      checkprefix("Negotiate", start)) {
+    *availp |= CURLAUTH_GSSNEGOTIATE;
+    authp->avail |= CURLAUTH_GSSNEGOTIATE;
+    if(authp->picked == CURLAUTH_GSSNEGOTIATE) {
+      /* if exactly this is wanted, go */
+      int neg = Curl_input_negotiate(conn, start);
+      if (neg == 0) {
+        data->reqdata.newurl = strdup(data->change.url);
+        data->state.authproblem = (data->reqdata.newurl == NULL);
+      }
+      else {
+        infof(data, "Authentication problem. Ignoring this.\n");
+        data->state.authproblem = TRUE;
+      }
+    }
+  }
+  else
+#endif
+#ifdef USE_NTLM
+    /* NTLM support requires the SSL crypto libs */
+    if(checkprefix("NTLM", start)) {
+      *availp |= CURLAUTH_NTLM;
+      authp->avail |= CURLAUTH_NTLM;
+      if(authp->picked == CURLAUTH_NTLM) {
+        /* NTLM authentication is picked and activated */
+        CURLntlm ntlm =
+          Curl_input_ntlm(conn, (bool)(httpcode == 407), start);
+
+        if(CURLNTLM_BAD != ntlm)
+          data->state.authproblem = FALSE;
+        else {
+          infof(data, "Authentication problem. Ignoring this.\n");
+          data->state.authproblem = TRUE;
+        }
+      }
+    }
     else
-      {
-      listPath = fullPath;
+#endif
+#ifndef CURL_DISABLE_CRYPTO_AUTH
+      if(checkprefix("Digest", start)) {
+        if((authp->avail & CURLAUTH_DIGEST) != 0) {
+          infof(data, "Ignoring duplicate digest auth header.\n");
+        }
+        else {
+          CURLdigest dig;
+          *availp |= CURLAUTH_DIGEST;
+          authp->avail |= CURLAUTH_DIGEST;
+
+          /* We call this function on input Digest headers even if Digest
+           * authentication isn't activated yet, as we need to store the
+           * incoming data from this header in case we are gonna use Digest. */
+          dig = Curl_input_digest(conn, (bool)(httpcode == 407), start);
+
+          if(CURLDIGEST_FINE != dig) {
+            infof(data, "Authentication problem. Ignoring this.\n");
+            data->state.authproblem = TRUE;
+          }
+        }
       }
+      else
+#endif
+      if(checkprefix("Basic", start)) {
+        *availp |= CURLAUTH_BASIC;
+        authp->avail |= CURLAUTH_BASIC;
+        if(authp->picked == CURLAUTH_BASIC) {
+          /* We asked for Basic authentication but got a 40X back
+             anyway, which basicly means our name+password isn't
+             valid. */
+          authp->avail = CURLAUTH_NONE;
+          infof(data, "Authentication problem. Ignoring this.\n");
+          data->state.authproblem = TRUE;
+        }
+      }
+
+  return CURLE_OK;
+}
+
+/**
+ * Curl_http_should_fail() determines whether an HTTP response has gotten us
+ * into an error state or not.
+ *
+ * @param conn all information about the current connection
+ *
+ * @retval 0 communications should continue
+ *
+ * @retval 1 communications should not continue
+ */
+int Curl_http_should_fail(struct connectdata *conn)
+{
+  struct SessionHandle *data;
+  struct Curl_transfer_keeper *k;
+
+  curlassert(conn);
+  data = conn->data;
+  curlassert(data);
+
+  /*
+  ** For readability
+  */
+  k = &data->reqdata.keep;
+
+  /*
+  ** If we haven't been asked to fail on error,
+  ** don't fail.
+  */
+  if (!data->set.http_fail_on_error)
+    return 0;
+
+  /*
+  ** Any code < 400 is never terminal.
+  */
+  if (k->httpcode < 400)
+    return 0;
+
+  if (data->reqdata.resume_from &&
+      (data->set.httpreq==HTTPREQ_GET) &&
+      (k->httpcode == 416)) {
+    /* "Requested Range Not Satisfiable", just proceed and
+       pretend this is no error */
+    return 0;
+  }
+
+  /*
+  ** Any code >= 400 that's not 401 or 407 is always
+  ** a terminal error
+  */
+  if ((k->httpcode != 401) &&
+      (k->httpcode != 407))
+    return 1;
+
+  /*
+  ** All we have left to deal with is 401 and 407
+  */
+  curlassert((k->httpcode == 401) || (k->httpcode == 407));
+
+  /*
+  ** Examine the current authentication state to see if this
+  ** is an error.  The idea is for this function to get
+  ** called after processing all the headers in a response
+  ** message.  So, if we've been to asked to authenticate a
+  ** particular stage, and we've done it, we're OK.  But, if
+  ** we're already completely authenticated, it's not OK to
+  ** get another 401 or 407.
+  **
+  ** It is possible for authentication to go stale such that
+  ** the client needs to reauthenticate.  Once that info is
+  ** available, use it here.
+  */
+#if 0 /* set to 1 when debugging this functionality */
+  infof(data,"%s: authstage = %d\n",__FUNCTION__,data->state.authstage);
+  infof(data,"%s: authwant = 0x%08x\n",__FUNCTION__,data->state.authwant);
+  infof(data,"%s: authavail = 0x%08x\n",__FUNCTION__,data->state.authavail);
+  infof(data,"%s: httpcode = %d\n",__FUNCTION__,k->httpcode);
+  infof(data,"%s: authdone = %d\n",__FUNCTION__,data->state.authdone);
+  infof(data,"%s: newurl = %s\n",__FUNCTION__,data->reqdata.newurl ? data->reqdata.newurl : "(null)");
+  infof(data,"%s: authproblem = %d\n",__FUNCTION__,data->state.authproblem);
+#endif
+
+  /*
+  ** Either we're not authenticating, or we're supposed to
+  ** be authenticating something else.  This is an error.
+  */
+  if((k->httpcode == 401) && !conn->bits.user_passwd)
+    return TRUE;
+  if((k->httpcode == 407) && !conn->bits.proxy_user_passwd)
+    return TRUE;
+
+  return data->state.authproblem;
+}
+
+/*
+ * readmoredata() is a "fread() emulation" to provide POST and/or request
+ * data. It is used when a huge POST is to be made and the entire chunk wasn't
+ * sent in the first send(). This function will then be called from the
+ * transfer.c loop when more data is to be sent to the peer.
+ *
+ * Returns the amount of bytes it filled the buffer with.
+ */
+static size_t readmoredata(char *buffer,
+                           size_t size,
+                           size_t nitems,
+                           void *userp)
+{
+  struct connectdata *conn = (struct connectdata *)userp;
+  struct HTTP *http = conn->data->reqdata.proto.http;
+  size_t fullsize = size * nitems;
+
+  if(0 == http->postsize)
+    /* nothing to return */
+    return 0;
+
+  /* make sure that a HTTP request is never sent away chunked! */
+  conn->bits.forbidchunk = (bool)(http->sending == HTTPSEND_REQUEST);
+
+  if(http->postsize <= (curl_off_t)fullsize) {
+    memcpy(buffer, http->postdata, (size_t)http->postsize);
+    fullsize = (size_t)http->postsize;
+
+    if(http->backup.postsize) {
+      /* move backup data into focus and continue on that */
+      http->postdata = http->backup.postdata;
+      http->postsize = http->backup.postsize;
+      conn->fread =    http->backup.fread;
+      conn->fread_in = http->backup.fread_in;
+
+      http->sending++; /* move one step up */
+
+      http->backup.postsize=0;
     }
-
-  // If there is a CMakeCache.txt file, use its settings.
-  if(cachePath.length() > 0)
-    {
-    cmCacheManager* cachem = this->GetCacheManager();
-    cmCacheManager::CacheIterator it = cachem->NewIterator();
-    if(cachem->LoadCache(cachePath.c_str()) &&
-      it.Find("CMAKE_HOME_DIRECTORY"))
-      {
-      this->SetHomeOutputDirectory(cachePath.c_str());
-      this->SetStartOutputDirectory(cachePath.c_str());
-      this->SetHomeDirectory(it.GetValue());
-      this->SetStartDirectory(it.GetValue());
-      return;
-      }
-    }
-
-  // If there is a CMakeLists.txt file, use it as the source tree.
-  if(listPath.length() > 0)
-    {
-    this->SetHomeDirectory(listPath.c_str());
-    this->SetStartDirectory(listPath.c_str());
-
-    if(argIsFile)
-      {
-      // Source CMakeLists.txt file given.  It was probably dropped
-      // onto the executable in a GUI.  Default to an in-source build.
-      this->SetHomeOutputDirectory(listPath.c_str());
-      this->SetStartOutputDirectory(listPath.c_str());
-      }
     else
-      {
-      // Source directory given on command line.  Use current working
-      // directory as build tree.
-      std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-      this->SetHomeOutputDirectory(cwd.c_str());
-      this->SetStartOutputDirectory(cwd.c_str());
-      }
-    return;
-    }
+      http->postsize = 0;
 
-  // We didn't find a CMakeLists.txt or CMakeCache.txt file from the
-  // argument.  Assume it is the path to the source tree, and use the
-  // current working directory as the build tree.
-  std::string full = cmSystemTools::CollapseFullPath(arg);
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  this->SetHomeDirectory(full.c_str());
-  this->SetStartDirectory(full.c_str());
-  this->SetHomeOutputDirectory(cwd.c_str());
-  this->SetStartOutputDirectory(cwd.c_str());
+    return fullsize;
+  }
+
+  memcpy(buffer, http->postdata, fullsize);
+  http->postdata += fullsize;
+  http->postsize -= fullsize;
+
+  return fullsize;
 }
 
-// at the end of this CMAKE_ROOT and CMAKE_COMMAND should be added to the
-// cache
-int cmake::AddCMakePaths(const char *arg0)
+/* ------------------------------------------------------------------------- */
+/*
+ * The add_buffer series of functions are used to build one large memory chunk
+ * from repeated function invokes. Used so that the entire HTTP request can
+ * be sent in one go.
+ */
+
+struct send_buffer {
+  char *buffer;
+  size_t size_max;
+  size_t size_used;
+};
+typedef struct send_buffer send_buffer;
+
+static CURLcode add_custom_headers(struct connectdata *conn,
+                                   send_buffer *req_buffer);
+static CURLcode
+ add_buffer(send_buffer *in, const void *inptr, size_t size);
+
+/*
+ * add_buffer_init() sets up and returns a fine buffer struct
+ */
+static
+send_buffer *add_buffer_init(void)
 {
-  // Find our own executable.
-  std::vector<cmStdString> failures;
-  std::string cMakeSelf = arg0;
-  cmSystemTools::ConvertToUnixSlashes(cMakeSelf);
-  failures.push_back(cMakeSelf);
-  cMakeSelf = cmSystemTools::FindProgram(cMakeSelf.c_str());
-  cmSystemTools::ConvertToUnixSlashes(cMakeSelf);
-  if(!cmSystemTools::FileExists(cMakeSelf.c_str()))
-    {
-#ifdef CMAKE_BUILD_DIR
-  std::string intdir = ".";
-#ifdef  CMAKE_INTDIR
-  intdir = CMAKE_INTDIR;
-#endif
-  cMakeSelf = CMAKE_BUILD_DIR;
-  cMakeSelf += "/bin/";
-  cMakeSelf += intdir;
-  cMakeSelf += "/cmake";
-  cMakeSelf += cmSystemTools::GetExecutableExtension();
-#endif
+  send_buffer *blonk;
+  blonk=(send_buffer *)malloc(sizeof(send_buffer));
+  if(blonk) {
+    memset(blonk, 0, sizeof(send_buffer));
+    return blonk;
+  }
+  return NULL; /* failed, go home */
+}
+
+/*
+ * add_buffer_send() sends a header buffer and frees all associated memory.
+ * Body data may be appended to the header data if desired.
+ *
+ * Returns CURLcode
+ */
+static
+CURLcode add_buffer_send(send_buffer *in,
+                         struct connectdata *conn,
+                         long *bytes_written, /* add the number of sent
+                                                 bytes to this counter */
+                         size_t included_body_bytes, /* how much of the buffer
+                                        contains body data (for log tracing) */
+                         int socketindex)
+
+{
+  ssize_t amount;
+  CURLcode res;
+  char *ptr;
+  size_t size;
+  struct HTTP *http = conn->data->reqdata.proto.http;
+  size_t sendsize;
+  curl_socket_t sockfd;
+
+  curlassert(socketindex <= SECONDARYSOCKET);
+
+  sockfd = conn->sock[socketindex];
+
+  /* The looping below is required since we use non-blocking sockets, but due
+     to the circumstances we will just loop and try again and again etc */
+
+  ptr = in->buffer;
+  size = in->size_used;
+
+#ifdef CURL_DOES_CONVERSIONS
+  if(size - included_body_bytes > 0) {
+    res = Curl_convert_to_network(conn->data, ptr, size - included_body_bytes);
+    /* Curl_convert_to_network calls failf if unsuccessful */
+    if(res != CURLE_OK) {
+      /* conversion failed, free memory and return to the caller */
+      if(in->buffer)
+        free(in->buffer);
+      free(in);
+      return res;
     }
-#ifdef CMAKE_PREFIX
-  if(!cmSystemTools::FileExists(cMakeSelf.c_str()))
-    {
-    failures.push_back(cMakeSelf);
-    cMakeSelf = CMAKE_PREFIX "/bin/cmake";
+  }
+#endif /* CURL_DOES_CONVERSIONS */
+
+  if(conn->protocol & PROT_HTTPS) {
+    /* We never send more than CURL_MAX_WRITE_SIZE bytes in one single chunk
+       when we speak HTTPS, as if only a fraction of it is sent now, this data
+       needs to fit into the normal read-callback buffer later on and that
+       buffer is using this size.
+    */
+
+    sendsize= (size > CURL_MAX_WRITE_SIZE)?CURL_MAX_WRITE_SIZE:size;
+
+    /* OpenSSL is very picky and we must send the SAME buffer pointer to the
+       library when we attempt to re-send this buffer. Sending the same data
+       is not enough, we must use the exact same address. For this reason, we
+       must copy the data to the uploadbuffer first, since that is the buffer
+       we will be using if this send is retried later.
+    */
+    memcpy(conn->data->state.uploadbuffer, ptr, sendsize);
+    ptr = conn->data->state.uploadbuffer;
+  }
+  else
+    sendsize = size;
+
+  res = Curl_write(conn, sockfd, ptr, sendsize, &amount);
+
+  if(CURLE_OK == res) {
+
+    if(conn->data->set.verbose) {
+      /* this data _may_ contain binary stuff */
+      Curl_debug(conn->data, CURLINFO_HEADER_OUT, ptr,
+                 (size_t)(amount-included_body_bytes), conn);
+      if (included_body_bytes)
+        Curl_debug(conn->data, CURLINFO_DATA_OUT,
+                   ptr+amount-included_body_bytes,
+                   (size_t)included_body_bytes, conn);
     }
-#endif
-  if(!cmSystemTools::FileExists(cMakeSelf.c_str()))
-    {
-    failures.push_back(cMakeSelf);
-    cmOStringStream msg;
-    msg << "CMAKE can not find the command line program cmake.\n";
-    msg << "  argv[0] = \"" << arg0 << "\"\n";
-    msg << "  Attempted paths:\n";
-    std::vector<cmStdString>::iterator i;
-    for(i=failures.begin(); i != failures.end(); ++i)
-      {
-      msg << "    \"" << i->c_str() << "\"\n";
+
+    *bytes_written += amount;
+
+    if(http) {
+      if((size_t)amount != size) {
+        /* The whole request could not be sent in one system call. We must
+           queue it up and send it later when we get the chance. We must not
+           loop here and wait until it might work again. */
+
+        size -= amount;
+
+        ptr = in->buffer + amount;
+
+        /* backup the currently set pointers */
+        http->backup.fread = conn->fread;
+        http->backup.fread_in = conn->fread_in;
+        http->backup.postdata = http->postdata;
+        http->backup.postsize = http->postsize;
+
+        /* set the new pointers for the request-sending */
+        conn->fread = (curl_read_callback)readmoredata;
+        conn->fread_in = (void *)conn;
+        http->postdata = ptr;
+        http->postsize = (curl_off_t)size;
+
+        http->send_buffer = in;
+        http->sending = HTTPSEND_REQUEST;
+
+        return CURLE_OK;
       }
-    cmSystemTools::Error(msg.str().c_str());
-    return 0;
+      http->sending = HTTPSEND_BODY;
+      /* the full buffer was sent, clean up and return */
     }
-  // Save the value in the cache
-  this->m_CacheManager->AddCacheEntry
-    ("CMAKE_COMMAND",cMakeSelf.c_str(), "Path to CMake executable.",
-     cmCacheManager::INTERNAL);
+    else {
+      if((size_t)amount != size)
+        /* We have no continue-send mechanism now, fail. This can only happen
+           when this function is used from the CONNECT sending function. We
+           currently (stupidly) assume that the whole request is always sent
+           away in the first single chunk.
 
-  // Find and save the command to edit the cache
-  std::string editCacheCommand = cmSystemTools::GetFilenamePath(cMakeSelf) +
-    "/ccmake" + cmSystemTools::GetFilenameExtension(cMakeSelf);
-  if( !cmSystemTools::FileExists(editCacheCommand.c_str()))
-    {
-    editCacheCommand = cmSystemTools::GetFilenamePath(cMakeSelf) +
-      "/CMakeSetup" + cmSystemTools::GetFilenameExtension(cMakeSelf);
+           This needs FIXing.
+        */
+        return CURLE_SEND_ERROR;
+      else
+        conn->writechannel_inuse = FALSE;
     }
-  std::string ctestCommand = cmSystemTools::GetFilenamePath(cMakeSelf) +
-    "/ctest" + cmSystemTools::GetFilenameExtension(cMakeSelf);
-  if(cmSystemTools::FileExists(ctestCommand.c_str()))
-    {
-    this->m_CacheManager->AddCacheEntry
-      ("CMAKE_CTEST_COMMAND", ctestCommand.c_str(),
-       "Path to ctest program executable.", cmCacheManager::INTERNAL);
-    }
-  if(cmSystemTools::FileExists(editCacheCommand.c_str()))
-    {
-    this->m_CacheManager->AddCacheEntry
-      ("CMAKE_EDIT_COMMAND", editCacheCommand.c_str(),
-       "Path to cache edit program executable.", cmCacheManager::INTERNAL);
-    }
+  }
+  if(in->buffer)
+    free(in->buffer);
+  free(in);
 
-  // do CMAKE_ROOT, look for the environment variable first
-  std::string cMakeRoot;
-  std::string modules;
-  if (getenv("CMAKE_ROOT"))
-    {
-    cMakeRoot = getenv("CMAKE_ROOT");
-    modules = cMakeRoot + "/Modules/CMake.cmake";
-    }
-  if(!cmSystemTools::FileExists(modules.c_str()))
-    {
-    // next try exe/..
-    cMakeRoot  = cmSystemTools::GetProgramPath(cMakeSelf.c_str());
-    std::string::size_type slashPos = cMakeRoot.rfind("/");
-    if(slashPos != std::string::npos)
-      {
-      cMakeRoot = cMakeRoot.substr(0, slashPos);
-      }
-    // is there no Modules direcory there?
-    modules = cMakeRoot + "/Modules/CMake.cmake";
-    }
-
-  if (!cmSystemTools::FileExists(modules.c_str()))
-    {
-    // try exe/../share/cmake
-    cMakeRoot += CMAKE_DATA_DIR;
-    modules = cMakeRoot + "/Modules/CMake.cmake";
-    }
-#ifdef CMAKE_ROOT_DIR
-  if (!cmSystemTools::FileExists(modules.c_str()))
-    {
-    // try compiled in root directory
-    cMakeRoot = CMAKE_ROOT_DIR;
-    modules = cMakeRoot + "/Modules/CMake.cmake";
-    }
-#endif
-#ifdef CMAKE_PREFIX
-  if (!cmSystemTools::FileExists(modules.c_str()))
-    {
-    // try compiled in install prefix
-    cMakeRoot = CMAKE_PREFIX CMAKE_DATA_DIR;
-    modules = cMakeRoot + "/Modules/CMake.cmake";
-    }
-#endif
-  if (!cmSystemTools::FileExists(modules.c_str()))
-    {
-    // try
-    cMakeRoot  = cmSystemTools::GetProgramPath(cMakeSelf.c_str());
-    cMakeRoot += CMAKE_DATA_DIR;
-    modules = cMakeRoot +  "/Modules/CMake.cmake";
-    }
-  if(!cmSystemTools::FileExists(modules.c_str()))
-    {
-    // next try exe
-    cMakeRoot  = cmSystemTools::GetProgramPath(cMakeSelf.c_str());
-    // is there no Modules direcory there?
-    modules = cMakeRoot + "/Modules/CMake.cmake";
-    }
-  if (!cmSystemTools::FileExists(modules.c_str()))
-    {
-    // couldn't find modules
-    cmSystemTools::Error("Could not find CMAKE_ROOT !!!\n"
-      "CMake has most likely not been installed correctly.\n"
-      "Modules directory not found in\n",
-      cMakeRoot.c_str());
-    return 0;
-    }
-  this->m_CacheManager->AddCacheEntry
-    ("CMAKE_ROOT", cMakeRoot.c_str(),
-     "Path to CMake installation.", cmCacheManager::INTERNAL);
-
-#ifdef _WIN32
-  std::string comspec = "cmw9xcom.exe";
-  cmSystemTools::SetWindows9xComspecSubstitute(comspec.c_str());
-#endif
-  return 1;
+  return res;
 }
 
 
-
-void CMakeCommandUsage(const char* program)
+/*
+ * add_bufferf() add the formatted input to the buffer.
+ */
+static
+CURLcode add_bufferf(send_buffer *in, const char *fmt, ...)
 {
-  cmOStringStream errorStream;
+  char *s;
+  va_list ap;
+  va_start(ap, fmt);
+  s = vaprintf(fmt, ap); /* this allocs a new string to append */
+  va_end(ap);
 
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  errorStream
-    << "cmake version " << cmVersion::GetCMakeVersion() << "\n";
-#else
-  errorStream
-    << "cmake bootstrap\n";
-#endif
-
-  errorStream
-    << "Usage: " << program << " -E [command] [arguments ...]\n"
-    << "Available commands: \n"
-    << "  chdir dir cmd [args]... - run command in a given directory\n"
-    << "  copy file destination   - copy file to destination (either file or "
-    "directory)\n"
-    << "  copy_if_different in-file out-file   - copy file if input has "
-    "changed\n"
-    << "  copy_directory source destination    - copy directory 'source' "
-    "content to directory 'destination'\n"
-    << "  compare_files file1 file2 - check if file1 is same as file2\n"
-    << "  echo [string]...        - displays arguments as text\n"
-    << "  remove file1 file2 ...  - remove the file(s)\n"
-    << "  tar [cxt][vfz] file.tar file/dir1 file/dir2 ... - create a tar.\n"
-    << "  time command [args] ... - run command and return elapsed time\n";
-#if defined(_WIN32) && !defined(__CYGWIN__)
-  errorStream
-    << "  write_regv key value    - write registry value\n"
-    << "  delete_regv key         - delete registry value\n"
-    << "  comspec                 - on windows 9x use this for RunCommand\n";
-#else
-  errorStream
-    << "  create_symlink old new  - create a symbolic link new -> old\n";
-#endif
-
-  cmSystemTools::Error(errorStream.str().c_str());
+  if(s) {
+    CURLcode result = add_buffer(in, s, strlen(s));
+    free(s);
+    if(CURLE_OK == result)
+      return CURLE_OK;
+  }
+  /* If we failed, we cleanup the whole buffer and return error */
+  if(in->buffer)
+    free(in->buffer);
+  free(in);
+  return CURLE_OUT_OF_MEMORY;
 }
 
-int cmake::CMakeCommand(std::vector<std::string>& args)
+/*
+ * add_buffer() appends a memory chunk to the existing buffer
+ */
+static
+CURLcode add_buffer(send_buffer *in, const void *inptr, size_t size)
 {
-  if (args.size() > 1)
-    {
-    // Copy file
-    if (args[1] == "copy" && args.size() == 4)
-      {
-      if(!cmSystemTools::cmCopyFile(args[2].c_str(), args[3].c_str()))
-        {
-        std::cerr << "Error copying file \"" << args[2].c_str()
-                  << "\" to \"" << args[3].c_str() << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
+  char *new_rb;
+  size_t new_size;
 
-    // Copy file if different.
-    if (args[1] == "copy_if_different" && args.size() == 4)
-      {
-      if(!cmSystemTools::CopyFileIfDifferent(args[2].c_str(),
-          args[3].c_str()))
-        {
-        std::cerr << "Error copying file (if different) from \""
-                  << args[2].c_str() << "\" to \"" << args[3].c_str()
-                  << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
+  if(!in->buffer ||
+     ((in->size_used + size) > (in->size_max - 1))) {
+    new_size = (in->size_used+size)*2;
+    if(in->buffer)
+      /* we have a buffer, enlarge the existing one */
+      new_rb = (char *)realloc(in->buffer, new_size);
+    else
+      /* create a new buffer */
+      new_rb = (char *)malloc(new_size);
 
-    // Copy directory content
-    if (args[1] == "copy_directory" && args.size() == 4)
-      {
-      if(!cmSystemTools::CopyADirectory(args[2].c_str(), args[3].c_str()))
-        {
-        std::cerr << "Error copying directory from \""
-                  << args[2].c_str() << "\" to \"" << args[3].c_str()
-                  << "\".\n";
-        return 1;
-        }
-      return 0;
-      }
+    if(!new_rb)
+      return CURLE_OUT_OF_MEMORY;
 
-    // Compare files
-    if (args[1] == "compare_files" && args.size() == 4)
-      {
-      if(cmSystemTools::FilesDiffer(args[2].c_str(), args[3].c_str()))
-        {
-        std::cerr << "Files \""
-                  << args[2].c_str() << "\" to \"" << args[3].c_str()
-                  << "\" are different.\n";
-        return 1;
-        }
-      return 0;
-      }
+    in->buffer = new_rb;
+    in->size_max = new_size;
+  }
+  memcpy(&in->buffer[in->size_used], inptr, size);
 
-    // Echo string
-    else if (args[1] == "echo" )
-      {
-      unsigned int cc;
-      const char* space = "";
-      for ( cc = 2; cc < args.size(); cc ++ )
-        {
-        std::cout << space << args[cc];
-        space = " ";
-        }
-      std::cout << std::endl;
-      return 0;
-      }
+  in->size_used += size;
 
-    // Remove file
-    else if (args[1] == "remove" && args.size() > 2)
-      {
-      for (std::string::size_type cc = 2; cc < args.size(); cc ++)
-        {
-        if(args[cc] != "-f")
-          {
-          if(args[cc] == "\\-f")
-            {
-            args[cc] = "-f";
-            }
-          cmSystemTools::RemoveFile(args[cc].c_str());
-          }
-        }
-      return 0;
-      }
+  return CURLE_OK;
+}
 
-    // Clock command
-    else if (args[1] == "time" && args.size() > 2)
-      {
-      std::string command = args[2];
-      for (std::string::size_type cc = 3; cc < args.size(); cc ++)
-        {
-        command += " ";
-        command += args[cc];
-        }
+/* end of the add_buffer functions */
+/* ------------------------------------------------------------------------- */
 
-      clock_t clock_start, clock_finish;
-      time_t time_start, time_finish;
+/*
+ * Curl_compareheader()
+ *
+ * Returns TRUE if 'headerline' contains the 'header' with given 'content'.
+ * Pass headers WITH the colon.
+ */
+bool
+Curl_compareheader(char *headerline,    /* line to check */
+                   const char *header,  /* header keyword _with_ colon */
+                   const char *content) /* content string to find */
+{
+  /* RFC2616, section 4.2 says: "Each header field consists of a name followed
+   * by a colon (":") and the field value. Field names are case-insensitive.
+   * The field value MAY be preceded by any amount of LWS, though a single SP
+   * is preferred." */
 
-      time(&time_start);
-      clock_start = clock();
+  size_t hlen = strlen(header);
+  size_t clen;
+  size_t len;
+  char *start;
+  char *end;
 
-      cmSystemTools::RunSingleCommand(command.c_str());
+  if(!strnequal(headerline, header, hlen))
+    return FALSE; /* doesn't start with header */
 
-      clock_finish = clock();
-      time(&time_finish);
+  /* pass the header */
+  start = &headerline[hlen];
 
-      double clocks_per_sec = (double)CLOCKS_PER_SEC;
-      std::cout << "Elapsed time: "
-                << (long)(time_finish - time_start) << " s. (time)"
-                << ", "
-                << (double)(clock_finish - clock_start) / clocks_per_sec
-                << " s. (clock)"
-                << "\n";
-      return 0;
+  /* pass all white spaces */
+  while(*start && ISSPACE(*start))
+    start++;
+
+  /* find the end of the header line */
+  end = strchr(start, '\r'); /* lines end with CRLF */
+  if(!end) {
+    /* in case there's a non-standard compliant line here */
+    end = strchr(start, '\n');
+
+    if(!end)
+      /* hm, there's no line ending here, use the zero byte! */
+      end = strchr(start, '\0');
+  }
+
+  len = end-start; /* length of the content part of the input line */
+  clen = strlen(content); /* length of the word to find */
+
+  /* find the content string in the rest of the line */
+  for(;len>=clen;len--, start++) {
+    if(strnequal(start, content, clen))
+      return TRUE; /* match! */
+  }
+
+  return FALSE; /* no match */
+}
+
+/*
+ * Curl_proxyCONNECT() requires that we're connected to a HTTP proxy. This
+ * function will issue the necessary commands to get a seamless tunnel through
+ * this proxy. After that, the socket can be used just as a normal socket.
+ *
+ * This badly needs to be rewritten. CONNECT should be sent and dealt with
+ * like any ordinary HTTP request, and not specially crafted like this. This
+ * function only remains here like this for now since the rewrite is a bit too
+ * much work to do at the moment.
+ *
+ * This function is BLOCKING which is nasty for all multi interface using apps.
+ */
+
+CURLcode Curl_proxyCONNECT(struct connectdata *conn,
+                           int sockindex,
+                           char *hostname,
+                           int remote_port)
+{
+  int subversion=0;
+  struct SessionHandle *data=conn->data;
+  struct Curl_transfer_keeper *k = &data->reqdata.keep;
+  CURLcode result;
+  int res;
+  size_t nread;   /* total size read */
+  int perline; /* count bytes per line */
+  int keepon=TRUE;
+  ssize_t gotbytes;
+  char *ptr;
+  long timeout =
+    data->set.timeout?data->set.timeout:3600; /* in seconds */
+  char *line_start;
+  char *host_port;
+  curl_socket_t tunnelsocket = conn->sock[sockindex];
+  send_buffer *req_buffer;
+  curl_off_t cl=0;
+  bool closeConnection = FALSE;
+
+#define SELECT_OK      0
+#define SELECT_ERROR   1
+#define SELECT_TIMEOUT 2
+  int error = SELECT_OK;
+
+  infof(data, "Establish HTTP proxy tunnel to %s:%d\n", hostname, remote_port);
+  conn->bits.proxy_connect_closed = FALSE;
+
+  do {
+    if(data->reqdata.newurl) {
+      /* This only happens if we've looped here due to authentication reasons,
+         and we don't really use the newly cloned URL here then. Just free()
+         it. */
+      free(data->reqdata.newurl);
+      data->reqdata.newurl = NULL;
     }
 
-    // Command to change directory and run a program.
-    else if (args[1] == "chdir" && args.size() >= 4)
-      {
-      std::string directory = args[2];
-      if(!cmSystemTools::FileExists(directory.c_str()))
-        {
-        cmSystemTools::Error("Directory does not exist for chdir command: ",
-                             args[2].c_str());
-        return 0;
-        }
+    /* initialize a dynamic send-buffer */
+    req_buffer = add_buffer_init();
 
-      std::string command = "\"";
-      command += args[3];
-      command += "\"";
-      for (std::string::size_type cc = 4; cc < args.size(); cc ++)
-        {
-        command += " \"";
-        command += args[cc];
-        command += "\"";
-        }
-      int retval = 0;
-      int timeout = 0;
-      if ( cmSystemTools::RunSingleCommand(command.c_str(), 0, &retval,
-                                           directory.c_str(), true, timeout) )
-        {
-        return retval;
-        }
+    if(!req_buffer)
+      return CURLE_OUT_OF_MEMORY;
 
-      return 1;
+    host_port = aprintf("%s:%d", hostname, remote_port);
+    if(!host_port)
+      return CURLE_OUT_OF_MEMORY;
+
+    /* Setup the proxy-authorization header, if any */
+    result = Curl_http_output_auth(conn, (char *)"CONNECT", host_port, TRUE);
+
+    if(CURLE_OK == result) {
+      char *host=(char *)"";
+      const char *proxyconn="";
+      const char *useragent="";
+
+      if(!checkheaders(data, "Host:")) {
+        host = aprintf("Host: %s\r\n", host_port);
+        if(!host)
+          result = CURLE_OUT_OF_MEMORY;
       }
+      if(!checkheaders(data, "Proxy-Connection:"))
+        proxyconn = "Proxy-Connection: Keep-Alive\r\n";
 
-    // Command to create a symbolic link.  Fails on platforms not
-    // supporting them.
-    else if (args[1] == "create_symlink" && args.size() == 4)
-      {
-      return cmSystemTools::CreateSymlink(args[2].c_str(),
-                                          args[3].c_str())? 0:1;
+      if(!checkheaders(data, "User-Agent:") && data->set.useragent)
+        useragent = conn->allocptr.uagent;
+
+      if(CURLE_OK == result) {
+        /* Send the connect request to the proxy */
+        /* BLOCKING */
+        result =
+          add_bufferf(req_buffer,
+                      "CONNECT %s:%d HTTP/1.0\r\n"
+                      "%s"  /* Host: */
+                      "%s"  /* Proxy-Authorization */
+                      "%s"  /* User-Agent */
+                      "%s", /* Proxy-Connection */
+                      hostname, remote_port,
+                      host,
+                      conn->allocptr.proxyuserpwd?
+                      conn->allocptr.proxyuserpwd:"",
+                      useragent,
+                      proxyconn);
+
+        if(CURLE_OK == result)
+          result = add_custom_headers(conn, req_buffer);
+
+        if(host && *host)
+          free(host);
+
+        if(CURLE_OK == result)
+          /* CRLF terminate the request */
+          result = add_bufferf(req_buffer, "\r\n");
+
+        if(CURLE_OK == result)
+          /* Now send off the request */
+          result = add_buffer_send(req_buffer, conn,
+                                   &data->info.request_size, 0, sockindex);
       }
-
-    // Internal CMake shared library support.
-    else if (args[1] == "cmake_symlink_library" && args.size() == 5)
-      {
-      int result = 0;
-      std::string realName = args[2];
-      std::string soName = args[3];
-      std::string name = args[4];
-      if(soName != realName)
-        {
-        std::string fname = cmSystemTools::GetFilenameName(realName);
-        if(cmSystemTools::FileExists(soName.c_str()))
-          {
-          cmSystemTools::RemoveFile(soName.c_str());
-          }
-        if(!cmSystemTools::CreateSymlink(fname.c_str(), soName.c_str()))
-          {
-          result = 1;
-          }
-        }
-      if(name != soName)
-        {
-        std::string fname = cmSystemTools::GetFilenameName(soName);
-        if(cmSystemTools::FileExists(soName.c_str()))
-          {
-          cmSystemTools::RemoveFile(name.c_str());
-          }
-        if(!cmSystemTools::CreateSymlink(fname.c_str(), name.c_str()))
-          {
-          result = 1;
-          }
-        }
+      if(result)
+        failf(data, "Failed sending CONNECT to proxy");
+    }
+    free(host_port);
+    if(result)
       return result;
-      }
-    // Internal CMake versioned executable support.
-    else if (args[1] == "cmake_symlink_executable" && args.size() == 4)
-      {
-      int result = 0;
-      std::string realName = args[2];
-      std::string name = args[3];
-      if(name != realName)
-        {
-        std::string fname = cmSystemTools::GetFilenameName(realName);
-        if(cmSystemTools::FileExists(realName.c_str()))
-          {
-          cmSystemTools::RemoveFile(name.c_str());
-          }
-        if(!cmSystemTools::CreateSymlink(fname.c_str(), name.c_str()))
-          {
-          result = 1;
-          }
-        }
-      return result;
-      }
 
-    // Internal CMake dependency scanning support.
-    else if (args[1] == "cmake_depends" && args.size() >= 6)
-      {
-      cmake cm;
-      cmGlobalGenerator *ggd = cm.CreateGlobalGenerator(args[2].c_str());
-      if (ggd)
-        {
-        ggd->SetCMakeInstance(&cm);
-        std::auto_ptr<cmLocalGenerator> lgd(ggd->CreateLocalGenerator());
-        lgd->SetGlobalGenerator(ggd);
-        return lgd->ScanDependencies(args)? 0 : 2;
-        }
-      return 1;
-      }
+    ptr=data->state.buffer;
+    line_start = ptr;
 
-    // Tar files
-    else if (args[1] == "tar" && args.size() > 3)
-      {
-      std::string flags = args[2];
-      std::string outFile = args[3];
-      std::vector<cmStdString> files;
-      for (std::string::size_type cc = 4; cc < args.size(); cc ++)
-        {
-        files.push_back(args[cc]);
-        }
-      bool gzip = false;
-      bool verbose = false;
-      if ( flags.find_first_of('z') != flags.npos )
-        {
-        gzip = true;
-        }
-      if ( flags.find_first_of('v') != flags.npos )
-        {
-        verbose = true;
-        }
+    nread=0;
+    perline=0;
+    keepon=TRUE;
 
-      if ( flags.find_first_of('t') != flags.npos )
-        {
-        if ( !cmSystemTools::ListTar(outFile.c_str(), files, gzip, verbose) )
-          {
-          cmSystemTools::Error("Problem creating tar: ", outFile.c_str());
-          return 1;
-          }
-        }
-      else if ( flags.find_first_of('c') != flags.npos )
-        {
-        if ( !cmSystemTools::CreateTar(
-            outFile.c_str(), files, gzip, verbose) )
-          {
-          cmSystemTools::Error("Problem creating tar: ", outFile.c_str());
-          return 1;
-          }
-        }
-      else if ( flags.find_first_of('x') != flags.npos )
-        {
-        if ( !cmSystemTools::ExtractTar(
-            outFile.c_str(), files, gzip, verbose) )
-          {
-          cmSystemTools::Error("Problem extracting tar: ", outFile.c_str());
-          return 1;
-          }
-        }
-      return 0;
-      }
+    while((nread<BUFSIZE) && (keepon && !error)) {
 
-#if defined(CMAKE_BUILD_WITH_CMAKE)
-    // Internal CMake Fortran module support.
-    else if (args[1] == "cmake_copy_f90_mod" && args.size() >= 4)
-      {
-      return cmDependsFortran::CopyModule(args)? 0 : 1;
-      }
-#endif
-
-#if defined(_WIN32) && !defined(__CYGWIN__)
-    // Write registry value
-    else if (args[1] == "write_regv" && args.size() > 3)
-      {
-      return cmSystemTools::WriteRegistryValue(args[2].c_str(),
-                                               args[3].c_str()) ? 0 : 1;
-      }
-
-    // Delete registry value
-    else if (args[1] == "delete_regv" && args.size() > 2)
-      {
-      return cmSystemTools::DeleteRegistryValue(args[2].c_str()) ? 0 : 1;
-      }
-    // Remove file
-    else if (args[1] == "comspec" && args.size() > 2)
-      {
-      unsigned int cc;
-      std::string command = args[2];
-      for ( cc = 3; cc < args.size(); cc ++ )
-        {
-        command += " " + args[cc];
-        }
-      return cmWin32ProcessExecution::Windows9xHack(command.c_str());
-      }
-#endif
-    }
-
-  ::CMakeCommandUsage(args[0].c_str());
-  return 1;
-}
-
-void cmake::GetRegisteredGenerators(std::vector<std::string>& names)
-{
-  for(RegisteredGeneratorsMap::const_iterator i = m_Generators.begin();
-      i != m_Generators.end(); ++i)
-    {
-    names.push_back(i->first);
-    }
-}
-
-cmGlobalGenerator* cmake::CreateGlobalGenerator(const char* name)
-{
-  RegisteredGeneratorsMap::const_iterator i = m_Generators.find(name);
-  if(i != m_Generators.end())
-    {
-    cmGlobalGenerator* generator = (i->second)();
-    generator->SetCMakeInstance(this);
-    return generator;
-    }
-  else
-    {
-    return 0;
-    }
-}
-
-void cmake::SetHomeDirectory(const char* dir)
-{
-  m_cmHomeDirectory = dir;
-  cmSystemTools::ConvertToUnixSlashes(m_cmHomeDirectory);
-}
-
-void cmake::SetHomeOutputDirectory(const char* lib)
-{
-  m_HomeOutputDirectory = lib;
-  cmSystemTools::ConvertToUnixSlashes(m_HomeOutputDirectory);
-}
-
-void cmake::SetGlobalGenerator(cmGlobalGenerator *gg)
-{
-  // delete the old generator
-  if (m_GlobalGenerator)
-    {
-    delete m_GlobalGenerator;
-    // restore the original environment variables CXX and CC
-    // Restor CC
-    std::string env = "CC=";
-    if(m_CCEnvironment.size())
-      {
-      env += m_CCEnvironment;
-      }
-    cmSystemTools::PutEnv(env.c_str());
-    env = "CXX=";
-    if(m_CXXEnvironment.size())
-      {
-      env += m_CXXEnvironment;
-      }
-    cmSystemTools::PutEnv(env.c_str());
-    }
-
-  // set the new
-  m_GlobalGenerator = gg;
-  // set the global flag for unix style paths on cmSystemTools as
-  // soon as the generator is set.  This allows gmake to be used
-  // on windows.
-  cmSystemTools::SetForceUnixPaths(m_GlobalGenerator->GetForceUnixPaths());
-  // Save the environment variables CXX and CC
-  const char* cxx = getenv("CXX");
-  const char* cc = getenv("CC");
-  if(cxx)
-    {
-    m_CXXEnvironment = cxx;
-    }
-  else
-    {
-    m_CXXEnvironment = "";
-    }
-  if(cc)
-    {
-    m_CCEnvironment = cc;
-    }
-  else
-    {
-    m_CCEnvironment = "";
-    }
-  // set the cmake instance just to be sure
-  gg->SetCMakeInstance(this);
-}
-
-int cmake::DoPreConfigureChecks()
-{
-  // Make sure the Start directory contains a CMakeLists.txt file.
-  std::string srcList = this->GetHomeDirectory();
-  srcList += "/CMakeLists.txt";
-  if(!cmSystemTools::FileExists(srcList.c_str()))
-    {
-    cmOStringStream err;
-    if(cmSystemTools::FileIsDirectory(this->GetHomeDirectory()))
-      {
-      err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" does not appear to contain CMakeLists.txt.\n";
-      }
-    else if(cmSystemTools::FileExists(this->GetHomeDirectory()))
-      {
-      err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" is a file, not a directory.\n";
-      }
-    else
-      {
-      err << "The source directory \"" << this->GetHomeDirectory()
-          << "\" does not exist.\n";
-      }
-    err << "Specify --help for usage, or press the help button on the CMake "
-      "GUI.";
-    cmSystemTools::Error(err.str().c_str());
-    return -2;
-    }
-
-  // do a sanity check on some values
-  if(m_CacheManager->GetCacheValue("CMAKE_HOME_DIRECTORY"))
-    {
-    std::string cacheStart =
-      m_CacheManager->GetCacheValue("CMAKE_HOME_DIRECTORY");
-    cacheStart += "/CMakeLists.txt";
-    std::string currentStart = this->GetHomeDirectory();
-    currentStart += "/CMakeLists.txt";
-    if(!cmSystemTools::SameFile(cacheStart.c_str(), currentStart.c_str()))
-      {
-      std::string message = "The source \"";
-      message += currentStart;
-      message += "\" does not match the source \"";
-      message += cacheStart;
-      message += "\" used to generate cache.  ";
-      message += "Re-run cmake with a different source directory.";
-      cmSystemTools::Error(message.c_str());
-      return -2;
-      }
-    }
-  else
-    {
-    return 0;
-    }
-  return 1;
-}
-
-int cmake::Configure()
-{
-  // Construct right now our path conversion table before it's too late:
-  this->UpdateConversionPathTable();
-  this->CleanupCommandsAndMacros();
-
-  int res = 0;
-  if ( !m_ScriptMode )
-    {
-    res = this->DoPreConfigureChecks();
-    }
-  if ( res < 0 )
-    {
-    return -2;
-    }
-  if ( !res )
-    {
-    m_CacheManager->AddCacheEntry("CMAKE_HOME_DIRECTORY",
-      this->GetHomeDirectory(),
-      "Start directory with the top level CMakeLists.txt file for this "
-      "project",
-      cmCacheManager::INTERNAL);
-    }
-
-  // set the default BACKWARDS compatibility to the current version
-  if(!m_CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
-            cmMakefile::GetMinorVersion());
-    this->m_CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver,
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
-
-  // no generator specified on the command line
-  if(!m_GlobalGenerator)
-    {
-    const char* genName = m_CacheManager->GetCacheValue("CMAKE_GENERATOR");
-    if(genName)
-      {
-      m_GlobalGenerator = this->CreateGlobalGenerator(genName);
-      }
-    if(m_GlobalGenerator)
-      {
-      // set the global flag for unix style paths on cmSystemTools as
-      // soon as the generator is set.  This allows gmake to be used
-      // on windows.
-      cmSystemTools::SetForceUnixPaths(
-        m_GlobalGenerator->GetForceUnixPaths());
-      }
-    else
-      {
-#if defined(__BORLANDC__) && defined(_WIN32)
-      this->SetGlobalGenerator(new cmGlobalBorlandMakefileGenerator);
-#elif defined(_WIN32) && !defined(__CYGWIN__) && !defined(CMAKE_BOOT_MINGW)
-      std::string installedCompiler;
-      std::string mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
-        "\\VisualStudio\\8.0\\Setup;Dbghelp_path]";
-      cmSystemTools::ExpandRegistryValues(mp);
-      if (!(mp == "/registry"))
-        {
-        installedCompiler = "Visual Studio 8 2005";
-        }
-      else
-        {
-        mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
-          "\\VisualStudio\\7.1;InstallDir]";
-        cmSystemTools::ExpandRegistryValues(mp);
-        if (!(mp == "/registry"))
-          {
-          installedCompiler = "Visual Studio 7 .NET 2003";
-          }
-        else
-          {
-          mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft"
-            "\\VisualStudio\\7.0;InstallDir]";
-          cmSystemTools::ExpandRegistryValues(mp);
-          if (!(mp == "/registry"))
-            {
-            installedCompiler = "Visual Studio 7";
-            }
-          else
-            {
-            installedCompiler = "Visual Studio 6";
-            }
-          }
-        }
-      cmGlobalGenerator* gen
-        = this->CreateGlobalGenerator(installedCompiler.c_str());
-      if(!gen)
-        {
-        gen = new cmGlobalNMakeMakefileGenerator;
-        }
-      this->SetGlobalGenerator(gen);
-#else
-      this->SetGlobalGenerator(new cmGlobalUnixMakefileGenerator3);
-#endif
-      }
-    if(!m_GlobalGenerator)
-      {
-      cmSystemTools::Error("Could not create generator");
-      return -1;
-      }
-    }
-
-  const char* genName = m_CacheManager->GetCacheValue("CMAKE_GENERATOR");
-  if(genName)
-    {
-    if(strcmp(m_GlobalGenerator->GetName(), genName) != 0)
-      {
-      std::string message = "Error: generator : ";
-      message += m_GlobalGenerator->GetName();
-      message += "\nDoes not match the generator used previously: ";
-      message += genName;
-      message +=
-        "\nEither remove the CMakeCache.txt file or choose a different"
-        " binary directory.";
-      cmSystemTools::Error(message.c_str());
-      return -2;
-      }
-    }
-  if(!m_CacheManager->GetCacheValue("CMAKE_GENERATOR"))
-    {
-    m_CacheManager->AddCacheEntry("CMAKE_GENERATOR",
-                                  m_GlobalGenerator->GetName(),
-                                  "Name of generator.",
-                                  cmCacheManager::INTERNAL);
-    }
-
-  // reset any system configuration information, except for when we are
-  // InTryCompile. With TryCompile the system info is taken from the parent's
-  // info to save time
-  if (!m_InTryCompile)
-    {
-    m_GlobalGenerator->ClearEnabledLanguages();
-    }
-
-  this->CleanupWrittenFiles();
-
-  // Truncate log files
-  if (!m_InTryCompile)
-    {
-    this->TruncateOutputLog("CMakeOutput.log");
-    this->TruncateOutputLog("CMakeError.log");
-    }
-
-  // actually do the configure
-  m_GlobalGenerator->Configure();
-
-  // Before saving the cache
-  // if the project did not define one of the entries below, add them now
-  // so users can edit the values in the cache:
-  // LIBRARY_OUTPUT_PATH
-  // EXECUTABLE_OUTPUT_PATH
-  if(!m_CacheManager->GetCacheValue("LIBRARY_OUTPUT_PATH"))
-    {
-    m_CacheManager->AddCacheEntry("LIBRARY_OUTPUT_PATH", "",
-      "Single output directory for building all libraries.",
-      cmCacheManager::PATH);
-    }
-  if(!m_CacheManager->GetCacheValue("EXECUTABLE_OUTPUT_PATH"))
-    {
-    m_CacheManager->AddCacheEntry("EXECUTABLE_OUTPUT_PATH", "",
-      "Single output directory for building all executables.",
-      cmCacheManager::PATH);
-    }
-  if(!m_CacheManager->GetCacheValue("CMAKE_USE_RELATIVE_PATHS"))
-    {
-    m_CacheManager->AddCacheEntry("CMAKE_USE_RELATIVE_PATHS", false,
-      "If true, cmake will use relative paths in makefiles and projects.");
-    cmCacheManager::CacheIterator it =
-      m_CacheManager->GetCacheIterator("CMAKE_USE_RELATIVE_PATHS");
-    if ( !it.PropertyExists("ADVANCED") )
-      {
-      it.SetProperty("ADVANCED", "1");
-      }
-    }
-
-  if(cmSystemTools::GetFatalErrorOccured() &&
-     (!this->m_CacheManager->GetCacheValue("CMAKE_MAKE_PROGRAM") ||
-      cmSystemTools::IsOff(
-        this->m_CacheManager->GetCacheValue("CMAKE_MAKE_PROGRAM"))))
-    {
-    // We must have a bad generator selection.  Wipe the cache entry so the
-    // user can select another.
-    m_CacheManager->RemoveCacheEntry("CMAKE_GENERATOR");
-    }
-  // only save the cache if there were no fatal errors
-  if ( !m_ScriptMode && !cmSystemTools::GetFatalErrorOccured() )
-    {
-    this->m_CacheManager->SaveCache(this->GetHomeOutputDirectory());
-    }
-  if ( !m_GraphVizFile.empty() )
-    {
-    std::cout << "Generate graphviz: " << m_GraphVizFile << std::endl;
-    this->GenerateGraphViz(m_GraphVizFile.c_str());
-    }
-  if(cmSystemTools::GetErrorOccuredFlag())
-    {
-    return -1;
-    }
-  return 0;
-}
-
-bool cmake::CacheVersionMatches()
-{
-  const char* majv
-    = m_CacheManager->GetCacheValue("CMAKE_CACHE_MAJOR_VERSION");
-  const char* minv
-    = m_CacheManager->GetCacheValue("CMAKE_CACHE_MINOR_VERSION");
-  const char* relv
-    = m_CacheManager->GetCacheValue("CMAKE_CACHE_RELEASE_VERSION");
-  bool cacheSameCMake = false;
-  if(majv &&
-     atoi(majv) == static_cast<int>(cmMakefile::GetMajorVersion())
-     && minv &&
-     atoi(minv) == static_cast<int>(cmMakefile::GetMinorVersion())
-     && relv && (strcmp(relv, cmMakefile::GetReleaseVersion()) == 0))
-    {
-    cacheSameCMake = true;
-    }
-  return cacheSameCMake;
-}
-
-void cmake::PreLoadCMakeFiles()
-{
-  std::string pre_load = this->GetHomeDirectory();
-  if ( pre_load.size() > 0 )
-    {
-    pre_load += "/PreLoad.cmake";
-    if ( cmSystemTools::FileExists(pre_load.c_str()) )
-      {
-      this->ReadListFile(pre_load.c_str());
-      }
-    }
-  pre_load = this->GetHomeOutputDirectory();
-  if ( pre_load.size() > 0 )
-    {
-    pre_load += "/PreLoad.cmake";
-    if ( cmSystemTools::FileExists(pre_load.c_str()) )
-      {
-      this->ReadListFile(pre_load.c_str());
-      }
-    }
-}
-
-// handle a command line invocation
-int cmake::Run(const std::vector<std::string>& args, bool noconfigure)
-{
-  // Process the arguments
-  this->SetArgs(args);
-  if(cmSystemTools::GetErrorOccuredFlag())
-    {
-    CMakeCommandUsage(args[0].c_str());
-    return -1;
-    }
-
-  // set the cmake command
-  m_CMakeCommand = args[0];
-
-  if ( !m_ScriptMode )
-    {
-    // load the cache
-    if(this->LoadCache() < 0)
-      {
-      cmSystemTools::Error("Error executing cmake::LoadCache(). Aborting.\n");
-      return -1;
-      }
-    }
-  else
-    {
-    this->AddCMakePaths(m_CMakeCommand.c_str());
-    }
-
-  // Add any cache args
-  if ( !this->SetCacheArgs(args) )
-    {
-    cmSystemTools::Error("Problem processing arguments. Aborting.\n");
-    return -1;
-    }
-
-  // In script mode we terminate after running the script.
-  if(m_ScriptMode)
-    {
-    if(cmSystemTools::GetErrorOccuredFlag())
-      {
-      return -1;
-      }
-    else
-      {
-      return 0;
-      }
-    }
-
-  this->PreLoadCMakeFiles();
-
-  std::string systemFile = this->GetHomeOutputDirectory();
-  systemFile += "/CMakeSystem.cmake";
-
-  if ( noconfigure )
-    {
-    return 0;
-    }
-
-  // now run the global generate
-  // Check the state of the build system to see if we need to regenerate.
-  if(!this->CheckBuildSystem())
-    {
-    return 0;
-    }
-
-  // If we are doing global generate, we better set start and start
-  // output directory to the root of the project.
-  std::string oldstartdir = this->GetStartDirectory();
-  std::string oldstartoutputdir = this->GetStartOutputDirectory();
-  this->SetStartDirectory(this->GetHomeDirectory());
-  this->SetStartOutputDirectory(this->GetHomeOutputDirectory());
-  int ret = this->Configure();
-  if (ret || m_ScriptMode)
-    {
-    return ret;
-    }
-  ret = this->Generate();
-  std::string message = "Build files have been written to: ";
-  message += this->GetHomeOutputDirectory();
-  this->UpdateProgress(message.c_str(), -1);
-  if(ret)
-    {
-    return ret;
-    }
-  this->SetStartDirectory(oldstartdir.c_str());
-  this->SetStartOutputDirectory(oldstartoutputdir.c_str());
-
-  return ret;
-}
-
-int cmake::Generate()
-{
-  if(!m_GlobalGenerator)
-    {
-    return -1;
-    }
-  m_GlobalGenerator->Generate();
-  if(cmSystemTools::GetErrorOccuredFlag())
-    {
-    return -1;
-    }
-  return 0;
-}
-
-unsigned int cmake::GetMajorVersion()
-{
-  return cmMakefile::GetMajorVersion();
-}
-
-unsigned int cmake::GetMinorVersion()
-{
-  return cmMakefile::GetMinorVersion();
-}
-
-const char *cmake::GetReleaseVersion()
-{
-  return cmMakefile::GetReleaseVersion();
-}
-
-void cmake::AddCacheEntry(const char* key, const char* value,
-                          const char* helpString,
-                          int type)
-{
-  m_CacheManager->AddCacheEntry(key, value,
-                                helpString,
-                                cmCacheManager::CacheEntryType(type));
-}
-
-const char* cmake::GetCacheDefinition(const char* name) const
-{
-  return m_CacheManager->GetCacheValue(name);
-}
-
-int cmake::DumpDocumentationToFile(std::ostream& f)
-{
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  // Loop over all registered commands and print out documentation
-  const char *name;
-  const char *terse;
-  const char *full;
-  char tmp[1024];
-  sprintf(tmp,"Version %d.%d (%s)", cmake::GetMajorVersion(),
-          cmake::GetMinorVersion(), cmVersion::GetReleaseVersion().c_str());
-  f << "<html>\n";
-  f << "<h1>Documentation for commands of CMake " << tmp << "</h1>\n";
-  f << "<ul>\n";
-  for(RegisteredCommandsMap::iterator j = m_Commands.begin();
-      j != m_Commands.end(); ++j)
-    {
-    name = (*j).second->GetName();
-    terse = (*j).second->GetTerseDocumentation();
-    full = (*j).second->GetFullDocumentation();
-    f << "<li><b>" << name << "</b> - " << terse << std::endl
-      << "<br><i>Usage:</i> " << full << "</li>" << std::endl << std::endl;
-    }
-  f << "</ul></html>\n";
-#else
-  (void)f;
-#endif
-  return 1;
-}
-
-void cmake::AddDefaultCommands()
-{
-  std::list<cmCommand*> commands;
-  GetBootstrapCommands(commands);
-  GetPredefinedCommands(commands);
-  for(std::list<cmCommand*>::iterator i = commands.begin();
-      i != commands.end(); ++i)
-    {
-    this->AddCommand(*i);
-    }
-}
-
-void cmake::AddDefaultGenerators()
-{
-#if defined(_WIN32) && !defined(__CYGWIN__)
-# if !defined(CMAKE_BOOT_MINGW)
-  m_Generators[cmGlobalVisualStudio6Generator::GetActualName()] =
-    &cmGlobalVisualStudio6Generator::New;
-  m_Generators[cmGlobalVisualStudio7Generator::GetActualName()] =
-    &cmGlobalVisualStudio7Generator::New;
-  m_Generators[cmGlobalVisualStudio71Generator::GetActualName()] =
-    &cmGlobalVisualStudio71Generator::New;
-  m_Generators[cmGlobalVisualStudio8Generator::GetActualName()] =
-    &cmGlobalVisualStudio8Generator::New;
-  m_Generators[cmGlobalBorlandMakefileGenerator::GetActualName()] =
-    &cmGlobalBorlandMakefileGenerator::New;
-  m_Generators[cmGlobalNMakeMakefileGenerator::GetActualName()] =
-    &cmGlobalNMakeMakefileGenerator::New;
-  m_Generators[cmGlobalWatcomWMakeGenerator::GetActualName()] =
-    &cmGlobalWatcomWMakeGenerator::New;
-# endif
-  m_Generators[cmGlobalMSYSMakefileGenerator::GetActualName()] =
-    &cmGlobalMSYSMakefileGenerator::New;
-  m_Generators[cmGlobalMinGWMakefileGenerator::GetActualName()] =
-    &cmGlobalMinGWMakefileGenerator::New;
-#endif
-  m_Generators[cmGlobalUnixMakefileGenerator3::GetActualName()] =
-    &cmGlobalUnixMakefileGenerator3::New;
-#ifdef CMAKE_USE_XCODE
-  m_Generators[cmGlobalXCodeGenerator::GetActualName()] =
-    &cmGlobalXCodeGenerator::New;
-#endif
-#ifdef CMAKE_USE_KDEVELOP
-  m_Generators[cmGlobalKdevelopGenerator::GetActualName()] =
-     &cmGlobalKdevelopGenerator::New;
-#endif
-}
-
-int cmake::LoadCache()
-{
-  // could we not read the cache
-  if (!m_CacheManager->LoadCache(this->GetHomeOutputDirectory()))
-    {
-    // if it does exist, but isn;t readable then warn the user
-    std::string cacheFile = this->GetHomeOutputDirectory();
-    cacheFile += "/CMakeCache.txt";
-    if(cmSystemTools::FileExists(cacheFile.c_str()))
-      {
-      cmSystemTools::Error(
-        "There is a CMakeCache.txt file for the current binary tree but "
-        "cmake does not have permission to read it. Please check the "
-        "permissions of the directory you are trying to run CMake on.");
-      return -1;
-      }
-    }
-
-  if (m_CMakeCommand.size() < 2)
-    {
-    cmSystemTools::Error(
-      "cmake command was not specified prior to loading the cache in "
-      "cmake.cxx");
-    return -1;
-    }
-
-  // setup CMAKE_ROOT and CMAKE_COMMAND
-  if(!this->AddCMakePaths(m_CMakeCommand.c_str()))
-    {
-    return -3;
-    }
-
-  // set the default BACKWARDS compatibility to the current version
-  if(!m_CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
-    {
-    char ver[256];
-    sprintf(ver,"%i.%i",cmMakefile::GetMajorVersion(),
-            cmMakefile::GetMinorVersion());
-    this->m_CacheManager->AddCacheEntry
-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver,
-       "For backwards compatibility, what version of CMake commands and "
-       "syntax should this version of CMake allow.",
-       cmCacheManager::STRING);
-    }
-
-  return 0;
-}
-
-void cmake::SetProgressCallback(ProgressCallback f, void *cd)
-{
-  m_ProgressCallback = f;
-  m_ProgressCallbackClientData = cd;
-}
-
-void cmake::UpdateProgress(const char *msg, float prog)
-{
-  if(m_ProgressCallback && !m_InTryCompile)
-    {
-    (*m_ProgressCallback)(msg, prog, m_ProgressCallbackClientData);
-    return;
-    }
-}
-
-void cmake::GetCommandDocumentation(
-  std::vector<cmDocumentationEntry>& v) const
-{
-  for(RegisteredCommandsMap::const_iterator j = m_Commands.begin();
-      j != m_Commands.end(); ++j)
-    {
-    cmDocumentationEntry e =
-      {
-        (*j).second->GetName(),
-        (*j).second->GetTerseDocumentation(),
-        (*j).second->GetFullDocumentation()
-      };
-    v.push_back(e);
-    }
-  cmDocumentationEntry empty = {0,0,0};
-  v.push_back(empty);
-}
-
-void cmake::GetGeneratorDocumentation(std::vector<cmDocumentationEntry>& v)
-{
-  for(RegisteredGeneratorsMap::const_iterator i = m_Generators.begin();
-      i != m_Generators.end(); ++i)
-    {
-    cmDocumentationEntry e;
-    cmGlobalGenerator* generator = (i->second)();
-    generator->GetDocumentation(e);
-    delete generator;
-    v.push_back(e);
-    }
-  cmDocumentationEntry empty = {0,0,0};
-  v.push_back(empty);
-}
-
-void cmake::AddWrittenFile(const char* file)
-{
-  m_WrittenFiles.insert(file);
-}
-
-bool cmake::HasWrittenFile(const char* file)
-{
-  return m_WrittenFiles.find(file) != m_WrittenFiles.end();
-}
-
-void cmake::CleanupWrittenFiles()
-{
-  m_WrittenFiles.clear();
-}
-
-void cmake::UpdateConversionPathTable()
-{
-  // Update the path conversion table with any specified file:
-  const char* tablepath =
-    m_CacheManager->GetCacheValue("CMAKE_PATH_TRANSLATION_FILE");
-
-  if(tablepath)
-    {
-    std::ifstream table( tablepath );
-    if(!table)
-      {
-      cmSystemTools::Error("CMAKE_PATH_TRANSLATION_FILE set to ", tablepath,
-        ". CMake can not open file.");
-      cmSystemTools::ReportLastSystemError("CMake can not open file.");
-      }
-    else
-      {
-      std::string a, b;
-      while(!table.eof())
-        {
-        // two entries per line
-        table >> a; table >> b;
-        cmSystemTools::AddTranslationPath( a.c_str(), b.c_str());
-        }
-      }
-    }
-}
-
-//----------------------------------------------------------------------------
-int cmake::CheckBuildSystem()
-{
-  // This method will check the integrity of the build system if the
-  // option was given on the command line.  It reads the given file to
-  // determine whether CMake should rerun.  If it does rerun then the
-  // generation step will check the integrity of dependencies.  If it
-  // does not then we need to check the integrity here.
-
-  // If no file is provided for the check, we have to rerun.
-  if(m_CheckBuildSystem.size() == 0)
-    {
-    return 1;
-    }
-
-  // If the file provided does not exist, we have to rerun.
-  if(!cmSystemTools::FileExists(m_CheckBuildSystem.c_str()))
-    {
-    return 1;
-    }
-
-  // Read the rerun check file and use it to decide whether to do the
-  // global generate.
-  cmake cm;
-  cmGlobalGenerator gg;
-  gg.SetCMakeInstance(&cm);
-  std::auto_ptr<cmLocalGenerator> lg(gg.CreateLocalGenerator());
-  lg->SetGlobalGenerator(&gg);
-  cmMakefile* mf = lg->GetMakefile();
-  if(!mf->ReadListFile(0, m_CheckBuildSystem.c_str()) ||
-     cmSystemTools::GetErrorOccuredFlag())
-    {
-    // There was an error reading the file.  Just rerun.
-    return 1;
-    }
-
-  // Get the set of dependencies and outputs.
-  const char* dependsStr = mf->GetDefinition("CMAKE_MAKEFILE_DEPENDS");
-  const char* outputsStr = mf->GetDefinition("CMAKE_MAKEFILE_OUTPUTS");
-  if(!dependsStr || !outputsStr)
-    {
-    // Not enough information was provided to do the test.  Just rerun.
-    return 1;
-    }
-  std::vector<std::string> depends;
-  std::vector<std::string> outputs;
-  cmSystemTools::ExpandListArgument(dependsStr, depends);
-  cmSystemTools::ExpandListArgument(outputsStr, outputs);
-
-  // If any output is older than any dependency then rerun.
-  for(std::vector<std::string>::iterator dep = depends.begin();
-      dep != depends.end(); ++dep)
-    {
-    for(std::vector<std::string>::iterator out = outputs.begin();
-        out != outputs.end(); ++out)
-      {
-      int result = 0;
-      if(!m_FileComparison->FileTimeCompare(out->c_str(),
-                                            dep->c_str(), &result) ||
-         result < 0)
-        {
-        return 1;
-        }
-      }
-    }
-
-  // We do not need to rerun CMake.  Check dependency integrity.  Use
-  // the make system's VERBOSE environment variable to enable verbose
-  // output.
-  bool verbose = cmSystemTools::GetEnv("VERBOSE") != 0;
-
-  // compute depends based on the generator specified
-  const char* genName = mf->GetDefinition("CMAKE_DEPENDS_GENERATOR");
-  if (!genName || genName[0] == '\0')
-    {
-    genName = "Unix Makefiles";
-    }
-  cmGlobalGenerator *ggd = this->CreateGlobalGenerator(genName);
-  if (ggd)
-    {
-    std::auto_ptr<cmLocalGenerator> lgd(ggd->CreateLocalGenerator());
-    lgd->SetGlobalGenerator(ggd);
-    lgd->CheckDependencies(mf, verbose, m_ClearBuildSystem);
-    }
-
-  // No need to rerun.
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-void cmake::TruncateOutputLog(const char* fname)
-{
-  std::string fullPath = this->GetHomeOutputDirectory();
-  fullPath += "/";
-  fullPath += fname;
-  struct stat st;
-  if ( ::stat(fullPath.c_str(), &st) )
-    {
-    return;
-    }
-  if ( !m_CacheManager->GetCacheValue("CMAKE_CACHEFILE_DIR") )
-    {
-    cmSystemTools::RemoveFile(fullPath.c_str());
-    return;
-    }
-  size_t fsize = st.st_size;
-  const size_t maxFileSize = 50 * 1024;
-  if ( fsize < maxFileSize )
-    {
-    //TODO: truncate file
-    return;
-    }
-}
-
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
-    }
-  return s;
-}
-
-const char* cmake::GetCTestCommand()
-{
-  if ( !m_CTestCommand.empty() )
-    {
-    return m_CTestCommand.c_str();
-    }
-
-  cmMakefile* mf
-    = this->GetGlobalGenerator()->GetLocalGenerator(0)->GetMakefile();
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  m_CTestCommand = mf->GetRequiredDefinition("CMAKE_COMMAND");
-  m_CTestCommand = removeQuotes(m_CTestCommand);
-  m_CTestCommand = cmSystemTools::GetFilenamePath(m_CTestCommand.c_str());
-  m_CTestCommand += "/";
-  m_CTestCommand += "ctest";
-  m_CTestCommand += cmSystemTools::GetExecutableExtension();
-  if(!cmSystemTools::FileExists(m_CTestCommand.c_str()))
-    {
-    m_CTestCommand = mf->GetRequiredDefinition("CMAKE_COMMAND");
-    m_CTestCommand = cmSystemTools::GetFilenamePath(m_CTestCommand.c_str());
-    m_CTestCommand += "/Debug/";
-    m_CTestCommand += "ctest";
-    m_CTestCommand += cmSystemTools::GetExecutableExtension();
-    }
-  if(!cmSystemTools::FileExists(m_CTestCommand.c_str()))
-    {
-    m_CTestCommand = mf->GetRequiredDefinition("CMAKE_COMMAND");
-    m_CTestCommand = cmSystemTools::GetFilenamePath(m_CTestCommand.c_str());
-    m_CTestCommand += "/Release/";
-    m_CTestCommand += "ctest";
-    m_CTestCommand += cmSystemTools::GetExecutableExtension();
-    }
-#else
-  // Only for bootstrap
-  m_CTestCommand += mf->GetSafeDefinition("EXECUTABLE_OUTPUT_PATH");
-  m_CTestCommand += "/ctest";
-  m_CTestCommand += cmSystemTools::GetExecutableExtension();
-#endif
-  if ( m_CTestCommand.empty() )
-    {
-    cmSystemTools::Error("Cannot find the CTest executable");
-    m_CTestCommand = "CTEST-COMMAND-NOT-FOUND";
-    }
-  return m_CTestCommand.c_str();
-}
-
-const char* cmake::GetCPackCommand()
-{
-  if ( !m_CPackCommand.empty() )
-    {
-    return m_CPackCommand.c_str();
-    }
-
-  cmMakefile* mf
-    = this->GetGlobalGenerator()->GetLocalGenerator(0)->GetMakefile();
-
-#ifdef CMAKE_BUILD_WITH_CMAKE
-  m_CPackCommand = mf->GetRequiredDefinition("CMAKE_COMMAND");
-  m_CPackCommand = removeQuotes(m_CPackCommand);
-  m_CPackCommand = cmSystemTools::GetFilenamePath(m_CPackCommand.c_str());
-  m_CPackCommand += "/";
-  m_CPackCommand += "cpack";
-  m_CPackCommand += cmSystemTools::GetExecutableExtension();
-  if(!cmSystemTools::FileExists(m_CPackCommand.c_str()))
-    {
-    m_CPackCommand = mf->GetRequiredDefinition("CMAKE_COMMAND");
-    m_CPackCommand = cmSystemTools::GetFilenamePath(m_CPackCommand.c_str());
-    m_CPackCommand += "/Debug/";
-    m_CPackCommand += "cpack";
-    m_CPackCommand += cmSystemTools::GetExecutableExtension();
-    }
-  if(!cmSystemTools::FileExists(m_CPackCommand.c_str()))
-    {
-    m_CPackCommand = mf->GetRequiredDefinition("CMAKE_COMMAND");
-    m_CPackCommand = cmSystemTools::GetFilenamePath(m_CPackCommand.c_str());
-    m_CPackCommand += "/Release/";
-    m_CPackCommand += "cpack";
-    m_CPackCommand += cmSystemTools::GetExecutableExtension();
-    }
-  if (!cmSystemTools::FileExists(m_CPackCommand.c_str()))
-    {
-    cmSystemTools::Error("Cannot find the CPack executable");
-    m_CPackCommand = "CPACK-COMMAND-NOT-FOUND";
-    }
-#else
-  // Only for bootstrap
-  m_CPackCommand += mf->GetSafeDefinition("EXECUTABLE_OUTPUT_PATH");
-  m_CPackCommand += "/cpack";
-  m_CPackCommand += cmSystemTools::GetExecutableExtension();
-#endif
-  return m_CPackCommand.c_str();
-}
-
-void cmake::GenerateGraphViz(const char* fileName)
-{
-  cmGeneratedFileStream str(fileName);
-  if ( !str )
-    {
-    return;
-    }
-  cmake cm;
-  cmGlobalGenerator ggi;
-  ggi.SetCMakeInstance(&cm);
-  std::auto_ptr<cmLocalGenerator> lg(ggi.CreateLocalGenerator());
-  lg->SetGlobalGenerator(&ggi);
-  cmMakefile *mf = lg->GetMakefile();
-
-  std::string infile = this->GetHomeOutputDirectory();
-  infile += "/CMakeGraphVizOptions.cmake";
-  if ( !cmSystemTools::FileExists(infile.c_str()) )
-    {
-    infile = this->GetHomeDirectory();
-    infile += "/CMakeGraphVizOptions.cmake";
-    if ( !cmSystemTools::FileExists(infile.c_str()) )
-      {
-      infile = "";
-      }
-    }
-
-  if ( !infile.empty() )
-    {
-    if ( !mf->ReadListFile(0, infile.c_str()) )
-      {
-      cmSystemTools::Error("Problem opening GraphViz options file: ",
-        infile.c_str());
-      return;
-      }
-    std::cout << "Read GraphViz options file: " << infile.c_str()
-      << std::endl;
-    }
-
-#define __set_if_not_set(var, value, cmakeDefinition) \
-  const char* var = mf->GetDefinition(cmakeDefinition); \
-  if ( !var ) \
-    { \
-    var = value; \
-    }
-  __set_if_not_set(graphType, "digraph", "GRAPHVIZ_GRAPH_TYPE");
-  __set_if_not_set(graphName, "GG", "GRAPHVIZ_GRAPH_NAME");
-  __set_if_not_set(graphHeader, "node [\n  fontsize = \"12\"\n];",
-    "GRAPHVIZ_GRAPH_HEADER");
-  __set_if_not_set(graphNodePrefix, "node", "GRAPHVIZ_NODE_PREFIX");
-  const char* ignoreTargets = mf->GetDefinition("GRAPHVIZ_IGNORE_TARGETS");
-  std::set<cmStdString> ignoreTargetsSet;
-  if ( ignoreTargets )
-    {
-    std::vector<std::string> ignoreTargetsVector;
-    cmSystemTools::ExpandListArgument(ignoreTargets,ignoreTargetsVector);
-    std::vector<std::string>::iterator itvIt;
-    for ( itvIt = ignoreTargetsVector.begin();
-      itvIt != ignoreTargetsVector.end();
-      ++ itvIt )
-      {
-      ignoreTargetsSet.insert(itvIt->c_str());
-      }
-    }
-
-  str << graphType << " " << graphName << " {" << std::endl;
-  str << graphHeader << std::endl;
-
-  cmGlobalGenerator* gg = this->GetGlobalGenerator();
-  std::vector<cmLocalGenerator*> localGenerators;
-  gg->GetLocalGenerators(localGenerators);
-  std::vector<cmLocalGenerator*>::iterator lit;
-  // for target deps
-  // 1 - cmake target
-  // 2 - external target
-  // 0 - no deps
-  std::map<cmStdString, int> targetDeps;
-  std::map<cmStdString, cmTarget*> targetPtrs;
-  std::map<cmStdString, cmStdString> targetNamesNodes;
-  char tgtName[100];
-  int cnt = 0;
-  // First pass get the list of all cmake targets
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      //std::cout << "Found target: " << tit->first.c_str() << std::endl;
-      sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-      targetNamesNodes[realTargetName] = tgtName;
-      targetPtrs[realTargetName] = &tit->second;
-      //str << "    \"" << tgtName << "\" [ label=\"" << tit->first.c_str()
-      //<<  "\" shape=\"box\"];" << std::endl;
-      }
-    }
-  // Ok, now find all the stuff we link to that is not in cmake
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      const cmTarget::LinkLibraries* ll
-        = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraries::const_iterator llit;
-      const char* realTargetName = tit->first.c_str();
-      if ( ignoreTargetsSet.find(realTargetName) != ignoreTargetsSet.end() )
-        {
-        // Skip ignored targets
-        continue;
-        }
-      if ( ll->size() > 0 )
-        {
-        targetDeps[realTargetName] = 1;
-        }
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt
-          = targetNamesNodes.find(libName);
-        if ( ignoreTargetsSet.find(libName) != ignoreTargetsSet.end() )
-          {
-          // Skip ignored targets
-          continue;
-          }
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          sprintf(tgtName, "%s%d", graphNodePrefix, cnt++);
-          targetDeps[libName] = 2;
-          targetNamesNodes[libName] = tgtName;
-          //str << "    \"" << tgtName << "\" [ label=\"" << libName
-          //<<  "\" shape=\"ellipse\"];" << std::endl;
-          }
-        else
-          {
-          std::map<cmStdString, int>::iterator depIt
-            = targetDeps.find(libName);
-          if ( depIt == targetDeps.end() )
-            {
-            targetDeps[libName] = 1;
-            }
-          }
-        }
-      }
-    }
-
-  // Write out nodes
-  std::map<cmStdString, int>::iterator depIt;
-  for ( depIt = targetDeps.begin(); depIt != targetDeps.end(); ++ depIt )
-    {
-    const char* newTargetName = depIt->first.c_str();
-    std::map<cmStdString, cmStdString>::iterator tarIt
-      = targetNamesNodes.find(newTargetName);
-    if ( tarIt == targetNamesNodes.end() )
-      {
-      // We should not be here.
-      std::cout << __LINE__ << " Cannot find library: " << newTargetName
-        << " even though it was added in the previous pass" << std::endl;
-      abort();
-      }
-
-    str << "    \"" << tarIt->second.c_str() << "\" [ label=\""
-      << newTargetName <<  "\" shape=\"";
-    if ( depIt->second == 1 )
-      {
-      std::map<cmStdString, cmTarget*>::iterator tarTypeIt= targetPtrs.find(
-        newTargetName);
-      if ( tarTypeIt == targetPtrs.end() )
-        {
-        // We should not be here.
-        std::cout << __LINE__ << " Cannot find library: " << newTargetName
-          << " even though it was added in the previous pass" << std::endl;
-        abort();
-        }
-      cmTarget* tg = tarTypeIt->second;
-      switch ( tg->GetType() )
-        {
-      case cmTarget::EXECUTABLE:
-        str << "house";
+      /* if timeout is requested, find out how much remaining time we have */
+      long check = timeout - /* timeout time */
+        Curl_tvdiff(Curl_tvnow(), conn->now)/1000; /* spent time */
+      if(check <=0 ) {
+        failf(data, "Proxy CONNECT aborted due to timeout");
+        error = SELECT_TIMEOUT; /* already too little time */
         break;
-      case cmTarget::STATIC_LIBRARY:
-        str << "diamond";
+      }
+
+      /* timeout each second and check the timeout */
+      switch (Curl_select(tunnelsocket, CURL_SOCKET_BAD, 1000)) {
+      case -1: /* select() error, stop reading */
+        error = SELECT_ERROR;
+        failf(data, "Proxy CONNECT aborted due to select() error");
         break;
-      case cmTarget::SHARED_LIBRARY:
-        str << "polygon";
-        break;
-      case cmTarget::MODULE_LIBRARY:
-        str << "octagon";
+      case 0: /* timeout */
         break;
       default:
-        str << "box";
+        res = Curl_read(conn, tunnelsocket, ptr, BUFSIZE-nread, &gotbytes);
+        if(res< 0)
+          /* EWOULDBLOCK */
+          continue; /* go loop yourself */
+        else if(res)
+          keepon = FALSE;
+        else if(gotbytes <= 0) {
+          keepon = FALSE;
+          error = SELECT_ERROR;
+          failf(data, "Proxy CONNECT aborted");
         }
-      }
-    else
-      {
-      str << "ellipse";
-      }
-    str << "\"];" << std::endl;
-    }
+        else {
+          /*
+           * We got a whole chunk of data, which can be anything from one byte
+           * to a set of lines and possibly just a piece of the last line.
+           */
+          int i;
 
-  // Now generate the connectivity
-  for ( lit = localGenerators.begin(); lit != localGenerators.end(); ++ lit )
-    {
-    cmTargets* targets = &((*lit)->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = targets->begin(); tit != targets->end(); ++ tit )
-      {
-      std::map<cmStdString, int>::iterator dependIt
-        = targetDeps.find(tit->first.c_str());
-      if ( dependIt == targetDeps.end() )
-        {
-        continue;
-        }
-      std::map<cmStdString, cmStdString>::iterator cmakeTarIt
-        = targetNamesNodes.find(tit->first.c_str());
-      const cmTarget::LinkLibraries* ll
-        = &(tit->second.GetOriginalLinkLibraries());
-      cmTarget::LinkLibraries::const_iterator llit;
-      for ( llit = ll->begin(); llit != ll->end(); ++ llit )
-        {
-        const char* libName = llit->first.c_str();
-        std::map<cmStdString, cmStdString>::iterator tarIt
-          = targetNamesNodes.find(libName);
-        if ( tarIt == targetNamesNodes.end() )
-          {
-          // We should not be here.
-          std::cout << __LINE__ << " Cannot find library: " << libName
-            << " even though it was added in the previous pass" << std::endl;
-          abort();
+          nread += gotbytes;
+
+          if(keepon > TRUE) {
+            /* This means we are currently ignoring a response-body, so we
+               simply count down our counter and make sure to break out of the
+               loop when we're done! */
+            cl -= gotbytes;
+            if(cl<=0) {
+              keepon = FALSE;
+              break;
+            }
           }
-        str << "    \"" << cmakeTarIt->second.c_str() << "\" -> \""
-          << tarIt->second.c_str() << "\"" << std::endl;
-        }
-      }
-    }
+          else
+          for(i = 0; i < gotbytes; ptr++, i++) {
+            perline++; /* amount of bytes in this line so far */
+            if(*ptr=='\n') {
+              char letter;
+              int writetype;
 
-  // TODO: Use dotted or something for external libraries
-  //str << "    \"node0\":f4 -> \"node12\"[color=\"#0000ff\" style=dotted]"
-  //<< std::endl;
-  //
-  str << "}" << std::endl;
+              /* output debug if that is requested */
+              if(data->set.verbose)
+                Curl_debug(data, CURLINFO_HEADER_IN,
+                           line_start, (size_t)perline, conn);
+
+              /* send the header to the callback */
+              writetype = CLIENTWRITE_HEADER;
+              if(data->set.include_header)
+                writetype |= CLIENTWRITE_BODY;
+
+              result = Curl_client_write(conn, writetype, line_start, perline);
+              if(result)
+                return result;
+
+              /* Newlines are CRLF, so the CR is ignored as the line isn't
+                 really terminated until the LF comes. Treat a following CR
+                 as end-of-headers as well.*/
+
+              if(('\r' == line_start[0]) ||
+                 ('\n' == line_start[0])) {
+                /* end of response-headers from the proxy */
+                if(cl && (407 == k->httpcode) && !data->state.authproblem) {
+                  /* If we get a 407 response code with content length when we
+                   * have no auth problem, we must ignore the whole
+                   * response-body */
+                  keepon = 2;
+                  infof(data, "Ignore %" FORMAT_OFF_T
+                        " bytes of response-body\n", cl);
+                  cl -= (gotbytes - i);/* remove the remaining chunk of what
+                                          we already read */
+                  if(cl<=0)
+                    /* if the whole thing was already read, we are done! */
+                    keepon=FALSE;
+                }
+                else
+                  keepon = FALSE;
+                break; /* breaks out of for-loop, not switch() */
+              }
+
+              /* keep a backup of the position we are about to blank */
+              letter = line_start[perline];
+              line_start[perline]=0; /* zero terminate the buffer */
+              if((checkprefix("WWW-Authenticate:", line_start) &&
+                  (401 == k->httpcode)) ||
+                 (checkprefix("Proxy-authenticate:", line_start) &&
+                  (407 == k->httpcode))) {
+                result = Curl_http_input_auth(conn, k->httpcode, line_start);
+                if(result)
+                  return result;
+              }
+              else if(checkprefix("Content-Length:", line_start)) {
+                cl = curlx_strtoofft(line_start + strlen("Content-Length:"),
+                                     NULL, 10);
+              }
+              else if(Curl_compareheader(line_start,
+                                         "Connection:", "close"))
+                closeConnection = TRUE;
+              else if(2 == sscanf(line_start, "HTTP/1.%d %d",
+                                  &subversion,
+                                  &k->httpcode)) {
+                /* store the HTTP code from the proxy */
+                data->info.httpproxycode = k->httpcode;
+              }
+              /* put back the letter we blanked out before */
+              line_start[perline]= letter;
+
+              perline=0; /* line starts over here */
+              line_start = ptr+1; /* this skips the zero byte we wrote */
+            }
+          }
+        }
+        break;
+      } /* switch */
+    } /* while there's buffer left and loop is requested */
+
+    if(error)
+      return CURLE_RECV_ERROR;
+
+    if(data->info.httpproxycode != 200)
+      /* Deal with the possibly already received authenticate
+         headers. 'newurl' is set to a new URL if we must loop. */
+      Curl_http_auth_act(conn);
+
+    if (closeConnection && data->reqdata.newurl) {
+      /* Connection closed by server. Don't use it anymore */
+      sclose(conn->sock[sockindex]);
+      conn->sock[sockindex] = CURL_SOCKET_BAD;
+      break;
+    }
+  } while(data->reqdata.newurl);
+
+  if(200 != k->httpcode) {
+    failf(data, "Received HTTP code %d from proxy after CONNECT",
+          k->httpcode);
+
+    if (closeConnection && data->reqdata.newurl)
+      conn->bits.proxy_connect_closed = TRUE;
+
+    return CURLE_RECV_ERROR;
+  }
+
+  /* If a proxy-authorization header was used for the proxy, then we should
+     make sure that it isn't accidentally used for the document request
+     after we've connected. So let's free and clear it here. */
+  Curl_safefree(conn->allocptr.proxyuserpwd);
+  conn->allocptr.proxyuserpwd = NULL;
+
+  data->state.authproxy.done = TRUE;
+
+  infof (data, "Proxy replied OK to CONNECT request\n");
+  return CURLE_OK;
 }
 
+/*
+ * Curl_http_connect() performs HTTP stuff to do at connect-time, called from
+ * the generic Curl_connect().
+ */
+CURLcode Curl_http_connect(struct connectdata *conn, bool *done)
+{
+  struct SessionHandle *data;
+  CURLcode result;
+
+  data=conn->data;
+
+  /* If we are not using a proxy and we want a secure connection, perform SSL
+   * initialization & connection now.  If using a proxy with https, then we
+   * must tell the proxy to CONNECT to the host we want to talk to.  Only
+   * after the connect has occurred, can we start talking SSL
+   */
+
+  if(conn->bits.tunnel_proxy && conn->bits.httpproxy) {
+
+    /* either SSL over proxy, or explicitly asked for */
+    result = Curl_proxyCONNECT(conn, FIRSTSOCKET,
+                               conn->host.name,
+                               conn->remote_port);
+    if(CURLE_OK != result)
+      return result;
+  }
+
+  if(!data->state.this_is_a_follow) {
+    /* this is not a followed location, get the original host name */
+    if (data->state.first_host)
+      /* Free to avoid leaking memory on multiple requests*/
+      free(data->state.first_host);
+
+    data->state.first_host = strdup(conn->host.name);
+    if(!data->state.first_host)
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  if(conn->protocol & PROT_HTTPS) {
+    /* perform SSL initialization */
+    if(data->state.used_interface == Curl_if_multi) {
+      result = Curl_https_connecting(conn, done);
+      if(result)
+        return result;
+    }
+    else {
+      /* BLOCKING */
+      result = Curl_ssl_connect(conn, FIRSTSOCKET);
+      if(result)
+        return result;
+      *done = TRUE;
+    }
+  }
+  else {
+    *done = TRUE;
+  }
+
+  return CURLE_OK;
+}
+
+CURLcode Curl_https_connecting(struct connectdata *conn, bool *done)
+{
+  CURLcode result;
+  curlassert(conn->protocol & PROT_HTTPS);
+
+  /* perform SSL initialization for this socket */
+  result = Curl_ssl_connect_nonblocking(conn, FIRSTSOCKET, done);
+  if(result)
+    return result;
+
+  return CURLE_OK;
+}
+
+#ifdef USE_SSLEAY
+/* This function is OpenSSL-specific. It should be made to query the generic
+   SSL layer instead. */
+int Curl_https_getsock(struct connectdata *conn,
+                       curl_socket_t *socks,
+                       int numsocks)
+{
+  if (conn->protocol & PROT_HTTPS) {
+    struct ssl_connect_data *connssl = &conn->ssl[FIRSTSOCKET];
+
+    if(!numsocks)
+      return GETSOCK_BLANK;
+
+    if (connssl->connecting_state == ssl_connect_2_writing) {
+      /* write mode */
+      socks[0] = conn->sock[FIRSTSOCKET];
+      return GETSOCK_WRITESOCK(0);
+    }
+    else if (connssl->connecting_state == ssl_connect_2_reading) {
+      /* read mode */
+      socks[0] = conn->sock[FIRSTSOCKET];
+      return GETSOCK_READSOCK(0);
+    }
+  }
+  return CURLE_OK;
+}
+#else
+#ifdef USE_GNUTLS
+int Curl_https_getsock(struct connectdata *conn,
+                       curl_socket_t *socks,
+                       int numsocks)
+{
+  (void)conn;
+  (void)socks;
+  (void)numsocks;
+  return GETSOCK_BLANK;
+}
+#endif
+#endif
+
+/*
+ * Curl_http_done() gets called from Curl_done() after a single HTTP request
+ * has been performed.
+ */
+
+CURLcode Curl_http_done(struct connectdata *conn,
+                        CURLcode status, bool premature)
+{
+  struct SessionHandle *data = conn->data;
+  struct HTTP *http =data->reqdata.proto.http;
+  struct Curl_transfer_keeper *k = &data->reqdata.keep;
+  (void)premature; /* not used */
+
+  /* set the proper values (possibly modified on POST) */
+  conn->fread = data->set.fread; /* restore */
+  conn->fread_in = data->set.in; /* restore */
+
+  if (http == NULL)
+    return CURLE_OK;
+
+  if(http->send_buffer) {
+    send_buffer *buff = http->send_buffer;
+
+    free(buff->buffer);
+    free(buff);
+    http->send_buffer = NULL; /* clear the pointer */
+  }
+
+  if(HTTPREQ_POST_FORM == data->set.httpreq) {
+    k->bytecount = http->readbytecount + http->writebytecount;
+
+    Curl_formclean(&http->sendit); /* Now free that whole lot */
+    if(http->form.fp) {
+      /* a file being uploaded was left opened, close it! */
+      fclose(http->form.fp);
+      http->form.fp = NULL;
+    }
+  }
+  else if(HTTPREQ_PUT == data->set.httpreq)
+    k->bytecount = http->readbytecount + http->writebytecount;
+
+  if (status != CURLE_OK)
+    return (status);
+
+  if(!conn->bits.retry &&
+     ((http->readbytecount +
+       conn->headerbytecount -
+       conn->deductheadercount)) <= 0) {
+    /* If this connection isn't simply closed to be retried, AND nothing was
+       read from the HTTP server (that counts), this can't be right so we
+       return an error here */
+    failf(data, "Empty reply from server");
+    return CURLE_GOT_NOTHING;
+  }
+
+  return CURLE_OK;
+}
+
+/* check and possibly add an Expect: header */
+static CURLcode expect100(struct SessionHandle *data,
+                          send_buffer *req_buffer)
+{
+  CURLcode result = CURLE_OK;
+  data->state.expect100header = FALSE; /* default to false unless it is set
+                                          to TRUE below */
+  if((data->set.httpversion != CURL_HTTP_VERSION_1_0) &&
+     !checkheaders(data, "Expect:")) {
+    /* if not doing HTTP 1.0 or disabled explicitly, we add a Expect:
+       100-continue to the headers which actually speeds up post
+       operations (as there is one packet coming back from the web
+       server) */
+    result = add_bufferf(req_buffer,
+                         "Expect: 100-continue\r\n");
+    if(result == CURLE_OK)
+      data->state.expect100header = TRUE;
+  }
+  return result;
+}
+
+static CURLcode add_custom_headers(struct connectdata *conn,
+                                   send_buffer *req_buffer)
+{
+  CURLcode result = CURLE_OK;
+  char *ptr;
+  struct curl_slist *headers=conn->data->set.headers;
+
+  while(headers) {
+    ptr = strchr(headers->data, ':');
+    if(ptr) {
+      /* we require a colon for this to be a true header */
+
+      ptr++; /* pass the colon */
+      while(*ptr && ISSPACE(*ptr))
+        ptr++;
+
+      if(*ptr) {
+        /* only send this if the contents was non-blank */
+
+        if(conn->allocptr.host &&
+           /* a Host: header was sent already, don't pass on any custom Host:
+              header as that will produce *two* in the same request! */
+           curl_strnequal("Host:", headers->data, 5))
+          ;
+        else if(conn->data->set.httpreq == HTTPREQ_POST_FORM &&
+                /* this header (extended by formdata.c) is sent later */
+                curl_strnequal("Content-Type:", headers->data,
+                               strlen("Content-Type:")))
+          ;
+        else {
+          result = add_bufferf(req_buffer, "%s\r\n", headers->data);
+          if(result)
+            return result;
+        }
+      }
+    }
+    headers = headers->next;
+  }
+  return result;
+}
+
+/*
+ * Curl_http() gets called from the generic Curl_do() function when a HTTP
+ * request is to be performed. This creates and sends a properly constructed
+ * HTTP request.
+ */
+CURLcode Curl_http(struct connectdata *conn, bool *done)
+{
+  struct SessionHandle *data=conn->data;
+  char *buf = data->state.buffer; /* this is a short cut to the buffer */
+  CURLcode result=CURLE_OK;
+  struct HTTP *http;
+  char *ppath = data->reqdata.path;
+  char *host = conn->host.name;
+  const char *te = ""; /* transfer-encoding */
+  char *ptr;
+  char *request;
+  Curl_HttpReq httpreq = data->set.httpreq;
+  char *addcookies = NULL;
+  curl_off_t included_body = 0;
+
+  /* Always consider the DO phase done after this function call, even if there
+     may be parts of the request that is not yet sent, since we can deal with
+     the rest of the request in the PERFORM phase. */
+  *done = TRUE;
+
+  if(!data->reqdata.proto.http) {
+    /* Only allocate this struct if we don't already have it! */
+
+    http = (struct HTTP *)malloc(sizeof(struct HTTP));
+    if(!http)
+      return CURLE_OUT_OF_MEMORY;
+    memset(http, 0, sizeof(struct HTTP));
+    data->reqdata.proto.http = http;
+  }
+  else
+    http = data->reqdata.proto.http;
+
+  /* We default to persistent connections */
+  conn->bits.close = FALSE;
+
+  if ( (conn->protocol&(PROT_HTTP|PROT_FTP)) &&
+       data->set.upload) {
+    httpreq = HTTPREQ_PUT;
+  }
+
+  /* Now set the 'request' pointer to the proper request string */
+  if(data->set.customrequest)
+    request = data->set.customrequest;
+  else {
+    if(conn->bits.no_body)
+      request = (char *)"HEAD";
+    else {
+      curlassert((httpreq > HTTPREQ_NONE) && (httpreq < HTTPREQ_LAST));
+      switch(httpreq) {
+      case HTTPREQ_POST:
+      case HTTPREQ_POST_FORM:
+        request = (char *)"POST";
+        break;
+      case HTTPREQ_PUT:
+        request = (char *)"PUT";
+        break;
+      default: /* this should never happen */
+      case HTTPREQ_GET:
+        request = (char *)"GET";
+        break;
+      case HTTPREQ_HEAD:
+        request = (char *)"HEAD";
+        break;
+      }
+    }
+  }
+
+  /* The User-Agent string might have been allocated in url.c already, because
+     it might have been used in the proxy connect, but if we have got a header
+     with the user-agent string specified, we erase the previously made string
+     here. */
+  if(checkheaders(data, "User-Agent:") && conn->allocptr.uagent) {
+    free(conn->allocptr.uagent);
+    conn->allocptr.uagent=NULL;
+  }
+
+  /* setup the authentication headers */
+  result = Curl_http_output_auth(conn, request, ppath, FALSE);
+  if(result)
+    return result;
+
+  if((data->state.authhost.multi || data->state.authproxy.multi) &&
+     (httpreq != HTTPREQ_GET) &&
+     (httpreq != HTTPREQ_HEAD)) {
+    /* Auth is required and we are not authenticated yet. Make a PUT or POST
+       with content-length zero as a "probe". */
+    conn->bits.authneg = TRUE;
+  }
+  else
+    conn->bits.authneg = FALSE;
+
+  Curl_safefree(conn->allocptr.ref);
+  if(data->change.referer && !checkheaders(data, "Referer:"))
+    conn->allocptr.ref = aprintf("Referer: %s\r\n", data->change.referer);
+  else
+    conn->allocptr.ref = NULL;
+
+  if(data->set.cookie && !checkheaders(data, "Cookie:"))
+    addcookies = data->set.cookie;
+
+  if(!checkheaders(data, "Accept-Encoding:") &&
+     data->set.encoding) {
+    Curl_safefree(conn->allocptr.accept_encoding);
+    conn->allocptr.accept_encoding =
+      aprintf("Accept-Encoding: %s\r\n", data->set.encoding);
+    if(!conn->allocptr.accept_encoding)
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  ptr = checkheaders(data, "Transfer-Encoding:");
+  if(ptr) {
+    /* Some kind of TE is requested, check if 'chunked' is chosen */
+    conn->bits.upload_chunky =
+      Curl_compareheader(ptr, "Transfer-Encoding:", "chunked");
+  }
+  else {
+    if (httpreq == HTTPREQ_GET)
+      conn->bits.upload_chunky = FALSE;
+    if(conn->bits.upload_chunky)
+      te = "Transfer-Encoding: chunked\r\n";
+  }
+
+  Curl_safefree(conn->allocptr.host);
+
+  ptr = checkheaders(data, "Host:");
+  if(ptr && (!data->state.this_is_a_follow ||
+             curl_strequal(data->state.first_host, conn->host.name))) {
+#if !defined(CURL_DISABLE_COOKIES)
+    /* If we have a given custom Host: header, we extract the host name in
+       order to possibly use it for cookie reasons later on. We only allow the
+       custom Host: header if this is NOT a redirect, as setting Host: in the
+       redirected request is being out on thin ice. Except if the host name
+       is the same as the first one! */
+    char *start = ptr+strlen("Host:");
+    while(*start && ISSPACE(*start ))
+      start++;
+    ptr = start; /* start host-scanning here */
+
+    /* scan through the string to find the end (space or colon) */
+    while(*ptr && !ISSPACE(*ptr) && !(':'==*ptr))
+      ptr++;
+
+    if(ptr != start) {
+      size_t len=ptr-start;
+      Curl_safefree(conn->allocptr.cookiehost);
+      conn->allocptr.cookiehost = malloc(len+1);
+      if(!conn->allocptr.cookiehost)
+        return CURLE_OUT_OF_MEMORY;
+      memcpy(conn->allocptr.cookiehost, start, len);
+      conn->allocptr.cookiehost[len]=0;
+    }
+#endif
+
+    conn->allocptr.host = NULL;
+  }
+  else {
+    /* When building Host: headers, we must put the host name within
+       [brackets] if the host name is a plain IPv6-address. RFC2732-style. */
+
+    if(((conn->protocol&PROT_HTTPS) && (conn->remote_port == PORT_HTTPS)) ||
+       (!(conn->protocol&PROT_HTTPS) && (conn->remote_port == PORT_HTTP)) )
+      /* If (HTTPS on port 443) OR (non-HTTPS on port 80) then don't include
+         the port number in the host string */
+      conn->allocptr.host = aprintf("Host: %s%s%s\r\n",
+                                    conn->bits.ipv6_ip?"[":"",
+                                    host,
+                                    conn->bits.ipv6_ip?"]":"");
+    else
+      conn->allocptr.host = aprintf("Host: %s%s%s:%d\r\n",
+                                    conn->bits.ipv6_ip?"[":"",
+                                    host,
+                                    conn->bits.ipv6_ip?"]":"",
+                                    conn->remote_port);
+
+    if(!conn->allocptr.host)
+      /* without Host: we can't make a nice request */
+      return CURLE_OUT_OF_MEMORY;
+  }
+
+  if (conn->bits.httpproxy && !conn->bits.tunnel_proxy)  {
+    /* Using a proxy but does not tunnel through it */
+
+    /* The path sent to the proxy is in fact the entire URL. But if the remote
+       host is a IDN-name, we must make sure that the request we produce only
+       uses the encoded host name! */
+    if(conn->host.dispname != conn->host.name) {
+      char *url = data->change.url;
+      ptr = strstr(url, conn->host.dispname);
+      if(ptr) {
+        /* This is where the display name starts in the URL, now replace this
+           part with the encoded name. TODO: This method of replacing the host
+           name is rather crude as I believe there's a slight risk that the
+           user has entered a user name or password that contain the host name
+           string. */
+        size_t currlen = strlen(conn->host.dispname);
+        size_t newlen = strlen(conn->host.name);
+        size_t urllen = strlen(url);
+
+        char *newurl;
+
+        newurl = malloc(urllen + newlen - currlen + 1);
+        if(newurl) {
+          /* copy the part before the host name */
+          memcpy(newurl, url, ptr - url);
+          /* append the new host name instead of the old */
+          memcpy(newurl + (ptr - url), conn->host.name, newlen);
+          /* append the piece after the host name */
+          memcpy(newurl + newlen + (ptr - url),
+                 ptr + currlen, /* copy the trailing zero byte too */
+                 urllen - (ptr-url) - currlen + 1);
+          if(data->change.url_alloc)
+            free(data->change.url);
+          data->change.url = newurl;
+          data->change.url_alloc = TRUE;
+        }
+        else
+          return CURLE_OUT_OF_MEMORY;
+      }
+    }
+    ppath = data->change.url;
+  }
+  if(HTTPREQ_POST_FORM == httpreq) {
+    /* we must build the whole darned post sequence first, so that we have
+       a size of the whole shebang before we start to send it */
+     result = Curl_getFormData(&http->sendit, data->set.httppost,
+                               checkheaders(data, "Content-Type:"),
+                               &http->postsize);
+     if(CURLE_OK != result) {
+       /* Curl_getFormData() doesn't use failf() */
+       failf(data, "failed creating formpost data");
+       return result;
+     }
+  }
+
+
+  http->p_pragma =
+    (!checkheaders(data, "Pragma:") &&
+     (conn->bits.httpproxy && !conn->bits.tunnel_proxy) )?
+    "Pragma: no-cache\r\n":NULL;
+
+  if(!checkheaders(data, "Accept:"))
+    http->p_accept = "Accept: */*\r\n";
+
+  if(( (HTTPREQ_POST == httpreq) ||
+       (HTTPREQ_POST_FORM == httpreq) ||
+       (HTTPREQ_PUT == httpreq) ) &&
+     data->reqdata.resume_from) {
+    /**********************************************************************
+     * Resuming upload in HTTP means that we PUT or POST and that we have
+     * got a resume_from value set. The resume value has already created
+     * a Range: header that will be passed along. We need to "fast forward"
+     * the file the given number of bytes and decrease the assume upload
+     * file size before we continue this venture in the dark lands of HTTP.
+     *********************************************************************/
+
+    if(data->reqdata.resume_from < 0 ) {
+      /*
+       * This is meant to get the size of the present remote-file by itself.
+       * We don't support this now. Bail out!
+       */
+       data->reqdata.resume_from = 0;
+    }
+
+    if(data->reqdata.resume_from) {
+      /* do we still game? */
+      curl_off_t passed=0;
+
+      /* Now, let's read off the proper amount of bytes from the
+         input. If we knew it was a proper file we could've just
+         fseek()ed but we only have a stream here */
+      do {
+        size_t readthisamountnow = (size_t)(data->reqdata.resume_from - passed);
+        size_t actuallyread;
+
+        if(readthisamountnow > BUFSIZE)
+          readthisamountnow = BUFSIZE;
+
+        actuallyread =
+          data->set.fread(data->state.buffer, 1, (size_t)readthisamountnow,
+                          data->set.in);
+
+        passed += actuallyread;
+        if(actuallyread != readthisamountnow) {
+          failf(data, "Could only read %" FORMAT_OFF_T
+                " bytes from the input",
+                passed);
+          return CURLE_READ_ERROR;
+        }
+      } while(passed != data->reqdata.resume_from); /* loop until done */
+
+      /* now, decrease the size of the read */
+      if(data->set.infilesize>0) {
+        data->set.infilesize -= data->reqdata.resume_from;
+
+        if(data->set.infilesize <= 0) {
+          failf(data, "File already completely uploaded");
+          return CURLE_PARTIAL_FILE;
+        }
+      }
+      /* we've passed, proceed as normal */
+    }
+  }
+  if(data->reqdata.use_range) {
+    /*
+     * A range is selected. We use different headers whether we're downloading
+     * or uploading and we always let customized headers override our internal
+     * ones if any such are specified.
+     */
+    if((httpreq == HTTPREQ_GET) &&
+       !checkheaders(data, "Range:")) {
+      /* if a line like this was already allocated, free the previous one */
+      if(conn->allocptr.rangeline)
+        free(conn->allocptr.rangeline);
+      conn->allocptr.rangeline = aprintf("Range: bytes=%s\r\n", data->reqdata.range);
+    }
+    else if((httpreq != HTTPREQ_GET) &&
+            !checkheaders(data, "Content-Range:")) {
+
+      if(data->reqdata.resume_from) {
+        /* This is because "resume" was selected */
+        curl_off_t total_expected_size=
+          data->reqdata.resume_from + data->set.infilesize;
+        conn->allocptr.rangeline =
+            aprintf("Content-Range: bytes %s%" FORMAT_OFF_T
+                    "/%" FORMAT_OFF_T "\r\n",
+                    data->reqdata.range, total_expected_size-1,
+                    total_expected_size);
+      }
+      else {
+        /* Range was selected and then we just pass the incoming range and
+           append total size */
+        conn->allocptr.rangeline =
+            aprintf("Content-Range: bytes %s/%" FORMAT_OFF_T "\r\n",
+                    data->reqdata.range, data->set.infilesize);
+      }
+    }
+  }
+
+  {
+    /* Use 1.1 unless the use specificly asked for 1.0 */
+    const char *httpstring=
+      data->set.httpversion==CURL_HTTP_VERSION_1_0?"1.0":"1.1";
+
+    send_buffer *req_buffer;
+    curl_off_t postsize; /* off_t type to be able to hold a large file size */
+
+    /* initialize a dynamic send-buffer */
+    req_buffer = add_buffer_init();
+
+    if(!req_buffer)
+      return CURLE_OUT_OF_MEMORY;
+
+    /* add the main request stuff */
+    result =
+      add_bufferf(req_buffer,
+                  "%s " /* GET/HEAD/POST/PUT */
+                  "%s HTTP/%s\r\n" /* path + HTTP version */
+                  "%s" /* proxyuserpwd */
+                  "%s" /* userpwd */
+                  "%s" /* range */
+                  "%s" /* user agent */
+                  "%s" /* host */
+                  "%s" /* pragma */
+                  "%s" /* accept */
+                  "%s" /* accept-encoding */
+                  "%s" /* referer */
+                  "%s" /* Proxy-Connection */
+                  "%s",/* transfer-encoding */
+
+                request,
+                ppath,
+                httpstring,
+                conn->allocptr.proxyuserpwd?
+                conn->allocptr.proxyuserpwd:"",
+                conn->allocptr.userpwd?conn->allocptr.userpwd:"",
+                (data->reqdata.use_range && conn->allocptr.rangeline)?
+                conn->allocptr.rangeline:"",
+                (data->set.useragent && *data->set.useragent && conn->allocptr.uagent)?
+                conn->allocptr.uagent:"",
+                (conn->allocptr.host?conn->allocptr.host:""), /* Host: host */
+                http->p_pragma?http->p_pragma:"",
+                http->p_accept?http->p_accept:"",
+                (data->set.encoding && *data->set.encoding && conn->allocptr.accept_encoding)?
+                conn->allocptr.accept_encoding:"",
+                (data->change.referer && conn->allocptr.ref)?conn->allocptr.ref:"" /* Referer: <data> */,
+                (conn->bits.httpproxy &&
+                 !conn->bits.tunnel_proxy &&
+                 !checkheaders(data, "Proxy-Connection:"))?
+                  "Proxy-Connection: Keep-Alive\r\n":"",
+                te
+                );
+
+    if(result)
+      return result;
+
+#if !defined(CURL_DISABLE_COOKIES)
+    if(data->cookies || addcookies) {
+      struct Cookie *co=NULL; /* no cookies from start */
+      int count=0;
+
+      if(data->cookies) {
+        Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
+        co = Curl_cookie_getlist(data->cookies,
+                                 conn->allocptr.cookiehost?
+                                 conn->allocptr.cookiehost:host, data->reqdata.path,
+                                 (bool)(conn->protocol&PROT_HTTPS?TRUE:FALSE));
+        Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
+      }
+      if(co) {
+        struct Cookie *store=co;
+        /* now loop through all cookies that matched */
+        while(co) {
+          if(co->value) {
+            if(0 == count) {
+              result = add_bufferf(req_buffer, "Cookie: ");
+              if(result)
+                break;
+            }
+            result = add_bufferf(req_buffer,
+                                 "%s%s=%s", count?"; ":"",
+                                 co->name, co->value);
+            if(result)
+              break;
+            count++;
+          }
+          co = co->next; /* next cookie please */
+        }
+        Curl_cookie_freelist(store); /* free the cookie list */
+      }
+      if(addcookies && (CURLE_OK == result)) {
+        if(!count)
+          result = add_bufferf(req_buffer, "Cookie: ");
+        if(CURLE_OK == result) {
+          result = add_bufferf(req_buffer, "%s%s",
+                               count?"; ":"",
+                               addcookies);
+          count++;
+        }
+      }
+      if(count && (CURLE_OK == result))
+        result = add_buffer(req_buffer, "\r\n", 2);
+
+      if(result)
+        return result;
+    }
+#endif
+
+    if(data->set.timecondition) {
+      struct tm *tm;
+
+      /* Phil Karn (Fri, 13 Apr 2001) pointed out that the If-Modified-Since
+       * header family should have their times set in GMT as RFC2616 defines:
+       * "All HTTP date/time stamps MUST be represented in Greenwich Mean Time
+       * (GMT), without exception. For the purposes of HTTP, GMT is exactly
+       * equal to UTC (Coordinated Universal Time)." (see page 20 of RFC2616).
+       */
+
+#ifdef HAVE_GMTIME_R
+      /* thread-safe version */
+      struct tm keeptime;
+      tm = (struct tm *)gmtime_r(&data->set.timevalue, &keeptime);
+#else
+      tm = gmtime(&data->set.timevalue);
+#endif
+
+      /* format: "Tue, 15 Nov 1994 12:45:26 GMT" */
+      snprintf(buf, BUFSIZE-1,
+               "%s, %02d %s %4d %02d:%02d:%02d GMT",
+               Curl_wkday[tm->tm_wday?tm->tm_wday-1:6],
+               tm->tm_mday,
+               Curl_month[tm->tm_mon],
+               tm->tm_year + 1900,
+               tm->tm_hour,
+               tm->tm_min,
+               tm->tm_sec);
+
+      switch(data->set.timecondition) {
+      case CURL_TIMECOND_IFMODSINCE:
+      default:
+        result = add_bufferf(req_buffer,
+                             "If-Modified-Since: %s\r\n", buf);
+        break;
+      case CURL_TIMECOND_IFUNMODSINCE:
+        result = add_bufferf(req_buffer,
+                             "If-Unmodified-Since: %s\r\n", buf);
+        break;
+      case CURL_TIMECOND_LASTMOD:
+        result = add_bufferf(req_buffer,
+                             "Last-Modified: %s\r\n", buf);
+        break;
+      }
+      if(result)
+        return result;
+    }
+
+    result = add_custom_headers(conn, req_buffer);
+    if(result)
+      return result;
+
+    http->postdata = NULL;  /* nothing to post at this point */
+    Curl_pgrsSetUploadSize(data, 0); /* upload size is 0 atm */
+
+    /* If 'authdone' is FALSE, we must not set the write socket index to the
+       Curl_transfer() call below, as we're not ready to actually upload any
+       data yet. */
+
+    switch(httpreq) {
+
+    case HTTPREQ_POST_FORM:
+      if(!http->sendit || conn->bits.authneg) {
+        /* nothing to post! */
+        result = add_bufferf(req_buffer, "Content-Length: 0\r\n\r\n");
+        if(result)
+          return result;
+
+        result = add_buffer_send(req_buffer, conn,
+                                 &data->info.request_size, 0, FIRSTSOCKET);
+        if(result)
+          failf(data, "Failed sending POST request");
+        else
+          /* setup variables for the upcoming transfer */
+          result = Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
+                                       &http->readbytecount,
+                                       -1, NULL);
+        break;
+      }
+
+      if(Curl_FormInit(&http->form, http->sendit)) {
+        failf(data, "Internal HTTP POST error!");
+        return CURLE_HTTP_POST_ERROR;
+      }
+
+      /* set the read function to read from the generated form data */
+      conn->fread = (curl_read_callback)Curl_FormReader;
+      conn->fread_in = &http->form;
+
+      http->sending = HTTPSEND_BODY;
+
+      if(!conn->bits.upload_chunky) {
+        /* only add Content-Length if not uploading chunked */
+        result = add_bufferf(req_buffer,
+                             "Content-Length: %" FORMAT_OFF_T "\r\n",
+                             http->postsize);
+        if(result)
+          return result;
+      }
+
+      result = expect100(data, req_buffer);
+      if(result)
+        return result;
+
+      {
+
+        /* Get Content-Type: line from Curl_formpostheader.
+        */
+        char *contentType;
+        size_t linelength=0;
+        contentType = Curl_formpostheader((void *)&http->form,
+                                          &linelength);
+        if(!contentType) {
+          failf(data, "Could not get Content-Type header line!");
+          return CURLE_HTTP_POST_ERROR;
+        }
+
+        result = add_buffer(req_buffer, contentType, linelength);
+        if(result)
+          return result;
+      }
+
+      /* make the request end in a true CRLF */
+      result = add_buffer(req_buffer, "\r\n", 2);
+      if(result)
+        return result;
+
+      /* set upload size to the progress meter */
+      Curl_pgrsSetUploadSize(data, http->postsize);
+
+      /* fire away the whole request to the server */
+      result = add_buffer_send(req_buffer, conn,
+                               &data->info.request_size, 0, FIRSTSOCKET);
+      if(result)
+        failf(data, "Failed sending POST request");
+      else
+        /* setup variables for the upcoming transfer */
+        result = Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
+                                     &http->readbytecount,
+                                     FIRSTSOCKET,
+                                     &http->writebytecount);
+
+      if(result) {
+        Curl_formclean(&http->sendit); /* free that whole lot */
+        return result;
+      }
+#ifdef CURL_DOES_CONVERSIONS
+/* time to convert the form data... */
+      result = Curl_formconvert(data, http->sendit);
+      if(result) {
+        Curl_formclean(&http->sendit); /* free that whole lot */
+        return result;
+      }
+#endif /* CURL_DOES_CONVERSIONS */
+      break;
+
+    case HTTPREQ_PUT: /* Let's PUT the data to the server! */
+
+      if(conn->bits.authneg)
+        postsize = 0;
+      else
+        postsize = data->set.infilesize;
+
+      if((postsize != -1) && !conn->bits.upload_chunky) {
+        /* only add Content-Length if not uploading chunked */
+        result = add_bufferf(req_buffer,
+                             "Content-Length: %" FORMAT_OFF_T "\r\n",
+                             postsize );
+        if(result)
+          return result;
+      }
+
+      result = expect100(data, req_buffer);
+      if(result)
+        return result;
+
+      result = add_buffer(req_buffer, "\r\n", 2); /* end of headers */
+      if(result)
+        return result;
+
+      /* set the upload size to the progress meter */
+      Curl_pgrsSetUploadSize(data, postsize);
+
+      /* this sends the buffer and frees all the buffer resources */
+      result = add_buffer_send(req_buffer, conn,
+                               &data->info.request_size, 0, FIRSTSOCKET);
+      if(result)
+        failf(data, "Failed sending PUT request");
+      else
+        /* prepare for transfer */
+        result = Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
+                                     &http->readbytecount,
+                                     postsize?FIRSTSOCKET:-1,
+                                     postsize?&http->writebytecount:NULL);
+      if(result)
+        return result;
+      break;
+
+    case HTTPREQ_POST:
+      /* this is the simple POST, using x-www-form-urlencoded style */
+
+      if(conn->bits.authneg)
+        postsize = 0;
+      else
+        /* figure out the size of the postfields */
+        postsize = (data->set.postfieldsize != -1)?
+          data->set.postfieldsize:
+          (data->set.postfields?(curl_off_t)strlen(data->set.postfields):0);
+
+      if(!conn->bits.upload_chunky) {
+        /* We only set Content-Length and allow a custom Content-Length if
+           we don't upload data chunked, as RFC2616 forbids us to set both
+           kinds of headers (Transfer-Encoding: chunked and Content-Length) */
+
+        if(!checkheaders(data, "Content-Length:")) {
+          /* we allow replacing this header, although it isn't very wise to
+             actually set your own */
+          result = add_bufferf(req_buffer,
+                               "Content-Length: %" FORMAT_OFF_T"\r\n",
+                               postsize);
+          if(result)
+            return result;
+        }
+      }
+
+      if(!checkheaders(data, "Content-Type:")) {
+        result = add_bufferf(req_buffer,
+                             "Content-Type: application/x-www-form-urlencoded\r\n");
+        if(result)
+          return result;
+      }
+
+      if(data->set.postfields) {
+
+        /* for really small posts we don't use Expect: headers at all, and for
+           the somewhat bigger ones we allow the app to disable it */
+        if(postsize > TINY_INITIAL_POST_SIZE) {
+          result = expect100(data, req_buffer);
+          if(result)
+            return result;
+        }
+        else
+          data->state.expect100header = FALSE;
+
+        if(!data->state.expect100header &&
+           (postsize < MAX_INITIAL_POST_SIZE))  {
+          /* if we don't use expect:-100  AND
+             postsize is less than MAX_INITIAL_POST_SIZE
+
+             then append the post data to the HTTP request header. This limit
+             is no magic limit but only set to prevent really huge POSTs to
+             get the data duplicated with malloc() and family. */
+
+          result = add_buffer(req_buffer, "\r\n", 2); /* end of headers! */
+          if(result)
+            return result;
+
+          if(!conn->bits.upload_chunky) {
+            /* We're not sending it 'chunked', append it to the request
+               already now to reduce the number if send() calls */
+            result = add_buffer(req_buffer, data->set.postfields,
+                                (size_t)postsize);
+            included_body = postsize;
+          }
+          else {
+            /* Append the POST data chunky-style */
+            result = add_bufferf(req_buffer, "%x\r\n", (int)postsize);
+            if(CURLE_OK == result)
+              result = add_buffer(req_buffer, data->set.postfields,
+                                  (size_t)postsize);
+            if(CURLE_OK == result)
+              result = add_buffer(req_buffer,
+                                  "\x0d\x0a\x30\x0d\x0a\x0d\x0a", 7);
+                                  /* CR  LF   0  CR  LF  CR  LF */
+            included_body = postsize + 7;
+          }
+          if(result)
+            return result;
+        }
+        else {
+          /* A huge POST coming up, do data separate from the request */
+          http->postsize = postsize;
+          http->postdata = data->set.postfields;
+
+          http->sending = HTTPSEND_BODY;
+
+          conn->fread = (curl_read_callback)readmoredata;
+          conn->fread_in = (void *)conn;
+
+          /* set the upload size to the progress meter */
+          Curl_pgrsSetUploadSize(data, http->postsize);
+
+          add_buffer(req_buffer, "\r\n", 2); /* end of headers! */
+        }
+      }
+      else {
+        add_buffer(req_buffer, "\r\n", 2); /* end of headers! */
+
+        if(data->set.postfieldsize) {
+          /* set the upload size to the progress meter */
+          Curl_pgrsSetUploadSize(data, postsize?postsize:-1);
+
+          /* set the pointer to mark that we will send the post body using
+             the read callback */
+          http->postdata = (char *)&http->postdata;
+        }
+      }
+      /* issue the request */
+      result = add_buffer_send(req_buffer, conn, &data->info.request_size,
+                               (size_t)included_body, FIRSTSOCKET);
+
+      if(result)
+        failf(data, "Failed sending HTTP POST request");
+      else
+        result =
+          Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
+                        &http->readbytecount,
+                        http->postdata?FIRSTSOCKET:-1,
+                        http->postdata?&http->writebytecount:NULL);
+      break;
+
+    default:
+      add_buffer(req_buffer, "\r\n", 2);
+
+      /* issue the request */
+      result = add_buffer_send(req_buffer, conn,
+                               &data->info.request_size, 0, FIRSTSOCKET);
+
+      if(result)
+        failf(data, "Failed sending HTTP request");
+      else
+        /* HTTP GET/HEAD download: */
+        result = Curl_setup_transfer(conn, FIRSTSOCKET, -1, TRUE,
+                               &http->readbytecount,
+                               http->postdata?FIRSTSOCKET:-1,
+                               http->postdata?&http->writebytecount:NULL);
+    }
+    if(result)
+      return result;
+  }
+
+  return CURLE_OK;
+}
+#endif

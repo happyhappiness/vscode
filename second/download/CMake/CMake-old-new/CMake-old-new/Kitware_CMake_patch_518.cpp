@@ -1,16 +1,41 @@
-@@ -7,6 +7,7 @@
- 
- int main ()
- {
-+  int class = 0;
-   if ( LibC1Func() != 2.0 )
-     {
-     printf("Problem with libc1\n");
-@@ -17,6 +18,6 @@ int main ()
-     printf("Problem with libc2\n");
-     return 1;
+@@ -1899,19 +1899,6 @@ int cmake::ActualConfigure()
+        cmCacheManager::INTERNAL);
      }
--  printf("Foo: %s\n", foo);
-+  printf("Foo: %s %d\n", foo, class);
+ 
+-  // set the default BACKWARDS compatibility to the current version
+-  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+-    {
+-    char ver[256];
+-    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+-            cmVersion::GetMinorVersion());
+-    this->CacheManager->AddCacheEntry
+-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+-       "For backwards compatibility, what version of CMake commands and "
+-       "syntax should this version of CMake allow.",
+-       cmCacheManager::INTERNAL);
+-    }
+-
+   // no generator specified on the command line
+   if(!this->GlobalGenerator)
+     {
+@@ -2392,20 +2379,6 @@ int cmake::LoadCache()
+     {
+     return -3;
+     }
+-
+-  // set the default BACKWARDS compatibility to the current version
+-  if(!this->CacheManager->GetCacheValue("CMAKE_BACKWARDS_COMPATIBILITY"))
+-    {
+-    char ver[256];
+-    sprintf(ver,"%i.%i",cmVersion::GetMajorVersion(),
+-            cmVersion::GetMinorVersion());
+-    this->CacheManager->AddCacheEntry
+-      ("CMAKE_BACKWARDS_COMPATIBILITY",ver, 
+-       "For backwards compatibility, what version of CMake commands and "
+-       "syntax should this version of CMake allow.",
+-       cmCacheManager::INTERNAL);
+-    }
+-
    return 0;
  }
+ 

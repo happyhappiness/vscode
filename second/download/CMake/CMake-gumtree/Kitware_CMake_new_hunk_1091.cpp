@@ -1,6 +1,8 @@
-    }
-}
-
-/*-
- * Output the given code.
- * Inputs:
+      {
+      fprintf(stderr, "Checking file [%s]\n", file.c_str());
+      }
+    if(cmSystemTools::FileExists(file.c_str(), true) &&
+       this->CheckVersion(file))
+      {
+      return true;
+      }

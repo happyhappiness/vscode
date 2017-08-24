@@ -1,734 +1,520 @@
-@@ -9,8 +9,8 @@
-   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2007, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -80,25 +80,30 @@ Example set of cookies:
  
--     This software is distributed WITHOUT ANY WARRANTY; without even 
--     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-+     This software is distributed WITHOUT ANY WARRANTY; without even
-+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-      PURPOSE.  See the above copyright notices for more information.
+ #include "setup.h"
  
- =========================================================================*/
-@@ -34,7 +34,7 @@
- #include "windows.h"
+-#ifndef CURL_DISABLE_HTTP
++#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_COOKIES)
+ 
+ #include <stdlib.h>
+ #include <string.h>
+-#include <ctype.h>
++
++#define _MPRINTF_REPLACE /* without this on windows OS we get undefined reference to snprintf */
++#include <curl/mprintf.h>
+ 
+ #include "urldata.h"
+ #include "cookie.h"
+-#include "getdate.h"
+ #include "strequal.h"
+ #include "strtok.h"
+ #include "sendf.h"
+-#include "curl_memory.h"
++#include "memory.h"
++#include "share.h"
++#include "strtoofft.h"
+ 
+ /* The last #include file should be: */
+ #ifdef CURLDEBUG
+ #include "memdebug.h"
  #endif
  
--#include <stdlib.h> 
-+#include <stdlib.h>
- #include <math.h>
- #include <float.h>
- 
-@@ -63,22 +63,22 @@ class cmCTestUpdateHandlerSVNXMLParser : public cmXMLParser
- public:
-   struct t_CommitLog
-     {
--    int m_Revision;
--    std::string m_Author;
--    std::string m_Date;
--    std::string m_Message;
-+    int Revision;
-+    std::string Author;
-+    std::string Date;
-+    std::string Message;
-     };
-   cmCTestUpdateHandlerSVNXMLParser(cmCTestUpdateHandler* up)
--    : cmXMLParser(), m_UpdateHandler(up), m_MinRevision(-1), m_MaxRevision(-1)
-+    : cmXMLParser(), UpdateHandler(up), MinRevision(-1), MaxRevision(-1)
-     {
-     }
- 
-   int Parse(const char* str)
-     {
--    m_MinRevision = -1;
--    m_MaxRevision = -1;
-+    this->MinRevision = -1;
-+    this->MaxRevision = -1;
-     int res = this->cmXMLParser::Parse(str);
--    if ( m_MinRevision == -1 || m_MaxRevision == -1 )
-+    if ( this->MinRevision == -1 || this->MaxRevision == -1 )
-       {
-       return 0;
-       }
-@@ -87,63 +87,68 @@ class cmCTestUpdateHandlerSVNXMLParser : public cmXMLParser
- 
-   typedef std::vector<t_CommitLog> t_VectorOfCommits;
- 
--  t_VectorOfCommits* GetCommits() { return &m_Commits; }
--  int GetMinRevision() { return m_MinRevision; }
--  int GetMaxRevision() { return m_MaxRevision; }
-+  t_VectorOfCommits* GetCommits() { return &this->Commits; }
-+  int GetMinRevision() { return this->MinRevision; }
-+  int GetMaxRevision() { return this->MaxRevision; }
- 
- protected:
-   void StartElement(const char* name, const char** atts)
-     {
-     if ( strcmp(name, "logentry") == 0 )
-       {
--      m_CommitLog = t_CommitLog();
-+      this->CommitLog = t_CommitLog();
-       const char* rev = this->FindAttribute(atts, "revision");
-       if ( rev)
-         {
--        m_CommitLog.m_Revision = atoi(rev);
--        if ( m_MinRevision < 0 || m_MinRevision > m_CommitLog.m_Revision )
-+        this->CommitLog.Revision = atoi(rev);
-+        if ( this->MinRevision < 0 ||
-+          this->MinRevision > this->CommitLog.Revision )
-           {
--          m_MinRevision = m_CommitLog.m_Revision;
-+          this->MinRevision = this->CommitLog.Revision;
-           }
--        if ( m_MaxRevision < 0 || m_MaxRevision < m_CommitLog.m_Revision )
-+        if ( this->MaxRevision < 0 ||
-+          this->MaxRevision < this->CommitLog.Revision )
-           {
--          m_MaxRevision = m_CommitLog.m_Revision;
-+          this->MaxRevision = this->CommitLog.Revision;
-           }
-         }
-       }
--    m_CharacterData.erase(m_CharacterData.begin(), m_CharacterData.end());
-+    this->CharacterData.erase(
-+      this->CharacterData.begin(), this->CharacterData.end());
-     }
-   void EndElement(const char* name)
-     {
-     if ( strcmp(name, "logentry") == 0 )
-       {
--      cmCTestLog(m_UpdateHandler->GetCTestInstance(), HANDLER_VERBOSE_OUTPUT,
--        "\tRevision: " << m_CommitLog.m_Revision<< std::endl
--        << "\tAuthor:   " << m_CommitLog.m_Author.c_str() << std::endl
--        << "\tDate:     " << m_CommitLog.m_Date.c_str() << std::endl
--        << "\tMessage:  " << m_CommitLog.m_Message.c_str() << std::endl);
--      m_Commits.push_back(m_CommitLog);
-+      cmCTestLog(this->UpdateHandler->GetCTestInstance(),
-+        HANDLER_VERBOSE_OUTPUT,
-+        "\tRevision: " << this->CommitLog.Revision<< std::endl
-+        << "\tAuthor:   " << this->CommitLog.Author.c_str() << std::endl
-+        << "\tDate:     " << this->CommitLog.Date.c_str() << std::endl
-+        << "\tMessage:  " << this->CommitLog.Message.c_str() << std::endl);
-+      this->Commits.push_back(this->CommitLog);
-       }
-     else if ( strcmp(name, "author") == 0 )
-       {
--      m_CommitLog.m_Author.assign(&(*(m_CharacterData.begin())),
--        m_CharacterData.size());
-+      this->CommitLog.Author.assign(&(*(this->CharacterData.begin())),
-+        this->CharacterData.size());
-       }
-     else if ( strcmp(name, "date") == 0 )
-       {
--      m_CommitLog.m_Date.assign(&(*(m_CharacterData.begin())),
--        m_CharacterData.size());
-+      this->CommitLog.Date.assign(&(*(this->CharacterData.begin())),
-+        this->CharacterData.size());
-       }
-     else if ( strcmp(name, "msg") == 0 )
-       {
--      m_CommitLog.m_Message.assign(&(*(m_CharacterData.begin())),
--        m_CharacterData.size());
-+      this->CommitLog.Message.assign(&(*(this->CharacterData.begin())),
-+        this->CharacterData.size());
-       }
--    m_CharacterData.erase(m_CharacterData.begin(), m_CharacterData.end());
-+    this->CharacterData.erase(this->CharacterData.begin(),
-+      this->CharacterData.end());
-     }
-   void CharacterDataHandler(const char* data, int length)
-     {
--    m_CharacterData.insert(m_CharacterData.end(), data, data+length);
-+    this->CharacterData.insert(this->CharacterData.end(), data, data+length);
-     }
-   const char* FindAttribute( const char** atts, const char* attribute )
-     {
-@@ -164,13 +169,13 @@ class cmCTestUpdateHandlerSVNXMLParser : public cmXMLParser
-     }
- 
- private:
--  std::vector<char> m_CharacterData;
--  cmCTestUpdateHandler* m_UpdateHandler;
--  t_CommitLog m_CommitLog;
-+  std::vector<char> CharacterData;
-+  cmCTestUpdateHandler* UpdateHandler;
-+  t_CommitLog CommitLog;
- 
--  t_VectorOfCommits m_Commits;
--  int m_MinRevision;
--  int m_MaxRevision;
-+  t_VectorOfCommits Commits;
-+  int MinRevision;
-+  int MaxRevision;
- };
- //**********************************************************************
- //----------------------------------------------------------------------
-@@ -189,11 +194,11 @@ void cmCTestUpdateHandler::Initialize()
- //----------------------------------------------------------------------
- int cmCTestUpdateHandler::DetermineType(const char* cmd, const char* type)
++#define my_isspace(x) ((x == ' ') || (x == '\t'))
++
+ static void freecookie(struct Cookie *co)
  {
--  cmCTestLog(m_CTest, DEBUG, "Determine update type from command: " << cmd
-+  cmCTestLog(this->CTest, DEBUG, "Determine update type from command: " << cmd
-     << " and type: " << type << std::endl);
-   if ( type && *type )
-     {
--    cmCTestLog(m_CTest, DEBUG, "Type specified: " << type << std::endl);
-+    cmCTestLog(this->CTest, DEBUG, "Type specified: " << type << std::endl);
-     std::string stype = cmSystemTools::LowerCase(type);
-     if ( stype.find("cvs") != std::string::npos )
-       {
-@@ -206,8 +211,8 @@ int cmCTestUpdateHandler::DetermineType(const char* cmd, const char* type)
-     }
-   else
-     {
--    cmCTestLog(m_CTest, DEBUG, "Type not specified, check command: " << cmd
--      << std::endl);
-+    cmCTestLog(this->CTest, DEBUG, "Type not specified, check command: "
-+      << cmd << std::endl);
-     std::string stype = cmSystemTools::LowerCase(cmd);
-     if ( stype.find("cvs") != std::string::npos )
-       {
-@@ -219,8 +224,8 @@ int cmCTestUpdateHandler::DetermineType(const char* cmd, const char* type)
-       }
-     }
-   std::string sourceDirectory = this->GetOption("SourceDirectory");
--  cmCTestLog(m_CTest, DEBUG, "Check directory: " << sourceDirectory.c_str()
--    << std::endl);
-+  cmCTestLog(this->CTest, DEBUG, "Check directory: "
-+    << sourceDirectory.c_str() << std::endl);
-   sourceDirectory += "/.svn";
-   if ( cmSystemTools::FileExists(sourceDirectory.c_str()) )
-     {
-@@ -254,50 +259,52 @@ int cmCTestUpdateHandler::ProcessHandler()
-   const char* sourceDirectory = this->GetOption("SourceDirectory");
-   if ( !sourceDirectory )
-     {
--    cmCTestLog(m_CTest, ERROR_MESSAGE,
-+    cmCTestLog(this->CTest, ERROR_MESSAGE,
-       "Cannot find SourceDirectory  key in the DartConfiguration.tcl"
-       << std::endl);
-     return -1;
-     }
+   if(co->expirestr)
+@@ -111,6 +116,10 @@ static void freecookie(struct Cookie *co)
+     free(co->name);
+   if(co->value)
+     free(co->value);
++  if(co->maxage)
++    free(co->maxage);
++  if(co->version)
++    free(co->version);
  
-   cmGeneratedFileStream ofs;
--  if ( !m_CTest->GetShowOnly() )
-+  if ( !this->CTest->GetShowOnly() )
-     {
-     this->StartLogFile("Update", ofs);
-     }
+   free(co);
+ }
+@@ -126,6 +135,27 @@ static bool tailmatch(const char *little, const char *bigone)
+   return (bool)strequal(little, bigone+biglen-littlelen);
+ }
  
--  cmCTestLog(m_CTest, HANDLER_OUTPUT, "Updating the repository" << std::endl);
-+  cmCTestLog(this->CTest, HANDLER_OUTPUT,
-+    "Updating the repository" << std::endl);
++/*
++ * Load cookies from all given cookie files (CURLOPT_COOKIEFILE).
++ */
++void Curl_cookie_loadfiles(struct SessionHandle *data)
++{
++  struct curl_slist *list = data->change.cookielist;
++  if(list) {
++    Curl_share_lock(data, CURL_LOCK_DATA_COOKIE, CURL_LOCK_ACCESS_SINGLE);
++    while(list) {
++      data->cookies = Curl_cookie_init(data,
++                                       list->data,
++                                       data->cookies,
++                                       data->set.cookiesession);
++      list = list->next;
++    }
++    Curl_share_unlock(data, CURL_LOCK_DATA_COOKIE);
++    curl_slist_free_all(data->change.cookielist); /* clean up list */
++    data->change.cookielist = NULL; /* don't do this again! */
++  }
++}
++
+ /****************************************************************************
+  *
+  * Curl_cookie_add()
+@@ -156,7 +186,7 @@ Curl_cookie_add(struct SessionHandle *data,
+   struct Cookie *co;
+   struct Cookie *lastc=NULL;
+   time_t now = time(NULL);
+-  bool replace_old;
++  bool replace_old = FALSE;
+   bool badcookie = FALSE; /* cookies are good by default. mmmmm yummy */
  
-   const char* initialCheckoutCommand = this->GetOption("InitialCheckout");
-   if ( initialCheckoutCommand )
-     {
--    cmCTestLog(m_CTest, HANDLER_OUTPUT,
-+    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-       "   First perform the initil checkout: " << initialCheckoutCommand
-       << std::endl);
-     cmStdString parent = cmSystemTools::GetParentDirectory(sourceDirectory);
-     if ( parent.empty() )
-       {
--      cmCTestLog(m_CTest, ERROR_MESSAGE, "Something went wrong when trying "
-+      cmCTestLog(this->CTest, ERROR_MESSAGE,
-+        "Something went wrong when trying "
-         "to determine the parent directory of " << sourceDirectory
-         << std::endl);
-       return -1;
-       }
--    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Perform checkout in directory: "
--      << parent.c_str() << std::endl);
-+    cmCTestLog(this->CTest, HANDLER_OUTPUT,
-+      "   Perform checkout in directory: " << parent.c_str() << std::endl);
-     if ( !cmSystemTools::MakeDirectory(parent.c_str()) )
-       {
--      cmCTestLog(m_CTest, ERROR_MESSAGE,
-+      cmCTestLog(this->CTest, ERROR_MESSAGE,
-         "Cannot create parent directory: " << parent.c_str()
-         << " of the source directory: " << sourceDirectory << std::endl);
-       return -1;
-       }
-     ofs << "* Run initial checkout" << std::endl;
-     ofs << "  Command: " << initialCheckoutCommand << std::endl;
--    cmCTestLog(m_CTest, DEBUG, "   Before: "
-+    cmCTestLog(this->CTest, DEBUG, "   Before: "
-       << initialCheckoutCommand << std::endl);
--    bool retic = m_CTest->RunCommand(initialCheckoutCommand, &goutput,
-+    bool retic = this->CTest->RunCommand(initialCheckoutCommand, &goutput,
-       &errors, &retVal, parent.c_str(), 0 /* Timeout */);
--    cmCTestLog(m_CTest, DEBUG, "   After: "
-+    cmCTestLog(this->CTest, DEBUG, "   After: "
-       << initialCheckoutCommand << std::endl);
-     ofs << "  Output: " << goutput.c_str() << std::endl;
-     ofs << "  Errors: " << errors.c_str() << std::endl;
-@@ -306,26 +313,27 @@ int cmCTestUpdateHandler::ProcessHandler()
-       cmOStringStream ostr;
-       ostr << "Problem running initial checkout Output [" << goutput
-         << "] Errors [" << errors << "]";
--      cmCTestLog(m_CTest, ERROR_MESSAGE, ostr.str().c_str() << std::endl);
-+      cmCTestLog(this->CTest, ERROR_MESSAGE, ostr.str().c_str() << std::endl);
-       checkoutErrorMessages += ostr.str();
-       updateProducedError = true;
-       }
--    m_CTest->InitializeFromCommand(m_Command);
-+    this->CTest->InitializeFromCommand(this->Command);
-     }
--  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Updating the repository: "
-+  cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Updating the repository: "
-     << sourceDirectory << std::endl);
+   /* First, alloc and init a new struct for it */
+@@ -176,7 +206,7 @@ Curl_cookie_add(struct SessionHandle *data,
  
-   // Get update command
--  std::string updateCommand = m_CTest->GetCTestConfiguration("UpdateCommand");
-+  std::string updateCommand
-+    = this->CTest->GetCTestConfiguration("UpdateCommand");
-   if ( updateCommand.empty() )
-     {
--    updateCommand = m_CTest->GetCTestConfiguration("CVSCommand");
-+    updateCommand = this->CTest->GetCTestConfiguration("CVSCommand");
-     if ( updateCommand.empty() )
-       {
--      updateCommand = m_CTest->GetCTestConfiguration("SVNCommand");
-+      updateCommand = this->CTest->GetCTestConfiguration("SVNCommand");
-       if ( updateCommand.empty() )
-         {
--        cmCTestLog(m_CTest, ERROR_MESSAGE,
-+        cmCTestLog(this->CTest, ERROR_MESSAGE,
-           "Cannot find CVSCommand, SVNCommand, or UpdateCommand key in the "
-           "DartConfiguration.tcl" << std::endl);
-         return -1;
-@@ -343,39 +351,40 @@ int cmCTestUpdateHandler::ProcessHandler()
-   else
-     {
-     updateType = this->DetermineType(updateCommand.c_str(),
--      m_CTest->GetCTestConfiguration("UpdateType").c_str());
-+      this->CTest->GetCTestConfiguration("UpdateType").c_str());
-     }
+     semiptr=strchr(lineptr, ';'); /* first, find a semicolon */
  
--  cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Use "
-+  cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Use "
-     << cmCTestUpdateHandlerUpdateToString(updateType) << " repository type"
-     << std::endl;);
+-    while(*lineptr && isspace((int)*lineptr))
++    while(*lineptr && my_isspace(*lineptr))
+       lineptr++;
  
-   // And update options
--  std::string updateOptions = m_CTest->GetCTestConfiguration("UpdateOptions");
-+  std::string updateOptions
-+    = this->CTest->GetCTestConfiguration("UpdateOptions");
-   if ( updateOptions.empty() )
-     {
-     switch (updateType)
-       {
-     case cmCTestUpdateHandler::e_CVS:
--      updateOptions = m_CTest->GetCTestConfiguration("CVSUpdateOptions");
-+      updateOptions = this->CTest->GetCTestConfiguration("CVSUpdateOptions");
-       if ( updateOptions.empty() )
-         {
-         updateOptions = "-dP";
-         }
-       break;
-     case cmCTestUpdateHandler::e_SVN:
--      updateOptions = m_CTest->GetCTestConfiguration("SVNUpdateOptions");
-+      updateOptions = this->CTest->GetCTestConfiguration("SVNUpdateOptions");
-       break;
-       }
-     }
+     ptr = lineptr;
+@@ -199,14 +229,14 @@ Curl_cookie_add(struct SessionHandle *data,
  
-   // Get update time
-   std::string extra_update_opts;
--  if ( m_CTest->GetTestModel() == cmCTest::NIGHTLY )
-+  if ( this->CTest->GetTestModel() == cmCTest::NIGHTLY )
-     {
--    struct tm* t = m_CTest->GetNightlyTime(
--      m_CTest->GetCTestConfiguration("NightlyStartTime"),
--      m_CTest->GetTomorrowTag());
-+    struct tm* t = this->CTest->GetNightlyTime(
-+      this->CTest->GetCTestConfiguration("NightlyStartTime"),
-+      this->CTest->GetTomorrowTag());
-     char current_time[1024];
-     sprintf(current_time, "%04d-%02d-%02d %02d:%02d:%02d",
-       t->tm_year + 1900,
-@@ -427,14 +436,14 @@ int cmCTestUpdateHandler::ProcessHandler()
-   //
-   if ( !command.empty() )
-     {
--      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
-+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-         "* Get repository information: " << command.c_str() << std::endl);
--    if ( !m_CTest->GetShowOnly() )
-+    if ( !this->CTest->GetShowOnly() )
-       {
-       ofs << "* Get repository information" << std::endl;
-       ofs << "  Command: " << command.c_str() << std::endl;
--      res = m_CTest->RunCommand(command.c_str(), &goutput, &errors,
--        &retVal, sourceDirectory, 0 /*m_TimeOut*/);
-+      res = this->CTest->RunCommand(command.c_str(), &goutput, &errors,
-+        &retVal, sourceDirectory, 0 /*this->TimeOut*/);
+           /* Strip off trailing whitespace from the 'what' */
+           size_t len=strlen(what);
+-          while(len && isspace((int)what[len-1])) {
++          while(len && my_isspace(what[len-1])) {
+             what[len-1]=0;
+             len--;
+           }
  
-       ofs << "  Output: " << goutput.c_str() << std::endl;
-       ofs << "  Errors: " << errors.c_str() << std::endl;
-@@ -457,7 +466,7 @@ int cmCTestUpdateHandler::ProcessHandler()
-             std::string currentRevisionString
-               = current_revision_regex.match(1);
-             svn_current_revision = atoi(currentRevisionString.c_str());
--            cmCTestLog(m_CTest, HANDLER_OUTPUT,
-+            cmCTestLog(this->CTest, HANDLER_OUTPUT,
-               "   Old revision of repository is: " << svn_current_revision
-               << std::endl);
+           /* Skip leading whitespace from the 'what' */
+           whatptr=what;
+-          while(isspace((int)*whatptr)) {
++          while(my_isspace(*whatptr)) {
+             whatptr++;
+           }
+ 
+@@ -305,7 +335,7 @@ Curl_cookie_add(struct SessionHandle *data,
+               break;
              }
-@@ -467,26 +476,27 @@ int cmCTestUpdateHandler::ProcessHandler()
+             co->expires =
+-              atoi((*co->maxage=='\"')?&co->maxage[1]:&co->maxage[0]) + now;
++              atoi((*co->maxage=='\"')?&co->maxage[1]:&co->maxage[0]) + (long)now;
+           }
+           else if(strequal("expires", name)) {
+             co->expirestr=strdup(whatptr);
+@@ -348,7 +378,7 @@ Curl_cookie_add(struct SessionHandle *data,
        }
-     else
-       {
--      cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
-+      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-         "Update with command: " << command << std::endl);
-       }
-     }
  
+       ptr=semiptr+1;
+-      while(ptr && *ptr && isspace((int)*ptr))
++      while(ptr && *ptr && my_isspace(*ptr))
+         ptr++;
+       semiptr=strchr(ptr, ';'); /* now, find the next semicolon */
  
-   //
-   // Now update repository and remember what files were updated
--  // 
--  cmGeneratedFileStream os; 
-+  //
-+  cmGeneratedFileStream os;
-   if ( !this->StartResultingXML("Update", os) )
-     {
--    cmCTestLog(m_CTest, ERROR_MESSAGE, "Cannot open log file" << std::endl);
-+    cmCTestLog(this->CTest, ERROR_MESSAGE, "Cannot open log file"
-+      << std::endl);
-     }
--  std::string start_time = m_CTest->CurrentTime();
-+  std::string start_time = this->CTest->CurrentTime();
-   double elapsed_time_start = cmSystemTools::GetTime();
+@@ -466,7 +496,7 @@ Curl_cookie_add(struct SessionHandle *data,
+         co->secure = (bool)strequal(ptr, "TRUE");
+         break;
+       case 4:
+-        co->expires = atoi(ptr);
++        co->expires = curlx_strtoofft(ptr, NULL, 10);
+         break;
+       case 5:
+         co->name = strdup(ptr);
+@@ -647,6 +677,10 @@ struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
+     fp = stdin;
+     fromfile=FALSE;
+   }
++  else if(file && !*file) {
++    /* points to a "" string */
++    fp = NULL;
++  }
+   else
+     fp = file?fopen(file, "r"):NULL;
  
--  cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "* Update repository: "
-+  cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "* Update repository: "
-     << command.c_str() << std::endl);
--  if ( !m_CTest->GetShowOnly() )
-+  if ( !this->CTest->GetShowOnly() )
-     {
-     command = "";
-     switch( updateType )
-@@ -496,8 +506,8 @@ int cmCTestUpdateHandler::ProcessHandler()
-         " " + extra_update_opts;
-       ofs << "* Update repository: " << std::endl;
-       ofs << "  Command: " << command.c_str() << std::endl;
--      res = m_CTest->RunCommand(command.c_str(), &goutput, &errors,
--        &retVal, sourceDirectory, 0 /*m_TimeOut*/);
-+      res = this->CTest->RunCommand(command.c_str(), &goutput, &errors,
-+        &retVal, sourceDirectory, 0 /*this->TimeOut*/);
-       ofs << "  Output: " << goutput.c_str() << std::endl;
-       ofs << "  Errors: " << errors.c_str() << std::endl;
-       break;
-@@ -508,17 +518,17 @@ int cmCTestUpdateHandler::ProcessHandler()
-           " " + extra_update_opts;
-         ofs << "* Update repository: " << std::endl;
-         ofs << "  Command: " << command.c_str() << std::endl;
--        bool res1 = m_CTest->RunCommand(command.c_str(), &partialOutput,
-+        bool res1 = this->CTest->RunCommand(command.c_str(), &partialOutput,
-           &errors,
--          &retVal, sourceDirectory, 0 /*m_TimeOut*/);
-+          &retVal, sourceDirectory, 0 /*this->TimeOut*/);
-         ofs << "  Output: " << partialOutput.c_str() << std::endl;
-         ofs << "  Errors: " << errors.c_str() << std::endl;
-         goutput = partialOutput;
-         command = updateCommand + " status";
-         ofs << "* Status repository: " << std::endl;
-         ofs << "  Command: " << command.c_str() << std::endl;
--        res = m_CTest->RunCommand(command.c_str(), &partialOutput, &errors,
--          &retVal, sourceDirectory, 0 /*m_TimeOut*/);
-+        res = this->CTest->RunCommand(command.c_str(), &partialOutput,
-+          &errors, &retVal, sourceDirectory, 0 /*this->TimeOut*/);
-         ofs << "  Output: " << partialOutput.c_str() << std::endl;
-         ofs << "  Errors: " << errors.c_str() << std::endl;
-         goutput += partialOutput;
-@@ -541,15 +551,15 @@ int cmCTestUpdateHandler::ProcessHandler()
-   os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
-     << "<Update mode=\"Client\" Generator=\"ctest-"
-     << cmVersion::GetCMakeVersion() << "\">\n"
--    << "\t<Site>" << m_CTest->GetCTestConfiguration("Site") << "</Site>\n"
--    << "\t<BuildName>" << m_CTest->GetCTestConfiguration("BuildName")
-+    << "\t<Site>" << this->CTest->GetCTestConfiguration("Site") << "</Site>\n"
-+    << "\t<BuildName>" << this->CTest->GetCTestConfiguration("BuildName")
-     << "</BuildName>\n"
--    << "\t<BuildStamp>" << m_CTest->GetCurrentTag() << "-"
--    << m_CTest->GetTestModelString() << "</BuildStamp>" << std::endl;
-+    << "\t<BuildStamp>" << this->CTest->GetCurrentTag() << "-"
-+    << this->CTest->GetTestModelString() << "</BuildStamp>" << std::endl;
-   os << "\t<StartDateTime>" << start_time << "</StartDateTime>\n"
--    << "\t<UpdateCommand>" << m_CTest->MakeXMLSafe(command)
-+    << "\t<UpdateCommand>" << this->CTest->MakeXMLSafe(command)
-     << "</UpdateCommand>\n"
--    << "\t<UpdateType>" << m_CTest->MakeXMLSafe(
-+    << "\t<UpdateType>" << this->CTest->MakeXMLSafe(
-       cmCTestUpdateHandlerUpdateToString(updateType))
-     << "</UpdateType>\n";
- 
-@@ -584,9 +594,9 @@ int cmCTestUpdateHandler::ProcessHandler()
-   bool first_file = true;
- 
-   cmCTestUpdateHandler::AuthorsToUpdatesMap authors_files_map;
--  int num_updated = 0;
--  int num_modified = 0;
--  int num_conflicting = 0;
-+  int numUpdated = 0;
-+  int numModiefied = 0;
-+  int numConflicting = 0;
-   // In subversion, get the latest revision
-   if ( updateType == cmCTestUpdateHandler::e_SVN )
-     {
-@@ -601,19 +611,20 @@ int cmCTestUpdateHandler::ProcessHandler()
-       }
-     if ( svn_latest_revision <= 0 )
-       {
--      cmCTestLog(m_CTest, ERROR_MESSAGE, "Problem determining the current "
-+      cmCTestLog(this->CTest, ERROR_MESSAGE,
-+        "Problem determining the current "
-         "revision of the repository from output:" << std::endl
-         << goutput.c_str() << std::endl);
-       }
-     else
-       {
--      cmCTestLog(m_CTest, HANDLER_OUTPUT,
-+      cmCTestLog(this->CTest, HANDLER_OUTPUT,
-         "   Current revision of repository is: " << svn_latest_revision
-         << std::endl);
-       }
-     }
- 
--  cmCTestLog(m_CTest, HANDLER_OUTPUT,
-+  cmCTestLog(this->CTest, HANDLER_OUTPUT,
-     "   Gathering version information (each . represents one updated file):"
-     << std::endl);
-   int file_count = 0;
-@@ -630,9 +641,9 @@ int cmCTestUpdateHandler::ProcessHandler()
-       {
-       if ( file_count == 0 )
-         {
--        cmCTestLog(m_CTest, HANDLER_OUTPUT, "    " << std::flush);
-+        cmCTestLog(this->CTest, HANDLER_OUTPUT, "    " << std::flush);
+@@ -668,7 +702,7 @@ struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
+           lineptr=line;
+           headerline=FALSE;
          }
--      cmCTestLog(m_CTest, HANDLER_OUTPUT, "." << std::flush);
-+      cmCTestLog(this->CTest, HANDLER_OUTPUT, "." << std::flush);
-       std::string upChar = file_update_line.match(1);
-       std::string upFile = file_update_line.match(2);
-       char mod = upChar[0];
-@@ -647,7 +658,7 @@ int cmCTestUpdateHandler::ProcessHandler()
-         modifiedOrConflict = true;
-         }
-       const char* file = upFile.c_str();
--      cmCTestLog(m_CTest, DEBUG, "Line" << cc << ": " << mod << " - "
-+      cmCTestLog(this->CTest, DEBUG, "Line" << cc << ": " << mod << " - "
-         << file << std::endl);
+-        while(*lineptr && isspace((int)*lineptr))
++        while(*lineptr && my_isspace(*lineptr))
+           lineptr++;
  
-       std::string output;
-@@ -677,14 +688,14 @@ int cmCTestUpdateHandler::ProcessHandler()
-             }
-           break;
-           }
--        cmCTestLog(m_CTest, DEBUG, "Do log: " << logcommand << std::endl);
--        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT,
-+        cmCTestLog(this->CTest, DEBUG, "Do log: " << logcommand << std::endl);
-+        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-           "* Get file update information: " << logcommand.c_str()
-           << std::endl);
-         ofs << "* Get log information for file: " << file << std::endl;
-         ofs << "  Command: " << logcommand.c_str() << std::endl;
--        res = m_CTest->RunCommand(logcommand.c_str(), &output, &errors,
--          &retVal, sourceDirectory, 0 /*m_TimeOut*/);
-+        res = this->CTest->RunCommand(logcommand.c_str(), &output, &errors,
-+          &retVal, sourceDirectory, 0 /*this->TimeOut*/);
-         ofs << "  Output: " << output.c_str() << std::endl;
-         ofs << "  Errors: " << errors.c_str() << std::endl;
-         if ( ofs )
-@@ -694,7 +705,7 @@ int cmCTestUpdateHandler::ProcessHandler()
-         }
-       if ( res && retVal == 0)
-         {
--        cmCTestLog(m_CTest, DEBUG, output << std::endl);
-+        cmCTestLog(this->CTest, DEBUG, output << std::endl);
-         std::string::size_type sline = 0;
-         std::string srevision1 = "Unknown";
-         std::string sdate1     = "Unknown";
-@@ -778,13 +789,13 @@ int cmCTestUpdateHandler::ProcessHandler()
-             srevision1 = str.str();
-             if (!svn_status_line_regex.find(output))
-               {
--              cmCTestLog(m_CTest, ERROR_MESSAGE,
-+              cmCTestLog(this->CTest, ERROR_MESSAGE,
-                 "Bad output from SVN status command: " << output
-                 << std::endl);
-               }
-             else if ( svn_status_line_regex.match(4) != file )
-               {
--              cmCTestLog(m_CTest, ERROR_MESSAGE,
-+              cmCTestLog(this->CTest, ERROR_MESSAGE,
-                 "Bad output from SVN status command. "
-                 "The file name returned: \""
-                 << svn_status_line_regex.match(4)
-@@ -812,27 +823,27 @@ int cmCTestUpdateHandler::ProcessHandler()
-               int maxrev = parser.GetMaxRevision();
-               cmCTestUpdateHandlerSVNXMLParser::
-                 t_VectorOfCommits::iterator it;
--              for ( it = parser.GetCommits()->begin(); 
--                it != parser.GetCommits()->end(); 
-+              for ( it = parser.GetCommits()->begin();
-+                it != parser.GetCommits()->end();
-                 ++ it )
-                 {
--                if ( it->m_Revision == maxrev )
-+                if ( it->Revision == maxrev )
-                   {
-                   cmOStringStream mRevStream;
-                   mRevStream << maxrev;
-                   srevision1 = mRevStream.str();
--                  sauthor1 = it->m_Author;
--                  comment1 = it->m_Message;
--                  sdate1 = it->m_Date;
-+                  sauthor1 = it->Author;
-+                  comment1 = it->Message;
-+                  sdate1 = it->Date;
-                   }
--                else if ( it->m_Revision == minrev )
-+                else if ( it->Revision == minrev )
-                   {
-                   cmOStringStream mRevStream;
-                   mRevStream << minrev;
-                   srevision2 = mRevStream.str();
--                  sauthor2 = it->m_Author;
--                  comment2 = it->m_Message;       
--                  sdate2 = it->m_Date;
-+                  sauthor2 = it->Author;
-+                  comment2 = it->Message;
-+                  sdate2 = it->Date;
-                   }
-                 }
-               }
-@@ -869,30 +880,30 @@ int cmCTestUpdateHandler::ProcessHandler()
-           }
-         if ( mod == 'C' )
-           {
--          num_conflicting ++;
-+          numConflicting ++;
-           os << "\t<Conflicting>" << std::endl;
-           }
-         else if ( mod == 'G' )
-           {
--          num_conflicting ++;
-+          numConflicting ++;
-           os << "\t<Conflicting>" << std::endl;
-           }
-         else if ( mod == 'M' )
-           {
--          num_modified ++;
-+          numModiefied ++;
-           os << "\t<Modified>" << std::endl;
-           }
-         else
-           {
--          num_updated ++;
-+          numUpdated ++;
-           os << "\t<Updated>" << std::endl;
-           }
-         if ( srevision2 == "Unknown" )
-           {
-           srevision2 = srevision1;
-           }
--        cmCTestLog(m_CTest, HANDLER_VERBOSE_OUTPUT, "File: " << path.c_str()
--          << " / " << fname.c_str() << " was updated by "
-+        cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "File: "
-+          << path.c_str() << " / " << fname.c_str() << " was updated by "
-           << sauthor1.c_str() << " to revision: " << srevision1.c_str()
-           << " from revision: " << srevision2.c_str() << std::endl);
-         os << "\t\t<File Directory=\"" << cmCTest::MakeXMLSafe(path) << "\">"
-@@ -968,28 +979,28 @@ int cmCTestUpdateHandler::ProcessHandler()
-     }
-   if ( file_count )
-     {
--    cmCTestLog(m_CTest, HANDLER_OUTPUT, std::endl);
-+    cmCTestLog(this->CTest, HANDLER_OUTPUT, std::endl);
-     }
--  if ( num_updated )
-+  if ( numUpdated )
-     {
--    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_updated
-+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Found " << numUpdated
-       << " updated files" << std::endl);
-     }
--  if ( num_modified )
-+  if ( numModiefied )
-     {
--    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_modified
--      << " locally modified files" 
-+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Found " << numModiefied
-+      << " locally modified files"
-       << std::endl);
-     }
--  if ( num_conflicting )
-+  if ( numConflicting )
-     {
--    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Found " << num_conflicting
--      << " conflicting files" 
-+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Found " << numConflicting
-+      << " conflicting files"
-       << std::endl);
-     }
--  if ( num_modified == 0 && num_conflicting == 0 && num_updated == 0 )
-+  if ( numModiefied == 0 && numConflicting == 0 && numUpdated == 0 )
-     {
--    cmCTestLog(m_CTest, HANDLER_OUTPUT, "   Project is up-to-date"
-+    cmCTestLog(this->CTest, HANDLER_OUTPUT, "   Project is up-to-date"
-       << std::endl);
-     }
-   if ( !first_file )
-@@ -1013,36 +1024,37 @@ int cmCTestUpdateHandler::ProcessHandler()
-     os << "\t</Author>" << std::endl;
-     }
+         Curl_cookie_add(data, c, headerline, lineptr, NULL, NULL);
+@@ -699,68 +733,85 @@ struct CookieInfo *Curl_cookie_init(struct SessionHandle *data,
+ struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
+                                    char *host, char *path, bool secure)
+ {
+-   struct Cookie *newco;
+-   struct Cookie *co;
+-   time_t now = time(NULL);
+-   struct Cookie *mainco=NULL;
+-
+-   if(!c || !c->cookies)
+-      return NULL; /* no cookie struct or no cookies in the struct */
+-
+-   co = c->cookies;
+-
+-   while(co) {
+-     /* only process this cookie if it is not expired or had no expire
+-        date AND that if the cookie requires we're secure we must only
+-        continue if we are! */
+-     if( (co->expires<=0 || (co->expires> now)) &&
+-         (co->secure?secure:TRUE) ) {
+-
+-       /* now check if the domain is correct */
+-       if(!co->domain ||
+-          (co->tailmatch && tailmatch(co->domain, host)) ||
+-          (!co->tailmatch && strequal(host, co->domain)) ) {
+-         /* the right part of the host matches the domain stuff in the
+-            cookie data */
+-
+-         /* now check the left part of the path with the cookies path
+-            requirement */
+-         if(!co->path ||
+-            checkprefix(co->path, path) ) {
+-
+-           /* and now, we know this is a match and we should create an
+-              entry for the return-linked-list */
+-
+-           newco = (struct Cookie *)malloc(sizeof(struct Cookie));
+-           if(newco) {
+-             /* first, copy the whole source cookie: */
+-             memcpy(newco, co, sizeof(struct Cookie));
+-
+-             /* then modify our next */
+-             newco->next = mainco;
+-
+-             /* point the main to us */
+-             mainco = newco;
+-           }
+-           else {
+-              /* failure, clear up the allocated chain and return NULL */
+-             while(mainco) {
+-               co = mainco->next;
+-               free(mainco);
+-               mainco = co;
+-             }
+-
+-             return NULL;
+-           }
+-         }
+-       }
+-     }
+-     co = co->next;
+-   }
+-
+-   return mainco; /* return the new list */
++  struct Cookie *newco;
++  struct Cookie *co;
++  time_t now = time(NULL);
++  struct Cookie *mainco=NULL;
++
++  if(!c || !c->cookies)
++    return NULL; /* no cookie struct or no cookies in the struct */
++
++  co = c->cookies;
++
++  while(co) {
++    /* only process this cookie if it is not expired or had no expire
++       date AND that if the cookie requires we're secure we must only
++       continue if we are! */
++    if( (co->expires<=0 || (co->expires> now)) &&
++        (co->secure?secure:TRUE) ) {
++
++      /* now check if the domain is correct */
++      if(!co->domain ||
++         (co->tailmatch && tailmatch(co->domain, host)) ||
++         (!co->tailmatch && strequal(host, co->domain)) ) {
++        /* the right part of the host matches the domain stuff in the
++           cookie data */
++
++        /* now check the left part of the path with the cookies path
++           requirement */
++        if(!co->path ||
++           /* not using checkprefix() because matching should be
++              case-sensitive */
++           !strncmp(co->path, path, strlen(co->path)) ) {
++
++          /* and now, we know this is a match and we should create an
++             entry for the return-linked-list */
++
++          newco = (struct Cookie *)malloc(sizeof(struct Cookie));
++          if(newco) {
++            /* first, copy the whole source cookie: */
++            memcpy(newco, co, sizeof(struct Cookie));
++
++            /* then modify our next */
++            newco->next = mainco;
++
++            /* point the main to us */
++            mainco = newco;
++          }
++          else {
++            /* failure, clear up the allocated chain and return NULL */
++            while(mainco) {
++              co = mainco->next;
++              free(mainco);
++              mainco = co;
++            }
++
++            return NULL;
++          }
++        }
++      }
++    }
++    co = co->next;
++  }
++
++  return mainco; /* return the new list */
+ }
  
--  cmCTestLog(m_CTest, DEBUG, "End" << std::endl);
--  std::string end_time = m_CTest->CurrentTime();
-+  cmCTestLog(this->CTest, DEBUG, "End" << std::endl);
-+  std::string end_time = this->CTest->CurrentTime();
-   os << "\t<EndDateTime>" << end_time << "</EndDateTime>\n"
--    << "<ElapsedMinutes>" << 
--    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0 
-+    << "<ElapsedMinutes>" <<
-+    static_cast<int>((cmSystemTools::GetTime() - elapsed_time_start)/6)/10.0
-     << "</ElapsedMinutes>\n"
-     << "\t<UpdateReturnStatus>";
--  if ( num_modified > 0 || num_conflicting > 0 )
-+  if ( numModiefied > 0 || numConflicting > 0 )
-     {
-     os << "Update error: There are modified or conflicting files in the "
-       "repository";
--    cmCTestLog(m_CTest, ERROR_MESSAGE,
-+    cmCTestLog(this->CTest, ERROR_MESSAGE,
-       "   There are modified or conflicting files in the repository"
-       << std::endl);
-     }
-   if ( updateProducedError )
-     {
-     os << "Update error: ";
--    os << m_CTest->MakeXMLSafe(checkoutErrorMessages);
--    cmCTestLog(m_CTest, ERROR_MESSAGE, "   Update with command: " << command
--      << " failed" << std::endl);
-+    os << this->CTest->MakeXMLSafe(checkoutErrorMessages);
-+    cmCTestLog(this->CTest, ERROR_MESSAGE, "   Update with command: "
-+      << command << " failed" << std::endl);
-     }
-   os << "</UpdateReturnStatus>" << std::endl;
-   os << "</Update>" << std::endl;
++/*****************************************************************************
++ *
++ * Curl_cookie_clearall()
++ *
++ * Clear all existing cookies and reset the counter.
++ *
++ ****************************************************************************/
++void Curl_cookie_clearall(struct CookieInfo *cookies)
++{
++  if(cookies) {
++    Curl_cookie_freelist(cookies->cookies);
++    cookies->cookies = NULL;
++    cookies->numcookies = 0;
++  }
++}
  
-   if (! res || retVal )
-     {
--    cmCTestLog(m_CTest, ERROR_MESSAGE, "Error(s) when updating the project"
--      << std::endl);
--    cmCTestLog(m_CTest, ERROR_MESSAGE, "Output: " << goutput << std::endl);
-+    cmCTestLog(this->CTest, ERROR_MESSAGE,
-+      "Error(s) when updating the project" << std::endl);
-+    cmCTestLog(this->CTest, ERROR_MESSAGE, "Output: "
-+      << goutput << std::endl);
-     return -1;
+ /*****************************************************************************
+  *
+@@ -772,17 +823,56 @@ struct Cookie *Curl_cookie_getlist(struct CookieInfo *c,
+ 
+ void Curl_cookie_freelist(struct Cookie *co)
+ {
+-   struct Cookie *next;
+-   if(co) {
+-      while(co) {
+-         next = co->next;
+-         free(co); /* we only free the struct since the "members" are all
++  struct Cookie *next;
++  if(co) {
++    while(co) {
++      next = co->next;
++      free(co); /* we only free the struct since the "members" are all
+                       just copied! */
+-         co = next;
+-      }
+-   }
++      co = next;
++    }
++  }
++}
++
++
++/*****************************************************************************
++ *
++ * Curl_cookie_clearsess()
++ *
++ * Free all session cookies in the cookies list.
++ *
++ ****************************************************************************/
++void Curl_cookie_clearsess(struct CookieInfo *cookies)
++{
++  struct Cookie *first, *curr, *next, *prev = NULL;
++
++  if(!cookies->cookies)
++    return;
++
++  first = curr = prev = cookies->cookies;
++
++  for(; curr; curr = next) {
++    next = curr->next;
++    if(!curr->expires) {
++      if(first == curr)
++        first = next;
++
++      if(prev == curr)
++        prev = next;
++      else
++        prev->next = next;
++
++      free(curr);
++      cookies->numcookies--;
++    }
++    else
++      prev = curr;
++  }
++
++  cookies->cookies = first;
+ }
+ 
++
+ /*****************************************************************************
+  *
+  * Curl_cookie_cleanup()
+@@ -792,20 +882,48 @@ void Curl_cookie_freelist(struct Cookie *co)
+  ****************************************************************************/
+ void Curl_cookie_cleanup(struct CookieInfo *c)
+ {
+-   struct Cookie *co;
+-   struct Cookie *next;
+-   if(c) {
+-      if(c->filename)
+-         free(c->filename);
+-      co = c->cookies;
+-
+-      while(co) {
+-         next = co->next;
+-         freecookie(co);
+-         co = next;
+-      }
+-      free(c); /* free the base struct as well */
+-   }
++  struct Cookie *co;
++  struct Cookie *next;
++  if(c) {
++    if(c->filename)
++      free(c->filename);
++    co = c->cookies;
++
++    while(co) {
++      next = co->next;
++      freecookie(co);
++      co = next;
++    }
++    free(c); /* free the base struct as well */
++  }
++}
++
++/* get_netscape_format()
++ *
++ * Formats a string for Netscape output file, w/o a newline at the end.
++ *
++ * Function returns a char * to a formatted line. Has to be free()d
++*/
++static char *get_netscape_format(const struct Cookie *co)
++{
++  return aprintf(
++    "%s%s\t" /* domain */
++    "%s\t"   /* tailmatch */
++    "%s\t"   /* path */
++    "%s\t"   /* secure */
++    "%" FORMAT_OFF_T "\t"   /* expires */
++    "%s\t"   /* name */
++    "%s",    /* value */
++    /* Make sure all domains are prefixed with a dot if they allow
++       tailmatching. This is Mozilla-style. */
++    (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
++    co->domain?co->domain:"unknown",
++    co->tailmatch?"TRUE":"FALSE",
++    co->path?co->path:"/",
++    co->secure?"TRUE":"FALSE",
++    co->expires,
++    co->name,
++    co->value?co->value:"");
+ }
+ 
+ /*
+@@ -839,33 +957,22 @@ int Curl_cookie_output(struct CookieInfo *c, char *dumphere)
+   }
+ 
+   if(c) {
++    char *format_ptr;
++
+     fputs("# Netscape HTTP Cookie File\n"
+-          "# http://www.netscape.com/newsref/std/cookie_spec.html\n"
++          "# http://curlm.haxx.se/rfc/cookie_spec.html\n"
+           "# This file was generated by libcurl! Edit at your own risk.\n\n",
+           out);
+     co = c->cookies;
+ 
+     while(co) {
+-      fprintf(out,
+-              "%s%s\t" /* domain */
+-              "%s\t" /* tailmatch */
+-              "%s\t" /* path */
+-              "%s\t" /* secure */
+-              "%u\t" /* expires */
+-              "%s\t" /* name */
+-              "%s\n", /* value */
+-
+-              /* Make sure all domains are prefixed with a dot if they allow
+-                 tailmatching. This is Mozilla-style. */
+-              (co->tailmatch && co->domain && co->domain[0] != '.')? ".":"",
+-              co->domain?co->domain:"unknown",
+-              co->tailmatch?"TRUE":"FALSE",
+-              co->path?co->path:"/",
+-              co->secure?"TRUE":"FALSE",
+-              (unsigned int)co->expires,
+-              co->name,
+-              co->value?co->value:"");
+-
++      format_ptr = get_netscape_format(co);
++      if (format_ptr == NULL) {
++        fprintf(out, "#\n# Fatal libcurl error\n");
++        return 1;
++      }
++      fprintf(out, "%s\n", format_ptr);
++      free(format_ptr);
+       co=co->next;
      }
-   return count;
+   }
+@@ -876,4 +983,35 @@ int Curl_cookie_output(struct CookieInfo *c, char *dumphere)
+   return 0;
+ }
+ 
+-#endif /* CURL_DISABLE_HTTP */
++struct curl_slist *Curl_cookie_list(struct SessionHandle *data)
++{
++  struct curl_slist *list = NULL;
++  struct curl_slist *beg;
++  struct Cookie *c;
++  char *line;
++
++  if ((data->cookies == NULL) ||
++      (data->cookies->numcookies == 0))
++    return NULL;
++
++  c = data->cookies->cookies;
++
++  beg = list;
++  while (c) {
++    /* fill the list with _all_ the cookies we know */
++    line = get_netscape_format(c);
++    if (line == NULL) {
++      /* get_netscape_format returns null only if we run out of memory */
++
++      curl_slist_free_all(beg); /* free some memory */
++      return NULL;
++    }
++    list = curl_slist_append(list, line);
++    free(line);
++    c = c->next;
++  }
++
++  return list;
++}
++
++#endif /* CURL_DISABLE_HTTP || CURL_DISABLE_COOKIES */

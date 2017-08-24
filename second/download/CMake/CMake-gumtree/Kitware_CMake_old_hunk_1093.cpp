@@ -1,8 +1,6 @@
-    YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
-{
-        YY_BUFFER_STATE b;
-    
-        b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) );
-        if ( ! b )
-                YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
-
+  result = 0;
+  }
+# endif
+# ifdef FILE_DEF_RELEASE
+  {
+  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in CXX\n");

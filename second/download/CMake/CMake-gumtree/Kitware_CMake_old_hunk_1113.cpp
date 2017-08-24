@@ -1,12 +1,14 @@
-        fprintf(progFile,"%i\n",count);
-        fclose(progFile);
-        }
-      return 0;
-      }
+  size_t base64Len;
+  unsigned char *data;
+  int dataLen;
 
-    // Command to report progress for a build
-    else if (args[1] == "cmake_progress_report" && args.size() >= 4)
-      {
-      std::string dirName = args[2];
-      dirName += "/Progress";
-      std::string fName;
+  data = (unsigned char *)suck(&dataLen);
+  base64Len = Curl_base64_encode(data, dataLen, &base64);
+
+  fprintf(stderr, "%d\n", base64Len);
+  fprintf(stdout, "%s",   base64);
+
+  free(base64); free(data);
+  return 0;
+}
+#endif

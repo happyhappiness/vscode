@@ -1,8 +1,12 @@
-    {
-    return 0;
-    }
-  //printf("Do some parsing: %s\n", str);
+  }
 
-  this->Verbose = verb;
-  this->InputBuffer = str;
-  this->InputBufferPos = 0;
+  snprintf(data->state.buffer, sizeof(data->state.buffer), "%s:%s", user, pwd);
+  if(Curl_base64_encode(data->state.buffer,
+                        strlen(data->state.buffer),
+                        &authorization) > 0) {
+    if(*userp)
+      free(*userp);
+    *userp = aprintf( "%sAuthorization: Basic %s\015\012",
+                      proxy?"Proxy-":"",
+                      authorization);
+    free(authorization);

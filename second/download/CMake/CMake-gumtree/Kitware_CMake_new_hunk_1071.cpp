@@ -1,14 +1,7 @@
-#else
-        char *ip = (char *)inet_ntoa(natAddr);
-#endif
-        infof(data, "Using NAT IP address (%s) for kerberos 4\n", ip);
-        localaddr->sin_addr = natAddr;
-      }
+    strftime(current_time, 1000, "%a %b %d %H:%M:%S %Z %Y", t);
     }
-  }
-#endif
+  cmCTestLog(this, DEBUG, "   Current_Time: " << current_time << std::endl);
+  return cmXMLSafe(cmCTest::CleanString(current_time)).str();
+}
 
-  if(Curl_base64_encode(conn->data, (char *)adat.dat, adat.length, &p) < 1) {
-    Curl_failf(data, "Out of memory base64-encoding");
-    return AUTH_CONTINUE;
-  }
+//----------------------------------------------------------------------

@@ -1,81 +1,140 @@
-@@ -9,8 +9,8 @@
-   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2007, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -22,7 +22,7 @@
+  ***************************************************************************/
+ #include "setup.h"
  
--     This software is distributed WITHOUT ANY WARRANTY; without even 
--     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-+     This software is distributed WITHOUT ANY WARRANTY; without even
-+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-      PURPOSE.  See the above copyright notices for more information.
+-#ifndef CURL_DISABLE_HTTP
++#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_CRYPTO_AUTH)
+ /* -- WIN32 approved -- */
+ #include <stdio.h>
+ #include <string.h>
+@@ -38,7 +38,8 @@
+ #include "http_digest.h"
+ #include "strtok.h"
+ #include "url.h" /* for Curl_safefree() */
+-#include "curl_memory.h"
++#include "memory.h"
++#include "easyif.h" /* included for Curl_convert_... prototypes */
  
- =========================================================================*/
-@@ -23,8 +23,9 @@ cmakewizard::cmakewizard()
-   m_ShowAdvanced = false;
- }
- 
--  
--void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
-+
-+void cmakewizard::AskUser(const char* key,
-+  cmCacheManager::CacheIterator& iter)
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
+@@ -59,8 +60,8 @@ CURLdigest Curl_input_digest(struct connectdata *conn,
+                                               header */
  {
-   printf("Variable Name: %s\n", key);
-   const char* helpstring = iter.GetProperty("HELPSTRING");
-@@ -34,7 +35,7 @@ void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
-   char buffer[4096];
-   buffer[0] = 0;
-   fgets(buffer, sizeof(buffer)-1, stdin);
--          
-+
-   if(strlen(buffer) > 0)
-     {
-     std::string sbuffer = buffer;
-@@ -44,7 +45,7 @@ void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
-       {
-       value = sbuffer.substr(0, pos+1);
-       }
--    
-+
-     if ( value.size() > 0 )
-       {
-       if(iter.GetType() == cmCacheManager::PATH ||
-@@ -67,7 +68,7 @@ void cmakewizard::AskUser(const char* key, cmCacheManager::CacheIterator& iter)
+   bool more = TRUE;
+-  char *token;
+-  char *tmp;
++  char *token = NULL;
++  char *tmp = NULL;
+   bool foundAuth = FALSE;
+   bool foundAuthInt = FALSE;
+   struct SessionHandle *data=conn->data;
+@@ -75,7 +76,7 @@ CURLdigest Curl_input_digest(struct connectdata *conn,
+   }
  
- bool cmakewizard::AskAdvanced()
- {
--  printf("Would you like to see advanced options? [No]:");  
-+  printf("Would you like to see advanced options? [No]:");
-   char buffer[4096];
-   buffer[0] = 0;
-   fgets(buffer, sizeof(buffer)-1, stdin);
-@@ -105,7 +106,8 @@ int cmakewizard::RunWizard(std::vector<std::string> const& args)
-     {
-     asked = false;
-     // run cmake
--    this->ShowMessage("Please wait while cmake processes CMakeLists.txt files....\n");
-+    this->ShowMessage(
-+      "Please wait while cmake processes CMakeLists.txt files....\n");
+   /* skip initial whitespaces */
+-  while(*header && isspace((int)*header))
++  while(*header && ISSPACE(*header))
+     header++;
  
-     make.Configure();
-     this->ShowMessage("\n");
-@@ -115,9 +117,9 @@ int cmakewizard::RunWizard(std::vector<std::string> const& args)
-     cmCacheManager::CacheIterator i = cachem->NewIterator();
-     // iterate over all entries in the cache
-     for(;!i.IsAtEnd(); i.Next())
--      { 
-+      {
-       std::string key = i.GetName();
--      if( i.GetType() == cmCacheManager::INTERNAL || 
-+      if( i.GetType() == cmCacheManager::INTERNAL ||
-           i.GetType() == cmCacheManager::STATIC ||
-           i.GetType() == cmCacheManager::UNINITIALIZED )
-         {
-@@ -136,7 +138,7 @@ int cmakewizard::RunWizard(std::vector<std::string> const& args)
-           }
-         }
-       else
--        {    
-+        {
-         if(m_ShowAdvanced || !i.GetPropertyAsBool("ADVANCED"))
-           {
-           this->AskUser(key.c_str(), i);
+   if(checkprefix("Digest", header)) {
+@@ -91,9 +92,9 @@ CURLdigest Curl_input_digest(struct connectdata *conn,
+     while(more) {
+       char value[32];
+       char content[128];
+-      size_t totlen;
++      size_t totlen=0;
+ 
+-      while(*header && isspace((int)*header))
++      while(*header && ISSPACE(*header))
+         header++;
+ 
+       /* how big can these strings be? */
+@@ -224,7 +225,7 @@ CURLcode Curl_output_digest(struct connectdata *conn,
+   unsigned char ha2[33];/* 32 digits and 1 zero byte */
+   char cnoncebuf[7];
+   char *cnonce;
+-  char *tmp;
++  char *tmp = NULL;
+   struct timeval now;
+ 
+   char **allocuserpwd;
+@@ -234,6 +235,21 @@ CURLcode Curl_output_digest(struct connectdata *conn,
+ 
+   struct SessionHandle *data = conn->data;
+   struct digestdata *d;
++#ifdef CURL_DOES_CONVERSIONS
++  CURLcode rc;
++/* The CURL_OUTPUT_DIGEST_CONV macro below is for non-ASCII machines.
++   It converts digest text to ASCII so the MD5 will be correct for 
++   what ultimately goes over the network.
++*/
++#define CURL_OUTPUT_DIGEST_CONV(a, b) \
++  rc = Curl_convert_to_network(a, (char *)b, strlen((const char*)b)); \
++  if (rc != CURLE_OK) { \
++    free(b); \
++    return rc; \
++  }
++#else
++#define CURL_OUTPUT_DIGEST_CONV(a, b)
++#endif /* CURL_DOES_CONVERSIONS */
+ 
+   if(proxy) {
+     d = &data->state.proxydigest;
+@@ -270,7 +286,7 @@ CURLcode Curl_output_digest(struct connectdata *conn,
+     /* Generate a cnonce */
+     now = Curl_tvnow();
+     snprintf(cnoncebuf, sizeof(cnoncebuf), "%06ld", now.tv_sec);
+-    if(Curl_base64_encode(cnoncebuf, strlen(cnoncebuf), &cnonce))
++    if(Curl_base64_encode(data, cnoncebuf, strlen(cnoncebuf), &cnonce))
+       d->cnonce = cnonce;
+     else
+       return CURLE_OUT_OF_MEMORY;
+@@ -291,6 +307,8 @@ CURLcode Curl_output_digest(struct connectdata *conn,
+     aprintf("%s:%s:%s", userp, d->realm, passwdp);
+   if(!md5this)
+     return CURLE_OUT_OF_MEMORY;
++
++  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+   Curl_md5it(md5buf, md5this);
+   free(md5this); /* free this again */
+ 
+@@ -303,10 +321,12 @@ CURLcode Curl_output_digest(struct connectdata *conn,
+   if(d->algo == CURLDIGESTALGO_MD5SESS) {
+     /* nonce and cnonce are OUTSIDE the hash */
+     tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+-    free(ha1);
+     if(!tmp)
+       return CURLE_OUT_OF_MEMORY;
+-    ha1 = (unsigned char *)tmp;
++    CURL_OUTPUT_DIGEST_CONV(data, tmp); /* convert on non-ASCII machines */
++    Curl_md5it(md5buf, (unsigned char *)tmp);
++    free(tmp); /* free this again */
++    md5_to_ascii(md5buf, ha1);
+   }
+ 
+   /*
+@@ -333,6 +353,7 @@ CURLcode Curl_output_digest(struct connectdata *conn,
+        entity-body here */
+     /* TODO: Append H(entity-body)*/
+   }
++  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+   Curl_md5it(md5buf, md5this);
+   free(md5this); /* free this again */
+   md5_to_ascii(md5buf, ha2);
+@@ -356,6 +377,7 @@ CURLcode Curl_output_digest(struct connectdata *conn,
+   if(!md5this)
+     return CURLE_OUT_OF_MEMORY;
+ 
++  CURL_OUTPUT_DIGEST_CONV(data, md5this); /* convert on non-ASCII machines */
+   Curl_md5it(md5buf, md5this);
+   free(md5this); /* free this again */
+   md5_to_ascii(md5buf, request_digest);

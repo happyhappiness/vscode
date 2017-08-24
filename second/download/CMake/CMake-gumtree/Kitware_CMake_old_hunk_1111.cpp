@@ -1,7 +1,6 @@
-// CMakeSetupDialog dialog
-void updateProgress(const char *msg, float prog, void *cd)
-{
-  char tmp[1024];
-  if (prog >= 0)
-    {
-    sprintf(tmp,"%s %i%%",msg,(int)(100*prog));
+  fprintf(ofp, "#include \"kwsysPrivate.h\"\n");
+  fprintf(ofp, "#include KWSYS_HEADER(Configure.h)\n\n");
+  fprintf(ofp, "#include <stdio.h>\n\n");
+  
+  /* Split file up in 1024-byte chunks.  */
+  while((n = (int)fread(buffer, 1, 1024, ifp)) > 0)

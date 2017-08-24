@@ -1,875 +1,366 @@
-/*=========================================================================
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2007, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ * $Id$
+ ***************************************************************************/
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
+/* Base64 encoding/decoding
+ *
+ * Test harnesses down the bottom - compile with -DTEST_ENCODE for
+ * a program that will read in raw data from stdin and write out
+ * a base64-encoded version to stdout, and the length returned by the
+ * encoding function to stderr. Compile with -DTEST_DECODE for a program that
+ * will go the other way.
+ *
+ * This code will break if int is smaller than 32 bits
+ */
 
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
-
-     This software is distributed WITHOUT ANY WARRANTY; without even
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-     PURPOSE.  See the above copyright notices for more information.
-
-=========================================================================*/
-
-#include "cmCTestScriptHandler.h"
-
-#include "cmCTest.h"
-#include "cmake.h"
-#include "cmFunctionBlocker.h"
-#include "cmMakefile.h"
-#include "cmLocalGenerator.h"
-#include "cmGlobalGenerator.h"
-#include "cmGeneratedFileStream.h"
-
-//#include <cmsys/RegularExpression.hxx>
-#include <cmsys/Process.h>
-
-// used for sleep
-#ifdef _WIN32
-#include "windows.h"
-#endif
+#include "setup.h"
 
 #include <stdlib.h>
-#include <time.h>
-#include <math.h>
-#include <float.h>
+#include <string.h>
 
-// needed for sleep
-#if !defined(_WIN32)
-# include <unistd.h>
-#endif
+#define _MPRINTF_REPLACE /* use our functions only */
+#include <curl/mprintf.h>
 
-#include "cmCTestBuildCommand.h"
-#include "cmCTestConfigureCommand.h"
-#include "cmCTestCoverageCommand.h"
-#include "cmCTestEmptyBinaryDirectoryCommand.h"
-#include "cmCTestMemCheckCommand.h"
-#include "cmCTestRunScriptCommand.h"
-#include "cmCTestSleepCommand.h"
-#include "cmCTestStartCommand.h"
-#include "cmCTestSubmitCommand.h"
-#include "cmCTestTestCommand.h"
-#include "cmCTestUpdateCommand.h"
+#include "urldata.h" /* for the SessionHandle definition */
+#include "easyif.h"  /* for Curl_convert_... prototypes */
+#include "base64.h"
+#include "memory.h"
 
-#define CTEST_INITIAL_CMAKE_OUTPUT_FILE_NAME "CTestInitialCMakeOutput.log"
+/* include memdebug.h last */
+#include "memdebug.h"
 
-// used to keep elapsed time up to date
-class cmCTestScriptFunctionBlocker : public cmFunctionBlocker
+/* ---- Base64 Encoding/Decoding Table --- */
+static const char table64[]=
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static void decodeQuantum(unsigned char *dest, const char *src)
 {
-public:
-  cmCTestScriptFunctionBlocker() {}
-  virtual ~cmCTestScriptFunctionBlocker() {}
-  virtual bool IsFunctionBlocked(const cmListFileFunction& lff,
-                                 cmMakefile &mf);
-  //virtual bool ShouldRemove(const cmListFileFunction& lff, cmMakefile &mf);
-  //virtual void ScopeEnded(cmMakefile &mf);
-
-  cmCTestScriptHandler* CTestScriptHandler;
-};
-
-// simply update the time and don't block anything
-bool cmCTestScriptFunctionBlocker::
-IsFunctionBlocked(const cmListFileFunction& , cmMakefile &)
-{
-  this->CTestScriptHandler->UpdateElapsedTime();
-  return false;
-}
-
-//----------------------------------------------------------------------
-cmCTestScriptHandler::cmCTestScriptHandler()
-{
-  this->Backup = false;
-  this->EmptyBinDir = false;
-  this->EmptyBinDirOnce = false;
-  this->Makefile = 0;
-  this->LocalGenerator = 0;
-  this->CMake = 0;
-  this->GlobalGenerator = 0;
-
-  this->ScriptStartTime = 0;
-
-  // the *60 is becuase the settings are in minutes but GetTime is seconds
-  this->MinimumInterval = 30*60;
-  this->ContinuousDuration = -1;
-}
-
-//----------------------------------------------------------------------
-void cmCTestScriptHandler::Initialize()
-{
-  this->Superclass::Initialize();
-  this->Backup = false;
-  this->EmptyBinDir = false;
-  this->EmptyBinDirOnce = false;
-
-  this->SourceDir = "";
-  this->BinaryDir = "";
-  this->BackupSourceDir = "";
-  this->BackupBinaryDir = "";
-  this->CTestRoot = "";
-  this->CVSCheckOut = "";
-  this->CTestCmd = "";
-  this->CVSCmd = "";
-  this->CTestEnv = "";
-  this->InitCache = "";
-  this->CMakeCmd = "";
-  this->CMOutFile = "";
-  this->ExtraUpdates.clear();
-
-  this->MinimumInterval = 20*60;
-  this->ContinuousDuration = -1;
-
-  // what time in seconds did this script start running
-  this->ScriptStartTime = 0;
-
-  this->Makefile = 0;
-  if (this->LocalGenerator)
-    {
-    delete this->LocalGenerator;
-    }
-  this->LocalGenerator = 0;
-  if (this->GlobalGenerator)
-    {
-    delete this->GlobalGenerator;
-    }
-  this->GlobalGenerator = 0;
-  if (this->CMake)
-    {
-    delete this->CMake;
-    }
-}
-
-//----------------------------------------------------------------------
-cmCTestScriptHandler::~cmCTestScriptHandler()
-{
-  // local generator owns the makefile
-  this->Makefile = 0;
-  if (this->LocalGenerator)
-    {
-    delete this->LocalGenerator;
-    }
-  this->LocalGenerator = 0;
-  if (this->GlobalGenerator)
-    {
-    delete this->GlobalGenerator;
-    }
-  this->GlobalGenerator = 0;
-  if (this->CMake)
-    {
-    delete this->CMake;
-    }
-}
-
-
-//----------------------------------------------------------------------
-// just adds an argument to the vector
-void cmCTestScriptHandler::AddConfigurationScript(const char *script)
-{
-  this->ConfigurationScripts.push_back(script);
-}
-
-
-//----------------------------------------------------------------------
-// the generic entry point for handling scripts, this routine will run all
-// the scripts provides a -S arguments
-int cmCTestScriptHandler::ProcessHandler()
-{
-  int res = 0;
-  std::vector<cmStdString>::iterator it;
-  for ( it = this->ConfigurationScripts.begin();
-        it != this->ConfigurationScripts.end();
-        it ++ )
-    {
-    // for each script run it
-    res += this->RunConfigurationScript(
-      cmSystemTools::CollapseFullPath(it->c_str()));
-    }
-  if ( res )
-    {
-    return -1;
-    }
-  return 0;
-}
-
-void cmCTestScriptHandler::UpdateElapsedTime()
-{
-  if (this->LocalGenerator)
-    {
-    // set the current elapsed time
-    char timeString[20];
-    int itime = static_cast<unsigned int>(cmSystemTools::GetTime()
-                                          - this->ScriptStartTime);
-    sprintf(timeString,"%i",itime);
-    this->LocalGenerator->GetMakefile()->AddDefinition("CTEST_ELAPSED_TIME",
-                                                   timeString);
-    }
-}
-
-//----------------------------------------------------------------------
-void cmCTestScriptHandler::AddCTestCommand(cmCTestCommand* command)
-{
-  cmCTestCommand* newCom = command;
-  newCom->CTest = this->CTest;
-  newCom->CTestScriptHandler = this;
-  this->CMake->AddCommand(newCom);
-}
-
-//----------------------------------------------------------------------
-// this sets up some variables for thew script to use, creates the required
-// cmake instance and generators, and then reads in the script
-int cmCTestScriptHandler::ReadInScript(const std::string& total_script_arg)
-{
-  // if the argument has a , in it then it needs to be broken into the fist
-  // argument (which is the script) and the second argument which will be
-  // passed into the scripts as S_ARG
-  std::string script = total_script_arg;
-  std::string script_arg;
-  if (total_script_arg.find(",") != std::string::npos)
-    {
-    script = total_script_arg.substr(0,total_script_arg.find(","));
-    script_arg = total_script_arg.substr(total_script_arg.find(",")+1);
-    }
-
-  // make sure the file exists
-  if (!cmSystemTools::FileExists(script.c_str()))
-    {
-    cmSystemTools::Error("Cannot find file: ", script.c_str());
-    return 1;
-    }
-
-  // create a cmake instance to read the configuration script
-  // read in the list file to fill the cache
-  if (this->CMake)
-    {
-    delete this->CMake;
-    delete this->GlobalGenerator;
-    delete this->LocalGenerator;
-    }
-  this->CMake = new cmake;
-  this->CMake->AddCMakePaths(this->CTest->GetCTestExecutable());
-  this->GlobalGenerator = new cmGlobalGenerator;
-  this->GlobalGenerator->SetCMakeInstance(this->CMake);
-
-  this->LocalGenerator = this->GlobalGenerator->CreateLocalGenerator();
-  this->LocalGenerator->SetGlobalGenerator(this->GlobalGenerator);
-  this->Makefile = this->LocalGenerator->GetMakefile();
-
-  // set a variable with the path to the current script
-  this->Makefile->AddDefinition("CTEST_SCRIPT_DIRECTORY",
-                            cmSystemTools::GetFilenamePath(script).c_str());
-  this->Makefile->AddDefinition("CTEST_SCRIPT_NAME",
-                            cmSystemTools::GetFilenameName(script).c_str());
-  this->Makefile->AddDefinition("CTEST_EXECUTABLE_NAME",
-                            this->CTest->GetCTestExecutable());
-  this->Makefile->AddDefinition("CMAKE_EXECUTABLE_NAME",
-                            this->CTest->GetCMakeExecutable());
-  this->Makefile->AddDefinition("CTEST_RUN_CURRENT_SCRIPT", true);
-  this->UpdateElapsedTime();
-
-  // add any ctest specific commands, probably should have common superclass
-  // for ctest commands to clean this up. If a couple more commands are
-  // created with the same format lets do that - ken
-  this->AddCTestCommand(new cmCTestBuildCommand);
-  this->AddCTestCommand(new cmCTestConfigureCommand);
-  this->AddCTestCommand(new cmCTestCoverageCommand);
-  this->AddCTestCommand(new cmCTestEmptyBinaryDirectoryCommand);
-  this->AddCTestCommand(new cmCTestMemCheckCommand);
-  this->AddCTestCommand(new cmCTestRunScriptCommand);
-  this->AddCTestCommand(new cmCTestSleepCommand);
-  this->AddCTestCommand(new cmCTestStartCommand);
-  this->AddCTestCommand(new cmCTestSubmitCommand);
-  this->AddCTestCommand(new cmCTestTestCommand);
-  this->AddCTestCommand(new cmCTestUpdateCommand);
-
-  // add the script arg if defined
-  if (script_arg.size())
-    {
-    this->Makefile->AddDefinition("CTEST_SCRIPT_ARG", script_arg.c_str());
-    }
-
-  // always add a function blocker to update the elapsed time
-  cmCTestScriptFunctionBlocker *f = new cmCTestScriptFunctionBlocker();
-  f->CTestScriptHandler = this;
-  this->Makefile->AddFunctionBlocker(f);
-
-  // finally read in the script
-  if (!this->Makefile->ReadListFile(0, script.c_str()))
-    {
-    return 2;
-    }
-
-  return 0;
-}
-
-
-//----------------------------------------------------------------------
-// extract variabels from the script to set ivars
-int cmCTestScriptHandler::ExtractVariables()
-{
-  // Temporary variables
-  const char* minInterval;
-  const char* contDuration;
-
-  this->SourceDir
-    = this->Makefile->GetSafeDefinition("CTEST_SOURCE_DIRECTORY");
-  this->BinaryDir
-    = this->Makefile->GetSafeDefinition("CTEST_BINARY_DIRECTORY");
-  this->CTestCmd
-    = this->Makefile->GetSafeDefinition("CTEST_COMMAND");
-  this->CVSCheckOut
-    = this->Makefile->GetSafeDefinition("CTEST_CVS_CHECKOUT");
-  this->CTestRoot
-    = this->Makefile->GetSafeDefinition("CTEST_DASHBOARD_ROOT");
-  this->CVSCmd
-    = this->Makefile->GetSafeDefinition("CTEST_CVS_COMMAND");
-  this->CTestEnv
-    = this->Makefile->GetSafeDefinition("CTEST_ENVIRONMENT");
-  this->InitCache
-    = this->Makefile->GetSafeDefinition("CTEST_INITIAL_CACHE");
-  this->CMakeCmd
-    = this->Makefile->GetSafeDefinition("CTEST_CMAKE_COMMAND");
-  this->CMOutFile
-    = this->Makefile->GetSafeDefinition("CTEST_CMAKE_OUTPUT_FILE_NAME");
-
-  this->Backup
-    = this->Makefile->IsOn("CTEST_BACKUP_AND_RESTORE");
-  this->EmptyBinDir
-    = this->Makefile->IsOn("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY");
-  this->EmptyBinDirOnce
-    = this->Makefile->IsOn("CTEST_START_WITH_EMPTY_BINARY_DIRECTORY_ONCE");
-
-  minInterval
-    = this->Makefile->GetDefinition("CTEST_CONTINUOUS_MINIMUM_INTERVAL");
-  contDuration
-    = this->Makefile->GetDefinition("CTEST_CONTINUOUS_DURATION");
-
-  char updateVar[40];
+  unsigned int x = 0;
   int i;
-  for (i = 1; i < 10; ++i)
-    {
-    sprintf(updateVar,"CTEST_EXTRA_UPDATES_%i",i);
-    const char *updateVal = this->Makefile->GetDefinition(updateVar);
-    if ( updateVal )
-      {
-      if ( this->CVSCmd.empty() )
-        {
-        cmSystemTools::Error(updateVar,
-          " specified without specifying CTEST_CVS_COMMAND.");
-        return 12;
-        }
-      this->ExtraUpdates.push_back(updateVal);
-      }
-    }
+  char *found;
 
-  // in order to backup and restore we also must have the cvs root
-  if (this->Backup && this->CVSCheckOut.empty())
-    {
-    cmSystemTools::Error(
-      "Backup was requested without specifying CTEST_CVS_CHECKOUT.");
-    return 3;
-    }
+  for(i = 0; i < 4; i++) {
+    if((found = strchr(table64, src[i])))
+      x = (x << 6) + (unsigned int)(found - table64);
+    else if(src[i] == '=')
+      x = (x << 6);
+  }
 
-  // make sure the required info is here
-  if (this->SourceDir.empty() ||
-      this->BinaryDir.empty() ||
-      this->CTestCmd.empty())
-    {
-    std::string msg = "CTEST_SOURCE_DIRECTORY = ";
-    msg += (!this->SourceDir.empty()) ? this->SourceDir.c_str() : "(Null)";
-    msg += "\nCTEST_BINARY_DIRECTORY = ";
-    msg += (!this->BinaryDir.empty()) ? this->BinaryDir.c_str() : "(Null)";
-    msg += "\nCTEST_COMMAND = ";
-    msg += (!this->CTestCmd.empty()) ? this->CTestCmd.c_str() : "(Null)";
-    cmSystemTools::Error(
-      "Some required settings in the configuration file were missing:\n",
-      msg.c_str());
-    return 4;
-    }
-
-  // if the dashboard root isn't specified then we can compute it from the
-  // this->SourceDir
-  if (this->CTestRoot.empty() )
-    {
-    this->CTestRoot = cmSystemTools::GetFilenamePath(this->SourceDir).c_str();
-    }
-
-  // the script may override the minimum continuous interval
-  if (minInterval)
-    {
-    this->MinimumInterval = 60 * atof(minInterval);
-    }
-  if (contDuration)
-    {
-    this->ContinuousDuration = 60.0 * atof(contDuration);
-    }
-
-
-  this->UpdateElapsedTime();
-
-  return 0;
+  dest[2] = (unsigned char)(x & 255);
+  x >>= 8;
+  dest[1] = (unsigned char)(x & 255);
+  x >>= 8;
+  dest[0] = (unsigned char)(x & 255);
 }
 
-//----------------------------------------------------------------------
-void cmCTestScriptHandler::SleepInSeconds(unsigned int secondsToWait)
+/*
+ * Curl_base64_decode()
+ *
+ * Given a base64 string at src, decode it and return an allocated memory in
+ * the *outptr. Returns the length of the decoded data.
+ */
+size_t Curl_base64_decode(const char *src, unsigned char **outptr)
 {
-#if defined(_WIN32)
-        Sleep(1000*secondsToWait);
-#else
-        sleep(secondsToWait);
+  int length = 0;
+  int equalsTerm = 0;
+  int i;
+  int numQuantums;
+  unsigned char lastQuantum[3];
+  size_t rawlen=0;
+  unsigned char *newstr;
+
+  *outptr = NULL;
+
+  while((src[length] != '=') && src[length])
+    length++;
+  /* A maximum of two = padding characters is allowed */
+  if(src[length] == '=') {
+    equalsTerm++;
+    if(src[length+equalsTerm] == '=')
+      equalsTerm++;
+  }
+  numQuantums = (length + equalsTerm) / 4;
+
+  /* Don't allocate a buffer if the decoded length is 0 */
+  if (numQuantums <= 0)
+    return 0;
+
+  rawlen = (numQuantums * 3) - equalsTerm;
+
+  /* The buffer must be large enough to make room for the last quantum
+  (which may be partially thrown out) and the zero terminator. */
+  newstr = malloc(rawlen+4);
+  if(!newstr)
+    return 0;
+
+  *outptr = newstr;
+
+  /* Decode all but the last quantum (which may not decode to a
+  multiple of 3 bytes) */
+  for(i = 0; i < numQuantums - 1; i++) {
+    decodeQuantum((unsigned char *)newstr, src);
+    newstr += 3; src += 4;
+  }
+
+  /* This final decode may actually read slightly past the end of the buffer
+  if the input string is missing pad bytes.  This will almost always be
+  harmless. */
+  decodeQuantum(lastQuantum, src);
+  for(i = 0; i < 3 - equalsTerm; i++)
+    newstr[i] = lastQuantum[i];
+
+  newstr[i] = 0; /* zero terminate */
+  return rawlen;
+}
+
+/*
+ * Curl_base64_encode()
+ *
+ * Returns the length of the newly created base64 string. The third argument
+ * is a pointer to an allocated area holding the base64 data. If something
+ * went wrong, -1 is returned.
+ *
+ */
+size_t Curl_base64_encode(struct SessionHandle *data,
+                          const char *inp, size_t insize, char **outptr)
+{
+  unsigned char ibuf[3];
+  unsigned char obuf[4];
+  int i;
+  int inputparts;
+  char *output;
+  char *base64data;
+#ifdef CURL_DOES_CONVERSIONS
+  char *convbuf;
 #endif
-}
 
-//----------------------------------------------------------------------
-// run a specific script
-int cmCTestScriptHandler::RunConfigurationScript(
-  const std::string& total_script_arg)
-{
-  int result;
+  char *indata = (char *)inp;
 
-  this->ScriptStartTime =
-    cmSystemTools::GetTime();
+  *outptr = NULL; /* set to NULL in case of failure before we reach the end */
 
-  // read in the script
-  result = this->ReadInScript(total_script_arg);
-  if (result)
-    {
-    return result;
+  if(0 == insize)
+    insize = strlen(indata);
+
+  base64data = output = (char*)malloc(insize*4/3+4);
+  if(NULL == output)
+    return 0;
+
+#ifdef CURL_DOES_CONVERSIONS
+  /*
+   * The base64 data needs to be created using the network encoding
+   * not the host encoding.  And we can't change the actual input
+   * so we copy it to a buffer, translate it, and use that instead.
+   */
+  if(data) {
+    convbuf = (char*)malloc(insize);
+    if(!convbuf) {
+      return 0;
     }
-
-  // only run the curent script if we should
-  if (this->Makefile && this->Makefile->IsOn("CTEST_RUN_CURRENT_SCRIPT"))
-    {
-    return this->RunCurrentScript();
+    memcpy(convbuf, indata, insize);
+    if(CURLE_OK != Curl_convert_to_network(data, convbuf, insize)) {
+      free(convbuf);
+      return 0;
     }
-  return result;
-}
+    indata = convbuf; /* switch to the converted buffer */
+  }
+#else
+  (void)data;
+#endif
 
-//----------------------------------------------------------------------
-int cmCTestScriptHandler::RunCurrentScript()
-{
-  int result;
-
-  // do not run twice
-  this->Makefile->AddDefinition("CTEST_RUN_CURRENT_SCRIPT", false);
-
-  // no popup widows
-  cmSystemTools::SetRunCommandHideConsole(true);
-
-  // extract the vars from the cache and store in ivars
-  result = this->ExtractVariables();
-  if (result)
-    {
-    return result;
-    }
-
-  // set any environment variables
-  if (!this->CTestEnv.empty())
-    {
-    std::vector<std::string> envArgs;
-    cmSystemTools::ExpandListArgument(this->CTestEnv.c_str(),envArgs);
-    // for each variable/argument do a putenv
-    for (unsigned i = 0; i < envArgs.size(); ++i)
-      {
-      cmSystemTools::PutEnv(envArgs[i].c_str());
+  while(insize > 0) {
+    for (i = inputparts = 0; i < 3; i++) {
+      if(insize > 0) {
+        inputparts++;
+        ibuf[i] = *indata;
+        indata++;
+        insize--;
       }
-    }
-
-  // now that we have done most of the error checking finally run the
-  // dashboard, we may be asked to repeatedly run this dashboard, such as
-  // for a continuous, do we ned to run it more than once?
-  if ( this->ContinuousDuration >= 0 )
-    {
-    this->UpdateElapsedTime();
-    double ending_time  = cmSystemTools::GetTime() + this->ContinuousDuration;
-    if (this->EmptyBinDirOnce)
-      {
-      this->EmptyBinDir = true;
-      }
-    do
-      {
-      double interval = cmSystemTools::GetTime();
-      result = this->RunConfigurationDashboard();
-      interval = cmSystemTools::GetTime() - interval;
-      if (interval < this->MinimumInterval)
-        {
-        this->SleepInSeconds(
-          static_cast<unsigned int>(this->MinimumInterval - interval));
-        }
-      if (this->EmptyBinDirOnce)
-        {
-        this->EmptyBinDir = false;
-        }
-      }
-    while (cmSystemTools::GetTime() < ending_time);
-    }
-  // otherwise just run it once
-  else
-    {
-    result = this->RunConfigurationDashboard();
-    }
-
-  return result;
-}
-
-//----------------------------------------------------------------------
-int cmCTestScriptHandler::CheckOutSourceDir()
-{
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res;
-
-  if (!cmSystemTools::FileExists(this->SourceDir.c_str()) &&
-      !this->CVSCheckOut.empty())
-    {
-    // we must now checkout the src dir
-    output = "";
-    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-      "Run cvs: " << this->CVSCheckOut << std::endl);
-    res = cmSystemTools::RunSingleCommand(this->CVSCheckOut.c_str(), &output,
-      &retVal, this->CTestRoot.c_str(), this->HandlerVerbose,
-      0 /*this->TimeOut*/);
-    if (!res || retVal != 0)
-      {
-      cmSystemTools::Error("Unable to perform cvs checkout:\n",
-                           output.c_str());
-      return 6;
-      }
-    }
-  return 0;
-}
-
-//----------------------------------------------------------------------
-int cmCTestScriptHandler::BackupDirectories()
-{
-  int retVal;
-
-  // compute the backup names
-  this->BackupSourceDir = this->SourceDir;
-  this->BackupSourceDir += "_CMakeBackup";
-  this->BackupBinaryDir = this->BinaryDir;
-  this->BackupBinaryDir += "_CMakeBackup";
-
-  // backup the binary and src directories if requested
-  if (this->Backup)
-    {
-    // if for some reason those directories exist then first delete them
-    if (cmSystemTools::FileExists(this->BackupSourceDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(this->BackupSourceDir.c_str());
-      }
-    if (cmSystemTools::FileExists(this->BackupBinaryDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(this->BackupBinaryDir.c_str());
-      }
-
-    // first rename the src and binary directories
-    rename(this->SourceDir.c_str(), this->BackupSourceDir.c_str());
-    rename(this->BinaryDir.c_str(), this->BackupBinaryDir.c_str());
-
-    // we must now checkout the src dir
-    retVal = this->CheckOutSourceDir();
-    if (retVal)
-      {
-      this->RestoreBackupDirectories();
-      return retVal;
-      }
-    }
-
-  return 0;
-}
-
-
-//----------------------------------------------------------------------
-int cmCTestScriptHandler::PerformExtraUpdates()
-{
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res;
-
-  // do an initial cvs update as required
-  command = this->CVSCmd;
-  std::vector<cmStdString>::iterator it;
-  for (it = this->ExtraUpdates.begin();
-    it != this->ExtraUpdates.end();
-    ++ it )
-    {
-    std::vector<std::string> cvsArgs;
-    cmSystemTools::ExpandListArgument(it->c_str(),cvsArgs);
-    if (cvsArgs.size() == 2)
-      {
-      std::string fullCommand = command;
-      fullCommand += " update ";
-      fullCommand += cvsArgs[1];
-      output = "";
-      retVal = 0;
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Run CVS: "
-        << fullCommand.c_str() << std::endl);
-      res = cmSystemTools::RunSingleCommand(fullCommand.c_str(), &output,
-        &retVal, cvsArgs[0].c_str(),
-        this->HandlerVerbose, 0 /*this->TimeOut*/);
-      if (!res || retVal != 0)
-        {
-        cmSystemTools::Error("Unable to perform extra cvs updates:\n",
-          output.c_str());
-        return 0;
-        }
-      }
-    }
-  return 0;
-}
-
-
-//----------------------------------------------------------------------
-// run a single dashboard entry
-int cmCTestScriptHandler::RunConfigurationDashboard()
-{
-  // local variables
-  std::string command;
-  std::string output;
-  int retVal;
-  bool res;
-
-  // make sure the src directory is there, if it isn't then we might be able
-  // to check it out from cvs
-  retVal = this->CheckOutSourceDir();
-  if (retVal)
-    {
-    return retVal;
-    }
-
-  // backup the dirs if requested
-  retVal = this->BackupDirectories();
-  if (retVal)
-    {
-    return retVal;
-    }
-
-  // clear the binary directory?
-  if (this->EmptyBinDir)
-    {
-    if ( !cmCTestScriptHandler::EmptyBinaryDirectory(
-        this->BinaryDir.c_str()) )
-      {
-      cmCTestLog(this->CTest, ERROR_MESSAGE,
-        "Problem removing the binary directory" << std::endl);
-      }
-    }
-
-  // make sure the binary directory exists if it isn't the srcdir
-  if (!cmSystemTools::FileExists(this->BinaryDir.c_str()) &&
-      this->SourceDir != this->BinaryDir)
-    {
-    if (!cmSystemTools::MakeDirectory(this->BinaryDir.c_str()))
-      {
-      cmSystemTools::Error("Unable to create the binary directory:\n",
-                           this->BinaryDir.c_str());
-      this->RestoreBackupDirectories();
-      return 7;
-      }
-    }
-
-  // if the binary directory and the source directory are the same,
-  // and we are starting with an empty binary directory, then that means
-  // we must check out the source tree
-  if (this->EmptyBinDir && this->SourceDir == this->BinaryDir)
-    {
-    // make sure we have the required info
-    if (this->CVSCheckOut.empty())
-      {
-      cmSystemTools::Error("You have specified the source and binary "
-        "directories to be the same (an in source build). You have also "
-        "specified that the binary directory is to be erased. This means "
-        "that the source will have to be checked out from CVS. But you have "
-        "not specified CTEST_CVS_CHECKOUT");
-      return 8;
-      }
-
-    // we must now checkout the src dir
-    retVal = this->CheckOutSourceDir();
-    if (retVal)
-      {
-      this->RestoreBackupDirectories();
-      return retVal;
-      }
-    }
-
-  // backup the dirs if requested
-  retVal = this->PerformExtraUpdates();
-  if (retVal)
-    {
-    return retVal;
-    }
-
-  // put the initial cache into the bin dir
-  if (!this->InitCache.empty())
-    {
-    std::string cacheFile = this->BinaryDir;
-    cacheFile += "/CMakeCache.txt";
-    cmGeneratedFileStream fout(cacheFile.c_str());
-    if(!fout)
-      {
-      this->RestoreBackupDirectories();
-      return 9;
-      }
-
-    fout.write(this->InitCache.c_str(), this->InitCache.size());
-
-    // Make sure the operating system has finished writing the file
-    // before closing it.  This will ensure the file is finished before
-    // the check below.
-    fout.flush();
-    fout.close();
-    }
-
-  // do an initial cmake to setup the DartConfig file
-  int cmakeFailed = 0;
-  std::string cmakeFailedOuput;
-  if (!this->CMakeCmd.empty())
-    {
-    command = this->CMakeCmd;
-    command += " \"";
-    command += this->SourceDir;
-    output = "";
-    command += "\"";
-    retVal = 0;
-    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Run cmake command: "
-      << command.c_str() << std::endl);
-    res = cmSystemTools::RunSingleCommand(command.c_str(), &output,
-      &retVal, this->BinaryDir.c_str(),
-      this->HandlerVerbose, 0 /*this->TimeOut*/);
-
-    if ( !this->CMOutFile.empty() )
-      {
-      std::string cmakeOutputFile = this->CMOutFile;
-      if ( !cmSystemTools::FileIsFullPath(cmakeOutputFile.c_str()) )
-        {
-        cmakeOutputFile = this->BinaryDir + "/" + cmakeOutputFile;
-        }
-
-      cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
-        "Write CMake output to file: " << cmakeOutputFile.c_str()
-        << std::endl);
-      cmGeneratedFileStream fout(cmakeOutputFile.c_str());
-      if ( fout )
-        {
-        fout << output.c_str();
-        }
       else
-        {
-        cmCTestLog(this->CTest, ERROR_MESSAGE,
-          "Cannot open CMake output file: "
-          << cmakeOutputFile.c_str() << " for writing" << std::endl);
-        }
-      }
-    if (!res || retVal != 0)
-      {
-      // even if this fails continue to the next step
-      cmakeFailed = 1;
-      cmakeFailedOuput = output;
-      }
+        ibuf[i] = 0;
     }
 
-  // run ctest, it may be more than one command in here
-  std::vector<std::string> ctestCommands;
-  cmSystemTools::ExpandListArgument(this->CTestCmd,ctestCommands);
-  // for each variable/argument do a putenv
-  for (unsigned i = 0; i < ctestCommands.size(); ++i)
-    {
-    command = ctestCommands[i];
-    output = "";
-    retVal = 0;
-    cmCTestLog(this->CTest, HANDLER_VERBOSE_OUTPUT, "Run ctest command: "
-      << command.c_str() << std::endl);
-    res = cmSystemTools::RunSingleCommand(command.c_str(), &output,
-      &retVal, this->BinaryDir.c_str(), this->HandlerVerbose,
-      0 /*this->TimeOut*/);
+    obuf[0] = (unsigned char)  ((ibuf[0] & 0xFC) >> 2);
+    obuf[1] = (unsigned char) (((ibuf[0] & 0x03) << 4) | \
+                               ((ibuf[1] & 0xF0) >> 4));
+    obuf[2] = (unsigned char) (((ibuf[1] & 0x0F) << 2) | \
+                               ((ibuf[2] & 0xC0) >> 6));
+    obuf[3] = (unsigned char)   (ibuf[2] & 0x3F);
 
-    // did something critical fail in ctest
-    if (!res || cmakeFailed ||
-        retVal & cmCTest::BUILD_ERRORS)
-      {
-      this->RestoreBackupDirectories();
-      if (cmakeFailed)
-        {
-        cmCTestLog(this->CTest, ERROR_MESSAGE,
-          "Unable to run cmake:" << std::endl
-          << cmakeFailedOuput.c_str() << std::endl);
-        return 10;
-        }
-      cmCTestLog(this->CTest, ERROR_MESSAGE,
-        "Unable to run ctest:" << std::endl
-        << output.c_str() << std::endl);
-      if (!res)
-        {
-        return 11;
-        }
-      return retVal * 100;
-      }
+    switch(inputparts) {
+    case 1: /* only one byte read */
+      snprintf(output, 5, "%c%c==",
+               table64[obuf[0]],
+               table64[obuf[1]]);
+      break;
+    case 2: /* two bytes read */
+      snprintf(output, 5, "%c%c%c=",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]]);
+      break;
+    default:
+      snprintf(output, 5, "%c%c%c%c",
+               table64[obuf[0]],
+               table64[obuf[1]],
+               table64[obuf[2]],
+               table64[obuf[3]] );
+      break;
     }
+    output += 4;
+  }
+  *output=0;
+  *outptr = base64data; /* make it return the actual data memory */
 
-  // if all was succesful, delete the backup dirs to free up disk space
-  if (this->Backup)
-    {
-    cmSystemTools::RemoveADirectory(this->BackupSourceDir.c_str());
-    cmSystemTools::RemoveADirectory(this->BackupBinaryDir.c_str());
-    }
+#ifdef CURL_DOES_CONVERSIONS
+  if(data)
+    free(convbuf);
+#endif
+  return strlen(base64data); /* return the length of the new data */
+}
+/* ---- End of Base64 Encoding ---- */
 
+/************* TEST HARNESS STUFF ****************/
+
+
+#ifdef TEST_ENCODE
+/* encoding test harness. Read in standard input and write out the length
+ * returned by Curl_base64_encode, followed by the base64'd data itself
+ */
+#include <stdio.h>
+
+#define TEST_NEED_SUCK
+void *suck(int *);
+
+int main(int argc, char **argv, char **envp)
+{
+  char *base64;
+  size_t base64Len;
+  unsigned char *data;
+  int dataLen;
+  struct SessionHandle *handle = NULL;
+
+#ifdef CURL_DOES_CONVERSIONS
+  /* get a Curl handle so Curl_base64_encode can translate properly */
+  handle = curl_easy_init();
+  if(handle == NULL) {
+    fprintf(stderr, "Error: curl_easy_init failed\n");
+    return 0;
+  }
+#endif
+  data = (unsigned char *)suck(&dataLen);
+  base64Len = Curl_base64_encode(handle, data, dataLen, &base64);
+
+  fprintf(stderr, "%d\n", base64Len);
+  fprintf(stdout, "%s\n", base64);
+
+  free(base64); free(data);
+#ifdef CURL_DOES_CONVERSIONS
+  curl_easy_cleanup(handle);
+#endif
   return 0;
 }
+#endif
 
+#ifdef TEST_DECODE
+/* decoding test harness. Read in a base64 string from stdin and write out the
+ * length returned by Curl_base64_decode, followed by the decoded data itself
+ *
+ * gcc -DTEST_DECODE base64.c -o base64 mprintf.o memdebug.o
+ */
+#include <stdio.h>
 
-//-------------------------------------------------------------------------
-void cmCTestScriptHandler::RestoreBackupDirectories()
+#define TEST_NEED_SUCK
+void *suck(int *);
+
+int main(int argc, char **argv, char **envp)
 {
-  // if we backed up the dirs and the build failed, then restore
-  // the backed up dirs
-  if (this->Backup)
-    {
-    // if for some reason those directories exist then first delete them
-    if (cmSystemTools::FileExists(this->SourceDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(this->SourceDir.c_str());
-      }
-    if (cmSystemTools::FileExists(this->BinaryDir.c_str()))
-      {
-      cmSystemTools::RemoveADirectory(this->BinaryDir.c_str());
-      }
-    // rename the src and binary directories
-    rename(this->BackupSourceDir.c_str(), this->SourceDir.c_str());
-    rename(this->BackupBinaryDir.c_str(), this->BinaryDir.c_str());
-    }
-}
+  char *base64;
+  int base64Len;
+  unsigned char *data;
+  int dataLen;
+  int i, j;
+#ifdef CURL_DOES_CONVERSIONS
+  /* get a Curl handle so main can translate properly */
+  struct SessionHandle *handle = curl_easy_init();
+  if(handle == NULL) {
+    fprintf(stderr, "Error: curl_easy_init failed\n");
+    return 0;
+  }
+#endif
 
-bool cmCTestScriptHandler::RunScript(cmCTest* ctest, const char *sname)
+  base64 = (char *)suck(&base64Len);
+  dataLen = Curl_base64_decode(base64, &data);
+
+  fprintf(stderr, "%d\n", dataLen);
+
+  for(i=0; i < dataLen; i+=0x10) {
+    printf("0x%02x: ", i);
+    for(j=0; j < 0x10; j++)
+      if((j+i) < dataLen)
+        printf("%02x ", data[i+j]);
+      else
+        printf("   ");
+
+    printf(" | ");
+
+    for(j=0; j < 0x10; j++)
+      if((j+i) < dataLen) {
+#ifdef CURL_DOES_CONVERSIONS
+        if(CURLE_OK !=
+             Curl_convert_from_network(handle, &data[i+j], (size_t)1))
+          data[i+j] = '.';
+#endif /* CURL_DOES_CONVERSIONS */
+        printf("%c", ISGRAPH(data[i+j])?data[i+j]:'.');
+      } else
+        break;
+    puts("");
+  }
+
+#ifdef CURL_DOES_CONVERSIONS
+  curl_easy_cleanup(handle);
+#endif
+  free(base64); free(data);
+  return 0;
+}
+#endif
+
+#ifdef TEST_NEED_SUCK
+/* this function 'sucks' in as much as possible from stdin */
+void *suck(int *lenptr)
 {
-  cmCTestScriptHandler* sh = new cmCTestScriptHandler();
-  sh->SetCTestInstance(ctest);
-  sh->AddConfigurationScript(sname);
-  sh->ProcessHandler();
-  delete sh;
-  return true;
-}
+  int cursize = 8192;
+  unsigned char *buf = NULL;
+  int lastread;
+  int len = 0;
 
-bool cmCTestScriptHandler::EmptyBinaryDirectory(const char *sname)
-{
-  // try to avoid deleting root
-  if (!sname || strlen(sname) < 2)
-    {
-    return false;
-    }
+  do {
+    cursize *= 2;
+    buf = (unsigned char *)realloc(buf, cursize);
+    memset(buf + len, 0, cursize - len);
+    lastread = fread(buf + len, 1, cursize - len, stdin);
+    len += lastread;
+  } while(!feof(stdin));
 
-  // try to avoid deleting directories that we shouldn't
-  std::string check = sname;
-  check += "/CMakeCache.txt";
-  if(cmSystemTools::FileExists(check.c_str()) &&
-     !cmSystemTools::RemoveADirectory(sname))
-    {
-    return false;
-    }
-  return true;
+  lenptr[0] = len;
+  return (void *)buf;
 }
+#endif

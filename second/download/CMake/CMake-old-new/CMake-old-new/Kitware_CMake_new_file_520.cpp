@@ -1,384 +1,431 @@
+/*=========================================================================
+
+  Program:   CMake - Cross-Platform Makefile Generator
+  Module:    $RCSfile$
+  Language:  C++
+  Date:      $Date$
+  Version:   $Revision$
+
+  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
+  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+
+     This software is distributed WITHOUT ANY WARRANTY; without even
+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
+     PURPOSE.  See the above copyright notices for more information.
+
+=========================================================================*/
+#include "cmComputeTargetDepends.h"
+
+#include "cmComputeComponentGraph.h"
+#include "cmGlobalGenerator.h"
+#include "cmLocalGenerator.h"
+#include "cmMakefile.h"
+#include "cmSystemTools.h"
+#include "cmTarget.h"
+#include "cmake.h"
+
+#include <algorithm>
+
+#include <assert.h>
+
 /*
-**  Copyright 1998-2003 University of Illinois Board of Trustees
-**  Copyright 1998-2003 Mark D. Roth
-**  All rights reserved.
-**
-**  block.c - libtar code to handle tar archive header blocks
-**
-**  Mark D. Roth <roth@uiuc.edu>
-**  Campus Information Technologies and Educational Services
-**  University of Illinois at Urbana-Champaign
+
+This class is meant to analyze inter-target dependencies globally
+during the generation step.  The goal is to produce a set of direct
+dependencies for each target such that no cycles are left and the
+build order is safe.
+
+For most target types cyclic dependencies are not allowed.  However
+STATIC libraries may depend on each other in a cyclic fasion.  In
+general the directed dependency graph forms a directed-acyclic-graph
+of strongly connected components.  All strongly connected components
+should consist of only STATIC_LIBRARY targets.
+
+In order to safely break dependency cycles we must preserve all other
+dependencies passing through the corresponding strongly connected component.
+The approach taken by this class is as follows:
+
+  - Collect all targets and form the original dependency graph
+  - Run Tarjan's algorithm to extract the strongly connected components
+    (error if any member of a non-trivial component is not STATIC)
+  - The original dependencies imply a DAG on the components.
+    Use the implied DAG to construct a final safe set of dependencies.
+
+The final dependency set is constructed as follows:
+
+  - For each connected component targets are placed in an arbitrary
+    order.  Each target depends on the target following it in the order.
+    The first target is designated the head and the last target the tail.
+    (most components will be just 1 target anyway)
+
+  - Original dependencies between targets in different components are
+    converted to connect the depender's component tail to the
+    dependee's component head.
+
+In most cases this will reproduce the original dependencies.  However
+when there are cycles of static libraries they will be broken in a
+safe manner.
+
+For example, consider targets A0, A1, A2, B0, B1, B2, and C with these
+dependencies:
+
+  A0 -> A1 -> A2 -> A0  ,  B0 -> B1 -> B2 -> B0 -> A0  ,  C -> B0
+
+Components may be identified as
+
+  Component 0: A0, A1, A2
+  Component 1: B0, B1, B2
+  Component 2: C
+
+Intra-component dependencies are:
+
+  0: A0 -> A1 -> A2   , head=A0, tail=A2
+  1: B0 -> B1 -> B2   , head=B0, tail=B2
+  2: head=C, tail=C
+
+The inter-component dependencies are converted as:
+
+  B0 -> A0  is component 1->0 and becomes  B2 -> A0
+  C  -> B0  is component 2->1 and becomes  C  -> B0
+
+This leads to the final target dependencies:
+
+  C -> B0 -> B1 -> B2 -> A0 -> A1 -> A2
+
+These produce a safe build order since C depends directly or
+transitively on all the static libraries it links.
+
 */
 
-#include <libtarint/internal.h>
-
-#include <errno.h>
-
-#ifdef STDC_HEADERS
-# include <string.h>
-# include <stdlib.h>
-#endif
-
-
-#define BIT_ISSET(bitmask, bit) ((bitmask) & (bit))
-
-
-/* read a header block */
-int
-th_read_internal(TAR *t)
+//----------------------------------------------------------------------------
+cmComputeTargetDepends::cmComputeTargetDepends(cmGlobalGenerator* gg)
 {
-  ssize_t i;
-  int num_zero_blocks = 0;
-
-#ifdef DEBUG
-  printf("==> th_read_internal(TAR=\"%s\")\n", t->pathname);
-#endif
-
-  while ((i = tar_block_read(t, &(t->th_buf))) == T_BLOCKSIZE)
-  {
-    /* two all-zero blocks mark EOF */
-    if (t->th_buf.name[0] == '\0')
-    {
-      num_zero_blocks++;
-      if (!BIT_ISSET(t->options, TAR_IGNORE_EOT)
-          && num_zero_blocks >= 2)
-        return 0;  /* EOF */
-      else
-        continue;
-    }
-
-    /* verify magic and version */
-    if (BIT_ISSET(t->options, TAR_CHECK_MAGIC)
-        && strncmp(t->th_buf.magic, TMAGIC, TMAGLEN - 1) != 0)
-    {
-#ifdef DEBUG
-      puts("!!! unknown magic value in tar header");
-#endif
-      return -2;
-    }
-
-    if (BIT_ISSET(t->options, TAR_CHECK_VERSION)
-        && strncmp(t->th_buf.version, TVERSION, TVERSLEN) != 0)
-    {
-#ifdef DEBUG
-      puts("!!! unknown version value in tar header");
-#endif
-      return -2;
-    }
-
-    /* check chksum */
-    if (!BIT_ISSET(t->options, TAR_IGNORE_CRC)
-        && !th_crc_ok(t))
-    {
-#ifdef DEBUG
-      puts("!!! tar header checksum error");
-#endif
-      return -2;
-    }
-
-    break;
-  }
-
-#ifdef DEBUG
-  printf("<== th_read_internal(): returning %d\n", i);
-#endif
-  return (int)i;
+  this->GlobalGenerator = gg;
+  cmake* cm = this->GlobalGenerator->GetCMakeInstance();
+  this->DebugMode = cm->GetPropertyAsBool("GLOBAL_DEPENDS_DEBUG_MODE");
 }
 
-
-/* wrapper function for th_read_internal() to handle GNU extensions */
-int
-th_read(TAR *t)
+//----------------------------------------------------------------------------
+cmComputeTargetDepends::~cmComputeTargetDepends()
 {
-  ssize_t i, j;
-  size_t sz;
-  char *ptr;
-
-#ifdef DEBUG
-  printf("==> th_read(t=0x%lx)\n", t);
-#endif
-
-  if (t->th_buf.gnu_longname != NULL)
-    free(t->th_buf.gnu_longname);
-  if (t->th_buf.gnu_longlink != NULL)
-    free(t->th_buf.gnu_longlink);
-  memset(&(t->th_buf), 0, sizeof(struct tar_header));
-
-  i = th_read_internal(t);
-  if (i == 0)
-    return 1;
-  else if (i != T_BLOCKSIZE)
-  {
-    if (i != -1)
-      errno = EINVAL;
-    return -1;
-  }
-
-  /* check for GNU long link extention */
-  if (TH_ISLONGLINK(t))
-  {
-    sz = th_get_size(t);
-    j = (sz / T_BLOCKSIZE) + (sz % T_BLOCKSIZE ? 1 : 0);
-#ifdef DEBUG
-    printf("    th_read(): GNU long linkname detected "
-           "(%ld bytes, %d blocks)\n", sz, j);
-#endif
-    t->th_buf.gnu_longlink = (char *)malloc(j * T_BLOCKSIZE);
-    if (t->th_buf.gnu_longlink == NULL)
-      return -1;
-
-    for (ptr = t->th_buf.gnu_longlink; j > 0;
-         j--, ptr += T_BLOCKSIZE)
-    {
-#ifdef DEBUG
-      printf("    th_read(): reading long linkname "
-             "(%d blocks left, ptr == %ld)\n", j, ptr);
-#endif
-      i = tar_block_read(t, ptr);
-      if (i != T_BLOCKSIZE)
-      {
-        if (i != -1)
-          errno = EINVAL;
-        return -1;
-      }
-#ifdef DEBUG
-      printf("    th_read(): read block == \"%s\"\n", ptr);
-#endif
-    }
-#ifdef DEBUG
-    printf("    th_read(): t->th_buf.gnu_longlink == \"%s\"\n",
-           t->th_buf.gnu_longlink);
-#endif
-
-    i = th_read_internal(t);
-    if (i != T_BLOCKSIZE)
-    {
-      if (i != -1)
-        errno = EINVAL;
-      return -1;
-    }
-  }
-
-  /* check for GNU long name extention */
-  if (TH_ISLONGNAME(t))
-  {
-    sz = th_get_size(t);
-    j = (sz / T_BLOCKSIZE) + (sz % T_BLOCKSIZE ? 1 : 0);
-#ifdef DEBUG
-    printf("    th_read(): GNU long filename detected "
-           "(%ld bytes, %d blocks)\n", sz, j);
-#endif
-    t->th_buf.gnu_longname = (char *)malloc(j * T_BLOCKSIZE);
-    if (t->th_buf.gnu_longname == NULL)
-      return -1;
-
-    for (ptr = t->th_buf.gnu_longname; j > 0;
-         j--, ptr += T_BLOCKSIZE)
-    {
-#ifdef DEBUG
-      printf("    th_read(): reading long filename "
-             "(%d blocks left, ptr == %ld)\n", j, ptr);
-#endif
-      i = tar_block_read(t, ptr);
-      if (i != T_BLOCKSIZE)
-      {
-        if (i != -1)
-          errno = EINVAL;
-        return -1;
-      }
-#ifdef DEBUG
-      printf("    th_read(): read block == \"%s\"\n", ptr);
-#endif
-    }
-#ifdef DEBUG
-    printf("    th_read(): t->th_buf.gnu_longname == \"%s\"\n",
-           t->th_buf.gnu_longname);
-#endif
-
-    i = th_read_internal(t);
-    if (i != T_BLOCKSIZE)
-    {
-      if (i != -1)
-        errno = EINVAL;
-      return -1;
-    }
-  }
-
-#if 0
-  /*
-  ** work-around for old archive files with broken typeflag fields
-  ** NOTE: I fixed this in the TH_IS*() macros instead
-  */
-
-  /*
-  ** (directories are signified with a trailing '/')
-  */
-  if (t->th_buf.typeflag == AREGTYPE
-      && t->th_buf.name[strlen(t->th_buf.name) - 1] == '/')
-    t->th_buf.typeflag = DIRTYPE;
-
-  /*
-  ** fallback to using mode bits
-  */
-  if (t->th_buf.typeflag == AREGTYPE)
-  {
-    mode = (mode_t)oct_to_int(t->th_buf.mode);
-
-    if (S_ISREG(mode))
-      t->th_buf.typeflag = REGTYPE;
-    else if (S_ISDIR(mode))
-      t->th_buf.typeflag = DIRTYPE;
-    else if (S_ISFIFO(mode))
-      t->th_buf.typeflag = FIFOTYPE;
-    else if (S_ISCHR(mode))
-      t->th_buf.typeflag = CHRTYPE;
-    else if (S_ISBLK(mode))
-      t->th_buf.typeflag = BLKTYPE;
-    else if (S_ISLNK(mode))
-      t->th_buf.typeflag = SYMTYPE;
-  }
-#endif
-
-  return 0;
 }
 
-
-/* write a header block */
-int
-th_write(TAR *t)
+//----------------------------------------------------------------------------
+bool cmComputeTargetDepends::Compute()
 {
-  ssize_t i, j;
-  char type2;
-  size_t sz, sz2;
-  char *ptr;
-  char buf[T_BLOCKSIZE];
-
-#ifdef DEBUG
-  printf("==> th_write(TAR=\"%s\")\n", t->pathname);
-  th_print(t);
-#endif
-
-  if ((t->options & TAR_GNU) && t->th_buf.gnu_longlink != NULL)
-  {
-#ifdef DEBUG
-    printf("th_write(): using gnu_longlink (\"%s\")\n",
-           t->th_buf.gnu_longlink);
-#endif
-    /* save old size and type */
-    type2 = t->th_buf.typeflag;
-    sz2 = th_get_size(t);
-
-    /* write out initial header block with fake size and type */
-    t->th_buf.typeflag = GNU_LONGLINK_TYPE;
-    sz = strlen(t->th_buf.gnu_longlink);
-    th_set_size(t, sz);
-    th_finish(t);
-    i = tar_block_write(t, &(t->th_buf));
-    if (i != T_BLOCKSIZE)
+  // Build the original graph.
+  this->CollectTargets();
+  this->CollectDepends();
+  if(this->DebugMode)
     {
-      if (i != -1)
-        errno = EINVAL;
-      return -1;
+    this->DisplayGraph(this->InitialGraph, "initial");
     }
 
-    /* write out extra blocks containing long name */
-    for (j = (sz / T_BLOCKSIZE) + (sz % T_BLOCKSIZE ? 1 : 0),
-         ptr = t->th_buf.gnu_longlink; j > 1;
-         j--, ptr += T_BLOCKSIZE)
+  // Identify components.
+  cmComputeComponentGraph ccg(this->InitialGraph);
+  if(this->DebugMode)
     {
-      i = tar_block_write(t, ptr);
-      if (i != T_BLOCKSIZE)
-      {
-        if (i != -1)
-          errno = EINVAL;
-        return -1;
-      }
+    this->DisplayComponents(ccg);
     }
-    memset(buf, 0, T_BLOCKSIZE);
-    strncpy(buf, ptr, T_BLOCKSIZE);
-    i = tar_block_write(t, &buf);
-    if (i != T_BLOCKSIZE)
+  if(!this->CheckComponents(ccg))
     {
-      if (i != -1)
-        errno = EINVAL;
-      return -1;
+    return false;
     }
 
-    /* reset type and size to original values */
-    t->th_buf.typeflag = type2;
-    th_set_size(t, sz2);
-  }
-
-  if ((t->options & TAR_GNU) && t->th_buf.gnu_longname != NULL)
-  {
-#ifdef DEBUG
-    printf("th_write(): using gnu_longname (\"%s\")\n",
-           t->th_buf.gnu_longname);
-#endif
-    /* save old size and type */
-    type2 = t->th_buf.typeflag;
-    sz2 = th_get_size(t);
-
-    /* write out initial header block with fake size and type */
-    t->th_buf.typeflag = GNU_LONGNAME_TYPE;
-    sz = strlen(t->th_buf.gnu_longname);
-    th_set_size(t, sz);
-    th_finish(t);
-    i = tar_block_write(t, &(t->th_buf));
-    if (i != T_BLOCKSIZE)
+  // Compute the final dependency graph.
+  this->ComputeFinalDepends(ccg);
+  if(this->DebugMode)
     {
-      if (i != -1)
-        errno = EINVAL;
-      return -1;
+    this->DisplayGraph(this->FinalGraph, "final");
     }
 
-    /* write out extra blocks containing long name */
-    for (j = (sz / T_BLOCKSIZE) + (sz % T_BLOCKSIZE ? 1 : 0),
-         ptr = t->th_buf.gnu_longname; j > 1;
-         j--, ptr += T_BLOCKSIZE)
-    {
-      i = tar_block_write(t, ptr);
-      if (i != T_BLOCKSIZE)
-      {
-        if (i != -1)
-          errno = EINVAL;
-        return -1;
-      }
-    }
-    memset(buf, 0, T_BLOCKSIZE);
-    strncpy(buf, ptr, T_BLOCKSIZE);
-    i = tar_block_write(t, &buf);
-    if (i != T_BLOCKSIZE)
-    {
-      if (i != -1)
-        errno = EINVAL;
-      return -1;
-    }
-
-    /* reset type and size to original values */
-    t->th_buf.typeflag = type2;
-    th_set_size(t, sz2);
-  }
-
-  th_finish(t);
-
-#ifdef DEBUG
-  /* print tar header */
-  th_print(t);
-#endif
-
-  i = tar_block_write(t, &(t->th_buf));
-  if (i != T_BLOCKSIZE)
-  {
-    if (i != -1)
-      errno = EINVAL;
-    return -1;
-  }
-
-#ifdef DEBUG
-  puts("th_write(): returning 0");
-#endif
-  return 0;
+  return true;
 }
 
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends::GetTargetDirectDepends(cmTarget* t,
+                                               std::set<cmTarget*>& deps)
+{
+  // Lookup the index for this target.  All targets should be known by
+  // this point.
+  std::map<cmTarget*, int>::const_iterator tii = this->TargetIndex.find(t);
+  assert(tii != this->TargetIndex.end());
+  int i = tii->second;
 
+  // Get its final dependencies.
+  NodeList const& nl = this->FinalGraph[i];
+  for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+    {
+    deps.insert(this->Targets[*ni]);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectTargets()
+{
+  // Collect all targets from all generators.
+  std::vector<cmLocalGenerator*> const& lgens =
+    this->GlobalGenerator->GetLocalGenerators();
+  for(unsigned int i = 0; i < lgens.size(); ++i)
+    {
+    cmTargets& targets = lgens[i]->GetMakefile()->GetTargets();
+    for(cmTargets::iterator ti = targets.begin(); ti != targets.end(); ++ti)
+      {
+      cmTarget* target = &ti->second;
+      int index = static_cast<int>(this->Targets.size());
+      this->TargetIndex[target] = index;
+      this->Targets.push_back(target);
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectDepends()
+{
+  // Allocate the dependency graph adjacency lists.
+  this->InitialGraph.resize(this->Targets.size());
+
+  // Compute each dependency list.
+  for(unsigned int i=0; i < this->Targets.size(); ++i)
+    {
+    this->CollectTargetDepends(i);
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::CollectTargetDepends(int depender_index)
+{
+  // Get the depender.
+  cmTarget* depender = this->Targets[depender_index];
+
+  // Keep track of dependencies already listed.
+  std::set<cmStdString> emitted;
+
+  // A target should not depend on itself.
+  emitted.insert(depender->GetName());
+
+  // Loop over all targets linked directly.
+  cmTarget::LinkLibraryVectorType const& tlibs =
+    depender->GetOriginalLinkLibraries();
+  for(cmTarget::LinkLibraryVectorType::const_iterator lib = tlibs.begin();
+      lib != tlibs.end(); ++lib)
+    {
+    // Don't emit the same library twice for this target.
+    if(emitted.insert(lib->first).second)
+      {
+      this->AddTargetDepend(depender_index, lib->first.c_str());
+      }
+    }
+
+  // Loop over all utility dependencies.
+  std::set<cmStdString> const& tutils = depender->GetUtilities();
+  for(std::set<cmStdString>::const_iterator util = tutils.begin();
+      util != tutils.end(); ++util)
+    {
+    // Don't emit the same utility twice for this target.
+    if(emitted.insert(*util).second)
+      {
+      this->AddTargetDepend(depender_index, util->c_str());
+      }
+    }
+}
+
+//----------------------------------------------------------------------------
+void cmComputeTargetDepends::AddTargetDepend(int depender_index,
+                                             const char* dependee_name)
+{
+  // Get the depender.
+  cmTarget* depender = this->Targets[depender_index];
+
+  // Check the target's makefile first.
+  cmTarget* dependee =
+    depender->GetMakefile()->FindTarget(dependee_name);
+
+  // Then search globally.
+  if(!dependee)
+    {
+    dependee = this->GlobalGenerator->FindTarget(0, dependee_name);
+    }
+
+  // If not found then skip then the dependee.
+  if(!dependee)
+    {
+    return;
+    }
+
+  // No imported targets should have been found.
+  assert(!dependee->IsImported());
+
+  // Lookup the index for this target.  All targets should be known by
+  // this point.
+  std::map<cmTarget*, int>::const_iterator tii =
+    this->TargetIndex.find(dependee);
+  assert(tii != this->TargetIndex.end());
+  int dependee_index = tii->second;
+
+  // Add this entry to the dependency graph.
+  this->InitialGraph[depender_index].push_back(dependee_index);
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends::DisplayGraph(Graph const& graph, const char* name)
+{
+  fprintf(stderr, "The %s target dependency graph is:\n", name);
+  int n = static_cast<int>(graph.size());
+  for(int depender_index = 0; depender_index < n; ++depender_index)
+    {
+    NodeList const& nl = graph[depender_index];
+    cmTarget* depender = this->Targets[depender_index];
+    fprintf(stderr, "target %d is [%s]\n",
+            depender_index, depender->GetName());
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_index = *ni;
+      cmTarget* dependee = this->Targets[dependee_index];
+      fprintf(stderr, "  depends on target %d [%s]\n", dependee_index,
+              dependee->GetName());
+      }
+    }
+  fprintf(stderr, "\n");
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends
+::DisplayComponents(cmComputeComponentGraph const& ccg)
+{
+  fprintf(stderr, "The strongly connected components are:\n");
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  int n = static_cast<int>(components.size());
+  for(int c = 0; c < n; ++c)
+    {
+    NodeList const& nl = components[c];
+    fprintf(stderr, "Component (%d):\n", c);
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int i = *ni;
+      fprintf(stderr, "  contains target %d [%s]\n",
+              i, this->Targets[i]->GetName());
+      }
+    }
+  fprintf(stderr, "\n");
+}
+
+//----------------------------------------------------------------------------
+bool
+cmComputeTargetDepends
+::CheckComponents(cmComputeComponentGraph const& ccg)
+{
+  // All non-trivial components should consist only of static
+  // libraries.
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  int nc = static_cast<int>(components.size());
+  for(int c=0; c < nc; ++c)
+    {
+    // Get the current component.
+    NodeList const& nl = components[c];
+
+    // Skip trivial components.
+    if(nl.size() < 2)
+      {
+      continue;
+      }
+
+    // Make sure the component is all STATIC_LIBRARY targets.
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      if(this->Targets[*ni]->GetType() != cmTarget::STATIC_LIBRARY)
+        {
+        this->ComplainAboutBadComponent(ccg, c);
+        return false;
+        }
+      }
+    }
+  return true;
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends
+::ComplainAboutBadComponent(cmComputeComponentGraph const& ccg, int c)
+{
+  // Construct the error message.
+  cmOStringStream e;
+  e << "The inter-target dependency graph contains the following "
+    << "strongly connected component (cycle):\n";
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  std::vector<int> const& cmap = ccg.GetComponentMap();
+  NodeList const& cl = components[c];
+  for(NodeList::const_iterator ci = cl.begin(); ci != cl.end(); ++ci)
+    {
+    // Get the depender.
+    int i = *ci;
+    cmTarget* depender = this->Targets[i];
+
+    // Describe the depender.
+    e << "  " << depender->GetName() << " of type "
+      << cmTarget::TargetTypeNames[depender->GetType()] << "\n";
+
+    // List its dependencies that are inside the component.
+    NodeList const& nl = this->InitialGraph[i];
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int j = *ni;
+      if(cmap[j] == c)
+        {
+        cmTarget* dependee = this->Targets[j];
+        e << "    depends on " << dependee->GetName() << "\n";
+        }
+      }
+    }
+  e << "At least one of these targets is not a STATIC_LIBRARY.  "
+    << "Cyclic dependencies are allowed only among static libraries.";
+  cmSystemTools::Error(e.str().c_str());
+}
+
+//----------------------------------------------------------------------------
+void
+cmComputeTargetDepends
+::ComputeFinalDepends(cmComputeComponentGraph const& ccg)
+{
+  // Get the component graph information.
+  std::vector<NodeList> const& components = ccg.GetComponents();
+  Graph const& cgraph = ccg.GetComponentGraph();
+
+  // Allocate the final graph.
+  this->FinalGraph.resize(0);
+  this->FinalGraph.resize(this->InitialGraph.size());
+
+  // Convert inter-component edges to connect component tails to heads.
+  int n = static_cast<int>(cgraph.size());
+  for(int depender_component=0; depender_component < n; ++depender_component)
+    {
+    int depender_component_tail = components[depender_component].back();
+    NodeList const& nl = cgraph[depender_component];
+    for(NodeList::const_iterator ni = nl.begin(); ni != nl.end(); ++ni)
+      {
+      int dependee_component = *ni;
+      int dependee_component_head = components[dependee_component].front();
+      this->FinalGraph[depender_component_tail]
+        .push_back(dependee_component_head);
+      }
+    }
+
+  // Compute intra-component edges.
+  int nc = static_cast<int>(components.size());
+  for(int c=0; c < nc; ++c)
+    {
+    // Within the component each target depends on that following it.
+    NodeList const& nl = components[c];
+    NodeList::const_iterator ni = nl.begin();
+    int last_i = *ni;
+    for(++ni; ni != nl.end(); ++ni)
+      {
+      int i = *ni;
+      this->FinalGraph[last_i].push_back(i);
+      last_i = i;
+      }
+    }
+}

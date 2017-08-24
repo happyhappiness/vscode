@@ -1,27 +1,10 @@
-#  define YYFPRINTF fprintf
-# endif
+  if(d->algo == CURLDIGESTALGO_MD5SESS) {
+    /* nonce and cnonce are OUTSIDE the hash */
+    tmp = aprintf("%s:%s:%s", ha1, d->nonce, d->cnonce);
+    free(ha1);
+    if(!tmp)
+      return CURLE_OUT_OF_MEMORY;
+    ha1 = (unsigned char *)tmp;
+  }
 
-# define YYDPRINTF(Args)      \
-do {            \
-  if (yydebug)          \
-    YYFPRINTF Args;        \
-} while (0)
-
-# define YYDSYMPRINT(Args)      \
-do {            \
-  if (yydebug)          \
-    yysymprint Args;        \
-} while (0)
-
-# define YYDSYMPRINTF(Title, Token, Value, Location)    \
-do {                \
-  if (yydebug)              \
-    {                \
-      YYFPRINTF (stderr, "%s ", Title);        \
-      yysymprint (stderr,           \
-                  Token, Value);  \
-      YYFPRINTF (stderr, "\n");          \
-    }                \
-} while (0)
-
-/*------------------------------------------------------------------.
+  /*

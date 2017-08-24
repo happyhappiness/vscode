@@ -1,180 +1,260 @@
-@@ -43,7 +43,7 @@ typedef uint32_t flex_uint32_t;
- typedef signed char flex_int8_t;
- typedef short int flex_int16_t;
- typedef int flex_int32_t;
--typedef unsigned char flex_uint8_t; 
-+typedef unsigned char flex_uint8_t;
- typedef unsigned short int flex_uint16_t;
- typedef unsigned int flex_uint32_t;
- #endif /* ! C99 */
-@@ -164,8 +164,9 @@ typedef struct yy_buffer_state *YY_BUFFER_STATE;
- #define EOB_ACT_LAST_MATCH 2
+@@ -1,16 +1,16 @@
+ /***************************************************************************
+- *                                  _   _ ____  _     
+- *  Project                     ___| | | |  _ \| |    
+- *                             / __| | | | |_) | |    
+- *                            | (__| |_| |  _ <| |___ 
++ *                                  _   _ ____  _
++ *  Project                     ___| | | |  _ \| |
++ *                             / __| | | | |_) | |
++ *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2006, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+  * are also available at http://curl.haxx.se/docs/copyright.html.
+- * 
++ *
+  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+  * copies of the Software, and permit persons to whom the Software is
+  * furnished to do so, under the terms of the COPYING file.
+@@ -24,13 +24,10 @@
+ #include "setup.h"
  
-     #define YY_LESS_LINENO(n)
--    
--/* Return all but the first "n" matched characters back to the input stream. */
-+
-+/* Return all but the first "n" matched characters back to the input stream.
+ #include <string.h>
+-#include <errno.h>
+-
+-#define _REENTRANT
+ 
+-#if defined(WIN32) && !defined(__GNUC__) || defined(__MINGW32__)
++#ifdef NEED_MALLOC_H
+ #include <malloc.h>
+-#else
++#endif
+ #ifdef HAVE_SYS_TYPES_H
+ #include <sys/types.h>
+ #endif
+@@ -57,28 +54,24 @@
+ #include <inet.h>
+ #include <stdlib.h>
+ #endif
+-#endif
+ 
+ #ifdef HAVE_SETJMP_H
+ #include <setjmp.h>
+ #endif
+ 
+-#ifdef WIN32
++#ifdef HAVE_PROCESS_H
+ #include <process.h>
+ #endif
+ 
+-#if (defined(NETWARE) && defined(__NOVELL_LIBC__))
+-#undef in_addr_t
+-#define in_addr_t unsigned long
+-#endif
+-
+ #include "urldata.h"
+ #include "sendf.h"
+ #include "hostip.h"
+ #include "hash.h"
+ #include "share.h"
+ #include "strerror.h"
+ #include "url.h"
++#include "inet_pton.h"
++#include "connect.h"
+ 
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
+@@ -87,14 +80,15 @@
+ #include "inet_ntoa_r.h"
+ #endif
+ 
+-#include "curl_memory.h"
++#include "memory.h"
+ /* The last #include file should be: */
+ #include "memdebug.h"
+ 
+ /***********************************************************************
+  * Only for ipv6-enabled builds
+  **********************************************************************/
+ #ifdef CURLRES_IPV6
++#ifndef CURLRES_ARES
+ /*
+  * This is a wrapper function for freeing name information in a protocol
+  * independent way. This takes care of using the appropriate underlaying
+@@ -111,19 +105,20 @@ void Curl_freeaddrinfo(Curl_addrinfo *p)
+  * address. But this is an ipv6 build and then we don't copy the address, we
+  * just return the same pointer!
+  */
+-Curl_addrinfo *Curl_addrinfo_copy(void *source, int port)
++Curl_addrinfo *Curl_addrinfo_copy(const void *orig, int port)
+ {
+   (void) port;
+-  return source;
++  return (Curl_addrinfo*)orig;
+ }
+-#endif
++#endif  /* CURLRES_ASYNCH */
++#endif  /* CURLRES_ARES */
+ 
+ #ifdef CURLDEBUG
+ /* These are strictly for memory tracing and are using the same style as the
+  * family otherwise present in memdebug.c. I put these ones here since they
+  * require a bunch of structs I didn't wanna include in memdebug.c
+  */
+-int curl_dogetaddrinfo(char *hostname, char *service,
++int curl_dogetaddrinfo(const char *hostname, const char *service,
+                        struct addrinfo *hints,
+                        struct addrinfo **result,
+                        int line, const char *source)
+@@ -143,12 +138,22 @@ int curl_dogetaddrinfo(char *hostname, char *service,
+   return res;
+ }
+ 
+-int curl_dogetnameinfo(const struct sockaddr *sa, socklen_t salen,
+-                       char *host, size_t hostlen,
+-                       char *serv, size_t servlen, int flags,
++/*
++ * For CURLRES_ARS, this should be written using ares_gethostbyaddr()
++ * (ignoring the fact c-ares doesn't return 'serv').
 + */
- #define yyless(n) \
-         do \
-                 { \
-@@ -174,7 +175,8 @@ typedef struct yy_buffer_state *YY_BUFFER_STATE;
-         YY_LESS_LINENO(yyless_macro_arg);\
-                 *yy_cp = yyg->yy_hold_char; \
-                 YY_RESTORE_YY_MORE_OFFSET \
--                yyg->yy_c_buf_p = yy_cp = yy_bp + yyless_macro_arg - YY_MORE_ADJ; \
-+                yyg->yy_c_buf_p \
-+                  = yy_cp = yy_bp + yyless_macro_arg - YY_MORE_ADJ; \
-                 YY_DO_BEFORE_ACTION; /* set up yytext again */ \
-                 } \
-         while ( 0 )
-@@ -231,7 +233,7 @@ struct yy_buffer_state
- 
-     int yy_bs_lineno; /**< The line count. */
-     int yy_bs_column; /**< The column count. */
--    
-+
-         /* Whether to try to fill the input buffer when we reach the
-          * end of it.
-          */
-@@ -248,8 +250,8 @@ struct yy_buffer_state
-          * possible backing-up.
-          *
-          * When we actually see the EOF, we change the status to "new"
--         * (via cmDependsFortran_yyrestart()), so that the user can continue scanning by
--         * just pointing yyin at a new input file.
-+         * (via cmDependsFortran_yyrestart()), so that the user can continue
-+         * scanning by just pointing yyin at a new input file.
-          */
- #define YY_BUFFER_EOF_PENDING 2
- 
-@@ -774,7 +776,7 @@ extern int cmDependsFortran_yywrap (yyscan_t yyscanner );
- #endif
- 
-     static void yyunput (int c,char *buf_ptr  ,yyscan_t yyscanner);
--    
-+
- #ifndef yytext_ptr
- static void yy_flex_strncpy (char *,yyconst char *,int ,yyscan_t yyscanner);
- #endif
-@@ -1722,7 +1724,7 @@ static void cmDependsFortran_yy_load_buffer_state  (yyscan_t yyscanner)
-     YY_BUFFER_STATE cmDependsFortran_yy_create_buffer  (FILE * file, int  size , yyscan_t yyscanner)
++#ifdef HAVE_GETNAMEINFO
++int curl_dogetnameinfo(GETNAMEINFO_QUAL_ARG1 GETNAMEINFO_TYPE_ARG1 sa,
++                       GETNAMEINFO_TYPE_ARG2 salen,
++                       char *host, GETNAMEINFO_TYPE_ARG46 hostlen,
++                       char *serv, GETNAMEINFO_TYPE_ARG46 servlen,
++                       GETNAMEINFO_TYPE_ARG7 flags,
+                        int line, const char *source)
  {
-         YY_BUFFER_STATE b;
--    
+-  int res=(getnameinfo)(sa, salen, host, hostlen, serv, servlen, flags);
++  int res = (getnameinfo)(sa, salen,
++                          host, hostlen,
++                          serv, servlen,
++                          flags);
+   if(0 == res) {
+     /* success */
+     if(logfile)
+@@ -162,6 +167,7 @@ int curl_dogetnameinfo(const struct sockaddr *sa, socklen_t salen,
+   }
+   return res;
+ }
++#endif
+ 
+ void curl_dofreeaddrinfo(struct addrinfo *freethis,
+                          int line, const char *source)
+@@ -171,8 +177,7 @@ void curl_dofreeaddrinfo(struct addrinfo *freethis,
+     fprintf(logfile, "ADDR %s:%d freeaddrinfo(%p)\n",
+             source, line, (void *)freethis);
+ }
+-
+-#endif
++#endif  /* CURLDEBUG */
+ 
+ /*
+  * Curl_ipvalid() checks what CURL_IPRESOLVE_* requirements that might've
+@@ -191,23 +196,46 @@ bool Curl_ipvalid(struct SessionHandle *data)
+   return TRUE;
+ }
+ 
+-#ifndef USE_THREADING_GETADDRINFO
++#if !defined(USE_THREADING_GETADDRINFO) && !defined(CURLRES_ARES)
 +
-         b = (YY_BUFFER_STATE) cmDependsFortran_yyalloc(sizeof( struct yy_buffer_state ) ,yyscanner );
-         if ( ! b )
-                 YY_FATAL_ERROR( "out of dynamic memory in cmDependsFortran_yy_create_buffer()" );
-@@ -1766,7 +1768,7 @@ static void cmDependsFortran_yy_load_buffer_state  (yyscan_t yyscanner)
- #ifndef __cplusplus
- extern int isatty (int );
- #endif /* __cplusplus */
--    
++#ifdef DEBUG_ADDRINFO
++static void dump_addrinfo(struct connectdata *conn, const struct addrinfo *ai)
++{
++  printf("dump_addrinfo:\n");
++  for ( ; ai; ai = ai->ai_next) {
++    char  buf[INET6_ADDRSTRLEN];
 +
- /* Initializes or reinitializes a buffer.
-  * This function is sometimes called more than once on the same buffer,
-  * such as during a cmDependsFortran_yyrestart() or at EOF.
-@@ -1792,7 +1794,7 @@ extern int isatty (int );
++    printf("    fam %2d, CNAME %s, ",
++           ai->ai_family, ai->ai_canonname ? ai->ai_canonname : "<none>");
++    if (Curl_printable_address(ai, buf, sizeof(buf)))
++      printf("%s\n", buf);
++    else
++      printf("failed; %s\n", Curl_strerror(conn, Curl_sockerrno()));
++  }
++}
++#else
++#define dump_addrinfo(x,y)
++#endif
++
+ /*
+- * Curl_getaddrinfo() when built ipv6-enabled (non-threading version).
++ * Curl_getaddrinfo() when built ipv6-enabled (non-threading and
++ * non-ares version).
+  *
+  * Returns name information about the given hostname and port number. If
+  * successful, the 'addrinfo' is returned and the forth argument will point to
+  * memory we need to free after use. That memory *MUST* be freed with
+  * Curl_freeaddrinfo(), nothing else.
+  */
+ Curl_addrinfo *Curl_getaddrinfo(struct connectdata *conn,
+-                                char *hostname,
++                                const char *hostname,
+                                 int port,
+                                 int *waitp)
+ {
+   struct addrinfo hints, *res;
+   int error;
+   char sbuf[NI_MAXSERV];
++  char *sbufptr = NULL;
++  char addrbuf[128];
+   curl_socket_t s;
+   int pf;
+   struct SessionHandle *data = conn->data;
+@@ -216,7 +244,7 @@ Curl_addrinfo *Curl_getaddrinfo(struct connectdata *conn,
+ 
+   /* see if we have an IPv6 stack */
+   s = socket(PF_INET6, SOCK_DGRAM, 0);
+-  if (s < 0) {
++  if (s == CURL_SOCKET_BAD) {
+     /* Some non-IPv6 stacks have been found to make very slow name resolves
+      * when PF_UNSPEC is used, so thus we switch to a mere PF_INET lookup if
+      * the stack seems to be a non-ipv6 one. */
+@@ -244,20 +272,35 @@ Curl_addrinfo *Curl_getaddrinfo(struct connectdata *conn,
+       break;
      }
- 
-         b->yy_is_interactive = file ? (isatty( fileno(file) ) > 0) : 0;
--    
+   }
+- 
 +
-         errno = oerrno;
+   memset(&hints, 0, sizeof(hints));
+   hints.ai_family = pf;
+-  hints.ai_socktype = SOCK_STREAM;
+-  hints.ai_flags = AI_CANONNAME;
+-  snprintf(sbuf, sizeof(sbuf), "%d", port);
+-  error = getaddrinfo(hostname, sbuf, &hints, &res);
++  hints.ai_socktype = conn->socktype;
++
++  if((1 == Curl_inet_pton(AF_INET, hostname, addrbuf)) ||
++     (1 == Curl_inet_pton(AF_INET6, hostname, addrbuf))) {
++    /* the given address is numerical only, prevent a reverse lookup */
++    hints.ai_flags = AI_NUMERICHOST;
++  }
++#if 0 /* removed nov 8 2005 before 7.15.1 */
++  else
++    hints.ai_flags = AI_CANONNAME;
++#endif
++
++  if(port) {
++    snprintf(sbuf, sizeof(sbuf), "%d", port);
++    sbufptr=sbuf;
++  }
++  error = getaddrinfo(hostname, sbufptr, &hints, &res);
+   if (error) {
+-    infof(data, "getaddrinfo(3) failed for %s:%d\n", hostname, port);    
++    infof(data, "getaddrinfo(3) failed for %s:%d\n", hostname, port);
+     return NULL;
+   }
+ 
++  dump_addrinfo(conn, res);
++
+   return res;
  }
- 
-@@ -1896,9 +1898,9 @@ static void cmDependsFortran_yyensure_buffer_stack (yyscan_t yyscanner)
-                 yyg->yy_buffer_stack = (struct yy_buffer_state**)cmDependsFortran_yyalloc
-                                                                 (num_to_alloc * sizeof(struct yy_buffer_state*)
-                                                                 , yyscanner);
--                
-+
-                 memset(yyg->yy_buffer_stack, 0, num_to_alloc * sizeof(struct yy_buffer_state*));
--                                
-+
-                 yyg->yy_buffer_stack_max = num_to_alloc;
-                 yyg->yy_buffer_stack_top = 0;
-                 return;
-@@ -1925,12 +1927,12 @@ static void cmDependsFortran_yyensure_buffer_stack (yyscan_t yyscanner)
-  * @param base the character buffer
-  * @param size the size in bytes of the character buffer
-  * @param yyscanner The scanner object.
-- * @return the newly allocated buffer state object. 
-+ * @return the newly allocated buffer state object.
-  */
- YY_BUFFER_STATE cmDependsFortran_yy_scan_buffer  (char * base, yy_size_t  size , yyscan_t yyscanner)
- {
-         YY_BUFFER_STATE b;
--    
-+
-         if ( size < 2 ||
-              base[size-2] != YY_END_OF_BUFFER_CHAR ||
-              base[size-1] != YY_END_OF_BUFFER_CHAR )
-@@ -1966,7 +1968,7 @@ YY_BUFFER_STATE cmDependsFortran_yy_scan_buffer  (char * base, yy_size_t  size ,
-  */
- YY_BUFFER_STATE cmDependsFortran_yy_scan_string (yyconst char * yy_str , yyscan_t yyscanner)
- {
--    
-+
-         return cmDependsFortran_yy_scan_bytes(yy_str,strlen(yy_str) ,yyscanner);
- }
- 
-@@ -1983,7 +1985,7 @@ YY_BUFFER_STATE cmDependsFortran_yy_scan_bytes  (yyconst char * bytes, int  len
-         char *buf;
-         yy_size_t n;
-         int i;
--    
-+
-         /* Get memory for full buffer, including space for trailing EOB's. */
-         n = len + 2;
-         buf = (char *) cmDependsFortran_yyalloc(n ,yyscanner );
-@@ -2051,10 +2053,10 @@ YY_EXTRA_TYPE cmDependsFortran_yyget_extra  (yyscan_t yyscanner)
- int cmDependsFortran_yyget_lineno  (yyscan_t yyscanner)
- {
-     struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
--    
-+
-         if (! YY_CURRENT_BUFFER)
-             return 0;
--    
-+
-     return yylineno;
- }
- 
-@@ -2064,10 +2066,10 @@ int cmDependsFortran_yyget_lineno  (yyscan_t yyscanner)
- int cmDependsFortran_yyget_column  (yyscan_t yyscanner)
- {
-     struct yyguts_t * yyg = (struct yyguts_t*)yyscanner;
--    
-+
-         if (! YY_CURRENT_BUFFER)
-             return 0;
--    
-+
-     return yycolumn;
- }
- 
-@@ -2128,8 +2130,8 @@ void cmDependsFortran_yyset_lineno (int  line_number , yyscan_t yyscanner)
- 
-         /* lineno is only valid if an input buffer exists. */
-         if (! YY_CURRENT_BUFFER )
--           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner); 
--    
-+           yy_fatal_error( "cmDependsFortran_yyset_lineno called with no buffer" , yyscanner);
-+
-     yylineno = line_number;
- }
- 
-@@ -2143,8 +2145,8 @@ void cmDependsFortran_yyset_column (int  column_no , yyscan_t yyscanner)
- 
-         /* column is only valid if an input buffer exists. */
-         if (! YY_CURRENT_BUFFER )
--           yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner); 
--    
-+           yy_fatal_error( "cmDependsFortran_yyset_column called with no buffer" , yyscanner);
-+
-     yycolumn = column_no;
- }
+-#endif /* USE_THREADING_GETADDRINFO */
++#endif /* !USE_THREADING_GETADDRINFO && !CURLRES_ARES */
+ #endif /* ipv6 */
  

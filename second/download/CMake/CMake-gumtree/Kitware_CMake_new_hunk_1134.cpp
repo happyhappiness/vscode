@@ -1,28 +1,17 @@
-          char* message = new char[strlen(curField)+strlen(helpString)
-                                  +strlen("Current option is: \n Help string for this option is: \n")+10];
-          sprintf(message,"Current option is: %s\nHelp string for this option is: %s\n", curField, helpString);
-          this->HelpMessage[1] = message;
-          delete[] message;
-          }
-        else
-          {
-          this->HelpMessage[1] = "";
-          }
-
-        cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(this->HelpMessage,
-                                                                    "Help.");
-        CurrentForm = msgs;
-        msgs->Render(1,1,x,y);
-        msgs->HandleInput();
-        CurrentForm = this; 
-        this->Render(1,1,x,y);
-        set_current_field(this->Form, cur);
-        }
-      // display last errors
-      else if ( key == 'l' )
-        {
-        getmaxyx(stdscr, y, x);
-        cmCursesLongMessageForm* msgs = new cmCursesLongMessageForm(this->Errors,
-                                                                    "Errors occurred during the last pass.");
-        CurrentForm = msgs;
-        msgs->Render(1,1,x,y);
+    return AUTH_ERROR;
+  }
+  p += 5;
+  len = Curl_base64_decode(p, &ptr);
+  if(len > sizeof(adat.dat)-1) {
+    free(ptr);
+    len=0;
+  }
+  if(!len || !ptr) {
+    Curl_failf(data, "Failed to decode base64 from server");
+    return AUTH_ERROR;
+  }
+  memcpy((char *)adat.dat, ptr, len);
+  free(ptr);
+  adat.length = len;
+  ret = krb_rd_safe(adat.dat, adat.length, &d->key,
+                    (struct sockaddr_in *)hisctladdr,

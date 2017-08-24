@@ -1,894 +1,1056 @@
-@@ -9,8 +9,8 @@
-   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+@@ -5,7 +5,7 @@
+  *                            | (__| |_| |  _ <| |___
+  *                             \___|\___/|_| \_\_____|
+  *
+- * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
++ * Copyright (C) 1998 - 2007, Daniel Stenberg, <daniel@haxx.se>, et al.
+  *
+  * This software is licensed as described in the file COPYING, which
+  * you should have received as part of this distribution. The terms
+@@ -27,11 +27,15 @@
+    http://davenport.sourceforge.net/ntlm.html
+    http://www.innovation.ch/java/ntlm.html
  
--     This software is distributed WITHOUT ANY WARRANTY; without even 
--     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-+     This software is distributed WITHOUT ANY WARRANTY; without even
-+     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR
-      PURPOSE.  See the above copyright notices for more information.
- 
- =========================================================================*/
-@@ -42,7 +42,7 @@
- #include <cmsys/RegularExpression.hxx>
- #include <cmsys/Process.h>
- 
--#include <stdlib.h> 
-+#include <stdlib.h>
- #include <math.h>
- #include <float.h>
- 
-@@ -52,7 +52,7 @@
- #define DEBUGERR std::cerr << __LINE__ << " "; std::cerr
- 
- //----------------------------------------------------------------------
--struct tm* cmCTest::GetNightlyTime(std::string str, 
-+struct tm* cmCTest::GetNightlyTime(std::string str,
-                                    bool tomorrowtag)
- {
-   struct tm* lctime;
-@@ -81,7 +81,8 @@ struct tm* cmCTest::GetNightlyTime(std::string str,
-     // time of the current open dashboard
-     ntime -= dayLength;
-     cmCTestLog(this, DEBUG, "Pick yesterday" << std::endl);
--    cmCTestLog(this, DEBUG, "   Future time, subtract day: " << ntime << std::endl);
-+    cmCTestLog(this, DEBUG, "   Future time, subtract day: " << ntime
-+      << std::endl);
-     }
-   while ( tctime > (ntime + dayLength) )
-     {
-@@ -145,7 +146,8 @@ std::string cmCTest::MakeXMLSafe(const std::string& str)
-   for ( ;*pos; ++pos)
-     {
-     char ch = *pos;
--    if ( (ch > 126 || ch < 32) && ch != 9  && ch != 10 && ch != 13 && ch != '\r' )
-+    if ( (ch > 126 || ch < 32) && ch != 9  &&
-+      ch != 10 && ch != 13 && ch != '\r' )
-       {
-       char buffer[33];
-       sprintf(buffer, "&lt;%d&gt;", (int)ch);
-@@ -198,7 +200,7 @@ std::string cmCTest::MakeURLSafe(const std::string& str)
-            ch == '&' ||
-            ch == '%' ||
-            ch == '+' ||
--           ch == '=' || 
-+           ch == '=' ||
-            ch == '@'
-           ) && ch != 9 )
-       {
-@@ -214,8 +216,8 @@ std::string cmCTest::MakeURLSafe(const std::string& str)
- }
- 
- //----------------------------------------------------------------------
--cmCTest::cmCTest() 
--{ 
-+cmCTest::cmCTest()
-+{
-   m_SubmitIndex            = 0;
-   m_ForceNewCTestProcess   = false;
-   m_TomorrowTag            = false;
-@@ -237,7 +239,7 @@ cmCTest::cmCTest()
-   m_SuppressUpdatingCTestConfiguration = false;
-   m_DartVersion            = 1;
- 
--  int cc; 
-+  int cc;
-   for ( cc=0; cc < cmCTest::LAST_TEST; cc ++ )
-     {
-     m_Tests[cc] = 0;
-@@ -265,8 +267,8 @@ cmCTest::cmCTest()
- }
- 
- //----------------------------------------------------------------------
--cmCTest::~cmCTest() 
--{ 
-+cmCTest::~cmCTest()
-+{
-   cmCTest::t_TestingHandlers::iterator it;
-   for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
-     {
-@@ -277,14 +279,15 @@ cmCTest::~cmCTest()
- }
- 
- //----------------------------------------------------------------------
--int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
-+int cmCTest::Initialize(const char* binary_dir, bool new_tag,
-+  bool verbose_tag)
- {
-   cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-   if(!m_InteractiveDebugMode)
-     {
-     this->BlockTestErrorDiagnostics();
-     }
--  
++   Another implementation:
++   http://lxr.mozilla.org/mozilla/source/security/manager/ssl/src/nsNTLMAuthModule.cpp
 +
-   m_BinaryDir = binary_dir;
-   cmSystemTools::ConvertToUnixSlashes(m_BinaryDir);
+ */
  
-@@ -296,8 +299,8 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
-   cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-     cmCTestLog(this, OUTPUT,
-       "   Site: " << this->GetCTestConfiguration("Site") << std::endl
--      << "   Build name: " << this->GetCTestConfiguration("BuildName") << std::endl
--      );
-+      << "   Build name: " << this->GetCTestConfiguration("BuildName")
-+      << std::endl);
-     cmCTestLog(this, DEBUG, "Produce XML is on" << std::endl);
-     if ( this->GetCTestConfiguration("NightlyStartTime").empty() )
-       {
-@@ -309,7 +312,8 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
+ #ifndef CURL_DISABLE_HTTP
+-#ifdef USE_SSLEAY
+-/* We need OpenSSL for the crypto lib to provide us with MD4 and DES */
++#ifdef USE_NTLM
++
++#define DEBUG_ME 0
  
-   if ( !this->ReadCustomConfigurationFileTree(m_BinaryDir.c_str()) )
-     {
--    cmCTestLog(this, DEBUG, "Cannot find custom configuration file tree" << std::endl);
-+    cmCTestLog(this, DEBUG, "Cannot find custom configuration file tree"
-+      << std::endl);
-     return 0;
-     }
+ /* -- WIN32 approved -- */
+ #include <stdio.h>
+@@ -40,20 +44,33 @@
+ #include <stdlib.h>
+ #include <ctype.h>
  
-@@ -320,17 +324,17 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
-       {
-       if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
-         {
--        cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir << " is in the place of the testing directory"
--                  << std::endl);
-+        cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
-+          << " is in the place of the testing directory" << std::endl);
-         return 0;
-         }
-       }
-     else
-       {
-       if ( !cmSystemTools::MakeDirectory(testingDir.c_str()) )
-         {
--        cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory " << testingDir
--                  << std::endl);
-+        cmCTestLog(this, ERROR_MESSAGE, "Cannot create directory "
-+          << testingDir << std::endl);
-         return 0;
-         }
-       }
-@@ -361,20 +365,24 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
-       std::string tagmode;
-       if ( cmSystemTools::GetLineFromStream(tfin, tagmode) )
-         {
--        if ( tagmode.size() > 4 && !( m_Tests[cmCTest::START_TEST] || m_Tests[ALL_TEST] ))
-+        if ( tagmode.size() > 4 && !( m_Tests[cmCTest::START_TEST] ||
-+            m_Tests[ALL_TEST] ))
-           {
-           m_TestModel = cmCTest::GetTestModelFromString(tagmode.c_str());
-           }
-         }
-       tfin.close();
-       }
--    if ( tag.size() == 0 || new_tag || m_Tests[cmCTest::START_TEST] || m_Tests[ALL_TEST])
-+    if ( tag.size() == 0 || new_tag || m_Tests[cmCTest::START_TEST] ||
-+      m_Tests[ALL_TEST])
-       {
--      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString() << std::endl);
-+      cmCTestLog(this, DEBUG, "TestModel: " << this->GetTestModelString()
-+        << std::endl);
-       cmCTestLog(this, DEBUG, "TestModel: " << m_TestModel << std::endl);
-       if ( m_TestModel == cmCTest::NIGHTLY )
-         {
--        lctime = this->GetNightlyTime(this->GetCTestConfiguration("NightlyStartTime"), m_TomorrowTag);
-+        lctime = this->GetNightlyTime(
-+          this->GetCTestConfiguration("NightlyStartTime"), m_TomorrowTag);
-         }
-       char datestring[100];
-       sprintf(datestring, "%04d%02d%02d-%02d%02d",
-@@ -393,7 +401,7 @@ int cmCTest::Initialize(const char* binary_dir, bool new_tag, bool verbose_tag)
-       ofs.close();
-       if ( verbose_tag )
-         {
--        cmCTestLog(this, OUTPUT, "Create new tag: " << tag << " - " 
-+        cmCTestLog(this, OUTPUT, "Create new tag: " << tag << " - "
-           << this->GetTestModelString() << std::endl);
-         }
-       }
-@@ -410,7 +418,8 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
-     return true;
-     }
++#ifdef HAVE_UNISTD_H
++#include <unistd.h>
++#endif
++
+ #include "urldata.h"
++#include "easyif.h"  /* for Curl_convert_... prototypes */
+ #include "sendf.h"
+ #include "strequal.h"
+ #include "base64.h"
+ #include "http_ntlm.h"
+ #include "url.h"
+-#include "curl_memory.h"
++#include "memory.h"
++#include "ssluse.h"
  
--  std::string src_dir = this->GetCTestConfiguration("SourceDirectory").c_str();
-+  std::string src_dir
-+    = this->GetCTestConfiguration("SourceDirectory").c_str();
-   std::string bld_dir = this->GetCTestConfiguration("BuildDirectory").c_str();
-   m_DartVersion = 1;
-   m_SubmitFiles.clear();
-@@ -421,8 +430,9 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
-   cmSystemTools::ConvertToUnixSlashes(fname);
-   if ( cmSystemTools::FileExists(fname.c_str()) )
-     {
--    cmCTestLog(this, OUTPUT, "   Reading ctest configuration file: " << fname.c_str() << std::endl);
--    bool readit = mf->ReadListFile(mf->GetCurrentListFile(), 
-+    cmCTestLog(this, OUTPUT, "   Reading ctest configuration file: "
-+      << fname.c_str() << std::endl);
-+    bool readit = mf->ReadListFile(mf->GetCurrentListFile(),
-       fname.c_str() );
-     if(!readit)
-       {
-@@ -434,24 +444,30 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
-     }
-   else if ( !first )
-     {
--    cmCTestLog(this, WARNING, "Cannot locate CTest configuration: " << fname.c_str() << std::endl);
-+    cmCTestLog(this, WARNING, "Cannot locate CTest configuration: "
-+      << fname.c_str() << std::endl);
-     }
-   else
-     {
--    cmCTestLog(this, HANDLER_OUTPUT, "   Cannot locate CTest configuration: " << fname.c_str() << std::endl
-+    cmCTestLog(this, HANDLER_OUTPUT, "   Cannot locate CTest configuration: "
-+      << fname.c_str() << std::endl
-       << "   Delay the initialization of CTest" << std::endl);
-     }
+ #define _MPRINTF_REPLACE /* use our functions only */
+ #include <curl/mprintf.h>
  
--  this->SetCTestConfigurationFromCMakeVariable(mf, "NightlyStartTime", "CTEST_NIGHTLY_START_TIME");
-+  this->SetCTestConfigurationFromCMakeVariable(mf, "NightlyStartTime",
-+    "CTEST_NIGHTLY_START_TIME");
-   this->SetCTestConfigurationFromCMakeVariable(mf, "Site", "CTEST_SITE");
--  this->SetCTestConfigurationFromCMakeVariable(mf, "BuildName", "CTEST_BUILD_NAME");
-+  this->SetCTestConfigurationFromCMakeVariable(mf, "BuildName",
-+    "CTEST_BUILD_NAME");
-   const char* dartVersion = mf->GetDefinition("CTEST_DART_SERVER_VERSION");
-   if ( dartVersion )
-     {
-     m_DartVersion = atoi(dartVersion);
-     if ( m_DartVersion < 0 )
-       {
--      cmCTestLog(this, ERROR_MESSAGE, "Invalid Dart server version: " << dartVersion << ". Please specify the version number." << std::endl);
-+      cmCTestLog(this, ERROR_MESSAGE, "Invalid Dart server version: "
-+        << dartVersion << ". Please specify the version number."
-+        << std::endl);
-       return false;
-       }
-     }
-@@ -464,7 +480,8 @@ bool cmCTest::InitializeFromCommand(cmCTestCommand* command, bool first)
-       }
-     return false;
-     }
--  cmCTestLog(this, OUTPUT, "   Use " << this->GetTestModelString() << " tag: " << this->GetCurrentTag() << std::endl);
-+  cmCTestLog(this, OUTPUT, "   Use " << this->GetTestModelString()
-+    << " tag: " << this->GetCurrentTag() << std::endl);
-   return true;
- }
++/* "NTLMSSP" signature is always in ASCII regardless of the platform */
++#define NTLMSSP_SIGNATURE "\x4e\x54\x4c\x4d\x53\x53\x50"
++
++#ifndef USE_WINDOWS_SSPI
++
+ #include <openssl/des.h>
+ #include <openssl/md4.h>
++#include <openssl/md5.h>
+ #include <openssl/ssl.h>
++#include <openssl/rand.h>
  
-@@ -490,7 +507,8 @@ bool cmCTest::UpdateCTestConfiguration()
-     // No need to exit if we are not producing XML
-     if ( m_ProduceXML )
-       {
--      cmCTestLog(this, ERROR_MESSAGE, "Cannot find file: " << fileName.c_str() << std::endl);
-+      cmCTestLog(this, ERROR_MESSAGE, "Cannot find file: " << fileName.c_str()
-+        << std::endl);
-       return false;
-       }
-     }
-@@ -532,15 +550,17 @@ bool cmCTest::UpdateCTestConfiguration()
-         continue;
-         }
-       std::string key = line.substr(0, cpos);
--      std::string value = cmCTest::CleanString(line.substr(cpos+1, line.npos));
-+      std::string value
-+        = cmCTest::CleanString(line.substr(cpos+1, line.npos));
-       m_CTestConfiguration[key] = value;
-       }
-     fin.close();
-     }
-   m_TimeOut = atoi(this->GetCTestConfiguration("TimeOut").c_str());
-   if ( m_ProduceXML )
-     {
--    m_CompressXMLFiles = cmSystemTools::IsOn(this->GetCTestConfiguration("CompressSubmission").c_str());
-+    m_CompressXMLFiles = cmSystemTools::IsOn(
-+      this->GetCTestConfiguration("CompressSubmission").c_str());
-     }
-   return true;
- }
-@@ -551,7 +571,7 @@ void cmCTest::BlockTestErrorDiagnostics()
-   cmSystemTools::PutEnv("DART_TEST_FROM_DART=1");
-   cmSystemTools::PutEnv("DASHBOARD_TEST_FROM_CTEST=" CMake_VERSION);
- #if defined(_WIN32)
--  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX); 
-+  SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+ #if OPENSSL_VERSION_NUMBER < 0x00907001L
+ #define DES_key_schedule des_key_schedule
+@@ -71,12 +88,119 @@
+ #define DESKEY(x) &x
  #endif
- }
  
-@@ -609,7 +629,8 @@ bool cmCTest::SetTest(const char* ttype, bool report)
-     {
-     if ( report )
-       {
--      cmCTestLog(this, ERROR_MESSAGE, "Don't know about test \"" << ttype << "\" yet..." << std::endl);
-+      cmCTestLog(this, ERROR_MESSAGE, "Don't know about test \"" << ttype
-+        << "\" yet..." << std::endl);
-       }
-     return false;
-     }
-@@ -622,7 +643,7 @@ void cmCTest::Finalize()
- }
- 
- //----------------------------------------------------------------------
--bool cmCTest::OpenOutputFile(const std::string& path, 
-+bool cmCTest::OpenOutputFile(const std::string& path,
-                      const std::string& name, cmGeneratedFileStream& stream,
-                      bool compress)
- {
-@@ -635,7 +656,7 @@ bool cmCTest::OpenOutputFile(const std::string& path,
-     {
-     if ( !cmSystemTools::FileIsDirectory(testingDir.c_str()) )
-       {
--      cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir 
-+      cmCTestLog(this, ERROR_MESSAGE, "File " << testingDir
-                 << " is in the place of the testing directory"
-                 << std::endl);
-       return false;
-@@ -654,7 +675,8 @@ bool cmCTest::OpenOutputFile(const std::string& path,
-   stream.Open(filename.c_str());
-   if( !stream )
-     {
--    cmCTestLog(this, ERROR_MESSAGE, "Problem opening file: " << filename << std::endl);
-+    cmCTestLog(this, ERROR_MESSAGE, "Problem opening file: " << filename
-+      << std::endl);
-     return false;
-     }
-   if ( compress )
-@@ -730,7 +752,7 @@ int cmCTest::ExecuteHandler(const char* shandler)
-     return -1;
-     }
-   handler->Initialize();
--  return handler->ProcessHandler(); 
-+  return handler->ProcessHandler();
- }
- 
- //----------------------------------------------------------------------
-@@ -754,8 +776,9 @@ int cmCTest::ProcessTests()
-   if ( m_Tests[UPDATE_TEST] || m_Tests[ALL_TEST] )
-     {
-     cmCTestGenericHandler* uphandler = this->GetHandler("update");
--    uphandler->SetOption("SourceDirectory", this->GetCTestConfiguration("SourceDirectory").c_str());
--    update_count = uphandler->ProcessHandler(); 
-+    uphandler->SetOption("SourceDirectory",
-+      this->GetCTestConfiguration("SourceDirectory").c_str());
-+    update_count = uphandler->ProcessHandler();
-     if ( update_count < 0 )
-       {
-       res |= cmCTest::UPDATE_ERRORS;
-@@ -847,7 +870,8 @@ int cmCTest::ProcessTests()
-     }
-   if ( res != 0 )
-     {
--    cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest" << std::endl);
-+    cmCTestLog(this, ERROR_MESSAGE, "Errors while running CTest"
-+      << std::endl);
-     }
-   return res;
- }
-@@ -921,7 +945,7 @@ int cmCTest::RunMakeCommand(const char* command, std::string* output,
-     cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, " \"" << *ait << "\"");
-     }
-   cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, std::endl);
--  
++#else
 +
-   // Now create process object
-   cmsysProcess* cp = cmsysProcess_New();
-   cmsysProcess_SetCommand(cp, &*argv.begin());
-@@ -981,22 +1005,25 @@ int cmCTest::RunMakeCommand(const char* command, std::string* output,
-   if(result == cmsysProcess_State_Exited)
-     {
-     *retVal = cmsysProcess_GetExitValue(cp);
--    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Command exited with the value: " << *retVal << std::endl);
-+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Command exited with the value: "
-+      << *retVal << std::endl);
-     }
-   else if(result == cmsysProcess_State_Exception)
-     {
-     *retVal = cmsysProcess_GetExitException(cp);
--    cmCTestLog(this, WARNING, "There was an exception: " << *retVal << std::endl);
-+    cmCTestLog(this, WARNING, "There was an exception: " << *retVal
-+      << std::endl);
-     }
-   else if(result == cmsysProcess_State_Expired)
-     {
-     cmCTestLog(this, WARNING, "There was a timeout" << std::endl);
--    } 
-+    }
-   else if(result == cmsysProcess_State_Error)
-     {
-     *output += "\n*** ERROR executing: ";
-     *output += cmsysProcess_GetErrorString(cp);
--    cmCTestLog(this, ERROR_MESSAGE, "There was an error: " << cmsysProcess_GetErrorString(cp) << std::endl);
-+    cmCTestLog(this, ERROR_MESSAGE, "There was an error: "
-+      << cmsysProcess_GetErrorString(cp) << std::endl);
-     }
- 
-   cmsysProcess_Delete(cp);
-@@ -1010,11 +1037,11 @@ int cmCTest::RunMakeCommand(const char* command, std::string* output,
- //######################################################################
- 
- //----------------------------------------------------------------------
--int cmCTest::RunTest(std::vector<const char*> argv, 
-+int cmCTest::RunTest(std::vector<const char*> argv,
-                      std::string* output, int *retVal,
-                      std::ostream* log)
- {
--  if(cmSystemTools::SameFile(argv[0], m_CTestSelf.c_str()) && 
-+  if(cmSystemTools::SameFile(argv[0], m_CTestSelf.c_str()) &&
-      !m_ForceNewCTestProcess)
-     {
-     cmCTest inst;
-@@ -1033,15 +1060,16 @@ int cmCTest::RunTest(std::vector<const char*> argv,
-       *log << "* Run internal CTest" << std::endl;
-       }
-     std::string oldpath = cmSystemTools::GetCurrentWorkingDirectory();
--    
++#include <rpc.h>
 +
-     *retVal = inst.Run(args, output);
-     if ( *log )
-       {
-       *log << output->c_str();
-       }
-     cmSystemTools::ChangeDirectory(oldpath.c_str());
--    
--    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "Internal cmCTest object used to run test." << std::endl
++/* Handle of security.dll or secur32.dll, depending on Windows version */
++static HMODULE s_hSecDll = NULL;
++/* Pointer to SSPI dispatch table */
++static PSecurityFunctionTable s_pSecFn = NULL;
 +
-+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT,
-+      "Internal cmCTest object used to run test." << std::endl
-       <<  *output << std::endl);
-     return cmsysProcess_State_Exited;
-     }
-@@ -1081,7 +1109,8 @@ int cmCTest::RunTest(std::vector<const char*> argv,
-     {
-     output->append(&*tempOutput.begin(), tempOutput.size());
-     }
--  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "-- Process completed" << std::endl);
-+  cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, "-- Process completed"
-+    << std::endl);
++#endif
++
+ /* The last #include file should be: */
+ #include "memdebug.h"
  
-   int result = cmsysProcess_GetState(cp);
+ /* Define this to make the type-3 message include the NT response message */
+ #define USE_NTRESPONSES 1
  
-@@ -1095,14 +1124,16 @@ int cmCTest::RunTest(std::vector<const char*> argv,
-     std::string outerr = "\n*** Exception executing: ";
-     outerr += cmsysProcess_GetExceptionString(cp);
-     *output += outerr;
--    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl << std::flush);
-+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
-+      << std::flush);
-     }
-   else if(result == cmsysProcess_State_Error)
-     {
-     std::string outerr = "\n*** ERROR executing: ";
-     outerr += cmsysProcess_GetErrorString(cp);
-     *output += outerr;
--    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl << std::flush);
-+    cmCTestLog(this, HANDLER_VERBOSE_OUTPUT, outerr.c_str() << std::endl
-+      << std::flush);
-     }
-   cmsysProcess_Delete(cp);
- 
-@@ -1128,13 +1159,17 @@ void cmCTest::EndXML(std::ostream& ostr)
- }
- 
- //----------------------------------------------------------------------
--int cmCTest::GenerateCTestNotesOutput(std::ostream& os, const cmCTest::tm_VectorOfStrings& files)
-+int cmCTest::GenerateCTestNotesOutput(std::ostream& os,
-+  const cmCTest::tm_VectorOfStrings& files)
++/* Define this to make the type-3 message include the NTLM2Session response
++   message, requires USE_NTRESPONSES. */
++#define USE_NTLM2SESSION 1
++
++#ifndef USE_WINDOWS_SSPI
++/* this function converts from the little endian format used in the incoming
++   package to whatever endian format we're using natively */
++static unsigned int readint_le(unsigned char *buf) /* must point to a
++                                                      4 bytes buffer*/
++{
++  return ((unsigned int)buf[0]) | ((unsigned int)buf[1] << 8) |
++    ((unsigned int)buf[2] << 16) | ((unsigned int)buf[3] << 24);
++}
++#endif
++
++#if DEBUG_ME
++# define DEBUG_OUT(x) x
++static void print_flags(FILE *handle, unsigned long flags)
++{
++  if(flags & NTLMFLAG_NEGOTIATE_UNICODE)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_UNICODE ");
++  if(flags & NTLMFLAG_NEGOTIATE_OEM)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_OEM ");
++  if(flags & NTLMFLAG_REQUEST_TARGET)
++    fprintf(handle, "NTLMFLAG_REQUEST_TARGET ");
++  if(flags & (1<<3))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_3 ");
++  if(flags & NTLMFLAG_NEGOTIATE_SIGN)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_SIGN ");
++  if(flags & NTLMFLAG_NEGOTIATE_SEAL)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_SEAL ");
++  if(flags & NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_DATAGRAM_STYLE ");
++  if(flags & NTLMFLAG_NEGOTIATE_LM_KEY)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_LM_KEY ");
++  if(flags & NTLMFLAG_NEGOTIATE_NETWARE)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_NETWARE ");
++  if(flags & NTLMFLAG_NEGOTIATE_NTLM_KEY)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM_KEY ");
++  if(flags & (1<<10))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_10 ");
++  if(flags & (1<<11))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_11 ");
++  if(flags & NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_DOMAIN_SUPPLIED ");
++  if(flags & NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_WORKSTATION_SUPPLIED ");
++  if(flags & NTLMFLAG_NEGOTIATE_LOCAL_CALL)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_LOCAL_CALL ");
++  if(flags & NTLMFLAG_NEGOTIATE_ALWAYS_SIGN)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_ALWAYS_SIGN ");
++  if(flags & NTLMFLAG_TARGET_TYPE_DOMAIN)
++    fprintf(handle, "NTLMFLAG_TARGET_TYPE_DOMAIN ");
++  if(flags & NTLMFLAG_TARGET_TYPE_SERVER)
++    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SERVER ");
++  if(flags & NTLMFLAG_TARGET_TYPE_SHARE)
++    fprintf(handle, "NTLMFLAG_TARGET_TYPE_SHARE ");
++  if(flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_NTLM2_KEY ");
++  if(flags & NTLMFLAG_REQUEST_INIT_RESPONSE)
++    fprintf(handle, "NTLMFLAG_REQUEST_INIT_RESPONSE ");
++  if(flags & NTLMFLAG_REQUEST_ACCEPT_RESPONSE)
++    fprintf(handle, "NTLMFLAG_REQUEST_ACCEPT_RESPONSE ");
++  if(flags & NTLMFLAG_REQUEST_NONNT_SESSION_KEY)
++    fprintf(handle, "NTLMFLAG_REQUEST_NONNT_SESSION_KEY ");
++  if(flags & NTLMFLAG_NEGOTIATE_TARGET_INFO)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_TARGET_INFO ");
++  if(flags & (1<<24))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_24 ");
++  if(flags & (1<<25))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_25 ");
++  if(flags & (1<<26))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_26 ");
++  if(flags & (1<<27))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_27 ");
++  if(flags & (1<<28))
++    fprintf(handle, "NTLMFLAG_UNKNOWN_28 ");
++  if(flags & NTLMFLAG_NEGOTIATE_128)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_128 ");
++  if(flags & NTLMFLAG_NEGOTIATE_KEY_EXCHANGE)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_KEY_EXCHANGE ");
++  if(flags & NTLMFLAG_NEGOTIATE_56)
++    fprintf(handle, "NTLMFLAG_NEGOTIATE_56 ");
++}
++
++static void print_hex(FILE *handle, const char *buf, size_t len)
++{
++  const char *p = buf;
++  fprintf(stderr, "0x");
++  while (len-- > 0)
++    fprintf(stderr, "%02.2x", (unsigned int)*p++);
++}
++#else
++# define DEBUG_OUT(x)
++#endif
++
+ /*
+   (*) = A "security buffer" is a triplet consisting of two shorts and one
+   long:
+@@ -95,18 +219,20 @@ CURLntlm Curl_input_ntlm(struct connectdata *conn,
  {
-   cmCTest::tm_VectorOfStrings::const_iterator it;
-   os << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
--    << "<?xml-stylesheet type=\"text/xsl\" href=\"Dart/Source/Server/XSL/Build.xsl <file:///Dart/Source/Server/XSL/Build.xsl> \"?>\n"
--    << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName") << "\" BuildStamp=\"" 
--    << m_CurrentTag << "-" << this->GetTestModelString() << "\" Name=\"" 
-+    << "<?xml-stylesheet type=\"text/xsl\" "
-+    "href=\"Dart/Source/Server/XSL/Build.xsl "
-+    "<file:///Dart/Source/Server/XSL/Build.xsl> \"?>\n"
-+    << "<Site BuildName=\"" << this->GetCTestConfiguration("BuildName")
-+    << "\" BuildStamp=\""
-+    << m_CurrentTag << "-" << this->GetTestModelString() << "\" Name=\""
-     << this->GetCTestConfiguration("Site") << "\" Generator=\"ctest"
-     << cmVersion::GetCMakeVersion()
-     << "\">\n"
-@@ -1160,7 +1195,8 @@ int cmCTest::GenerateCTestNotesOutput(std::ostream& os, const cmCTest::tm_Vector
-     else
-       {
-       os << "Problem reading file: " << it->c_str() << std::endl;
--      cmCTestLog(this, ERROR_MESSAGE, "Problem reading file: " << it->c_str() << " while creating notes" << std::endl);
-+      cmCTestLog(this, ERROR_MESSAGE, "Problem reading file: " << it->c_str()
-+        << " while creating notes" << std::endl);
-       }
-     os << "</Text>\n"
-       << "</Note>" << std::endl;
-@@ -1215,7 +1251,8 @@ bool cmCTest::SubmitExtraFiles(const std::vector<cmStdString> &files)
-     {
-     if ( !cmSystemTools::FileExists(it->c_str()) )
-       {
--      cmCTestLog(this, ERROR_MESSAGE, "Cannot find extra file: " << it->c_str() << " to submit."
-+      cmCTestLog(this, ERROR_MESSAGE, "Cannot find extra file: "
-+        << it->c_str() << " to submit."
-         << std::endl;);
-       return false;
-       }
-@@ -1246,7 +1283,8 @@ bool cmCTest::SubmitExtraFiles(const char* cfiles)
- }
+   /* point to the correct struct with this */
+   struct ntlmdata *ntlm;
++#ifndef USE_WINDOWS_SSPI
++  static const char type2_marker[] = { 0x02, 0x00, 0x00, 0x00 };
++#endif
  
- //----------------------------------------------------------------------
--bool cmCTest::CheckArgument(const std::string& arg, const char* varg1, const char* varg2)
-+bool cmCTest::CheckArgument(const std::string& arg, const char* varg1,
-+  const char* varg2)
- {
-   if ( varg1 && arg == varg1 || varg2 && arg == varg2 )
-     {
-@@ -1271,7 +1309,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-       this->m_CTestConfigFile= args[i];
-       }
+   ntlm = proxy?&conn->proxyntlm:&conn->ntlm;
  
--    if(this->CheckArgument(arg, "-C", "--build-config") && i < args.size() - 1)
-+    if(this->CheckArgument(arg, "-C", "--build-config") &&
-+      i < args.size() - 1)
-       {
-       i++;
-       this->m_ConfigType = args[i];
-@@ -1309,7 +1348,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-       {
-       this->m_RunConfigurationScript = true;
-       i++;
--      cmCTestScriptHandler* ch = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
-+      cmCTestScriptHandler* ch
-+        = static_cast<cmCTestScriptHandler*>(this->GetHandler("script"));
-       ch->AddConfigurationScript(args[i].c_str());
-       }
+   /* skip initial whitespaces */
+-  while(*header && isspace((int)*header))
++  while(*header && ISSPACE(*header))
+     header++;
  
-@@ -1327,7 +1367,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-       {
-       m_ForceNewCTestProcess = true;
-       }
--    if(this->CheckArgument(arg, "--interactive-debug-mode") && i < args.size() - 1 )
-+    if(this->CheckArgument(arg, "--interactive-debug-mode") &&
-+      i < args.size() - 1 )
-       {
-       i++;
-       m_InteractiveDebugMode = cmSystemTools::IsOn(args[i].c_str());
-@@ -1417,7 +1458,7 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-         {
-         this->SetTestModel(cmCTest::CONTINUOUS);
-         this->SetTest("Update");
--        }  
-+        }
-       else if ( targ == "ContinuousConfigure" )
-         {
-         this->SetTestModel(cmCTest::CONTINUOUS);
-@@ -1525,29 +1566,38 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-       else
-         {
-         performSomeTest = false;
--        cmCTestLog(this, ERROR_MESSAGE, "CTest -D called with incorrect option: " << targ << std::endl);
-+        cmCTestLog(this, ERROR_MESSAGE,
-+          "CTest -D called with incorrect option: " << targ << std::endl);
-         cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
-           << "  " << ctestExec << " -D Continuous" << std::endl
--          << "  " << ctestExec << " -D Continuous(Start|Update|Configure|Build)" << std::endl
--          << "  " << ctestExec << " -D Continuous(Test|Coverage|MemCheck|Submit)" << std::endl
-+          << "  " << ctestExec
-+          << " -D Continuous(Start|Update|Configure|Build)" << std::endl
-+          << "  " << ctestExec
-+          << " -D Continuous(Test|Coverage|MemCheck|Submit)" << std::endl
-           << "  " << ctestExec << " -D Experimental" << std::endl
--          << "  " << ctestExec << " -D Experimental(Start|Update|Configure|Build)" << std::endl
--          << "  " << ctestExec << " -D Experimental(Test|Coverage|MemCheck|Submit)" << std::endl
-+          << "  " << ctestExec
-+          << " -D Experimental(Start|Update|Configure|Build)" << std::endl
-+          << "  " << ctestExec
-+          << " -D Experimental(Test|Coverage|MemCheck|Submit)" << std::endl
-           << "  " << ctestExec << " -D Nightly" << std::endl
--          << "  " << ctestExec << " -D Nightly(Start|Update|Configure|Build)" << std::endl
--          << "  " << ctestExec << " -D Nightly(Test|Coverage|MemCheck|Submit)" << std::endl
-+          << "  " << ctestExec
-+          << " -D Nightly(Start|Update|Configure|Build)" << std::endl
-+          << "  " << ctestExec
-+          << " -D Nightly(Test|Coverage|MemCheck|Submit)" << std::endl
-           << "  " << ctestExec << " -D NightlyMemoryCheck" << std::endl);
-         }
-       }
+   if(checkprefix("NTLM", header)) {
+-    unsigned char buffer[256];
+     header += strlen("NTLM");
  
--    if(this->CheckArgument(arg, "-T", "--test-action") && (i < args.size() -1) )
-+    if(this->CheckArgument(arg, "-T", "--test-action") &&
-+      (i < args.size() -1) )
-       {
-       this->m_ProduceXML = true;
-       i++;
-       if ( !this->SetTest(args[i].c_str(), false) )
-         {
-         performSomeTest = false;
--        cmCTestLog(this, ERROR_MESSAGE, "CTest -T called with incorrect option: "
-+        cmCTestLog(this, ERROR_MESSAGE,
-+          "CTest -T called with incorrect option: "
-           << args[i].c_str() << std::endl);
-         cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
-           << "  " << ctestExec << " -T all" << std::endl
-@@ -1563,7 +1613,8 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-         }
-       }
+-    while(*header && isspace((int)*header))
++    while(*header && ISSPACE(*header))
+       header++;
  
--    if(this->CheckArgument(arg, "-M", "--test-model") && (i < args.size() -1) )
-+    if(this->CheckArgument(arg, "-M", "--test-model") &&
-+      (i < args.size() -1) )
-       {
-       i++;
-       std::string const& str = args[i];
-@@ -1582,33 +1633,40 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-       else
-         {
-         performSomeTest = false;
--        cmCTestLog(this, ERROR_MESSAGE, "CTest -M called with incorrect option: " << str.c_str() << std::endl);
-+        cmCTestLog(this, ERROR_MESSAGE,
-+          "CTest -M called with incorrect option: " << str.c_str()
-+          << std::endl);
-         cmCTestLog(this, ERROR_MESSAGE, "Available options are:" << std::endl
-           << "  " << ctestExec << " -M Continuous" << std::endl
-           << "  " << ctestExec << " -M Experimental" << std::endl
-           << "  " << ctestExec << " -M Nightly" << std::endl);
-         }
-       }
- 
--    if(this->CheckArgument(arg, "-I", "--tests-information") && i < args.size() - 1)
-+    if(this->CheckArgument(arg, "-I", "--tests-information") &&
-+      i < args.size() - 1)
-       {
-       i++;
--      this->GetHandler("test")->SetOption("TestsToRunInformation", args[i].c_str());
--      }                                                       
-+      this->GetHandler("test")->SetOption("TestsToRunInformation",
-+        args[i].c_str());
-+      }
-     if(this->CheckArgument(arg, "-U", "--union"))
--      {                                                       
-+      {
-       this->GetHandler("test")->SetOption("UseUnion", "true");
--      }                                                       
--    if(this->CheckArgument(arg, "-R", "--tests-regex") && i < args.size() - 1)          
--      {                                                       
--      i++;                                                    
--      this->GetHandler("test")->SetOption("IncludeRegularExpression", args[i].c_str());
--      }                                                       
+     if(*header) {
+@@ -123,17 +249,47 @@ CURLntlm Curl_input_ntlm(struct connectdata *conn,
+          (40)    Target Information  (optional) security buffer(*)
+          32 (48) start of data block
+       */
 -
--    if(this->CheckArgument(arg, "-E", "--exclude-regex") && i < args.size() - 1)          
--      {                                                       
+-      size_t size = Curl_base64_decode(header, (char *)buffer);
++      size_t size;
++      unsigned char *buffer;
++      size = Curl_base64_decode(header, &buffer);
++      if(!buffer)
++        return CURLNTLM_BAD;
+ 
+       ntlm->state = NTLMSTATE_TYPE2; /* we got a type-2 */
+ 
+-      if(size >= 48)
+-        /* the nonce of interest is index [24 .. 31], 8 bytes */
+-        memcpy(ntlm->nonce, &buffer[24], 8);
++#ifdef USE_WINDOWS_SSPI
++      ntlm->type_2 = malloc(size+1);
++      if (ntlm->type_2 == NULL) {
++        free(buffer);
++        return CURLE_OUT_OF_MEMORY;
 +      }
-+    if(this->CheckArgument(arg, "-R", "--tests-regex") && i < args.size() - 1)
-+      {
-+      i++;
-+      this->GetHandler("test")->SetOption("IncludeRegularExpression",
-+        args[i].c_str());
++      ntlm->n_type_2 = size;
++      memcpy(ntlm->type_2, buffer, size);
++#else
++      ntlm->flags = 0;
++
++      if((size < 32) ||
++         (memcmp(buffer, NTLMSSP_SIGNATURE, 8) != 0) ||
++         (memcmp(buffer+8, type2_marker, sizeof(type2_marker)) != 0)) {
++        /* This was not a good enough type-2 message */
++        free(buffer);
++        return CURLNTLM_BAD;
 +      }
-+
-+    if(this->CheckArgument(arg, "-E", "--exclude-regex") &&
-+      i < args.size() - 1)
-+      {
-       i++;
--      this->GetHandler("test")->SetOption("ExcludeRegularExpression", args[i].c_str());
-+      this->GetHandler("test")->SetOption("ExcludeRegularExpression",
-+        args[i].c_str());
-       }
  
-     if(this->CheckArgument(arg, "--overwrite") && i < args.size() - 1)
-@@ -1639,11 +1697,14 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-       cmakeAndTest = true;
-       }
-     cmCTest::t_TestingHandlers::iterator it;
--    for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
-+    for ( it = m_TestingHandlers.begin();
-+      it != m_TestingHandlers.end();
-+      ++ it )
-       {
-       if ( !it->second->ProcessCommandLineArguments(arg, i, args) )
-         {
--        cmCTestLog(this, ERROR_MESSAGE, "Problem parsing command line arguments within a handler");
-+        cmCTestLog(this, ERROR_MESSAGE,
-+          "Problem parsing command line arguments within a handler");
-         return 0;
-         }
-       }
-@@ -1660,7 +1721,7 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-   if(cmakeAndTest)
-     {
-     m_Verbose = true;
--    cmCTestBuildAndTestHandler* handler = 
-+    cmCTestBuildAndTestHandler* handler =
-       static_cast<cmCTestBuildAndTestHandler*>(this->GetHandler("buildtest"));
-     int retv = handler->ProcessHandler();
-     *output = handler->GetOutput();
-@@ -1681,7 +1742,9 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-         cmCTestLog(this, OUTPUT, "* Extra verbosity turned on" << std::endl);
-         }
-       cmCTest::t_TestingHandlers::iterator it;
--      for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
-+      for ( it = m_TestingHandlers.begin();
-+        it != m_TestingHandlers.end();
-+        ++ it )
-         {
-         it->second->SetVerbose(this->m_ExtraVerbose);
-         it->second->SetSubmitIndex(m_SubmitIndex);
-@@ -1694,17 +1757,21 @@ int cmCTest::Run(std::vector<std::string>const& args, std::string* output)
-       m_ExtraVerbose = m_Verbose;
-       m_Verbose = true;
-       cmCTest::t_TestingHandlers::iterator it;
--      for ( it = m_TestingHandlers.begin(); it != m_TestingHandlers.end(); ++ it )
-+      for ( it = m_TestingHandlers.begin();
-+        it != m_TestingHandlers.end();
-+        ++ it )
-         {
-         it->second->SetVerbose(this->m_Verbose);
-         it->second->SetSubmitIndex(m_SubmitIndex);
-         }
-       cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
--      if ( !this->Initialize(cmSystemTools::GetCurrentWorkingDirectory().c_str()) )
-+      if ( !this->Initialize(
-+          cmSystemTools::GetCurrentWorkingDirectory().c_str()) )
-         {
-         cmCTestLog(this, DEBUG, "Here: " << __LINE__ << std::endl);
-         res = 12;
--        cmCTestLog(this, ERROR_MESSAGE, "Problem initializing the dashboard." << std::endl);
-+        cmCTestLog(this, ERROR_MESSAGE, "Problem initializing the dashboard."
-+          << std::endl);
-         }
-       else
-         {
-@@ -1817,11 +1884,13 @@ int cmCTest::ReadCustomConfigurationFileTree(const char* dir)
-   for ( fileIt = files.begin(); fileIt != files.end();
-     ++ fileIt )
-     {
--    cmCTestLog(this, DEBUG, "* Read custom CTest configuration file: " << fileIt->c_str() << std::endl);
-+    cmCTestLog(this, DEBUG, "* Read custom CTest configuration file: "
-+      << fileIt->c_str() << std::endl);
-     if ( !lg->GetMakefile()->ReadListFile(0, fileIt->c_str()) ||
-       cmSystemTools::GetErrorOccuredFlag() )
-       {
--      cmCTestLog(this, ERROR_MESSAGE, "Problem reading custom configuration: " << fileIt->c_str() << std::endl);
-+      cmCTestLog(this, ERROR_MESSAGE, "Problem reading custom configuration: "
-+        << fileIt->c_str() << std::endl);
-       }
-     }
+-      /* at index decimal 20, there's a 32bit NTLM flag field */
++      ntlm->flags = readint_le(&buffer[20]);
++      memcpy(ntlm->nonce, &buffer[24], 8);
  
-@@ -1830,12 +1899,13 @@ int cmCTest::ReadCustomConfigurationFileTree(const char* dir)
-     {
-     it->second->PopulateCustomVectors(mf);
-     }
--  
++      DEBUG_OUT({
++        fprintf(stderr, "**** TYPE2 header flags=0x%08.8lx ", ntlm->flags);
++        print_flags(stderr, ntlm->flags);
++        fprintf(stderr, "\n                  nonce=");
++        print_hex(stderr, (char *)ntlm->nonce, 8);
++        fprintf(stderr, "\n****\n");
++        fprintf(stderr, "**** Header %s\n ", header);
++      });
 +
-   return 1;
++      free(buffer);
++#endif
+     }
+     else {
+       if(ntlm->state >= NTLMSTATE_TYPE1)
+@@ -145,6 +301,8 @@ CURLntlm Curl_input_ntlm(struct connectdata *conn,
+   return CURLNTLM_FINE;
  }
  
- //----------------------------------------------------------------------
--void cmCTest::PopulateCustomVector(cmMakefile* mf, const char* def, tm_VectorOfStrings& vec)
-+void cmCTest::PopulateCustomVector(cmMakefile* mf, const char* def,
-+  tm_VectorOfStrings& vec)
- {
-   if ( !def)
-     {
-@@ -1874,7 +1944,8 @@ void cmCTest::PopulateCustomInteger(cmMakefile* mf, const char* def, int& val)
- //----------------------------------------------------------------------
- std::string cmCTest::GetShortPathToFile(const char* cfname)
- {
--  const std::string& sourceDir = this->GetCTestConfiguration("SourceDirectory");
-+  const std::string& sourceDir
-+    = this->GetCTestConfiguration("SourceDirectory");
-   const std::string& buildDir = this->GetCTestConfiguration("BuildDirectory");
-   std::string fname = cmSystemTools::CollapseFullPath(cfname);
++#ifndef USE_WINDOWS_SSPI
++
+ /*
+  * Turns a 56 bit key into the 64 bit, odd parity key and sets the key.  The
+  * key schedule ks is also set.
+@@ -155,13 +313,13 @@ static void setup_des_key(unsigned char *key_56,
+   DES_cblock key;
  
-@@ -1928,7 +1999,8 @@ std::string cmCTest::GetShortPathToFile(const char* cfname)
- //----------------------------------------------------------------------
- std::string cmCTest::GetCTestConfiguration(const char *name)
+   key[0] = key_56[0];
+-  key[1] = ((key_56[0] << 7) & 0xFF) | (key_56[1] >> 1);
+-  key[2] = ((key_56[1] << 6) & 0xFF) | (key_56[2] >> 2);
+-  key[3] = ((key_56[2] << 5) & 0xFF) | (key_56[3] >> 3);
+-  key[4] = ((key_56[3] << 4) & 0xFF) | (key_56[4] >> 4);
+-  key[5] = ((key_56[4] << 3) & 0xFF) | (key_56[5] >> 5);
+-  key[6] = ((key_56[5] << 2) & 0xFF) | (key_56[6] >> 6);
+-  key[7] =  (key_56[6] << 1) & 0xFF;
++  key[1] = (unsigned char)(((key_56[0] << 7) & 0xFF) | (key_56[1] >> 1));
++  key[2] = (unsigned char)(((key_56[1] << 6) & 0xFF) | (key_56[2] >> 2));
++  key[3] = (unsigned char)(((key_56[2] << 5) & 0xFF) | (key_56[3] >> 3));
++  key[4] = (unsigned char)(((key_56[3] << 4) & 0xFF) | (key_56[4] >> 4));
++  key[5] = (unsigned char)(((key_56[4] << 3) & 0xFF) | (key_56[5] >> 5));
++  key[6] = (unsigned char)(((key_56[5] << 2) & 0xFF) | (key_56[6] >> 6));
++  key[7] = (unsigned char) ((key_56[6] << 1) & 0xFF);
+ 
+   DES_set_odd_parity(&key);
+   DES_set_key(&key, ks);
+@@ -172,7 +330,7 @@ static void setup_des_key(unsigned char *key_56,
+   * 8 byte plaintext is encrypted with each key and the resulting 24
+   * bytes are stored in the results array.
+   */
+-static void calc_resp(unsigned char *keys,
++static void lm_resp(unsigned char *keys,
+                       unsigned char *plaintext,
+                       unsigned char *results)
  {
--  if ( m_CTestConfigurationOverwrites.find(name) != m_CTestConfigurationOverwrites.end() )
-+  if ( m_CTestConfigurationOverwrites.find(name) !=
-+    m_CTestConfigurationOverwrites.end() )
-     {
-     return m_CTestConfigurationOverwrites[name];
-     }
-@@ -1956,7 +2028,7 @@ void cmCTest::SetCTestConfiguration(const char *name, const char* value)
-   m_CTestConfiguration[name] = value;
+@@ -191,44 +349,44 @@ static void calc_resp(unsigned char *keys,
+                   DESKEY(ks), DES_ENCRYPT);
  }
  
--  
 +
- //----------------------------------------------------------------------
- std::string cmCTest::GetCurrentTag()
+ /*
+- * Set up lanmanager and nt hashed passwords
++ * Set up lanmanager hashed password
+  */
+-static void mkhash(char *password,
+-                   unsigned char *nonce,  /* 8 bytes */
+-                   unsigned char *lmresp  /* must fit 0x18 bytes */
+-#ifdef USE_NTRESPONSES
+-                   , unsigned char *ntresp  /* must fit 0x18 bytes */
+-#endif
+-  )
++static void mk_lm_hash(struct SessionHandle *data,
++                       char *password, 
++                       unsigned char *lmbuffer /* 21 bytes */)
  {
-@@ -2007,7 +2079,8 @@ void cmCTest::AddCTestConfigurationOverwrite(const char* encstr)
-   if ( epos == overStr.npos )
-     {
-     cmCTestLog(this, ERROR_MESSAGE,
--      "CTest configuration overwrite specified in the wrong format." << std::endl
-+      "CTest configuration overwrite specified in the wrong format."
-+      << std::endl
-       << "Valid format is: --overwrite key=value" << std::endl
-       << "The specified was: --overwrite " << overStr.c_str() << std::endl);
-     return;
-@@ -2018,7 +2091,8 @@ void cmCTest::AddCTestConfigurationOverwrite(const char* encstr)
+-  unsigned char lmbuffer[21];
+-#ifdef USE_NTRESPONSES
+-  unsigned char ntbuffer[21];
+-#endif
+-  unsigned char *pw;
++  unsigned char pw[14];
+   static const unsigned char magic[] = {
+-    0x4B, 0x47, 0x53, 0x21, 0x40, 0x23, 0x24, 0x25
++    0x4B, 0x47, 0x53, 0x21, 0x40, 0x23, 0x24, 0x25 /* i.e. KGS!@#$% */
+   };
+   unsigned int i;
+   size_t len = strlen(password);
+ 
+-  /* make it fit at least 14 bytes */
+-  pw = malloc(len<7?14:len*2);
+-  if(!pw)
+-    return; /* this will lead to a badly generated package */
+-
+   if (len > 14)
+     len = 14;
+ 
+   for (i=0; i<len; i++)
+-    pw[i] = toupper(password[i]);
++    pw[i] = (unsigned char)toupper(password[i]);
+ 
+   for (; i<14; i++)
+     pw[i] = 0;
+ 
++#ifdef CURL_DOES_CONVERSIONS
++  /*
++   * The LanManager hashed password needs to be created using the
++   * password in the network encoding not the host encoding.
++   */
++  if(data)
++    Curl_convert_to_network(data, (char *)pw, 14);
++#else
++  (void)data;
++#endif
++
+   {
+-    /* create LanManager hashed password */
++    /* Create LanManager hashed password. */
++
+     DES_key_schedule ks;
+ 
+     setup_des_key(pw, DESKEY(ks));
+@@ -239,53 +397,108 @@ static void mkhash(char *password,
+     DES_ecb_encrypt((DES_cblock *)magic, (DES_cblock *)(lmbuffer+8),
+                     DESKEY(ks), DES_ENCRYPT);
+ 
+-    memset(lmbuffer+16, 0, 5);
++    memset(lmbuffer + 16, 0, 21 - 16);
++  }
++  }
++
++#if USE_NTRESPONSES
++static void utf8_to_unicode_le(unsigned char *dest, const char *src,
++                               size_t srclen)
++{
++  size_t i;
++  for (i=0; i<srclen; i++) {
++    dest[2*i]   = (unsigned char)src[i];
++    dest[2*i+1] =   '\0';
+   }
+-  /* create LM responses */
+-  calc_resp(lmbuffer, nonce, lmresp);
++}
+ 
+-#ifdef USE_NTRESPONSES
+-  {
+-    /* create NT hashed password */
+-    MD4_CTX MD4;
++/*
++ * Set up nt hashed passwords
++ */
++static void mk_nt_hash(struct SessionHandle *data,
++                       char *password,
++                       unsigned char *ntbuffer /* 21 bytes */)
++{
++  size_t len = strlen(password);
++  unsigned char *pw = malloc(len*2);
+ 
+-    len = strlen(password);
++  utf8_to_unicode_le(pw, password, len);
+ 
+-    for (i=0; i<len; i++) {
+-      pw[2*i]   = password[i];
+-      pw[2*i+1] = 0;
+-    }
++#ifdef CURL_DOES_CONVERSIONS
++  /*
++   * The NT hashed password needs to be created using the
++   * password in the network encoding not the host encoding.
++   */
++  if(data)
++    Curl_convert_to_network(data, (char *)pw, len*2);
++#else
++  (void)data;
++#endif
++
++  {
++    /* Create NT hashed password. */
++    MD4_CTX MD4;
+ 
+     MD4_Init(&MD4);
+     MD4_Update(&MD4, pw, 2*len);
+     MD4_Final(ntbuffer, &MD4);
+ 
+-    memset(ntbuffer+16, 0, 8);
++    memset(ntbuffer + 16, 0, 21 - 16);
+   }
+ 
+-  calc_resp(ntbuffer, nonce, ntresp);
++  free(pw);
++}
+ #endif
+ 
+-  free(pw);
++
++#endif
++
++#ifdef USE_WINDOWS_SSPI
++
++static void
++ntlm_sspi_cleanup(struct ntlmdata *ntlm)
++{
++  if (ntlm->type_2) {
++    free(ntlm->type_2);
++    ntlm->type_2 = NULL;
++  }
++  if (ntlm->has_handles) {
++    s_pSecFn->DeleteSecurityContext(&ntlm->c_handle);
++    s_pSecFn->FreeCredentialsHandle(&ntlm->handle);
++    ntlm->has_handles = 0;
++  }
++  if (ntlm->p_identity) {
++    if (ntlm->identity.User) free(ntlm->identity.User);
++    if (ntlm->identity.Password) free(ntlm->identity.Password);
++    if (ntlm->identity.Domain) free(ntlm->identity.Domain);
++    ntlm->p_identity = NULL;
++  }
  }
  
- //----------------------------------------------------------------------
--bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf, const char* dconfig, const char* cmake_var)
-+bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf,
-+  const char* dconfig, const char* cmake_var)
- {
-   const char* ctvar;
-   ctvar = mf->GetDefinition(cmake_var);
-@@ -2031,10 +2105,10 @@ bool cmCTest::SetCTestConfigurationFromCMakeVariable(cmMakefile* mf, const char*
- }
+-#define SHORTPAIR(x) ((x) & 0xff), ((x) >> 8)
++#endif
++
++#define SHORTPAIR(x) ((x) & 0xff), (((x) >> 8) & 0xff)
+ #define LONGQUARTET(x) ((x) & 0xff), (((x) >> 8)&0xff), \
+-  (((x) >>16)&0xff), ((x)>>24)
++  (((x) >>16)&0xff), (((x)>>24) & 0xff)
++
++#define HOSTNAME_MAX 1024
  
- bool cmCTest::RunCommand(
--  const char* command, 
-+  const char* command,
-   std::string* stdOut,
-   std::string* stdErr,
--  int *retVal, 
-+  int *retVal,
-   const char* dir,
-   double timeout)
+ /* this is for creating ntlm header output */
+ CURLcode Curl_output_ntlm(struct connectdata *conn,
+                           bool proxy)
  {
-@@ -2044,7 +2118,7 @@ bool cmCTest::RunCommand(
-     {
-     return false;
-     }
--  
-+
-   std::vector<const char*> argv;
-   for(std::vector<cmStdString>::const_iterator a = args.begin();
-       a != args.end(); ++a)
-@@ -2065,7 +2139,7 @@ bool cmCTest::RunCommand(
-     }
-   cmsysProcess_SetTimeout(cp, timeout);
-   cmsysProcess_Execute(cp);
--  
-+
-   std::vector<char> tempOutput;
-   std::vector<char> tempError;
-   char* data;
-@@ -2086,16 +2160,17 @@ bool cmCTest::RunCommand(
-     default:
-       done = true;
-       }
--    if ( (res == cmsysProcess_Pipe_STDOUT || res == cmsysProcess_Pipe_STDERR) && m_ExtraVerbose )
-+    if ( (res == cmsysProcess_Pipe_STDOUT ||
-+        res == cmsysProcess_Pipe_STDERR) && m_ExtraVerbose )
-       {
-       cmSystemTools::Stdout(data, length);
-       }
-     }
--  
-+
-   cmsysProcess_WaitForExit(cp, 0);
-   stdOut->append(&*tempOutput.begin(), tempOutput.size());
-   stdErr->append(&*tempError.begin(), tempError.size());
--  
-+
-   bool result = true;
-   if(cmsysProcess_GetState(cp) == cmsysProcess_State_Exited)
-     {
-@@ -2132,7 +2207,7 @@ bool cmCTest::RunCommand(
-     stdErr->append(error_str, strlen(error_str));
-     result = false;
-     }
--  
-+
-   cmsysProcess_Delete(cp);
-   return result;
- }
-@@ -2152,7 +2227,7 @@ void cmCTest::SetOutputLogFileName(const char* name)
- }
+   const char *domain=""; /* empty */
+-  const char *host=""; /* empty */
+-  int domlen=(int)strlen(domain);
+-  int hostlen = (int)strlen(host);
+-  int hostoff; /* host name offset */
+-  int domoff;  /* domain name offset */
++  char host [HOSTNAME_MAX+ 1] = ""; /* empty */
++#ifndef USE_WINDOWS_SSPI
++  size_t domlen = strlen(domain);
++  size_t hostlen = strlen(host);
++  size_t hostoff; /* host name offset */
++  size_t domoff;  /* domain name offset */
++#endif
+   size_t size;
+   char *base64=NULL;
+-  unsigned char ntlmbuf[256]; /* enough, unless the host/domain is very long */
++  unsigned char ntlmbuf[1024]; /* enough, unless the user+host+domain is very
++                                  long */
  
- //----------------------------------------------------------------------
--static const char* cmCTestStringLogType[] = 
-+static const char* cmCTestStringLogType[] =
- {
-   "DEBUG",
-   "OUTPUT",
-@@ -2187,7 +2262,8 @@ void cmCTest::Log(int logType, const char* file, int line, const char* msg)
-     {
-     bool display = true;
-     if ( logType == cmCTest::DEBUG && !m_Debug ) { display = false; }
--    if ( logType == cmCTest::HANDLER_VERBOSE_OUTPUT && !m_Debug && !m_ExtraVerbose ) { display = false; }
-+    if ( logType == cmCTest::HANDLER_VERBOSE_OUTPUT && !m_Debug &&
-+      !m_ExtraVerbose ) { display = false; }
-     if ( display )
-       {
-       cmCTestLogOutputFileLine(*m_OutputLogFile);
+   /* point to the address of the pointer that holds the string to sent to the
+      server, which is for a plain host or for a HTTP proxy */
+@@ -324,11 +537,128 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+   if(!passwdp)
+     passwdp=(char *)"";
+ 
++#ifdef USE_WINDOWS_SSPI
++  /* If security interface is not yet initialized try to do this */
++  if (s_hSecDll == NULL) {
++    /* Determine Windows version. Security functions are located in
++     * security.dll on WinNT 4.0 and in secur32.dll on Win9x. Win2K and XP
++     * contain both these DLLs (security.dll just forwards calls to
++     * secur32.dll)
++     */
++    OSVERSIONINFO osver;
++    osver.dwOSVersionInfoSize = sizeof(osver);
++    GetVersionEx(&osver);
++    if (osver.dwPlatformId == VER_PLATFORM_WIN32_NT
++      && osver.dwMajorVersion == 4)
++      s_hSecDll = LoadLibrary("security.dll");
++    else
++      s_hSecDll = LoadLibrary("secur32.dll");
++    if (s_hSecDll != NULL) {
++      INIT_SECURITY_INTERFACE pInitSecurityInterface;
++      pInitSecurityInterface =
++        (INIT_SECURITY_INTERFACE)GetProcAddress(s_hSecDll,
++                                                "InitSecurityInterfaceA");
++      if (pInitSecurityInterface != NULL)
++        s_pSecFn = pInitSecurityInterface();
++    }
++  }
++  if (s_pSecFn == NULL)
++    return CURLE_RECV_ERROR;
++#endif
++
+   switch(ntlm->state) {
+   case NTLMSTATE_TYPE1:
+   default: /* for the weird cases we (re)start here */
+-    hostoff = 32;
+-    domoff = hostoff + hostlen;
++#ifdef USE_WINDOWS_SSPI
++  {
++    SecBuffer buf;
++    SecBufferDesc desc;
++    SECURITY_STATUS status;
++    ULONG attrs;
++    const char *user;
++    int domlen;
++    TimeStamp tsDummy; /* For Windows 9x compatibility of SPPI calls */
++
++    ntlm_sspi_cleanup(ntlm);
++
++    user = strchr(userp, '\\');
++    if (!user)
++      user = strchr(userp, '/');
++
++    if (user) {
++      domain = userp;
++      domlen = user - userp;
++      user++;
++    }
++    else {
++      user = userp;
++      domain = "";
++      domlen = 0;
++    }
++
++    if (user && *user) {
++      /* note: initialize all of this before doing the mallocs so that
++       * it can be cleaned up later without leaking memory.
++       */
++      ntlm->p_identity = &ntlm->identity;
++      memset(ntlm->p_identity, 0, sizeof(*ntlm->p_identity));
++      if ((ntlm->identity.User = (unsigned char *)strdup(user)) == NULL)
++        return CURLE_OUT_OF_MEMORY;
++      ntlm->identity.UserLength = strlen(user);
++      if ((ntlm->identity.Password = (unsigned char *)strdup(passwdp)) == NULL)
++        return CURLE_OUT_OF_MEMORY;
++      ntlm->identity.PasswordLength = strlen(passwdp);
++      if ((ntlm->identity.Domain = malloc(domlen+1)) == NULL)
++        return CURLE_OUT_OF_MEMORY;
++      strncpy((char *)ntlm->identity.Domain, domain, domlen);
++      ntlm->identity.Domain[domlen] = '\0';
++      ntlm->identity.DomainLength = domlen;
++      ntlm->identity.Flags = SEC_WINNT_AUTH_IDENTITY_ANSI;
++    }
++    else {
++      ntlm->p_identity = NULL;
++    }
++
++    if (s_pSecFn->AcquireCredentialsHandle(
++          NULL, (char *)"NTLM", SECPKG_CRED_OUTBOUND, NULL, ntlm->p_identity,
++          NULL, NULL, &ntlm->handle, &tsDummy
++          ) != SEC_E_OK) {
++      return CURLE_OUT_OF_MEMORY;
++    }
++
++    desc.ulVersion = SECBUFFER_VERSION;
++    desc.cBuffers  = 1;
++    desc.pBuffers  = &buf;
++    buf.cbBuffer   = sizeof(ntlmbuf);
++    buf.BufferType = SECBUFFER_TOKEN;
++    buf.pvBuffer   = ntlmbuf;
++
++    status = s_pSecFn->InitializeSecurityContext(&ntlm->handle, NULL,
++                                                 (char *) host,
++                                                 ISC_REQ_CONFIDENTIALITY |
++                                                 ISC_REQ_REPLAY_DETECT |
++                                                 ISC_REQ_CONNECTION,
++                                                 0, SECURITY_NETWORK_DREP,
++                                                 NULL, 0,
++                                                 &ntlm->c_handle, &desc,
++                                                 &attrs, &tsDummy);
++
++    if (status == SEC_I_COMPLETE_AND_CONTINUE ||
++        status == SEC_I_CONTINUE_NEEDED) {
++      s_pSecFn->CompleteAuthToken(&ntlm->c_handle, &desc);
++    }
++    else if (status != SEC_E_OK) {
++      s_pSecFn->FreeCredentialsHandle(&ntlm->handle);
++      return CURLE_RECV_ERROR;
++    }
++
++    ntlm->has_handles = 1;
++    size = buf.cbBuffer;
++  }
++#else
++    hostoff = 0;
++    domoff = hostoff + hostlen; /* This is 0: remember that host and domain
++                                   are empty */
+ 
+     /* Create and send a type-1 message:
+ 
+@@ -342,8 +672,12 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+     32    start of data block
+ 
+     */
+-
+-    snprintf((char *)ntlmbuf, sizeof(ntlmbuf), "NTLMSSP%c"
++#if USE_NTLM2SESSION
++#define NTLM2FLAG NTLMFLAG_NEGOTIATE_NTLM2_KEY
++#else
++#define NTLM2FLAG 0
++#endif
++    snprintf((char *)ntlmbuf, sizeof(ntlmbuf), NTLMSSP_SIGNATURE "%c"
+              "\x01%c%c%c" /* 32-bit type = 1 */
+              "%c%c%c%c"   /* 32-bit NTLM flag field */
+              "%c%c"  /* domain length */
+@@ -360,9 +694,11 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+              0,0,0, /* part of type-1 long */
+ 
+              LONGQUARTET(
+-               NTLMFLAG_NEGOTIATE_OEM|      /*   2 */
+-               NTLMFLAG_NEGOTIATE_NTLM_KEY  /* 200 */
+-               /* equals 0x0202 */
++               NTLMFLAG_NEGOTIATE_OEM|
++               NTLMFLAG_REQUEST_TARGET|
++               NTLMFLAG_NEGOTIATE_NTLM_KEY|
++               NTLM2FLAG|
++               NTLMFLAG_NEGOTIATE_ALWAYS_SIGN
+                ),
+              SHORTPAIR(domlen),
+              SHORTPAIR(domlen),
+@@ -372,19 +708,42 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+              SHORTPAIR(hostlen),
+              SHORTPAIR(hostoff),
+              0,0,
+-             host, domain);
++             host /* this is empty */, domain /* this is empty */);
+ 
+     /* initial packet length */
+     size = 32 + hostlen + domlen;
++#endif
+ 
+-    /* now keeper of the base64 encoded package size */
+-    size = Curl_base64_encode((char *)ntlmbuf, size, &base64);
++    DEBUG_OUT({
++      fprintf(stderr, "**** TYPE1 header flags=0x%02.2x%02.2x%02.2x%02.2x 0x%08.8x ",
++              LONGQUARTET(NTLMFLAG_NEGOTIATE_OEM|
++                          NTLMFLAG_REQUEST_TARGET|
++                          NTLMFLAG_NEGOTIATE_NTLM_KEY|
++                          NTLM2FLAG|
++                          NTLMFLAG_NEGOTIATE_ALWAYS_SIGN),
++              NTLMFLAG_NEGOTIATE_OEM|
++              NTLMFLAG_REQUEST_TARGET|
++              NTLMFLAG_NEGOTIATE_NTLM_KEY|
++              NTLM2FLAG|
++              NTLMFLAG_NEGOTIATE_ALWAYS_SIGN);
++      print_flags(stderr,
++                  NTLMFLAG_NEGOTIATE_OEM|
++                  NTLMFLAG_REQUEST_TARGET|
++                  NTLMFLAG_NEGOTIATE_NTLM_KEY|
++                  NTLM2FLAG|
++                  NTLMFLAG_NEGOTIATE_ALWAYS_SIGN);
++      fprintf(stderr, "\n****\n");
++    });
++
++    /* now size is the size of the base64 encoded package size */
++    size = Curl_base64_encode(NULL, (char *)ntlmbuf, size, &base64);
+ 
+     if(size >0 ) {
+       Curl_safefree(*allocuserpwd);
+       *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
+                               proxy?"Proxy-":"",
+                               base64);
++      DEBUG_OUT(fprintf(stderr, "**** Header %s\n ", *allocuserpwd));
+       free(base64);
+     }
+     else
+@@ -393,7 +752,7 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+     break;
+ 
+   case NTLMSTATE_TYPE2:
+-    /* We received the type-2 already, create a type-3 message:
++    /* We received the type-2 message already, create a type-3 message:
+ 
+     Index   Description            Content
+     0       NTLMSSP Signature      Null-terminated ASCII "NTLMSSP"
+@@ -411,47 +770,151 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+     */
+ 
+   {
++#ifdef USE_WINDOWS_SSPI
++    SecBuffer type_2, type_3;
++    SecBufferDesc type_2_desc, type_3_desc;
++    SECURITY_STATUS status;
++    ULONG attrs;
++    TimeStamp tsDummy; /* For Windows 9x compatibility of SPPI calls */
++
++    type_2_desc.ulVersion  = type_3_desc.ulVersion  = SECBUFFER_VERSION;
++    type_2_desc.cBuffers   = type_3_desc.cBuffers   = 1;
++    type_2_desc.pBuffers   = &type_2;
++    type_3_desc.pBuffers   = &type_3;
++
++    type_2.BufferType = SECBUFFER_TOKEN;
++    type_2.pvBuffer   = ntlm->type_2;
++    type_2.cbBuffer   = ntlm->n_type_2;
++    type_3.BufferType = SECBUFFER_TOKEN;
++    type_3.pvBuffer   = ntlmbuf;
++    type_3.cbBuffer   = sizeof(ntlmbuf);
++
++    status = s_pSecFn->InitializeSecurityContext(&ntlm->handle, &ntlm->c_handle,
++                                       (char *) host,
++                                       ISC_REQ_CONFIDENTIALITY |
++                                       ISC_REQ_REPLAY_DETECT |
++                                       ISC_REQ_CONNECTION,
++                                       0, SECURITY_NETWORK_DREP, &type_2_desc,
++                                       0, &ntlm->c_handle, &type_3_desc,
++                                       &attrs, &tsDummy);
++
++    if (status != SEC_E_OK)
++      return CURLE_RECV_ERROR;
++
++    size = type_3.cbBuffer;
++
++    ntlm_sspi_cleanup(ntlm);
++
++#else
+     int lmrespoff;
++    unsigned char lmresp[24]; /* fixed-size */
++#if USE_NTRESPONSES
+     int ntrespoff;
+-    int useroff;
+-    unsigned char lmresp[0x18]; /* fixed-size */
+-#ifdef USE_NTRESPONSES
+-    unsigned char ntresp[0x18]; /* fixed-size */
++    unsigned char ntresp[24]; /* fixed-size */
+ #endif
++    size_t useroff;
+     const char *user;
+-    int userlen;
++    size_t userlen;
+ 
+     user = strchr(userp, '\\');
+     if(!user)
+       user = strchr(userp, '/');
+ 
+     if (user) {
+       domain = userp;
+-      domlen = (int)(user - domain);
++      domlen = (user - domain);
+       user++;
+     }
+     else
+       user = userp;
+-    userlen = (int)strlen(user);
++    userlen = strlen(user);
++
++    if (gethostname(host, HOSTNAME_MAX)) {
++      infof(conn->data, "gethostname() failed, continuing without!");
++      hostlen = 0;
++    }
++    else {
++      /* If the workstation if configured with a full DNS name (i.e.
++       * workstation.somewhere.net) gethostname() returns the fully qualified
++       * name, which NTLM doesn't like.
++       */
++      char *dot = strchr(host, '.');
++      if (dot)
++        *dot = '\0';
++      hostlen = strlen(host);
++    }
++
++#if USE_NTLM2SESSION
++    /* We don't support NTLM2 if we don't have USE_NTRESPONSES */
++    if (ntlm->flags & NTLMFLAG_NEGOTIATE_NTLM2_KEY) {
++      unsigned char ntbuffer[0x18];
++      unsigned char tmp[0x18];
++      unsigned char md5sum[MD5_DIGEST_LENGTH];
++      MD5_CTX MD5;
++      unsigned char random[8];
++
++      /* Need to create 8 bytes random data */
++      Curl_ossl_seed(conn->data); /* Initiate the seed if not already done */
++      RAND_bytes(random,8);
++
++      /* 8 bytes random data as challenge in lmresp */
++      memcpy(lmresp,random,8);
++      /* Pad with zeros */
++      memset(lmresp+8,0,0x10);
++
++      /* Fill tmp with challenge(nonce?) + random */
++      memcpy(tmp,&ntlm->nonce[0],8);
++      memcpy(tmp+8,random,8);
++
++      MD5_Init(&MD5);
++      MD5_Update(&MD5, tmp, 16);
++      MD5_Final(md5sum, &MD5);
++      /* We shall only use the first 8 bytes of md5sum,
++         but the des code in lm_resp only encrypt the first 8 bytes */
++      mk_nt_hash(conn->data, passwdp, ntbuffer);
++      lm_resp(ntbuffer, md5sum, ntresp);
++
++      /* End of NTLM2 Session code */
++    }
++    else {
++#endif
+ 
+-    mkhash(passwdp, &ntlm->nonce[0], lmresp
+-#ifdef USE_NTRESPONSES
+-           , ntresp
++#if USE_NTRESPONSES
++      unsigned char ntbuffer[0x18];
+ #endif
+-      );
++      unsigned char lmbuffer[0x18];
+ 
+-    domoff = 64; /* always */
++#if USE_NTRESPONSES
++      mk_nt_hash(conn->data, passwdp, ntbuffer);
++      lm_resp(ntbuffer, &ntlm->nonce[0], ntresp);
++#endif
++
++      mk_lm_hash(conn->data, passwdp, lmbuffer);
++      lm_resp(lmbuffer, &ntlm->nonce[0], lmresp);
++      /* A safer but less compatible alternative is:
++       *   lm_resp(ntbuffer, &ntlm->nonce[0], lmresp);
++       * See http://davenport.sourceforge.net/ntlm.html#ntlmVersion2 */
++#if USE_NTLM2SESSION
++    }
++#endif
++
++    lmrespoff = 64; /* size of the message header */
++#if USE_NTRESPONSES
++    ntrespoff = lmrespoff + 0x18;
++    domoff = ntrespoff + 0x18;
++#else
++    domoff = lmrespoff + 0x18;
++#endif
+     useroff = domoff + domlen;
+     hostoff = useroff + userlen;
+-    lmrespoff = hostoff + hostlen;
+-    ntrespoff = lmrespoff + 0x18;
+ 
+     /* Create the big type-3 message binary blob */
+     size = snprintf((char *)ntlmbuf, sizeof(ntlmbuf),
+-                    "NTLMSSP%c"
++                    NTLMSSP_SIGNATURE "%c"
+                     "\x03%c%c%c" /* type-3, 32 bits */
+ 
+-                    "%c%c%c%c" /* LanManager length + allocated space */
++                    "%c%c" /* LanManager length */
++                    "%c%c" /* LanManager allocated space */
+                     "%c%c" /* LanManager offset */
+                     "%c%c" /* 2 zeroes */
+ 
+@@ -473,14 +936,15 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+                     "%c%c"  /* host length */
+                     "%c%c"  /* host allocated space */
+                     "%c%c"  /* host offset */
+-                    "%c%c%c%c%c%c"  /* 6 zeroes */
+-
+-                    "\xff\xff"  /* message length */
+                     "%c%c"  /* 2 zeroes */
+ 
+-                    "\x01\x82" /* flags */
++                    "%c%c"  /* session key length (unknown purpose) */
++                    "%c%c"  /* session key allocated space (unknown purpose) */
++                    "%c%c"  /* session key offset (unknown purpose) */
+                     "%c%c"  /* 2 zeroes */
+ 
++                    "%c%c%c%c" /* flags */
++
+                     /* domain string */
+                     /* user string */
+                     /* host string */
+@@ -495,16 +959,17 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+                     SHORTPAIR(lmrespoff),
+                     0x0, 0x0,
+ 
+-#ifdef USE_NTRESPONSES
++#if USE_NTRESPONSES
+                     SHORTPAIR(0x18),  /* NT-response length, twice */
+                     SHORTPAIR(0x18),
++                    SHORTPAIR(ntrespoff),
++                    0x0, 0x0,
+ #else
+                     0x0, 0x0,
+                     0x0, 0x0,
+-#endif
+-                    SHORTPAIR(ntrespoff),
+                     0x0, 0x0,
+-
++                    0x0, 0x0,
++#endif
+                     SHORTPAIR(domlen),
+                     SHORTPAIR(domlen),
+                     SHORTPAIR(domoff),
+@@ -518,46 +983,89 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+                     SHORTPAIR(hostlen),
+                     SHORTPAIR(hostlen),
+                     SHORTPAIR(hostoff),
+-                    0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
++                    0x0, 0x0,
+ 
+                     0x0, 0x0,
++                    0x0, 0x0,
++                    0x0, 0x0,
++                    0x0, 0x0,
++
++                    LONGQUARTET(ntlm->flags));
++    DEBUG_OUT(assert(size==64));
++
++    DEBUG_OUT(assert(size == lmrespoff));
++    /* We append the binary hashes */
++    if(size < (sizeof(ntlmbuf) - 0x18)) {
++      memcpy(&ntlmbuf[size], lmresp, 0x18);
++      size += 0x18;
++    }
++
++    DEBUG_OUT({
++        fprintf(stderr, "**** TYPE3 header lmresp=");
++        print_hex(stderr, (char *)&ntlmbuf[lmrespoff], 0x18);
++    });
++
++#if USE_NTRESPONSES
++    if(size < (sizeof(ntlmbuf) - 0x18)) {
++      DEBUG_OUT(assert(size == ntrespoff));
++      memcpy(&ntlmbuf[size], ntresp, 0x18);
++      size += 0x18;
++    }
++
++    DEBUG_OUT({
++        fprintf(stderr, "\n                  ntresp=");
++        print_hex(stderr, (char *)&ntlmbuf[ntrespoff], 0x18);
++    });
++
++#endif
++
++    DEBUG_OUT({
++        fprintf(stderr, "\n                  flags=0x%02.2x%02.2x%02.2x%02.2x 0x%08.8x ",
++                LONGQUARTET(ntlm->flags), ntlm->flags);
++        print_flags(stderr, ntlm->flags);
++        fprintf(stderr, "\n****\n");
++    });
+ 
+-                    0x0, 0x0);
+ 
+-    /* size is now 64 */
+-    size=64;
+-    ntlmbuf[62]=ntlmbuf[63]=0;
++    /* Make sure that the domain, user and host strings fit in the target
++       buffer before we copy them there. */
++    if(size + userlen + domlen + hostlen >= sizeof(ntlmbuf)) {
++      failf(conn->data, "user + domain + host name too big");
++      return CURLE_OUT_OF_MEMORY;
++    }
+ 
++    curlassert(size == domoff);
+     memcpy(&ntlmbuf[size], domain, domlen);
+     size += domlen;
+ 
++    curlassert(size == useroff);
+     memcpy(&ntlmbuf[size], user, userlen);
+     size += userlen;
+ 
+-    /* we append the binary hashes to the end of the blob */
+-    if(size < ((int)sizeof(ntlmbuf) - 0x18)) {
+-      memcpy(&ntlmbuf[size], lmresp, 0x18);
+-      size += 0x18;
+-    }
++    curlassert(size == hostoff);
++    memcpy(&ntlmbuf[size], host, hostlen);
++    size += hostlen;
+ 
+-#ifdef USE_NTRESPONSES
+-    if(size < ((int)sizeof(ntlmbuf) - 0x18)) {
+-      memcpy(&ntlmbuf[size], ntresp, 0x18);
+-      size += 0x18;
++#ifdef CURL_DOES_CONVERSIONS
++    /* convert domain, user, and host to ASCII but leave the rest as-is */
++    if(CURLE_OK != Curl_convert_to_network(conn->data, 
++                                           (char *)&ntlmbuf[domoff],
++                                           size-domoff)) {
++      return CURLE_CONV_FAILED;
+     }
+-#endif
++#endif /* CURL_DOES_CONVERSIONS */
+ 
+-    ntlmbuf[56] = (unsigned char)(size & 0xff);
+-    ntlmbuf[57] = (unsigned char)(size >> 8);
++#endif
+ 
+     /* convert the binary blob into base64 */
+-    size = Curl_base64_encode((char *)ntlmbuf, size, &base64);
++    size = Curl_base64_encode(NULL, (char *)ntlmbuf, size, &base64);
+ 
+     if(size >0 ) {
+       Curl_safefree(*allocuserpwd);
+       *allocuserpwd = aprintf("%sAuthorization: NTLM %s\r\n",
+                               proxy?"Proxy-":"",
+                               base64);
++      DEBUG_OUT(fprintf(stderr, "**** %s\n ", *allocuserpwd));
+       free(base64);
+     }
+     else
+@@ -581,5 +1089,23 @@ CURLcode Curl_output_ntlm(struct connectdata *conn,
+ 
+   return CURLE_OK;
+ }
+-#endif /* USE_SSLEAY */
++
++
++void
++Curl_ntlm_cleanup(struct connectdata *conn)
++{
++#ifdef USE_WINDOWS_SSPI
++  ntlm_sspi_cleanup(&conn->ntlm);
++  ntlm_sspi_cleanup(&conn->proxyntlm);
++  if (s_hSecDll != NULL) {
++    FreeLibrary(s_hSecDll);
++    s_hSecDll = NULL;
++    s_pSecFn = NULL;
++  }
++#else
++  (void)conn;
++#endif
++}
++
++#endif /* USE_NTLM */
+ #endif /* !CURL_DISABLE_HTTP */

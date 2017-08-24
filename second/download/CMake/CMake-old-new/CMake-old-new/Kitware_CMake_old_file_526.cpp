@@ -1,10 +1,12 @@
 /*=========================================================================
 
-  Program:   CMake - Cross-Platform Makefile Generator
+  Program:   WXDialog - wxWidgets X-platform GUI Front-End for CMake
   Module:    $RCSfile$
   Language:  C++
   Date:      $Date$
   Version:   $Revision$
+
+  Author:    Jorgen Bodde
 
   Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
   See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
@@ -14,1371 +16,1760 @@
      PURPOSE.  See the above copyright notices for more information.
 
 =========================================================================*/
-#include "cmGlobalGenerator.h"
-#include "cmLocalGenerator.h"
-#include "cmake.h"
-#include "cmMakefile.h"
 
-#include <stdlib.h> // required for atof
-
-#if defined(_WIN32) && !defined(__CYGWIN__) 
-#include <windows.h>
+#if defined(__GNUG__) && !defined(__APPLE__)
+#pragma implementation "CMakeSetupFrame.h"
 #endif
 
-#include <assert.h>
+// For compilers that support precompilation, includes "wx/wx.h".
+#include "wx/wxprec.h"
 
-int cmGlobalGenerator::s_TryCompileTimeout = 0;
-
-cmGlobalGenerator::cmGlobalGenerator()
-{
-  // by default use the native paths
-  m_ForceUnixPaths = false;
-}
-
-cmGlobalGenerator::~cmGlobalGenerator()
-{ 
-  // Delete any existing cmLocalGenerators
-  unsigned int i;
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    delete m_LocalGenerators[i];
-    }
-  m_LocalGenerators.clear();
-}
-
-// Find the make program for the generator, required for try compiles
-void cmGlobalGenerator::FindMakeProgram(cmMakefile* mf)
-{
-  if(m_FindMakeProgramFile.size() == 0)
-    {
-    cmSystemTools::Error(
-      "Generator implementation error, "
-      "all generators must specify m_FindMakeProgramFile");
-    }
-  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
-     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
-    {
-    std::string setMakeProgram = mf->GetModulesFile(m_FindMakeProgramFile.c_str());
-    if(setMakeProgram.size())
-      {
-      mf->ReadListFile(0, setMakeProgram.c_str());
-      }
-    } 
-  if(!mf->GetDefinition("CMAKE_MAKE_PROGRAM")
-     || cmSystemTools::IsOff(mf->GetDefinition("CMAKE_MAKE_PROGRAM")))
-    {
-    cmOStringStream err;
-    err << "CMake was unable to find a build program corresponding to \""
-        << this->GetName() << "\".  CMAKE_MAKE_PROGRAM is not set.  You "
-        << "probably need to select a different build tool.";
-    cmSystemTools::Error(err.str().c_str());
-    cmSystemTools::SetFatalErrorOccured();
-    return;
-    }
-  std::string makeProgram = mf->GetRequiredDefinition("CMAKE_MAKE_PROGRAM");
-  // if there are spaces in the make program use short path
-  // but do not short path the actual program name, as
-  // this can cause trouble with VSExpress
-  if(makeProgram.find(' ') != makeProgram.npos)
-    {
-    std::string dir;
-    std::string file;
-    cmSystemTools::SplitProgramPath(makeProgram.c_str(),
-                                    dir, file);
-    std::string saveFile = file;
-    cmSystemTools::GetShortPath(makeProgram.c_str(), makeProgram);
-    cmSystemTools::SplitProgramPath(makeProgram.c_str(),
-                                    dir, file);
-    makeProgram = dir;
-    makeProgram += "/";
-    makeProgram += saveFile;
-    this->GetCMakeInstance()->AddCacheEntry("CMAKE_MAKE_PROGRAM", makeProgram.c_str(),
-                                            "make program",
-                                            cmCacheManager::FILEPATH);
-    }
-  
-}
-
-// enable the given language
-//
-// The following files are loaded in this order:
-// 
-// First figure out what OS we are running on:
-// 
-// CMakeSystem.cmake          // configured file created by CMakeDetermineSystem.cmake
-//   CMakeDetermineSystem.cmake // figure out os info and create CMakeSystem.cmake IFF CMAKE_SYSTEM_NAME not set
-//   CMakeSystem.cmake          // configured file created by CMakeDetermineSystem.cmake IFF CMAKE_SYSTEM_LOADED 
-//    TODO: CMakeDetermineSystem.cmake and CMakeSystem.cmake should be in the same if
-
-// Next try and enable all languages found in the languages vector
-// 
-// FOREACH LANG in languages
-//   CMake(LANG)Compiler.cmake  // configured file create by CMakeDetermine(LANG)Compiler.cmake
-//     CMakeDetermine(LANG)Compiler.cmake  // Finds compiler for LANG and creates CMake(LANG)Compiler.cmake
-//     CMake(LANG)Compiler.cmake   // configured file create by CMakeDetermine(LANG)Compiler.cmake       
-//
-// CMakeSystemSpecificInformation.cmake  // inludes Platform/${CMAKE_SYSTEM_NAME}.cmake may use compiler stuff
-
-// FOREACH LANG in languages
-//   CMake(LANG)Information.cmake   // loads Platform/${CMAKE_SYSTEM_NAME}-${COMPILER}.cmake
-//   CMakeTest(LANG)Compiler.cmake  // Make sure the compiler works with a try compile if CMakeDetermine(LANG) was loaded
-// 
-// Now load a few files that can override values set in any of the above
-// CMake(PROJECTNAME)Compatibility.cmake  // load any backwards compatibility stuff for current project
-// ${CMAKE_USER_MAKE_RULES_OVERRIDE}      // allow users a chance to override system variables 
-//
-//
-
-void 
-cmGlobalGenerator::EnableLanguage(std::vector<std::string>const& languages,
-                                  cmMakefile *mf)
-{  
-  if(languages.size() == 0)
-    {
-    cmSystemTools::Error("EnableLanguage must have a lang specified!");
-    cmSystemTools::SetFatalErrorOccured();
-    return;
-    }
-  mf->AddDefinition("RUN_CONFIGURE", true);
-  std::string rootBin = mf->GetHomeOutputDirectory();
-  rootBin += "/CMakeFiles";
-  
-  // If the configuration files path has been set,
-  // then we are in a try compile and need to copy the enable language
-  // files from the parent cmake bin dir, into the try compile bin dir
-  if(m_ConfiguredFilesPath.size())
-    {
-    std::string src = m_ConfiguredFilesPath;
-    src += "/CMakeSystem.cmake";
-    std::string dst = rootBin;
-    dst += "/CMakeSystem.cmake";
-    cmSystemTools::CopyFileIfDifferent(src.c_str(), dst.c_str());
-    for(std::vector<std::string>::const_iterator l = languages.begin();
-        l != languages.end(); ++l)
-      {
-      if(*l == "NONE")
-        {
-        this->SetLanguageEnabled("NONE", mf);
-        continue;
-        }
-      const char* lang = l->c_str();
-      std::string src2 = m_ConfiguredFilesPath;
-      src2 += "/CMake";
-      src2 += lang;
-      src2 += "Compiler.cmake";
-      std::string dst2 = rootBin;
-      dst2 += "/CMake";
-      dst2 += lang;
-      dst2 += "Compiler.cmake";
-      cmSystemTools::CopyFileIfDifferent(src2.c_str(), dst2.c_str()); 
-      src2 = m_ConfiguredFilesPath;
-      src2 += "/CMake";
-      src2 += lang;
-      src2 += "Platform.cmake";
-      dst2 = rootBin;
-      dst2 += "/CMake";
-      dst2 += lang;
-      dst2 += "Platform.cmake";
-      cmSystemTools::CopyFileIfDifferent(src2.c_str(), dst2.c_str());
-      }
-    rootBin = m_ConfiguredFilesPath;
-    }
-
-  // find and make sure CMAKE_MAKE_PROGRAM is defined
-  this->FindMakeProgram(mf);
-
-  // try and load the CMakeSystem.cmake if it is there
-  std::string fpath = rootBin;
-  if(!mf->GetDefinition("CMAKE_SYSTEM_LOADED"))
-    {
-    fpath += "/CMakeSystem.cmake";
-    if(cmSystemTools::FileExists(fpath.c_str()))
-      {
-      mf->ReadListFile(0,fpath.c_str());
-      }
-    }
-  //  Load the CMakeDetermineSystem.cmake file and find out
-  // what platform we are running on
-  if (!mf->GetDefinition("CMAKE_SYSTEM_NAME"))
-    {
-#if defined(_WIN32) && !defined(__CYGWIN__) 
-    /* Windows version number data.  */
-    OSVERSIONINFO osvi;
-    ZeroMemory(&osvi, sizeof(osvi));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx (&osvi);
-    cmOStringStream windowsVersionString;
-    windowsVersionString << osvi.dwMajorVersion << "." << osvi.dwMinorVersion;
-    windowsVersionString.str();
-    mf->AddDefinition("CMAKE_SYSTEM_VERSION", windowsVersionString.str().c_str());
+#ifdef __BORLANDC__
+#pragma hdrstop
 #endif
-    // Read the DetermineSystem file
-    std::string systemFile = mf->GetModulesFile("CMakeDetermineSystem.cmake");
-    mf->ReadListFile(0, systemFile.c_str());
-    // load the CMakeSystem.cmake from the binary directory
-    // this file is configured by the CMakeDetermineSystem.cmake file
-    fpath = rootBin;
-    fpath += "/CMakeSystem.cmake";
-    mf->ReadListFile(0,fpath.c_str());
-    }
-  std::map<cmStdString, bool> needTestLanguage;
-  // foreach language 
-  // load the CMakeDetermine(LANG)Compiler.cmake file to find
-  // the compiler 
 
-  for(std::vector<std::string>::const_iterator l = languages.begin();
-      l != languages.end(); ++l)
-    {
-    const char* lang = l->c_str();
-    if(*l == "NONE")
-      {
-      this->SetLanguageEnabled("NONE", mf);
-      continue;
-      }
-    bool determineLanguageCalled = false;
-    std::string loadedLang = "CMAKE_";
-    loadedLang +=  lang;
-    loadedLang += "_COMPILER_LOADED";
-    // If the existing build tree was already configured with this
-    // version of CMake then try to load the configured file first
-    // to avoid duplicate compiler tests.
-    unsigned int cacheMajor = mf->GetCacheMajorVersion();
-    unsigned int cacheMinor = mf->GetCacheMinorVersion();
-    unsigned int selfMajor = cmMakefile::GetMajorVersion();
-    unsigned int selfMinor = cmMakefile::GetMinorVersion();
-    if((m_CMakeInstance->GetIsInTryCompile() ||
-        (selfMajor == cacheMajor && selfMinor == cacheMinor))
-       && !mf->GetDefinition(loadedLang.c_str()))
-      {
-      fpath = rootBin;
-      fpath += "/CMake";
-      fpath += lang;
-      fpath += "Compiler.cmake";
-      if(cmSystemTools::FileExists(fpath.c_str()))
-        {
-        if(!mf->ReadListFile(0,fpath.c_str()))
-          {
-          cmSystemTools::Error("Could not find cmake module file:", fpath.c_str());
-          }
-        // if this file was found then the language was already determined to be working
-        needTestLanguage[lang] = false;
-        this->SetLanguageEnabled(lang, mf); // this can only be called after loading CMake(LANG)Compiler.cmake
-        }
-      }
-      
-    if(!this->GetLanguageEnabled(lang) )
-      {  
-      if (m_CMakeInstance->GetIsInTryCompile())
-        {
-        cmSystemTools::Error("This should not have happen. "
-                             "If you see this message, you are probably using a "
-                             "broken CMakeLists.txt file or a problematic release of "
-                             "CMake");
-        }
-      // if the CMake(LANG)Compiler.cmake file was not found then 
-      // load CMakeDetermine(LANG)Compiler.cmake
-      std::string determineCompiler = "CMakeDetermine";
-      determineCompiler += lang;
-      determineCompiler += "Compiler.cmake";
-      std::string determineFile = 
-        mf->GetModulesFile(determineCompiler.c_str());
-      if(!mf->ReadListFile(0,determineFile.c_str()))
-        {
-        cmSystemTools::Error("Could not find cmake module file:", 
-                             determineFile.c_str());
-        }      
-      needTestLanguage[lang] = true;
-      determineLanguageCalled = true;
-      // Some generators like visual studio should not use the env variables
-      // So the global generator can specify that in this variable
-      if(!mf->GetDefinition("CMAKE_GENERATOR_NO_COMPILER_ENV"))
-        {
-        // put ${CMake_(LANG)_COMPILER_ENV_VAR}=${CMAKE_(LANG)_COMPILER into the
-        // environment, in case user scripts want to run configure, or sub cmakes
-        std::string compilerName = "CMAKE_";
-        compilerName += lang;
-        compilerName += "_COMPILER";
-        std::string compilerEnv = "CMAKE_";
-        compilerEnv += lang;
-        compilerEnv += "_COMPILER_ENV_VAR";
-        std::string envVar = mf->GetRequiredDefinition(compilerEnv.c_str());
-        std::string envVarValue = mf->GetRequiredDefinition(compilerName.c_str());
-        std::string env = envVar;
-        env += "=";
-        env += envVarValue;
-        cmSystemTools::PutEnv(env.c_str());
-        }
-      } // end if(!this->GetLanguageEnabled(lang) )  
-    // if determineLanguage was called then load the file it 
-    // configures CMake(LANG)Compiler.cmake
-    if(determineLanguageCalled)
-      {
-      fpath = rootBin;
-      fpath += "/CMake";
-      fpath += lang;
-      fpath += "Compiler.cmake";
-      if(!mf->ReadListFile(0,fpath.c_str()))
-        {
-        cmSystemTools::Error("Could not find cmake module file:", fpath.c_str());
-        }
-      this->SetLanguageEnabled(lang, mf); // this can only be called after loading CMake(LANG)Compiler.cmake
-      // the language must be enabled for try compile to work, but
-      // we do not know if it is a working compiler yet so set the test language flag
-      needTestLanguage[lang] = true;
-      }
-    }  // end loop over languages
-  
-  // **** Load the system specific information if not yet loaded
-  if (!mf->GetDefinition("CMAKE_SYSTEM_SPECIFIC_INFORMATION_LOADED"))
-    {
-    fpath = mf->GetModulesFile("CMakeSystemSpecificInformation.cmake");
-    if(!mf->ReadListFile(0,fpath.c_str()))
-      {
-      cmSystemTools::Error("Could not find cmake module file:", fpath.c_str());
-      }
-    }
-  // loop over languages again loading CMake(LANG)Information.cmake
-  //
-  for(std::vector<std::string>::const_iterator l = languages.begin();
-      l != languages.end(); ++l)
-    {
-    const char* lang = l->c_str();
-    if(*l == "NONE")
-      {
-      this->SetLanguageEnabled("NONE", mf);
-      continue;
-      }
-    std::string langLoadedVar = "CMAKE_";
-    langLoadedVar += lang;
-    langLoadedVar += "_INFORMATION_LOADED";
-    if (!mf->GetDefinition(langLoadedVar.c_str()))
-      { 
-      fpath = "CMake";
-      fpath +=  lang;
-      fpath += "Information.cmake";
-      fpath = mf->GetModulesFile(fpath.c_str());
-      if(!mf->ReadListFile(0,fpath.c_str()))
-        {
-        cmSystemTools::Error("Could not find cmake module file:", fpath.c_str());
-        }
-      }
-    // Test the compiler for the language just setup
-    // At this point we should have enough info for a try compile
-    // which is used in the backward stuff
-    // If the language is untested then test it now with a try compile.
-    if(needTestLanguage[lang])
-      {
-      if (!m_CMakeInstance->GetIsInTryCompile())
-        {
-        std::string testLang = "CMakeTest";
-        testLang += lang;
-        testLang += "Compiler.cmake";
-        std::string ifpath = mf->GetModulesFile(testLang.c_str());
-        if(!mf->ReadListFile(0,ifpath.c_str()))
-          {
-          cmSystemTools::Error("Could not find cmake module file:", 
-                               ifpath.c_str());
-          }
-        std::string compilerWorks = "CMAKE_";
-        compilerWorks += lang;
-        compilerWorks += "_COMPILER_WORKS";
-        // if the compiler did not work, then remove the CMake(LANG)Compiler.cmake file
-        // so that it will get tested the next time cmake is run
-        if(!mf->IsOn(compilerWorks.c_str()))
-          { 
-          fpath = rootBin;
-          fpath += "/CMake";
-          fpath += lang;
-          fpath += "Compiler.cmake";
-          cmSystemTools::RemoveFile(fpath.c_str());
-          }
-        else
-          {
-          // load backwards compatibility stuff for C and CXX
-          // for old versions of CMake ListFiles C and CXX had some
-          // backwards compatibility files they have to load
-          // These files have a bunch of try compiles in them so
-          // should only be done
-          const char* versionValue
-            = mf->GetDefinition("CMAKE_BACKWARDS_COMPATIBILITY");
-          if (atof(versionValue) <= 1.4)
-            {
-            if(strcmp(lang, "C") == 0)
-              {
-              ifpath =  mf->GetModulesFile("CMakeBackwardCompatibilityC.cmake");
-              mf->ReadListFile(0,ifpath.c_str()); 
-              }
-            if(strcmp(lang, "CXX") == 0)
-              {
-              ifpath =  mf->GetModulesFile("CMakeBackwardCompatibilityCXX.cmake");
-              mf->ReadListFile(0,ifpath.c_str()); 
-              }
-            }
-          }
-        } // end if in try compile
-      } // end need test language
-    } // end for each language
-  
-  // Now load files that can override any settings on the platform or
-  // for the project
-  // First load the project compatibility file if it is in cmake
-  std::string projectCompatibility = mf->GetDefinition("CMAKE_ROOT");
-  projectCompatibility += "/Modules/";
-  projectCompatibility += mf->GetDefinition("PROJECT_NAME");
-  projectCompatibility += "Compatibility.cmake";
-  if(cmSystemTools::FileExists(projectCompatibility.c_str()))
-    {
-    mf->ReadListFile(0,projectCompatibility.c_str()); 
-    }
-}
-
-const char* cmGlobalGenerator::GetLanguageOutputExtensionForLanguage(const char* lang)
-{
-  if(!lang) 
-    {
-    return "";
-    }
-  if(m_LanguageToOutputExtension.count(lang) > 0)
-    {
-    return m_LanguageToOutputExtension[lang].c_str();
-    }
-  return "";
-}
-
-const char* cmGlobalGenerator::GetLanguageOutputExtensionFromExtension(const char* ext)
-{
-  if(!ext)
-    {
-    return "";
-    }
-  const char* lang = this->GetLanguageFromExtension(ext);
-  if(!lang || *lang == 0)
-    {
-    // if no language is found then check to see if it is already an
-    // ouput extension for some language.  In that case it should be ignored
-    // and in this map, so it will not be compiled but will just be used.
-    if(m_OutputExtensions.count(ext))
-      {
-      return ext;
-      }
-    }
-  return this->GetLanguageOutputExtensionForLanguage(lang);
-}
-
-
-const char* cmGlobalGenerator::GetLanguageFromExtension(const char* ext)
-{
-  // if there is an extension and it starts with . then
-  // move past the . because the extensions are not stored with a .
-  // in the map
-  if(ext && *ext == '.')
-    {
-    ++ext;
-    }
-  if(m_ExtensionToLanguage.count(ext) > 0)
-    {
-    return m_ExtensionToLanguage[ext].c_str();
-    }
-  return 0;
-}
-
-void cmGlobalGenerator::SetLanguageEnabled(const char* l, cmMakefile* mf)
-{
-  if(m_LanguageEnabled.count(l) > 0)
-    {
-    return;
-    }
-  std::string outputExtensionVar = std::string("CMAKE_") + 
-    std::string(l) + std::string("_OUTPUT_EXTENSION");
-  const char* outputExtension = mf->GetDefinition(outputExtensionVar.c_str());
-  if(outputExtension)
-    {
-    m_LanguageToOutputExtension[l] = outputExtension;
-    m_OutputExtensions[outputExtension] = outputExtension;
-    if(outputExtension[0] == '.')
-      {
-      m_OutputExtensions[outputExtension+1] = outputExtension+1;
-      }
-    }
-  
-  std::string linkerPrefVar = std::string("CMAKE_") + 
-    std::string(l) + std::string("_LINKER_PREFERENCE");
-  const char* linkerPref = mf->GetDefinition(linkerPrefVar.c_str());
-  if(!linkerPref)
-    {
-    linkerPref = "None";
-    }
-  m_LanguageToLinkerPreference[l] = linkerPref;
-  
-  std::string extensionsVar = std::string("CMAKE_") + 
-    std::string(l) + std::string("_SOURCE_FILE_EXTENSIONS");
-  std::string ignoreExtensionsVar = std::string("CMAKE_") + 
-    std::string(l) + std::string("_IGNORE_EXTENSIONS");
-  std::string ignoreExts = mf->GetSafeDefinition(ignoreExtensionsVar.c_str());
-  std::string exts = mf->GetSafeDefinition(extensionsVar.c_str());
-  std::vector<std::string> extensionList;
-  cmSystemTools::ExpandListArgument(exts, extensionList);
-  for(std::vector<std::string>::iterator i = extensionList.begin();
-      i != extensionList.end(); ++i)
-    {
-    m_ExtensionToLanguage[*i] = l;
-    }
-  cmSystemTools::ExpandListArgument(ignoreExts, extensionList);
-  for(std::vector<std::string>::iterator i = extensionList.begin();
-      i != extensionList.end(); ++i)
-    {
-    m_IgnoreExtensions[*i] = true;
-    }
-  m_LanguageEnabled[l] = true;
-
-}
-bool cmGlobalGenerator::IgnoreFile(const char* l)
-{
-  if(this->GetLanguageFromExtension(l))
-    {
-    return false;
-    }
-  return (m_IgnoreExtensions.count(l) > 0);
-}
-
-bool cmGlobalGenerator::GetLanguageEnabled(const char* l)
-{
-  return (m_LanguageEnabled.count(l) > 0);
-}
-
-void cmGlobalGenerator::ClearEnabledLanguages()
-{
-  m_LanguageEnabled.clear();
-}
-
-void cmGlobalGenerator::Configure()
-{
-  // Delete any existing cmLocalGenerators
-  unsigned int i;
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    delete m_LocalGenerators[i];
-    }
-  m_LocalGenerators.clear();
-
-  // Setup relative path generation.
-  this->ConfigureRelativePaths();
-
-  // start with this directory
-  cmLocalGenerator *lg = this->CreateLocalGenerator();
-  m_LocalGenerators.push_back(lg);
-
-  // set the Start directories
-  lg->GetMakefile()->SetStartDirectory
-    (m_CMakeInstance->GetStartDirectory());
-  lg->GetMakefile()->SetStartOutputDirectory
-    (m_CMakeInstance->GetStartOutputDirectory());
-  lg->GetMakefile()->MakeStartDirectoriesCurrent();
-  
-  // now do it
-  lg->Configure();
-  
-  // update the cache entry for the number of local generators, this is used
-  // for progress
-  char num[100];
-  sprintf(num,"%d",static_cast<int>(m_LocalGenerators.size()));
-  this->GetCMakeInstance()->AddCacheEntry
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS", num,
-     "number of local generators", cmCacheManager::INTERNAL);
-  
-  std::set<cmStdString> notFoundMap;
-  // after it is all done do a ConfigureFinalPass
-  cmCacheManager* manager = 0;
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    manager = m_LocalGenerators[i]->GetMakefile()->GetCacheManager();
-    m_LocalGenerators[i]->ConfigureFinalPass();
-    cmTargets & targets = 
-      m_LocalGenerators[i]->GetMakefile()->GetTargets(); 
-    for (cmTargets::iterator l = targets.begin();
-         l != targets.end(); l++)
-      {
-      cmTarget::LinkLibraries libs = l->second.GetLinkLibraries();
-      for(cmTarget::LinkLibraries::iterator lib = libs.begin();
-          lib != libs.end(); ++lib)
-        {
-        if(lib->first.size() > 9 && 
-           cmSystemTools::IsNOTFOUND(lib->first.c_str()))
-          {
-          std::string varName = lib->first.substr(0, lib->first.size()-9);
-          notFoundMap.insert(varName);
-          }
-        }
-      std::vector<std::string>& incs = 
-        m_LocalGenerators[i]->GetMakefile()->GetIncludeDirectories();
-      
-      for( std::vector<std::string>::iterator lib = incs.begin();
-           lib != incs.end(); ++lib)
-        {
-        if(lib->size() > 9 && 
-           cmSystemTools::IsNOTFOUND(lib->c_str()))
-          {
-          std::string varName = lib->substr(0, lib->size()-9); 
-          notFoundMap.insert(varName);
-          }
-        }
-      m_CMakeInstance->UpdateProgress("Configuring", 
-                                      0.9f+0.1f*(i+1.0f)/m_LocalGenerators.size());
-      m_LocalGenerators[i]->GetMakefile()->CheckInfiniteLoops();
-      }
-    }
-
-  if(notFoundMap.size())
-    {
-    std::string notFoundVars;
-    for(std::set<cmStdString>::iterator ii = notFoundMap.begin();
-        ii != notFoundMap.end(); ++ii)
-      { 
-      notFoundVars += *ii;
-      if(manager)
-        {
-        cmCacheManager::CacheIterator it = 
-          manager->GetCacheIterator(ii->c_str());
-        if(it.GetPropertyAsBool("ADVANCED"))
-          {
-          notFoundVars += " (ADVANCED)";
-          }
-        }
-      notFoundVars += "\n";
-      }
-    cmSystemTools::Error("This project requires some variables to be set,\n"
-                         "and cmake can not find them.\n"
-                         "Please set the following variables:\n",
-                         notFoundVars.c_str());
-    }
-  // at this point m_LocalGenerators has been filled,
-  // so create the map from project name to vector of local generators
-  this->FillProjectMap();
-  if ( !m_CMakeInstance->GetScriptMode() )
-    {
-    m_CMakeInstance->UpdateProgress("Configuring done", -1);
-    }
-}
-
-void cmGlobalGenerator::Generate()
-{
-  // For each existing cmLocalGenerator
-  unsigned int i;
-
-  // Consolidate global targets
-  cmTargets globalTargets;
-  this->CreateDefaultGlobalTargets(&globalTargets);
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    cmTargets* targets = &(m_LocalGenerators[i]->GetMakefile()->GetTargets());
-    cmTargets::iterator tarIt;
-    for ( tarIt = targets->begin(); tarIt != targets->end(); ++ tarIt )
-      {
-      if ( tarIt->second.GetType() == cmTarget::GLOBAL_TARGET )
-        {
-        globalTargets[tarIt->first] = tarIt->second;
-        }
-      }
-    }
-  
-  // Generate project files
-  for (i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    cmTargets* targets = &(m_LocalGenerators[i]->GetMakefile()->GetTargets());
-    cmTargets::iterator tit;
-    for ( tit = globalTargets.begin(); tit != globalTargets.end(); ++ tit )
-      {
-      (*targets)[tit->first] = tit->second;
-      }
-    m_LocalGenerators[i]->Generate();
-    m_LocalGenerators[i]->GenerateInstallRules();
-    m_LocalGenerators[i]->GenerateTestFiles();
-    m_CMakeInstance->UpdateProgress("Generating", 
-                                    (i+1.0f)/m_LocalGenerators.size());
-    }
-  m_CMakeInstance->UpdateProgress("Generating done", -1);
-}
-
-int cmGlobalGenerator::TryCompile(const char *srcdir, const char *bindir, 
-                                  const char *projectName, 
-                                  const char *target,
-                                  std::string *output, cmMakefile *mf)
-{
-  std::string makeCommand = 
-    m_CMakeInstance->GetCacheManager()->GetCacheValue("CMAKE_MAKE_PROGRAM");
-  if(makeCommand.size() == 0)
-    {
-    cmSystemTools::Error(
-      "Generator cannot find the appropriate make command.");
-    return 1;
-    }
-
-  std::string newTarget;
-  if (target && strlen(target))
-    {
-    newTarget += target;
-#if 0
-#if defined(_WIN32) || defined(__CYGWIN__)
-    std::string tmp = target;
-    // if the target does not already end in . something 
-    // then assume .exe
-    if(tmp.size() < 4 || tmp[tmp.size()-4] != '.')
-      {
-      newTarget += ".exe";
-      }
-#endif // WIN32
+#ifndef WX_PRECOMP
+#include "wx/wx.h"
 #endif
-    }
-  const char* config = mf->GetDefinition("CMAKE_TRY_COMPILE_CONFIGURATION");
-  return this->Build(srcdir,bindir,projectName,
-                     newTarget.c_str(),
-                     output,makeCommand.c_str(),config,false);
-}
 
-std::string cmGlobalGenerator::GenerateBuildCommand(const char* makeProgram,
-  const char *projectName, const char* additionalOptions, const char *targetName,
-  const char* config, bool ignoreErrors)
+////@begin includes
+////@end includes
+
+#include <wx/dirdlg.h>
+#include <wx/msgdlg.h>
+#include <wx/filename.h>
+
+#include "CMakeSetupFrame.h"
+#include "PropertyList.h"
+#include "app_resources.h"
+#include "CMakeIcon.xpm"
+#include "aboutdlg.h"
+
+// cmake includes
+#include "../cmListFileCache.h"
+#include "../cmCacheManager.h"
+#include "../cmGlobalGenerator.h"
+#include "../cmDynamicLoader.h"
+
+////@begin XPM images
+////@end XPM images
+
+/*!
+ * CMakeSetupFrm type definition
+ */
+
+IMPLEMENT_CLASS( CMakeSetupFrm, wxFrame )
+
+/*!
+ * CMakeSetupFrm event table definition
+ */
+
+BEGIN_EVENT_TABLE( CMakeSetupFrm, wxFrame )
+
+////@begin CMakeSetupFrm event table entries
+    EVT_CLOSE( CMakeSetupFrm::OnCloseWindow )
+
+    EVT_SPLITTER_SASH_POS_CHANGING( ID_SPLITTERWINDOW, CMakeSetupFrm::OnSplitterPosChanging )
+    EVT_SPLITTER_DCLICK( ID_SPLITTERWINDOW, CMakeSetupFrm::OnSplitterwindowSashDClick )
+
+    EVT_BUTTON( ID_BROWSE_PROJECT, CMakeSetupFrm::OnButtonBrowseProject )
+
+    EVT_TEXT( ID_SOURCE_BUILD_PATH, CMakeSetupFrm::OnSourceBuildPathUpdated )
+    EVT_TEXT_ENTER( ID_SOURCE_BUILD_PATH, CMakeSetupFrm::OnSourceBuildPathEnter )
+
+    EVT_BUTTON( ID_BROWSE_BUILD, CMakeSetupFrm::OnButtonBrowseBuild )
+
+    EVT_COMBOBOX( ID_SEARCHQUERY, CMakeSetupFrm::OnSearchquerySelected )
+    EVT_TEXT( ID_SEARCHQUERY, CMakeSetupFrm::OnSearchqueryUpdated )
+
+    EVT_CHECKBOX( ID_SHOW_ADVANCED, CMakeSetupFrm::OnShowAdvancedValues )
+
+    EVT_GRID_CELL_CHANGE( CMakeSetupFrm::OnCellChange )
+    EVT_GRID_SELECT_CELL( CMakeSetupFrm::OnGridSelectCell )
+    EVT_MOTION( CMakeSetupFrm::OnPropertyMotion )
+
+    EVT_BUTTON( ID_DO_CONFIGURE, CMakeSetupFrm::OnButtonConfigure )
+
+    EVT_BUTTON( ID_DO_OK, CMakeSetupFrm::OnButtonOk )
+
+    EVT_BUTTON( ID_DO_CANCEL, CMakeSetupFrm::OnButtonCancel )
+
+    EVT_BUTTON( ID_DO_DELETE_CACHE, CMakeSetupFrm::OnButtonDeleteCache )
+
+    EVT_BUTTON( ID_CLEAR_LOG, CMakeSetupFrm::OnClearLogClick )
+
+    EVT_BUTTON( ID_BROWSE_GRID, CMakeSetupFrm::OnBrowseGridClick )
+
+    EVT_MENU( ID_MENU_RELOAD_CACHE, CMakeSetupFrm::OnMenuReloadCacheClick )
+
+    EVT_MENU( ID_MENU_DELETE_CACHE, CMakeSetupFrm::OnMenuDeleteCacheClick )
+
+    EVT_MENU( ID_MENU_QUIT, CMakeSetupFrm::OnMenuQuitClick )
+
+    EVT_MENU( ID_MENU_CONFIGURE, CMakeSetupFrm::OnMenuConfigureClick )
+
+    EVT_MENU( ID_MENU_EXITGENERATE, CMakeSetupFrm::OnMenuGenerateClick )
+
+    EVT_MENU( ID_MENU_TOGGLE_ADVANCED, CMakeSetupFrm::OnMenuToggleAdvancedClick )
+
+    EVT_MENU( ID_CMAKE_OPTIONS, CMakeSetupFrm::OnOptionsClick )
+
+    EVT_MENU( ID_ABOUTDLG, CMakeSetupFrm::OnAboutClick )
+
+////@end CMakeSetupFrm event table entries
+
+    EVT_MENU_RANGE(CM_RECENT_BUILD_ITEM, CM_RECENT_BUILD_ITEM + CM_MAX_RECENT_PATHS, CMakeSetupFrm::OnRecentFileMenu)   
+
+    EVT_TEXT_ENTER(ID_SEARCHQUERY, CMakeSetupFrm::OnAddQuery )
+
+END_EVENT_TABLE()
+
+/** Callback function for CMake generator, to tell user how
+    far the generation actually is */
+void updateProgress(const char *msg, float prog, void *cd)
 {
-  // Project name and config are not used yet.
-  (void)projectName;
-  (void)config;
-
-  std::string makeCommand = cmSystemTools::ConvertToUnixOutputPath(makeProgram);
-
-  // Since we have full control over the invocation of nmake, let us
-  // make it quiet.
-  if ( strcmp(this->GetName(), "NMake Makefiles") == 0 )
-    {
-    makeCommand += " /NOLOGO ";
-    }
-  if ( ignoreErrors )
-    {
-    makeCommand += " -i";
-    }
-  if ( additionalOptions )
-    {
-    makeCommand += " ";
-    makeCommand += additionalOptions;
-    }
-  if ( targetName )
-    {
-    makeCommand += " ";
-    makeCommand += targetName;
-    }
-  return makeCommand;
-}
-  
-int cmGlobalGenerator::Build(
-  const char *, const char *bindir, 
-  const char *projectName, const char *target,
-  std::string *output, 
-  const char *makeCommandCSTR,
-  const char *config,
-  bool clean)
-{
-  *output += "\nTesting TryCompileWithoutMakefile\n";
-  
-  /**
-   * Run an executable command and put the stdout in output.
-   */
-  std::string cwd = cmSystemTools::GetCurrentWorkingDirectory();
-  cmSystemTools::ChangeDirectory(bindir);
-
-  int retVal;
-  int timeout = cmGlobalGenerator::s_TryCompileTimeout;
-  bool hideconsole = cmSystemTools::GetRunCommandHideConsole();
-  cmSystemTools::SetRunCommandHideConsole(true);
-
-  // should we do a clean first?
-  if (clean)
-    {
-    std::string cleanCommand = this->GenerateBuildCommand(makeCommandCSTR, projectName,
-      0, "clean", config, false);
-    if (!cmSystemTools::RunSingleCommand(cleanCommand.c_str(), output, 
-                                         &retVal, 0, false, timeout))
-      {
-      cmSystemTools::SetRunCommandHideConsole(hideconsole);
-      cmSystemTools::Error("Generator: execution of make clean failed.");
-      if (output)
-        {
-        *output += "\nGenerator: execution of make clean failed.\n";
-        }
-      
-      // return to the original directory
-      cmSystemTools::ChangeDirectory(cwd.c_str());
-      return 1;
-      }
-    }
-  
-  // now build
-  std::string makeCommand = this->GenerateBuildCommand(makeCommandCSTR, projectName,
-    0, target, config, false);
-
-  if (!cmSystemTools::RunSingleCommand(makeCommand.c_str(), output, 
-                                       &retVal, 0, false, timeout))
-    {
-    cmSystemTools::SetRunCommandHideConsole(hideconsole);
-    cmSystemTools::Error("Generator: execution of make failed. Make command was: ",
-      makeCommand.c_str());
-    if (output)
-      {
-      *output += "\nGenerator: execution of make failed. Make command was: " +
-        makeCommand + "\n";
-      }
+    // TODO: Make some kind of progress counter 
     
-    // return to the original directory
-    cmSystemTools::ChangeDirectory(cwd.c_str());
-    return 1;
-    }
+    CMakeSetupFrm *fm = (CMakeSetupFrm *)cd;
 
-  cmSystemTools::SetRunCommandHideConsole(hideconsole);
-  
-  // The SGI MipsPro 7.3 compiler does not return an error code when
-  // the source has a #error in it!  This is a work-around for such
-  // compilers.
-  if((retVal == 0) && (output->find("#error") != std::string::npos))
+    if(fm)
     {
-    retVal = 1;
-    }
-  
-  cmSystemTools::ChangeDirectory(cwd.c_str());
-  return retVal;
-}
-
-void cmGlobalGenerator::AddLocalGenerator(cmLocalGenerator *lg)
-{
-  m_LocalGenerators.push_back(lg); 
-
-  // update progress
-  // estimate how many lg there will be
-  const char *numGenC = 
-    m_CMakeInstance->GetCacheManager()->GetCacheValue
-    ("CMAKE_NUMBER_OF_LOCAL_GENERATORS");
-  
-  if (!numGenC)
-    {
-    return;
-    }
-  
-  int numGen = atoi(numGenC);
-  float prog = 0.9f*m_LocalGenerators.size()/numGen;
-  if (prog > 0.9f)
-    {
-    prog = 0.9f;
-    }
-  m_CMakeInstance->UpdateProgress("Configuring", prog);
-}
-
-cmLocalGenerator *cmGlobalGenerator::CreateLocalGenerator()
-{
-  cmLocalGenerator *lg = new cmLocalGenerator;
-  lg->SetGlobalGenerator(this);
-  return lg;
-}
-
-void cmGlobalGenerator::EnableLanguagesFromGenerator(cmGlobalGenerator *gen )
-{
-  std::string cfp = gen->GetCMakeInstance()->GetHomeOutputDirectory();
-  cfp += "/CMakeFiles";
-  this->SetConfiguredFilesPath(cfp.c_str());
-  const char* make =
-    gen->GetCMakeInstance()->GetCacheDefinition("CMAKE_MAKE_PROGRAM");
-  this->GetCMakeInstance()->AddCacheEntry("CMAKE_MAKE_PROGRAM", make,
-                                          "make program",
-                                          cmCacheManager::FILEPATH);
-  // copy the enabled languages
-  this->m_LanguageEnabled = gen->m_LanguageEnabled;
-  this->m_ExtensionToLanguage = gen->m_ExtensionToLanguage;
-  this->m_IgnoreExtensions = gen->m_IgnoreExtensions;
-  this->m_LanguageToOutputExtension = gen->m_LanguageToOutputExtension;
-  this->m_LanguageToLinkerPreference = gen->m_LanguageToLinkerPreference;
-  this->m_OutputExtensions = gen->m_OutputExtensions;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::GetDocumentation(cmDocumentationEntry& entry) const
-{
-  entry.name = this->GetName();
-  entry.brief = "";
-  entry.full = "";
-}
-
-bool cmGlobalGenerator::IsExcluded(cmLocalGenerator* root, 
-                                   cmLocalGenerator* gen)
-{
-  cmLocalGenerator* cur = gen->GetParent();
-  while(cur && cur != root)
-    {
-    if(cur->GetExcludeAll())
-      {
-      return true;
-      }
-    cur = cur->GetParent();
-    }
-  return false;
-}
-
-
-void cmGlobalGenerator::GetEnabledLanguages(std::vector<std::string>& lang)
-{
-  for(std::map<cmStdString, bool>::iterator i = m_LanguageEnabled.begin(); 
-      i != m_LanguageEnabled.end(); ++i)
-    {
-    lang.push_back(i->first);
-    }
-}
-
-const char* cmGlobalGenerator::GetLinkerPreference(const char* lang)
-{
-  if(m_LanguageToLinkerPreference.count(lang))
-    {
-    return m_LanguageToLinkerPreference[lang].c_str();
-    }
-  return "None";
-}
-
-
-void cmGlobalGenerator::FillProjectMap()
-{ 
-  m_ProjectMap.clear(); // make sure we start with a clean map
-  unsigned int i;
-  for(i = 0; i < m_LocalGenerators.size(); ++i)
-    {
-    // for each local generator add all projects 
-    cmLocalGenerator *lg = m_LocalGenerators[i];
-    std::string name;
-    do 
-      {
-      if (name != lg->GetMakefile()->GetProjectName())
+        if(prog < 0)
+            fm->LogMessage(0, msg);
+        else
         {
-        name = lg->GetMakefile()->GetProjectName();
-        m_ProjectMap[name].push_back(m_LocalGenerators[i]);
+            fm->UpdateProgress(prog);
+            fm->IssueUpdate();
         }
-      lg = lg->GetParent();
-      }
-    while (lg);
     }
 }
 
+/** Callback function for CMake generator, to tell user about stuff. This should be
+    logged in the m_log window */
+void MFCMessageCallback(const char* m, const char* title, bool& nomore, void *clientdata)
+{ 
+    CMakeSetupFrm *fm = (CMakeSetupFrm *)clientdata;
 
-///! Find a local generator by its startdirectory
-cmLocalGenerator* cmGlobalGenerator::FindLocalGenerator(const char* start_dir)
-{
-  std::vector<cmLocalGenerator*>* gens = &m_LocalGenerators;
-  for(unsigned int i = 0; i < gens->size(); ++i)
+    if(fm)
     {
-    std::string sd = (*gens)[i]->GetMakefile()->GetStartDirectory();
-    if (sd == start_dir)
+        wxString what = m, msg;
+        if(what.StartsWith("CMake Error: "))
+            fm->LogMessage(-1, m);
+        else
+            fm->LogMessage(1, m);
+    }
+}
+
+// Convert to Win32 path (slashes). This calls the system tools one and then
+// removes the spaces. It is not in system tools because we don't want any
+// generators accidentally use it
+std::string ConvertToWindowsPath(const char* path)
+{
+  // Convert to output path.
+  // Remove the "" around it (if any) since it's an output path for
+  // the shell. If another shell-oriented feature is not designed 
+  // for a GUI use, then we are in trouble.
+  // save the value of the force to unix path option
+  bool saveForce = cmSystemTools::GetForceUnixPaths();
+  // make sure we get windows paths no matter what for the GUI
+  cmSystemTools::SetForceUnixPaths(false);
+  std::string s = cmSystemTools::ConvertToOutputPath(path);
+  // now restore the force unix path to its previous value
+  cmSystemTools::SetForceUnixPaths(saveForce);
+  if (s.size())
+    {
+    std::string::iterator i = s.begin();
+    if (*i == '\"')
       {
-      return (*gens)[i];
+      s.erase(i, i + 1);
       }
-    }
-  return 0;
-}
-
-
-cmTarget* cmGlobalGenerator::FindTarget(const char* project, 
-                                        const char* name)
-{
-  std::vector<cmLocalGenerator*>* gens = &m_LocalGenerators;
-  if(project)
-    {
-    gens = &m_ProjectMap[project];
-    }
-  for(unsigned int i = 0; i < gens->size(); ++i)
-    {
-    cmTarget* ret = (*gens)[i]->GetMakefile()->FindTarget(name);
-    if(ret)
+    i = s.begin() + s.length() - 1;
+    if (*i == '\"')
       {
-      return ret;
+      s.erase(i, i + 1);
       }
-    }
-  return 0;
-}
-
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::ConfigureRelativePaths()
-{
-  // The current working directory on Windows cannot be a network
-  // path.  Therefore relative paths cannot work when the build tree
-  // is a network path.
-  std::string source = m_CMakeInstance->GetHomeDirectory();
-  std::string binary = m_CMakeInstance->GetHomeOutputDirectory();
-  if(binary.size() < 2 || binary.substr(0, 2) != "//")
-    {
-    m_RelativePathTopSource = source;
-    m_RelativePathTopBinary = binary;
-    }
-  else
-    {
-    m_RelativePathTopSource = "";
-    m_RelativePathTopBinary = "";
-    }
-}
-
-//----------------------------------------------------------------------------
-std::string
-cmGlobalGenerator::ConvertToRelativePath(const std::vector<std::string>& local,
-                                         const char* in_remote)
-{
-  // The path should never be quoted.
-  assert(in_remote[0] != '\"');
-
-  // The local path should never have a trailing slash.
-  assert(local.size() > 0 && !(local[local.size()-1] == ""));
-
-  // If the path is already relative then just return the path.
-  if(!cmSystemTools::FileIsFullPath(in_remote))
-    {
-    return in_remote;
-    }
-
-  // Skip conversion if the path is not in the source or binary tree.
-  std::string original = in_remote;
-  if((original.size() < m_RelativePathTopSource.size() ||
-      !cmSystemTools::ComparePath(
-        original.substr(0, m_RelativePathTopSource.size()).c_str(),
-        m_RelativePathTopSource.c_str())) &&
-     (original.size() < m_RelativePathTopBinary.size() ||
-      !cmSystemTools::ComparePath(
-        original.substr(0, m_RelativePathTopBinary.size()).c_str(),
-        m_RelativePathTopBinary.c_str())))
-    {
-    return in_remote;
-    }
-
-  // Identify the longest shared path component between the remote
-  // path and the local path.
-  std::vector<std::string> remote;
-  cmSystemTools::SplitPath(in_remote, remote);
-  unsigned int common=0;
-  while(common < remote.size() &&
-        common < local.size() &&
-        cmSystemTools::ComparePath(remote[common].c_str(),
-                                   local[common].c_str()))
-    {
-    ++common;
-    }
-
-  // If no part of the path is in common then return the full path.
-  if(common == 0)
-    {
-    return in_remote;
-    }
-
-  // If the entire path is in common then just return a ".".
-  if(common == remote.size() &&
-     common == local.size())
-    {
-    return ".";
-    }
-
-  // If the entire path is in common except for a trailing slash then
-  // just return a "./".
-  if(common+1 == remote.size() &&
-     remote[common].size() == 0 &&
-     common == local.size())
-    {
-    return "./";
-    }
-
-  // Construct the relative path.
-  std::string relative;
-
-  // First add enough ../ to get up to the level of the shared portion
-  // of the path.  Leave off the trailing slash.  Note that the last
-  // component of local will never be empty because local should never
-  // have a trailing slash.
-  for(unsigned int i=common; i < local.size(); ++i)
-    {
-    relative += "..";
-    if(i < local.size()-1)
-      {
-      relative += "/";
-      }
-    }
-
-  // Now add the portion of the destination path that is not included
-  // in the shared portion of the path.  Add a slash the first time
-  // only if there was already something in the path.  If there was a
-  // trailing slash in the input then the last iteration of the loop
-  // will add a slash followed by an empty string which will preserve
-  // the trailing slash in the output.
-  for(unsigned int i=common; i < remote.size(); ++i)
-    {
-    if(relative.size() > 0)
-      {
-      relative += "/";
-      }
-    relative += remote[i];
-    }
-
-  // Finally return the path.
-  return relative;
-}
-
-inline std::string removeQuotes(const std::string& s)
-{
-  if(s[0] == '\"' && s[s.size()-1] == '\"')
-    {
-    return s.substr(1, s.size()-2);
     }
   return s;
 }
 
-void cmGlobalGenerator::SetupTests()
+
+bool DnDFile::OnDropFiles(wxCoord, wxCoord, const wxArrayString& filenames)
 {
-  std::string ctest = 
-    m_LocalGenerators[0]->GetMakefile()->GetRequiredDefinition("CMAKE_COMMAND");
-  ctest = removeQuotes(ctest);
-  ctest = cmSystemTools::GetFilenamePath(ctest.c_str());
-  ctest += "/";
-  ctest += "ctest";
-  ctest += cmSystemTools::GetExecutableExtension();
-  if(!cmSystemTools::FileExists(ctest.c_str()))
-    {
-    ctest =     
-      m_LocalGenerators[0]->GetMakefile()->GetRequiredDefinition("CMAKE_COMMAND");
-    ctest = cmSystemTools::GetFilenamePath(ctest.c_str());
-    ctest += "/Debug/";
-    ctest += "ctest";
-    ctest += cmSystemTools::GetExecutableExtension();
-    }
-  if(!cmSystemTools::FileExists(ctest.c_str()))
-    {
-    ctest =     
-      m_LocalGenerators[0]->GetMakefile()->GetRequiredDefinition("CMAKE_COMMAND");
-    ctest = cmSystemTools::GetFilenamePath(ctest.c_str());
-    ctest += "/Release/";
-    ctest += "ctest";
-    ctest += cmSystemTools::GetExecutableExtension();
-    }
-  // if we found ctest
-  if (cmSystemTools::FileExists(ctest.c_str()))
-    {
-    // Create a full path filename for output Testfile
-    std::string fname;
-    fname = m_CMakeInstance->GetStartOutputDirectory();
-    fname += "/";
-    if ( m_LocalGenerators[0]->GetMakefile()->IsSet("CTEST_NEW_FORMAT") )
-      {
-      fname += "CTestTestfile.txt";
-      }
-    else
-      {
-      fname += "DartTestfile.txt";
-      }
+    size_t nFiles = filenames.GetCount();
 
-    // Add run_test only if any tests are foun
-    long total_tests = 0;
-    unsigned int i;
-    for (i = 0; i < m_LocalGenerators.size(); ++i)
-      {
-      total_tests += m_LocalGenerators[i]->GetMakefile()->GetTests()->size();
-      }
+    // only one item allowed
+    if(nFiles > 1)
+        return false;
 
-    // If the file doesn't exist, then ENABLE_TESTING hasn't been run
-    if (total_tests > 0)
-      {
-      const char* no_output = 0;
-      const char* no_working_dir = 0;
-      std::vector<std::string> no_depends;
-      std::map<cmStdString, std::vector<cmLocalGenerator*> >::iterator it;
-      for(it = m_ProjectMap.begin(); it!= m_ProjectMap.end(); ++it)
+    if(nFiles == 1)
+    {
+        // only one dir allowed
+        if(!wxDirExists(filenames[0]))
+            return false;
+
+        // strip the seperator
+        wxFileName name;
+        name.AssignDir(filenames[0]);       
+        
+        // issue a 'drop' by changing text ctrl
+        m_pOwner->SetValue(name.GetFullPath());
+
+        return true;
+    }
+
+    return false;
+}
+
+/*!
+ * CMakeSetupFrm constructors
+ */
+
+CMakeSetupFrm::CMakeSetupFrm( )
+    : m_cmake(0)
+{
+}
+
+CMakeSetupFrm::CMakeSetupFrm( wxWindow* parent, wxWindowID id, const wxString& caption, const wxPoint& pos, const wxSize& size, long style )
+    : m_cmake(0)
+{
+    Create( parent, id, caption, pos, size, style );
+}
+
+/*!
+ * CMakeSetupFrm creator
+ */
+
+bool CMakeSetupFrm::Create( wxWindow* parent, wxWindowID id, const wxString& caption, const wxPoint& pos, const wxSize& size, long style )
+{
+////@begin CMakeSetupFrm member initialisation
+    m_splitter = NULL;
+    m_cmProjectPath = NULL;
+    m_BrowseProjectPathButton = NULL;
+    m_cmBuildPath = NULL;
+    m_BrowseSourcePathButton = NULL;
+    m_cmGeneratorChoice = NULL;
+    m_cmSearchQuery = NULL;
+    m_cmShowAdvanced = NULL;
+    m_cmOptions = NULL;
+    m_cmLog = NULL;
+    m_cmDescription = NULL;
+    m_ConfigureButton = NULL;
+    m_OkButton = NULL;
+    m_CancelButton = NULL;
+    m_DeleteCacheButton = NULL;
+    m_ClearLogButton = NULL;
+    m_cmBrowseCell = NULL;
+////@end CMakeSetupFrm member initialisation
+
+    wxFrame::Create( parent, id, caption, pos, size, style );
+
+    // make sure the developer does not assign more then 100
+    // would be rediculous but also overlap other id's
+    wxASSERT(CM_MAX_RECENT_PATHS < 100);
+
+    m_ExitTimer = 0;
+
+    m_progressDlg = 0;
+    m_noRefresh = false;
+    m_quitAfterGenerating = false;
+
+    m_config = new wxConfig("CMakeSetup");
+
+    wxIcon icon(CMakeIcon_xpm);
+    SetIcon(icon);
+
+    CreateControls();
+    
+    //SetIcon(GetIconResource(wxT("cmake_icon.xpm")));
+    //SetIcon(wxIcon("NGDialog.ico", wxBITMAP_TYPE_ICO_RESOURCE));
+    Centre();
+
+    // is it needed to hide console?
+    m_RunningConfigure = false;
+    cmSystemTools::SetRunCommandHideConsole(true);
+    cmSystemTools::SetErrorCallback(MFCMessageCallback, (void *)this);
+
+    // create our cmake instance
+    m_cmake = new cmake;
+    m_cmake->SetProgressCallback(updateProgress, (void *)this);
+
+    return TRUE;
+}
+
+CMakeSetupFrm::~CMakeSetupFrm()
+{
+    wxString str;
+
+    // write configs back to disk
+    m_config->Write(CM_LASTPROJECT_PATH, m_cmProjectPath->GetValue());
+    m_config->Write(CM_LASTBUILD_PATH, m_cmBuildPath->GetValue());
+
+    // clear the config first
+    for(size_t i = 0 ; i < CM_MAX_RECENT_PATHS; i++)
+    {
+        str.Printf("%s%i", _(CM_RECENT_BUILD_PATH), i);
+        m_config->Write(str, _(""));
+    }
+
+    // write the last CM_MAX_RECENT_PATHS items back to config
+    int i = (m_recentPaths.Count() >= CM_MAX_RECENT_PATHS ? CM_MAX_RECENT_PATHS : m_recentPaths.Count());
+    while(i > 0)
+    {
+        str.Printf("%s%i", _(CM_RECENT_BUILD_PATH), i);
+        m_config->Write(str, m_recentPaths[i - 1]);
+        i--;
+    }
+    
+    // write recent query list to config
+    for(int j = 0; j < m_cmSearchQuery->GetCount(); j++)
+    {
+        // allow max to be written
+        if(j < CM_MAX_SEARCH_QUERIES)
         {
-        std::vector<cmLocalGenerator*>& gen = it->second;
-        // add the RUN_TESTS to the first local generator of each project
-        if(gen.size())
-          {
-          cmMakefile* mf = gen[0]->GetMakefile();
-          if(const char* outDir = mf->GetDefinition("CMAKE_CFG_INTDIR"))
-            {
-            mf->AddUtilityCommand("RUN_TESTS", false, no_output, no_depends,
-                                  no_working_dir, 
-                                  ctest.c_str(), "-C", outDir);
-            }
-          }
+            str.Printf("%s%i", _(CM_SEARCH_QUERY), j);
+            m_config->Write(str, m_cmSearchQuery->GetString(j));
         }
-      }
+        else
+            break;
+    }
+
+    // set window pos + size in settings
+    if(!IsIconized() && !IsMaximized())
+    {
+        int xsize, ysize;
+        GetSize(&xsize, &ysize);
+        if(xsize > 0 && ysize > 0) 
+        {
+            m_config->Write(CM_XSIZE, (long)xsize);
+            m_config->Write(CM_YSIZE, (long)ysize);
+        }
+
+        if(m_splitter->GetSashPosition() > 0)
+            m_config->Write(CM_SPLITTERPOS, (long)m_splitter->GetSashPosition());
+
+        GetPosition(&xsize, &ysize);
+        if(xsize != 0 && ysize != 0) 
+        {
+            m_config->Write(CM_XPOS, (long)xsize);
+            m_config->Write(CM_YPOS, (long)ysize);
+        }
+    }
+
+    // write changes (will be done before deletion)
+    delete m_config;
+    
+    // delete timer
+    if(m_ExitTimer)
+        delete m_ExitTimer;
+
+    // delete our cmake instance again
+    if(m_cmake)
+        delete m_cmake;
+}
+
+void CMakeSetupFrm::UpdateWindowState()
+{
+    bool dogenerate = !m_RunningConfigure && !m_cmOptions->IsCacheDirty() && 
+                       (m_cmOptions->GetCount() != 0);
+    
+    // when configure is running, disable a lot of stuff
+    m_cmProjectPath->Enable(!m_RunningConfigure);
+    m_BrowseProjectPathButton->Enable(!m_RunningConfigure);
+    m_cmBuildPath->Enable(!m_RunningConfigure);
+    m_BrowseSourcePathButton->Enable(!m_RunningConfigure);
+    m_cmGeneratorChoice->Enable(!m_RunningConfigure);
+    m_cmShowAdvanced->Enable(!m_RunningConfigure);
+    m_cmOptions->Enable(!m_RunningConfigure);
+    m_ConfigureButton->Enable(!m_RunningConfigure);
+    m_OkButton->Enable(dogenerate);
+    m_CancelButton->Enable(m_RunningConfigure);
+    m_DeleteCacheButton->Enable(!m_RunningConfigure);
+    m_ClearLogButton->Enable(!m_RunningConfigure);
+    if(m_RunningConfigure)
+        m_cmBrowseCell->Enable(false);
+
+    // when cache loaded (items available show other control)
+    m_cmGeneratorChoice->Enable(m_cmOptions->GetCount() == 0 && !m_RunningConfigure);
+    m_cmSearchQuery->Enable(!m_RunningConfigure);
+    m_cmBrowseCell->Enable(!m_RunningConfigure && m_cmOptions->IsSelectedItemBrowsable());
+
+    // disable the menus when configuring
+    if(GetMenuBar())
+    {
+        // disable configure button when there is nothing, and generate and exit
+        // only when it is allowed to generate
+        GetMenuBar()->Enable(ID_MENU_EXITGENERATE, dogenerate);
+        GetMenuBar()->Enable(ID_MENU_CONFIGURE, !m_RunningConfigure);
+
+        for(size_t i = 0; i < GetMenuBar()->GetMenuCount(); i++)
+            GetMenuBar()->EnableTop(i, !m_RunningConfigure); 
     }
 }
 
-void cmGlobalGenerator::CreateDefaultGlobalTargets(cmTargets* targets)
+void CMakeSetupFrm::LogMessage(int logkind, const char *msg)
 {
-  cmMakefile* mf = m_LocalGenerators[0]->GetMakefile();
-  const char* cmakeCfgIntDir = this->GetCMakeCFGInitDirectory();
-  const char* cmakeCommand = mf->GetRequiredDefinition("CMAKE_COMMAND");
+    // put CR first but prevent a CR at the end
+#ifndef __LINUX__   
+    if(m_cmLog->IsModified())
+        (*m_cmLog) << wxT("\n");
+#else
+    // Linux requires a different approach
+    if(!m_cmLog->GetValue().IsEmpty())
+        (*m_cmLog) << wxT("\n");
+#endif        
 
-  // CPack
-  cmCustomCommandLines cpackCommandLines;
-  std::vector<std::string> depends;
-  cmCustomCommandLine singleLine;
-  cpackCommandLines.erase(cpackCommandLines.begin(), cpackCommandLines.end());
-  singleLine.erase(singleLine.begin(), singleLine.end());
-  depends.erase(depends.begin(), depends.end());
-  singleLine.push_back(this->GetCMakeInstance()->GetCPackCommand());
-  if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
+    // log error, warning, or message
+    wxTextAttr defattr = m_cmLog->GetDefaultStyle();
+    
+    switch(logkind)
     {
-    singleLine.push_back("-C");
-    singleLine.push_back(mf->GetDefinition("CMAKE_CFG_INTDIR"));
+    // user message
+    case 1:
+        {
+            wxTextAttr colattr(*wxBLUE);
+            m_cmLog->SetDefaultStyle(colattr);
+            (*m_cmLog) << msg;
+            m_cmLog->SetDefaultStyle(defattr);
+        }
+        break;
+
+    // progress
+    case 0:
+        (*m_cmLog) << msg;
+        break;
+
+    // error
+    case -1:
+        {
+            wxTextAttr colattr(*wxRED);
+            m_cmLog->SetDefaultStyle(colattr);
+            (*m_cmLog) << msg;
+            m_cmLog->SetDefaultStyle(defattr);
+        }
+        break;
     }
-  singleLine.push_back("--config");
-  std::string configFile = mf->GetStartOutputDirectory();;
-  configFile += "/CPackConfig.cmake";
-  singleLine.push_back(configFile);
-  cpackCommandLines.push_back(singleLine);
-  if ( this->GetPreinstallTargetName() )
+        
+    IssueUpdate();
+}
+
+void CMakeSetupFrm::IssueUpdate()
+{
+    //::wxSafeYield(m_CancelButton, true);
+    ::wxYield();
+
+    // when we pressed cancel on the progress dialog
+    // stop all activities
+    if(m_progressDlg)
     {
-    depends.push_back("preinstall");
+        if(m_progressDlg->CancelPressed() && !m_progressDlg->IsCancelling())
+        {           
+            m_progressDlg->CancelAcknowledged();
+
+            // send a button event to cancel the progress
+            wxCommandEvent event( wxEVT_COMMAND_BUTTON_CLICKED, ID_DO_CANCEL);
+            wxPostEvent(this, event);
+        }
     }
-  (*targets)[this->GetPackageTargetName()]
-    = this->CreateGlobalTarget(this->GetPackageTargetName(),
-      "Run CPack packaging tool...", &cpackCommandLines, depends);
+}
 
-  // Test
-  if(mf->IsOn("CMAKE_TESTING_ENABLED"))
+/*!
+ * Control creation for CMakeSetupFrm
+ */
+
+void CMakeSetupFrm::CreateControls()
+{    
+////@begin CMakeSetupFrm content construction
+    CMakeSetupFrm* itemFrame1 = this;
+
+    wxMenuBar* menuBar = new wxMenuBar;
+    wxMenu* itemMenu37 = new wxMenu;
+    itemMenu37->Append(ID_MENU_RELOAD_CACHE, _("&Reload Cache\tCtrl+R"), _("Reload the cache from disk"), wxITEM_NORMAL);
+    itemMenu37->Append(ID_MENU_DELETE_CACHE, _("&Delete Cache\tCtrl+D"), _("Delete the cache on disk of the current path"), wxITEM_NORMAL);
+    itemMenu37->AppendSeparator();
+    itemMenu37->Append(ID_MENU_QUIT, _("E&xit\tAlt+F4"), _("Quit CMake Setup"), wxITEM_NORMAL);
+    menuBar->Append(itemMenu37, _("&File"));
+    wxMenu* itemMenu42 = new wxMenu;
+    itemMenu42->Append(ID_MENU_CONFIGURE, _("&Configure\tCtrl+N"), _T(""), wxITEM_NORMAL);
+    itemMenu42->Append(ID_MENU_EXITGENERATE, _("&Generate and Exit\tCtrl+G"), _T(""), wxITEM_NORMAL);
+    itemMenu42->Append(ID_MENU_TOGGLE_ADVANCED, _("Toggle &Advanced\tCtrl+A"), _T(""), wxITEM_NORMAL);
+    itemMenu42->AppendSeparator();
+    itemMenu42->Append(ID_CMAKE_OPTIONS, _("&Options\tCtrl+O"), _T(""), wxITEM_NORMAL);
+    menuBar->Append(itemMenu42, _("&Tools"));
+    wxMenu* itemMenu48 = new wxMenu;
+    itemMenu48->Append(ID_ABOUTDLG, _("&About ..."), _("Shows the about dialog ..."), wxITEM_NORMAL);
+    menuBar->Append(itemMenu48, _("&Help"));
+    itemFrame1->SetMenuBar(menuBar);
+
+    m_splitter = new wxSplitterWindow( itemFrame1, ID_SPLITTERWINDOW, wxDefaultPosition, wxSize(100, 100), wxSP_3DBORDER|wxSP_3DSASH|wxNO_BORDER );
+
+    wxPanel* itemPanel3 = new wxPanel( m_splitter, ID_MAINPANEL, wxDefaultPosition, wxSize(600, 400), wxNO_BORDER|wxTAB_TRAVERSAL );
+    itemPanel3->SetExtraStyle(itemPanel3->GetExtraStyle()|wxWS_EX_VALIDATE_RECURSIVELY);
+    wxBoxSizer* itemBoxSizer4 = new wxBoxSizer(wxVERTICAL);
+    itemPanel3->SetSizer(itemBoxSizer4);
+
+    wxBoxSizer* itemBoxSizer5 = new wxBoxSizer(wxHORIZONTAL);
+    itemBoxSizer4->Add(itemBoxSizer5, 0, wxGROW|wxTOP|wxBOTTOM, 5);
+    wxFlexGridSizer* itemFlexGridSizer6 = new wxFlexGridSizer(2, 3, 0, 0);
+    itemFlexGridSizer6->AddGrowableRow(1);
+    itemFlexGridSizer6->AddGrowableCol(1);
+    itemBoxSizer5->Add(itemFlexGridSizer6, 1, wxALIGN_TOP|wxLEFT, 5);
+    wxStaticText* itemStaticText7 = new wxStaticText( itemPanel3, wxID_STATIC, _("CMake project path"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemFlexGridSizer6->Add(itemStaticText7, 0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT|wxRIGHT|wxADJUST_MINSIZE, 5);
+
+    m_cmProjectPath = new wxTextCtrl( itemPanel3, ID_PROJECT_PATH, _T(""), wxDefaultPosition, wxSize(50, -1), 0 );
+    itemFlexGridSizer6->Add(m_cmProjectPath, 1, wxGROW|wxALIGN_CENTER_VERTICAL|wxTOP|wxBOTTOM, 5);
+
+    m_BrowseProjectPathButton = new wxButton( itemPanel3, ID_BROWSE_PROJECT, _("Browse"), wxDefaultPosition, wxSize(55, -1), 0 );
+    itemFlexGridSizer6->Add(m_BrowseProjectPathButton, 0, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+    wxStaticText* itemStaticText10 = new wxStaticText( itemPanel3, wxID_STATIC, _("Project build path"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemFlexGridSizer6->Add(itemStaticText10, 0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxLEFT|wxRIGHT|wxADJUST_MINSIZE, 5);
+
+    m_cmBuildPath = new wxTextCtrl( itemPanel3, ID_SOURCE_BUILD_PATH, _T(""), wxDefaultPosition, wxSize(50, -1), 0 );
+    itemFlexGridSizer6->Add(m_cmBuildPath, 1, wxGROW|wxALIGN_TOP|wxTOP|wxBOTTOM, 5);
+
+    m_BrowseSourcePathButton = new wxButton( itemPanel3, ID_BROWSE_BUILD, _("Browse"), wxDefaultPosition, wxSize(55, -1), 0 );
+    itemFlexGridSizer6->Add(m_BrowseSourcePathButton, 0, wxALIGN_CENTER_HORIZONTAL|wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+    wxBoxSizer* itemBoxSizer13 = new wxBoxSizer(wxVERTICAL);
+    itemBoxSizer5->Add(itemBoxSizer13, 0, wxGROW|wxLEFT|wxRIGHT, 5);
+    wxFlexGridSizer* itemFlexGridSizer14 = new wxFlexGridSizer(2, 2, 0, 0);
+    itemBoxSizer13->Add(itemFlexGridSizer14, 0, wxALIGN_CENTER_HORIZONTAL|wxLEFT|wxRIGHT, 5);
+    wxStaticText* itemStaticText15 = new wxStaticText( itemPanel3, wxID_STATIC, _("Generate"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemFlexGridSizer14->Add(itemStaticText15, 0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxRIGHT|wxADJUST_MINSIZE, 5);
+
+    wxString* m_cmGeneratorChoiceStrings = NULL;
+    m_cmGeneratorChoice = new wxComboBox( itemPanel3, ID_CHOOSE_GENERATOR, _T(""), wxDefaultPosition, wxSize(170, -1), 0, m_cmGeneratorChoiceStrings, wxCB_READONLY );
+    itemFlexGridSizer14->Add(m_cmGeneratorChoice, 1, wxALIGN_CENTER_HORIZONTAL|wxGROW|wxTOP|wxBOTTOM, 5);
+
+    wxStaticText* itemStaticText17 = new wxStaticText( itemPanel3, wxID_STATIC, _("Search"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemFlexGridSizer14->Add(itemStaticText17, 0, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxRIGHT|wxADJUST_MINSIZE, 5);
+
+    wxString* m_cmSearchQueryStrings = NULL;
+    m_cmSearchQuery = new wxComboBox( itemPanel3, ID_SEARCHQUERY, _T(""), wxDefaultPosition, wxSize(170, -1), 0, m_cmSearchQueryStrings, wxWANTS_CHARS );
+    itemFlexGridSizer14->Add(m_cmSearchQuery, 1, wxALIGN_CENTER_HORIZONTAL|wxGROW|wxTOP|wxBOTTOM, 5);
+
+    m_cmShowAdvanced = new wxCheckBox( itemPanel3, ID_SHOW_ADVANCED, _("Show advanced values"), wxDefaultPosition, wxDefaultSize, wxCHK_2STATE );
+    m_cmShowAdvanced->SetValue(FALSE);
+    itemBoxSizer13->Add(m_cmShowAdvanced, 0, wxALIGN_RIGHT|wxLEFT|wxRIGHT, 5);
+
+    m_cmOptions = new wxPropertyList( itemPanel3, ID_OPTIONS, wxDefaultPosition, wxSize(200, 150), wxSTATIC_BORDER|wxWANTS_CHARS|wxVSCROLL );
+    m_cmOptions->SetDefaultColSize(250);
+    m_cmOptions->SetDefaultRowSize(25);
+    m_cmOptions->SetColLabelSize(20);
+    m_cmOptions->SetRowLabelSize(0);
+    m_cmOptions->CreateGrid(10, 2, wxGrid::wxGridSelectRows);
+    itemBoxSizer4->Add(m_cmOptions, 1, wxGROW|wxALL, 5);
+
+    wxPanel* itemPanel21 = new wxPanel( m_splitter, ID_LOGPANEL, wxDefaultPosition, wxSize(-1, 100), wxNO_BORDER|wxTAB_TRAVERSAL );
+    wxBoxSizer* itemBoxSizer22 = new wxBoxSizer(wxVERTICAL);
+    itemPanel21->SetSizer(itemBoxSizer22);
+
+    wxBoxSizer* itemBoxSizer23 = new wxBoxSizer(wxHORIZONTAL);
+    itemBoxSizer22->Add(itemBoxSizer23, 1, wxGROW|wxLEFT|wxRIGHT|wxTOP, 5);
+    m_cmLog = new wxTextCtrl( itemPanel21, ID_LOG_AREA, _("Select your project path (where CMakeLists.txt is) and then select the build path (where the projects should be saved), or select a previous build path.\n\nRight click on a cache value for additional options (delete and ignore). Press configure to update and display new values in red, press OK to generate the projects and exit."), wxDefaultPosition, wxDefaultSize, wxTE_MULTILINE|wxTE_READONLY|wxTE_RICH2|wxSTATIC_BORDER );
+    itemBoxSizer23->Add(m_cmLog, 1, wxGROW|wxRIGHT, 5);
+
+    m_cmDescription = new wxTextCtrl( itemPanel21, ID_DESCRIPTION, _T(""), wxDefaultPosition, wxSize(200, -1), wxTE_MULTILINE|wxTE_READONLY|wxTE_RICH2|wxSTATIC_BORDER );
+    itemBoxSizer23->Add(m_cmDescription, 0, wxGROW|wxLEFT, 5);
+
+    wxBoxSizer* itemBoxSizer26 = new wxBoxSizer(wxHORIZONTAL);
+    itemBoxSizer22->Add(itemBoxSizer26, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5);
+    m_ConfigureButton = new wxButton( itemPanel21, ID_DO_CONFIGURE, _("Co&nfigure"), wxDefaultPosition, wxDefaultSize, 0 );
+    m_ConfigureButton->SetDefault();
+    itemBoxSizer26->Add(m_ConfigureButton, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+    m_OkButton = new wxButton( itemPanel21, ID_DO_OK, _("&Generate!"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemBoxSizer26->Add(m_OkButton, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+    m_CancelButton = new wxButton( itemPanel21, ID_DO_CANCEL, _("C&ancel"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemBoxSizer26->Add(m_CancelButton, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+#if defined(__WXMSW__)
+    wxStaticLine* itemStaticLine30 = new wxStaticLine( itemPanel21, wxID_STATIC, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
+    itemBoxSizer26->Add(itemStaticLine30, 0, wxGROW|wxALL, 5);
+#endif
+
+    m_DeleteCacheButton = new wxButton( itemPanel21, ID_DO_DELETE_CACHE, _("&Delete Cache"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemBoxSizer26->Add(m_DeleteCacheButton, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+    m_ClearLogButton = new wxButton( itemPanel21, ID_CLEAR_LOG, _("Clear &Log"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemBoxSizer26->Add(m_ClearLogButton, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+#if defined(__WXMSW__)
+    wxStaticLine* itemStaticLine33 = new wxStaticLine( itemPanel21, wxID_STATIC, wxDefaultPosition, wxDefaultSize, wxLI_HORIZONTAL );
+    itemBoxSizer26->Add(itemStaticLine33, 0, wxGROW|wxALL, 5);
+#endif
+
+    m_cmBrowseCell = new wxButton( itemPanel21, ID_BROWSE_GRID, _("&Browse"), wxDefaultPosition, wxDefaultSize, 0 );
+    itemBoxSizer26->Add(m_cmBrowseCell, 0, wxALIGN_CENTER_VERTICAL|wxALL, 5);
+
+    m_splitter->SplitHorizontally(itemPanel3, itemPanel21, 300);
+
+    wxStatusBar* itemStatusBar35 = new wxStatusBar( itemFrame1, ID_STATUSBAR, wxST_SIZEGRIP|wxNO_BORDER );
+    itemStatusBar35->SetFieldsCount(2);
+    itemFrame1->SetStatusBar(itemStatusBar35);
+
+////@end CMakeSetupFrm content construction
+}
+
+void CMakeSetupFrm::DoInitFrame(cmCommandLineInfo &cm, const wxString &fn)
+{ 
+    // path to where cmake.exe is
+    // m_PathToExecutable = cm.GetPathToExecutable().c_str();
+    m_PathToExecutable = fn;
+
+    // adjust size of last bar, to display % progress
+    wxStatusBar *bar = GetStatusBar();
+    if(bar)
     {
-    cpackCommandLines.erase(cpackCommandLines.begin(), cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(this->GetCMakeInstance()->GetCTestCommand());
-    singleLine.push_back("--force-new-ctest-process");
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[this->GetTestTargetName()]
-      = this->CreateGlobalTarget(this->GetTestTargetName(),
-        "Running tests...", &cpackCommandLines, depends);
+        wxASSERT(bar->GetFieldsCount() > 1);
+        
+        // fill all with -1. Why this way? because the count of the status bars
+        // can change. All of the widths must be accounted for and initialised
+        int *widths = new int[bar->GetFieldsCount()];
+        for(int i = 0; i < bar->GetFieldsCount(); i++)
+            widths[i] = -1;
+
+        // the % field
+        widths[1] = 75;
+        bar->SetStatusWidths(bar->GetFieldsCount(), widths);
+        delete widths;
     }
 
-  //Edit Cache
-  const char* editCacheTargetName = this->GetEditCacheTargetName();
-  if ( editCacheTargetName )
-    {
-    cpackCommandLines.erase(cpackCommandLines.begin(), cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
+    wxString name, generator;
+    std::vector<std::string> names;
+  
+    m_RunningConfigure = false;
 
-    // Use CMAKE_EDIT_COMMAND for the edit_cache rule if it is defined.
-    // Otherwise default to the interactive command-line interface.
-    if(mf->GetDefinition("CMAKE_EDIT_COMMAND"))
-      {
-      singleLine.push_back(mf->GetDefinition("CMAKE_EDIT_COMMAND"));
-      singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
-      singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[editCacheTargetName] =
-        this->CreateGlobalTarget(
-          editCacheTargetName, "Running CMake cache editor...",
-          &cpackCommandLines, depends);
-      }
+    // set grid labels
+    m_cmOptions->SetColLabelValue(0, wxT("Cache Name"));
+    m_cmOptions->SetColLabelValue(1, wxT("Cache Value"));
+    m_cmOptions->SetProjectGenerated(false);
+
+    // set drop target
+    m_cmOptions->SetDropTarget(new DnDFile(m_cmBuildPath));
+
+    m_cmake->GetRegisteredGenerators(names);
+    for(std::vector<std::string>::iterator i = names.begin(); i != names.end(); ++i)
+    {
+        name = i->c_str();
+        m_cmGeneratorChoice->Append(name);
+    }
+    
+    // sync advanced option with grid
+    m_cmOptions->SetShowAdvanced(m_cmShowAdvanced->GetValue());
+
+    // if we have a command line query that a generator 
+    // needs to be chosen instead of the default, take it
+    bool foundGivenGenerator = false;
+    if(!cm.m_GeneratorChoiceString.IsEmpty())
+    {
+        // set proper discovered generator
+        foundGivenGenerator = m_cmGeneratorChoice->SetStringSelection(cm.m_GeneratorChoiceString);  
+    }
+
+    // if none selected, we will see if VS8, VS7 or VS6 is present
+    if(!foundGivenGenerator || m_cmGeneratorChoice->GetValue().IsEmpty())
+    {
+        std::string mp;
+        mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\8.0\\Setup;Dbghelp_path]";
+        cmSystemTools::ExpandRegistryValues(mp);
+        if(mp != "/registry")
+            generator = wxT("Visual Studio 8 2005");
+        else
+        {
+            mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\7.1;InstallDir]";
+            cmSystemTools::ExpandRegistryValues(mp);
+            if (mp != "/registry")
+                generator = wxT("Visual Studio 7 .NET 2003");
+            else
+            {
+                mp = "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\VisualStudio\\7.0;InstallDir]";
+                cmSystemTools::ExpandRegistryValues(mp);
+                if (mp != "/registry")
+                    generator = wxT("Visual Studio 7");
+                else
+                    generator = wxT("Visual Studio 6");         
+            }
+        }
+    }
+
+    // set proper discovered generator
+    m_cmGeneratorChoice->SetStringSelection(generator);
+    
+    wxString str;
+    //str.Printf("CMake %d.%d - %s", cmake::GetMajorVersion(), cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+    str.Printf("CMakeSetup v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
+
+    SetTitle(str);
+    wxString path;
+    
+    // get last 5 used projects
+    for(size_t i = 0; i < CM_MAX_RECENT_PATHS; i++)
+    {
+        path.Printf("%s%i", _(CM_RECENT_BUILD_PATH), i);
+        if(m_config->Read(path, &str))
+            AppendPathToRecentList(str);
+    }
+
+    // get query items
+    for(size_t i = 0; i < CM_MAX_SEARCH_QUERIES; i++)
+    {
+        path.Printf("%s%i", _(CM_SEARCH_QUERY), i);
+        if(m_config->Read(path, &str))
+            m_cmSearchQuery->Append(str);
+    }
+
+
+    // make sure the call to update grid is not executed
+    m_noRefresh = true;
+    m_cmSearchQuery->SetValue(_(""));
+    m_noRefresh = false;
+
+    // Get the parameters from the command line info
+    // If an unknown parameter is found, try to interpret it too, since it
+    // is likely to be a file dropped on the shortcut :)
+    bool sourceDirLoaded = false,
+         buildDirLoaded = false;
+    
+    if(cm.m_LastUnknownParameter.empty())
+    {
+        if(cm.m_WhereSource.size() > 0 )
+        {
+            m_cmProjectPath->SetValue(cm.m_WhereSource.c_str());
+            sourceDirLoaded = true;
+        }   
+    
+        if (cm.m_WhereBuild.size() > 0 )
+        {
+            m_cmBuildPath->SetValue(cm.m_WhereBuild.c_str());
+            buildDirLoaded = true;
+        }
+            
+        m_cmShowAdvanced->SetValue(cm.m_AdvancedValues);
+    }
     else
-      {
-      singleLine.push_back(cmakeCommand);
-      singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
-      singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
-      singleLine.push_back("-i");
-      cpackCommandLines.push_back(singleLine);
-      (*targets)[editCacheTargetName] =
-        this->CreateGlobalTarget(
-          editCacheTargetName, "Running interactive CMake command-line interface...",
-          &cpackCommandLines, depends);
-      }
+    {
+        m_cmShowAdvanced->SetValue(false);
+        
+        // TODO: Interpret directory from dropped shortcut
+        //this->ChangeDirectoriesFromFile(cmdInfo->m_LastUnknownParameter.c_str());
     }
 
-  //Rebuild Cache
-  const char* rebuildCacheTargetName = this->GetRebuildCacheTargetName();
-  if ( rebuildCacheTargetName )
+    if (cm.m_ExitAfterLoad)
     {
-    cpackCommandLines.erase(cpackCommandLines.begin(), cpackCommandLines.end());
-    singleLine.erase(singleLine.begin(), singleLine.end());
-    depends.erase(depends.begin(), depends.end());
-    singleLine.push_back(cmakeCommand);
-    singleLine.push_back("-H$(CMAKE_SOURCE_DIR)");
-    singleLine.push_back("-B$(CMAKE_BINARY_DIR)");
-    cpackCommandLines.push_back(singleLine);
-    (*targets)[rebuildCacheTargetName] =
-      this->CreateGlobalTarget(
-        rebuildCacheTargetName, "Running CMake to regenerate build system...",
-        &cpackCommandLines, depends);
+        int id = GetId();
+        m_ExitTimer = new wxTimer(this, id);
+        m_ExitTimer->Start(3000);
+
+        Connect( id, wxEVT_TIMER,(wxObjectEventFunction) &CMakeSetupFrm::OnExitTimer ); 
+
+    } 
+
+    // retrieve settings, this needs to be done here
+    // because writing to the m_cmBuildPath triggers a cache reload
+    if(!sourceDirLoaded && m_config->Read(CM_LASTPROJECT_PATH, &str))
+        m_cmProjectPath->SetValue(str);
+
+    if(!buildDirLoaded)
+    {
+        m_cmOptions->RemoveAll();
+        if(m_config->Read(CM_LASTBUILD_PATH, &str))
+            m_cmBuildPath->SetValue(str);
     }
 
-  //Install
-  std::string cmd;
-  cpackCommandLines.erase(cpackCommandLines.begin(), cpackCommandLines.end());
-  singleLine.erase(singleLine.begin(), singleLine.end());
-  depends.erase(depends.begin(), depends.end());
-  if ( this->GetPreinstallTargetName() )
+    // set window size from settings
+    long xsize, ysize, splitpos;
+    if(m_config->Read(CM_XSIZE, &xsize) && m_config->Read(CM_YSIZE, &ysize) &&
+       m_config->Read(CM_SPLITTERPOS, &splitpos))
     {
-    depends.push_back(this->GetPreinstallTargetName());
+        SetSize(xsize, ysize);
+        m_splitter->SetSashPosition(splitpos);
     }
-  else
-    {
-    const char* noall =
-      mf->GetDefinition("CMAKE_SKIP_INSTALL_ALL_DEPENDENCY");
-    if(!noall || cmSystemTools::IsOff(noall))
-      {
-      depends.push_back(this->GetAllTargetName());
-      }
-    }
-  if(mf->GetDefinition("CMake_BINARY_DIR"))
-    {
-    // We are building CMake itself.  We cannot use the original
-    // executable to install over itself.
-    cmd = mf->GetDefinition("EXECUTABLE_OUTPUT_PATH");
-    cmd += "/cmake";
-    }
-  else
-    {
-    cmd = cmakeCommand;
-    }
-  singleLine.push_back(cmd.c_str());
-  if ( cmakeCfgIntDir && *cmakeCfgIntDir && cmakeCfgIntDir[0] != '.' )
-    {
-    std::string cfgArg = "-DBUILD_TYPE=";
-    cfgArg += mf->GetDefinition("CMAKE_CFG_INTDIR");
-    singleLine.push_back(cfgArg);
-    }
-  singleLine.push_back("-P");
-  singleLine.push_back("cmake_install.cmake");
-  cpackCommandLines.push_back(singleLine);
-  (*targets)[this->GetInstallTargetName()] =
-    this->CreateGlobalTarget(
-      this->GetInstallTargetName(), "Install the project...",
-      &cpackCommandLines, depends);
+
+    if(m_config->Read(CM_XPOS, &xsize) && m_config->Read(CM_YPOS, &ysize))
+        SetSize(xsize, ysize, -1, -1, wxSIZE_USE_EXISTING);
+
+    UpdateWindowState();
 }
 
-cmTarget cmGlobalGenerator::CreateGlobalTarget(
-  const char* name, const char* message,
-  const cmCustomCommandLines* commandLines,
-  std::vector<std::string> depends,
-  bool depends_on_all /* = false */)
+void CMakeSetupFrm::LoadCacheFromDiskToGUI()
 {
-  // Package
-  cmTarget target;
-  target.SetType(cmTarget::GLOBAL_TARGET, name);
-  target.SetInAll(false);
+    wxString builddir = m_cmBuildPath->GetValue();  
+    
+    cmCacheManager *cachem = m_cmake->GetCacheManager();
+    if(cachem && !builddir.Trim().IsEmpty())
+    {
+        if(cachem->LoadCache(builddir.c_str()))
+            AppendPathToRecentList(builddir);
 
-  std::vector<std::string> fileDepends;
-  // Store the custom command in the target.
-  cmCustomCommand cc(0, fileDepends, *commandLines, 0, 0);
-  target.GetPostBuildCommands().push_back(cc);
-  target.SetProperty("EchoString", message);
-  if ( depends_on_all )
-    {
-    target.AddUtility("all");
+        // represent this cache in the grid, but not before we
+        // wiped all of the old items
+        FillCacheGUIFromCacheManager();
+    
+        // set the generator string to the one used in the cache
+        cmCacheManager::CacheIterator it = cachem->GetCacheIterator("CMAKE_GENERATOR");
+        if(!it.IsAtEnd())
+        {
+            wxString curGen = it.GetValue();
+            m_cmGeneratorChoice->SetStringSelection(curGen);
+        }
     }
-  std::vector<std::string>::iterator dit;
-  for ( dit = depends.begin(); dit != depends.end(); ++ dit )
-    {
-    target.AddUtility(dit->c_str());
-    }
-  return target;
 }
 
-//----------------------------------------------------------------------------
-void cmGlobalGenerator::AppendDirectoryForConfig(const char*, const char*,
-                                                 const char*, std::string&)
+void CMakeSetupFrm::AppendPathToRecentList(const wxString &p)
 {
-  // Subclasses that support multiple configurations should implement
-  // this method to append the subdirectory for the given build
-  // configuration.
+    wxFileName path;
+    wxString str;
+
+    if(p.IsEmpty())
+        return;
+    
+    // cheap way to get rid of trailing seperators
+    path.AssignDir(p);
+    str = path.GetPath();
+
+    // append the item, or add it to end to make sure
+    // it is remembered between sessions
+    for(size_t i = 0; i < m_recentPaths.Count(); i++)
+    {
+        if(m_recentPaths[i].IsSameAs(str, false))
+        {
+            m_recentPaths.RemoveAt(i);
+            
+            // only re-add when item is still valid
+            if(::wxDirExists(str))
+                m_recentPaths.Add(str);
+            else
+                return;  // no add when the item is not existing
+
+            return;
+        }
+    }
+ 
+    if(GetMenuBar())
+    {
+        // get file menu
+        int lastUsedID = 0;
+        wxMenu *mnu = GetMenuBar()->GetMenu(0);
+        wxASSERT(mnu != 0);
+        
+        if(::wxDirExists(str))
+        {
+            // add to array
+            if(m_recentPaths.Count() == 0)
+                mnu->AppendSeparator();
+
+            lastUsedID = CM_RECENT_BUILD_ITEM + m_recentPaths.Count();
+            m_recentPaths.Add(str);
+
+            // when we have more in list then we can display, prune and 
+            // remove some menu items until we have room (and available ID's again)
+            if(m_recentPaths.Count() > CM_MAX_RECENT_PATHS)
+            {
+                // prune the list
+                while(m_recentPaths.Count() > CM_MAX_RECENT_PATHS)
+                    m_recentPaths.RemoveAt(0);  
+
+                // now determine count, and remove until we have room
+                int index = mnu->GetMenuItemCount() - 1;
+                int count = 0;
+                wxASSERT(index > 0);
+                
+                wxMenuItem *item;
+                do
+                {
+                    item = mnu->FindItemByPosition(index);
+                    if(item)
+                    {
+                        if(item->IsSeparator())
+                        {
+                            // next index is valid item
+                            index ++;
+                            break;
+                        }
+                        else
+                            count ++;
+                    }
+
+                    index --;
+                }
+                while(index >= 0 && item);
+
+                // ok, if count > CM_MAX_RECENT_PATHS then we are going to
+                // delete some items on the index position
+                if(count >= CM_MAX_RECENT_PATHS)
+                {
+                    // delete items that are exceeding
+                    while(count >= CM_MAX_RECENT_PATHS)
+                    {
+                        lastUsedID = mnu->FindItemByPosition(index)->GetId();
+                        mnu->Delete(lastUsedID);
+                        count --;
+                    }
+                }
+            }
+
+            // append item
+            mnu->Append(lastUsedID, str);
+        }
+    }
 }
+
+bool CMakeSetupFrm::PerformCacheRun()
+{
+    bool enable = false;
+    cmCacheManager *cachem = m_cmake->GetCacheManager();
+    cmCacheManager::CacheIterator it = cachem->NewIterator();
+
+    // remove all items that are no longer present
+    size_t j = 0;
+    while(j < m_cmOptions->GetCount())
+    {
+        // check to see if it is still in the CMake cache
+        // if it is still in the cache then it is no longer new
+        wxPropertyItem *item = m_cmOptions->GetItem(j);
+        if ( !it.Find((const char*)item->GetPropName().c_str()) )
+            m_cmOptions->RemoveProperty(item);
+        else
+        {
+            // ok we found it, mark as old
+            item->SetNewValue(false);
+            int row = m_cmOptions->FindProperty(item);
+            if(row != -1) 
+                m_cmOptions->UpdatePropertyItem(item, row);
+            j++;
+        }
+    }
+
+    if(cachem->GetSize() > 0 && !cmSystemTools::GetErrorOccuredFlag())
+    {
+        bool enable = true;     
+        for(size_t i = 0; i < m_cmOptions->GetCount(); i++)
+        {
+            wxPropertyItem* item = m_cmOptions->GetItem(i);
+            if(item->GetAdvanced())
+            {
+                if(item->GetNewValue() && m_cmOptions->GetShowAdvanced())
+                {
+                    // if one new value then disable to OK button
+                    enable = false;
+                    break;
+                }
+            }
+            else
+            {
+                if(item->GetNewValue())
+                {
+                    // if one new value then disable to OK button
+                    enable = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    return enable;  
+}
+
+void CMakeSetupFrm::FillCacheGUIFromCacheManager()
+{
+    cmCacheManager *cachem = m_cmake->GetCacheManager();
+    cmCacheManager::CacheIterator it = cachem->NewIterator();
+  
+    // remove all items that are no longer present
+    size_t j = 0;
+    while(j < m_cmOptions->GetCount())
+    {
+        // check to see if it is still in the CMake cache
+        // if it is still in the cache then it is no longer new
+        wxPropertyItem *item = m_cmOptions->GetItem(j);
+        if ( !it.Find((const char*)item->GetPropName().c_str()) )
+            m_cmOptions->RemoveProperty(item);
+        else
+            j++;
+    }
+
+    // if there are already entries in the cache, then
+    // put the new ones in the top, so they show up first
+    bool reverseOrder = false;
+    for(cmCacheManager::CacheIterator i = cachem->NewIterator(); !i.IsAtEnd(); i.Next())
+    {
+        const char* key = i.GetName();
+
+        // if value has trailing space or tab, enclose it in single quotes
+        // to enforce the fact that it has 'invisible' trailing stuff
+        std::string value = i.GetValue();
+        if (value.size() && (value[value.size() - 1] == ' ' ||  value[value.size() - 1] == '\t'))
+            value = '\'' + value +  '\'';
+
+        bool advanced = i.GetPropertyAsBool("ADVANCED");
+        switch(i.GetType() )
+        {
+        case cmCacheManager::BOOL:
+            {
+                wxString OnOff;
+                
+                if(cmSystemTools::IsOn(value.c_str()))
+                    OnOff = wxT("ON");
+                else
+                    OnOff = wxT("OFF");
+
+                m_cmOptions->AddProperty(key,
+                                         OnOff.c_str(),
+                                         i.GetProperty("HELPSTRING"),
+                                         wxPropertyList::CHECKBOX, "ON|OFF",
+                                         reverseOrder,
+                                         advanced );
+            }
+            break;
+
+        case cmCacheManager::PATH:
+            m_cmOptions->AddProperty(key, 
+                                     value.c_str(),
+                                     i.GetProperty("HELPSTRING"),
+                                     wxPropertyList::PATH,"",
+                                     reverseOrder, advanced);
+            break;
+        
+        case cmCacheManager::FILEPATH:
+            m_cmOptions->AddProperty(key, 
+                                     value.c_str(),
+                                     i.GetProperty("HELPSTRING"),
+                                     wxPropertyList::FILE,"",
+                                     reverseOrder, advanced);
+            break;
+      
+        case cmCacheManager::STRING:
+            m_cmOptions->AddProperty(key,
+                                     value.c_str(),
+                                     i.GetProperty("HELPSTRING"),
+                                     wxPropertyList::EDIT,"",
+                                     reverseOrder, advanced);
+            break;
+      
+        case cmCacheManager::INTERNAL:
+            {
+                wxPropertyItem *pItem = m_cmOptions->FindPropertyByName(key);
+                if(pItem)
+                    m_cmOptions->RemoveProperty(pItem);
+            }
+            break;          
+        }
+    }
+}
+
+void CMakeSetupFrm::OnExitTimer(wxTimerEvent &event)
+{
+    Close();
+} 
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_BROWSE_PROJECT
+ */
+
+void CMakeSetupFrm::OnButtonBrowseProject( wxCommandEvent& event )
+{
+    const wxString& dir = wxDirSelector("Select project directory", m_cmProjectPath->GetValue());
+    if(!dir.IsEmpty())
+        m_cmProjectPath->SetValue(dir);
+}
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_BROWSE_BUILD
+ */
+
+void CMakeSetupFrm::OnButtonBrowseBuild( wxCommandEvent& event )
+{
+    const wxString& dir = wxDirSelector("Select build directory", m_cmBuildPath->GetValue());
+    if(!dir.IsEmpty())
+        m_cmBuildPath->SetValue(dir);
+}
+
+/*!
+ * wxEVT_COMMAND_CHECKBOX_CLICKED event handler for ID_SHOW_ADVANCED
+ */
+
+void CMakeSetupFrm::OnShowAdvancedValues( wxCommandEvent& event )
+{
+    if(m_cmShowAdvanced->GetValue())
+        m_cmOptions->ShowAdvanced();
+    else
+        m_cmOptions->HideAdvanced();
+}
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DO_CONFIGURE
+ */
+
+void CMakeSetupFrm::OnButtonConfigure( wxCommandEvent& event )
+{
+    DoConfigure();
+}
+
+void CMakeSetupFrm::DoConfigure()
+{
+    // enable error messages each time configure is pressed
+    cmSystemTools::EnableMessages();
+    m_cmOptions->HideControls();
+
+    cmSystemTools::ResetErrorOccuredFlag(); 
+    
+    // instantiate a dialog for the progress meter
+
+    PerformCacheRun();
+    RunCMake(false);
+}
+
+int CMakeSetupFrm::RunCMake(bool generateProjectFiles)
+{
+    int value = -1;
+    
+    // clear log
+    m_cmLog->Clear();
+    m_cmLog->DiscardEdits();
+
+    wxString builddir = m_cmBuildPath->GetValue(), 
+             sourcedir = m_cmProjectPath->GetValue(),
+             err = wxT("Error in configuration process, project files may be invalid");
+
+
+    // sanity check for people pressing OK on empty dirs
+    if(builddir.Trim().IsEmpty() || sourcedir.Trim().IsEmpty())
+    {
+        wxMessageBox(wxT("Please enter a valid source directory and build directory"), wxT("Error"), wxOK | wxICON_ERROR, this);
+        return -1;
+    }
+
+    // check if the directory exists, if not, create it
+    if(!cmSystemTools::FileExists(builddir.c_str()))
+    {
+        wxString str;
+        str << wxT("Build directory does not exist, should I create it?\n\nDirectory: ") << builddir;
+    
+        int answer = wxMessageBox(str, wxT("Create directory"), wxYES_NO, this);
+        if (answer == wxYES)
+        {
+            if(!cmSystemTools::MakeDirectory(builddir.c_str()))
+            {
+                // could not create, tell and abort
+                wxMessageBox(wxT("Could not create directory"), wxT("Error"), wxOK | wxICON_ERROR, this);
+                return -1;
+            }
+        }
+        else
+        {
+            // we abort because the user did not want to make the directory
+            wxMessageBox(wxT("Build Project aborted, nothing done."), wxT("Aborted"), 
+                         wxOK | wxICON_EXCLAMATION, this);
+            return -1;
+        }
+    }
+
+    /** show progress dialog that informs the user with a progress bar */ 
+    if(m_progressDlg)
+        m_progressDlg->Destroy();
+
+    m_progressDlg = new CMProgressDialog(this);
+    m_progressDlg->Show();
+
+    // set the wait cursor
+    m_RunningConfigure = true;
+    UpdateWindowState();
+
+    // always save the current gui values to disk
+    SaveCacheFromGUI();
+  
+    // Make sure we are working from the cache on disk
+    LoadCacheFromDiskToGUI(); 
+
+    // setup the cmake instance
+    if (generateProjectFiles)
+    {
+        if(m_cmake->Generate() != 0)
+        {
+            wxMessageBox(err, wxT("Error"), wxOK | wxICON_ERROR, this);
+            cmSystemTools::Error(err.c_str());
+            value = -1;
+        }
+        else
+        {
+            value = 0;
+            m_cmOptions->SetProjectGenerated(true); // clear cache dirty when generated
+        }
+    }
+    else
+    {
+        // set paths 
+        m_cmake->SetHomeDirectory(m_cmProjectPath->GetValue().c_str());
+        m_cmake->SetStartDirectory(m_cmProjectPath->GetValue().c_str());
+        m_cmake->SetHomeOutputDirectory(m_cmBuildPath->GetValue().c_str());
+        m_cmake->SetStartOutputDirectory(m_cmBuildPath->GetValue().c_str());
+        
+        m_cmake->SetGlobalGenerator(m_cmake->CreateGlobalGenerator(m_cmGeneratorChoice->GetValue().c_str()));
+        m_cmake->SetCMakeCommand(m_PathToExecutable.c_str());
+        m_cmake->LoadCache();
+        if(m_cmake->Configure() != 0)
+        {
+            wxMessageBox(err, wxT("Error"), wxOK | wxICON_ERROR, this);
+            cmSystemTools::Error(err.c_str());
+        }
+        
+        // update the GUI with any new values in the caused by the
+        // generation process
+        LoadCacheFromDiskToGUI();
+    }
+
+    m_RunningConfigure = false;
+    
+    if(!value)
+        cmSystemTools::ResetErrorOccuredFlag();
+
+    m_progressDlg->Destroy();
+    m_progressDlg = 0;
+
+    // reset the statusbar progress 
+    wxStatusBar *bar = GetStatusBar();
+    if(bar)
+        bar->SetStatusText(wxEmptyString, 1);
+
+    UpdateWindowState();
+    return value;
+}
+
+//! Save GUI values to cmCacheManager and then save to disk.
+void CMakeSetupFrm::SaveCacheFromGUI()
+{
+    cmCacheManager *cachem = m_cmake->GetCacheManager();
+    FillCacheManagerFromCacheGUI();
+  
+    // write the cache to disk
+    if(!m_cmBuildPath->GetValue().Trim().IsEmpty())
+        cachem->SaveCache(m_cmBuildPath->GetValue().c_str());
+}
+
+void CMakeSetupFrm::FillCacheManagerFromCacheGUI()
+{ 
+    cmCacheManager *cachem = m_cmake->GetCacheManager();
+    
+    cmCacheManager::CacheIterator it = cachem->NewIterator();
+    for(size_t i = 0; i < m_cmOptions->GetCount(); i++)
+    {
+        wxPropertyItem* item = m_cmOptions->GetItem(i); 
+        if ( it.Find((const char*)item->GetPropName().c_str()) )
+        {
+            // if value is enclosed in single quotes ('foo') then remove them
+            // they were used to enforce the fact that it had 'invisible' 
+            // trailing stuff
+            if (item->GetCurValue().Len() >= 2 &&
+                item->GetCurValue().GetChar(0) == '\'' && 
+                item->GetCurValue().GetChar(item->GetCurValue().Len() - 1) == '\'') 
+            {
+                it.SetValue(item->GetCurValue().Mid(1, item->GetCurValue().Len() - 2).c_str());
+            }
+            else
+                it.SetValue(item->GetCurValue().c_str());
+        }
+    }
+}
+
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DO_OK
+ */
+
+void CMakeSetupFrm::OnButtonOk( wxCommandEvent& event )
+{
+    DoGenerate();
+}
+
+void CMakeSetupFrm::DoGenerate()
+{
+    cmSystemTools::EnableMessages();
+    
+    cmSystemTools::ResetErrorOccuredFlag(); 
+    
+    m_cmOptions->HideControls();
+    PerformCacheRun();
+  
+    if(!RunCMake(true))
+    {
+        // issue a close when this is done (this is issued by menu "Generate and Exit"
+        if(m_quitAfterGenerating)
+            Close();
+        else if(!wxGetKeyState(WXK_SHIFT))
+        {
+            bool close;
+            m_config->Read(CM_CLOSEAFTERGEN, &close, CM_CLOSEAFTERGEN_DEF);
+            
+            if(!close)
+                wxMessageBox(wxT("Building of project files succesful!"), wxT("Success!"), wxOK|wxICON_INFORMATION);
+            else
+                Close();
+        }
+    }
+}
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DO_CANCEL
+ */
+
+void CMakeSetupFrm::OnButtonCancel( wxCommandEvent& event )
+{
+    DoCancelButton();
+}
+
+void CMakeSetupFrm::DoCancelButton()
+{
+    if(m_RunningConfigure)
+    {
+        int result = wxMessageBox(wxT("You are in the middle of a Configure.\n"
+                                      "If you Cancel now the configure information will be lost.\n"
+                                      "Are you sure you want to Cancel?"), wxT("Warning"), wxYES_NO|wxICON_WARNING);
+        if(result == wxYES)
+            cmSystemTools::SetFatalErrorOccured();
+        else
+            if(m_progressDlg)
+                m_progressDlg->ResetCancel();
+    }
+}
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_DO_DELETE_CACHE
+ */
+
+void CMakeSetupFrm::OnButtonDeleteCache( wxCommandEvent& event )
+{
+    DoDeleteCache();
+}
+
+void CMakeSetupFrm::DoDeleteCache()
+{
+    bool deletecache = true;
+    if(m_cmOptions->IsCacheDirty() || (m_cmOptions->GetCount() > 0 && !m_cmOptions->IsGenerated()))
+    {
+        int result = ::wxMessageBox(_("You have changed options, are you sure you want to delete all items?\n"), 
+                                    _("Warning"), wxYES_NO|wxICON_QUESTION);
+        
+        // when user wants to wait, wait.. else quit
+        if(result == wxNO)
+            deletecache = false;
+            
+    }
+
+    if(deletecache)
+    {
+        // indicate that we haven't generated a project yet
+        m_cmOptions->SetProjectGenerated(false);
+        
+        if(!m_cmBuildPath->GetValue().Trim().IsEmpty() && m_cmake != 0)
+            m_cmake->GetCacheManager()->DeleteCache(m_cmBuildPath->GetValue().Trim());
+      
+        LoadCacheFromDiskToGUI();   
+        UpdateWindowState();
+    }
+}
+
+/*!
+ * Should we show tooltips?
+ */
+
+bool CMakeSetupFrm::ShowToolTips()
+{
+    return TRUE;
+}
+
+/*!
+ * Get bitmap resources
+ */
+
+wxBitmap CMakeSetupFrm::GetBitmapResource( const wxString& name )
+{
+    // Bitmap retrieval
+////@begin CMakeSetupFrm bitmap retrieval
+    return wxNullBitmap;
+////@end CMakeSetupFrm bitmap retrieval
+}
+
+/*!
+ * Get icon resources
+ */
+
+wxIcon CMakeSetupFrm::GetIconResource( const wxString& name )
+{
+    // Icon retrieval
+////@begin CMakeSetupFrm icon retrieval
+    if (name == wxT("cmake_icon.xpm"))
+    {
+        wxIcon icon(_T("cmake_icon.xpm"), wxBITMAP_TYPE_XPM);
+        return icon;
+    }
+    return wxNullIcon;
+////@end CMakeSetupFrm icon retrieval
+}
+
+/*!
+ * wxEVT_COMMAND_SPLITTER_SASH_POS_CHANGING event handler for ID_SPLITTERWINDOW
+ */
+
+void CMakeSetupFrm::OnSplitterPosChanging( wxSplitterEvent& event )
+{
+    int width, height;
+
+    GetSize(&width, &height);
+
+    if((height > 100))
+    {
+        if(event.GetSashPosition() < 170)
+            event.SetSashPosition(170);
+        else
+        {
+            if(event.GetSashPosition() > (height - 180))
+                event.SetSashPosition(height - 180);
+        }
+    }
+    else
+        event.Veto();
+
+}
+
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_CLEAR_LOG
+ */
+
+void CMakeSetupFrm::OnClearLogClick( wxCommandEvent& event )
+{
+    // delete the log text
+    m_cmLog->Clear();
+    m_cmLog->DiscardEdits();
+}
+
+
+/*!
+ * wxEVT_COMMAND_TEXT_UPDATED event handler for ID_SOURCE_BUILD_PATH
+ */
+
+void CMakeSetupFrm::OnSourceBuildPathUpdated( wxCommandEvent& event )
+{
+    DoReloadCache();
+}
+
+void CMakeSetupFrm::DoReloadCache()
+{
+    wxString buildpath = m_cmBuildPath->GetValue();
+    // The build dir has changed, check if there is a cache, and 
+    // grab the source dir from it
+
+    // make sure the call to update grid is not executed
+    m_noRefresh = true;
+    m_cmSearchQuery->SetValue(_(""));
+    m_noRefresh = false;
+
+    std::string path = buildpath.c_str();
+    cmSystemTools::ConvertToUnixSlashes(path);
+
+    // adjust the cmake instance
+    m_cmake->SetHomeOutputDirectory(buildpath.c_str());
+    m_cmake->SetStartOutputDirectory(buildpath.c_str());
+
+    std::string cache_file = path;
+    cache_file += "/CMakeCache.txt";
+
+    // fill in the project path where the source is located, this is 
+    // read from the CMake cache
+    cmCacheManager *cachem = m_cmake->GetCacheManager();
+    cmCacheManager::CacheIterator it = cachem->NewIterator();
+    if (cmSystemTools::FileExists(cache_file.c_str()) && cachem->LoadCache(path.c_str()) && 
+        it.Find("CMAKE_HOME_DIRECTORY"))
+    {
+        path = ConvertToWindowsPath(it.GetValue());
+        m_cmProjectPath->SetValue(path.c_str());
+    }
+
+    m_cmOptions->RemoveAll();
+    LoadCacheFromDiskToGUI();
+    UpdateWindowState();
+}
+
+
+/*!
+ * wxEVT_COMMAND_TEXT_ENTER event handler for ID_SOURCE_BUILD_PATH
+ */
+
+void CMakeSetupFrm::OnSourceBuildPathEnter( wxCommandEvent& event )
+{
+    OnSourceBuildPathUpdated(event);
+}
+
+/*!
+ * wxEVT_MOTION event handler for ID_OPTIONS
+ */
+
+void CMakeSetupFrm::OnPropertyMotion( wxMouseEvent& event )
+{
+    ShowPropertyDescription(m_cmOptions->YToRow(event.GetY()));
+    event.Skip();
+}
+
+
+/*!
+ * wxEVT_GRID_SELECT_CELL event handler for ID_OPTIONS
+ */
+
+void CMakeSetupFrm::OnGridSelectCell( wxGridEvent& event )
+{
+    // show description 
+    ShowPropertyDescription(event.GetRow());
+    
+    // enable or disable the browse button
+    m_cmBrowseCell->Enable(m_cmOptions->IsSelectedItemBrowsable(event.GetRow()));
+    event.Skip();
+}
+
+void CMakeSetupFrm::ShowPropertyDescription(int row)
+{
+    if(row == wxNOT_FOUND || row < 0)
+        m_cmDescription->SetValue(wxEmptyString);
+    else
+    {
+        wxPropertyItem *pItem = m_cmOptions->GetPropertyItemFromRow(row);
+        if(pItem)
+            m_cmDescription->SetValue(pItem->GetHelpString());
+        else
+            m_cmDescription->SetValue(wxEmptyString);
+    }
+}
+
+/*!
+ * wxEVT_GRID_CELL_CHANGE event handler for ID_OPTIONS
+ */
+
+void CMakeSetupFrm::OnCellChange( wxGridEvent& event )
+{
+    // update the button state when the cache is invalidated
+    UpdateWindowState();
+}
+
+void CMakeSetupFrm::OnRecentFileMenu( wxCommandEvent &event )
+{   
+    if(GetMenuBar())
+    {
+        // get file menu
+        wxMenu *mnu = GetMenuBar()->GetMenu(0);
+        wxASSERT(mnu != 0);
+
+        wxMenuItem *item = mnu->FindItem(event.GetId());
+        if(item)
+            m_cmBuildPath->SetValue(item->GetLabel());
+    }
+}
+/*!
+ * wxEVT_COMMAND_COMBOBOX_SELECTED event handler for ID_COMBOBOX
+ */
+
+void CMakeSetupFrm::OnSearchquerySelected( wxCommandEvent& event )
+{
+    m_cmOptions->SetQuery(m_cmSearchQuery->GetValue());
+}
+
+void CMakeSetupFrm::OnAddQuery ( wxCommandEvent &event )
+{
+    // add current text if not yet present
+    if(m_cmSearchQuery->FindString(m_cmSearchQuery->GetValue()) == wxNOT_FOUND)
+    {
+        m_cmSearchQuery->Append(m_cmSearchQuery->GetValue());
+        
+        // if too many items are present, prune
+        while(m_cmSearchQuery->GetCount() > CM_MAX_SEARCH_QUERIES)
+            m_cmSearchQuery->Delete(0);     
+    }
+}
+
+/*!
+ * wxEVT_COMMAND_TEXT_UPDATED event handler for ID_SEARCHQUERY
+ */
+
+void CMakeSetupFrm::OnSearchqueryUpdated( wxCommandEvent& event )
+{
+    // only refresh when this event was caused by user
+    if(!m_noRefresh)
+        m_cmOptions->SetQuery(m_cmSearchQuery->GetValue());
+}
+
+
+/*!
+ * wxEVT_COMMAND_BUTTON_CLICKED event handler for ID_BROWSE_GRID
+ */
+
+void CMakeSetupFrm::OnBrowseGridClick( wxCommandEvent& event )
+{
+    m_cmOptions->BrowseSelectedItem();
+}
+
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_MENU_RELOAD_CACHE
+ */
+
+void CMakeSetupFrm::OnMenuReloadCacheClick( wxCommandEvent& event )
+{
+    bool reload = true;
+    if(m_cmOptions->IsCacheDirty() || (m_cmOptions->GetCount() > 0 && !m_cmOptions->IsGenerated()))
+    {
+        int result = ::wxMessageBox(_("You have changed options, are you sure you want to reload?\n"), 
+                                    _("Warning"), wxYES_NO|wxICON_QUESTION);
+        
+        // when user wants to wait, wait.. else quit
+        if(result == wxNO)
+            reload = false;
+            
+    }
+
+    if(reload) 
+        DoReloadCache();
+}
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_MENU_DELETE_CACHE
+ */
+
+void CMakeSetupFrm::OnMenuDeleteCacheClick( wxCommandEvent& event )
+{
+    DoDeleteCache();
+}
+
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_MENU_QUIT
+ */
+
+void CMakeSetupFrm::OnMenuQuitClick( wxCommandEvent& event )
+{
+    // the close event will veto if the user 
+    // did not want to quit due to unsaved changes
+    Close();
+}
+
+
+/*!
+ * wxEVT_CLOSE_WINDOW event handler for ID_FRAME
+ */
+
+void CMakeSetupFrm::OnCloseWindow( wxCloseEvent& event )
+{
+    // ask quit if:
+    //  - The cache is dirty
+    //  - Or the cache is OK and has some items, and no project was generated recently (configure -> generate)
+    if(m_cmOptions->IsCacheDirty() || (m_cmOptions->GetCount() > 0 && !m_cmOptions->IsGenerated()))
+    {
+        int result = ::wxMessageBox(_("You have changed options, but not yet generated the projects\n"
+                                      "are you sure you want to quit?"), _("Warning"), wxYES_NO|wxICON_QUESTION);
+        
+        // when user wants to wait, wait.. else quit
+        if(result == wxNO)
+            event.Veto();
+        else
+            event.Skip();
+    }
+    else
+        event.Skip();
+}
+
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_ABOUTDLG
+ */
+
+void CMakeSetupFrm::OnAboutClick( wxCommandEvent& event )
+{
+    CMAboutDlg *dlg = new CMAboutDlg(this);
+    
+    wxArrayString generators;
+    std::vector<std::string> names; 
+    m_cmake->GetRegisteredGenerators(names);
+    for(std::vector<std::string>::iterator i = names.begin(); i != names.end(); ++i)
+        generators.Add(i->c_str());
+
+    wxString cmversion, cmsversion;
+    cmversion.Printf("v%i.%i %s", cmake::GetMajorVersion(), cmake::GetMinorVersion(), cmake::GetReleaseVersion());
+    cmsversion.Printf("v%i.%i%s", CMAKEGUI_MAJORVER, CMAKEGUI_MINORVER, CMAKEGUI_ADDVER);
+
+    dlg->SetAboutText(cmversion, cmsversion, generators);
+
+    dlg->ShowModal();
+    dlg->Destroy();
+}
+
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_CMAKE_OPTIONS
+ */
+
+void CMakeSetupFrm::OnOptionsClick( wxCommandEvent& event )
+{
+    CMOptionsDlg *dlg = new CMOptionsDlg(this);
+
+    dlg->SetConfig(m_config);
+    if(dlg->ShowModal() == wxID_OK)
+    {
+        // store volatile settings
+        dlg->GetConfig(m_config);
+        
+        // apply non volatile setting such as clear search query, recent menu, etc.
+        SyncFormOptions(dlg);
+    }
+
+    dlg->Destroy();
+}
+
+void CMakeSetupFrm::SyncFormOptions(CMOptionsDlg *dlg)
+{
+    // TODO: Clear search query etc.
+}
+/*!
+ * wxEVT_COMMAND_SPLITTER_DOUBLECLICKED event handler for ID_SPLITTERWINDOW
+ */
+
+void CMakeSetupFrm::OnSplitterwindowSashDClick( wxSplitterEvent& event )
+{
+    event.Veto(); 
+}
+
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_MENU_CONFIGURE
+ */
+
+void CMakeSetupFrm::OnMenuConfigureClick( wxCommandEvent& event )
+{
+    DoConfigure();
+}
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_MENU_EXITGENERATE
+ */
+
+void CMakeSetupFrm::OnMenuGenerateClick( wxCommandEvent& event )
+{
+    // set flag so that a close command is issued
+    // after generating the cmake cache to projects
+    m_quitAfterGenerating = true;
+    DoGenerate();
+    m_quitAfterGenerating = false;
+}
+
+
+/*!
+ * wxEVT_COMMAND_MENU_SELECTED event handler for ID_MENU_TOGGLE_ADVANCED
+ */
+
+void CMakeSetupFrm::OnMenuToggleAdvancedClick( wxCommandEvent& event )
+{
+    // toggle the check box
+    m_cmShowAdvanced->SetValue(!m_cmShowAdvanced->GetValue());
+    OnShowAdvancedValues(event);
+}
+
+

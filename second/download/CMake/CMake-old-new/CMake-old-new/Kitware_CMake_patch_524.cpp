@@ -1,138 +1,71 @@
-@@ -26,11 +26,11 @@ cmCursesStringWidget::cmCursesStringWidget(int width, int height,
-                                            int left, int top) :
-   cmCursesWidget(width, height, left, top)
- {
--  m_InEdit = false;
--  m_Type = cmCacheManager::STRING;
--  set_field_fore(m_Field,  A_NORMAL);
--  set_field_back(m_Field,  A_STANDOUT);
--  field_opts_off(m_Field,  O_STATIC);
-+  this->InEdit = false;
-+  this->Type = cmCacheManager::STRING;
-+  set_field_fore(this->Field,  A_NORMAL);
-+  set_field_back(this->Field,  A_STANDOUT);
-+  field_opts_off(this->Field,  O_STATIC);
+@@ -17,6 +17,7 @@
+ #include KWSYS_HEADER(SystemInformation.hxx)
+ #include KWSYS_HEADER(Process.h)
+ #include KWSYS_HEADER(ios/iostream)
++#include KWSYS_HEADER(ios/sstream)
+ #ifndef WIN32
+   #include <sys/utsname.h> // int uname(struct utsname *buf);
+ #endif
+@@ -171,35 +172,35 @@ const char * SystemInformation::GetVendorID()
  }
  
- void cmCursesStringWidget::OnTab(cmCursesMainForm*, WINDOW*)
-@@ -41,25 +41,25 @@ void cmCursesStringWidget::OnTab(cmCursesMainForm*, WINDOW*)
- void cmCursesStringWidget::OnReturn(cmCursesMainForm* fm, WINDOW*)
+ /** Return the type ID of the CPU */
+-const char * SystemInformation::GetTypeID()
++kwsys_stl::string SystemInformation::GetTypeID()
  {
-   FORM* form = fm->GetForm();
--  if (m_InEdit)
-+  if (this->InEdit)
-     {
-     cmCursesForm::LogMessage("String widget leaving edit.");
--    m_InEdit = false;
-+    this->InEdit = false;
-     fm->PrintKeys();
--    delete[] m_OriginalString;
-+    delete[] this->OriginalString;
-     // trick to force forms to update the field buffer
-     form_driver(form, REQ_NEXT_FIELD);
-     form_driver(form, REQ_PREV_FIELD);
--    m_Done = true;
-+    this->Done = true;
-     }
-   else
-     {
-     cmCursesForm::LogMessage("String widget entering edit.");
--    m_InEdit = true;
-+    this->InEdit = true;
-     fm->PrintKeys();
--    char* buf = field_buffer(m_Field, 0);
--    m_OriginalString = new char[strlen(buf)+1];
--    strcpy(m_OriginalString, buf);
-+    char* buf = field_buffer(this->Field, 0);
-+    this->OriginalString = new char[strlen(buf)+1];
-+    strcpy(this->OriginalString, buf);
-     }
+-  char * temp = new char[32];
+-  sprintf(temp,"%d",this->ChipID.Type);
+-  return temp;
++  kwsys_ios::ostringstream str;
++  str << this->ChipID.Type;
++  return str.str();
  }
  
-@@ -75,18 +75,18 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
- 
-   FORM* form = fm->GetForm();
-   // 10 == enter
--  if (!m_InEdit && ( key != 10 && key != KEY_ENTER ) )
-+  if (!this->InEdit && ( key != 10 && key != KEY_ENTER ) )
-     {
-     return false;
-     }
- 
--  m_OriginalString=0;
--  m_Done = false;
-+  this->OriginalString=0;
-+  this->Done = false;
- 
-   char debugMessage[128];
- 
-   // <Enter> is used to change edit mode (like <Esc> in vi).
--  while(!m_Done)
-+  while(!this->Done)
-     {
-     sprintf(debugMessage, "String widget handling input, key: %d", key);
-     cmCursesForm::LogMessage(debugMessage);
-@@ -111,7 +111,7 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
-       }
- 
-     // If resize occured during edit, move out of edit mode
--    if (!m_InEdit && ( key != 10 && key != KEY_ENTER ) )
-+    if (!this->InEdit && ( key != 10 && key != KEY_ENTER ) )
-       {
-       return false;
-       }
-@@ -125,8 +125,8 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
-               key == KEY_NPAGE || key == ctrl('d') ||
-               key == KEY_PPAGE || key == ctrl('u'))
-       {
--      m_InEdit = false;
--      delete[] m_OriginalString;     
-+      this->InEdit = false;
-+      delete[] this->OriginalString;     
-       // trick to force forms to update the field buffer
-       form_driver(form, REQ_NEXT_FIELD);
-       form_driver(form, REQ_PREV_FIELD);
-@@ -135,12 +135,12 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
-     // esc
-     else if (key == 27)
-       {
--      if (m_InEdit)
-+      if (this->InEdit)
-         {
--        m_InEdit = false;
-+        this->InEdit = false;
-         fm->PrintKeys();
--        this->SetString(m_OriginalString);
--        delete[] m_OriginalString;
-+        this->SetString(this->OriginalString);
-+        delete[] this->OriginalString;
-         touchwin(w); 
-         wrefresh(w); 
-         return true;
-@@ -182,7 +182,7 @@ bool cmCursesStringWidget::HandleInput(int& key, cmCursesMainForm* fm,
-       {
-       this->OnType(key, fm, w);
-       }
--    if ( !m_Done )
-+    if ( !this->Done )
-       {
-       touchwin(w); 
-       wrefresh(w); 
-@@ -205,7 +205,7 @@ const char* cmCursesStringWidget::GetString()
- 
- const char* cmCursesStringWidget::GetValue()
+ /** Return the family of the CPU present */
+-const char * SystemInformation::GetFamilyID()
++kwsys_stl::string SystemInformation::GetFamilyID()
  {
--  return field_buffer(m_Field, 0);
-+  return field_buffer(this->Field, 0);
+-  char * temp = new char[32];
+-  sprintf(temp,"%d",this->ChipID.Family);
+-  return temp;
++  kwsys_ios::ostringstream str;
++  str << this->ChipID.Family;
++  return str.str();
  }
  
- bool cmCursesStringWidget::PrintKeys()
-@@ -217,7 +217,7 @@ bool cmCursesStringWidget::PrintKeys()
-     {
-     return false;
-     }
--  if (m_InEdit)
-+  if (this->InEdit)
-     {
-     char firstLine[512];
-     // Clean the toolbar
+ // Return the model of CPU present */
+-const char * SystemInformation::GetModelID()
++kwsys_stl::string SystemInformation::GetModelID()
+ {
+-  char * temp = new char[32];
+-  sprintf(temp,"%d",this->ChipID.Model);
+-  return temp;
++  kwsys_ios::ostringstream str;
++  str << this->ChipID.Model;
++  return str.str();
+ }
+ 
+ /** Return the stepping code of the CPU present. */
+-const char * SystemInformation::GetSteppingCode()
+-{
+-  char * temp = new char[32];
+-  sprintf(temp,"%d",this->ChipID.Revision);
+-  return temp;
++kwsys_stl::string SystemInformation::GetSteppingCode()
++{ 
++  kwsys_ios::ostringstream str;
++  str << this->ChipID.Revision;
++  return str.str();
+ }
+ 
+ /** Return the stepping code of the CPU present. */
+@@ -2649,7 +2650,8 @@ bool SystemInformation::QueryOSInformation()
+       this->OSRelease = "Unknown";
+       break;
+   }
+-
++  delete [] operatingSystem;
++  operatingSystem = 0;
+ 
+   // Get the hostname
+   WORD wVersionRequested;

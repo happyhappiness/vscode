@@ -1,920 +1,421 @@
-/*=========================================================================
+/***************************************************************************
+ *                                  _   _ ____  _
+ *  Project                     ___| | | |  _ \| |
+ *                             / __| | | | |_) | |
+ *                            | (__| |_| |  _ <| |___
+ *                             \___|\___/|_| \_\_____|
+ *
+ * Copyright (C) 1998 - 2004, Daniel Stenberg, <daniel@haxx.se>, et al.
+ *
+ * This software is licensed as described in the file COPYING, which
+ * you should have received as part of this distribution. The terms
+ * are also available at http://curl.haxx.se/docs/copyright.html.
+ *
+ * You may opt to use, copy, modify, merge, publish, distribute and/or sell
+ * copies of the Software, and permit persons to whom the Software is
+ * furnished to do so, under the terms of the COPYING file.
+ *
+ * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+ * KIND, either express or implied.
+ *
+ * $Id$
+ ***************************************************************************/
 
-  Program:   CMake - Cross-Platform Makefile Generator
-  Module:    $RCSfile$
-  Language:  C++
-  Date:      $Date$
-  Version:   $Revision$
+#include "setup.h"
 
-  Copyright (c) 2002 Kitware, Inc., Insight Consortium.  All rights reserved.
-  See Copyright.txt or http://www.cmake.org/HTML/Copyright.html for details.
+#include <string.h>
+#include <errno.h>
 
-     This software is distributed WITHOUT ANY WARRANTY; without even 
-     the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR 
-     PURPOSE.  See the above copyright notices for more information.
+#define _REENTRANT
 
-=========================================================================*/
+#if defined(WIN32) && !defined(__GNUC__) || defined(__MINGW32__)
+#include <malloc.h>
+#else
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+#ifdef HAVE_NETDB_H
+#include <netdb.h>
+#endif
+#ifdef HAVE_ARPA_INET_H
+#include <arpa/inet.h>
+#endif
+#ifdef HAVE_STDLIB_H
+#include <stdlib.h>     /* required for free() prototypes */
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>     /* for the close() proto */
+#endif
+#ifdef  VMS
+#include <in.h>
+#include <inet.h>
+#include <stdlib.h>
+#endif
+#endif
 
-#include "cmCacheManager.h"
-#include "cmSystemTools.h"
-#include "cmCacheManager.h"
-#include "cmMakefile.h"
-#include "cmGlob.h"
-#include <cmsys/Directory.hxx>
+#ifdef HAVE_SETJMP_H
+#include <setjmp.h>
+#endif
 
-#include <cmsys/RegularExpression.hxx>
+#ifdef WIN32
+#include <process.h>
+#endif
 
-#if defined(_WIN32) || defined(__CYGWIN__)
-# include <windows.h>
-#endif // _WIN32
+#if (defined(NETWARE) && defined(__NOVELL_LIBC__))
+#undef in_addr_t
+#define in_addr_t unsigned long
+#endif
 
-const char* cmCacheManagerTypes[] = 
-{ "BOOL",
-  "PATH",
-  "FILEPATH",
-  "STRING",
-  "INTERNAL",
-  "STATIC",
-  "UNINITIALIZED",
-  0
+#include "urldata.h"
+#include "sendf.h"
+#include "hostip.h"
+#include "hash.h"
+#include "share.h"
+#include "strerror.h"
+#include "url.h"
+
+#define _MPRINTF_REPLACE /* use our functions only */
+#include <curl/mprintf.h>
+
+#if defined(HAVE_INET_NTOA_R) && !defined(HAVE_INET_NTOA_R_DECL)
+#include "inet_ntoa_r.h"
+#endif
+
+#include "curl_memory.h"
+/* The last #include file should be: */
+#include "memdebug.h"
+
+/***********************************************************************
+ * Only for plain-ipv4 builds
+ **********************************************************************/
+#ifdef CURLRES_IPV4 /* plain ipv4 code coming up */
+
+/*
+ * This is a function for freeing name information in a protocol independent
+ * way.
+ */
+void Curl_freeaddrinfo(Curl_addrinfo *ai)
+{
+  Curl_addrinfo *next;
+
+  /* walk over the list and free all entries */
+  while(ai) {
+    next = ai->ai_next;
+    free(ai);
+    ai = next;
+  }
+}
+
+/*
+ * Curl_ipvalid() checks what CURL_IPRESOLVE_* requirements that might've
+ * been set and returns TRUE if they are OK.
+ */
+bool Curl_ipvalid(struct SessionHandle *data)
+{
+  if(data->set.ip_version == CURL_IPRESOLVE_V6)
+    /* an ipv6 address was requested and we can't get/use one */
+    return FALSE;
+
+  return TRUE; /* OK, proceed */
+}
+
+struct namebuf {
+  struct hostent hostentry;
+  char *h_addr_list[2];
+  struct in_addr addrentry;
+  char h_name[16]; /* 123.123.123.123 = 15 letters is maximum */
 };
 
-const char* cmCacheManager::TypeToString(cmCacheManager::CacheEntryType type)
+/*
+ * Curl_ip2addr() takes a 32bit ipv4 internet address as input parameter
+ * together with a pointer to the string version of the address, and it
+ * returns a Curl_addrinfo chain filled in correctly with information for this
+ * address/host.
+ *
+ * The input parameters ARE NOT checked for validity but they are expected
+ * to have been checked already when this is called.
+ */
+Curl_addrinfo *Curl_ip2addr(in_addr_t num, char *hostname, int port)
 {
-  if ( type > 6 )
-    {
-    return cmCacheManagerTypes[6];
-    }
-  return cmCacheManagerTypes[type];
+  Curl_addrinfo *ai;
+  struct hostent *h;
+  struct in_addr *addrentry;
+  struct namebuf buffer;
+  struct namebuf *buf = &buffer;
+
+  h = &buf->hostentry;
+  h->h_addr_list = &buf->h_addr_list[0];
+  addrentry = &buf->addrentry;
+  addrentry->s_addr = num;
+  h->h_addr_list[0] = (char*)addrentry;
+  h->h_addr_list[1] = NULL;
+  h->h_addrtype = AF_INET;
+  h->h_length = sizeof(*addrentry);
+  h->h_name = &buf->h_name[0];
+  h->h_aliases = NULL;
+
+  /* Now store the dotted version of the address */
+  snprintf((char*)(h->h_name), 16, "%s", hostname);
+
+  ai = Curl_he2ai(h, port);
+
+  return ai;
 }
 
-cmCacheManager::CacheEntryType cmCacheManager::StringToType(const char* s)
+#ifdef CURLRES_SYNCH /* the functions below are for synchronous resolves */
+
+/*
+ * Curl_getaddrinfo() - the ipv4 synchronous version.
+ *
+ * The original code to this function was once stolen from the Dancer source
+ * code, written by Bjorn Reese, it has since been patched and modified
+ * considerably.
+ *
+ * gethostbyname_r() is the thread-safe version of the gethostbyname()
+ * function. When we build for plain IPv4, we attempt to use this
+ * function. There are _three_ different gethostbyname_r() versions, and we
+ * detect which one this platform supports in the configure script and set up
+ * the HAVE_GETHOSTBYNAME_R_3, HAVE_GETHOSTBYNAME_R_5 or
+ * HAVE_GETHOSTBYNAME_R_6 defines accordingly. Note that HAVE_GETADDRBYNAME
+ * has the corresponding rules. This is primarily on *nix. Note that some unix
+ * flavours have thread-safe versions of the plain gethostbyname() etc.
+ *
+ */
+Curl_addrinfo *Curl_getaddrinfo(struct connectdata *conn,
+                                char *hostname,
+                                int port,
+                                int *waitp)
 {
-  int i = 0;
-  while(cmCacheManagerTypes[i])
-    {
-    if(strcmp(s, cmCacheManagerTypes[i]) == 0)
-      {
-      return static_cast<CacheEntryType>(i);
-      }
-    ++i;
+  Curl_addrinfo *ai = NULL;
+  struct hostent *h = NULL;
+  in_addr_t in;
+  struct SessionHandle *data = conn->data;
+  struct hostent *buf = NULL;
+
+  (void)port; /* unused in IPv4 code */
+
+  *waitp = 0; /* don't wait, we act synchronously */
+
+  in=inet_addr(hostname);
+  if (in != CURL_INADDR_NONE) {
+    /* This is a dotted IP address 123.123.123.123-style */
+    return Curl_ip2addr(in, hostname, port);
+  }
+
+#if defined(HAVE_GETHOSTBYNAME_R)
+  /*
+   * gethostbyname_r() is the preferred resolve function for many platforms.
+   * Since there are three different versions of it, the following code is
+   * somewhat #ifdef-ridden.
+   */
+  else {
+    int h_errnop;
+    int res=ERANGE;
+
+    buf = (struct hostent *)calloc(CURL_HOSTENT_SIZE, 1);
+    if(!buf)
+      return NULL; /* major failure */
+    /*
+     * The clearing of the buffer is a workaround for a gethostbyname_r bug in
+     * qnx nto and it is also _required_ for some of these functions on some
+     * platforms.
+     */
+
+#ifdef HAVE_GETHOSTBYNAME_R_5
+    /* Solaris, IRIX and more */
+    (void)res; /* prevent compiler warning */
+    h = gethostbyname_r(hostname,
+                        (struct hostent *)buf,
+                        (char *)buf + sizeof(struct hostent),
+                        CURL_HOSTENT_SIZE - sizeof(struct hostent),
+                        &h_errnop);
+
+    /* If the buffer is too small, it returns NULL and sets errno to
+     * ERANGE. The errno is thread safe if this is compiled with
+     * -D_REENTRANT as then the 'errno' variable is a macro defined to get
+     * used properly for threads.
+     */
+
+    if(h) {
+      ;
     }
-  return STRING;
-}
-
-bool cmCacheManager::LoadCache(cmMakefile* mf)
-{
-  return this->LoadCache(mf->GetHomeOutputDirectory());
-}
-
-
-bool cmCacheManager::LoadCache(const char* path)
-{
-  return this->LoadCache(path,true);
-}
-
-bool cmCacheManager::LoadCache(const char* path,
-                               bool internal)
-{
-  std::set<cmStdString> emptySet;
-  return this->LoadCache(path, internal, emptySet, emptySet);
-}
-
-bool cmCacheManager::ParseEntry(const char* entry, 
-                                std::string& var,
-                                std::string& value)
-{
-  // input line is:         key:type=value
-  static cmsys::RegularExpression reg("^([^:]*)=(.*[^\r\t ]|[\r\t ]*)[\r\t ]*$");
-  // input line is:         "key":type=value
-  static cmsys::RegularExpression regQuoted("^\"([^\"]*)\"=(.*[^\r\t ]|[\r\t ]*)[\r\t ]*$");
-  bool flag = false;
-  if(regQuoted.find(entry))
-    {
-    var = regQuoted.match(1);
-    value = regQuoted.match(2);
-    flag = true;
-    }
-  else if (reg.find(entry))
-    {
-    var = reg.match(1);
-    value = reg.match(2);
-    flag = true;
-    }
-
-  // if value is enclosed in single quotes ('foo') then remove them
-  // it is used to enclose trailing space or tab
-  if (flag && 
-      value.size() >= 2 &&
-      value[0] == '\'' && 
-      value[value.size() - 1] == '\'') 
-    {
-    value = value.substr(1, 
-                         value.size() - 2);
-    }
-
-  return flag;
-}
-
-bool cmCacheManager::ParseEntry(const char* entry, 
-                                std::string& var,
-                                std::string& value,
-                                CacheEntryType& type)
-{
-  // input line is:         key:type=value
-  static cmsys::RegularExpression reg("^([^:]*):([^=]*)=(.*[^\r\t ]|[\r\t ]*)[\r\t ]*$");
-  // input line is:         "key":type=value
-  static cmsys::RegularExpression regQuoted("^\"([^\"]*)\":([^=]*)=(.*[^\r\t ]|[\r\t ]*)[\r\t ]*$");
-  bool flag = false;
-  if(regQuoted.find(entry))
-    {
-    var = regQuoted.match(1);
-    type = cmCacheManager::StringToType(regQuoted.match(2).c_str());
-    value = regQuoted.match(3);
-    flag = true;
-    }
-  else if (reg.find(entry))
-    {
-    var = reg.match(1);
-    type = cmCacheManager::StringToType(reg.match(2).c_str());
-    value = reg.match(3);
-    flag = true;
-    }
-
-  // if value is enclosed in single quotes ('foo') then remove them
-  // it is used to enclose trailing space or tab
-  if (flag && 
-      value.size() >= 2 &&
-      value[0] == '\'' && 
-      value[value.size() - 1] == '\'') 
-    {
-    value = value.substr(1, 
-                         value.size() - 2);
-    }
-
-  return flag;
-}
-
-void cmCacheManager::CleanCMakeFiles(const char* path)
-{
-  std::string glob = path;
-  glob += "/CMakeFiles/*.cmake";
-  cmGlob globIt;
-  globIt.FindFiles(glob);
-  std::vector<std::string> files = globIt.GetFiles();
-  for(std::vector<std::string>::iterator i = files.begin();
-      i != files.end(); ++i)
-    {
-    cmSystemTools::RemoveFile(i->c_str());
-    }
-}
-
-bool cmCacheManager::LoadCache(const char* path,
-                               bool internal,
-                               std::set<cmStdString>& excludes,
-                               std::set<cmStdString>& includes)
-{
-  std::string cacheFile = path;
-  cacheFile += "/CMakeCache.txt";
-  // clear the old cache, if we are reading in internal values
-  if ( internal )
-    {
-    m_Cache.clear();
-    }
-  if(!cmSystemTools::FileExists(cacheFile.c_str()))
-    {
-    this->CleanCMakeFiles(path);
-    return false;
-    }
-  
-  std::ifstream fin(cacheFile.c_str());
-  if(!fin)
-    {
-    return false;
-    }
-  const char *realbuffer;
-  std::string buffer;
-  std::string entryKey;
-  while(fin)
-    {
-    // Format is key:type=value
-    CacheEntry e;
-    cmSystemTools::GetLineFromStream(fin, buffer);
-    realbuffer = buffer.c_str();
-    while(*realbuffer != '0' &&
-          (*realbuffer == ' ' ||
-           *realbuffer == '\t' ||
-           *realbuffer == '\r' ||
-           *realbuffer == '\n'))
-      {
-      realbuffer++;
-      }
-    // skip blank lines and comment lines
-    if(realbuffer[0] == '#' || realbuffer[0] == 0)
-      {
-      continue;
-      }
-    while(realbuffer[0] == '/' && realbuffer[1] == '/')
-      {
-      e.m_Properties["HELPSTRING"] += &realbuffer[2];
-      cmSystemTools::GetLineFromStream(fin, buffer);
-      realbuffer = buffer.c_str();
-      if(!fin)
-        {
-        continue;
-        }
-      }
-    if(cmCacheManager::ParseEntry(realbuffer, entryKey, e.m_Value, e.m_Type))
-      {
-      if ( excludes.find(entryKey) == excludes.end() )
-        {
-        // Load internal values if internal is set.
-        // If the entry is not internal to the cache being loaded
-        // or if it is in the list of internal entries to be
-        // imported, load it.
-        if ( internal || (e.m_Type != INTERNAL) || 
-             (includes.find(entryKey) != includes.end()) )
-          {
-          // If we are loading the cache from another project,
-          // make all loaded entries internal so that it is
-          // not visible in the gui
-          if (!internal)
-            {
-            e.m_Type = INTERNAL;
-            e.m_Properties["HELPSTRING"] = "DO NOT EDIT, ";
-            e.m_Properties["HELPSTRING"] += entryKey;
-            e.m_Properties["HELPSTRING"] += " loaded from external file.  "
-              "To change this value edit this file: ";
-            e.m_Properties["HELPSTRING"] += path;
-            e.m_Properties["HELPSTRING"] += "/CMakeCache.txt"   ;
-            }
-          if ( e.m_Type == cmCacheManager::INTERNAL &&
-               (entryKey.size() > strlen("-ADVANCED")) &&
-               strcmp(entryKey.c_str() + (entryKey.size() - strlen("-ADVANCED")),
-                      "-ADVANCED") == 0 )
-            {
-            std::string value = e.m_Value;
-            std::string akey = entryKey.substr(0, (entryKey.size() - strlen("-ADVANCED")));
-            cmCacheManager::CacheIterator it = this->GetCacheIterator(akey.c_str());
-            if ( it.IsAtEnd() )
-              {
-              e.m_Type = cmCacheManager::UNINITIALIZED;
-              m_Cache[akey] = e;
-              }
-            if (!it.Find(akey.c_str()))
-              {
-              cmSystemTools::Error("Internal CMake error when reading cache");
-              }
-            it.SetProperty("ADVANCED", value.c_str());
-            }
-          else if ( e.m_Type == cmCacheManager::INTERNAL &&
-                    (entryKey.size() > strlen("-MODIFIED")) &&
-                    strcmp(entryKey.c_str() + (entryKey.size() - strlen("-MODIFIED")),
-                           "-MODIFIED") == 0 )
-            {
-            std::string value = e.m_Value;
-            std::string akey = entryKey.substr(0, (entryKey.size() - strlen("-MODIFIED")));
-            cmCacheManager::CacheIterator it = this->GetCacheIterator(akey.c_str());
-            if ( it.IsAtEnd() )
-              {
-              e.m_Type = cmCacheManager::UNINITIALIZED;
-              m_Cache[akey] = e;
-              }
-            if (!it.Find(akey.c_str()))
-              {
-              cmSystemTools::Error("Internal CMake error when reading cache");
-              }
-            it.SetProperty("MODIFIED", value.c_str());
-            }
-          else
-            {
-            e.m_Initialized = true;
-            m_Cache[entryKey] = e;
-            }
-          }
-        }
-      }
     else
-      {
-      cmSystemTools::Error("Parse error in cache file ", cacheFile.c_str(),
-                           ". Offending entry: ", realbuffer);
-      }
+#endif /* HAVE_GETHOSTBYNAME_R_5 */
+#ifdef HAVE_GETHOSTBYNAME_R_6
+    /* Linux */
+
+    res=gethostbyname_r(hostname,
+                        (struct hostent *)buf,
+                        (char *)buf + sizeof(struct hostent),
+                        CURL_HOSTENT_SIZE - sizeof(struct hostent),
+                        &h, /* DIFFERENCE */
+                        &h_errnop);
+    /* Redhat 8, using glibc 2.2.93 changed the behavior. Now all of a
+     * sudden this function returns EAGAIN if the given buffer size is too
+     * small. Previous versions are known to return ERANGE for the same
+     * problem.
+     *
+     * This wouldn't be such a big problem if older versions wouldn't
+     * sometimes return EAGAIN on a common failure case. Alas, we can't
+     * assume that EAGAIN *or* ERANGE means ERANGE for any given version of
+     * glibc.
+     *
+     * For now, we do that and thus we may call the function repeatedly and
+     * fail for older glibc versions that return EAGAIN, until we run out of
+     * buffer size (step_size grows beyond CURL_HOSTENT_SIZE).
+     *
+     * If anyone has a better fix, please tell us!
+     *
+     * -------------------------------------------------------------------
+     *
+     * On October 23rd 2003, Dan C dug up more details on the mysteries of
+     * gethostbyname_r() in glibc:
+     *
+     * In glibc 2.2.5 the interface is different (this has also been
+     * discovered in glibc 2.1.1-6 as shipped by Redhat 6). What I can't
+     * explain, is that tests performed on glibc 2.2.4-34 and 2.2.4-32
+     * (shipped/upgraded by Redhat 7.2) don't show this behavior!
+     *
+     * In this "buggy" version, the return code is -1 on error and 'errno'
+     * is set to the ERANGE or EAGAIN code. Note that 'errno' is not a
+     * thread-safe variable.
+     */
+
+    if(!h) /* failure */
+#endif/* HAVE_GETHOSTBYNAME_R_6 */
+#ifdef HAVE_GETHOSTBYNAME_R_3
+    /* AIX, Digital Unix/Tru64, HPUX 10, more? */
+
+    /* For AIX 4.3 or later, we don't use gethostbyname_r() at all, because of
+     * the plain fact that it does not return unique full buffers on each
+     * call, but instead several of the pointers in the hostent structs will
+     * point to the same actual data! This have the unfortunate down-side that
+     * our caching system breaks down horribly. Luckily for us though, AIX 4.3
+     * and more recent versions have a "completely thread-safe"[*] libc where
+     * all the data is stored in thread-specific memory areas making calls to
+     * the plain old gethostbyname() work fine even for multi-threaded
+     * programs.
+     *
+     * This AIX 4.3 or later detection is all made in the configure script.
+     *
+     * Troels Walsted Hansen helped us work this out on March 3rd, 2003.
+     *
+     * [*] = much later we've found out that it isn't at all "completely
+     * thread-safe", but at least the gethostbyname() function is.
+     */
+
+    if(CURL_HOSTENT_SIZE >=
+       (sizeof(struct hostent)+sizeof(struct hostent_data))) {
+
+      /* August 22nd, 2000: Albert Chin-A-Young brought an updated version
+       * that should work! September 20: Richard Prescott worked on the buffer
+       * size dilemma.
+       */
+
+      res = gethostbyname_r(hostname,
+                            (struct hostent *)buf,
+                            (struct hostent_data *)((char *)buf +
+                                                    sizeof(struct hostent)));
+      h_errnop= errno; /* we don't deal with this, but set it anyway */
     }
-  // if CMAKE version not found in the list file
-  // add them as version 0.0
-  if(!this->GetCacheValue("CMAKE_CACHE_MINOR_VERSION"))
-    {
-    this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", "0",
-                        "Minor version of cmake used to create the "
-                        "current loaded cache", cmCacheManager::INTERNAL);
-    this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", "0",
-                        "Major version of cmake used to create the "
-                        "current loaded cache", cmCacheManager::INTERNAL);
-    
-    }
-  // check to make sure the cache directory has not
-  // been moved
-  if ( internal && this->GetCacheValue("CMAKE_CACHEFILE_DIR") )
-    {
-    std::string currentcwd = path;
-    std::string oldcwd = this->GetCacheValue("CMAKE_CACHEFILE_DIR");
-    cmSystemTools::ConvertToUnixSlashes(currentcwd);
-    currentcwd += "/CMakeCache.txt";
-    oldcwd += "/CMakeCache.txt";
-    if(!cmSystemTools::SameFile(oldcwd.c_str(), currentcwd.c_str()))
-      { 
-      std::string message = 
-        std::string("The current CMakeCache.txt directory ") +
-        currentcwd + std::string(" is different than the directory ") + 
-        std::string(this->GetCacheValue("CMAKE_CACHEFILE_DIR")) +
-        std::string(" where CMackeCache.txt was created. This may result "
-                    "in binaries being created in the wrong place. If you "
-                    "are not sure, reedit the CMakeCache.txt");
-      cmSystemTools::Error(message.c_str());   
-      }
-    }
-  return true;
-}
-
-bool cmCacheManager::SaveCache(cmMakefile* mf) 
-{
-  return this->SaveCache(mf->GetHomeOutputDirectory());
-}
-
-
-bool cmCacheManager::SaveCache(const char* path) 
-{
-  std::string cacheFile = path;
-  cacheFile += "/CMakeCache.txt";
-  std::string tempFile = cacheFile;
-  tempFile += ".tmp";
-  std::ofstream fout(tempFile.c_str());
-  if(!fout)
-    {  
-    cmSystemTools::Error("Unable to open cache file for save. ", 
-                         cacheFile.c_str());
-    cmSystemTools::ReportLastSystemError("");
-    return false;
-    }
-  // before writing the cache, update the version numbers
-  // to the 
-  char temp[1024];
-  sprintf(temp, "%d", cmMakefile::GetMinorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MINOR_VERSION", temp,
-                      "Minor version of cmake used to create the "
-                      "current loaded cache", cmCacheManager::INTERNAL);
-  sprintf(temp, "%d", cmMakefile::GetMajorVersion());
-  this->AddCacheEntry("CMAKE_CACHE_MAJOR_VERSION", temp,
-                      "Major version of cmake used to create the "
-                      "current loaded cache", cmCacheManager::INTERNAL);
-
-  this->AddCacheEntry("CMAKE_CACHE_RELEASE_VERSION", cmMakefile::GetReleaseVersion(),
-                      "Major version of cmake used to create the "
-                      "current loaded cache", cmCacheManager::INTERNAL);
-
-  // Let us store the current working directory so that if somebody
-  // Copies it, he will not be surprised
-  std::string currentcwd = path;
-  if ( currentcwd[0] >= 'A' && currentcwd[0] <= 'Z' &&
-       currentcwd[1] == ':' )
-    {
-    currentcwd[0] = currentcwd[0] - 'A' + 'a';
-    }
-  cmSystemTools::ConvertToUnixSlashes(currentcwd);
-  this->AddCacheEntry("CMAKE_CACHEFILE_DIR", currentcwd.c_str(),
-                      "This is the directory where this CMakeCahe.txt"
-                      " was created", cmCacheManager::INTERNAL);
-
-  fout << "# This is the CMakeCache file.\n"
-       << "# For build in directory: " << currentcwd << "\n";
-  cmCacheManager::CacheEntry* cmakeCacheEntry = this->GetCacheEntry("CMAKE_COMMAND");
-  if ( cmakeCacheEntry )
-    {
-    fout << "# It was generated by CMake: " << cmakeCacheEntry->m_Value << std::endl;
-    }
-
-  fout << "# You can edit this file to change values found and used by cmake.\n"
-       << "# If you do not want to change any of the values, simply exit the editor.\n"
-       << "# If you do want to change a value, simply edit, save, and exit the editor.\n"
-       << "# The syntax for the file is as follows:\n"
-       << "# KEY:TYPE=VALUE\n"
-       << "# KEY is the name of a variable in the cache.\n"
-       << "# TYPE is a hint to GUI's for the type of VALUE, DO NOT EDIT TYPE!.\n"
-       << "# VALUE is the current value for the KEY.\n\n";
-
-  fout << "########################\n";
-  fout << "# EXTERNAL cache entries\n";
-  fout << "########################\n";
-  fout << "\n";
-
-  for( std::map<cmStdString, CacheEntry>::const_iterator i = m_Cache.begin();
-       i != m_Cache.end(); ++i)
-    {
-    const CacheEntry& ce = (*i).second; 
-    CacheEntryType t = ce.m_Type;
-    if(t == cmCacheManager::UNINITIALIZED || !ce.m_Initialized)
-      {
-      /*
-        // This should be added in, but is not for now.
-      cmSystemTools::Error("Cache entry \"", (*i).first.c_str(), 
-                           "\" is uninitialized");
-      */
-      }
-    else if(t != INTERNAL)
-      {
-      // Format is key:type=value
-      std::map<cmStdString,cmStdString>::const_iterator it = 
-        ce.m_Properties.find("HELPSTRING");
-      if ( it == ce.m_Properties.end() )
-        {
-        cmCacheManager::OutputHelpString(fout, "Missing description");
-        }
-      else
-        {
-        cmCacheManager::OutputHelpString(fout, it->second);
-        }
-      std::string key;
-      // support : in key name by double quoting 
-      if((*i).first.find(':') != std::string::npos ||
-        (*i).first.find("//") == 0)
-        {
-        key = "\"";
-        key += i->first;
-        key += "\"";
-        }
-      else
-        {
-        key = i->first;
-        }
-      fout << key.c_str() << ":"
-           << cmCacheManagerTypes[t] << "=";
-      // if value has trailing space or tab, enclose it in single quotes
-      if (ce.m_Value.size() &&
-          (ce.m_Value[ce.m_Value.size() - 1] == ' ' || 
-           ce.m_Value[ce.m_Value.size() - 1] == '\t'))
-        {
-        fout << '\'' << ce.m_Value << '\'';
-        }
-      else
-        {
-        fout << ce.m_Value;
-        }
-      fout << "\n\n";
-      }
-    }
-
-  fout << "\n";
-  fout << "########################\n";
-  fout << "# INTERNAL cache entries\n";
-  fout << "########################\n";
-  fout << "\n";
-
-  for( cmCacheManager::CacheIterator i = this->NewIterator();
-       !i.IsAtEnd(); i.Next())
-    {
-    if ( !i.Initialized() )
-      {
-      continue;
-      }
-
-    CacheEntryType t = i.GetType();
-    bool advanced = i.PropertyExists("ADVANCED");
-    if ( advanced )
-      {
-      // Format is key:type=value
-      std::string key;
-      std::string rkey = i.GetName();
-      std::string helpstring;
-      // If this is advanced variable, we have to do some magic for
-      // backward compatibility
-      helpstring = "Advanced flag for variable: ";
-      helpstring += i.GetName();
-      rkey += "-ADVANCED";
-      cmCacheManager::OutputHelpString(fout, helpstring.c_str());
-      // support : in key name by double quoting 
-      if(rkey.find(':') != std::string::npos ||
-         rkey.find("//") == 0)
-        {
-        key = "\"";
-        key += rkey;
-        key += "\"";
-        }
-      else
-        {
-        key = rkey;
-        }
-      fout << key.c_str() << ":INTERNAL="
-           << (i.GetPropertyAsBool("ADVANCED") ? "1" : "0") << "\n";
-      }
-    bool modified = i.PropertyExists("MODIFIED");
-    if ( modified )
-      {
-      // Format is key:type=value
-      std::string key;
-      std::string rkey = i.GetName();
-      std::string helpstring;
-      // If this is advanced variable, we have to do some magic for
-      // backward compatibility
-      helpstring = "Modified flag for variable: ";
-      helpstring += i.GetName();
-      rkey += "-MODIFIED";
-      cmCacheManager::OutputHelpString(fout, helpstring.c_str());
-      // support : in key name by double quoting 
-      if(rkey.find(':') != std::string::npos ||
-         rkey.find("//") == 0)
-        {
-        key = "\"";
-        key += rkey;
-        key += "\"";
-        }
-      else
-        {
-        key = rkey;
-        }
-      fout << key.c_str() << ":INTERNAL="
-           << (i.GetPropertyAsBool("MODIFIED") ? "1" : "0") << "\n";
-      }
-    if(t == cmCacheManager::INTERNAL)
-      {
-      // Format is key:type=value
-      std::string key;
-      std::string rkey = i.GetName();
-      std::string helpstring;
-      const char* hs = i.GetProperty("HELPSTRING");
-      if ( hs )
-        {
-        helpstring = i.GetProperty("HELPSTRING");
-        }
-      else
-        {
-        helpstring = "";
-        }
-      cmCacheManager::OutputHelpString(fout, helpstring.c_str());
-      // support : in key name by double quoting 
-      if(rkey.find(':') != std::string::npos ||
-         rkey.find("//") == 0)
-        {
-        key = "\"";
-        key += rkey;
-        key += "\"";
-        }
-      else
-        {
-        key = rkey;
-        }
-      fout << key.c_str() << ":"
-           << cmCacheManagerTypes[t] << "=";
-      // if value has trailing space or tab, enclose it in single quotes
-      std::string value = i.GetValue();
-      if (value.size() &&
-          (value[value.size() - 1] == ' ' || 
-           value[value.size() - 1] == '\t'))
-        {
-        fout << '\'' << value << '\'';
-          }
-      else
-        {
-        fout << value;
-        }
-      fout << "\n";      
-      }
-    }
-  fout << "\n";
-  fout.close();
-  cmSystemTools::CopyFileIfDifferent(tempFile.c_str(),
-                                     cacheFile.c_str());
-  cmSystemTools::RemoveFile(tempFile.c_str());
-  std::string checkCacheFile = path;
-  checkCacheFile += "/CMakeFiles";
-  cmSystemTools::MakeDirectory(checkCacheFile.c_str());
-  checkCacheFile += "/cmake.check_cache";
-  std::ofstream checkCache(checkCacheFile.c_str());
-  if(!checkCache)
-    {
-    cmSystemTools::Error("Unable to open check cache file for write. ", 
-                         checkCacheFile.c_str());
-    return false;
-    }
-  checkCache << "# This file is generated by cmake for dependency checking of the CMakeCache.txt file\n";
-  return true;
-}
-
-bool cmCacheManager::DeleteCache(const char* path) 
-{
-  std::string cacheFile = path;
-  cmSystemTools::ConvertToUnixSlashes(cacheFile);
-  std::string cmakeFiles = cacheFile;
-  cacheFile += "/CMakeCache.txt";
-  cmSystemTools::RemoveFile(cacheFile.c_str());
-  // now remove the files in the CMakeFiles directory
-  // this cleans up language cache files
-  cmsys::Directory dir;
-  cmakeFiles += "/CMakeFiles";
-  dir.Load(cmakeFiles.c_str());
-  for (unsigned long fileNum = 0; fileNum <  dir.GetNumberOfFiles(); ++fileNum)
-    {
-    if(!cmSystemTools::
-       FileIsDirectory(dir.GetFile(fileNum)))
-      {
-      std::string fullPath = cmakeFiles;
-      fullPath += "/";
-      fullPath += dir.GetFile(fileNum);
-      cmSystemTools::RemoveFile(fullPath.c_str());
-      }
-    }
-  return true;
-}
-
-void cmCacheManager::OutputHelpString(std::ofstream& fout, 
-                                      const std::string& helpString)
-{
-  std::string::size_type end = helpString.size();
-  if(end == 0)
-    {
-    return;
-    }
-  std::string oneLine;
-  std::string::size_type pos = 0;
-  std::string::size_type nextBreak = 60;
-  bool done = false;
-
-  while(!done)
-    {
-    if(nextBreak >= end)
-      {
-      nextBreak = end;
-      done = true;
-      }
     else
+      res = -1; /* failure, too smallish buffer size */
+
+    if(!res) { /* success */
+
+      h = buf; /* result expected in h */
+
+      /* This is the worst kind of the different gethostbyname_r() interfaces.
+       * Since we don't know how big buffer this particular lookup required,
+       * we can't realloc down the huge alloc without doing closer analysis of
+       * the returned data. Thus, we always use CURL_HOSTENT_SIZE for every
+       * name lookup. Fixing this would require an extra malloc() and then
+       * calling Curl_addrinfo_copy() that subsequent realloc()s down the new
+       * memory area to the actually used amount.
+       */
+    }
+    else
+#endif /* HAVE_GETHOSTBYNAME_R_3 */
       {
-      while(nextBreak < end && helpString[nextBreak] != ' ')
-        {
-        nextBreak++;
-        }
-      }
-    oneLine = helpString.substr(pos, nextBreak - pos);
-    fout << "//" << oneLine.c_str() << "\n";
-    pos = nextBreak;
-    nextBreak += 60;
+      infof(data, "gethostbyname_r(2) failed for %s\n", hostname);
+      h = NULL; /* set return code to NULL */
+      free(buf);
     }
+#else /* HAVE_GETHOSTBYNAME_R */
+    /*
+     * Here is code for platforms that don't have gethostbyname_r() or for
+     * which the gethostbyname() is the preferred() function.
+     */
+  else {
+    h = gethostbyname(hostname);
+    if (!h)
+      infof(data, "gethostbyname(2) failed for %s\n", hostname);
+#endif /*HAVE_GETHOSTBYNAME_R */
+  }
+
+  if(h) {
+    ai = Curl_he2ai(h, port);
+
+    if (buf) /* used a *_r() function */
+      free(buf);
+  }
+
+  return ai;
 }
 
-void cmCacheManager::RemoveCacheEntry(const char* key)
+#endif /* CURLRES_SYNCH */
+
+/*
+ * Curl_he2ai() translates from a hostent struct to a Curl_addrinfo struct.
+ * The Curl_addrinfo is meant to work like the addrinfo struct does for IPv6
+ * stacks, but for all hosts and environments.
+
+struct Curl_addrinfo {
+  int     ai_flags;
+  int     ai_family;
+  int     ai_socktype;
+  int     ai_protocol;
+  size_t  ai_addrlen;
+  struct sockaddr *ai_addr;
+  char   *ai_canonname;
+  struct addrinfo *ai_next;
+};
+
+struct hostent {
+  char    *h_name;        * official name of host *
+  char    **h_aliases;    * alias list *
+  int     h_addrtype;     * host address type *
+  int     h_length;       * length of address *
+  char    **h_addr_list;  * list of addresses *
+}
+#define h_addr  h_addr_list[0]  * for backward compatibility *
+
+*/
+
+Curl_addrinfo *Curl_he2ai(struct hostent *he, int port)
 {
-  CacheEntryMap::iterator i = m_Cache.find(key);
-  if(i != m_Cache.end())
-    {
-    m_Cache.erase(i);
-    }
-  else
-    {
-    std::cerr << "Failed to remove entry:" << key << std::endl;
-    }
-}
+  Curl_addrinfo *ai;
+  Curl_addrinfo *prevai = NULL;
+  Curl_addrinfo *firstai = NULL;
+  int i;
 
+  union {
+    struct in_addr *addr;
+    char* list;
+  } curr;
+  union {
+    struct sockaddr_in* addr_in;
+    struct sockaddr* addr;
+  } address;
 
-cmCacheManager::CacheEntry *cmCacheManager::GetCacheEntry(const char* key)
-{
-  CacheEntryMap::iterator i = m_Cache.find(key);
-  if(i != m_Cache.end())
-    {
-    return &i->second;
-    }
-  return 0;
-}
+  if(!he)
+    /* no input == no output! */
+    return NULL;
 
-cmCacheManager::CacheIterator cmCacheManager::GetCacheIterator(const char *key)
-{
-  return CacheIterator(*this, key);
-}
-
-const char* cmCacheManager::GetCacheValue(const char* key) const
-{
-  CacheEntryMap::const_iterator i = m_Cache.find(key);
-  if(i != m_Cache.end() &&
-    i->second.m_Initialized)
-    {
-    return i->second.m_Value.c_str();
-    }
-  return 0;
-}
-
-
-void cmCacheManager::PrintCache(std::ostream& out) const
-{
-  out << "=================================================" << std::endl;
-  out << "CMakeCache Contents:" << std::endl;
-  for(std::map<cmStdString, CacheEntry>::const_iterator i = m_Cache.begin();
-      i != m_Cache.end(); ++i)
-    {
-    if((*i).second.m_Type != INTERNAL)
-      {
-      out << (*i).first.c_str() << " = " << (*i).second.m_Value.c_str() << std::endl;
-      }
-    }
-  out << "\n\n";
-  out << "To change values in the CMakeCache, \nedit CMakeCache.txt in your output directory.\n";
-  out << "=================================================" << std::endl;
-}
-
-
-void cmCacheManager::AddCacheEntry(const char* key, 
-                                   const char* value, 
-                                   const char* helpString,
-                                   CacheEntryType type)
-{
-  CacheEntry& e = m_Cache[key];
-  if ( value )
-    {
-    e.m_Value = value;
-    e.m_Initialized = true;
-    }
-  else 
-    {
-    e.m_Value = "";
-    }
-  e.m_Type = type;
-  // make sure we only use unix style paths
-  if(type == FILEPATH || type == PATH)
-    {
-    cmSystemTools::ConvertToUnixSlashes(e.m_Value);
-    }
-  if ( helpString )
-    {
-    e.m_Properties["HELPSTRING"] = helpString;
-    }
-  else 
-    {
-    e.m_Properties["HELPSTRING"] = "(This variable does not exists and should not be used)";
-    }
-  m_Cache[key] = e;
-}
-
-void cmCacheManager::AddCacheEntry(const char* key, bool v, 
-                                   const char* helpString)
-{
-  if(v)
-    {
-    this->AddCacheEntry(key, "ON", helpString, cmCacheManager::BOOL);
-    }
-  else
-    {
-    this->AddCacheEntry(key, "OFF", helpString, cmCacheManager::BOOL);
-    }
-}
-
-bool cmCacheManager::CacheIterator::IsAtEnd() const
-{
-  return m_Position == m_Container.m_Cache.end();
-}
-
-void cmCacheManager::CacheIterator::Begin() 
-{
-  m_Position = m_Container.m_Cache.begin(); 
-}
-
-bool cmCacheManager::CacheIterator::Find(const char* key)
-{
-  m_Position = m_Container.m_Cache.find(key);
-  return !this->IsAtEnd();
-}
-
-void cmCacheManager::CacheIterator::Next() 
-{
-  if (!this->IsAtEnd())
-    {
-    ++m_Position; 
-    }
-}
-
-void cmCacheManager::CacheIterator::SetValue(const char* value)
-{
-  if (this->IsAtEnd())
-    {
-    return;
-    }
-  CacheEntry* entry = &this->GetEntry();
-  if ( value )
-    {
-    entry->m_Value = value;
-    entry->m_Initialized = true;
-    }
-  else
-    {
-    entry->m_Value = "";
-    }
-}
-
-const char* cmCacheManager::CacheIterator::GetProperty(const char* property) const
-{
-  // make sure it is not at the end
-  if (this->IsAtEnd())
-    {
-    return 0;
-    }
-
-  if ( !strcmp(property, "TYPE") || !strcmp(property, "VALUE") )
-    {
-    cmSystemTools::Error("Property \"", property, 
-                         "\" cannot be accessed through the GetProperty()");
-    return 0;
-    }
-  const CacheEntry* ent = &this->GetEntry();
-  std::map<cmStdString,cmStdString>::const_iterator it = 
-    ent->m_Properties.find(property);
-  if ( it == ent->m_Properties.end() )
-    {
-    return 0;
-    }
-  return it->second.c_str();
-}
-
-void cmCacheManager::CacheIterator::SetProperty(const char* p, const char* v) 
-{
-  // make sure it is not at the end
-  if (this->IsAtEnd())
-    {
-    return;
-    }
-
-  if ( !strcmp(p, "TYPE") || !strcmp(p, "VALUE") )
-    {
-    cmSystemTools::Error("Property \"", p, 
-                         "\" cannot be accessed through the SetProperty()");
-    return;
-    }
-  CacheEntry* ent = &this->GetEntry();
-  ent->m_Properties[p] = v;
-}
-
-bool cmCacheManager::CacheIterator::GetValueAsBool() const 
-{ 
-  return cmSystemTools::IsOn(this->GetEntry().m_Value.c_str()); 
-}
-
-bool cmCacheManager::CacheIterator::GetPropertyAsBool(const char* property) const
-{
-  // make sure it is not at the end
-  if (this->IsAtEnd())
-    {
-    return false;
-    }
-  
-  if ( !strcmp(property, "TYPE") || !strcmp(property, "VALUE") )
-    {
-    cmSystemTools::Error("Property \"", property, 
-                         "\" cannot be accessed through the GetPropertyAsBool()");
-    return false;
-    }
-  const CacheEntry* ent = &this->GetEntry();
-  std::map<cmStdString,cmStdString>::const_iterator it = 
-    ent->m_Properties.find(property);
-  if ( it == ent->m_Properties.end() )
-    {
-    return false;
-    }
-  return cmSystemTools::IsOn(it->second.c_str());
-}
-
-
-void cmCacheManager::CacheIterator::SetProperty(const char* p, bool v) 
-{
-  // make sure it is not at the end
-  if (this->IsAtEnd())
-    {
-    return;
-    }
-
-  if ( !strcmp(p, "TYPE") || !strcmp(p, "VALUE") )
-    {
-    cmSystemTools::Error("Property \"", p, 
-                         "\" cannot be accessed through the SetProperty()");
-    return;
-    }
-  CacheEntry* ent = &this->GetEntry();
-  ent->m_Properties[p] = v ? "ON" : "OFF";
-}
-
-bool cmCacheManager::CacheIterator::PropertyExists(const char* property) const
-{
-  // make sure it is not at the end
-  if (this->IsAtEnd())
-    {
-    return false;
-    }
-
-  if ( !strcmp(property, "TYPE") || !strcmp(property, "VALUE") )
-    {
-    cmSystemTools::Error("Property \"", property, 
-                         "\" cannot be accessed through the PropertyExists()");
-    return false;
-    }
-  const CacheEntry* ent = &this->GetEntry();
-  std::map<cmStdString,cmStdString>::const_iterator it = 
-    ent->m_Properties.find(property);
-  if ( it == ent->m_Properties.end() )
-    {
-    return false;
-    }
-  return true;
-}
+  for(i=0; (curr.list = he->h_addr_list[i]); i++) {

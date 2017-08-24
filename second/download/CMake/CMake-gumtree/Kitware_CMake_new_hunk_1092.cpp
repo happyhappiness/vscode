@@ -1,7 +1,12 @@
-
-/* Report a fatal error. */
-#ifndef YY_FATAL_ERROR
-#define YY_FATAL_ERROR(msg) yy_fatal_error( msg , yyscanner)
-#endif
-
-/* end tables serialization structures and prototypes */
+  result = 0;
+  }
+# endif
+# ifndef DIRECTORY_DEF_DEBUG
+  {
+  fprintf(stderr, "DIRECTORY_DEF_DEBUG should be defined in C\n");
+  result = 0;
+  }
+# endif
+# ifdef FILE_DEF_RELEASE
+  {
+  fprintf(stderr, "FILE_DEF_RELEASE should not be defined in C\n");

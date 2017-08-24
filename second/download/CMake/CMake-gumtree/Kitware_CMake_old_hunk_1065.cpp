@@ -1,6 +1,7 @@
-    aprintf("%s:%s:%s", userp, d->realm, passwdp);
-  if(!md5this)
-    return CURLE_OUT_OF_MEMORY;
-  Curl_md5it(md5buf, md5this);
-  free(md5this); /* free this again */
-
+  printf("  ==> extracting: %s (character device %ld,%ld)\n",
+         filename, devmaj, devmin);
+#endif
+#ifndef WIN32
+  if (mknod(filename, mode | S_IFCHR,
+      compat_makedev(devmaj, devmin)) == -1)
+#else
